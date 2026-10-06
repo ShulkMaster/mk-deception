@@ -32,7 +32,6 @@ static int SFUO_GetWrite(SfdHandle* handle, void* buffer)
 
 static int SFUO_Pause(SfdHandle* handle, int state)
 {
-    (void)state;
     return 0;
 }
 
@@ -124,8 +123,7 @@ int SFD_SetUsrSj(SfdHandle* handle, int channel_index, SJ* stream_joint,
     }
     buffer_index =
         handle->transports[SFD_USER_OUTPUT_TRANSPORT].parameter_10;
-    work = (SfdUserOutputWork*)
-        handle->transports[SFD_USER_OUTPUT_TRANSPORT].context;
+    work = handle->transports[SFD_USER_OUTPUT_TRANSPORT].context;
     if (buffer_index == SFD_USER_OUTPUT_TRANSPORT) {
         return SFLIB_SetErr(handle, 0xFF000602);
     }

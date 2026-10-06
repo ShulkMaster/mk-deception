@@ -72,7 +72,7 @@ static int sfmps_ExecServerSub(SfdHandle* handle);
 
 static SfmpsWork* sfmps_GetWork(SfdHandle* handle)
 {
-    return (SfmpsWork*)handle->transports[1].context;
+    return handle->transports[1].context;
 }
 
 int SFMPS_GetConcatCnt(SfdHandle* handle)
@@ -169,7 +169,6 @@ static int SFMPS_GetWrite(SfdHandle* handle, void* buffer)
 
 static int SFMPS_Pause(SfdHandle* handle, int state)
 {
-    (void)state;
     return 0;
 }
 
@@ -198,7 +197,7 @@ static int SFMPS_Destroy(SfdHandle* handle)
 
 static void sfmps_ErrFn(MpsCallbackObject object, int error)
 {
-    SFLIB_SetErr((SfdHandle*)object, error);
+    SFLIB_SetErr(object, error);
 }
 
 static void sfmps_ClrOutSj(SfmpsWork* work)
@@ -592,7 +591,6 @@ static int sfmps_CopyVideo(SfdHandle* handle, int stream_index,
             } else if (data[2] != 1) {
                 is_boundary = 0;
             } else {
-                /* CRI narrows the signed scan byte before the final test. */
                 unsigned char code = ((const signed char*)data)[3];
 
                 if (code == 0xB3) {
@@ -1102,7 +1100,6 @@ static int sfmps_ExecServerSub(SfdHandle* handle)
     return sfmps_ExecServerLoop(handle, &input_size);
 }
 
-/* Retail keeps this dispatch wrapper out of line after the read helper folds. */
 #pragma dont_inline on
 static int SFMPS_ExecServer(SfdHandle* handle)
 {

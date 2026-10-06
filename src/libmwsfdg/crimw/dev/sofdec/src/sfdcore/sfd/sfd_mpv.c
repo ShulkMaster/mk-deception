@@ -244,7 +244,6 @@ static inline const unsigned char* sfmpv_SearchTransferDelimiter(
     delimiter = MPV_SearchDelim(transfer->chunks[0].data,
                                 transfer->chunks[0].len, delimiter_mask);
 
-    /* The search helper decodes each found code even if the caller ignores it. */
     if (delimiter != 0) {
         *code = MPV_CheckDelim(delimiter);
         return delimiter;
@@ -360,7 +359,7 @@ static inline void sfmpv_InitFrame(SfdMpvFrame* frame, void** frame_buffer)
     frame->field_4C = 0;
     frame->field_50 = 0;
     UTY_MemsetDword((unsigned int*)&frame->picture_info,
-                    (unsigned int)-1, 0x20);
+                    -1, 0x20);
 }
 
 static inline void sfmpv_InitFrameTable(SfdMpvFrameWork* work)
@@ -411,8 +410,8 @@ static inline void sfmpv_SetPlane(void** buffer, int luma_stride,
     plane->luma_stride = luma_stride;
     plane->chroma_stride = chroma_stride;
     plane->planes[2] = *buffer;
-    plane->planes[0] = (unsigned char*)plane->planes[2] + luma_size;
-    plane->planes[1] = (unsigned char*)plane->planes[0] + chroma_size;
+    plane->planes[0] = plane->planes[2] + luma_size;
+    plane->planes[1] = plane->planes[0] + chroma_size;
 }
 
 static inline void sfmpv_CalcYccPlaneSub(void* buffer, int width, int height,
@@ -438,7 +437,7 @@ static inline void sfmpv_CalcYccPlaneSub(void* buffer, int width, int height,
 static inline int sfmpv_SeekVhdr(SfdHandle* handle, int* restored)
 {
     SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
+        handle->transports[2].context;
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
     SfdMpvSeekCache* cache;
     SfdMpvRawHeader* raw_header;
@@ -477,11 +476,9 @@ static int SFMPV_Seek(SfdHandle* handle, int parameter, int value)
 {
     int restored = 0;
     SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
+        handle->transports[2].context;
     int result;
 
-    (void)parameter;
-    (void)value;
     result = sfmpv_SeekVhdr(handle, &restored);
     if (result != 0) {
         return result;
@@ -504,7 +501,7 @@ static int SFMPV_AddRead(SfdHandle* handle, void* frame_data, int value)
     int result;
 
     SFLIB_LockCs(&token);
-    work = (SfdMpvFrameWork*)handle->transports[2].context;
+    work = handle->transports[2].context;
     if (video_frame->state != 1) {
         result = SFLIB_SetErr(handle, 0xFF000F0E);
     } else if (work->active_frame != SFMPVF_SearchFrmObj(handle, frame_data)) {
@@ -522,7 +519,7 @@ static void sfmpv_SetFrmInf(SfdHandle* handle, SfdMpvFrame* frame,
                             SfdVideoFrameInfo** output)
 {
     SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
+        handle->transports[2].context;
     SfdVideoFrameState* state = SFMPVF_SearchVfrmData(handle, frame);
     MPVPictureAttributes* picture = &frame->picture_info;
 
@@ -608,7 +605,6 @@ static int SFMPV_GetWrite(SfdHandle* handle, void* output)
 
 static int SFMPV_Pause(SfdHandle* handle, int state)
 {
-    (void)state;
     return 0;
 }
 
@@ -644,7 +640,7 @@ static int SFMPV_Destroy(SfdHandle* handle)
 {
     MPVContext* decoder;
     SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
+        handle->transports[2].context;
     SfdMpvPictureUserBuffers* user;
     decoder = work->decoder;
 
@@ -675,7 +671,7 @@ static void sfmpv_ErrFn(SfdCallbackObject object, int error)
     case 0:
         return;
     default:
-        SFLIB_SetErr((SfdHandle*)object, error);
+        SFLIB_SetErr(object, error);
         break;
     }
 }
@@ -736,7 +732,7 @@ static int sfmpv_InitInf(SfdHandle* handle, SfdMpvFrameWork* work)
     sfmpv_InitFrameTable(work);
     work->field_084 = 0;
     work->field_088 = 0;
-    UTY_MemsetDword((unsigned int*)&work->picture_info, (unsigned int)-1,
+    UTY_MemsetDword((unsigned int*)&work->picture_info, -1,
                     0x20);
     work->field_10C = -1;
     work->field_110 = 0;
@@ -793,7 +789,7 @@ static int SFMPV_Create(SfdHandle* handle)
     work->decoder = decoder;
     if (SFPLY_GetResetFlg() != 0) {
         sfmpv_SetPicUsrBufSub(handle,
-                              (SfdMpvFrameWork*)handle->transports[2].context,
+                              handle->transports[2].context,
                               sfmpv_picusr_pbuf,
                               sfmpv_picusr_bufnum, sfmpv_picusr_buf1siz);
     }
@@ -820,7 +816,6 @@ static int sfmpv_GoDdelim(SfdHandle* handle, SJ* stream,
     }
     delimiter = sfmpv_SearchTransferDelimiter(&transfer, delimiter_mask,
                                                &ignored_code);
-    /* The two chunks may be separate objects, so compare their addresses. */
     if (delimiter == 0) {
         int remaining = transfer.chunks[0].len + transfer.chunks[1].len;
         consumed = (remaining -= 3) > 0 ? remaining : 0;
@@ -867,7 +862,7 @@ static int sfmpv_SetFrmPara(SfdHandle* handle,
                             SfdMpvFrame** output_frame)
 {
     SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
+        handle->transports[2].context;
     SfdMpvAuxWork* aux =
         (SfdMpvAuxWork*)((unsigned char*)work + sizeof(*work));
     if (work->pending_frame != 0) {
@@ -951,7 +946,7 @@ static inline void sfmpv_SetVofst(SfdHandle* handle)
     if (output_start->valid == 0) {
         SfdTimeCode timecode = current->timecode;
         SfdMpvFrameWork* work =
-            (SfdMpvFrameWork*)handle->transports[2].context;
+            handle->transports[2].context;
         int value;
         int scale;
 
@@ -1063,7 +1058,7 @@ static int sfmpv_DecodeFrm(SfdHandle* handle, SJ* stream)
     unsigned long long start;
     int error;
 
-    work = (SfdMpvFrameWork*)handle->transports[2].context;
+    work = handle->transports[2].context;
     picture = &work->picture_info;
     decoder = work->decoder;
     if (sfmpv_SetFrmPara(handle, picture, &buffers, &frame) != 0) {
@@ -1225,7 +1220,7 @@ static inline int sfmpv_IsEmptySkip(SfdHandle* handle, int picture_type,
 static inline int sfmpv_IsGopSkip(SfdHandle* handle, int picture_type)
 {
     SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
+        handle->transports[2].context;
     int skip = 0;
 
     switch (work->decode_state) {
@@ -1252,7 +1247,7 @@ static inline int sfmpv_IsGopSkip(SfdHandle* handle, int picture_type)
 static inline int sfmpv_IsLateSkip(SfdHandle* handle, int picture_type)
 {
     SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
+        handle->transports[2].context;
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
     SfdMpvSkipTimer* skip_timer =
         (SfdMpvSkipTimer*)&handle->timer_state;
@@ -1295,7 +1290,7 @@ static inline void sfmpv_UpdatePicStat(SfdHandle* handle,
                                        MPVPictureInfo* picture, int skip)
 {
     SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
+        handle->transports[2].context;
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
     MPVContext* decoder = work->decoder;
     int decode_state = work->decode_state;
@@ -1335,7 +1330,7 @@ static inline void sfmpv_UpdatePicStat(SfdHandle* handle,
 static int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
 {
     SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
+        handle->transports[2].context;
     int picture_type;
     int skip;
 
@@ -1372,7 +1367,7 @@ static int sfmpv_ChkBufSiz(SfdHandle* handle,
                            SfdMpvPlaybackSettings* settings)
 {
     SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
+        handle->transports[2].context;
     unsigned char* frame_buffer;
     int frame_size;
     int configured_width = work->setup_values.width;
@@ -1457,7 +1452,7 @@ static void sfmpv_Pts2Tc(long long pts, int frame_rate_code, int drop_frame,
 {
     const int nominal_rate = sfmpv_fps_round[frame_rate_code];
     const int rate = SFTIM_prate[frame_rate_code];
-    int doubled_frames = (int)UTY_MulDivRound64(pts, rate * 2, 90000000);
+    int doubled_frames = UTY_MulDivRound64(pts, rate * 2, 90000000);
     int frames = (doubled_frames >> 1) - frame_offset;
     int hours;
     int minutes;
@@ -1595,7 +1590,7 @@ static void sfmpv_CalcRepeatField(SfdHandle* handle,
 {
     SfdMpvFrame* reference_frame;
     SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
+        handle->transports[2].context;
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
     SfdMpvRepeatTimer* repeat_timer =
         (SfdMpvRepeatTimer*)&handle->timer_state;
@@ -2066,7 +2061,7 @@ static inline int sfmpv_ReadConcatSamples(SfdHandle* handle,
 static int sfmpv_Concat(SfdHandle* handle, SJ* stream)
 {
     SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
+        handle->transports[2].context;
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
     int concat_time;
     SfdMpvRepeatTimer* repeat_timer =
@@ -2108,7 +2103,7 @@ static int sfmpv_Concat(SfdHandle* handle, SJ* stream)
             timecode.minutes = minutes;
             timecode.seconds = seconds;
             timecode.frames = frame;
-            timecode.subframe = (short)fields;
+            timecode.subframe = fields;
             timecode.frame_offset = 0;
             SFTIM_Tc2Time(&timecode, &value, &scale);
             concat_time = value - initial->value;
@@ -2161,7 +2156,7 @@ static inline int sfmpv_IsTerm(SfdHandle* handle, int size, int code)
 static inline int sfmpv_SkipPic(SfdHandle* handle, SJ* stream)
 {
     SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
+        handle->transports[2].context;
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
     SfdMpvRepeatTimer* repeat_timer =
         (SfdMpvRepeatTimer*)&handle->timer_state;
@@ -2208,7 +2203,7 @@ static int sfmpv_DecodeOneUnit(SfdHandle* handle, int active_size,
     SfdBufferTransfer frame_transfer;
 
     *processed = 0;
-    work = (SfdMpvFrameWork*)handle->transports[2].context;
+    work = handle->transports[2].context;
     buffer_index = handle->transports[2].parameter_10;
     handle->playback_runtime.field_24 = 0;
     if (work->decode_mode != 0xCC || work->frame_state[1] == 0) {
@@ -2311,7 +2306,6 @@ static int sfmpv_NeedSafeDlmRefresh(const SfdBufferTransfer* transfer,
     if (delimiter == transfer->chunks[0].data) {
         return 1;
     }
-    /* The chunks may be independent objects; compare numeric addresses. */
     if ((unsigned long)delimiter >= (unsigned long)transfer->chunks[0].data &&
         (unsigned long)delimiter <
             (unsigned long)transfer->chunks[0].data + transfer->chunks[0].len) {
@@ -2501,7 +2495,7 @@ static inline int sfmpv_IsEnoughData(SfdHandle* handle)
 {
     int buffer;
     SfdMpvFrameWork* work =
-        (SfdMpvFrameWork*)handle->transports[2].context;
+        handle->transports[2].context;
     MPVContext* decoder = work->decoder;
     int bit_rate;
     int ring_size;
@@ -2722,7 +2716,7 @@ int SFD_SetPicUsrBuf(SfdHandle* handle, void* buffer, int buffer_count,
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF000185);
     }
-    work = (SfdMpvFrameWork*)handle->transports[2].context;
+    work = handle->transports[2].context;
     return sfmpv_SetPicUsrBufSub(handle, work, buffer, buffer_count,
                                  buffer_size);
 }
@@ -2738,7 +2732,7 @@ int SFD_IsNextFrmReady(SfdHandle* handle)
 
 void SFMPV_RestoreCond(SfdHandle* handle, const int* conditions, int count)
 {
-    SfdMpvFrameWork* work = (SfdMpvFrameWork*)handle->transports[2].context;
+    SfdMpvFrameWork* work = handle->transports[2].context;
     const int* values = conditions;
     MPVContext* decoder = *(MPVContext**)work;
     int i;
@@ -2752,7 +2746,7 @@ void SFMPV_RestoreCond(SfdHandle* handle, const int* conditions, int count)
 
 int SFMPV_SaveCond(SfdHandle* handle, int* conditions, int buffer_size)
 {
-    SfdMpvFrameWork* work = (SfdMpvFrameWork*)handle->transports[2].context;
+    SfdMpvFrameWork* work = handle->transports[2].context;
     int* values = conditions;
     MPVContext* decoder = *(MPVContext**)work;
     unsigned int available;

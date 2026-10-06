@@ -82,7 +82,7 @@ static inline int sfhds_SearchStmId(SFHHandle* decoder, int first, int last,
     int stream_id;
 
     for (stream_id = first; stream_id <= last; stream_id++) {
-        if (SFH_IsExistStmId(decoder, (unsigned char)stream_id, exists) != 0 &&
+        if (SFH_IsExistStmId(decoder, stream_id, exists) != 0 &&
             *exists != 0) {
             return stream_id;
         }
@@ -265,76 +265,76 @@ static void sfhds_DoProcessHdr(SFHHandle* decoder, SfdHeaderState* header)
     stream_id = header->audio_stream;
     if (stream_id != 0) {
         header->audio.codec =
-            SFH_AnlyElemCodecAud(decoder, (unsigned char)stream_id,
+            SFH_AnlyElemCodecAud(decoder, stream_id,
                                  &audio_codec) == 0 ? -1 : audio_codec;
         header->audio.layer =
-            SFH_AnlyElemLayer(decoder, (unsigned char)stream_id,
+            SFH_AnlyElemLayer(decoder, stream_id,
                               &audio_layer) == 0 ? -1 : audio_layer;
         header->audio.channel_count =
-            SFH_AnlyElemChNum(decoder, (unsigned char)stream_id,
+            SFH_AnlyElemChNum(decoder, stream_id,
                               &audio_channel_count) == 0
                 ? -1 : audio_channel_count;
         header->audio.sample_rate =
-            SFH_AnlyElemSmpHz(decoder, (unsigned char)stream_id,
+            SFH_AnlyElemSmpHz(decoder, stream_id,
                               &audio_sample_rate) == 0
                 ? -1 : audio_sample_rate;
     }
 
     stream_id = header->video_stream;
-    if (SFH_AnlyElemCodecVid(decoder, (unsigned char)stream_id,
+    if (SFH_AnlyElemCodecVid(decoder, stream_id,
                              &video_codec) == 0) {
         video_codec_result = -1;
     } else {
         video_codec_result = video_codec;
     }
     header->video.codec = video_codec_result;
-    if (SFH_AnlyElemBitRate(decoder, (unsigned char)stream_id,
+    if (SFH_AnlyElemBitRate(decoder, stream_id,
                             &video_bit_rate) == 0) {
         video_bit_rate_result = -1;
     } else {
         video_bit_rate_result = video_bit_rate;
     }
     header->video.bit_rate = video_bit_rate_result;
-    if (SFH_AnlyElemPicSz(decoder, (unsigned char)stream_id,
+    if (SFH_AnlyElemPicSz(decoder, stream_id,
                           &header->video.width, &header->video.height) == 0) {
         header->video.width = -1;
         header->video.height = -1;
     }
-    if (SFH_AnlyElemPicRate(decoder, (unsigned char)stream_id,
+    if (SFH_AnlyElemPicRate(decoder, stream_id,
                             &video_picture_rate) == 0) {
         video_picture_rate_result = -1;
     } else {
         video_picture_rate_result = video_picture_rate;
     }
     header->video.picture_rate = video_picture_rate_result;
-    if (SFH_IsEffFtrInf(decoder, (unsigned char)stream_id,
+    if (SFH_IsEffFtrInf(decoder, stream_id,
                         &effective_features) == 0) {
         effective_features = 0;
     }
     header->video.has_effective_features = effective_features != 0;
     if (effective_features != 0) {
-        if (SFH_AnlyFtrColType(decoder, (unsigned char)stream_id,
+        if (SFH_AnlyFtrColType(decoder, stream_id,
                               &color_type) == 0) {
             video_color_type_result = -1;
         } else {
             video_color_type_result = color_type;
         }
         header->video.color_type = video_color_type_result;
-        if (SFH_AnlyFtrPicType(decoder, (unsigned char)stream_id,
+        if (SFH_AnlyFtrPicType(decoder, stream_id,
                                &picture_type) == 0) {
             video_picture_type_result = -1;
         } else {
             video_picture_type_result = picture_type;
         }
         header->video.picture_type = video_picture_type_result;
-        if (SFH_AnlyFtrFixFlg(decoder, (unsigned char)stream_id,
+        if (SFH_AnlyFtrFixFlg(decoder, stream_id,
                               &fixed_flag) == 0) {
             video_fixed_flag_result = -1;
         } else {
             video_fixed_flag_result = fixed_flag;
         }
         header->video.fixed_flag = video_fixed_flag_result;
-        if (SFH_AnlyFtrShcFixFlg(decoder, (unsigned char)stream_id,
+        if (SFH_AnlyFtrShcFixFlg(decoder, stream_id,
                                  &sequence_header_fixed_flag) == 0) {
             video_sequence_header_fixed_flag_result = -1;
         } else {
@@ -342,21 +342,21 @@ static void sfhds_DoProcessHdr(SFHHandle* decoder, SfdHeaderState* header)
         }
         header->video.sequence_header_fixed_flag =
             video_sequence_header_fixed_flag_result;
-        if (SFH_AnlyFtrExpand(decoder, (unsigned char)stream_id,
+        if (SFH_AnlyFtrExpand(decoder, stream_id,
                               &expand) == 0) {
             video_expand_result = -1;
         } else {
             video_expand_result = expand;
         }
         header->video.expand = video_expand_result;
-        if (SFH_AnlyFtrGopN(decoder, (unsigned char)stream_id,
+        if (SFH_AnlyFtrGopN(decoder, stream_id,
                            &gop_n) == 0) {
             video_gop_n_result = -1;
         } else {
             video_gop_n_result = gop_n;
         }
         header->video.gop_n = video_gop_n_result;
-        if (SFH_AnlyFtrGopM(decoder, (unsigned char)stream_id,
+        if (SFH_AnlyFtrGopM(decoder, stream_id,
                            &gop_m) == 0) {
             video_gop_m_result = -1;
         } else {

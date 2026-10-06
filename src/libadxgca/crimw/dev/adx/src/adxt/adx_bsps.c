@@ -1,6 +1,17 @@
 #include "cri/adx_basic.h"
 #include "runtime/cstring.h"
 
+struct SpsdHeaderView {
+    unsigned char pad00[7];
+    unsigned char field_0x07;
+    unsigned char field_0x08;
+    unsigned char channel_flags;
+    unsigned char pad0A[2];
+    int sample_data_bytes;
+    unsigned char pad10[0x1A];
+    unsigned short sample_rate;
+};
+
 int ADXB_CheckSpsd(const signed char* input) { return memcmp(input, "SPSD", 4) == 0; }
 
 void ADXB_ExecOneSpsd(AdxBasicDecoder* decoder)
@@ -79,28 +90,25 @@ int ADX_DecodeInfoSpsd(signed char* input, int input_length, short* data_length,
                        int* sample_rate, int* total_samples,
                        int* samples_per_block, short* codec_type)
 {
-    const unsigned char* header = (const unsigned char*)input;
+    const struct SpsdHeaderView* header = (const struct SpsdHeaderView*)input;
     unsigned char bit_size;
-    (void)input_length;
-    *data_length = header[7] * 16;
-    *channel_count = (header[9] & 3) + 1;
-    /* SPSD scalar fields use the target byte order. */
-    *sample_rate = *(unsigned short*)&input[42];
-    bit_size = header[8];
-    /* Header kinds outside 0..3 leave codec_type unchanged. */
+    *data_length = header->field_0x07 * 16;
+    *channel_count = (header->channel_flags & 3) + 1;
+    *sample_rate = header->sample_rate;
+    bit_size = header->field_0x08;
     switch (bit_size) {
     case 0:
         *bits_per_sample = 16;
         *block_length = *channel_count * 2;
         *samples_per_block = 1;
-        *total_samples = *(int*)&input[12] / 2;
+        *total_samples = header->sample_data_bytes / 2;
         *codec_type = 0;
         break;
     case 1:
         *bits_per_sample = 8;
         *block_length = *channel_count;
         *samples_per_block = 1;
-        *total_samples = *(int*)&input[12];
+        *total_samples = header->sample_data_bytes;
         *codec_type = 1;
         break;
     case 2:
@@ -108,14 +116,13 @@ int ADX_DecodeInfoSpsd(signed char* input, int input_length, short* data_length,
         *bits_per_sample = 4;
         *block_length = *channel_count;
         *samples_per_block = 2;
-        *total_samples = *(int*)&input[12] * 2;
+        *total_samples = header->sample_data_bytes * 2;
         *codec_type = 2;
         break;
     }
-    /* Normalize the common output fields after the format-specific stores. */
     *block_length = 2;
     *samples_per_block = 1;
-    *total_samples = *(int*)&input[12] / 2;
+    *total_samples = header->sample_data_bytes / 2;
     *bits_per_sample = 16;
     *encoding = -1;
     return 0;

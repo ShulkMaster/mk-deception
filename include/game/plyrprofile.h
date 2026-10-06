@@ -125,7 +125,13 @@ void reset_ppwls_timeout(void);
 void set_ppwls_input_done(void);
 void init_player_profiles(void);
 void unload_player_profiles(void);
+#ifdef __cplusplus
+extern "C"
+#endif
 void unload_p1_player_profile(void);
+#ifdef __cplusplus
+extern "C"
+#endif
 void unload_p2_player_profile(void);
 
 void memory_save_profile(int player, PlayerProfile* dest);
@@ -143,12 +149,21 @@ float p_view_profile(void);
 float p_delete_profile(void);
 void erase_player_profile(int device, int slot);
 void check_new_mu_for_in_use_profiles(int device);
+#ifdef __cplusplus
+extern "C"
+#endif
 void ppc_set_button_answer(int answer);
-void ppc_set_current_icon_selection(unsigned char icon);
+#ifdef __cplusplus
+extern "C"
+#endif
+void ppc_set_current_icon_selection(int icon);
 #ifdef __cplusplus
 extern "C"
 #endif
 int ppc_get_code_state(void);
+#ifdef __cplusplus
+extern "C"
+#endif
 void ppc_transition_pause(int paused);
 #ifdef __cplusplus
 extern "C"
@@ -183,6 +198,9 @@ void ppl_get_multi_profile_icon_p2(GVTexturePair out, int count);
 void ppv_get_current_profile_koins(char* dest, int index);
 void ppv_get_current_profile_arcade_finishes(char* dest);
 void ppv_view_profile_icon_list(GVTexturePair out);
+#ifdef __cplusplus
+extern "C"
+#endif
 void ppv_update_profile_cursor(int delta);
 void get_profile_stats(char** outs);
 void format_value_to_display(char* dest, unsigned int value);

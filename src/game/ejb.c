@@ -1338,12 +1338,6 @@ void rotate_towards_him(float max_step) {
     }
 }
 
-static inline void ejb_advance_to_bounded_frame(AnimPdata* anim, float target_frame) {
-    if (target_frame > anim->high_frame) {
-        target_frame = anim->high_frame;
-    }
-    EJB_ADVANCE_TO_FRAME(anim, target_frame);
-}
 
 static float ani_with_new_angle_y(
     AniData* animation, int transition, float frame,
@@ -1356,7 +1350,7 @@ static float ani_with_new_angle_y(
         plyr_anim_pdata, animation, transition, blend);
     ejb_sleep_ticks(1.0f);
     plyr_anim_pdata->step = step;
-    ejb_advance_to_bounded_frame(plyr_anim_pdata, frame - 1.0f);
+    ejb_anim_advance_to_frame(plyr_anim_pdata, frame - 1.0f);
 
     old_x = plyr_obj->pos.value.x;
     old_z = plyr_obj->pos.value.z;
@@ -1679,13 +1673,6 @@ void set_ani_speed_miss_hit(float miss_speed, float hit_speed) {
     }
 }
 
-static inline void advance_animation_to_clamped_frame(AnimPdata* anim, float target_frame)
-{
-    if (target_frame > anim->high_frame) {
-        target_frame = anim->high_frame;
-    }
-    EJB_ADVANCE_TO_FRAME(anim, target_frame);
-}
 
 void slow_ani_x_if_miss(
     float miss_speed, float hit_speed, float frame) {
@@ -1704,7 +1691,7 @@ void slow_ani_x_if_miss(
         speed_anim->step = hit_speed;
     }
 
-    advance_animation_to_clamped_frame(plyr_anim_pdata, frame);
+    ejb_anim_advance_to_frame(plyr_anim_pdata, frame);
     plyr_anim_pdata->step = old_speed;
 }
 
@@ -1857,13 +1844,6 @@ static inline int visual_flip_state(void) {
     return flipped;
 }
 
-static inline void ejb_anim_advance_to_clamped_frame(
-    AnimPdata* animation, float target_frame) {
-    if (target_frame > animation->high_frame) {
-        target_frame = animation->high_frame;
-    }
-    EJB_ADVANCE_TO_FRAME(animation, target_frame);
-}
 
 void newani_to_frame_x(
     AniData* animation, float frame, float step,
@@ -1897,7 +1877,7 @@ void newani_to_frame_x(
     plyr_anim_pdata->step = step;
     plyr_anim_pdata->weight_velocity = 0.0f;
     plyr_anim_pdata->weight = weight;
-    ejb_anim_advance_to_clamped_frame(plyr_anim_pdata, frame);
+    ejb_anim_advance_to_frame(plyr_anim_pdata, frame);
 }
 
 float fpick_a_float(float normal, float flipped_value) {

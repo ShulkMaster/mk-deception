@@ -347,8 +347,7 @@ SJ* SJMEM_Create(void* buffer, int buffer_size)
         memory->error_callback = SJMEM_Error;
         memory->error_object = memory;
 
-        /* Creation performs the same validated reset sequence as SJMEM_Reset. */
-        if (memory == 0) {
+            if (memory == 0) {
             SJERR_CallErr("E2004090237 : NULL pointer is specified.");
         } else if (memory->used == 0) {
             SJERR_CallErr("E2004090238 : Specified handle is invalid.");
@@ -384,7 +383,5 @@ void SJMEM_Init(void)
 
 void SJMEM_Error(void* object, int error)
 {
-    (void)object;
-    (void)error;
     SJERR_CallErr("SJMEM Error");
 }

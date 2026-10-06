@@ -182,6 +182,9 @@ void system_stack_bigstack(void);
 void local_stack_bigstack(void);
 void jump_sleep_bigstack(MkProcEntryFn entry, float ticks);
 void mkproc_dispatch(void);
+#ifdef __cplusplus
+extern "C"
+#endif
 MkHdr* pdata_of_proc(MkProc* proc);
 MkHdr* next_apdata(void);
 MkProc* get_mkproc_bigstack(MkProcInitFlags flags);
@@ -204,8 +207,14 @@ static inline MkProc* mkproc_get_nostack_for_animation(void) {
     return get_mkproc_nostack(flags);
 }
 void xfer_proc(MkProc* proc, MkProcEntryFn entry);
+#ifdef __cplusplus
+extern "C"
+#endif
 MkProc* find_mkproc_pid(int pid);
 void destroy_mkprocs_pid_from_list(int pid, MkPtr** list);
+#ifdef __cplusplus
+extern "C"
+#endif
 void destroy_mkprocs_pid(int pid);
 void destroy_all_mkprocs(void);
 void vdestroy_mkproc_bigstack(MkProc* proc);

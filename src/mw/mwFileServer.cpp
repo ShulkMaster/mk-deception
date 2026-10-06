@@ -10,16 +10,7 @@ public:
     virtual unsigned char isA(mwFileTypeInfo*, const void*&) const;
 };
 
-class mwFileMutex {
-public:
-    mwFileMutex();
-    ~mwFileMutex();
-    void lock();
-    void unlock();
-
-private:
-    unsigned char storage[0x18];
-};
+#include "mw/mwFileMutex.h"
 
 template <class T>
 class mwProducerConsumerQueue {
@@ -153,13 +144,16 @@ unsigned char mwFileServerNotQueued::isActive() const
     return queryActive();
 }
 
+/* TODO: [near miss] 77.13%; scoped mutex lifetime matches retail;
+ * stmw/lmw save shape differs; request object-level compiler evidence. */
 int mwFileServerNotQueued::addCommand(mwFileCommand* command,
                                       unsigned char)
 {
-    mutex.lock();
-    command->server = this;
-    pending_commands.produce(command);
-    mutex.unlock();
+    {
+        mwFileMutexLock lock(mutex);
+        command->server = this;
+        pending_commands.produce(command);
+    }
     notifyCommandAdded();
     return 0;
 }

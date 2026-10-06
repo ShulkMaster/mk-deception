@@ -165,11 +165,13 @@ void mwFileDevice::serviceCallbacks()
     }
 }
 
+/* TODO: [breakthrough needed] 35.45%; retail counted aggregate copy differs; coordinator object-mode trial is next. */
 void mwFileDevice::queueErrorCallback(const Callback& callback)
 {
     sQueue.produce(callback);
 }
 
+/* TODO: [breakthrough needed] 72.73%; incomplete queue layout causes SDA access; resolve callback-copy mode before retyping. */
 void mwFileDevice::initializeCallbacks(unsigned long size)
 {
     sQueue.resize(size);

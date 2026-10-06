@@ -110,6 +110,10 @@ static inline void* resolve_table_row(ScriptSlot* slot, unsigned int table_id) {
     return (void*)def->data_index;
 }
 
+static inline char* script_string(ScriptSlot* slot, int name_offset) {
+    return &((char*)slot->string_reloc)[name_offset - 1];
+}
+
 static inline CmdScript* find_cmdscript_for_process(MkProc* proc) {
     MkPtr* ptr;
     MkHdr* hdr;
@@ -229,7 +233,7 @@ void one_shot_script_func(ScriptSlot* script, unsigned int function, int wait) {
     }
 }
 
-/* TODO: [breakthrough needed] 63.31%; 101 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 63.30%; 101 rows differ; inspect retail CFG and operand types. */
 float p_run_one_shot_script(void) {
     OneShotScriptPdata* pdata;
 
@@ -342,7 +346,6 @@ void register_c_table(const char* name, void* table) {
     hashtable_store(&c_table_list, name, table);
 }
 
-/* TODO: [near miss] 98.41%; two string add/sub scheduling rows remain; stop at supported compiler-mode ceiling. */
 void parse_args(const char* fmt, ...) {
     __va_list ap;
     int arg_index;
@@ -354,7 +357,7 @@ void parse_args(const char* fmt, ...) {
     while (*fmt != '\0') {
         if (*fmt == 'i') {
             int* out = *(int**)__va_arg(ap, 1);
-            *out = (int)current_args[arg_index];
+            *out = current_args[arg_index];
         } else if (*fmt == 'u') {
             unsigned int* out = *(unsigned int**)__va_arg(ap, 1);
             *out = current_args[arg_index];
@@ -373,8 +376,7 @@ void parse_args(const char* fmt, ...) {
                 strings = (char*)active_cmdscript->mko->string_base;
                 if (val < (unsigned int)strings &&
                     val < active_cmdscript->mko->string_limit) {
-                    val--;
-                    result = &strings[val];
+                    result = strings - 1 + val;
                 }
             }
             *out = result;
@@ -420,7 +422,7 @@ char* get_script_string_arg(int index) {
     return (char*)value;
 }
 
-/* TODO: [breakthrough needed] 62.97%; 13 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 62.96%; 13 rows differ; inspect retail CFG and operand types. */
 void* get_function_attributes_table(ScriptSlot* slot, int func_index) {
     unsigned int attrs_id;
 
@@ -428,7 +430,6 @@ void* get_function_attributes_table(ScriptSlot* slot, int func_index) {
     return resolve_table_row(slot, attrs_id);
 }
 
-/* TODO: [near miss] 99.79%; two string-address load operands differ; behavior and CFG agree. */
 void* get_data_table_by_name(const char* name) {
     ScriptTableDef* def;
     ScriptSlot* slot;
@@ -449,7 +450,7 @@ void* get_data_table_by_name(const char* name) {
             for (t = 0; t < slot->max_table; t++) {
                 def = &slot->table_defs[t];
                 if (def->is_internal != 0) {
-                    cmp = strcmp(name, def->name + (slot->string_reloc - 1));
+                    cmp = strcmp(name, script_string(slot, (int)def->name));
                     if (cmp == 0) {
                         return slot->table_data + def->data_index;
                     }
@@ -460,48 +461,34 @@ void* get_data_table_by_name(const char* name) {
     return 0;
 }
 
-/* TODO: [near miss] 99.35%; native byte-pointer relocation restores retail arithmetic;
- * sum destination and operand allocation remain in two rows. */
 int get_script_function_by_name(ScriptSlot* slot, const char* name) {
     unsigned int i;
-    char* function_name;
 
     for (i = 0; i < slot->func_count; i++) {
-        function_name = (char*)slot->string_reloc;
-        function_name += slot->func_defs[i].name_offset;
-        if (strcmp(name, function_name - 1) == 0) {
+        if (strcmp(name, script_string(slot, slot->func_defs[i].name_offset)) == 0) {
             return (int)i + 1;
         }
     }
     return 0;
 }
 
-/* TODO: [near miss] 99.35%; native byte-pointer relocation restores retail arithmetic;
- * sum destination and operand allocation remain in two rows. */
 unsigned int check_script_function_exists(ScriptSlot* slot, const char* name) {
     unsigned int i;
-    char* function_name;
 
     for (i = 0; i < slot->func_count; i++) {
-        function_name = (char*)slot->string_reloc;
-        function_name += slot->func_defs[i].name_offset;
-        if (strcmp(name, function_name - 1) == 0) {
+        if (strcmp(name, script_string(slot, slot->func_defs[i].name_offset)) == 0) {
             return i + 1;
         }
     }
     return 0;
 }
 
-/* TODO: [near miss] 99.41%; validation and name staging agree; two commuted operand rows remain. */
 char* get_name_of_table_by_pointer(ScriptSlot* slot, void* table) {
-    unsigned int base;
+    unsigned int* base = slot->table_data;
     unsigned int id;
     ScriptTableDef* def;
-    char* name;
 
-    base = (unsigned int)slot->table_data;
-    if ((unsigned int)table < base ||
-        (unsigned int)table > base + (unsigned int)(slot->data_words * 4)) {
+    if ((unsigned int*)table < base || (unsigned int*)table > base + slot->data_words) {
         return 0;
     }
     id = ((unsigned int*)table)[-1];
@@ -509,12 +496,10 @@ char* get_name_of_table_by_pointer(ScriptSlot* slot, void* table) {
         return 0;
     }
     def = &slot->table_defs[id - 1];
-    if (base + (unsigned int)(def->data_index * 4) != (unsigned int)table) {
+    if (base + def->data_index != (unsigned int*)table) {
         return 0;
     }
-    name = (char*)slot->string_reloc;
-    name += (unsigned int)def->name;
-    return name - 1;
+    return script_string(slot, (int)def->name);
 }
 
 char* get_name_of_table(ScriptSlot* slot, unsigned int index) {
@@ -684,7 +669,7 @@ void cmdscript_set_parameters(CmdScript* script, unsigned int count, ...) {
     }
 }
 
-/* TODO: [breakthrough needed] 67.33%; 98 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 67.32%; 98 rows differ; inspect retail CFG and operand types. */
 float call_player_script_function(ScriptSlot* slot) {
     execute_cmdscript(slot);
     if (active_cmdscript->continuation != 0) {
@@ -930,7 +915,7 @@ ScriptSlot* cmdscript_finish_load(int slot_index) {
                     if (function_id >= (unsigned int)number_of_script_functions) {
                         break;
                     }
-                    resolved = (ScriptBuiltinFn)script_callable_function_table[function_id];
+                    resolved = script_callable_function_table[function_id];
                 }
                 *walk = (unsigned int)resolved;
                 argument_count = walk[1];
@@ -1101,7 +1086,7 @@ void fixup_data_tables(ScriptSlot* slot) {
     slot->tables_fixed_up = 1;
 }
 
-/* TODO: [breakthrough] 98.98%; unload CFG and unsigned index fixed; slot/member grouping and owner GPR allocation remain. */
+/* TODO: [breakthrough] 98.97%; unload CFG and unsigned index fixed; slot/member grouping and owner GPR allocation remain. */
 void script_system_reset(void) {
     unsigned int i;
     ScriptSlotEntry* entry;
@@ -1172,14 +1157,13 @@ void _copy_stream_to_address(void) {
     memcpy(dst, &args[3], size);
 }
 
-/* TODO: [near miss] 98.71%; operations/CFG agree; function-index/owner volatile GPR homes remain. */
+/* TODO: [near miss] 99.02%; name tail fixed; pc-block volatile GPR homes (offset/owner r6/r5 vs r5/r4) remain. */
 void _call_script_function(void) {
     unsigned int* args;
     int func_index;
     int argument_count;
     ScriptSlot* slot;
     ScriptFuncDef* function;
-    char* function_name;
 
     args = current_args;
     argument_count = (unsigned short)args[0] - 1;
@@ -1191,24 +1175,26 @@ void _call_script_function(void) {
     function = &slot->func_defs[func_index - 1];
     active_cmdscript->pc = slot->bytecode + function->code_offset;
     function = &active_cmdscript->mko->func_defs[func_index - 1];
-    function_name = (char*)active_cmdscript->mko->string_reloc;
-    function_name += function->name_offset;
-    active_cmdscript->func_name = function_name - 1;
+    active_cmdscript->func_name =
+        &((char*)active_cmdscript->mko->string_reloc)[function->name_offset - 1];
 }
 
-/* TODO: [near miss] 95.68965%; lookup and ownership agree; final indexed-store lowering differs. */
 void _load_table_address(void)
 {
     unsigned int* args;
     CmdScript* cs;
     unsigned int table_id;
     unsigned int idx;
+    void* table;
+    unsigned int* destination;
 
     args = current_args;
     cs = active_cmdscript;
     table_id = args[2];
     idx = args[1];
-    cs->regs[idx] = (unsigned int)get_data_table(cs->mko, table_id);
+    table = get_data_table(cs->mko, table_id);
+    destination = &cs->regs[idx];
+    *destination = (unsigned int)table;
 }
 
 void _unconditional_branch(void) {
@@ -1240,9 +1226,8 @@ void _conditional_branch(void) {
     cs->pc = base + rel;
 }
 
-/* TODO: [near miss] 97.94%; typed operand slots agree; 19 rows differ only in volatile GPR homes. */
+/* TODO: [near miss] 98.73%; typed operand slots agree; args/op/right-index volatile GPR rotation remains (decl orders exhausted). */
 void _compare_float_float(void) {
-    unsigned int* args;
     CmdScript* cs;
     CmdScriptRegister* destination;
     CmdScriptRegister* right;
@@ -1250,6 +1235,7 @@ void _compare_float_float(void) {
     float b;
     int op;
     unsigned int result;
+    unsigned int* args;
 
     result = 0;
     cs = active_cmdscript;
@@ -1349,7 +1335,7 @@ void _compare_uint_uint(void) {
     *destination = result;
 }
 
-/* TODO: [breakthrough needed] 84.02%; 36 rows differ; inspect retail CFG and operand types. */
+/* TODO: [breakthrough needed] 84.01%; 36 rows differ; inspect retail CFG and operand types. */
 void _compare_int_int(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1436,23 +1422,24 @@ static void _combine_float_float(void) {
     destination->real = result;
 }
 
-/* TODO: [near miss] 95.12%; slot addressing recovered; equivalent operands retain register differences. */
+/* TODO: [near miss] 98.66%; typed slots agree; args/op/right-index volatile GPR rotation remains (same as _compare_float_float). */
 void _combine_uint_uint(void) {
-    unsigned int* args;
     CmdScript* cs;
+    CmdScriptRegister* destination;
+    CmdScriptRegister* right;
     unsigned int a;
     unsigned int b;
     unsigned int op;
-    unsigned int* destination;
     unsigned int result;
+    unsigned int* args;
 
-    args = current_args;
     result = 0;
-    op = args[3];
     cs = active_cmdscript;
-    destination = &cs->regs[args[1]];
-    a = *destination;
-    b = *cmdscript_register_slot(cs, args[2]);
+    destination = &cs->registers[(args = current_args)[1]];
+    right = &cs->registers[args[2]];
+    op = args[3];
+    a = destination->word;
+    b = right->word;
     switch (op) {
     case 0:
         result = a + b;
@@ -1482,30 +1469,25 @@ void _combine_uint_uint(void) {
         result = a >> b;
         break;
     }
-    *destination = result;
+    destination->word = result;
 }
 
-/* TODO: [near miss] 95.12%; CFG and typed slots agree; stop at volatile operand/owner coloring. */
+/* TODO: [near miss] 98.66%; typed slots agree; args/op/right-index volatile GPR rotation remains (same as _compare_float_float). */
 void _combine_int_int(void) {
-    unsigned int* args;
     CmdScript* cs;
+    CmdScriptRegister* destination;
+    CmdScriptRegister* right;
     int a;
     int b;
     unsigned int op;
-    unsigned int left_index;
-    unsigned int right_index;
-    CmdScriptRegister* destination;
-    CmdScriptRegister* right;
     int result;
+    unsigned int* args;
 
-    args = current_args;
     result = 0;
     cs = active_cmdscript;
-    left_index = args[1];
-    right_index = args[2];
+    destination = &cs->registers[(args = current_args)[1]];
+    right = &cs->registers[args[2]];
     op = args[3];
-    destination = &cs->registers[left_index];
-    right = &cs->registers[right_index];
     a = destination->word;
     b = right->word;
     switch (op) {
@@ -1618,7 +1600,7 @@ void _copy_register_to_variable(void) {
     variables[variable_index] = source->word;
 }
 
-/* TODO: [near miss] 85.91%; equivalent indexed store uses different address association and GPRs. */
+/* TODO: [near miss] 85.90%; equivalent indexed store uses different address association and GPRs. */
 void _copy_variable_to_register(void) {
     active_cmdscript->registers[current_args[1]].word =
         ((unsigned int*)active_cmdscript->stack_sp)[current_args[2]];

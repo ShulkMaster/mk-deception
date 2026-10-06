@@ -1760,12 +1760,16 @@ float r_pz_fighter_grinding(void) {
     return 0.0f;
 }
 
-static float pz_fighter_grinder_actively_fighting(int active) {
+static inline float pz_fatality_set_fight_phase(int active) {
     if (active == 1) {
         g_pz_fighter_fatality_engine.controller->preround_active = 0;
     }
     g_pz_fighter_fatality_engine.controller->phase = active;
     return 0.0f;
+}
+
+static float pz_fighter_grinder_actively_fighting(int active) {
+    return pz_fatality_set_fight_phase(active);
 }
 
 static float pz_fighters_grinder_fatality_prep(void) {
@@ -1874,13 +1878,17 @@ static float pz_fighters_grinder_fatality_preround(void) {
     return 0.0f;
 }
 
-static float pz_fighters_grinder_fatality_in_progress(void) {
+static inline float pz_fatality_finish_timed_fatality(void) {
     if ((float)g_pz_fighters_engine.fatality_timer == 12.0f) {
         g_pz_fighter_fatality_engine.controller->active = 0;
         g_pz_fighter_fatality_engine.controller->substate = 1;
         g_pz_fighter_fatality_engine.controller->phase = 0;
     }
     return 0.0f;
+}
+
+static float pz_fighters_grinder_fatality_in_progress(void) {
+    return pz_fatality_finish_timed_fatality();
 }
 
 /* TODO: [near miss] 99.90385%; secondary grinder r29/r30 coloring remains;
@@ -1952,13 +1960,17 @@ static float pz_fighter_load_and_place_initial_grinders(void) {
     return 0.0f;
 }
 
-static float pz_fighter_grinder_round_over(void) {
+static inline float pz_fatality_round_over(void) {
     g_pz_fighter_fatality_engine.controller->state = 1;
     g_pz_fighter_fatality_engine.controller->phase = 0;
     return 0.0f;
 }
 
-static float pz_fighter_grinder_unload(void) {
+static float pz_fighter_grinder_round_over(void) {
+    return pz_fatality_round_over();
+}
+
+static inline float pz_fatality_request_bank_unload(void) {
     struct PuzzleFatalityController* controller =
         g_pz_fighter_fatality_engine.controller;
 
@@ -1967,6 +1979,10 @@ static float pz_fighter_grinder_unload(void) {
     }
     unload_pz_fighter_fatality_banks();
     return 0.0f;
+}
+
+static float pz_fighter_grinder_unload(void) {
+    return pz_fatality_request_bank_unload();
 }
 
 static void pz_fighter_grinder_entering_fatality(
@@ -2112,10 +2128,14 @@ static float p_chomper_controller(void) {
     return 1.0f;
 }
 
-static float pz_fighters_chomper_preround(void) {
+static inline float pz_fatality_start_preround(void) {
     g_pz_fighter_fatality_engine.controller->preround_active = 1;
     g_pz_fighter_fatality_engine.controller->preround_sound_started = 0;
     return 0.0f;
+}
+
+static float pz_fighters_chomper_preround(void) {
+    return pz_fatality_start_preround();
 }
 
 static float pz_fighter_victim_head_poked(void) {
@@ -2735,25 +2755,16 @@ static float pz_fighter_chomper_round_over(void) {
     return 0.0f;
 }
 
-static float pz_fighter_chomper_unload(void) {
+static inline float pz_fatality_unload_banks(void) {
     g_pz_fighter_fatality_engine.controller->unload_requested = 1;
     unload_pz_fighter_fatality_banks();
     return 0.0f;
 }
 
-static inline void reset_chomper_hazard_motion(void) {
-    unsigned int group;
-    int object;
-
-    for (group = 0; group < 2; group++) {
-        for (object = 0; object < 2; object++) {
-            g_pz_fighter_fatality_engine.hazard_groups[group]
-                .objects[object]->motion = 0.0f;
-            g_pz_fighter_fatality_engine.controller
-                ->hazard_motion[group][object] = 0.0f;
-        }
-    }
+static float pz_fighter_chomper_unload(void) {
+    return pz_fatality_unload_banks();
 }
+
 
 static void pz_fighter_chomper_entering_fatality(
     int attacker, int victim) {
@@ -2765,13 +2776,11 @@ static void pz_fighter_chomper_entering_fatality(
     g_pz_fighter_fatality_engine.controller->victim_player = victim;
     g_pz_fighter_fatality_engine.controller->phase = 0;
 
-    reset_chomper_hazard_motion();
+    reset_chomper_motion();
 }
 
 static float pz_fighters_chomper2_preround(void) {
-    g_pz_fighter_fatality_engine.controller->preround_active = 1;
-    g_pz_fighter_fatality_engine.controller->preround_sound_started = 0;
-    return 0.0f;
+    return pz_fatality_start_preround();
 }
 
 static float p_chomper2_controller(void) {
@@ -3391,9 +3400,7 @@ static float pz_fighter_chomper2_round_over(void) {
 #pragma opt_propagation reset
 
 static float pz_fighter_chomper2_unload(void) {
-    g_pz_fighter_fatality_engine.controller->unload_requested = 1;
-    unload_pz_fighter_fatality_banks();
-    return 0.0f;
+    return pz_fatality_unload_banks();
 }
 
 #pragma opt_propagation off
@@ -3779,7 +3786,7 @@ static float pz_fighter_objects_falling_victim_crushed(void) {
     return 0.0f;
 }
 
-static float pz_fighter_objects_falling_actively_fighting(int active) {
+static inline float pz_fatality_set_random_hazard_phase(int active) {
     if (active == 1) {
         g_pz_fighter_fatality_engine.controller->preround_active = 0;
         if ((randu0(100) & 0xFFFF) < 50) {
@@ -3792,6 +3799,10 @@ static float pz_fighter_objects_falling_actively_fighting(int active) {
     }
     g_pz_fighter_fatality_engine.controller->phase = active;
     return 0.0f;
+}
+
+static float pz_fighter_objects_falling_actively_fighting(int active) {
+    return pz_fatality_set_random_hazard_phase(active);
 }
 
 /* TODO: [near miss] 99.83796%; post-offset helper matches without bare
@@ -4017,15 +4028,11 @@ static float pz_fighter_load_and_place_initial_objects_falling(void) {
 }
 
 static float pz_fighter_objects_falling_round_over(void) {
-    g_pz_fighter_fatality_engine.controller->state = 1;
-    g_pz_fighter_fatality_engine.controller->phase = 0;
-    return 0.0f;
+    return pz_fatality_round_over();
 }
 
 static float pz_fighter_objects_falling_unload(void) {
-    g_pz_fighter_fatality_engine.controller->unload_requested = 1;
-    unload_pz_fighter_fatality_banks();
-    return 0.0f;
+    return pz_fatality_unload_banks();
 }
 
 static void pz_fighter_objects_falling_entering_fatality(
@@ -4040,9 +4047,7 @@ static void pz_fighter_objects_falling_entering_fatality(
 }
 
 static float pz_fighters_lightning_preround(void) {
-    g_pz_fighter_fatality_engine.controller->preround_active = 1;
-    g_pz_fighter_fatality_engine.controller->preround_sound_started = 0;
-    return 0.0f;
+    return pz_fatality_start_preround();
 }
 
 /* TODO: [near miss] 99.46%; bolt/effect ownership and stale-instance checks agree;
@@ -4078,18 +4083,7 @@ static float p_lightning_controller(void) {
 }
 
 static float pz_fighter_lightning_actively_fighting(int active) {
-    if (active == 1) {
-        g_pz_fighter_fatality_engine.controller->preround_active = 0;
-        if ((randu0(100) & 0xFFFF) < 50) {
-            g_pz_fighter_fatality_engine.controller
-                ->hazard_initialized[0] = 0;
-        } else {
-            g_pz_fighter_fatality_engine.controller
-                ->hazard_initialized[0] = 1;
-        }
-    }
-    g_pz_fighter_fatality_engine.controller->phase = active;
-    return 0.0f;
+    return pz_fatality_set_random_hazard_phase(active);
 }
 
 static inline void pz_lightning_target_position(int victim, float* target_x, float* target_z) {
@@ -4425,15 +4419,11 @@ static float pz_fighter_load_and_place_initial_lightning(void) {
 }
 
 static float pz_fighter_lightning_round_over(void) {
-    g_pz_fighter_fatality_engine.controller->state = 1;
-    g_pz_fighter_fatality_engine.controller->phase = 0;
-    return 0.0f;
+    return pz_fatality_round_over();
 }
 
 static float pz_fighter_lightning_unload(void) {
-    g_pz_fighter_fatality_engine.controller->unload_requested = 1;
-    unload_pz_fighter_fatality_banks();
-    return 0.0f;
+    return pz_fatality_unload_banks();
 }
 
 static void pz_fighter_lightning_entering_fatality(
@@ -4612,11 +4602,7 @@ static float p_snake_controller(void) {
 }
 
 static float pz_fighter_snake_actively_fighting(int active) {
-    if (active == 1) {
-        g_pz_fighter_fatality_engine.controller->preround_active = 0;
-    }
-    g_pz_fighter_fatality_engine.controller->phase = active;
-    return 0.0f;
+    return pz_fatality_set_fight_phase(active);
 }
 
 static inline void pz_snake_start_victim_anim(void) {
@@ -4768,20 +4754,19 @@ static float pz_fighters_snake_fatality_prep(void) {
     return 0.0f;
 }
 
-static float pz_fighters_snake_fatality_preround(void) {
+static inline float pz_fatality_start_timed_preround(void) {
     g_pz_fighter_fatality_engine.controller->preround_active = 1;
     g_pz_fighter_fatality_engine.controller->phase_time = 0.3f;
     g_pz_fighter_fatality_engine.controller->preround_timer = 120;
     return 0.0f;
 }
 
+static float pz_fighters_snake_fatality_preround(void) {
+    return pz_fatality_start_timed_preround();
+}
+
 static float pz_fighters_snake_fatality_in_progress(void) {
-    if ((float)g_pz_fighters_engine.fatality_timer == 12.0f) {
-        g_pz_fighter_fatality_engine.controller->active = 0;
-        g_pz_fighter_fatality_engine.controller->substate = 1;
-        g_pz_fighter_fatality_engine.controller->phase = 0;
-    }
-    return 0.0f;
+    return pz_fatality_finish_timed_fatality();
 }
 
 static float pz_fighter_load_and_place_initial_snake(void) {
@@ -4878,20 +4863,11 @@ static float pz_fighter_load_and_place_initial_snake(void) {
 }
 
 static float pz_fighter_snake_round_over(void) {
-    g_pz_fighter_fatality_engine.controller->state = 1;
-    g_pz_fighter_fatality_engine.controller->phase = 0;
-    return 0.0f;
+    return pz_fatality_round_over();
 }
 
 static float pz_fighter_snake_unload(void) {
-    struct PuzzleFatalityController* controller =
-        g_pz_fighter_fatality_engine.controller;
-
-    if (controller != 0) {
-        controller->unload_requested = 1;
-    }
-    unload_pz_fighter_fatality_banks();
-    return 0.0f;
+    return pz_fatality_request_bank_unload();
 }
 
 static void pz_fighter_snake_entering_fatality(
@@ -4972,11 +4948,7 @@ static float p_burn_controller(void) {
 #pragma opt_propagation reset
 
 static float pz_fighter_burn_actively_fighting(int active) {
-    if (active == 1) {
-        g_pz_fighter_fatality_engine.controller->preround_active = 0;
-    }
-    g_pz_fighter_fatality_engine.controller->phase = active;
-    return 0.0f;
+    return pz_fatality_set_fight_phase(active);
 }
 
 static float r_pz_fighter_burn(void) {
@@ -5150,19 +5122,11 @@ static float pz_fighters_burn_fatality_prep(void) {
 }
 
 static float pz_fighters_burn_fatality_preround(void) {
-    g_pz_fighter_fatality_engine.controller->preround_active = 1;
-    g_pz_fighter_fatality_engine.controller->phase_time = 0.3f;
-    g_pz_fighter_fatality_engine.controller->preround_timer = 120;
-    return 0.0f;
+    return pz_fatality_start_timed_preround();
 }
 
 static float pz_fighters_burn_fatality_in_progress(void) {
-    if ((float)g_pz_fighters_engine.fatality_timer == 12.0f) {
-        g_pz_fighter_fatality_engine.controller->active = 0;
-        g_pz_fighter_fatality_engine.controller->substate = 1;
-        g_pz_fighter_fatality_engine.controller->phase = 0;
-    }
-    return 0.0f;
+    return pz_fatality_finish_timed_fatality();
 }
 
 /* TODO: [near miss] 99.91%; only r29/r30 coloring of burners[1] after the loop remains. */
@@ -5241,20 +5205,11 @@ static float pz_fighter_load_and_place_initial_burn(void) {
 }
 
 static float pz_fighter_burn_round_over(void) {
-    g_pz_fighter_fatality_engine.controller->state = 1;
-    g_pz_fighter_fatality_engine.controller->phase = 0;
-    return 0.0f;
+    return pz_fatality_round_over();
 }
 
 static float pz_fighter_burn_unload(void) {
-    struct PuzzleFatalityController* controller =
-        g_pz_fighter_fatality_engine.controller;
-
-    if (controller != 0) {
-        controller->unload_requested = 1;
-    }
-    unload_pz_fighter_fatality_banks();
-    return 0.0f;
+    return pz_fatality_request_bank_unload();
 }
 
 static void pz_fighter_burn_entering_fatality(

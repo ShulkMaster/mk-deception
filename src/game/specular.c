@@ -1,4 +1,5 @@
 #include "game/gcspecskin.h"
+#include "math/gxMath.h"
 #include "game/specular.h"
 #include "math/mk_math.h"
 #include "platform/display.h"
@@ -14,10 +15,6 @@
 #include "rw/rpskin.h"
 #include "rw/rpmatfx.h"
 
-union FloatBits {
-    float value;
-    unsigned int bits;
-};
 
 struct SpecularFlags {
     unsigned char unused_7 : 1;
@@ -118,24 +115,6 @@ static inline RpMaterial* material_at_index(
     return list->materials[index];
 }
 
-static inline float fast_inverse_sqrt(float length_squared) {
-    union FloatBits inverse;
-    float product;
-    float correction;
-    float result;
-
-    if (length_squared <= 0.0f) {
-        result = 0.0f;
-    } else {
-        inverse.value = length_squared;
-        inverse.bits = 0x5F375A00U - (inverse.bits >> 1);
-        product = inverse.value * (length_squared * inverse.value);
-        correction = 3.0f - product;
-        result = 0.0625f * inverse.value * correction *
-                 -(correction * (product * correction) - 12.0f);
-    }
-    return result;
-}
 
 static inline void specular_normalize(RwV3d* vector) {
     float x = vector->x;
@@ -143,7 +122,7 @@ static inline void specular_normalize(RwV3d* vector) {
     float y_squared = vector->y * vector->y;
     float z_squared = vector->z * vector->z;
     float inverse_length =
-        fast_inverse_sqrt(z_squared + (x_squared + y_squared));
+        gxMathFastInvSqrt(z_squared + (x_squared + y_squared));
 
     vector->x = x * inverse_length;
     vector->y *= inverse_length;
@@ -151,7 +130,7 @@ static inline void specular_normalize(RwV3d* vector) {
 }
 
 static inline void specular_normalize_in_place(RwV3d* vector) {
-    float inverse_length = fast_inverse_sqrt(
+    float inverse_length = gxMathFastInvSqrt(
         vector->z * vector->z +
         (vector->x * vector->x + vector->y * vector->y));
 

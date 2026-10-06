@@ -24,8 +24,6 @@ static const float kNegPi = -3.1415927f;
 static const float kHalfPi = 1.5707964f;
 static const float kNegHalfPi = -1.5707964f;
 static const float kRadToDeg = 57.29578f;
-static const float kAngToFixed = 166886.1f;
-static const float kFixedToAng = 0.000005992112f;
 static const float kSlerpDotThresh = 0.999f;
 static const float kSlerpNormDotThresh = 1.001f;
 static const float kV3ToQuatParallel = 0.9999f;
@@ -313,23 +311,32 @@ void uv_from_angles_xy(Vec* out, float angX, float angY) {
     out->z = cx * gxMathCos(angY);
 }
 
-/* TODO: [breakthrough] 72.57%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
+/* TODO: [near miss] 76.03%; sqrt and normalization agree; input-load scheduling remains. */
 float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to) {
     float len;
     float inv;
+    float x_squared;
+    float y_squared;
+    float z_squared;
+
     out->x = to->x - from->x;
     out->y = to->y - from->y;
     out->z = to->z - from->z;
-    len = gxMathFastSqrt(out->x * out->x + out->y * out->y + out->z * out->z);
-    inv = kZero;
-    if (kZero < len) {
-        inv = kOne / len;
+    x_squared = out->x * out->x;
+    y_squared = out->y * out->y;
+    z_squared = out->z * out->z;
+    len = gxMathFastSqrt(z_squared + (x_squared + y_squared));
+    if (len > 0.0f) {
+        inv = 1.0f / len;
+    } else {
+        inv = len;
     }
     out->x *= inv;
     out->y *= inv;
     out->z *= inv;
     return len;
 }
+
 
 /* TODO: [breakthrough] 70.74545%; ordered guard corrected; reciprocal-square-root FP scheduling remains. */
 void uv_v3_to_v3(Vec* out, const Vec* from, const Vec* to) {
@@ -465,7 +472,7 @@ void norm_angles_v3(Vec* ang) {
 }
 
 float norm_angle(float ang) {
-    return ((int)(ang * kAngToFixed) & 0xFFFFF) * kFixedToAng;
+    return norm_angle_inline(ang);
 }
 
 void v3_to_xz_ang(Vec* ang, Vec* v) {
@@ -771,44 +778,49 @@ void mat_to_quat(Quat* out, const MKMATRIX* m) {
     RtQuatConvertFromMatrix(out, m);
 }
 
+/* TODO: [near miss] 99.69%; two symmetric fcmpu operand pairs remain; stop at comparison ordering. */
 void XYZ_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
-    Vec saved;
-    Vec neg;
-    saved.x = m->pos.x;
-    saved.y = m->pos.y;
-    saved.z = m->pos.z;
+    RwV3d saved;
+    RwV3d neg;
+    float y_angle;
+    float z_angle;
+    saved = m->pos;
     neg.x = kNegOne * saved.x;
     neg.y = kNegOne * saved.y;
     neg.z = kNegOne * saved.z;
-    RwMatrixTranslate(m, (const RwV3d*)&neg, 2);
+    RwMatrixTranslate(m, &neg, 2);
     RwMatrixRotate(m, (const RwV3d*)&Xaxis, kRadToDeg * angles->x, 0);
-    if (angles->y != kZero) {
-        RwMatrixRotate(m, (const RwV3d*)&Yaxis, kRadToDeg * angles->y, 1);
+    y_angle = angles->y;
+    if (y_angle != 0.0f) {
+        RwMatrixRotate(m, (const RwV3d*)&Yaxis, kRadToDeg * y_angle, 1);
     }
-    if (angles->z != kZero) {
-        RwMatrixRotate(m, (const RwV3d*)&Zaxis, kRadToDeg * angles->z, 1);
+    z_angle = angles->z;
+    if (z_angle != 0.0f) {
+        RwMatrixRotate(m, (const RwV3d*)&Zaxis, kRadToDeg * z_angle, 1);
     }
-    RwMatrixTranslate(m, (const RwV3d*)&saved, 2);
+    RwMatrixTranslate(m, &saved, 2);
 }
 
 void ZYX_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
-    Vec saved;
-    Vec neg;
-    saved.x = m->pos.x;
-    saved.y = m->pos.y;
-    saved.z = m->pos.z;
+    RwV3d saved;
+    RwV3d neg;
+    float angle_y;
+    float angle_x;
+    saved = m->pos;
     neg.x = kNegOne * saved.x;
     neg.y = kNegOne * saved.y;
     neg.z = kNegOne * saved.z;
-    RwMatrixTranslate(m, (const RwV3d*)&neg, 2);
+    RwMatrixTranslate(m, &neg, 2);
     RwMatrixRotate(m, (const RwV3d*)&Zaxis, kRadToDeg * angles->z, 0);
-    if (angles->y != kZero) {
-        RwMatrixRotate(m, (const RwV3d*)&Yaxis, kRadToDeg * angles->y, 1);
+    angle_y = angles->y;
+    if (angle_y) {
+        RwMatrixRotate(m, (const RwV3d*)&Yaxis, kRadToDeg * angle_y, 1);
     }
-    if (angles->x != kZero) {
-        RwMatrixRotate(m, (const RwV3d*)&Xaxis, kRadToDeg * angles->x, 1);
+    angle_x = angles->x;
+    if (angle_x) {
+        RwMatrixRotate(m, (const RwV3d*)&Xaxis, kRadToDeg * angle_x, 1);
     }
-    RwMatrixTranslate(m, (const RwV3d*)&saved, 2);
+    RwMatrixTranslate(m, &saved, 2);
 }
 
 void YXZ_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {

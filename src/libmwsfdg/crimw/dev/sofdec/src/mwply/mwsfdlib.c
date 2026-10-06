@@ -4,8 +4,6 @@
 #include "sofdec/sfd_error.h"
 #include "sofdec/sfd_library.h"
 
-typedef struct SfdHandle SfdHandle;
-
 typedef struct MwsInitParam {
     float frame_rate;
     int max_width;
@@ -135,14 +133,13 @@ extern void SJMEM_Init(void);
 extern void SJMEM_Finish(void);
 extern void SJUNI_Init(void);
 extern void SJUNI_Finish(void);
-extern void SJRBF_Init(void);
 extern void MWSFD_SetCond(void* player, int condition, int value);
 
 /* TODO: [near miss] 99.87273%; body and decoded literals agree; retail BSS
  * order starts at init_cnt, while first-use emission starts at err_mwsfdhn. */
 void MWSFLIB_SfdErrFunc(SfdCallbackObject object, int error)
 {
-    void* player = (void*)object;
+    void* player = object;
     if (player != 0) {
         SfdHandle* sfd = mwPlyGetSfdHn(player);
         mwsfd_err_mwsfdhn = player;
@@ -301,8 +298,8 @@ void mwPlyInitSfdFx(MwsInitParam* parameter)
             (SfdTransportRegistry*)mwsfd_initsfdpara.transports;
         sfd_parameters.timer_source = mwsfd_initsfdpara.timer_source;
         sfd_parameters.timer_source =
-            (int)((mwsfd_init_literals.rate_scale * local.frame_rate) +
-                  mwsfd_init_literals.rounding_half);
+            (mwsfd_init_literals.rate_scale * local.frame_rate) +
+                  mwsfd_init_literals.rounding_half;
 
         if (SFD_IsVersionCompatible(compatible_version, 0x3598) != 1) {
             MWSFSVM_Error(incompatible_version);
@@ -320,7 +317,7 @@ void mwPlyInitSfdFx(MwsInitParam* parameter)
             MWSFSVM_Error(mwsfd_init_literals.init_failed);
         }
         mwsfd_init_flag = 1;
-        MWSFD_SetCond(0, 0x1B, (int)local.frame_rate);
+        MWSFD_SetCond(0, 0x1B, local.frame_rate);
         MWSFD_SetCond(0, 7, 1);
         LSC_Init();
         LSC_EntryErrFunc(mwsflib_LscErrFunc, 0);

@@ -135,24 +135,6 @@ struct RopeInfo g_rope_info[] = {
 };
 static int n_rope_info = sizeof(g_rope_info) / sizeof(g_rope_info[0]);
 
-static inline float bgnd_inv_sqrt(float value) {
-    union {
-        float f;
-        unsigned int u;
-    } guess;
-    float product;
-    float correction;
-
-    if (value <= 0.0f) {
-        return 0.0f;
-    }
-    guess.f = value;
-    guess.u = 0x5F375A00U - (guess.u >> 1);
-    product = guess.f * (value * guess.f);
-    correction = 3.0f - product;
-    return 0.0625f * guess.f * correction *
-           -(correction * (product * correction) - 12.0f);
-}
 
 extern MkObj* g_bgnd_preloaded_models[];
 RopeProcLatch rope_proc_item;
@@ -709,7 +691,7 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
                 position_y = object->pos.y;
                 position_x = object->pos.x;
                 position_z = object->pos.z;
-                inverse_length = bgnd_inv_sqrt(
+                inverse_length = gxMathFastInvSqrt(
                     position_z * position_z +
                     (position_x * position_x + position_y * position_y));
                 previous->slot.direction.x = position_x * inverse_length;

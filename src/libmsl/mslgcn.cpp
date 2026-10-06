@@ -45,7 +45,6 @@ int SoundBufferCountStatic;
 unsigned long mslGCN_AXCallback_Ticks;
 ExternalHeap* g_MSL_GCN_ARAM_Heap;
 unsigned long g_MSL_GCN_ARAM_ZeroBase;
-/* Cleared asynchronously by the ARQ completion callback. */
 volatile unsigned long g_MSL_volatile_flag;
 unsigned long g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start;
 unsigned long g_MSL_GCN_ARAM_ZeroBase_ADPCM_End;
@@ -57,7 +56,6 @@ static mslInitParam s_initDefault = {
     sizeof(mslInitParam), 1, 10
 };
 
-/* The debugger releases the diagnostic spin by clearing this flag. */
 volatile int g_bMSL_GCN_BREAK = 1;
 MslCriticalSection g_MSL_GCN_ARAM_CriticalSection;
 mslTickCallback g_mslTickCB_Queue[20];
@@ -65,8 +63,6 @@ int g_mslTickCB_Head;
 int g_mslTickCB_Tail;
 int g_mslTickCB_NumberItems;
 
-/* Genuine debugger flag volatility
- * preserves the retail load on every wait iteration. */
 void _MSL_GCN_BREAK(void) {
     mslDebugPrintf("MSL DID SOMETHING BAD!!!\n");
     while (g_bMSL_GCN_BREAK != 0) {
@@ -77,8 +73,6 @@ void _MSL_GCN_BREAK(void) {
     OSPanic("mslgcn.cpp", 0x66D, "UNSUPPORTED FUNCTION");
 }
 
-/* Typed virtual UnPause dispatch and
- * explicit error return reproduce the retail epilogue. */
 extern "C" int ContinueStream(
     _mslSystem* system, mslRuntimeWave* wave) {
     mslPlayable* playable =
@@ -99,7 +93,6 @@ extern "C" int ContinueStream(
     return result;
 }
 
-/* Typed virtual Pause dispatch. */
 extern "C" int PauseStream(
     _mslSystem* system, mslRuntimeWave* wave) {
     mslPlayable* playable =
@@ -111,7 +104,6 @@ extern "C" int PauseStream(
     return playable->Pause();
 }
 
-/* Typed virtual Stop, result discarded. */
 extern "C" void StopStream(
     _mslSystem* system, mslRuntimeWave* wave) {
     mslPlayable* playable =
@@ -122,8 +114,6 @@ extern "C" void StopStream(
     }
 }
 
-/* Typed virtual Play dispatch preserves
- * loop flags and retail failure return. */
 extern "C" int PlayStream(
     _mslSystem* system, mslRuntimeSound* sound,
     mslRuntimeWave* wave, int allow_voice) {
@@ -151,7 +141,6 @@ extern "C" int PlayStream(
     return result;
 }
 
-/* Reference release uses virtual FreeObject. */
 extern "C" void UnCopyStreamWave(
     _mslSystem* system, mslRuntimeWave* wave) {
     if (wave->playable != 0) {
@@ -234,7 +223,6 @@ extern "C" mslRuntimeWave* LoadStreamWaveFile(
     return wave;
 }
 
-/* Typed virtual UnPause dispatch. */
 extern "C" int ContinueStatic(
     _mslSystem* system, mslRuntimeWave* wave) {
     mslPlayable* playable = wave->playable;
@@ -252,7 +240,6 @@ extern "C" int ContinueStatic(
     return 0;
 }
 
-/* Typed virtual Pause, result discarded. */
 extern "C" int PauseStatic(
     _mslSystem* system, mslRuntimeWave* wave) {
     mslPlayable* playable = wave->playable;
@@ -263,7 +250,6 @@ extern "C" int PauseStatic(
     return 0;
 }
 
-/* Typed virtual Stop, result discarded. */
 extern "C" int StopStatic(
     _mslSystem* system, mslRuntimeWave* wave) {
     mslPlayable* playable =
@@ -275,13 +261,6 @@ extern "C" int StopStatic(
     return 0;
 }
 
-/*
- * Dispatch a prepared resident wave to the GameCube static playable. A
- * caller may suppress platform playback while still allowing the higher
- * MSL state machine to complete; loop polarity comes directly from bit 0.
- */
-/* Typed virtual Play dispatch preserves
- * loop flags, diagnostics, and failure returns. */
 extern "C" int PlayStatic(
     _mslSystem* system, mslRuntimeWave* wave, int allow_voice) {
     mslPlayable* playable =
@@ -312,7 +291,6 @@ extern "C" int PlayStatic(
     return 0;
 }
 
-/* Reference release uses virtual FreeObject. */
 extern "C" void UnCopyStaticWave(
     _mslSystem* system, mslRuntimeWave* wave) {
     if (wave->playable != 0) {
@@ -403,8 +381,6 @@ extern "C" mslRuntimeWave* LoadStaticWaveFile(
     return wave;
 }
 
-/* Processed/count declaration order preserves
- * the retail snapshot and loop-counter register lifetimes. */
 extern "C" int mslTick(void) {
     int head;
     int processed;
@@ -670,14 +646,10 @@ fail:
     return 0;
 }
 
-/* ARQ completion clears the volatile wait flag. */
 extern "C" void MSL_ClearVolatileFlag(unsigned long request_address) {
-    (void)request_address;
     g_MSL_volatile_flag = 0;
 }
 
-/* Overflow wait reloads the debugger flag;
- * the previous diagnostic-relocation classification was incorrect. */
 extern "C" void mslTickCallBack_Queue(
     void (*callback)(void*), void* callback_data) {
     unsigned long enabled = OSDisableInterrupts();

@@ -1,4 +1,5 @@
 #include "runtime/bone_matcher.h"
+#include "math/gxMath.h"
 #include "runtime/anim_api_ext.h"
 #include "game/game_info.h"
 #include "game/ai.h"
@@ -2413,28 +2414,7 @@ static void create_sidekick(int player_index, PlyrInfo* player) {
     }
 }
 
-union PlyrFloatBits {
-    float value;
-    unsigned int bits;
-};
 
-static inline float plyr_inverse_sqrt(float squared) {
-    union PlyrFloatBits estimate_bits;
-    float estimate;
-    float product;
-    float correction;
-
-    if (squared <= 0.0f) {
-        return 0.0f;
-    }
-    estimate_bits.value = squared;
-    estimate_bits.bits = 0x5F375A00U - (estimate_bits.bits >> 1);
-    estimate = estimate_bits.value;
-    product = estimate * (squared * estimate);
-    correction = 3.0f - product;
-    return 0.0625f * estimate * correction *
-           -(correction * (product * correction) - 12.0f);
-}
 
 /* TODO: [near miss] 99.13%; latch and inverse-sqrt operations agree;
  * twelve planar displacement/opponent-coordinate FPR rows remain. */
@@ -2457,7 +2437,7 @@ float active_sidekick_swap_from_behind(PlyrPdata* pdata) {
     opponent = his_obj;
     dx = player->pos.value.x - (opponent_x = opponent->pos.value.x);
     dz = player->pos.value.z - (opponent_z = opponent->pos.value.z);
-    inverse_distance = plyr_inverse_sqrt(dx * dx + dz * dz);
+    inverse_distance = gxMathFastInvSqrt(dx * dx + dz * dz);
     dx *= inverse_distance;
     dz *= inverse_distance;
     dx *= -2.0f;
@@ -2498,7 +2478,7 @@ float active_sidekick_swap_from_sky(PlyrPdata* pdata) {
     opponent = his_obj;
     dx = player->pos.value.x - (opponent_x = opponent->pos.value.x);
     dz = player->pos.value.z - (opponent_z = opponent->pos.value.z);
-    inverse_distance = plyr_inverse_sqrt(dx * dx + dz * dz);
+    inverse_distance = gxMathFastInvSqrt(dx * dx + dz * dz);
     dx *= inverse_distance;
     dz *= inverse_distance;
     separation = 3.0f;
@@ -2889,16 +2869,10 @@ void vdestroy_mkpdata_plyr(PlyrPdata* pdata) {
     destroy_mkpdata_plyr(pdata);
 }
 
-#define DESTROY_PLYR_REF(pointer_, instance_)                         \
-    do {                                                              \
-        MkHdr* live_object = (MkHdr*)(pointer_);                       \
-        if (live_object != 0) {                                       \
-            if (live_object->instance != (instance_)) {               \
-                live_object = 0;                                      \
-            }                                                         \
-        } else {                                                      \
-            live_object = 0;                                          \
-        }                                                             \
+#define DESTROY_PLYR_REF(pointer_, instance_) \
+    do { \
+        MkHdr* live_object = (MkHdr*)(pointer_); \
+        live_object = MK_LIVE(live_object, (instance_)); \
         if (live_object != 0) {                                       \
             MkHdr* owned_object = (MkHdr*)(pointer_);                  \
             if (owned_object->instance != 0) {                        \
@@ -2910,7 +2884,7 @@ void vdestroy_mkpdata_plyr(PlyrPdata* pdata) {
         }                                                             \
     } while (0)
 
-/* TODO: [breakthrough] 86.22841%; +0x48C is blood_model.surface.records;
+/* TODO: [breakthrough] 90.45683%; +0x48C is blood_model.surface.records;
  * existing latch validation/register residue remains. */
 void destroy_mkpdata_plyr(PlyrPdata* pdata) {
     DESTROY_PLYR_REF(pdata->tracked_obj, pdata->tracked_obj_instance);

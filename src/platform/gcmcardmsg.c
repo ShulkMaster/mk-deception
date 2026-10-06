@@ -367,7 +367,7 @@ void mcard_msg_card_changed_at_format(int device) {
     sleep_aproc(1.0f);
 }
 
-static void mcard_msg_card_inaccessable_in_konq_rtn(void) {
+static inline void mcard_msg_handle_halt_dismissal(void) {
     if (check_switch_action(get_p1_pad(), 0) != 0 ||
         check_switch_action(get_p2_pad(), 0) != 0) {
         eat_switch_action(get_p1_pad(), 0);
@@ -377,6 +377,10 @@ static void mcard_msg_card_inaccessable_in_konq_rtn(void) {
         pause_procs(0);
         mcard_msg_remove_screen();
     }
+}
+
+static void mcard_msg_card_inaccessable_in_konq_rtn(void) {
+    mcard_msg_handle_halt_dismissal();
 }
 
 void mcard_msg_card_inaccessable_in_konq(void) {
@@ -566,15 +570,7 @@ void mcard_msg_load_no_card_konq_region_hault(
 }
 
 static void mcard_msg_profile_damaged_in_konquest_rtn(void) {
-    if (check_switch_action(get_p1_pad(), 0) != 0 ||
-        check_switch_action(get_p2_pad(), 0) != 0) {
-        eat_switch_action(get_p1_pad(), 0);
-        eat_switch_action(get_p2_pad(), 0);
-        snd_req(0x1aa5);
-        mcard_hault_msg_active = 0;
-        pause_procs(0);
-        mcard_msg_remove_screen();
-    }
+    mcard_msg_handle_halt_dismissal();
 }
 
 void mcard_msg_profile_damaged_in_konquest(void) {
@@ -838,15 +834,7 @@ static void mcard_msg_no_room_for_profile_rtn(void) {
 }
 
 static void mcard_msg_debug_rtn(void) {
-    if (check_switch_action(get_p1_pad(), 0) != 0 ||
-        check_switch_action(get_p2_pad(), 0) != 0) {
-        eat_switch_action(get_p1_pad(), 0);
-        eat_switch_action(get_p2_pad(), 0);
-        snd_req(0x1aa5);
-        mcard_hault_msg_active = 0;
-        pause_procs(0);
-        mcard_msg_remove_screen();
-    }
+    mcard_msg_handle_halt_dismissal();
 }
 
 static void mcard_msg_format_failed_rtn(void) {

@@ -118,13 +118,11 @@ void gcCiInit(void)
 
 void gcci_rd_cbfn(long result, DVDFileInfo* file_info)
 {
-    (void)result;
-    (void)file_info;
 }
 
 int gcCiGetNumTr(void* object)
 {
-    GcCiObject* handle = (GcCiObject*)object;
+    GcCiObject* handle = object;
 
     if (handle == 0) {
         if (gcg_ci_err_func != 0) {
@@ -137,7 +135,7 @@ int gcCiGetNumTr(void* object)
 
 void gcCiSetSctLen(void* object, int sector_length)
 {
-    GcCiObject* handle = (GcCiObject*)object;
+    GcCiObject* handle = object;
     int byte_position;
 
     if (handle == 0) {
@@ -163,7 +161,7 @@ void gcCiSetSctLen(void* object, int sector_length)
 
 int gcCiGetSctLen(void* object)
 {
-    GcCiObject* handle = (GcCiObject*)object;
+    GcCiObject* handle = object;
 
     if (handle == 0) {
         if (gcg_ci_err_func != 0) {
@@ -176,7 +174,7 @@ int gcCiGetSctLen(void* object)
 
 GcCiStatus gcCiGetStat(void* object)
 {
-    GcCiObject* handle = (GcCiObject*)object;
+    GcCiObject* handle = object;
 
     if (handle == 0) {
         if (gcg_ci_err_func != 0) {
@@ -184,7 +182,7 @@ GcCiStatus gcCiGetStat(void* object)
         }
         return GCCI_STATUS_IDLE;
     }
-    return (GcCiStatus)handle->status;
+    return handle->status;
 }
 
 static inline unsigned long gcci_milliseconds(void)
@@ -467,7 +465,7 @@ int gcCiReqRd(void* object, int sectors, void* buffer)
 
 int gcCiTell(void* object)
 {
-    GcCiObject* handle = (GcCiObject*)object;
+    GcCiObject* handle = object;
 
     if (handle == 0) {
         if (gcg_ci_err_func != 0) {
@@ -482,7 +480,7 @@ int gcCiTell(void* object)
  * lower-clamp branch polarity and extra retail jump remain. */
 int gcCiSeek(void* object, int offset, int origin)
 {
-    GcCiObject* handle = (GcCiObject*)object;
+    GcCiObject* handle = object;
     int position;
 
     if (handle == 0) {
@@ -513,7 +511,7 @@ int gcCiSeek(void* object, int offset, int origin)
     return handle->sector_position;
 }
 
-/* TODO: [near miss] 98.008850%; prologue bases/copy and final close-address owner remain. */
+/* TODO: [near miss] 98.01%; close body and API agree; prologue register homes and final-store address remain. */
 void gcCiClose(void* object)
 {
     GcCiObject* handle;
@@ -521,7 +519,7 @@ void gcCiClose(void* object)
     if (object == 0) {
         return;
     }
-    gcci_cancel_transfer(handle = (GcCiObject*)object);
+    gcci_cancel_transfer(handle = object);
     DVDClose(&handle->file_info);
     ((GcCiObject*)object)->used = 0;
     memset(object, 0, sizeof(*handle));
@@ -604,7 +602,7 @@ void* gcCiOpen(const char* filename, void* parameter, int mode)
     }
 
     handle->sector_length = GCCI_DEFAULT_SECTOR_LENGTH;
-    file_size = (int)handle->file_info.length;
+    file_size = handle->file_info.length;
     if ((file_size & 0x80000000U) != 0) {
         file_size = 0x7FFFFFFF;
     }
@@ -646,7 +644,7 @@ int gcCiGetFileSize(const char* filename)
         return 0;
     }
 
-    file_size = (int)file_info.length;
+    file_size = file_info.length;
     if ((file_size & 0x80000000U) != 0) {
         file_size = 0x7FFFFFFF;
     }

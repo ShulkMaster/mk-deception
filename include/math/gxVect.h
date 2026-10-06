@@ -8,6 +8,18 @@ typedef struct Vec {
 } Vec;
 typedef char VecSizeCheck[sizeof(Vec) == 0x0C ? 1 : -1];
 
+static inline void gxVectCopy(Vec* destination, const Vec* source) {
+    destination->x = source->x;
+    destination->y = source->y;
+    destination->z = source->z;
+}
+
+static inline void gxVectScale(Vec* destination, const Vec* source, float scale) {
+    destination->x = source->x * scale;
+    destination->y = source->y * scale;
+    destination->z = source->z * scale;
+}
+
 void PSVECAdd(const Vec* a, const Vec* b, Vec* dst);
 void PSVECSubtract(const Vec* a, const Vec* b, Vec* dst);
 void PSVECNormalize(const Vec* src, Vec* dst);

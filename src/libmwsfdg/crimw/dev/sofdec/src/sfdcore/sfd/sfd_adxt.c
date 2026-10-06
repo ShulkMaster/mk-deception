@@ -100,10 +100,6 @@ extern void SFTST_SetExcessErr(SfdTestWork* work, const SfdTestTime* value);
 extern void SFTST_SetTolerance(SfdTestWork* work, const SfdTestTime* value);
 extern void SFTST_SetTstFlg(SfdTestWork* work, int value);
 
-extern void UTY_InitTmr(int channel);
-extern void UTY_FinishTmr(void);
-extern unsigned long long UTY_GetTmrUnit(void);
-
 int sfadxt_stat = 0;
 static int sfadxt_adxterr = 0;
 static SfdAdxtParameters sfadxt_para;
@@ -385,8 +381,8 @@ static inline void sfadxt_UpdateTime(SfdAdxtWork* work,
     sample.value = UTY_GetTmr();
     sample.scale = UTY_GetTmrUnit();
     SFTST_Calc(test_work, &master, &sample, &output);
-    count = (int)output.value;
-    unit = (int)output.scale;
+    count = output.value;
+    unit = output.scale;
     if (work->maximum_time_value < count) {
         work->maximum_time_value = count;
         work->maximum_time_scale = unit;
@@ -599,7 +595,6 @@ static inline int sfadxt_SearchFrmTop(SfdHandle* handle,
                 int end_size;
 
                 found_end = 1;
-                /* Zero is the initial sentinel in this address ordering. */
                 if (ADXT_IsEndcode(position, 0x12, &end_size) != 0 &&
                     latest_end_address < (unsigned long)position) {
                     latest_end_address = (unsigned long)position;
@@ -692,7 +687,7 @@ static void sfadxt_AdjustSync(SfdHandle* handle, const unsigned char* data,
         return;
     }
     audio_start =
-        (int)SFTIM_GetAudioStartSample(timer, sample_rate);
+        SFTIM_GetAudioStartSample(timer, sample_rate);
 
     if (audio_start < 0) {
         return;
@@ -1034,9 +1029,9 @@ static void SFADXT_SetSpeed(SfdHandle* handle, int speed)
             semitones = 0;
             cents = 0;
         } else {
-            float log_speed = (float)log((float)speed);
+            float log_speed = log((float)speed);
             float transpose = 1731.234f * (log_speed - 6.9077554f);
-            semitones = (int)(0.01f * transpose);
+            semitones = 0.01f * transpose;
             cents = (int)transpose - semitones * 100;
         }
         ADXT_SetTranspose(decoder, semitones, cents);

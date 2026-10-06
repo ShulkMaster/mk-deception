@@ -44,7 +44,6 @@ static inline int dctFsriScanIndex(int index)
     result = offset + row * 8;
 
     if ((result < 0) || (result >= 256)) {
-        /* The original library treats an invalid scan value as fatal. */
         while (1) {}
     }
     return result;
@@ -53,7 +52,7 @@ static inline int dctFsriScanIndex(int index)
 static inline void dctFsriStoreSparseCoefficient(int coefficient, int index,
                                                   const double* value)
 {
-    PreIDCT[dctFsriScanIndex(coefficient)][index] = (float)*value;
+    PreIDCT[dctFsriScanIndex(coefficient)][index] = *value;
 }
 
 /* TODO: [breakthrough needed] Paired-single transform kernel remains unmatched. */
@@ -235,7 +234,7 @@ void DCT_FsriInitScanTbl(const signed char source[64], signed char destination[6
 {
     int index;
     for (index = 0; index < 64; index++) {
-        destination[index] = (signed char)dctFsriScanIndex(source[index]);
+        destination[index] = dctFsriScanIndex(source[index]);
     }
 }
 
@@ -253,10 +252,8 @@ void DCT_FsriTrans6Blk(DctFsriParams* params)
  * matching requires authorized handwritten assembly. */
 void DCT_FsriSetGqr(void)
 {
-    /* Retail programs GQR7 for signed 16-bit paired-single stores. */
 }
 
-/* Retail rematerializes the scan row for every transformed coefficient. */
 #pragma opt_loop_invariants off
 static void initSparseTbl(void)
 {
@@ -297,7 +294,7 @@ void DCT_FsriInitScaleTbl(float scale_table[64])
     int index;
     for (index = 0; index < 64; index++) {
         scale_table[dctFsriScanIndex(index)] =
-            (float)sfsd_scale_tbl[index];
+            sfsd_scale_tbl[index];
     }
 }
 

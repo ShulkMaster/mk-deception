@@ -20,6 +20,9 @@ typedef struct OSExecParams {
     int args_use_default;
     void* args_address;
 } OSExecParams;
+#define OS_FONT_SIZE_ANSI 0x20120
+#define OS_FONT_SIZE_SJIS 0x120F00
+
 typedef struct OSFontHeader {
     unsigned short fontType;
     unsigned short firstChar;

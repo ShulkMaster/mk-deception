@@ -15,13 +15,11 @@ SfdLibraryWork SFLIB_libwork;
 
 void SFLIB_UnlockCs(int* token)
 {
-    (void)token;
     SVM_Unlock();
 }
 
 void SFLIB_LockCs(int* token)
 {
-    (void)token;
     SVM_Lock();
 }
 
@@ -178,6 +176,5 @@ int SFD_Init(SfdLibraryConfig* config)
 
 int SFD_IsVersionCompatible(const char* version, int handle_size)
 {
-    (void)version;
     return handle_size == sizeof(SfdHandle);
 }

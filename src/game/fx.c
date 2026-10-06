@@ -29,7 +29,6 @@
 #define FREEZE_TEXTURE_HANDLE 0x10005
 #define FREEZE_TEXTURE_OID 0x2003B
 
-/* Retail TU-local; its body remains in the split assembly. */
 static void apply_special_fx_to_player(void* texture);
 
 struct FreezeLightPdata {
@@ -70,9 +69,9 @@ struct LensFlareData {
 struct FxScreenLoadFlagBits {
     unsigned char bit7 : 1;
     unsigned char bit6 : 1;
-    unsigned char reverse : 1; /* bit5 */
+    unsigned char reverse : 1;
     unsigned char bit4 : 1;
-    unsigned char alternate : 1; /* bit3 */
+    unsigned char alternate : 1;
     unsigned char low_bits : 3;
     unsigned char padding[3];
 };
@@ -282,6 +281,7 @@ static inline int lensflare_sun_blocked(
     const struct FxRayPlane* const* planes, int count) {
     CameraObj* camera;
     Vec direction;
+    const struct FxRayPlane* plane;
     int blocked;
     int index;
 
@@ -294,8 +294,8 @@ static inline int lensflare_sun_blocked(
         return 0;
     }
     uv_v3_to_v3(&direction, &camera->pos, &sun);
-    for (index = 0; index < count; index++) {
-        blocked = rayintersection(&camera->pos, &direction, &(*planes)[index]);
+    for (index = 0, plane = *planes; index < count; index++, plane++) {
+        blocked = rayintersection(&camera->pos, &direction, plane);
         if (blocked) {
             break;
         }
@@ -303,20 +303,21 @@ static inline int lensflare_sun_blocked(
     return blocked;
 }
 
-/* TODO: [breakthrough] 71.72%; __fabs and the inlined obstruction helper match; retail keeps one more FPR (f23) live through the flare loop. */
+/* TODO: [near miss] 97.99%; algorithm and CFG agree; GPR/FPR homes and independent fabs/fneg scheduling remain. */
 static float lensflare_proc2(void) {
     struct LensflarePdata* pdata;
     CameraObj* camera;
     struct LensFlareEntry* flare;
+    ScreenObj* object;
     Vec angles;
     Vec direction;
     float horizontal;
     float vertical;
-    float horizontal_abs;
-    float vertical_abs;
+    double horizontal_abs;
+    double vertical_abs;
     float alpha_value;
-    float screen_x;
-    int blocked;
+    int screen_x;
+    int screen_y;
     int index;
 
     pdata = (struct LensflarePdata*)apdata;
@@ -341,70 +342,55 @@ static float lensflare_proc2(void) {
         angles.y -= 6.2831855f;
     }
 
-    blocked = 0;
     if (__fabs(angles.y) < 0.69813f &&
-        __fabs(angles.x) < 0.69813f) {
-        blocked = lensflare_sun_blocked(
-            &pdata->obstructions, pdata->obstruction_count);
-
-        if (!blocked) {
-            horizontal = angles.y / 0.69813f;
-            vertical = angles.x / 0.69813f;
-            horizontal_abs = __fabs(horizontal);
-            vertical_abs = __fabs(vertical);
-            for (index = 0; index < flare_data.count; index++) {
-                flare = &flare_data.entries[index];
-                screen_x =
-                    ((float)(screen_width / 2) *
-                     (horizontal * flare->line_position)) +
-                    (float)(screen_width / 2) - flare->half_width;
-                if (flare->object != 0) {
-                    flare->object->x = screen_x;
-                    flare->object->y =
-                        ((float)(screen_height / 2) *
-                         (vertical * flare->line_position)) +
-                        (float)(screen_height / 2) -
-                        flare->half_height;
-                }
-                if (horizontal_abs >= vertical_abs) {
-                    if (horizontal >= 0.0f) {
-                        alpha_value =
-                            255.0f *
-                            (0.75f * (1.0f - horizontal) + 0.25f);
-                    } else {
-                        alpha_value =
-                            255.0f *
-                            (0.75f * (1.0f + horizontal) + 0.25f);
-                    }
-                } else if (vertical >= 0.0f) {
-                    alpha_value =
-                        255.0f *
-                        (0.75f * (1.0f - vertical) + 0.25f);
-                } else {
-                    alpha_value =
-                        255.0f *
-                        (0.75f * (1.0f + vertical) + 0.25f);
-                }
-                flare->object->pfx2d->verts[0].a = alpha_value;
-                flare->object->pfx2d->verts[1].a = alpha_value;
-                flare->object->pfx2d->verts[2].a = alpha_value;
-                flare->object->pfx2d->verts[3].a = alpha_value;
-                flare->object->pfx2d->mirror = 1;
-                if (flare_data.inserted == 0) {
-                    insert_screen_obj(flare->object);
-                }
-            }
-            flare_data.inserted = 1;
-            return 1.0f;
-        }
-    }
-
-    if (flare_data.inserted == 1) {
+        __fabs(angles.x) < 0.69813f &&
+        !lensflare_sun_blocked(&pdata->obstructions, pdata->obstruction_count)) {
+        horizontal = angles.y / 0.69813f;
+        vertical = angles.x / 0.69813f;
+        horizontal_abs = __fabs(horizontal);
+        vertical_abs = __fabs(vertical);
         for (index = 0; index < flare_data.count; index++) {
-            pull_screen_obj(flare_data.entries[index].object);
+            flare = &flare_data.entries[index];
+            screen_x =
+                ((float)(screen_width / 2) *
+                 (horizontal * flare->line_position)) +
+                (float)(screen_width / 2) - flare->half_width;
+            screen_y =
+                ((float)(screen_height / 2) *
+                 (vertical * flare->line_position)) +
+                (float)(screen_height / 2) - flare->half_height;
+            object = flare->object;
+            if (object != 0) {
+                object->x = screen_x;
+                object->y = screen_y;
+            }
+            if (horizontal_abs >= vertical_abs) {
+                alpha_value = 0.75f *
+                    (1.0f - (horizontal >= 0.0f ? horizontal : -horizontal)) + 0.25f;
+            } else {
+                alpha_value = 0.75f *
+                    (1.0f - (vertical >= 0.0f ? vertical : -vertical)) + 0.25f;
+            }
+            alpha_value = 255.0f * alpha_value;
+            object = flare->object;
+            object->pfx2d->verts[0].a = alpha_value;
+            object->pfx2d->verts[1].a = alpha_value;
+            object->pfx2d->verts[2].a = alpha_value;
+            object->pfx2d->verts[3].a = alpha_value;
+            object->pfx2d->mirror = 1;
+            if (flare_data.inserted == 0) {
+                insert_screen_obj(flare->object);
+            }
         }
+        flare_data.inserted = 1;
+    } else {
+        if (flare_data.inserted == 1) {
+            for (index = 0; index < flare_data.count; index++) {
+                pull_screen_obj(flare_data.entries[index].object);
+            }
+        }
+        flare_data.inserted = 0;
     }
-    flare_data.inserted = 0;
     return 1.0f;
 }
 
@@ -494,15 +480,7 @@ void yinyang_start_lensflare(void) {
 
 static inline ScreenObj* global_moveset_live_style_sign(GlobalMoveset* owner) {
     ScreenObj* object = owner->style_sign;
-    if (object != 0) {
-        if (object->instance == owner->style_sign_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
+    return MK_LIVE(object, owner->style_sign_instance);
 }
 
 static inline int fighting_style_sign_can_restart(int player)
@@ -526,7 +504,7 @@ static inline int fighting_style_sign_can_restart(int player)
     return 0;
 }
 
-/* TODO: [near miss] 98.96227%; restart joins recovered; retail retains a PID selection copy; honest forms exhausted. */
+/* TODO: [near miss] 98.96%; restart joins recovered; retail retains a PID selection copy; honest forms exhausted. */
 void show_fighting_style(GlobalMoveset* moveset, int player) {
     struct FightingStyleSignPdata* pdata;
     ScreenObj* sign;
@@ -569,8 +547,6 @@ void show_fighting_style(GlobalMoveset* moveset, int player) {
         pdata->player = player;
     }
 }
-
-/* The screen-object latches retain both pointer and instance for validation. */
 
 static void update_skewer_positions(int player) {
     ScreenObj* p1_body;

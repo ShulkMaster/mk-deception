@@ -1,4 +1,5 @@
 #include "game/jab.h"
+#include "math/gxMath.h"
 #include "game/blood.h"
 #include "libmkparticle/fields.h"
 #include "libmkparticle/texture_anim.h"
@@ -537,21 +538,6 @@ void jab_attach_drink_obj_to_hand(
     }
 }
 
-static inline float jab_inverse_sqrt(float length_sq) {
-    union JabFloatBits inverse;
-    float half_x;
-    float newton;
-
-    if (length_sq <= 0.0f) {
-        return 0.0f;
-    }
-    inverse.f = length_sq;
-    inverse.u = 0x5F375A00U - (inverse.u >> 1);
-    half_x = inverse.f * (length_sq * inverse.f);
-    newton = 3.0f - half_x;
-    return 0.0625f * inverse.f * newton *
-           -((newton * (half_x * newton)) - 12.0f);
-}
 
 /* TODO: [near miss] 93.28%; normalization CFG/math agree; FP setup and direction-copy scheduling differ. */
 void jab_face_obj(MkObj* object, const Vec* direction) {
@@ -575,7 +561,7 @@ void jab_face_obj(MkObj* object, const Vec* direction) {
     length_sq = matrix->at.x * matrix->at.x +
                 matrix->at.y * matrix->at.y +
                 matrix->at.z * matrix->at.z;
-    inverse_length = jab_inverse_sqrt(length_sq);
+    inverse_length = gxMathFastInvSqrt(length_sq);
 
     matrix->at.x = matrix->at.x * inverse_length;
     matrix->at.y *= inverse_length;
@@ -768,7 +754,7 @@ void jab_setup_kiss_emitter_obj(MkObj* object) {
         at_y_sq = matrix->at.y * matrix->at.y;
         at_z_sq = matrix->at.z * matrix->at.z;
         length_sq = (at_x_sq + at_y_sq) + at_z_sq;
-        inverse_length = jab_inverse_sqrt(length_sq);
+        inverse_length = gxMathFastInvSqrt(length_sq);
         matrix->at.x = at_x * inverse_length;
         matrix->at.y *= inverse_length;
         matrix->at.z *= inverse_length;
@@ -788,7 +774,7 @@ void jab_setup_kiss_emitter_obj(MkObj* object) {
         right_y_sq = matrix->right.y * matrix->right.y;
         right_z_sq = matrix->right.z * matrix->right.z;
         length_sq = (right_x_sq + right_y_sq) + right_z_sq;
-        inverse_length = jab_inverse_sqrt(length_sq);
+        inverse_length = gxMathFastInvSqrt(length_sq);
         matrix->right.x = right_x * inverse_length;
         matrix->right.y *= inverse_length;
         matrix->right.z *= inverse_length;
@@ -975,7 +961,7 @@ void jab_kira_projectile_hand_explode(void) {
     direction.x = opponent->pos.value.x - plyr_obj->pos.value.x;
     direction.z = opponent->pos.value.z - plyr_obj->pos.value.z;
     length_sq = direction.x * direction.x + direction.z * direction.z;
-    inverse_length = jab_inverse_sqrt(length_sq);
+    inverse_length = gxMathFastInvSqrt(length_sq);
     direction.x *= inverse_length;
     direction.z *= inverse_length;
 
@@ -997,7 +983,7 @@ void jab_kira_projectile_hand_explode(void) {
     right_y_sq = matrix->right.y * matrix->right.y;
     right_z_sq = matrix->right.z * matrix->right.z;
     length_sq = (right_x_sq + right_y_sq) + right_z_sq;
-    inverse_length = jab_inverse_sqrt(length_sq);
+    inverse_length = gxMathFastInvSqrt(length_sq);
     matrix->right.x = right_x * inverse_length;
     matrix->right.y *= inverse_length;
     matrix->right.z *= inverse_length;
@@ -1341,8 +1327,6 @@ void sh_spawn_grinder_crush_blood(void) {
     }
 }
 
-/* TODO: [near miss] 99.39%; saved-register ranking matches; volatile index/vector-stride vs
- * last scale/angle registers swapped (r6/r7 vs r10/r11). */
 float pfx_sh_grinder_crush_blood(void) {
     float* destination_angles;
     Vec* source_velocities;
@@ -1357,17 +1341,17 @@ float pfx_sh_grinder_crush_blood(void) {
     float* source_scales;
     float* destination_scales;
     float* source_angles;
-    MkHdr* emitter_object;
     Vec* last_position;
     unsigned char* last_color;
-    float* last_scale;
-    float* last_angle;
+    int field_stride;
+    int index;
+    MkHdr* emitter_object;
+    int vector_stride;
     Vec* last_velocity;
     float* last_zero_field;
-    int field_stride;
-    int vector_stride;
     int last_index;
-    int index;
+    float* last_scale;
+    float* last_angle;
     float delta_x;
     float delta_y;
     float delta_z;

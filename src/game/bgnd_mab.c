@@ -108,20 +108,12 @@ struct SkyTempleExplodeMonitorPdata {
     PlyrInfo* player;
 };
 
-#define RESOLVE_MAB_OBJECT_IN_PLACE(result, object, expected_instance)     \
-    do {                                                                  \
-        (result) = (object);                                              \
-        (result) = (result) != 0                                         \
-            ? ((result)->hdr.instance == (expected_instance)             \
-                ? (result) : 0)                                          \
-            : 0;                                                         \
+#define RESOLVE_MAB_OBJECT_IN_PLACE(result, object, expected_instance) \
+    do { \
+        (result) = (object); \
+        (result) = MK_HDR_LIVE((result), (expected_instance)); \
     } while (0)
 
-static inline void mab_copy_vec_components(Vec* destination, const Vec* source) {
-    destination->x = source->x;
-    destination->y = source->y;
-    destination->z = source->z;
-}
 
 double __fabs(double value);
 
@@ -612,7 +604,7 @@ float p_fish_attack(void) {
             &direction, &fish->pos.value, &target_position);
         scale_v3(
             &direction, &direction, distance / 15.0f);
-        mab_copy_vec_components(&fish->pos_vel, &direction);
+        gxVectCopy(&fish->pos_vel, &direction);
         fish->flags_08_bits.gravity_enabled = 1;
         fish->flags_08_bits.angular_velocity_enabled = 1;
     }
@@ -654,7 +646,7 @@ float p_fish_attack(void) {
                     &direction, &fish->pos.value, &target_position);
                 scale_v3(
                     &direction, &direction, distance / 10.0f);
-                mab_copy_vec_components(&fish->pos_vel, &direction);
+                gxVectCopy(&fish->pos_vel, &direction);
                 pdata->state_ticks = 10;
                 pdata->lifetime = 12;
                 return 1.0f;
@@ -675,7 +667,7 @@ float p_fish_attack(void) {
                 pdata->state_ticks = 10;
                 scale_v3(&direction, &direction,
                          distance / (float)pdata->state_ticks);
-                mab_copy_vec_components(&fish->pos_vel, &direction);
+                gxVectCopy(&fish->pos_vel, &direction);
                 pdata->state = 0;
                 continue;
             case 4:
@@ -697,7 +689,7 @@ float p_fish_attack(void) {
                 scale_v3(
                     forward, forward,
                     -(1.0f / (float)pdata->state_ticks));
-                mab_copy_vec_components(&fish->pos_vel, forward);
+                gxVectCopy(&fish->pos_vel, forward);
                 fish->pos_vel.y = 0.0f;
                 pdata->state = 5;
                 continue;
@@ -709,7 +701,7 @@ float p_fish_attack(void) {
                 pdata->lifetime = pdata->state_ticks + 2;
                 scale_v3(&direction, &direction,
                          distance / (float)pdata->state_ticks);
-                mab_copy_vec_components(&fish->pos_vel, &direction);
+                gxVectCopy(&fish->pos_vel, &direction);
                 pdata->state = 6;
                 continue;
             case 6:

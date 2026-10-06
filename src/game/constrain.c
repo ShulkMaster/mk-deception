@@ -35,7 +35,6 @@ struct ConstrainObstacleVtable {
     void (*destroy)(ArenaObstacle*);
 };
 
-
 struct ConstrainObstacleVtable vtbl_obstacle = {
     not_mkproc,
     not_mkpdata,
@@ -80,27 +79,6 @@ static float p_constrain_players(void);
 static void repel_players(void);
 static void keep_players_on_tightrope(void);
 
-union ConstrainFloatBits {
-    float f;
-    unsigned int u;
-};
-
-static inline float constrain_inv_sqrt(float value) {
-    union ConstrainFloatBits guess;
-    float product;
-    float correction;
-
-    if (value <= 0.0f) {
-        return 0.0f;
-    }
-
-    guess.f = value;
-    guess.u = 0x5F375A00U - (guess.u >> 1);
-    product = guess.f * (value * guess.f);
-    correction = 3.0f - product;
-    return 0.0625f * guess.f * correction *
-           -(correction * (product * correction) - 12.0f);
-}
 
 static inline MkObj* constrain_player_object(PlyrInfo* player) {
     return player->slot.mirror_a;
@@ -316,7 +294,6 @@ void initialize_bgnd_collisions(BgndDataTable* background) {
     }
 }
 
-
 float dist_behind_me(void) {
     MkObj* object;
     Vec direction;
@@ -373,7 +350,7 @@ static float dist_from_plyr_pos_to_arena_edge(
     }
 
     inverse_length =
-        constrain_inv_sqrt(position->x * position->x +
+        gxMathFastInvSqrt(position->x * position->x +
                            position->z * position->z);
     outward_dot =
         direction->x * (position->x * inverse_length) +
@@ -486,12 +463,6 @@ void start_constrain_proc(void) {
     }
 }
 
-static inline void copy_constrain_position(Vec* destination,
-                                           const Vec* source) {
-    destination->x = source->x;
-    destination->y = source->y;
-    destination->z = source->z;
-}
 
 /* TODO: [near miss] 81.942856%; coordinate load/store scheduling differs;
  * scheduling-off shifts residue; retain source pending alias-boundary evidence. */
@@ -499,15 +470,14 @@ void set_constrain_last_pos(int player, const Vec* position) {
     if (find_mkproc_pid(0x1003) != 0) {
         tightrope_set = 0;
         if (player == 0) {
-            copy_constrain_position(
+            gxVectCopy(
                 &constrain_state.player[0].position, position);
         } else {
-            copy_constrain_position(
+            gxVectCopy(
                 &constrain_state.player[1].position, position);
         }
     }
 }
-
 
 static float p_constrain_players(void) {
     MkObj* sidekick;
@@ -855,7 +825,6 @@ static void keep_players_on_tightrope(void) {
 
     apply_tightrope_to_players(player_1);
 }
-
 
 float get_constrain_player_distance(void) {
     float distance =

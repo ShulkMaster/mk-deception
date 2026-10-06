@@ -6,6 +6,13 @@
 #include "sofdec/dct_fsri.h"
 #include "sofdec/mpv_error.h"
 
+static inline u32 mpvmc_avg_words(u32 left, u32 right)
+{
+    u32 different = left ^ right;
+    return (left & right) + ((different & 0xFEFEFEFE) >> 1) +
+           (different & 0x01010101);
+}
+
 /* The decoder version ABI covers 0x1378 bytes; allocated handle slots are
  * sizeof(MPVContext) == 0x1380 bytes. Retail and RE4 distinguish the two. */
 #define MPV_DECODER_VERSION_SIZE 0x1378U

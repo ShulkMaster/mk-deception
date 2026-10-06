@@ -147,14 +147,14 @@ static inline unsigned char* mfci_get_adr_size(const char* filename,
         end++;
     }
     if (file_size != 0) {
-        *file_size = (int)strtoul(end, &end, 16);
+        *file_size = strtoul(end, &end, 16);
     }
     return (unsigned char*)address;
 }
 
 int mfCiGetNumTr(void* object)
 {
-    MfCiObject* handle = (MfCiObject*)object;
+    MfCiObject* handle = object;
 
     if (handle == 0) {
         if (mfci_err_func != 0) {
@@ -167,7 +167,7 @@ int mfCiGetNumTr(void* object)
 
 void mfCiSetSctLen(void* object, int sector_length)
 {
-    MfCiObject* handle = (MfCiObject*)object;
+    MfCiObject* handle = object;
     int byte_position;
 
     if (handle == 0) {
@@ -187,7 +187,7 @@ void mfCiSetSctLen(void* object, int sector_length)
 
 int mfCiGetSctLen(void* object)
 {
-    MfCiObject* handle = (MfCiObject*)object;
+    MfCiObject* handle = object;
 
     if (handle == 0) {
         if (mfci_err_func != 0) {
@@ -200,7 +200,7 @@ int mfCiGetSctLen(void* object)
 
 MfCiStatus mfCiGetStat(void* object)
 {
-    MfCiObject* handle = (MfCiObject*)object;
+    MfCiObject* handle = object;
 
     if (handle == 0) {
         if (mfci_err_func != 0) {
@@ -208,12 +208,12 @@ MfCiStatus mfCiGetStat(void* object)
         }
         return MFCI_STATUS_IDLE;
     }
-    return (MfCiStatus)handle->status;
+    return handle->status;
 }
 
 void mfCiStopTr(void* object)
 {
-    MfCiObject* handle = (MfCiObject*)object;
+    MfCiObject* handle = object;
 
     if (handle == 0) {
         if (mfci_err_func != 0) {
@@ -230,7 +230,7 @@ void mfCiStopTr(void* object)
 /* TODO: [near miss] 99.44%; callback/string bases remain exchanged across diagnostics. */
 int mfCiReqRd(void* object, int sectors, void* buffer)
 {
-    MfCiObject* handle = (MfCiObject*)object;
+    MfCiObject* handle = object;
     unsigned char* source;
     int file_size;
     int available_length;
@@ -308,7 +308,7 @@ int mfCiReqRd(void* object, int sectors, void* buffer)
 
 int mfCiTell(void* object)
 {
-    MfCiObject* handle = (MfCiObject*)object;
+    MfCiObject* handle = object;
 
     if (handle == 0) {
         if (mfci_err_func != 0) {
@@ -322,7 +322,7 @@ int mfCiTell(void* object)
 /* TODO: [near miss] 98.28%; clamp branch orientation agrees; positive arm has a separate store site instead of retail shared store. */
 int mfCiSeek(void* object, int offset, int origin)
 {
-    MfCiObject* handle = (MfCiObject*)object;
+    MfCiObject* handle = object;
     int position;
 
     if (handle == 0) {
@@ -358,7 +358,7 @@ int mfCiSeek(void* object, int offset, int origin)
 
 void mfCiClose(void* object)
 {
-    MfCiObject* handle = (MfCiObject*)object;
+    MfCiObject* handle = object;
 
     if (handle != 0) {
         mfCiStopTr(handle);
@@ -435,8 +435,6 @@ void mfCiExecServer(void)
 {
     int index;
 
-    /* Memory-backed transfers complete synchronously; retail still scans all
-     * handle slots as an empty per-server pass. */
     for (index = 0; index < MFCI_MAX_HANDLES; index++) {
     }
 }

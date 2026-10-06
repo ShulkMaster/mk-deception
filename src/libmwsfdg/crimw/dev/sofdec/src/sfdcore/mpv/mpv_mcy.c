@@ -23,12 +23,6 @@ static inline u32 mpvmc16_pack_avg4(const u8* reference0,
             0x000000FF);
 }
 
-static inline u32 mpvmc16_avg_words(u32 left, u32 right)
-{
-    u32 different = left ^ right;
-    return (left & right) + ((different & 0xFEFEFEFE) >> 1) +
-           (different & 0x01010101);
-}
 
 void MPVMC16_OneRef4p_TuneC(MPVMCContext* context)
 {
@@ -65,13 +59,13 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
     case 0:
         for (row = 0; row < 16; row++) {
             const u32* words = (const u32*)reference;
-            output[0] = mpvmc16_avg_words(
+            output[0] = mpvmc_avg_words(
                 words[0], (words[0] << 8) | (words[1] >> 24));
-            output[1] = mpvmc16_avg_words(
+            output[1] = mpvmc_avg_words(
                 words[1], (words[1] << 8) | (words[2] >> 24));
-            output[16] = mpvmc16_avg_words(
+            output[16] = mpvmc_avg_words(
                 words[2], (words[2] << 8) | (words[3] >> 24));
-            output[17] = mpvmc16_avg_words(
+            output[17] = mpvmc_avg_words(
                 words[3], (words[3] << 8) | (words[4] >> 24));
             reference += context->reference_stride;
             output += 2;
@@ -84,16 +78,16 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
         reference -= 1;
         for (row = 0; row < 16; row++) {
             const u32* words = (const u32*)reference;
-            output[0] = mpvmc16_avg_words(
+            output[0] = mpvmc_avg_words(
                 (words[0] << 8) | (words[1] >> 24),
                 (words[0] << 16) | (words[1] >> 16));
-            output[1] = mpvmc16_avg_words(
+            output[1] = mpvmc_avg_words(
                 (words[1] << 8) | (words[2] >> 24),
                 (words[1] << 16) | (words[2] >> 16));
-            output[16] = mpvmc16_avg_words(
+            output[16] = mpvmc_avg_words(
                 (words[2] << 8) | (words[3] >> 24),
                 (words[2] << 16) | (words[3] >> 16));
-            output[17] = mpvmc16_avg_words(
+            output[17] = mpvmc_avg_words(
                 (words[3] << 8) | (words[4] >> 24),
                 (words[3] << 16) | (words[4] >> 16));
             reference += context->reference_stride;
@@ -107,16 +101,16 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
         reference -= 2;
         for (row = 0; row < 16; row++) {
             const u32* words = (const u32*)reference;
-            output[0] = mpvmc16_avg_words(
+            output[0] = mpvmc_avg_words(
                 (words[0] << 16) | (words[1] >> 16),
                 (words[0] << 24) | (words[1] >> 8));
-            output[1] = mpvmc16_avg_words(
+            output[1] = mpvmc_avg_words(
                 (words[1] << 16) | (words[2] >> 16),
                 (words[1] << 24) | (words[2] >> 8));
-            output[16] = mpvmc16_avg_words(
+            output[16] = mpvmc_avg_words(
                 (words[2] << 16) | (words[3] >> 16),
                 (words[2] << 24) | (words[3] >> 8));
-            output[17] = mpvmc16_avg_words(
+            output[17] = mpvmc_avg_words(
                 (words[3] << 16) | (words[4] >> 16),
                 (words[3] << 24) | (words[4] >> 8));
             reference += context->reference_stride;
@@ -130,13 +124,13 @@ void MPVMC16_OneRefH2_TuneC(MPVMCContext* context)
         reference -= 3;
         for (row = 0; row < 16; row++) {
             const u32* words = (const u32*)reference;
-            output[0] = mpvmc16_avg_words(
+            output[0] = mpvmc_avg_words(
                 (words[0] << 24) | (words[1] >> 8), words[1]);
-            output[1] = mpvmc16_avg_words(
+            output[1] = mpvmc_avg_words(
                 (words[1] << 24) | (words[2] >> 8), words[2]);
-            output[16] = mpvmc16_avg_words(
+            output[16] = mpvmc_avg_words(
                 (words[2] << 24) | (words[3] >> 8), words[3]);
-            output[17] = mpvmc16_avg_words(
+            output[17] = mpvmc_avg_words(
                 (words[3] << 24) | (words[4] >> 8), words[4]);
             reference += context->reference_stride;
             output += 2;
@@ -163,10 +157,10 @@ void MPVMC16_OneRefV2_TuneC(MPVMCContext* context)
         for (row = 0; row < 16; row++) {
             const u32* words0 = (const u32*)reference0;
             const u32* words1 = (const u32*)reference1;
-            output[0] = mpvmc16_avg_words(words0[0], words1[0]);
-            output[1] = mpvmc16_avg_words(words0[1], words1[1]);
-            output[16] = mpvmc16_avg_words(words0[2], words1[2]);
-            output[17] = mpvmc16_avg_words(words0[3], words1[3]);
+            output[0] = mpvmc_avg_words(words0[0], words1[0]);
+            output[1] = mpvmc_avg_words(words0[1], words1[1]);
+            output[16] = mpvmc_avg_words(words0[2], words1[2]);
+            output[17] = mpvmc_avg_words(words0[3], words1[3]);
             reference0 += context->reference_stride;
             reference1 += context->reference_stride;
             output += 2;
@@ -179,16 +173,16 @@ void MPVMC16_OneRefV2_TuneC(MPVMCContext* context)
         for (row = 0; row < 16; row++) {
             const u32* words0 = (const u32*)reference0;
             const u32* words1 = (const u32*)reference1;
-            output[0] = mpvmc16_avg_words(
+            output[0] = mpvmc_avg_words(
                 (words0[0] << 8) | (words0[1] >> 24),
                 (words1[0] << 8) | (words1[1] >> 24));
-            output[1] = mpvmc16_avg_words(
+            output[1] = mpvmc_avg_words(
                 (words0[1] << 8) | (words0[2] >> 24),
                 (words1[1] << 8) | (words1[2] >> 24));
-            output[16] = mpvmc16_avg_words(
+            output[16] = mpvmc_avg_words(
                 (words0[2] << 8) | (words0[3] >> 24),
                 (words1[2] << 8) | (words1[3] >> 24));
-            output[17] = mpvmc16_avg_words(
+            output[17] = mpvmc_avg_words(
                 (words0[3] << 8) | reference0[16],
                 (words1[3] << 8) | reference1[16]);
             reference0 += context->reference_stride;
@@ -203,16 +197,16 @@ void MPVMC16_OneRefV2_TuneC(MPVMCContext* context)
         for (row = 0; row < 16; row++) {
             const u32* words0 = (const u32*)reference0;
             const u32* words1 = (const u32*)reference1;
-            output[0] = mpvmc16_avg_words(
+            output[0] = mpvmc_avg_words(
                 (words0[0] << 16) | (words0[1] >> 16),
                 (words1[0] << 16) | (words1[1] >> 16));
-            output[1] = mpvmc16_avg_words(
+            output[1] = mpvmc_avg_words(
                 (words0[1] << 16) | (words0[2] >> 16),
                 (words1[1] << 16) | (words1[2] >> 16));
-            output[16] = mpvmc16_avg_words(
+            output[16] = mpvmc_avg_words(
                 (words0[2] << 16) | (words0[3] >> 16),
                 (words1[2] << 16) | (words1[3] >> 16));
-            output[17] = mpvmc16_avg_words(
+            output[17] = mpvmc_avg_words(
                 (words0[3] << 16) |
                     *(const unsigned short*)(reference0 + 16),
                 (words1[3] << 16) |
@@ -229,16 +223,16 @@ void MPVMC16_OneRefV2_TuneC(MPVMCContext* context)
         for (row = 0; row < 16; row++) {
             const u32* words0 = (const u32*)reference0;
             const u32* words1 = (const u32*)reference1;
-            output[0] = mpvmc16_avg_words(
+            output[0] = mpvmc_avg_words(
                 (words0[0] << 24) | (words0[1] >> 8),
                 (words1[0] << 24) | (words1[1] >> 8));
-            output[1] = mpvmc16_avg_words(
+            output[1] = mpvmc_avg_words(
                 (words0[1] << 24) | (words0[2] >> 8),
                 (words1[1] << 24) | (words1[2] >> 8));
-            output[16] = mpvmc16_avg_words(
+            output[16] = mpvmc_avg_words(
                 (words0[2] << 24) | (words0[3] >> 8),
                 (words1[2] << 24) | (words1[3] >> 8));
-            output[17] = mpvmc16_avg_words(
+            output[17] = mpvmc_avg_words(
                 (words0[3] << 24) | (words0[4] >> 8),
                 (words1[3] << 24) | (words1[4] >> 8));
             reference0 += context->reference_stride;

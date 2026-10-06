@@ -87,7 +87,6 @@ void ADXRNA_Destroy(AXRNAHandle* rna)
 
 AXRNAHandle* ADXRNA_Create(SJ** streams, int max_channels, void* work)
 {
-    (void)work;
     return AXRNA_Create(streams, max_channels);
 }
 

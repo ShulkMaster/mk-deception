@@ -644,11 +644,11 @@ int save_konq_memory_to_krd_buffer(int region) {
                 if (npc->path_data != 0) {
                     npc_save->path_id = npc->path_data->path_id;
                     npc_save->path_field30 =
-                        (signed char)npc->path_data->field_30;
+                        npc->path_data->field_30;
                     npc_save->path_field34 =
-                        (signed char)npc->path_data->field_34;
+                        npc->path_data->field_34;
                     npc_save->path_field3C =
-                        (signed char)npc->path_data->field_3C;
+                        npc->path_data->field_3C;
                     npc_save->path_param_a = npc->path_data->param_a;
                     npc_save->path_param_b = npc->path_data->param_b;
                 } else {
@@ -681,7 +681,7 @@ int save_konq_memory_to_krd_buffer(int region) {
     buffer->region_id = region;
     buffer->header_valid = 1;
     loaded = (p1_profile_konquest->regions_loaded_mask & bit) != 0;
-    buffer->loaded_snapshot = (unsigned char)loaded;
+    buffer->loaded_snapshot = loaded;
     return 1;
 }
 

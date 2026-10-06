@@ -172,10 +172,6 @@ struct DroneOverrideInfo {
     unsigned int flags;
 };
 
-union AiFloatBits {
-    float f;
-    unsigned int u;
-};
 
 struct AiSharedAnimations {
     char pad000[0x210];
@@ -3460,30 +3456,7 @@ int drone_ai_check_for_aggressive_movement(struct DroneAI* drone) {
     return 0;
 }
 
-static inline MkPtr* ai_discard_stale_obstacle_item(MkPtr* item) {
-    MkPtr* next = item->next;
 
-    item->hdr = 0;
-    destroy_mkptr(item);
-    return next;
-}
-
-static inline float ai_obstacle_inverse_length(float squared) {
-    union AiFloatBits estimate;
-    union AiFloatBits input;
-    float estimate_product;
-    float correction;
-
-    if (squared <= 0.0f) {
-        return 0.0f;
-    }
-    input.f = squared;
-    estimate.u = 0x5F375A00U - (input.u >> 1);
-    estimate_product = estimate.f * (squared * estimate.f);
-    correction = 3.0f - estimate_product;
-    return 0.0625f * estimate.f * correction *
-           -(correction * (estimate_product * correction) - 12.0f);
-}
 
 static int drone_ai_check_obstacles(struct DroneAI* request) {
     ArenaObstacle* obstacle;
@@ -3505,7 +3478,7 @@ static int drone_ai_check_obstacles(struct DroneAI* request) {
         while (obstacle_item != 0) {
             obstacle = (ArenaObstacle*)obstacle_item->hdr;
             if (obstacle_item->instance != obstacle->hdr.instance) {
-                obstacle_item = ai_discard_stale_obstacle_item(obstacle_item);
+                obstacle_item = discard_stale_mkptr_and_advance(obstacle_item);
                 continue;
             }
             if (!obstacle->flags.bits.disabled && &obstacle->shapes != 0) {
@@ -3513,7 +3486,7 @@ static int drone_ai_check_obstacles(struct DroneAI* request) {
                 while (shape_item != 0) {
                     shape = (CollisionObj*)shape_item->hdr;
                     if (shape_item->instance != shape->hdr.instance) {
-                        shape_item = ai_discard_stale_obstacle_item(shape_item);
+                        shape_item = discard_stale_mkptr_and_advance(shape_item);
                         continue;
                     }
                     delta_z = 0.0f;
@@ -3530,7 +3503,7 @@ static int drone_ai_check_obstacles(struct DroneAI* request) {
                         uv_to_opponent(&to_opponent);
                         normalization_squared =
                             delta_x * delta_x + delta_z * delta_z;
-                        inverse_length = ai_obstacle_inverse_length(normalization_squared);
+                        inverse_length = gxMathFastInvSqrt(normalization_squared);
                         delta_z *= inverse_length;
                         delta_x *= inverse_length;
                         if (to_opponent.x * delta_x +
@@ -9596,7 +9569,7 @@ int handicap_get_current_difficulty(struct DroneAI* drone) {
     return difficulty;
 }
 
-static inline void ai_big_boss_walk_footstep(void) {
+static inline void ai_big_boss_footstep(void) {
     unsigned short sound;
 
     sound = randu0(100);
@@ -9612,7 +9585,7 @@ static inline void ai_big_boss_walk_footstep(void) {
 
 static inline void ai_walk_footstep(void) {
     if (is_big_boss(plyr_pdata)) {
-        ai_big_boss_walk_footstep();
+        ai_big_boss_footstep();
     } else {
         random_foot(1);
     }
@@ -9702,7 +9675,7 @@ void drone_walk_FB_true(
               plyr_anim_pdata->frame < 16.5f) ||
              (plyr_anim_pdata->frame > 36.8f &&
               plyr_anim_pdata->frame < 37.5f))) {
-            ai_big_boss_walk_footstep();
+            ai_big_boss_footstep();
         }
         face_opponent_now();
         advance_anim(plyr_anim_pdata);
@@ -9711,24 +9684,11 @@ void drone_walk_FB_true(
         elapsed += game_speed;
     }
     if (is_big_boss(plyr_pdata)) {
-        ai_big_boss_walk_footstep();
+        ai_big_boss_footstep();
     }
     blend_to_stance(0.1f);
 }
 
-static inline void ai_big_boss_strafe_footstep(void) {
-    unsigned short sound;
-
-    sound = randu0(100);
-    if (sound < 33) {
-        snd_req(0x1B0);
-    } else if (sound < 66) {
-        snd_req(0x1B1);
-    } else {
-        snd_req(0x1B2);
-    }
-    shake_camera(1, 0.01f);
-}
 
 void drone_step_LR_true(
     int (*test)(void), unsigned int ticks, int move_right) {
@@ -9792,7 +9752,7 @@ void drone_step_LR_true(
         disable_this_move_exec(0x6004, 40);
     }
     if (is_big_boss(plyr_pdata)) {
-        ai_big_boss_strafe_footstep();
+        ai_big_boss_footstep();
     } else {
         random_foot(1);
     }
@@ -9824,7 +9784,7 @@ void drone_step_LR_true(
                   plyr_anim_pdata->frame < 12.5f) ||
                  (plyr_anim_pdata->frame > 32.8f &&
                   plyr_anim_pdata->frame < 33.5f))) {
-                ai_big_boss_strafe_footstep();
+                ai_big_boss_footstep();
             }
             advance_anim(plyr_anim_pdata);
             pose_anim(plyr_anim_pdata, 1);

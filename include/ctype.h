@@ -42,7 +42,7 @@ inline int toupper(int c) { return c == -1 ? -1 : (int)__upper_map[(unsigned cha
 }
 
 namespace std {
-inline int tolower(int c) { return c == -1 ? -1 : (int)__lower_map[(unsigned char)c]; }
+inline int tolower(int c) { return ::_tolower(c); }
 using ::toupper;
 }
 #endif
