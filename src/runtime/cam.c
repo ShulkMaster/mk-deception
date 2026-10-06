@@ -585,7 +585,7 @@ static inline int kick_camera_move_to_position(const Vec* target) {
     return 0;
 }
 
-/* TODO: [near miss] 99.07%; movement-loop FPR coloring and sqrt scratch slots remain. */
+/* TODO: [near miss] 99.68%; movement-loop FPR coloring and sqrt scratch slots remain. */
 static float kick_camera(void) {
     CameraObj* camera;
     CameraObj* camera_check;
@@ -1296,7 +1296,7 @@ float p_mk_chess_cam_control(void) {
     }
 }
 
-/* TODO: [near miss] 64.47%; math and size match retail; FPR and int-to-double scheduling differ. */
+/* TODO: [near miss] 64.48%; math and size match retail; FPR and int-to-double scheduling differ. */
 void camera_get_screen_pos_from_world_pos(const Vec* world, RwV2d* screen) {
     RwRaster* raster = Camera->frameBuffer;
     float y = world->y;
@@ -2349,7 +2349,7 @@ float p_krypt_camera_proc(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.42%; loop camera r5/r6 swap and camera_sqrt stack-slot order (0x8/0xc) remain. */
+/* TODO: [near miss] 99.75%; loop camera r5/r6 swap and camera_sqrt stack-slot order (0x8/0xc) remain. */
 static float konquest_interior_camera_loop(void) {
     CameraObj* camera;
     Vec target_position = {0.0f, 0.0f, 0.0f};
@@ -3593,7 +3593,7 @@ static inline int scripted_camera_turn_toward(Vec* angles, float rate,
     return 0;
 }
 
-/* TODO: [near miss] 98.50%; snap predicate staging improves turn lowering;
+/* TODO: [near miss] 98.76%; snap predicate staging improves turn lowering;
  * initializer pool offsets, orbit argument order and turn FPRs remain. */
 float p_scripted_camera(void) {
     float inverse_length;
@@ -4115,7 +4115,7 @@ float camera_get_pos(unsigned int axis) {
     return position;
 }
 
-/* TODO: [near miss] 59.35%; XZ selection matches; Vec stack slots, FPR and latch scheduling differ. */
+/* TODO: [near miss] 59.36%; XZ selection matches; Vec stack slots, FPR and latch scheduling differ. */
 void find_best_conversation_camera_position(void) {
     MkObj* focus = scripted_camera_data.lookat_focus;
     struct InteractionNpc* npc = MK_HDR_LIVE(konquest_pdata->movement_npc, konquest_pdata->movement_npc_instance);
@@ -4843,7 +4843,7 @@ static void attract_setup_radial_sweep(struct AttractCameraState* state) {
     }
 }
 
-/* TODO: [near miss] 99.32%; only the loop camera pointer vs camera_sqrt bits register swap (r5/r6) remains. */
+/* TODO: [near miss] 99.71%; only the loop camera pointer vs camera_sqrt bits register swap (r5/r6) remains. */
 float p_puzzle_game_camera_proc(void) {
     CameraObj* camera;
     Vec target_position;
@@ -4914,7 +4914,7 @@ float p_puzzle_game_camera_proc(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 71.6889%; shared sqrt lowering improved; remaining caller CFG/FPR layout needs review. */
+/* TODO: [breakthrough needed] 71.77%; shared sqrt lowering improved; remaining caller CFG/FPR layout needs review. */
 void get_target_movement_vector(const Vec* current_position,
                                 const Vec* target_position, Vec* movement,
                                 float duration) {
@@ -5007,21 +5007,20 @@ int intro_done(void) {
     return (g_game_info.pause_flags >> 6) & 1;
 }
 
-/* TODO: [breakthrough needed] 79.4950%; shared sqrt lowering improved; remaining caller CFG/FPR layout needs review. */
-static int radial_move_to_game_position(const Vec* target_position,
-                                        const Vec* center, float rate) {
+/* TODO: [near miss] 94.83%; shared vector and interpolation staging recovered; FP homes and latch join remain. */
+static int radial_move_to_game_position(Vec* target_position,
+                                        Vec* center, float rate) {
     CameraObj* camera;
-    Vec current;
-    Vec target;
     Vec radial;
     float current_radius;
-    float target_radius;
     float current_angle;
+    float target_radius;
     float angle_delta;
     float radius_delta;
     float absolute_angle_delta;
     float absolute_radius_delta;
     float next_radius;
+    float next_angle;
     float next_height;
 
     camera = camera_item.node;
@@ -5036,19 +5035,19 @@ static int radial_move_to_game_position(const Vec* target_position,
         return 0;
     }
 
-    current.x = camera->pos.x - center->x;
-    current.y = camera->pos.y - center->y;
-    current.z = camera->pos.z - center->z;
+    radial.x = camera->pos.x - center->x;
+    radial.y = camera->pos.y - center->y;
+    radial.z = camera->pos.z - center->z;
     current_radius =
-        gxMathFastSqrt(current.x * current.x + current.z * current.z);
-    current_angle = atan2(current.x, current.z);
+        gxMathFastSqrt(radial.x * radial.x + radial.z * radial.z);
+    current_angle = atan2(radial.x, radial.z);
 
-    target.x = target_position->x - center->x;
-    target.y = target_position->y - center->y;
-    target.z = target_position->z - center->z;
-    target_radius = gxMathFastSqrt(target.x * target.x + target.z * target.z);
+    radial.x = target_position->x - center->x;
+    radial.y = target_position->y - center->y;
+    radial.z = target_position->z - center->z;
+    target_radius = gxMathFastSqrt(radial.x * radial.x + radial.z * radial.z);
     angle_delta =
-        (float)atan2(target.x, target.z) - current_angle;
+        (float)atan2(radial.x, radial.z) - current_angle;
     radius_delta = target_radius - current_radius;
     next_radius = current_radius + radius_delta * rate;
 
@@ -5057,6 +5056,7 @@ static int radial_move_to_game_position(const Vec* target_position,
     } else if (angle_delta > 3.1415927f) {
         angle_delta -= 6.2831855f;
     }
+    next_angle = current_angle + angle_delta * rate;
     absolute_angle_delta =
         angle_delta >= 0.0f ? angle_delta : -angle_delta;
     if (absolute_angle_delta < 0.001f) {
@@ -5070,7 +5070,7 @@ static int radial_move_to_game_position(const Vec* target_position,
     next_height = camera->pos.y +
                   (target_position->y - camera->pos.y) * rate;
     radial = (Vec){0.0f, 0.0f, 0.0f};
-    rotate_xz(&radial, &Zaxis, current_angle + angle_delta * rate);
+    rotate_xz(&radial, &Zaxis, next_angle);
     radial.x *= next_radius;
     radial.y *= next_radius;
     radial.z *= next_radius;
@@ -6128,8 +6128,6 @@ static RwCamera* CameraCreate(int width, int height) {
     return 0;
 }
 
-/* TODO: [near miss] 99.43%; restore object string pooling/readonly for +9 suffix;
- * float pool offsets also differ under strict relocation comparison. */
 int init_camera(void) {
     int height;
     MkProc* process;
