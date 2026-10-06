@@ -117,7 +117,7 @@ static float last_camera_distance = 2.6f;
 RwRaster* RwRasterSubRaster(RwRaster* raster, RwRaster* parent, RwRect* rect);
 
 void CameraSize(RwCamera* camera, RwRect* rect, float view_window, float aspect_ratio);
-float xz_ray_circle_intersection_dist(const Vec* ray_origin,
+float xz_ray_circle_intersection_dist(Vec* ray_origin,
                                       const Vec* ray_direction,
                                       float radius);
 float p_attract_camera(void);
@@ -3317,7 +3317,7 @@ void cam_calc_right_at_up_offsets(const Vec* position, float* forward_offset,
     *up_offset = cam_up_uv.x * delta.x + cam_up_uv.y * delta.y + cam_up_uv.z * delta.z;
 }
 
-float get_volume_from_distance(const Vec* position, float far_distance,
+float get_volume_from_distance(Vec* position, float far_distance,
                                float near_distance) {
     CameraObj* camera;
     float volume = 0.0f;
@@ -3335,7 +3335,7 @@ float get_volume_from_distance(const Vec* position, float far_distance,
     return volume;
 }
 
-float get_pan_value(const Vec* position) {
+float get_pan_value(Vec* position) {
     CameraObj* camera;
     Vec direction;
     Vec forward = {0.0f, 0.0f, 0.0f};

@@ -114,39 +114,71 @@ MkPfx* start_pfx_glass_shards(
     return glass;
 }
 
-/* TODO: [near miss] 96.09%; CFG/math/calls recovered; pass-1 spill choice differs (retail spills src_angle, index r31, vm r17); needs spill-cost evidence. */
+/* TODO: [near miss] 98.81%; spill set/slots and saved-GPR homes match; entry-block volatile colouring of hoisted &g_game_info and last remains; stop at coloring. */
 static float pfx_glass_break_run(void) {
-    int bounce_limit = apfx->effect_state;
-    float moving_damping = pow(0.99f, game_speed);
-    float resting_damping = pow(0.975f, game_speed);
-    float gravity = 0.003f * game_speed;
-    PfxVm* vm = (PfxVm*)apfx->matrix;
-    float* dst_scale = pfx_get_field(vm, -2, 0x102);
-    float* src_scale = pfx_get_field(vm, -1, 0x102);
-    float* src_time = pfx_get_field(vm, -1, 0x301);
-    float* dst_time = pfx_get_field(vm, -2, 0x301);
-    Vec* dst_pos = pfx_get_field(vm, -2, 0x100);
-    Vec* src_pos = pfx_get_field(vm, -1, 0x100);
-    Vec* src_vel = pfx_get_field(vm, -1, 0x300);
-    Vec* dst_vel = pfx_get_field(vm, -2, 0x300);
-    PfxColor* dst_color = pfx_get_field(vm, -2, 0x101);
-    int* src_state = pfx_get_field(vm, -1, 0x307);
-    int* dst_state = pfx_get_field(vm, -2, 0x307);
-    float* src_life = pfx_get_field(vm, -1, 0x305);
-    float* dst_life = pfx_get_field(vm, -2, 0x305);
-    float* dst_angle = pfx_get_field(vm, -2, 0x103);
-    float* src_angle = pfx_get_field(vm, -1, 0x103);
-    int fstride = vm->transforms[0].particle_field_stride;
-    int vstride = vm->particle_vector_stride;
-    int last = vm->particle_cursor - 1;
-    float* last_angle = PFX_FIELD_AT(src_angle, fstride * last);
-    Vec* last_pos = PFX_FIELD_AT(src_pos, fstride * last);
-    Vec* last_vel = PFX_FIELD_AT(src_vel, vstride * last);
-    float* last_time = PFX_FIELD_AT(src_time, vstride * last);
-    float* last_scale = PFX_FIELD_AT(src_scale, fstride * last);
-    float* last_life = PFX_FIELD_AT(src_life, vstride * last);
-    int* last_state = PFX_FIELD_AT(src_state, vstride * last);
-    int index = 0;
+    float moving_damping;
+    float resting_damping;
+    float gravity;
+    float* src_scale;
+    int index;
+    float* dst_time;
+    float* src_time;
+    float* dst_scale;
+    int* dst_state;
+    int* src_state;
+    float* dst_life;
+    float* src_life;
+    Vec* dst_pos;
+    Vec* dst_vel;
+    Vec* src_vel;
+    int fstride;
+    int vstride;
+    Vec* src_pos;
+    PfxVm* vm;
+    PfxColor* dst_color;
+    float* dst_angle;
+    int last;
+    float* last_scale;
+    float* last_time;
+    Vec* last_pos;
+    Vec* last_vel;
+    int* last_state;
+    float* last_life;
+    float* last_angle;
+    float* src_angle;
+    int bounce_limit;
+
+    bounce_limit = apfx->effect_state;
+    moving_damping = pow(0.99f, game_speed);
+    resting_damping = pow(0.975f, game_speed);
+    gravity = 0.003f * game_speed;
+    vm = (PfxVm*)apfx->matrix;
+    dst_scale = pfx_get_field(vm, -2, 0x102);
+    src_scale = pfx_get_field(vm, -1, 0x102);
+    src_time = pfx_get_field(vm, -1, 0x301);
+    dst_time = pfx_get_field(vm, -2, 0x301);
+    dst_pos = pfx_get_field(vm, -2, 0x100);
+    src_pos = pfx_get_field(vm, -1, 0x100);
+    src_vel = pfx_get_field(vm, -1, 0x300);
+    dst_vel = pfx_get_field(vm, -2, 0x300);
+    dst_color = pfx_get_field(vm, -2, 0x101);
+    src_state = pfx_get_field(vm, -1, 0x307);
+    dst_state = pfx_get_field(vm, -2, 0x307);
+    src_life = pfx_get_field(vm, -1, 0x305);
+    dst_life = pfx_get_field(vm, -2, 0x305);
+    dst_angle = pfx_get_field(vm, -2, 0x103);
+    src_angle = pfx_get_field(vm, -1, 0x103);
+    fstride = vm->transforms[0].particle_field_stride;
+    vstride = vm->particle_vector_stride;
+    last = vm->particle_cursor - 1;
+    last_angle = PFX_FIELD_AT(src_angle, fstride * last);
+    last_pos = PFX_FIELD_AT(src_pos, fstride * last);
+    last_vel = PFX_FIELD_AT(src_vel, vstride * last);
+    last_time = PFX_FIELD_AT(src_time, vstride * last);
+    last_scale = PFX_FIELD_AT(src_scale, fstride * last);
+    last_life = PFX_FIELD_AT(src_life, vstride * last);
+    last_state = PFX_FIELD_AT(src_state, vstride * last);
+    index = 0;
 
     while (index < vm->particle_cursor) {
         if (*src_life >= (float)(apfx->field_28C - 1)) {
@@ -170,7 +202,6 @@ static float pfx_glass_break_run(void) {
             }
         } else {
             Vec displacement;
-            float old_y;
             dst_vel->x = src_vel->x;
             dst_vel->y = src_vel->y;
             dst_vel->z = src_vel->z;
@@ -189,11 +220,10 @@ static float pfx_glass_break_run(void) {
             if (apfx->field_294 == 6) {
                 dst_vel->x *= moving_damping;
                 dst_vel->z *= moving_damping;
-                old_y = dst_vel->y;
-                displacement.y = old_y * game_speed;
                 displacement.x = dst_vel->x * game_speed;
+                displacement.y = dst_vel->y * game_speed;
                 displacement.z = dst_vel->z * game_speed;
-                dst_vel->y = old_y - gravity;
+                dst_vel->y -= gravity;
                 dst_pos->x = src_pos->x + displacement.x;
                 dst_pos->y = src_pos->y + displacement.y;
                 dst_pos->z = src_pos->z + displacement.z;
@@ -201,11 +231,10 @@ static float pfx_glass_break_run(void) {
             } else if (*dst_state < bounce_limit) {
                 dst_vel->x *= moving_damping;
                 dst_vel->z *= moving_damping;
-                old_y = dst_vel->y;
-                displacement.y = old_y * game_speed;
                 displacement.x = dst_vel->x * game_speed;
+                displacement.y = dst_vel->y * game_speed;
                 displacement.z = dst_vel->z * game_speed;
-                dst_vel->y = old_y - gravity;
+                dst_vel->y -= gravity;
                 dst_pos->x = src_pos->x + displacement.x;
                 dst_pos->y = src_pos->y + displacement.y;
                 dst_pos->z = src_pos->z + displacement.z;
@@ -228,8 +257,8 @@ static float pfx_glass_break_run(void) {
                 }
                 if (apfx->field_290 != 0) {
                     int max_life = apfx->field_28C;
-                    float life = *src_life + game_speed;
-                    if ((float)max_life <= life) {
+                    float life;
+                    if ((float)max_life <= (life = *src_life + game_speed)) {
                         life = max_life;
                     }
                     *dst_life = life;
@@ -239,17 +268,17 @@ static float pfx_glass_break_run(void) {
             ((ptr) = PFX_FIELD_AT((ptr), (stride)))
             ADVANCE(dst_time, vstride); ADVANCE(src_time, vstride);
             ADVANCE(dst_pos, fstride); ADVANCE(src_pos, fstride);
-            ADVANCE(dst_angle, fstride); ADVANCE(dst_scale, fstride);
+            ADVANCE(dst_scale, fstride);
             ADVANCE(src_scale, fstride); ADVANCE(dst_vel, vstride);
             ADVANCE(src_vel, vstride); ADVANCE(dst_color, fstride);
             ADVANCE(dst_state, vstride); ADVANCE(src_state, vstride);
             ADVANCE(dst_life, vstride); ADVANCE(src_life, vstride);
-            ADVANCE(src_angle, fstride);
+            ADVANCE(src_angle, fstride); ADVANCE(dst_angle, fstride);
         }
         index++;
     }
 
-    if (pfx_get_emitter(vm, 0)->birth_rate != 0.0f) {
+    if (pfx_get_emitter(vm, 0)->birth_rate) {
         int spawn_index;
         PfxColor color;
         color.r = 0x80;

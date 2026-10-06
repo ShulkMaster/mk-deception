@@ -71,9 +71,9 @@ static int p1_hit_side_of_arena;
 static int tightrope_set;
 
 static float dist_from_plyr_pos_to_arena_edge(
-    const Vec* position, const Vec* direction);
+    Vec* position, const Vec* direction);
 float xz_ray_circle_intersection_dist(
-    const Vec* ray_origin, const Vec* ray_direction, float radius);
+    Vec* ray_origin, const Vec* ray_direction, float radius);
 
 static float p_constrain_players(void);
 static void repel_players(void);
@@ -324,7 +324,7 @@ static inline float constrain_positive_distance(float distance) {
 /* TODO: [near miss] 96.92%; retail FP predicates agree; sqrt return copies, stack slots and normalization registers remain. */
 
 static float dist_from_plyr_pos_to_arena_edge(
-    const Vec* position, const Vec* direction) {
+    Vec* position, const Vec* direction) {
     float length;
     float distance;
     float inverse_length;
@@ -362,7 +362,7 @@ static float dist_from_plyr_pos_to_arena_edge(
 }
 
 float xz_ray_circle_intersection_dist(
-    const Vec* ray_origin, const Vec* ray_direction, float radius) {
+    Vec* ray_origin, const Vec* ray_direction, float radius) {
     float length;
     float along_ray;
     float radicand;

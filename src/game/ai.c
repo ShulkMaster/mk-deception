@@ -564,7 +564,7 @@ static AiFightstyleAttack* drone_ai_choose_move_from_category(
     unsigned int category, unsigned int likelihood, int* is_script);
 static float drone_ai_special_attack_now(void);
 int segment_against_obstacle_list(
-    const Vec* start, const Vec* end, Vec* hit, ConstrainInfo* info);
+    Vec* start, Vec* end, Vec* hit, ConstrainInfo* info);
 void drone_step_LR_true(
     int (*test)(void), unsigned int ticks, int move_right);
 ScreenObj* display_image_by_plyr(

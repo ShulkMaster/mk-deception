@@ -100,6 +100,12 @@ across TU, REQUIRE sibling evidence + all-function and section baselines.
 - Dead ends `[da]`: compiler version sweeps never fixed a coloring residue;
   `-opt level=3`, `-schedule on`, `nocse`, `-O3`, `-O4,s` fixed nothing on an
   `-O4,p` lib (two regressed).
+- Save forms (2.7, verified on matched functions): lmw on -> `stmw` iff n>4
+  or (`,s` and n>1), else `stw` each. lmw off -> `_savegpr_N` iff n>4 or
+  (`,s` and n>2). FPRs: any single-precision/paired op in function -> inline
+  `stfd`+`psq_st` pairs at every n; else `_savefpr_N` iff n>3 or (`,s` and
+  n>2). `stw` x2..4 with lmw on proves `,p`. Old SDK compiler (GX) never
+  `psq_st`. Exceptions = scoped `optimize_for_size` pragma.
 
 ## M02
 
@@ -244,6 +250,18 @@ width.
   load `records[index].sentinel` (`p_lightning_strike_effect`).
 - Run retail table init before comparing decoder lookups (Sofdec run/level
   tables biased -16/-32/-32 bytes).
+- Local struct/array kept in memory (`lfs`/`stfs` per member off r1) where
+  ours keeps FPRs, or reverse. Scalar replacement (FE, always on, no pragma
+  disables it alone) keeps a local in memory only if: variable-offset access,
+  type pun, whole-struct access overlapping members (copy, by-value,
+  `= {0}`), volatile, asm operand, or address escape + any call. `&local`
+  to a `static inline` read-only `T*` param is substituted -> promoted.
+  TRY const-qualified helper pointer params (`T* const p`), uniform across
+  the vector helpers: pointer stays a real object (no substitution/
+  propagation), local escapes, and `*p` is an FE CSE -> retail keeps member
+  at offset 0 in a register across a join while others reload. Copy, pun,
+  index, plain pointer local put the local in memory but miss that CSE
+  (`rnd_vector_from_point`, `rnd_point_in_disc`, `rnd_point_in_cylinder`).
 
 ## M08
 
@@ -282,8 +300,16 @@ residue.
 ## M12
 
 Alias analysis changes access schedule. REQUIRE real mutability + callers.
-Drop unsupported `const` or restore supported `const`; `const` alone doesn't
-prove non-aliasing.
+Drop unsupported `const` or restore supported `const`.
+
+Mechanism (2.7 measured): pointee `const` on the root pointer after copy
+propagation (function's own param, global object, or source of a cast) makes
+its loads non-aliasing with stores: VN reuses the load across stores,
+pre-RA scheduler hoists it above stores, post-RA lets it cross `stwu`.
+Inlined helper's param `const` is irrelevant. Const local copied from plain
+param = plain; `(T*)` cast of const param = const. `stwu` sink form REQUIRE
+leaf, `stwu`-only prologue merged into a single-pred entry block (loop-header
+entry keeps `stwu` first); non-leaf shows only load/store moves.
 
 Project prior: Midway game/lib code barely uses `const`. Removing `const`
 closes far more near misses than adding it. Near miss with any `const`
@@ -303,7 +329,10 @@ public APIs keep their documented `const`.
   (`sftrn_BuildSystem`, `sftrn_BuildAll`).
 - Matrix/vector math: pointee `const` on input matrices/vectors kept loads
   ahead of the output stores; dropping it restored retail interleave across
-  the family (`mk_math` `v3_x_mat`, `p3_x_mat`, `mat_scaled_by_v3`).
+  the family (`mk_math` `v3_x_mat`, `p3_x_mat`, `mat_scaled_by_v3`,
+  `dist_xz_to_xz`, `length_v3`, `uv_v3_to_v3_dist`). Per-function drop, not
+  TU-wide (`YXZ_angles_to_quat` keeps const). C rejects `const T*` to `T*`
+  param: drop the caller's const too, recheck caller objects byte-identical.
 - Separately cached dest owner = H05.
 
 ## M13
@@ -352,6 +381,12 @@ are proven. Shared headers only for proven ownership; unused O0 param takes
   inlines 3-instr helper, keeps 26-instr static as call). Compiler 2.7
   ignores `inline_max_auto_size`; `-inline on`/`noauto`/`level=0` don't clear
   base `-inline auto`. Only when retail inlining proves the limit.
+- Repeated macro expansion (list unlink) with volatile coloring rotated,
+  macro block locals number lowest: REQUIRE TU allows explicit inlining. TRY
+  macro as `static inline` function; params/locals become FE temps, number
+  above named locals (`privCoalesceFreeBlocksBoundaryTags`
+  `privRemoveFreeBlock`). Under `-inline off` the helper is emitted out of
+  line: flag and source land together (H11 search-helper bullet).
 
 ## M14
 
@@ -453,6 +488,14 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   `__DSP_add_task`); no donor body -> stop. Keep named `static const` objects
   when converting drops placeholders (`adx_tlk`). Stripped-code restoration
   needs the user's stripped-code ruling `[da]`.
+- `.sdata2` constant order (2.7) = `@N` order = creation order: statements in
+  order, operands/args left to right, `?:` and if/else assignment arms before
+  the condition (`if (a > 9) g = .5; else g = .25;` -> .5, .25, 9). One
+  object per (type, bits): `1.0f` and `1.0` are two.
+- `-str pool`: offsets in first-encounter order during post-IRO TOC
+  expansion, function by function; exact dedupe only, no suffix merge.
+  Offset 0 = bare symbol ref, others `base+off` (different tree, can change
+  CSE/colour).
 
 ## M16
 

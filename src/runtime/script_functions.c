@@ -276,7 +276,7 @@ struct ScriptObjectIntArgs {
 
 struct ScriptVolumeArgs {
     unsigned int header;
-    const Vec* position;
+    Vec* position;
     float far_distance;
     float near_distance;
 };
@@ -586,7 +586,7 @@ struct Gore2PebbleArgs {
     FighterMirror* decal_owner;
     Vec* velocity;
     const Vec* rotation;
-    const Vec* scale;
+    Vec* scale;
     Vec* position_offset;
     float vertical_acceleration;
     int bounce_count;
@@ -2259,7 +2259,7 @@ int special_move_cam_him(float, float, float, float, float, int, int, int);
 void start_gore2_pebbles(
     unsigned int object_id, int bone, MkObj* source,
     FighterMirror* decal_owner, Vec* velocity,
-    const Vec* rotation, const Vec* scale,
+    const Vec* rotation, Vec* scale,
     Vec* position_offset, float vertical_acceleration,
     float bounce_scale, int bounce_count);
 int transition_to_anim_script_frame(
@@ -5581,7 +5581,7 @@ void _get_pan_value(void) {
     float pan;
 
     args = (struct ScriptFloatPointerArgs*)current_args;
-    pan = get_pan_value((const Vec*)args->value);
+    pan = get_pan_value((Vec*)args->value);
     result = (struct ScriptFloatResult*)active_cmdscript;
     result->value = pan;
 }

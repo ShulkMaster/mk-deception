@@ -1914,7 +1914,7 @@ int attach_gore2_obj(
 void start_gore2_pebbles(
     unsigned int object_id, int bone, MkObj* source,
     FighterMirror* decal_owner, Vec* velocity,
-    const Vec* rotation, const Vec* scale,
+    const Vec* rotation, Vec* scale,
     Vec* position_offset, float vertical_acceleration,
     float bounce_scale, int bounce_count) {
     int type;

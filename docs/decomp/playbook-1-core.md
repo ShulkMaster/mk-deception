@@ -98,6 +98,9 @@ Tools:
 | POD copy loop; copy load/store order | H12 |
 | Intrusive list link order | H13 |
 | Stack slots, frame size, store order | H14, H24 |
+| Local struct in stack (`lfs`/`stfs` off r1) vs FPRs, or reverse | M07 |
+| Dead `b` after loop arm, `li r,0` on normal exit | H11, M13 |
+| `li rX,0` vs `mr rX,rZero` | H15, H11 |
 | Same ops, regs swapped | H15, H21, H22, then tier 4 stops |
 | Add/or operands commuted in one row | H15, H22 |
 | Call result move order | H16 |

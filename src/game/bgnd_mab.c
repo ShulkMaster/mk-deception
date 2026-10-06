@@ -527,7 +527,7 @@ float p_fish_attack(void) {
     MkObj* target;
     Vec target_position;
     Vec direction;
-    const Vec arena_center = {0.0f, 0.0f, 0.0f};
+    Vec arena_center = {0.0f, 0.0f, 0.0f};
     Vec reverse_direction;
     float distance;
     int fish_index;

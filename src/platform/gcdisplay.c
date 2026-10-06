@@ -576,7 +576,6 @@ static void render_image(void* unused) {
     restore_projection_matrix();
 }
 
-/* TODO: [near miss] 98.67%; FIFO/XFB publication agrees; four owner/load-order rows remain; stop at coloring. */
 void gc_native_display_pass_to_RW(void) {
     GXDrawDone();
     if (pal_565 != 0) {
@@ -802,6 +801,8 @@ static void gcSetup480P(void) {
     int xfbHalf;
     void* raw;
     GXRenderModeObj* mode;
+    unsigned char* xfb1;
+    unsigned char* xfb2;
     float yscale;
     unsigned long copyHeight;
     int i;
@@ -833,13 +834,15 @@ static void gcSetup480P(void) {
     gc_native_display.fifo = _RwDlDefaultFifo;
     DCInvalidateRange(_RwDlDefaultFifo, _RwDlFifoSize);
 
-    _RwGCXFBDisp = (unsigned char*)_RwDlDefaultFifo + _RwDlFifoSize;
-    _RwGCXFB1 = _RwGCXFBDisp;
-    gc_native_display.xfbDisp = _RwGCXFBDisp;
-    _RwGCXFB2 = (unsigned char*)_RwGCXFBDisp + xfbHalf;
-    gc_native_display.xfbCopy = _RwGCXFB2;
-    _RwGCXFBCopy = _RwGCXFB2;
-    DCFlushRange(_RwGCXFBDisp, xfbHalf);
+    xfb1 = (unsigned char*)_RwDlDefaultFifo + _RwDlFifoSize;
+    xfb2 = xfb1 + xfbHalf;
+    _RwGCXFBDisp = xfb1;
+    _RwGCXFB1 = xfb1;
+    gc_native_display.xfbDisp = xfb1;
+    _RwGCXFB2 = xfb2;
+    gc_native_display.xfbCopy = xfb2;
+    _RwGCXFBCopy = xfb2;
+    DCFlushRange(xfb1, xfbHalf);
     DCFlushRange(gc_native_display.xfbCopy, xfbHalf);
 
     VISetBlack(1);

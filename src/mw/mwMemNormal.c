@@ -2,35 +2,30 @@
 
 #include "mw/mwMemPriv.h"
 
-#define REMOVE_FREE_BLOCK(heap, block)                                                \
-    do {                                                                              \
-        _mwMemHeap* remove_heap = (heap);                                              \
-        MwMemUsedHeader* remove_block = (block);                                      \
-        if (remove_block != 0 && remove_heap->freeList != 0) {                        \
-            MwMemUsedHeader* remove_next;                                             \
-            MwMemUsedHeader* remove_previous = remove_block->previous;                \
-            remove_next = remove_block->next;                                         \
-            if (remove_previous == 0) {                                               \
-                if (remove_next == 0) {                                               \
-                    remove_heap->freeList = 0;                                        \
-                    remove_heap->freeTail = 0;                                        \
-                } else {                                                              \
-                    remove_heap->freeList = remove_next;                              \
-                    remove_next->previous = 0;                                        \
-                }                                                                     \
-            } else if (remove_next == 0) {                                            \
-                remove_previous->next = 0;                                            \
-                remove_heap->freeTail = remove_previous;                              \
-            } else {                                                                  \
-                remove_previous->next = remove_next;                                  \
-                remove_next->previous = remove_previous;                              \
-            }                                                                         \
-        }                                                                             \
-    } while (0)
+static inline void privRemoveFreeBlock(_mwMemHeap* heap, MwMemUsedHeader* block) {
+    if (block != 0 && heap->freeList != 0) {
+        MwMemUsedHeader* previous = block->previous;
+        MwMemUsedHeader* next = block->next;
+        if (previous == 0) {
+            if (next == 0) {
+                heap->freeList = 0;
+                heap->freeTail = 0;
+            } else {
+                heap->freeList = next;
+                next->previous = 0;
+            }
+        } else if (next == 0) {
+            previous->next = 0;
+            heap->freeTail = previous;
+        } else {
+            previous->next = next;
+            next->previous = previous;
+        }
+    }
+}
 
 static void privReturnUsedBlockToFreeList(_mwMemHeap* heap, MwMemUsedHeader* block);
 
-/* TODO: [near miss] 99.30%; flag-byte arrays fix the stack slots; only volatile GPR coloring in the previous/both-free merge arms remains. */
 static MwMemUsedHeader* privCoalesceFreeBlocksBoundaryTags(_mwMemHeap* heap,
                                                             MwMemUsedHeader* block) {
     u8 flags[1];
@@ -54,31 +49,31 @@ static MwMemUsedHeader* privCoalesceFreeBlocksBoundaryTags(_mwMemHeap* heap,
             if ((u8*)block + block->allocationSize + sizeof(MwMemUsedHeader) == (u8*)block->next) {
                 block->allocationSize =
                     block->allocationSize + sizeof(MwMemUsedHeader) + block->next->allocationSize;
-                REMOVE_FREE_BLOCK(heap, block->next);
+                privRemoveFreeBlock(heap, block->next);
             }
         } else if (block->next == 0 && block->previous != 0) {
             MwMemUsedHeader* previous_block = block->previous;
-            if ((u8*)previous_block + previous_block->allocationSize + sizeof(MwMemUsedHeader) ==
-                (u8*)block) {
+            next_block = (MwMemUsedHeader*)((u8*)previous_block + previous_block->allocationSize +
+                                            sizeof(MwMemUsedHeader));
+            if (next_block == block) {
                 previous_block->allocationSize =
                     previous_block->allocationSize + (block->allocationSize + sizeof(MwMemUsedHeader));
-                REMOVE_FREE_BLOCK(heap, block);
+                privRemoveFreeBlock(heap, block);
                 result = block->previous;
             }
         } else {
             if (next_is_free == 1) {
-                u32 block_size = block->allocationSize;
-                next_block = (MwMemUsedHeader*)((u8*)block + block_size +
+                next_block = (MwMemUsedHeader*)((u8*)block + block->allocationSize +
                                                 sizeof(MwMemUsedHeader));
-                block->allocationSize = block_size +
-                    (next_block->allocationSize + sizeof(MwMemUsedHeader));
-                REMOVE_FREE_BLOCK(heap, next_block);
+                block->allocationSize =
+                    block->allocationSize + sizeof(MwMemUsedHeader) + next_block->allocationSize;
+                privRemoveFreeBlock(heap, next_block);
             }
             if (previous_is_free == 1) {
                 MwMemUsedHeader* previous_block = block->previous;
                 previous_block->allocationSize =
                     block->allocationSize + sizeof(MwMemUsedHeader) + previous_block->allocationSize;
-                REMOVE_FREE_BLOCK(heap, block);
+                privRemoveFreeBlock(heap, block);
                 result = previous_block;
             }
         }
@@ -86,11 +81,42 @@ static MwMemUsedHeader* privCoalesceFreeBlocksBoundaryTags(_mwMemHeap* heap,
     return result;
 }
 
-/* TODO: [near miss] 96.96%; typed neighbor snapshots and body-first traversal recovered;
- * equivalent hierarchy failure/null exits remain. */
-static void privFreeMemFromUsed(MwMemUsedHeader* block) {
+static inline _mwMemHeap* privGetHeapFromUsed(MwMemUsedHeader* block) {
     _mwMemHeap* heap;
     _mwMemHeap* fallback;
+
+    if (HeapList == 0) {
+        return 0;
+    }
+    heap = SystemHeap;
+    while (heap->hierNext != 0) {
+        if ((u8*)block >= (u8*)heap && (u8*)block < heap->heapEnd) {
+            break;
+        }
+        heap = heap->hierNext;
+    }
+    fallback = heap;
+    do {
+        if ((u8*)block >= heap->heapStart && (u8*)block < heap->heapEnd) {
+            fallback = heap;
+            if (heap->hierFirstChild != 0) {
+                heap = heap->hierFirstChild;
+            } else {
+                return heap;
+            }
+        } else {
+            if (heap->hierNext != 0) {
+                heap = heap->hierNext;
+            } else {
+                return fallback;
+            }
+        }
+    } while (heap != 0);
+    return 0;
+}
+
+static void privFreeMemFromUsed(MwMemUsedHeader* block) {
+    _mwMemHeap* heap;
     MwMemUsedHeader* next;
     MwMemUsedHeader* previous;
     MwMemUsedHeader* merged;
@@ -99,35 +125,7 @@ static void privFreeMemFromUsed(MwMemUsedHeader* block) {
     if (block == 0) {
         return;
     }
-    if (HeapList == 0) {
-        heap = 0;
-    } else {
-        heap = SystemHeap;
-        while (heap->hierNext != 0) {
-            if ((u8*)block >= (u8*)heap && (u8*)block < heap->heapEnd) {
-                break;
-            }
-            heap = heap->hierNext;
-        }
-
-        fallback = heap;
-        do {
-            if ((u8*)block >= heap->heapStart && (u8*)block < heap->heapEnd) {
-                fallback = heap;
-                if (heap->hierFirstChild == 0) {
-                    break;
-                }
-                heap = heap->hierFirstChild;
-            } else {
-                heap = heap->hierNext;
-                if (heap != 0) {
-                    continue;
-                }
-                heap = fallback;
-                break;
-            }
-        } while (heap != 0);
-    }
+    heap = privGetHeapFromUsed(block);
     if (heap == 0) {
         return;
     }
@@ -289,7 +287,7 @@ void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocReques
     }
     candidate_size = candidate->allocationSize;
     if (candidate_size <= requested_size + 0x20) {
-        REMOVE_FREE_BLOCK(heap, candidate);
+        privRemoveFreeBlock(heap, candidate);
         used_size = candidate->allocationSize;
         used = candidate;
         privClearBitFlag(&used->flags);

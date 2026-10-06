@@ -24,30 +24,30 @@ void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float 
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cyl_pos,
                          const Vec* cyl_axis, float radius, float* t_near, float* t_far);
 float dist2_xz_to_xz(const Vec* a, const Vec* b);
-float dist_xz_to_xz(const Vec* a, const Vec* b);
+float dist_xz_to_xz(Vec* a, Vec* b);
 void rotate_xz(Vec* out, const Vec* v, float angle);
 void xz_x_v_add_xz(Vec* dst, const Vec* v, float s);
 void normalize_xz(Vec* v);
-float length_xz(const Vec* v);
+float length_xz(Vec* v);
 float xz_dot_xz(const Vec* a, const Vec* b);
 float xz_unit_vector_recip(Vec* out, Vec* from, Vec* to);
-void xz_unit_vector(Vec* out, Vec* from, const Vec* to);
+void xz_unit_vector(Vec* out, Vec* from, Vec* to);
 float xz_to_y_ang(const Vec* v);
 void scale_xz(Vec* out, const Vec* v, float s);
 
 /* Three-dimensional vector and angle operations. */
 void midpoint_v3(Vec* out, const Vec* a, const Vec* b);
 float dist2_v3_to_v3(const Vec* a, const Vec* b);
-float dist_v3_to_v3(const Vec* a, const Vec* b);
+float dist_v3_to_v3(Vec* a, Vec* b);
 void uv_from_angle_y(Vec* out, float angle_y);
 void uv_from_angles_xy(Vec* out, float angle_x, float angle_y);
-float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to);
-void uv_v3_to_v3(Vec* out, const Vec* from, const Vec* to);
+float uv_v3_to_v3_dist(Vec* out, Vec* from, Vec* to);
+void uv_v3_to_v3(Vec* out, Vec* from, Vec* to);
 void v3_blend3(Vec* out, Vec* weights, const Vec* a, const Vec* b, const Vec* c);
 float normalize_v3_length(Vec* v);
 void normalize_v3(Vec* v);
 void zero_v3(Vec* v);
-float length_v3(const Vec* v);
+float length_v3(Vec* v);
 void v3_cross_v3(Vec* out, Vec* a, Vec* b);
 float v3_dot_v3(const Vec* a, const Vec* b);
 void v3_sub_v3(Vec* out, const Vec* a, const Vec* b);
@@ -67,11 +67,11 @@ static inline float norm_angle_inline(float angle) {
     return (float)fixed_angle * 0.000005992112f;
 }
 void v3_to_xz_ang(Vec* ang, Vec* v);
-void v3_to_xy_ang_high_freq(Vec* ang, const Vec* v);
+void v3_to_xy_ang_high_freq(Vec* ang, Vec* v);
 void v3_to_xy_ang(Vec* ang, Vec* v);
 
 /* Matrix, quaternion, and angle conversion operations. */
-void mat_scaled_by_v3(MKMATRIX* out, MKMATRIX* m, const Vec* scale);
+void mat_scaled_by_v3(MKMATRIX* out, MKMATRIX* m, Vec* scale);
 void v3_x_mat_sub_v3(Vec* out, Vec* v, MKMATRIX* m, Vec* sub);
 void v3_x_mat_add_v3(Vec* out, Vec* v, MKMATRIX* m, Vec* add);
 void v3_x_mat(Vec* out, Vec* v, MKMATRIX* m);

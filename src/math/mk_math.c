@@ -163,8 +163,7 @@ float dist2_xz_to_xz(const Vec* a, const Vec* b) {
     return dx * dx + dz * dz;
 }
 
-/* TODO: [near miss] 62.16%; body agrees; frame setup scheduled late; scoped scheduler control regresses. */
-float dist_xz_to_xz(const Vec* a, const Vec* b) {
+float dist_xz_to_xz(Vec* a, Vec* b) {
     return gxMathFastSqrt(dist2_xz_to_xz(a, b));
 }
 
@@ -193,8 +192,7 @@ void normalize_xz(Vec* v) {
     v->z *= inv;
 }
 
-/* TODO: [breakthrough] 70.59%; sqrt table indexing corrected; inlined sqrt-table scheduling differs. */
-float length_xz(const Vec* v) {
+float length_xz(Vec* v) {
     return gxMathFastSqrt(v->x * v->x + v->z * v->z);
 }
 
@@ -202,41 +200,26 @@ float xz_dot_xz(const Vec* a, const Vec* b) {
     return a->x * b->x + a->z * b->z;
 }
 
-/* TODO: [near miss] 99.46%; rounded squares/refinement agree; three square-register rows remain; stop at coloring. */
 float xz_unit_vector_recip(Vec* out, Vec* from, Vec* to) {
     float inv;
-    float x;
-    float z_squared;
-    float x_squared;
 
     out->y = kZero;
     out->x = to->x - from->x;
     out->z = to->z - from->z;
-    x = out->x;
-    x_squared = x * x;
-    z_squared = out->z * out->z;
-    inv = mk_inv_sqrt(z_squared + x_squared);
-    out->x = x * inv;
+    inv = mk_inv_sqrt(out->x * out->x + out->z * out->z);
+    out->x = out->x * inv;
     out->z *= inv;
     return inv;
 }
 
-/* TODO: [near miss] 93.67%; retained X and rounded squares agree;
- * read-only input load scheduling and inverse-square-root FPR homes remain. */
-void xz_unit_vector(Vec* out, Vec* from, const Vec* to) {
+void xz_unit_vector(Vec* out, Vec* from, Vec* to) {
     float inv;
-    float x;
-    float x_squared;
-    float z_squared;
 
     out->y = kZero;
     out->x = to->x - from->x;
     out->z = to->z - from->z;
-    x = out->x;
-    x_squared = x * x;
-    z_squared = out->z * out->z;
-    inv = mk_inv_sqrt(x_squared + z_squared);
-    out->x = x * inv;
+    inv = mk_inv_sqrt(out->x * out->x + out->z * out->z);
+    out->x = out->x * inv;
     out->z *= inv;
 }
 
@@ -272,8 +255,7 @@ float dist2_v3_to_v3(const Vec* a, const Vec* b) {
     return dx * dx + dy * dy + dz * dz;
 }
 
-/* TODO: [near miss] 46.34%; body exact; frame setup delayed past eleven FP instructions; scheduling-off changes body. */
-float dist_v3_to_v3(const Vec* a, const Vec* b) {
+float dist_v3_to_v3(Vec* a, Vec* b) {
     return gxMathFastSqrt(dist2_v3_to_v3(a, b));
 }
 
@@ -292,8 +274,7 @@ void uv_from_angles_xy(Vec* out, float angX, float angY) {
     out->z = cx * gxMathCos(angY);
 }
 
-/* TODO: [near miss] 76.03%; sqrt and normalization agree; input-load scheduling remains. */
-float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to) {
+float uv_v3_to_v3_dist(Vec* out, Vec* from, Vec* to) {
     float len;
     float inv;
     float x_squared;
@@ -319,15 +300,14 @@ float uv_v3_to_v3_dist(Vec* out, const Vec* from, const Vec* to) {
 }
 
 
-/* TODO: [breakthrough] 70.74545%; ordered guard corrected; reciprocal-square-root FP scheduling remains. */
-void uv_v3_to_v3(Vec* out, const Vec* from, const Vec* to) {
+void uv_v3_to_v3(Vec* out, Vec* from, Vec* to) {
     float inv;
 
     out->x = to->x - from->x;
     out->y = to->y - from->y;
     out->z = to->z - from->z;
     inv = mk_inv_sqrt(out->x * out->x + out->y * out->y + out->z * out->z);
-    out->x *= inv;
+    out->x = out->x * inv;
     out->y *= inv;
     out->z *= inv;
 }
@@ -369,8 +349,7 @@ void zero_v3(Vec* v) {
     v->x = kZero;
 }
 
-/* TODO: [near miss] 62.16%; body agrees; frame setup scheduled late; scoped scheduler control regresses. */
-float length_v3(const Vec* v) {
+float length_v3(Vec* v) {
     return gxMathFastSqrt(v->x * v->x + v->y * v->y + v->z * v->z);
 }
 
@@ -465,8 +444,7 @@ void v3_to_xz_ang(Vec* ang, Vec* v) {
     ang->x = gxMathArcTanYX(v->z, len);
 }
 
-/* TODO: [near miss] 85.00%; FP load/store scheduling differs; scoped scheduling-off regresses. */
-void v3_to_xy_ang_high_freq(Vec* ang, const Vec* v) {
+void v3_to_xy_ang_high_freq(Vec* ang, Vec* v) {
     float len;
     ang->z = kZero;
     len = gxMathFastSqrt(v->x * v->x + v->z * v->z);
@@ -482,9 +460,7 @@ void v3_to_xy_ang(Vec* ang, Vec* v) {
     ang->x = -gxMathArcTanYX(v->y, len);
 }
 
-/* TODO: [breakthrough] 71.22%; in-place matrix ownership recovered;
- * factor const ownership through gore2 and repeated scale reloads remain. */
-void mat_scaled_by_v3(MKMATRIX* out, MKMATRIX* m, const Vec* scale) {
+void mat_scaled_by_v3(MKMATRIX* out, MKMATRIX* m, Vec* scale) {
     out->right.x = m->right.x * scale->x;
     out->right.y = m->right.y * scale->x;
     out->right.z = m->right.z * scale->x;

@@ -1048,7 +1048,7 @@ config.libs = [
             Object(NonMatching, "mwMemFixed.o", source="mw/mwMemFixed.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "mwMemNormal.o", source="mw/mwMemNormal.c",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline noauto"]),
             Object(Matching, "mwMem.o", source="mw/mwMem.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline auto,deferred,level=2",
                                  "-str reuse,pool,readonly"]),
