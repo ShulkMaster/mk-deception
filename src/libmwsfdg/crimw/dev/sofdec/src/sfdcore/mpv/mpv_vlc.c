@@ -466,9 +466,10 @@ static void mpvvlc_InitMbTypePpic(void) {
     for (i = 0; i < entry_count; i++) *output++ = 0x0A01;
 }
 
-/* TODO: [breakthrough] 84.36%; table ranges recovered; retained packed base and group scheduling differ. */
+/* TODO: [breakthrough] 82.69%; table ranges recovered; packed-base scheduling and saved homes differ. */
 static void mpvvlc_InitMbaiBpic(void)
 {
+    signed short* output1 = mpvvlt_mbai_b_1;
     signed short* output = mpvvlt_mbai_b_0;
     int base;
 
@@ -495,7 +496,7 @@ static void mpvvlc_InitMbaiBpic(void)
     base -= 0x10;
     mpvvlc_emit_mbai_b_16(output, base);
 
-    output = mpvvlt_mbai_b_1;
+    output = output1;
     mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(0x240, 0, 0));
     output += 2;
     for (base = 0x070; base >= 0x060; base -= 0x10) {
