@@ -292,7 +292,8 @@ typedef struct ChessSaveInputFlags {
     unsigned char pad_bit7 : 1;
     unsigned char p1_power_squares : 2; /* bits6-5 */
     unsigned char p2_power_squares : 2; /* bits4-3 */
-    unsigned char pad_bits2_1 : 2;
+    unsigned char p1_on_power_square : 1;
+    unsigned char p2_on_power_square : 1;
     unsigned char input_locked : 1; /* bit0 */
 } ChessSaveInputFlags;
 
@@ -417,10 +418,15 @@ typedef struct ChessBoardSave {
     int winning_side; /* +0xED8 */
     struct {
         int type;
-        float x;
-        float y;
-        float z;
-        float scale;
+        union {
+            struct {
+                float x;
+                float y;
+                float z;
+                float scale;
+            };
+            float saved_parameters[4];
+        };
     } cells[10][10]; /* +0xEDC */
     unsigned char origin_x, origin_y, destination_x, destination_y;
     int field_16B0;
@@ -479,6 +485,10 @@ typedef struct ChessManagerInfo {
     ChessSpellState* spell; /* +0xC0 */
     struct ChessDirectionState* directional_state; /* +0xC4 */
     int clock; /* +0xC8 */
+    unsigned int saved_field_110; /* +0xCC */
+    int spell_completion_clock; /* +0xD0 */
+    unsigned int saved_field_118; /* +0xD4 */
+    unsigned int cursor_track; /* +0xD8 */
 } ChessManagerInfo;
 
 typedef struct ChessCursor {
@@ -539,10 +549,6 @@ typedef struct ChessModeState {
     ChessBoardRow* board; /* +0x38 */
     ChessSideState* sides[2]; /* +0x3C */
     ChessManagerInfo manager; /* +0x44 */
-    unsigned int saved_field_110; /* +0x110 */
-    int spell_completion_clock; /* +0x114 */
-    unsigned int saved_field_118; /* +0x118 */
-    unsigned int cursor_track; /* +0x11C - manager +0xD8 */
     struct MkPtr* tracked_sounds; /* +0x120 */
     int fight_start_tick; /* +0x124 */
     unsigned int turn_timeout; /* +0x128 */
