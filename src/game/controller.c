@@ -191,7 +191,8 @@ void ck_rumble_controller(int player, int strength, int ticks) {
     pdata->ticks = ticks;
 }
 
-/* TODO: [near miss] 98.15%; locked flag/unpause test materialize as inline-return r0 (cmpwi) in retail; pdata/pad r27/r28 swap. */
+/* TODO: [near miss] 99.92%; unpause CFG and signed display checks agree;
+ * eight pdata/pad register substitutions remain. */
 static float p_do_controller_removed(void) {
     struct ControllerRemovedPdata* pdata;
     PlyrInfo* player;
@@ -203,6 +204,7 @@ static float p_do_controller_removed(void) {
     int screen_oid;
     int other_proc_pid;
     int controllers_locked;
+    int can_unpause;
     char initial_text[0x50];
     char retry_text[0x50];
 
@@ -218,7 +220,7 @@ static float p_do_controller_removed(void) {
         return -1.0f;
     }
 
-    while (g_game_info.flag_bits.high_res_path || display_off != 0) {
+    while (g_game_info.flag_bits.high_res_path || (int)display_off != 0) {
         if (g_game_info.pads[port].flag_bits.connected) {
             unmute_all_game_sounds();
             return -1.0f;
@@ -320,7 +322,7 @@ static float p_do_controller_removed(void) {
         }
 
         if (!g_game_info.feature_flags.bits.high_bit) {
-            if (display_off == 0) {
+            if ((int)display_off == 0) {
                 pause_procs(1);
             } else {
                 pause_procs(0);
@@ -331,7 +333,14 @@ static float p_do_controller_removed(void) {
     }
 
     init_controller();
-    if (!is_mcardmsg_active() && find_mkproc_pid(0x208B) == 0) {
+    if (is_mcardmsg_active()) {
+        can_unpause = 0;
+    } else if (find_mkproc_pid(0x208B) != 0) {
+        can_unpause = 0;
+    } else {
+        can_unpause = 1;
+    }
+    if (can_unpause) {
         pause_procs(0);
     }
     delete_screen_obj_oid(screen_oid);

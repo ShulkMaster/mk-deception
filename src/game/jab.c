@@ -594,17 +594,17 @@ void jab_face_obj(MkObj* object, const Vec* direction) {
         matrix->right.x * matrix->at.y - matrix->right.y * matrix->at.x;
 }
 
-/* TODO: [near miss] 86.47%; FPR allocation differs despite matching algorithm and size. */
+/* TODO: [near miss] 86.68%; Y/Z delta allocation agrees; X/duration coloring and copy scheduling remain. */
 void obj_scale_over_time(MkObj* object, const Vec* target, float ticks) {
     float ticks_left;
-    float delta_z;
     float delta_y;
+    float delta_z;
     float delta_x;
     float scaled_ticks;
 
     ticks_left = ticks;
     object->flags_08_bits.scale_active = 1;
-    scaled_ticks = ticks * game_speed;
+    scaled_ticks = ticks_left * game_speed;
     delta_x = (target->x - object->scale.x) / scaled_ticks;
     delta_y = (target->y - object->scale.y) / scaled_ticks;
     delta_z = (target->z - object->scale.z) / scaled_ticks;
@@ -740,83 +740,69 @@ float p_bind_obj_to_obj_bone(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough needed] 85.73%; bound-matrix ownership and normalization staging need verification. */
-void jab_setup_kiss_emitter_obj(MkPfx* effect) {
-    union JabFloatBits inverse;
+void jab_setup_kiss_emitter_obj(MkObj* object) {
     RwMatrix* matrix;
-    Vec mouth_position;
     Vec head_position;
+    Vec mouth_position;
     float inverse_length;
     float length_sq;
-    float half_x;
-    float newton;
-    int mouth_bone;
+    float at_x;
+    float right_x;
+    float at_x_sq, at_y_sq, at_z_sq;
+    float right_x_sq, right_y_sq, right_z_sq;
 
-    if (plyr_obj == 0 || effect == 0) {
-        return;
+    if (plyr_obj != 0 && object != 0) {
+        matrix = object->field_24;
+        if (am_i_flipped() != 0) {
+            get_bone_world_pos(plyr_obj, 0x19, &mouth_position);
+        } else {
+            get_bone_world_pos(plyr_obj, 0x18, &mouth_position);
+        }
+        get_bone_world_pos(plyr_obj, 0xD, &head_position);
+
+        matrix->at.x = mouth_position.x - head_position.x;
+        matrix->at.y = mouth_position.y - head_position.y;
+        matrix->at.z = mouth_position.z - head_position.z;
+        at_x = matrix->at.x;
+        at_x_sq = at_x * at_x;
+        at_y_sq = matrix->at.y * matrix->at.y;
+        at_z_sq = matrix->at.z * matrix->at.z;
+        length_sq = (at_x_sq + at_y_sq) + at_z_sq;
+        inverse_length = jab_inverse_sqrt(length_sq);
+        matrix->at.x = at_x * inverse_length;
+        matrix->at.y *= inverse_length;
+        matrix->at.z *= inverse_length;
+
+        matrix->up.z = 0.0f;
+        matrix->up.x = 0.0f;
+        matrix->up.y = 1.0f;
+        matrix->right.x =
+            matrix->at.y * matrix->up.z - matrix->at.z * matrix->up.y;
+        matrix->right.y =
+            matrix->at.z * matrix->up.x - matrix->at.x * matrix->up.z;
+        matrix->right.z =
+            matrix->at.x * matrix->up.y - matrix->at.y * matrix->up.x;
+
+        right_x = matrix->right.x;
+        right_x_sq = right_x * right_x;
+        right_y_sq = matrix->right.y * matrix->right.y;
+        right_z_sq = matrix->right.z * matrix->right.z;
+        length_sq = (right_x_sq + right_y_sq) + right_z_sq;
+        inverse_length = jab_inverse_sqrt(length_sq);
+        matrix->right.x = right_x * inverse_length;
+        matrix->right.y *= inverse_length;
+        matrix->right.z *= inverse_length;
+
+        matrix->up.x =
+            matrix->right.y * matrix->at.z - matrix->right.z * matrix->at.y;
+        matrix->up.y =
+            matrix->right.z * matrix->at.x - matrix->right.x * matrix->at.z;
+        matrix->up.z =
+            matrix->right.x * matrix->at.y - matrix->right.y * matrix->at.x;
+        object->field_24->pos.x = mouth_position.x;
+        object->field_24->pos.y = mouth_position.y;
+        object->field_24->pos.z = mouth_position.z;
     }
-
-    matrix = (RwMatrix*)effect->bound_obj;
-    mouth_bone = am_i_flipped() != 0 ? 0x19 : 0x18;
-    get_bone_world_pos(plyr_obj, mouth_bone, &mouth_position);
-    get_bone_world_pos(plyr_obj, 0xD, &head_position);
-
-    matrix->at.x = mouth_position.x - head_position.x;
-    matrix->at.y = mouth_position.y - head_position.y;
-    matrix->at.z = mouth_position.z - head_position.z;
-    length_sq = matrix->at.x * matrix->at.x +
-                matrix->at.y * matrix->at.y +
-                matrix->at.z * matrix->at.z;
-    inverse_length = 0.0f;
-    if (length_sq > 0.0f) {
-        inverse.f = length_sq;
-        inverse.u = 0x5F375A00U - (inverse.u >> 1);
-        half_x = inverse.f * (length_sq * inverse.f);
-        newton = 3.0f - half_x;
-        inverse_length =
-            0.0625f * inverse.f * newton *
-            -((newton * (half_x * newton)) - 12.0f);
-    }
-    matrix->at.x *= inverse_length;
-    matrix->at.y *= inverse_length;
-    matrix->at.z *= inverse_length;
-
-    matrix->up.x = 0.0f;
-    matrix->up.y = 1.0f;
-    matrix->up.z = 0.0f;
-    matrix->right.x =
-        matrix->at.y * matrix->up.z - matrix->at.z * matrix->up.y;
-    matrix->right.y =
-        matrix->at.z * matrix->up.x - matrix->at.x * matrix->up.z;
-    matrix->right.z =
-        matrix->at.x * matrix->up.y - matrix->at.y * matrix->up.x;
-
-    length_sq = matrix->right.x * matrix->right.x +
-                matrix->right.y * matrix->right.y +
-                matrix->right.z * matrix->right.z;
-    inverse_length = 0.0f;
-    if (length_sq > 0.0f) {
-        inverse.f = length_sq;
-        inverse.u = 0x5F375A00U - (inverse.u >> 1);
-        half_x = inverse.f * (length_sq * inverse.f);
-        newton = 3.0f - half_x;
-        inverse_length =
-            0.0625f * inverse.f * newton *
-            -((newton * (half_x * newton)) - 12.0f);
-    }
-    matrix->right.x *= inverse_length;
-    matrix->right.y *= inverse_length;
-    matrix->right.z *= inverse_length;
-
-    matrix->up.x =
-        matrix->right.y * matrix->at.z - matrix->right.z * matrix->at.y;
-    matrix->up.y =
-        matrix->right.z * matrix->at.x - matrix->right.x * matrix->at.z;
-    matrix->up.z =
-        matrix->right.x * matrix->at.y - matrix->right.y * matrix->at.x;
-    matrix->pos.x = mouth_position.x;
-    matrix->pos.y = mouth_position.y;
-    matrix->pos.z = mouth_position.z;
 }
 
 static inline void kabal_dash_react_pfx_stop(void) {
@@ -955,21 +941,19 @@ void bulvan_function(int command) {
     }
 }
 
-/* TODO: [breakthrough needed] 86.96%; matrix normalization and bone-call staging need verification. */
 void jab_kira_projectile_hand_explode(void) {
-    static const Vec ZERO_DIRECTION = {0.0f, 0.0f, 0.0f};
-    union JabFloatBits inverse;
     PlyrPdata* player_data;
     MkObj* opponent;
     MkObj* effect_object;
     RwMatrix* matrix;
-    Vec direction;
+    Vec direction = {0.0f, 0.0f, 0.0f};
+    float right_x;
+    float right_x_sq;
+    float right_y_sq;
+    float right_z_sq;
     float length_sq;
     float inverse_length;
-    float half_x;
-    float newton;
 
-    direction = ZERO_DIRECTION;
     if (plyr_obj == 0) {
         return;
     }
@@ -991,16 +975,7 @@ void jab_kira_projectile_hand_explode(void) {
     direction.x = opponent->pos.value.x - plyr_obj->pos.value.x;
     direction.z = opponent->pos.value.z - plyr_obj->pos.value.z;
     length_sq = direction.x * direction.x + direction.z * direction.z;
-    inverse_length = 0.0f;
-    if (length_sq > 0.0f) {
-        inverse.f = length_sq;
-        inverse.u = 0x5F375A00U - (inverse.u >> 1);
-        half_x = inverse.f * (length_sq * inverse.f);
-        newton = 3.0f - half_x;
-        inverse_length =
-            0.0625f * inverse.f * newton *
-            -((newton * (half_x * newton)) - 12.0f);
-    }
+    inverse_length = jab_inverse_sqrt(length_sq);
     direction.x *= inverse_length;
     direction.z *= inverse_length;
 
@@ -1017,20 +992,13 @@ void jab_kira_projectile_hand_explode(void) {
     matrix->right.z =
         matrix->at.x * matrix->up.y - matrix->at.y * matrix->up.x;
 
-    length_sq = matrix->right.x * matrix->right.x +
-                matrix->right.y * matrix->right.y +
-                matrix->right.z * matrix->right.z;
-    inverse_length = 0.0f;
-    if (length_sq > 0.0f) {
-        inverse.f = length_sq;
-        inverse.u = 0x5F375A00U - (inverse.u >> 1);
-        half_x = inverse.f * (length_sq * inverse.f);
-        newton = 3.0f - half_x;
-        inverse_length =
-            0.0625f * inverse.f * newton *
-            -((newton * (half_x * newton)) - 12.0f);
-    }
-    matrix->right.x *= inverse_length;
+    right_x = matrix->right.x;
+    right_x_sq = right_x * right_x;
+    right_y_sq = matrix->right.y * matrix->right.y;
+    right_z_sq = matrix->right.z * matrix->right.z;
+    length_sq = (right_x_sq + right_y_sq) + right_z_sq;
+    inverse_length = jab_inverse_sqrt(length_sq);
+    matrix->right.x = right_x * inverse_length;
     matrix->right.y *= inverse_length;
     matrix->right.z *= inverse_length;
     matrix->up.x =
@@ -1041,9 +1009,9 @@ void jab_kira_projectile_hand_explode(void) {
         matrix->right.x * matrix->at.y - matrix->right.y * matrix->at.x;
 
     if (am_i_flipped() != 0) {
-        get_bone_world_pos(plyr_obj, 0x18, &matrix->pos_vec);
+        get_bone_world_pos(plyr_obj, 0x18, &effect_object->field_24->pos_vec);
     } else {
-        get_bone_world_pos(plyr_obj, 0x19, &matrix->pos_vec);
+        get_bone_world_pos(plyr_obj, 0x19, &effect_object->field_24->pos_vec);
     }
     pfxhandle_spawn_at_bid("hand_explode", effect_object, 0x40000000);
 }
@@ -1551,8 +1519,8 @@ void sh_start_grinder_chunk_spew(const Vec* position, int chunk_type) {
     }
 }
 
-/* TODO: [breakthrough needed] 94.74%; retail frame is 0x10 larger (source timer/scale field
- * pointers spilled twice at 0x28-0x34); find the variable split that causes it. */
+/* TODO: [breakthrough needed] 95.53178%; recover displacement Vec stack stores
+ * and duplicate timer/scale pointer homes; retail frame remains 0x10 larger. */
 float pfx_sh_grinder_meat_spew(void) {
     union JabFloatBits inverse;
     float* destination_angles;
@@ -1732,7 +1700,7 @@ float pfx_sh_grinder_meat_spew(void) {
                         0.0625f * inverse.f * newton *
                         -((newton * (half_x * newton)) - 12.0f);
                 }
-                destination_velocities->x *= inverse_length;
+                destination_velocities->x = destination_velocities->x * inverse_length;
                 destination_velocities->y *= inverse_length;
                 destination_velocities->z *= inverse_length;
                 speed = 0.2f + frand(0.2f);
@@ -2016,10 +1984,9 @@ float pfx_react_falling_attach_smoke_to_bones_proc(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough needed] 83.90%; particle stride and 270 differing rows need typed recovery. */
+/* TODO: [near miss] 96.75%; compaction, spawn and return structure agree; register association and scheduling remain. */
 float pfx_kenshi_lift_smoke(void) {
     union JabFloatBits inverse;
-    MkPfx* effect;
     PfxVm* vm;
     PfxEmitter* emitter;
     MkObj* emitter_object;
@@ -2052,10 +2019,12 @@ float pfx_kenshi_lift_smoke(void) {
     float inverse_length;
     float half_x;
     float newton;
+    float dx;
+    float dy;
+    float dz;
 
-    effect = apfx;
-    vm = (PfxVm*)&effect->matrix;
-    emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
+    vm = (PfxVm*)apfx->matrix;
+    emitter_object = (MkObj*)pfx_get_emitter_obj(apfx, 0);
     source_velocities = pfx_get_field(vm, -1, 0x300);
     destination_velocities = pfx_get_field(vm, -2, 0x300);
     destination_positions = pfx_get_field(vm, -2, 0x100);
@@ -2076,100 +2045,97 @@ float pfx_kenshi_lift_smoke(void) {
     last_velocity = PFX_FIELD_AT(source_velocities, vector_stride * last_index);
     last_timer = PFX_FIELD_AT(source_timers, vector_stride * last_index);
 
-    index = 0;
-    while (index < vm->particle_cursor) {
-        if (effect->field_2A0 <= 0.0f) {
+    for (index = 0; index < vm->particle_cursor; index++) {
+        if (apfx->field_2A0 <= 0.0f) {
             destination_colors[3] =
                 (source_colors[3] - (int)(5.0f * game_speed));
+            if ((int)destination_colors[3] <= 0xF) {
+                index--;
+                source_positions->x = last_position->x;
+                source_positions->y = last_position->y;
+                source_positions->z = last_position->z;
+                source_velocities->x = last_velocity->x;
+                source_velocities->y = last_velocity->y;
+                source_velocities->z = last_velocity->z;
+                source_colors[0] = last_color[0];
+                source_colors[1] = last_color[1];
+                source_colors[2] = last_color[2];
+                source_colors[3] = last_color[3];
+                *source_scales = *last_scale;
+                *source_timers = *last_timer;
+
+                last_position = PFX_FIELD_AT(last_position, -field_stride);
+                last_color -= field_stride;
+                last_scale = PFX_FIELD_AT(last_scale, -field_stride);
+                last_velocity = PFX_FIELD_AT(last_velocity, -vector_stride);
+                last_timer = PFX_FIELD_AT(last_timer, -vector_stride);
+                vm->particle_cursor--;
+                continue;
+            }
         } else {
             destination_colors[3] = source_colors[3];
         }
-
-        if (effect->field_2A0 <= 0.0f && destination_colors[3] <= 0xF) {
-            index--;
-            source_positions->x = last_position->x;
-            source_positions->y = last_position->y;
-            source_positions->z = last_position->z;
-            source_velocities->x = last_velocity->x;
-            source_velocities->y = last_velocity->y;
-            source_velocities->z = last_velocity->z;
-            source_colors[0] = last_color[0];
-            source_colors[1] = last_color[1];
-            source_colors[2] = last_color[2];
-            source_colors[3] = last_color[3];
-            *source_scales = *last_scale;
-            *source_timers = *last_timer;
-
-            last_position = PFX_FIELD_AT(last_position, -field_stride);
-            last_color -= field_stride;
-            last_scale = PFX_FIELD_AT(last_scale, -field_stride);
-            last_velocity = PFX_FIELD_AT(last_velocity, -vector_stride);
-            last_timer = PFX_FIELD_AT(last_timer, -vector_stride);
-            vm->particle_cursor--;
-        } else {
-            destination_colors[0] = source_colors[0];
-            destination_colors[1] = source_colors[1];
-            destination_colors[2] = source_colors[2];
-            *destination_timers = *source_timers + game_speed;
-            *destination_scales = *source_scales;
-            if (*destination_scales < 0.5f) {
-                *destination_scales += 0.05f * game_speed;
-                if (*destination_scales > 0.5f) {
-                    *destination_scales = 0.5f;
-                }
+        destination_colors[0] = source_colors[0];
+        destination_colors[1] = source_colors[1];
+        destination_colors[2] = source_colors[2];
+        *destination_timers = *source_timers + game_speed;
+        *destination_scales = *source_scales;
+        if (*destination_scales < 0.5f) {
+            *destination_scales += 0.05f * game_speed;
+            if (*destination_scales > 0.5f) {
+                *destination_scales = 0.5f;
             }
-
-            destination_velocities->x = 0.9f * source_velocities->x;
-            destination_velocities->z = 0.9f * source_velocities->z;
-            destination_positions->x =
-                source_positions->x + destination_velocities->x;
-            destination_positions->y =
-                source_positions->y + destination_velocities->y;
-            destination_positions->z =
-                source_positions->z + destination_velocities->z;
-
-            source_colors += field_stride;
-            destination_colors += field_stride;
-            source_timers = PFX_FIELD_AT(source_timers, vector_stride);
-            destination_timers = PFX_FIELD_AT(destination_timers, vector_stride);
-            source_scales = PFX_FIELD_AT(source_scales, field_stride);
-            destination_scales = PFX_FIELD_AT(destination_scales, field_stride);
-            source_velocities = PFX_FIELD_AT(source_velocities, vector_stride);
-            destination_velocities = PFX_FIELD_AT(destination_velocities, vector_stride);
-            source_positions = PFX_FIELD_AT(source_positions, field_stride);
-            destination_positions = PFX_FIELD_AT(destination_positions, field_stride);
         }
-        index++;
+
+        destination_velocities->x = 0.9f * source_velocities->x;
+        destination_velocities->z = 0.9f * source_velocities->z;
+        destination_positions->x =
+            source_positions->x + destination_velocities->x;
+        destination_positions->y =
+            source_positions->y + destination_velocities->y;
+        destination_positions->z =
+            source_positions->z + destination_velocities->z;
+
+        source_colors += field_stride;
+        destination_colors += field_stride;
+        source_timers = PFX_FIELD_AT(source_timers, vector_stride);
+        destination_timers = PFX_FIELD_AT(destination_timers, vector_stride);
+        source_scales = PFX_FIELD_AT(source_scales, field_stride);
+        destination_scales = PFX_FIELD_AT(destination_scales, field_stride);
+        source_velocities = PFX_FIELD_AT(source_velocities, vector_stride);
+        destination_velocities = PFX_FIELD_AT(destination_velocities, vector_stride);
+        source_positions = PFX_FIELD_AT(source_positions, field_stride);
+        destination_positions = PFX_FIELD_AT(destination_positions, field_stride);
     }
 
-    if (effect->field_29C > 0.0f) {
+    if (apfx->field_29C > 0.0f) {
         emitter = pfx_get_emitter(vm, 0);
         if (emitter->birth_rate <
             (float)(vm->particle_capacity - vm->particle_cursor + 1)) {
             vm->particle_cursor += (int)pfx_get_emitter(vm, 0)->birth_rate;
             RESOLVE_JAB_OBJECT(
-                tracked_object, effect->tracked_object,
-                effect->tracked_object_instance);
+                tracked_object, apfx->tracked_object,
+                apfx->tracked_object_instance);
 
             index = 0;
             while ((float)index < pfx_get_emitter(vm, 0)->birth_rate) {
                 bone_index = index % 12;
                 get_bone_world_pos(
                     tracked_object,
-                    skeleton_start_bone_id[effect->effect_state][bone_index],
+                    skeleton_start_bone_id[apfx->effect_state][bone_index],
                     &start);
                 get_bone_world_pos(
                     tracked_object,
-                    skeleton_end_bone_id[effect->effect_state][bone_index],
+                    skeleton_end_bone_id[apfx->effect_state][bone_index],
                     &end);
                 v3_sub_v3(&offset, &end, &start);
                 along_bone = frand(1.0f);
                 offset.x *= along_bone;
                 offset.y *= along_bone;
                 offset.z *= along_bone;
-                start.x += offset.x;
-                start.y += offset.y;
-                start.z += offset.z;
+                start.x = offset.x + start.x;
+                start.y = offset.y + start.y;
+                start.z = offset.z + start.z;
 
                 bone_index = index % 10;
                 destination_positions->x =
@@ -2178,18 +2144,19 @@ float pfx_kenshi_lift_smoke(void) {
                 destination_positions->z =
                     start.z + sfrand(skeleton_radius_table[bone_index]);
 
-                destination_velocities->x =
+                dx =
                     destination_positions->x - emitter_object->pos.value.x;
-                destination_velocities->y =
+                dy =
                     destination_positions->y - emitter_object->pos.value.y;
-                destination_velocities->z =
+                dz =
                     destination_positions->z - emitter_object->pos.value.z;
                 length_sq =
-                    destination_velocities->x * destination_velocities->x +
-                    destination_velocities->y * destination_velocities->y +
-                    destination_velocities->z * destination_velocities->z;
-                inverse_length = 0.0f;
-                if (length_sq > 0.0f) {
+                    dx * dx +
+                    dy * dy +
+                    dz * dz;
+                if (length_sq <= 0.0f) {
+                    inverse_length = 0.0f;
+                } else {
                     inverse.f = length_sq;
                     inverse.u = 0x5F375A00U - (inverse.u >> 1);
                     half_x = inverse.f * (length_sq * inverse.f);
@@ -2198,12 +2165,9 @@ float pfx_kenshi_lift_smoke(void) {
                         0.0625f * inverse.f * newton *
                         -((newton * (half_x * newton)) - 12.0f);
                 }
-                destination_velocities->x *= inverse_length;
-                destination_velocities->y *= inverse_length;
-                destination_velocities->z *= inverse_length;
-                destination_velocities->x *= 0.05f;
-                destination_velocities->y *= 0.05f;
-                destination_velocities->z *= 0.05f;
+                destination_velocities->x = 0.05f * (dx * inverse_length);
+                destination_velocities->y = 0.05f * (dy * inverse_length);
+                destination_velocities->z = 0.05f * (dz * inverse_length);
                 destination_velocities->y = 0.005f;
 
                 destination_colors[2] = 0x80;
@@ -2220,28 +2184,29 @@ float pfx_kenshi_lift_smoke(void) {
                 destination_timers = PFX_FIELD_AT(destination_timers, vector_stride);
                 index++;
             }
-            effect->effect_state = effect->effect_state != 1;
+            apfx->effect_state = apfx->effect_state != 1;
         }
     }
 
-    if (effect->field_2A0 > 0.0f) {
-        effect->field_2A0 -= game_speed;
+    if (apfx->field_2A0 > 0.0f) {
+        apfx->field_2A0 -= game_speed;
     } else {
-        effect->field_2A0 = 0.0f;
+        apfx->field_2A0 = 0.0f;
     }
-    if (effect->field_29C > 0.0f) {
-        effect->field_29C -= game_speed;
+    if (apfx->field_29C > 0.0f) {
+        apfx->field_29C -= game_speed;
     } else {
-        effect->field_29C = 0.0f;
+        apfx->field_29C = 0.0f;
     }
     if (vm->particle_cursor == 0) {
         return -1.0f;
     }
-    if (effect->field_298 > 0.0f) {
-        effect->field_298 -= game_speed;
-        return 1.0f;
+    if (apfx->field_298 > 0.0f) {
+        apfx->field_298 -= game_speed;
+    } else {
+        return -1.0f;
     }
-    return -1.0f;
+    return 1.0f;
 }
 
 static void splatter_init(struct JabSplatterState* splatter) {

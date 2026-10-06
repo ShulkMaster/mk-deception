@@ -10,9 +10,42 @@ typedef struct CollisionPaddedVec {
     float pad;
 } CollisionPaddedVec; /* 0x10 */
 
+typedef struct CollisionQuad {
+    CollisionPaddedVec vertices[4];
+} CollisionQuad;
+
+typedef struct CollisionCylinder {
+    CollisionPaddedVec axis;
+    CollisionPaddedVec center;
+    float radius;
+    float height;
+} __attribute__((aligned(16))) CollisionCylinder;
+
+typedef char CollisionCylinderSizeCheck[
+    sizeof(CollisionCylinder) == 0x30 ? 1 : -1];
+
+typedef struct CollisionBox {
+    CollisionPaddedVec corners[4];
+    Vec axis_0;
+    float axis_0_min;
+    Vec axis_1;
+    float axis_0_max;
+    Vec axis_2;
+    float axis_1_min;
+    float axis_1_max;
+    float axis_2_min;
+    float axis_2_max;
+    float bounding_radius;
+} __attribute__((aligned(16))) CollisionBox;
+
+typedef char CollisionBoxSizeCheck[
+    sizeof(CollisionBox) == 0x80 ? 1 : -1];
+
 typedef struct CollisionShape {
     union {
         char data00[0x80];
+        CollisionCylinder cylinder;
+        CollisionBox box;
         struct {
             Vec sphere_center; /* +0x00 */
             float sphere_radius; /* +0x0C */
@@ -54,6 +87,7 @@ typedef struct CollisionShape {
             float quad_pad_2C;
             Vec quad_vertex_3;     /* +0x30 */
         };
+        CollisionQuad quad;
         CollisionPaddedVec quad_vertices[8];
     };
     unsigned int type; /* +0x80, low three bits select the shape kind */
@@ -111,7 +145,7 @@ void generate_obstacles(int handle, char* name, MkPtr** obstacle_list);
 CollisionObj* get_collision_obj(void);
 float repel_check_plyrs(void);
 void repel_against_obstacle_list(
-    PlyrInfo* player, const Vec* previous_position, const Vec* movement,
+    PlyrInfo* player, Vec* previous_position, Vec* movement,
     Vec* position, struct ConstrainInfo* info);
 
 void build_col_shape_vertical_cylinder(

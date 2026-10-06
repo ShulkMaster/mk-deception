@@ -2524,8 +2524,8 @@ float active_sidekick_swap_change_style(PlyrPdata* pdata) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 96.11%; validators go through the live helpers; sidekick/player r30/r31
- * and saved-state register coloring remain (declaration order is neutral). */
+/* TODO: [near miss] 96.11%; pdata/sidekick register homes and saved-state
+ * coloring remain; typed saved transform compiles identically. */
 float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     PlyrInfo* player;
     MkObj* sidekick;
@@ -2540,12 +2540,8 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     float saved_frame;
     float saved_step;
     float saved_weight;
-    float pos_x;
-    float pos_y;
-    float pos_z;
-    float ang_x;
-    float ang_y;
-    float ang_z;
+    Vec saved_position;
+    Vec saved_angle;
 
     player = pdata->plyr_info;
     sidekick = MK_HDR_LIVE(pdata->sidekick_obj, pdata->sidekick_instance);
@@ -2582,24 +2578,24 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
         player->slot.mirror_a, pdata->sidekick_active == 0);
     tag_team_activate_player(sidekick, pdata->sidekick_active);
 
-    pos_x = sidekick->pos.value.x;
-    pos_y = sidekick->pos.value.y;
-    pos_z = sidekick->pos.value.z;
-    ang_x = sidekick->ang.x;
-    ang_y = sidekick->ang.y;
-    ang_z = sidekick->ang.z;
+    saved_position.x = sidekick->pos.value.x;
+    saved_position.y = sidekick->pos.value.y;
+    saved_position.z = sidekick->pos.value.z;
+    saved_angle.x = sidekick->ang.x;
+    saved_angle.y = sidekick->ang.y;
+    saved_angle.z = sidekick->ang.z;
     sidekick->pos.value.x = player->slot.mirror_a->pos.value.x;
     sidekick->pos.value.y = player->slot.mirror_a->pos.value.y;
     sidekick->pos.value.z = player->slot.mirror_a->pos.value.z;
     sidekick->ang.x = player->slot.mirror_a->ang.x;
     sidekick->ang.y = player->slot.mirror_a->ang.y;
     sidekick->ang.z = player->slot.mirror_a->ang.z;
-    player->slot.mirror_a->pos.value.x = pos_x;
-    player->slot.mirror_a->pos.value.y = pos_y;
-    player->slot.mirror_a->pos.value.z = pos_z;
-    player->slot.mirror_a->ang.x = ang_x;
-    player->slot.mirror_a->ang.y = ang_y;
-    player->slot.mirror_a->ang.z = ang_z;
+    player->slot.mirror_a->pos.value.x = saved_position.x;
+    player->slot.mirror_a->pos.value.y = saved_position.y;
+    player->slot.mirror_a->pos.value.z = saved_position.z;
+    player->slot.mirror_a->ang.x = saved_angle.x;
+    player->slot.mirror_a->ang.y = saved_angle.y;
+    player->slot.mirror_a->ang.z = saved_angle.z;
     set_root_and_obj_movement_weights(
         sidekick_animation, 0.0f, player_animation->weight);
     set_root_and_obj_movement_weights(

@@ -2353,8 +2353,18 @@ static float pz_fighters_chomper_fatality_prep(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.72%; TU data layout: Vec initializers sit at pool @503+0x354 in retail
- * (ours +0x180), plus later vector stack slots and one face-bleed result copy. */
+static inline void pz_launch_chomper_flesh_path(void) {
+    Vec flesh_velocity = {0.0f, 0.05f, 0.0f};
+    Vec flesh_terminal_velocity = {0.05f, 0.05f, -0.05f};
+
+    ft_create_flesh_path(
+        g_pz_fighters_engine.fatality_piece,
+        &g_pz_fighters_engine.fatality_piece->position, 1, 0,
+        &flesh_velocity, 0, &flesh_terminal_velocity,
+        dropped_heart_snd_cb, -0.0015f, 0.7f, 0.1f);
+}
+
+/* TODO: [near miss] 99.95992%; body and vector slots agree; seven initializer pool positions differ from retail. */
 static float pz_fighters_chomper_fatality_in_progress(void) {
     static int mode_timer;
     static int launch_sounds = 1;
@@ -2431,7 +2441,8 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
 
     case 3: {
         Vec impact_position;
-        attacker_object =
+        struct PuzzleFighterRenderObject* rising_attacker;
+        rising_attacker =
             pz_fighter_get_player_obj(
                 g_pz_fighters_engine.fatality_attacker);
         victim_data =
@@ -2442,27 +2453,27 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
                     g_pz_fighters_engine.fatality_victim),
                 pz_fighter_one_arm_victory2);
         }
-        get_bone_world_pos(attacker_object, 0x10, &impact_position);
+        get_bone_world_pos(rising_attacker, 0x10, &impact_position);
 
         spike = g_pz_fighter_fatality_engine
                     .hazard_groups[g_pz_fighters_engine.fatality_attacker]
                     .objects[0];
         if (spike->y < 3.95f) {
             spike->motion = 0.12f;
-            attacker_object->secondary_flags_bits.stopped = 0;
-            attacker_object->external_force.y = 0.09f;
+            rising_attacker->secondary_flags_bits.stopped = 0;
+            rising_attacker->external_force.y = 0.09f;
             mode_timer = 0;
         } else if (mode_timer == 0) {
             spike->motion = 0.0f;
-            attacker_object->external_force.y = 0.0f;
+            rising_attacker->external_force.y = 0.0f;
             mode_timer = 200;
         } else if (mode_timer == 120) {
-            attacker_object->flags_bits.moving = 1;
-            attacker_object->hazard_x = -0.002f;
+            rising_attacker->flags_bits.moving = 1;
+            rising_attacker->hazard_x = -0.002f;
             mode_timer--;
         } else if (mode_timer == 70) {
-            attacker_object->flags_bits.moving = 0;
-            attacker_object->hazard_x = 0.0f;
+            rising_attacker->flags_bits.moving = 0;
+            rising_attacker->hazard_x = 0.0f;
             mode_timer--;
             xfer_proc(
                 pz_fighter_get_player_proc(
@@ -2574,13 +2585,7 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
             g_pz_fighters_engine.fatality_piece->external_force.y = 0.0f;
             if (g_pz_fighters_engine.fatality_motion == 1.0f &&
                 flesh_path_timer <= 0.0f) {
-                Vec flesh_velocity = {0.0f, 0.05f, 0.0f};
-                Vec flesh_terminal_velocity = {0.05f, 0.05f, -0.05f};
-                ft_create_flesh_path(
-                    g_pz_fighters_engine.fatality_piece,
-                    &g_pz_fighters_engine.fatality_piece->position, 1, 0,
-                    &flesh_velocity, 0, &flesh_terminal_velocity,
-                    dropped_heart_snd_cb, -0.0015f, 0.7f, 0.1f);
+                pz_launch_chomper_flesh_path();
                 g_pz_fighter_fatality_engine.active_effect = 6;
             }
             if ((randu0(100) & 0xFFFF) < 40) {
@@ -2913,6 +2918,23 @@ static float p_chomper2_controller(void) {
 }
 
 /* TODO: [breakthrough] 99.80%; retail chunk-crush effects fixed; four prologue GPR operands remain. */
+static inline void pz_fighter_offset_fatality_post(
+    int player, float* target_x, float* target_z) {
+    Vec offset = {0.05f, 0.0f, 0.0f};
+
+    if (player == 0) {
+        *target_x = g_pz_fighters_engine.fighter_posts[1].x;
+        *target_x += offset.x;
+        *target_z = g_pz_fighters_engine.fighter_posts[1].z;
+        *target_z += offset.z;
+    } else {
+        *target_x = g_pz_fighters_engine.fighter_posts[0].x;
+        *target_x -= offset.x;
+        *target_z = g_pz_fighters_engine.fighter_posts[0].z;
+        *target_z -= offset.z;
+    }
+}
+
 static float pz_fighter_chomper2_victim_crushed(void) {
     Vec blood_offset = {0.05f, 0.0f, 0.0f};
     float blood_x;
@@ -3772,8 +3794,8 @@ static float pz_fighter_objects_falling_actively_fighting(int active) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.65%; FPR coloring of the post/offset targets and victim-x delta remains (offset f2/f1, delta_x f5/f2). */
-/* TODO: [Scope warn] offset block: moving initializer to unlocked-player branch entry drops 99.65% to 92.15%. */
+/* TODO: [near miss] 99.83796%; post-offset helper matches without bare
+ * scope; five victim-x/delta-x FPR rows remain. */
 static float pz_fighters_objects_falling_fatality_prep(void) {
     static int one_last_hit = 1;
     static int start_pointing = 1;
@@ -3800,17 +3822,7 @@ static float pz_fighters_objects_falling_fatality_prep(void) {
 
                 victim_object = pz_fighter_get_player_obj(victim);
                 direction = 1;
-                {
-                    Vec offset = {0.05f, 0.0f, 0.0f};
-
-                    if (victim == 0) {
-                        target_x = g_pz_fighters_engine.fighter_posts[1].x + offset.x;
-                        target_z = g_pz_fighters_engine.fighter_posts[1].z + offset.z;
-                    } else {
-                        target_x = g_pz_fighters_engine.fighter_posts[0].x - offset.x;
-                        target_z = g_pz_fighters_engine.fighter_posts[0].z - offset.z;
-                    }
-                }
+                pz_fighter_offset_fatality_post(victim, &target_x, &target_z);
 
                 delta_x = target_x - victim_object->position.x;
                 delta_z = target_z - victim_object->position.z;

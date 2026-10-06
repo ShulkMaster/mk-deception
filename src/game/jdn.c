@@ -5,6 +5,7 @@
 #include "libmkparticle/emitter.h"
 #include "libmkparticle/fields.h"
 #include "libmkparticle/particle.h"
+#include "libmkparticle/texture_anim.h"
 #include "libmkparticle/vm.h"
 #include "math/gxVect.h"
 #include "math/gxMath.h"
@@ -32,79 +33,88 @@ unsigned int g_kill_shard_fx;
 MkPfx* create_pfx(int, int, float (*)(void), MkPfx**,
                   const unsigned int*, const char*);
 
-/* TODO: [breakthrough needed] 76.66%; recover constructor call staging and float-store order. */
 MkPfx* start_pfx_glass_shards(
-    int art_id, const Vec* position, const Vec* center, int bounce_limit,
+    int art_id, Vec* position, Vec* center, int bounce_limit,
     unsigned int spawn_count, unsigned int scale_mode, int motion_mode) {
-    MkPfx* glass = 0;
+    MkPfx* glass;
     MkPfx* pfx;
     MkObj* emitter_object;
-    int index;
+    unsigned int index;
 
     pfx = create_pfx(0x8023, 0x8023, pfx_glass_break_run, &glass,
                      noch_pfx_table, stringBase0);
-    if (pfx == 0 || glass == 0) {
-        return 0;
-    }
-    emitter_object = (MkObj*)pfx_get_emitter_obj(pfx, 0);
-    if (emitter_object == 0) {
-        if (pfx->hdr.instance != 0) {
-            pfx->hdr.typed_vtbl->destroy(&pfx->hdr);
+    if (pfx != 0 && glass != 0) {
+        emitter_object = (MkObj*)pfx_get_emitter_obj(glass, 0);
+        if (emitter_object == 0) {
+            if (pfx->hdr.instance != 0) {
+                pfx->hdr.typed_vtbl->destroy(&pfx->hdr);
+            }
+            return 0;
         }
-        return 0;
-    }
 
-    emitter_object->pos.value = *position;
-    emitter_object->flags_08_bits.airborne = 1;
-    as_mkhdr(&emitter_object->hdr);
-    update_mkobj(&emitter_object->hdr);
+        emitter_object->pos.value.x = position->x;
+        emitter_object->pos.value.y = position->y;
+        emitter_object->pos.value.z = position->z;
+        emitter_object->flags_08_bits.airborne = 1;
+        update_mkobj(emitter_object != 0 ? as_mkhdr(&emitter_object->hdr) : 0);
 
-    glass->depth_bias = -50.0f;
-    glass->effect_center = *center;
-    glass->effect_state = bounce_limit;
-    glass->field_29C = 0.1f;
-    glass->field_28C = 0xB4;
-    glass->glass_alphas = glass_fragment_alphas;
-    glass->field_290 = 1;
-    glass->field_298 = 0.5f;
-    glass->field_294 = motion_mode;
+        glass->depth_bias = -50.0f;
+        glass->effect_center.x = center->x;
+        glass->effect_center.y = center->y;
+        glass->effect_center.z = center->z;
+        glass->effect_state = bounce_limit;
+        glass->field_29C = 0.1f;
+        glass->field_28C = 0xB4;
+        glass->glass_alphas = glass_fragment_alphas;
+        glass->field_290 = 1;
+        glass->field_298 = 0.5f;
+        glass->field_294 = motion_mode;
 
-    switch (scale_mode) {
-    case 0: glass->field_2A0 = glass->field_29C = 0.15f; break;
-    case 1: glass->field_2A0 = glass->field_29C = 0.1f; break;
-    case 2: glass->field_2A0 = glass->field_29C = 0.05f; break;
-    case 3: glass->field_2A0 = glass->field_29C = 0.2f; break;
-    case 4:
-        glass->field_2A0 = 0.16f;
-        glass->field_29C = 0.03f;
-        break;
-    }
-
-    set_pfx_texture(
-        (PfxVm*)glass->matrix, 0x2001E, art_id);
-    if ((unsigned int)(art_id - 0x013D0000) == 8) {
-        for (index = 0; index <= (int)(sizeof(glass_fragment_alphas) / sizeof(glass_fragment_alphas[0])) - 1; index++) {
-            pfx_native_set_rgba(&glass_fragment_alphas[index], 90.0f, 130.0f,
-                90.0f, 255.0f - 255.0f * (float)index / 181.0f);
+        if (scale_mode == 0) {
+            glass->field_2A0 = 0.15f;
+            glass->field_29C = 0.15f;
+        } else if (scale_mode == 1) {
+            glass->field_2A0 = 0.1f;
+            glass->field_29C = 0.1f;
+        } else if (scale_mode == 2) {
+            glass->field_2A0 = 0.05f;
+            glass->field_29C = 0.05f;
+        } else if (scale_mode == 3) {
+            glass->field_2A0 = 0.2f;
+            glass->field_29C = 0.2f;
+        } else if (scale_mode == 4) {
+            glass->field_2A0 = 0.16f;
+            glass->field_29C = 0.03f;
         }
-        glass->field_2A0 *= 1.35f;
-        glass->field_29C *= 1.35f;
-        pfx_texture_animate((PfxVm*)glass->matrix,
-                            0x80, 0x20, 0x20, 0x10, 3.0f);
-    } else if ((unsigned int)(art_id - 0x013D0000) == 9) {
-        pfx_texture_animate((PfxVm*)glass->matrix,
-                            0x80, 0x20, 0x20, 0x10, 5.0f);
+
+        set_pfx_texture(
+            (PfxVm*)glass->matrix, 0x2001E, art_id);
+        if ((unsigned int)(art_id - 0x013D0000) == 8) {
+            for (index = 0; index <= sizeof(glass_fragment_alphas) / sizeof(glass_fragment_alphas[0]) - 1; index++) {
+                pfx_native_set_rgba(&glass_fragment_alphas[index], 90.0f, 130.0f,
+                    90.0f, 255.0f - 255.0f * (float)index / 181.0f);
+            }
+            glass->field_2A0 *= 1.35f;
+            glass->field_29C *= 1.35f;
+            pfx_texture_animate((PfxVm*)glass->matrix,
+                                0x80, 0x20, 0x20, 0x10, 3.0f);
+        } else if ((unsigned int)(art_id - 0x013D0000) == 9) {
+            pfx_texture_animate((PfxVm*)glass->matrix,
+                                0x80, 0x20, 0x20, 0x10, 5.0f);
+        } else {
+            pfx_texture_animate((PfxVm*)glass->matrix,
+                                0x100, 0x40, 0x40, 0x10, 5.0f);
+        }
+        pfx_get_emitter((PfxVm*)glass->matrix, 0)->birth_rate = spawn_count;
+        glass->emitter_enabled = 1;
     } else {
-        pfx_texture_animate((PfxVm*)glass->matrix,
-                            0x100, 0x40, 0x40, 0x10, 5.0f);
+        return 0;
     }
-    pfx_get_emitter((PfxVm*)glass->matrix, 0)->birth_rate = spawn_count;
-    glass->emitter_enabled = 1;
     glass->name_dst = (char*)stringBase0 + 0x11;
     return glass;
 }
 
-/* TODO: [breakthrough needed] 69.5835%; compare retail particle-loop CFG and runtime stride use. */
+/* TODO: [breakthrough needed] 70.67%; compare retail particle-loop CFG and runtime stride use. */
 static float pfx_glass_break_run(void) {
     MkPfx* glass = apfx;
     PfxVm* vm = (PfxVm*)glass->matrix;
@@ -288,7 +298,6 @@ static float pfx_glass_break_run(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough needed] 70.64%; identify frame and stmw/lmw compiler-mode cause. */
 static void mkpfx_spawnupdate_glass_break(PfxVm* vm) {
     int index;
     for (index = 0; index <= (int)(sizeof(glass_fragment_alphas) / sizeof(glass_fragment_alphas[0])) - 1; index++) {

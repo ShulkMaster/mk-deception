@@ -943,7 +943,7 @@ void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     }
 }
 
-/* TODO: [breakthrough] 84.71%; aligned rotation matrix and weapon latch shape match; nonvolatile homes (retail trail_model r31) and loop register layout differ. */
+/* TODO: [near miss] 97.83%; operations/CFG agree; nonvolatile owner-register allocation remains. */
 void mkobj_update_weapon_trail(MkObj* trail_model) {
     MkObj* weapon;
     WeaponDefinition* definition;
@@ -953,6 +953,9 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
     MkBone* trail_bone;
     MkBone* parent_bone;
     MkBone* child_bone;
+    RwMatrix* child_matrix;
+    RwMatrix* trail_cache;
+    Vec* trail_position;
     Vec displacement;
     Vec parent_to_child;
     Vec child_direction;
@@ -962,30 +965,64 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
     int map_index;
 
     weapon = MK_HDR_LIVE((MkObj*)trail_model->parent_hdr, trail_model->parent_inst);
-    do {
-        if (weapon == 0 || weapon->field_5C == 0 ||
-            trail_model->field_5C == 0) {
+    if (weapon == 0 || weapon->field_5C == 0 ||
+        trail_model->field_5C == 0) {
+        goto invalid_trail;
+    }
+    weapon_matrix = &weapon->frame->modelling;
+    trail_matrix = &trail_model->frame->modelling;
+    v3_sub_v3(&displacement, &weapon_matrix->pos_vec,
+              &trail_matrix->pos_vec);
+    trail_matrix->pos_vec = weapon_matrix->pos_vec;
+    trail_position = &trail_matrix->pos_vec;
+
+    for (map_index = 0;
+         map_index < (definition = trail_model->field_5C)->trail_map_count;
+         map_index++) {
+        map = &definition->trail_maps[map_index];
+        if (map->enabled == 0) {
             break;
         }
-        weapon_matrix = &weapon->frame->modelling;
-        trail_matrix = &trail_model->frame->modelling;
-        v3_sub_v3(&displacement, &weapon_matrix->pos_vec,
-                  &trail_matrix->pos_vec);
-        trail_matrix->pos_vec = weapon_matrix->pos_vec;
-
-        definition = trail_model->field_5C;
-        for (map_index = 0;
-            map_index < definition->trail_map_count;
-             map_index++) {
-            map = &definition->trail_maps[map_index];
-            if (map->enabled == 0) {
-                break;
-            }
-            trail_bone = trail_model->bones[map->trail_bone_index];
+        trail_bone = trail_model->bones[map->trail_bone_index];
+        if (trail_bone == 0) {
+            goto invalid_trail;
+        }
+        parent_bone = trail_bone->transform_parent;
+        v3_x_mat_add_v3(&trail_bone->parent_matrix->pos_vec,
+                        &trail_bone->translation.value,
+                        &parent_bone->matrix,
+                        &parent_bone->matrix.pos_vec);
+        v3_sub_v3(&trail_bone->parent_matrix->pos_vec,
+                  &trail_bone->parent_matrix->pos_vec,
+                  trail_position);
+        memcpy(trail_bone->parent_matrix, &parent_bone->matrix, 0x30);
+    }
+    chain_root = definition->trail_chain_roots;
+    if (chain_root != 0) {
+        while (*chain_root != 0) {
+            trail_bone = trail_model->bones[*chain_root];
             if (trail_bone == 0) {
-                definition = 0;
-                break;
+                goto invalid_trail;
             }
+            chain_root++;
+
+            do {
+                child_bone = trail_bone;
+                trail_bone = trail_bone->transform_parent;
+                child_matrix = child_bone->parent_matrix;
+                memcpy(child_matrix, &trail_bone->trail_matrix,
+                       sizeof(*child_matrix));
+                trail_cache = &trail_bone->trail_matrix;
+                child_matrix->pos.x -= displacement.x;
+                child_matrix->pos.y -= displacement.y;
+                child_matrix->pos.z -= displacement.z;
+                memcpy(trail_cache, trail_bone->parent_matrix,
+                       sizeof(*trail_cache));
+                trail_cache->pos.x -= displacement.x;
+                trail_cache->pos.y -= displacement.y;
+                trail_cache->pos.z -= displacement.z;
+            } while (!trail_bone->flags_54_bits.transform_parented);
+
             parent_bone = trail_bone->transform_parent;
             v3_x_mat_add_v3(&trail_bone->parent_matrix->pos_vec,
                             &trail_bone->translation.value,
@@ -993,68 +1030,22 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
                             &parent_bone->matrix.pos_vec);
             v3_sub_v3(&trail_bone->parent_matrix->pos_vec,
                       &trail_bone->parent_matrix->pos_vec,
-                      &trail_matrix->pos_vec);
-            memcpy(trail_bone->parent_matrix, &parent_bone->matrix, 0x30);
-            definition = trail_model->field_5C;
+                      trail_position);
+            v3_x_mat(&parent_to_child, &trail_p_to_c_uv,
+                     &parent_bone->matrix);
+            uv_v3_to_v3(&child_direction,
+                        &trail_bone->parent_matrix->pos_vec,
+                        &child_bone->parent_matrix->pos_vec);
+            v3_v3_to_quat(&rotation, &parent_to_child, &child_direction);
+            quat_to_mat(&rotation_matrix, &rotation);
+            mat_x_mat(trail_bone->parent_matrix, &parent_bone->matrix,
+                      &rotation_matrix);
         }
-        if (definition == 0) {
-            break;
-        }
+        RwFrameUpdateObjects(trail_model->frame);
+        return;
+    }
 
-        chain_root = definition->trail_chain_roots;
-        if (chain_root != 0) {
-            while (*chain_root != 0) {
-                trail_bone = trail_model->bones[*chain_root];
-                if (trail_bone == 0) {
-                    definition = 0;
-                    break;
-                }
-                chain_root++;
-
-                do {
-                    child_bone = trail_bone;
-                    trail_bone = trail_bone->transform_parent;
-                    memcpy(child_bone->parent_matrix,
-                           &trail_bone->rotation,
-                           sizeof(*child_bone->parent_matrix));
-                    child_bone->parent_matrix->pos.x -= displacement.x;
-                    child_bone->parent_matrix->pos.y -= displacement.y;
-                    child_bone->parent_matrix->pos.z -= displacement.z;
-                    memcpy(&trail_bone->rotation,
-                           trail_bone->parent_matrix,
-                           sizeof(RwMatrix));
-                    trail_bone->bind_offset.x -= displacement.x;
-                    trail_bone->bind_offset.y -= displacement.y;
-                    trail_bone->bind_offset.z -= displacement.z;
-                } while (!trail_bone->flags_54_bits.transform_parented);
-
-                parent_bone = trail_bone->transform_parent;
-                v3_x_mat_add_v3(&trail_bone->parent_matrix->pos_vec,
-                                &trail_bone->translation.value,
-                                &parent_bone->matrix,
-                                &parent_bone->matrix.pos_vec);
-                v3_sub_v3(&trail_bone->parent_matrix->pos_vec,
-                          &trail_bone->parent_matrix->pos_vec,
-                          &trail_matrix->pos_vec);
-                v3_x_mat(&parent_to_child, &trail_p_to_c_uv,
-                         &parent_bone->matrix);
-                uv_v3_to_v3(
-                            &child_direction,
-                            &trail_bone->parent_matrix->pos_vec,
-                            &child_bone->parent_matrix->pos_vec);
-                v3_v3_to_quat(&rotation, &parent_to_child, &child_direction);
-                quat_to_mat(&rotation_matrix, &rotation);
-                mat_x_mat(trail_bone->parent_matrix, &parent_bone->matrix,
-                          &rotation_matrix);
-            }
-            if (definition == 0) {
-                break;
-            }
-            RwFrameUpdateObjects(trail_model->frame);
-            return;
-        }
-    } while (0);
-
+invalid_trail:
     if (trail_model->hdr.instance != 0) {
         trail_model->hdr.typed_vtbl->destroy((MkHdr*)trail_model);
     }
