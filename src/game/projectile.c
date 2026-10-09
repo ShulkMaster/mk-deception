@@ -274,7 +274,7 @@ void active_projectile_setup_done(void) {
 }
 
 #pragma scheduling off
-/* TODO: [near miss] 88.23529%; bit7 li/lbz order remains; interleaved vector stores and owner reloads agree. */
+/* TODO: [near miss] 88.24%; 2 rows: li r4,1 for the velocity_damping_set bit sits one slot early vs retail. */
 void set_active_projectile_velocity_damp(const Vec* damping) {
     if (proj_pdata != 0) {
         proj_pdata->flags.bytes.behavior.bits.velocity_damping_set = 1;

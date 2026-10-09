@@ -183,7 +183,7 @@ float p_konquest_ending(void) {
     add_anim_section_by_name_async_pal(0x50014, &stringBase0[0x28], &bgnd_animations[0x28], 0, 0);
     wait_for_slot_load(0x50014);
     load_art_section_by_name(0x10005, &stringBase0[0x3C]);
-    load_string_bank(0x20000, (char*)&stringBase0[0x4E]);
+    load_string_bank(0x20000, &stringBase0[0x4E]);
     info = &g_game_info;
     info->plyr0.player_state = 2;
     info->plyr0.player_index = 0x19;
@@ -309,7 +309,7 @@ void nis_end(void) {
     destroy_mkprocs_pid(0x900C);
 }
 
-/* TODO: [near miss] 94%; identical bitset operations; eight volatile GPR assignments remain. */
+/* TODO: [near miss] 94.00%; bitset operations agree; residue is GPR coloring only (rlwinm/clrlwi/li homes). */
 void nis_signal_event(int event) {
     nis_event_list[(unsigned int)event >> 5] |= 1U << (event & 0x1F);
 }

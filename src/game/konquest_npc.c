@@ -6056,7 +6056,7 @@ static int npc_update_pos_on_path(
     target_waypoint = npc->path->target_waypoint;
     if (npc->path != 0) {
         if ((unsigned int)(
-                npc->path->destination_type + (int)0x80000000) == 7) {
+                npc->path->destination_type + 0x80000000) == 7) {
             target.x = npc->path->destination.x;
             target.y = npc->path->destination.y;
             target.z = npc->path->destination.z;

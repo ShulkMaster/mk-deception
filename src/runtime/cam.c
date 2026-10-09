@@ -1899,12 +1899,8 @@ static int is_shape_in_frustum(const Vec* position,
 }
 
 
-/* TODO: [near miss] 92.5%; upper-bound guard fuses to bgtlr; retail uses ble then blr. */
 void toggle_danger_zone(int index) {
-    if (index < 0) {
-        return;
-    }
-    if (index > number_of_danger_zones) {
+    if (index < 0 || index > number_of_danger_zones) {
         return;
     }
     background_danger_zones[index].enabled ^= 1;

@@ -243,7 +243,7 @@ void load_string_bank_async(unsigned int bank, char* name) {
     cmdscript_loadfile_language_by_name_async((int)(bank >> 16) - 1, name);
 }
 
-void load_string_bank(unsigned int bank, char* name) {
+void load_string_bank(unsigned int bank, const char* name) {
     cmdscript_loadfile_language_by_name((int)(bank >> 16) - 1, name);
 }
 
@@ -313,12 +313,10 @@ void cmdscript_step_backward(void) {
     cs->pc = cs->prev_pc;
 }
 
-/* TODO: [breakthrough needed] 86.75%; frame-pointer subtraction regresses;
- * retail unsigned divide/shift lowering needs compiler-mode evidence. */
 unsigned int get_script_stack_depth(void) {
-    return (unsigned int)((unsigned char*)active_cmdscript->stack_sp -
-                          (unsigned char*)active_cmdscript->stack_mem) /
-           sizeof(CmdScriptStackFrame);
+    return ((unsigned int)active_cmdscript->stack_sp -
+            (unsigned int)active_cmdscript->stack_mem) /
+           (sizeof(CmdScriptStackFrame) / sizeof(int)) / sizeof(int);
 }
 
 static inline void push_script_stack_frame_inline(int keep_alive) {
@@ -689,7 +687,7 @@ ScriptSlot* cmdscript_loadfile_language_by_name_async(int language, char* name) 
     return 0;
 }
 
-ScriptSlot* cmdscript_loadfile_language_by_name(int language, char* name) {
+ScriptSlot* cmdscript_loadfile_language_by_name(int language, const char* name) {
     MkFileInfo* section;
 
     section = find_section_by_name(name);
@@ -1580,10 +1578,9 @@ void _copy_register_to_variable(void) {
     variables[variable_index] = source->word;
 }
 
-/* TODO: [near miss] 85.90%; equivalent indexed store uses different address association and GPRs. */
 void _copy_variable_to_register(void) {
-    active_cmdscript->registers[current_args[1]].word =
-        ((unsigned int*)active_cmdscript->stack_sp)[current_args[2]];
+    unsigned int* slot = &active_cmdscript->registers[current_args[1]].word;
+    *slot = ((unsigned int*)active_cmdscript->stack_sp)[current_args[2]];
 }
 
 void _copy_register_to_register(void) {
@@ -1597,9 +1594,9 @@ void _copy_register_to_register(void) {
     *destination_slot = *source_slot;
 }
 
-/* TODO: [near miss] 81.25%; typed register-slot store is byte-neutral; address grouping and volatile GPR homes remain. */
 void _copy_constant_to_register(void) {
-    active_cmdscript->registers[current_args[1]].word = current_args[2];
+    unsigned int* slot = &active_cmdscript->registers[current_args[1]].word;
+    *slot = current_args[2];
 }
 
 void _copy_register_to_instruction(void) {

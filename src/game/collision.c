@@ -4395,12 +4395,11 @@ static void update_player_collision_nodes(PlayerCollisionData* collision) {
     }
 }
 
-/* TODO: [breakthrough] 85.14%; shared case exit recovered;
- * redundant dispatch exit and component load/store scheduling remain. */
+#pragma optimization_level 0
 void update_collision_obj_pos(CollisionObj* object, const Vec* position) {
     switch (object->shape.type & 7) {
     case 1:
-        return;
+        break;
     case 2:
         gxVectCopy(&object->shape.cylinder_center, position);
         break;
@@ -4412,6 +4411,7 @@ void update_collision_obj_pos(CollisionObj* object, const Vec* position) {
         return;
     }
 }
+#pragma optimization_level reset
 
 void set_collision_render_state(int enabled) {
     g_game_info.pause_flag_bits.paused = enabled;

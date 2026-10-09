@@ -1671,16 +1671,12 @@ void restart_effect_ppfx(struct PfxScriptEffect* effect) {
     pfx_emitter_restart_cycle(emitter);
 }
 
-/* TODO: [near miss] 81.91%; retail saves a zero across emitter lookup; remaining seven rows are lifetime/codegen. */
 void resume_effect(const char* name) {
     struct PfxScriptEffect* effect;
     effect = find_pfx_by_name(name);
     if (effect != 0) {
-        PfxVmEmitter* emitter;
-
         effect->lifecycle_flags.restart_cycle = 1;
-        emitter = pfx_get_emitter((PfxVm*)effect->emitter_storage.emitters, 0);
-        emitter->flags.bits.cycle_paused = 0;
+        pfx_get_emitter((PfxVm*)effect->emitter_storage.emitters, 0)->flags.bits.cycle_paused = 0;
     }
 }
 

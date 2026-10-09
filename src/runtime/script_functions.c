@@ -2462,13 +2462,13 @@ void _set_obj_flag(void) {
     }
 }
 
-/* TODO: [near miss] 80.62%; equivalent flag test retains argument-load scheduling and register differences. */
 void _get_obj_flag(void) {
     struct ScriptFlagArgs* args;
     int shift;
 
     args = (struct ScriptFlagArgs*)current_args;
-    shift = 31 - args->bit;
+    shift = 31;
+    shift -= args->bit;
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         (args->object->flags & (1U << shift)) != 0;
 }
