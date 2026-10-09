@@ -9575,8 +9575,6 @@ static float p_beetle_lair_watch_remaining_fall_scene(void) {
     return -1.0f;
 }
 
-/* TODO: [breakthrough] 88.30%; angles2/angles4 aggregate literals restored (retail @5005/@5009);
- * launch copy/FPR scheduling and camera_dx/dz division shape remain. */
 static float p_beetle_lair_wall_breaking_controller(void) {
     Vec camera_start = {2.166f, -9.5f, 42.734f};
     Vec camera_end = {0.4512f, -0.5f, 18.8713f};
@@ -9601,8 +9599,6 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     MkObj* player_object;
     MkObj* opponent_object;
     MkSobj* chunk;
-    float camera_dx;
-    float camera_dz;
 
     data = (BlWallBreakControllerData*)apdata;
     _mkproc_sleep_ticks = data->initial_delay;
@@ -9678,17 +9674,13 @@ static float p_beetle_lair_wall_breaking_controller(void) {
         effect->depth_bias = -50.0f;
     }
 
-    camera_dx = camera_start.x - camera_end.x;
-    camera_dz = camera_start.z - camera_end.z;
-
     position0 = (Vec){0.4512f, 0.8f, 18.2113f};
-    velocity.x = 0.05f + camera_dx / 100.0f;
-    velocity.y = 0.05f;
-    velocity.z = camera_dz / 100.0f;
-    angular_velocity.x = 0.05f;
-    angular_velocity.y = 0.0f;
-    angular_velocity.z = 0.0f;
     angles0 = (Vec){3.1415927f, 0.0f, 0.0f};
+    velocity.y = 0.05f;
+    velocity.x = 0.05f + (camera_start.x - camera_end.x) / 100.0f;
+    velocity.z = (camera_start.z - camera_end.z) / 100.0f;
+    angular_velocity.x = angular_velocity.y = angular_velocity.z = 0.0f;
+    angular_velocity.x = 0.05f;
     chunk = obj_first_sobj(g_bgnd_preloaded_models[0]);
     bgnd_launch_chunk(
         chunk, &position0, &velocity, &angular_velocity, &angles0, 0,
@@ -9697,13 +9689,13 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     aproc->vtbl->sleep();
 
     position1 = (Vec){0.0f, 1.1f, 18.2113f};
-    velocity.x = 0.0f;
+    angles1 = (Vec){3.1415927f, 0.0f, 1.0471976f};
     velocity.y = -0.01f;
+    velocity.x = 0.0f;
     velocity.z = 0.105f;
+    angular_velocity.x = angular_velocity.y = angular_velocity.z = 0.0f;
     angular_velocity.x = 0.043f;
     angular_velocity.y = -0.07f;
-    angular_velocity.z = 0.0f;
-    angles1 = (Vec){3.1415927f, 0.0f, 1.0471976f};
     chunk = obj_first_sobj(g_bgnd_preloaded_models[1]);
     bgnd_launch_chunk(
         chunk, &position1, &velocity, &angular_velocity, &angles1, 0,
@@ -9712,13 +9704,13 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     aproc->vtbl->sleep();
 
     position2 = (Vec){0.6f, 1.3f, 18.2113f};
-    velocity.x = camera_dx / 110.0f - 0.11f;
-    velocity.y = 0.03f;
-    velocity.z = camera_dz / 110.0f;
-    angular_velocity.x = 0.05f;
-    angular_velocity.y = 0.0f;
-    angular_velocity.z = 0.18f;
     angles2 = (Vec){3.1415927f, 0.0f, 0.0f};
+    velocity.y = 0.03f;
+    velocity.x = (camera_start.x - camera_end.x) / 110.0f - 0.11f;
+    velocity.z = (camera_start.z - camera_end.z) / 110.0f;
+    angular_velocity.x = angular_velocity.y = angular_velocity.z = 0.0f;
+    angular_velocity.x = 0.05f;
+    angular_velocity.z = 0.18f;
     chunk = obj_first_sobj(g_bgnd_preloaded_models[2]);
     bgnd_launch_chunk(
         chunk, &position2, &velocity, &angular_velocity, &angles2, 0,
@@ -9727,13 +9719,13 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     aproc->vtbl->sleep();
 
     position3 = (Vec){-0.8512f, 1.3f, 18.2113f};
-    velocity.x = camera_dx / 300.0f - 0.05f;
-    velocity.y = 0.2f;
-    velocity.z = camera_dz / 200.0f;
-    angular_velocity.x = 0.2f;
-    angular_velocity.y = 0.0f;
-    angular_velocity.z = 0.15f;
     angles3 = (Vec){3.1415927f, 0.0f, 0.0f};
+    velocity.y = 0.2f;
+    velocity.x = (camera_start.x - camera_end.x) / 300.0f - 0.05f;
+    velocity.z = (camera_start.z - camera_end.z) / 200.0f;
+    angular_velocity.x = angular_velocity.y = angular_velocity.z = 0.0f;
+    angular_velocity.x = 0.2f;
+    angular_velocity.z = 0.15f;
     chunk = obj_first_sobj(g_bgnd_preloaded_models[3]);
     bgnd_launch_chunk(
         chunk, &position3, &velocity, &angular_velocity, &angles3, 0,
@@ -9742,13 +9734,13 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     aproc->vtbl->sleep();
 
     position4 = (Vec){-0.6f, 0.6f, 18.4313f};
-    velocity.x = camera_dx / 110.0f;
+    angles4 = (Vec){3.1415927f, 3.1415927f, 0.0f};
     velocity.y = 0.03f;
-    velocity.z = camera_dz / 110.0f;
+    velocity.x = (camera_start.x - camera_end.x) / 110.0f;
+    velocity.z = (camera_start.z - camera_end.z) / 110.0f;
+    angular_velocity.x = angular_velocity.y = angular_velocity.z = 0.0f;
     angular_velocity.x = 0.01f;
     angular_velocity.y = 0.1f;
-    angular_velocity.z = 0.0f;
-    angles4 = (Vec){3.1415927f, 3.1415927f, 0.0f};
     chunk = obj_first_sobj(g_bgnd_preloaded_models[4]);
     bgnd_launch_chunk(
         chunk, &position4, &velocity, &angular_velocity, &angles4, 0,

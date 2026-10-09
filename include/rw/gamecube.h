@@ -10,8 +10,8 @@ extern void* _RwDl_FIFO_XFB;
 extern void* _RwDlDefaultFifo;
 extern void* _RwGCXFB1;
 extern void* _RwGCXFB2;
-extern void* _RwGCXFBCopy;
-extern void* _RwGCXFBDisp;
+extern void* volatile _RwGCXFBCopy;
+extern void* volatile _RwGCXFBDisp;
 void RwGameCubeGetXFBs(void** displayed, void** copying);
 
 extern int _RwDlPixelFormat;
