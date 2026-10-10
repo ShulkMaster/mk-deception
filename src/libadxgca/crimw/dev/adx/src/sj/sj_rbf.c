@@ -275,7 +275,6 @@ void SJRBF_UngetChunk(SJ* sj, int channel, SJCK* chunk)
     SJCRS_Unlock();
 }
 
-/* TODO: [near miss] 99.895836%; one mirrored-address add operand order remains. */
 void SJRBF_PutChunk(SJ* sj, int channel, SJCK* chunk)
 {
     SJRingBuffer* ring = (SJRingBuffer*)sj;
@@ -296,8 +295,8 @@ void SJRBF_PutChunk(SJ* sj, int channel, SJCK* chunk)
                 if (chunk->len < copy_length) {
                     copy_length = chunk->len;
                 }
-                copy_address =
-                    (u32)(chunk->data - ring->buffer) + (u32)ring->buffer;
+                copy_address = (u32)(chunk->data - ring->buffer);
+                copy_address += (u32)ring->buffer;
                 copy_address = (u32)ring->buffer_size + copy_address;
                 memcpy((u8*)copy_address, chunk->data, copy_length);
             }

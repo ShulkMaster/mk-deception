@@ -155,23 +155,9 @@ private:
     static mwFileMountTable* spTable;
 };
 
-inline mwFileMountPoint::~mwFileMountPoint()
-{
-}
-
-mwFileMountPoint::mwFileMountPoint(const char* mount_name)
-    : mount_count(0)
-{
-    strcpy(name, mount_name);
-}
-
 namespace {
 
 
-mwFileServer* mwFileDummyMountPoint::getServer()
-{
-    return mwFileGetGenericCommandServer();
-}
 }
 
 int _mwFileMountInit()
@@ -235,13 +221,28 @@ int mwFileMountTable::getMountPointFromName(
     return -15;
 }
 
-namespace {
-mwFileDummyMountPoint::~mwFileDummyMountPoint()
+inline mwFileMountPoint::~mwFileMountPoint()
 {
 }
+
+mwFileMountPoint::mwFileMountPoint(const char* mount_name)
+    : mount_count(0)
+{
+    strcpy(name, mount_name);
 }
 
 mwFileMountTable& mwFileMountTable::get()
 {
     return *spTable;
+}
+
+mwFileServer* mwFileDummyMountPoint::getServer()
+{
+    return mwFileGetGenericCommandServer();
+}
+
+namespace {
+mwFileDummyMountPoint::~mwFileDummyMountPoint()
+{
+}
 }

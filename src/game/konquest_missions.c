@@ -808,7 +808,7 @@ void give_koin_award(int amount, int type) {
     StringObj* title;
     ScreenObj* koin;
     StringObj* amount_string;
-    unsigned char alpha;
+    int alpha;
 
     duck_sounds(0.5f);
     _mkproc_sleep_ticks = 15.0f;
@@ -841,7 +841,7 @@ void give_koin_award(int amount, int type) {
 
     if (sign != 0) {
         alpha = 0;
-        while (alpha < 0xF0) {
+        while ((unsigned char)alpha < 0xF0) {
             pfx_2d_obj_set_alpha_by_id(0x9008, alpha);
             _mkproc_sleep_ticks = 1.0f;
             aproc->vtbl->sleep();
@@ -851,7 +851,7 @@ void give_koin_award(int amount, int type) {
         _mkproc_sleep_ticks = 120.0f;
         aproc->vtbl->sleep();
         alpha = 0xF0;
-        while (alpha != 0) {
+        while ((unsigned char)alpha != 0) {
             pfx_2d_obj_set_alpha_by_id(0x9008, alpha);
             _mkproc_sleep_ticks = 1.0f;
             aproc->vtbl->sleep();
@@ -1537,7 +1537,7 @@ void trial_setup_onscreen_display_items(
 static inline void destroy_current_countdown_string(void) {
     struct KonquestMissionState* state = mission_state;
 
-    if (get_countdown_string_latch(state) != 0) {
+    if (get_countdown_string_latch(mission_state) != 0) {
         StringObj* string = state->countdown_string;
         if (string->instance != 0) {
             string->typed_vtbl->destroy(string);
@@ -1547,7 +1547,6 @@ static inline void destroy_current_countdown_string(void) {
     }
 }
 
-/* TODO: [near miss] 99.28%; both latch validations swap state/string r4/r5 (p_finish_countdown residue). */
 void trial_start_countdown(int countdown, float x, float y) {
     struct KonquestMissionState* state = get_mission_state();
 
@@ -1585,7 +1584,6 @@ void trial_start_countdown(int countdown, float x, float y) {
     }
 }
 
-/* TODO: [near miss] 99.24%; countdown-owner latch registers remain. */
 static float p_finish_countdown(void) {
     StringObj* string;
     struct KonquestMissionState* state;
@@ -1599,7 +1597,7 @@ static float p_finish_countdown(void) {
     }
 
     state = mission_state;
-    string = get_countdown_string_latch(state);
+    string = get_countdown_string_latch(mission_state);
     if (string != 0) {
         string = state->countdown_string;
         if (string->instance != 0) {
@@ -2747,11 +2745,11 @@ static void increment_required_moves_progress(
     }
 }
 
-/* TODO: [breakthrough needed] 92.05%; guard joins agree; retained condition-array/index boundary needs evidence. */
 void trial_increment_state_value(
     int player, int state_index, int opponent_event) {
     struct KonquestMissionState* state = get_mission_state();
     struct KonquestSuccessCondition* conditions;
+    struct KonquestSuccessCondition* entry;
 
     mission_state = state;
     if (!(state != 0 && mode_of_play == 8) ||
@@ -2762,12 +2760,12 @@ void trial_increment_state_value(
         (opponent_event != 1 || player != state->fight->field_04) &&
         state->trial_type == 0) {
         conditions = state->success_conditions;
-        if (conditions[state_index].required_count <= 0 ||
-            conditions[state_index].current_count >=
-                conditions[state_index].required_count) {
+        entry = &conditions[state_index];
+        if (entry->required_count <= 0 ||
+            entry->current_count >= entry->required_count) {
             return;
         }
-        if (register_condition(&conditions[state_index].condition)) {
+        if (register_condition(&entry->condition)) {
             increment_progress_count(1);
             conditions[state_index].current_count++;
         }

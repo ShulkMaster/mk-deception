@@ -3003,8 +3003,8 @@ static inline MkProc* limb_sever_create_update_proc(
     return proc;
 }
 
-/* TODO: [near miss] 98.72%; recovered list and creation boundaries;
- * latch branch and creation-result register remain. */
+/* TODO: [near miss] 99.72%; recovered list and creation boundaries, existing-proc latch via MK_LIVE;
+ * creation-result register (r27 vs r31) remains. */
 struct NcsLimbUpdatePdata* limb_sever_find_existing_update_proc(
     PlyrInfo* player, int limb, int proc_id) {
     FighterMirror* fighter;
@@ -3042,14 +3042,8 @@ struct NcsLimbUpdatePdata* limb_sever_find_existing_update_proc(
 
     }
     fighter = player->slot.fighter;
-    update_proc = fighter->limb_update_proc;
-    if (update_proc != 0) {
-        if (update_proc->instance != fighter->limb_update_proc_instance) {
-            update_proc = 0;
-        }
-    } else {
-        update_proc = 0;
-    }
+    update_proc = MK_LIVE(fighter->limb_update_proc,
+                          fighter->limb_update_proc_instance);
     if (update_proc == 0 ||
         (pdata = (struct NcsLimbUpdatePdata*)pdata_of_proc(update_proc)) == 0) {
         update_proc = limb_sever_create_update_proc(player, proc_id, &pdata);

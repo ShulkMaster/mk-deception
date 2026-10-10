@@ -2610,11 +2610,8 @@ static float p_force_reaction(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 95.48%; compiler CSEs the table entry (r30) where retail keeps
- * the scaled index and rematerializes tbl_xfer_addresses; GPR allocation remains. */
 void pz_fighter_reaction_xfer_him(int reaction) {
-    const struct PuzzleReactionTransferEntry* transfer;
-    struct PuzzleReactionTransferData* reaction_data = (struct PuzzleReactionTransferData*)apdata;
+    struct PuzzleReactionTransferData* reaction_data;
     MkProc* opponent_proc;
     MkProc* hold_proc;
     CmdScript* script;
@@ -2624,6 +2621,7 @@ void pz_fighter_reaction_xfer_him(int reaction) {
         return;
     }
 
+    reaction_data = (struct PuzzleReactionTransferData*)apdata;
     dispatch = tbl_xfer_addresses[reaction].dispatch;
     opponent_proc = MK_LIVE(reaction_data->opponent_proc, reaction_data->opponent_proc_instance);
 
@@ -2663,14 +2661,13 @@ void pz_fighter_reaction_xfer_him(int reaction) {
     }
     run_reaction_cleanup_function(plyr_pdata);
 
-    transfer = &tbl_xfer_addresses[reaction];
-    if (transfer->movement_flags & 2) {
+    if (tbl_xfer_addresses[reaction].movement_flags & 2) {
         init_air_move_no_aniproc();
     } else {
-        if (transfer->movement_flags & 1) {
+        if (tbl_xfer_addresses[reaction].movement_flags & 1) {
             init_ground_move_no_aniproc();
         }
-        if (transfer->movement_flags & 4) {
+        if (tbl_xfer_addresses[reaction].movement_flags & 4) {
             init_3d_move_no_aniproc();
         }
     }

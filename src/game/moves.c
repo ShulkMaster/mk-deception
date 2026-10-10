@@ -3652,7 +3652,7 @@ void sidekick_intro_check(void) {
     }
 }
 
-/* TODO: [breakthrough] 94.55%; restored live mirror angle/yaw reloads; defined vector Y zeros and pointer/FPR lifetimes remain. */
+/* TODO: [breakthrough] 94.86%; restored live mirror angle/yaw reloads; defined vector Y zeros and pointer/FPR lifetimes remain. */
 static float p_plyr_sidekick_intro(void) {
     union {
         float f;
@@ -3684,15 +3684,7 @@ static float p_plyr_sidekick_intro(void) {
     int function;
 
     player = ((struct MovesSidekickPdata*)apdata)->player;
-    sidekick = player->sidekick_obj;
-    if (sidekick != 0) {
-        sidekick = sidekick->hdr.instance ==
-                           player->sidekick_instance
-                       ? sidekick
-                       : 0;
-    } else {
-        sidekick = 0;
-    }
+    sidekick = MK_HDR_LIVE(player->sidekick_obj, player->sidekick_instance);
     anim_proc = player->sidekick_anim_proc;
     player_info = player->plyr_info;
     opponent_object = player->his_obj;
@@ -4297,7 +4289,7 @@ void noobsmoke_sidekick_double_charge(void) {
     }
 }
 
-/* TODO: [near miss] 94.95%; retail order restored; CFG aligns with defined Vec Y zeros; FPR coloring remains. */
+/* TODO: [near miss] 96.41%; sidekick/anim/player process latches via MK_HDR_LIVE/MK_LIVE; FPR coloring remains. */
 static float p_plyr_sidekick_charge(void) {
     union {
         float f;
@@ -4335,34 +4327,17 @@ static float p_plyr_sidekick_charge(void) {
 
     pdata = (struct MovesSidekickPdata*)apdata;
     player = pdata->player;
-    sidekick = player->sidekick_obj;
-    if (sidekick != 0) {
-        if (sidekick->hdr.instance != player->sidekick_instance) {
-            sidekick = 0;
-        }
-    } else {
-        sidekick = 0;
-    }
-    anim_proc = player->sidekick_anim_proc;
+    sidekick = MK_HDR_LIVE(player->sidekick_obj, player->sidekick_instance);
     info = player->plyr_info;
     opponent_object = player->his_obj;
     main_object = info->slot.mirror_a;
-    if (anim_proc != 0) {
-        if (anim_proc->instance != player->sidekick_anim_instance) {
-            anim_proc = 0;
-        }
-    } else {
-        anim_proc = 0;
-    }
+    anim_proc = MK_LIVE(player->sidekick_anim_proc,
+                        player->sidekick_anim_instance);
     anim = (AnimPdata*)pdata_of_proc(anim_proc);
     moves_prepare_sidekick_entrance(anim, sidekick);
     sidekick->flags_09_bits.head_tracking = 0;
 
-    player_proc = player->own_player_proc;
-    if (player_proc != 0 &&
-        player_proc->instance != player->own_player_proc_instance) {
-        player_proc = 0;
-    }
+    player_proc = MK_LIVE(player->own_player_proc, player->own_player_proc_instance);
     get_cmdscript_for_proc(player_proc);
     tag_team_activate_player(
         sidekick, info->slot.pdata->sidekick_active);

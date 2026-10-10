@@ -1385,12 +1385,12 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
         (direction_x * direction_x + direction_y * direction_y);
     inverse_length = gxMathFastInvSqrt(length_squared);
 
-    direction_x *= inverse_length;
-    direction_y *= inverse_length;
-    direction_z *= inverse_length;
-    direction_x *= 3.0f;
-    direction_y *= 3.0f;
-    direction_z *= 3.0f;
+    direction_x = direction_x * inverse_length;
+    direction_y = direction_y * inverse_length;
+    direction_z = direction_z * inverse_length;
+    direction_x = 3.0f * direction_x;
+    direction_y = 3.0f * direction_y;
+    direction_z = 3.0f * direction_z;
     sphere.center.x += direction_x;
     sphere.center.y += direction_y;
     sphere.center.z += direction_z;
@@ -1409,10 +1409,7 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
         (delta_x * delta_x + delta_y * delta_y);
 
     npc->camera_distance_squared = distance_squared;
-    if (distance_squared <= 2500.0f) {
-        return 1;
-    }
-    return 0;
+    return distance_squared <= 2500.0f ? 1 : 0;
 }
 
 static RpMaterial* hide_npc_materials(
@@ -2973,16 +2970,18 @@ static float p_update_npc_shadows(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 97.08%; only the model-age loop header differs (retail loads npc_manager_pdata into r4 before the 1.0f constant). */
+/* TODO: [near miss] 98.46%; only the model-age loop header differs (manager/index register homes and li r3,0 position). */
 void npc_update(int update_all) {
+    struct NpcManagerPdata* manager;
     MkPtr* link;
     int index;
     int models_made_visible = 0;
 
     npc_dispatch_timed_events_for_all_npcs();
+    manager = npc_manager_pdata;
     for (index = 0; index < 22; index++) {
-        if (npc_manager_pdata->models[index].available != 0) {
-            npc_manager_pdata->models[index].age += 1.0f;
+        if (manager->models[index].available != 0) {
+            manager->models[index].age += 1.0f;
         }
     }
     if (update_all == 0 && --wait_ticks > 0) {
@@ -4356,19 +4355,12 @@ static float p_hero_turn_and_face(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 98.20%; monk instance latch branches differ; inspect shared validation shape. */
 void hero_turn_to_face_position(const Vec* position) {
-    MkObj* hero = konquest_pdata->monk;
+    MkObj* hero;
     Vec direction = {0.0f, 0.0f, 0.0f};
     struct TurnAndFacePdata* pdata;
 
-    if (hero != 0) {
-        if (hero->hdr.instance != konquest_pdata->monk_instance) {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = MK_HDR_LIVE(konquest_pdata->monk, konquest_pdata->monk_instance);
     pdata = 0;
     if (hero != 0) {
         float angle;
@@ -6956,7 +6948,6 @@ void npc_set_my_punch_counter(int count) {
     }
 }
 
-/* TODO: [near miss] 99.94%; retail error sprintf reads the null npc->name (r28+8); npc->name here recolors every GPR (98.25%). */
 void npc_set_his_conversation_counter(
     KonquestNpcData* data, int count) {
     KonquestNpc* npc = npc_find_by_data_inline(data);
@@ -6967,7 +6958,7 @@ void npc_set_his_conversation_counter(
         sprintf(
             message,
             "NPC_ID: %s -- npc_set_his_conversation_counter -- Couldn't find npc",
-            data->name);
+            npc->name);
         return;
     }
     npc->conversation_count = count;

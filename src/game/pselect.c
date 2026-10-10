@@ -812,7 +812,7 @@ void ck_increment_bet(void) {
     }
 }
 
-/* TODO: [near miss] 92.24%; unsigned coin loads and failure joins recovered;
+/* TODO: [near miss] 92.96%; unsigned coin loads and failure joins recovered;
  * equivalent loop preheader scheduling remains. */
 int ok_to_bring_out_wager_screen(void) {
     int has_common_koin;
@@ -830,6 +830,7 @@ int ok_to_bring_out_wager_screen(void) {
         return 0;
     }
 
+    has_common_koin = 0;
     mop = mode_of_play;
     if (mop != 1 && mop != 0) {
         return 0;
@@ -838,7 +839,6 @@ int ok_to_bring_out_wager_screen(void) {
         return 0;
     }
 
-    has_common_koin = 0;
     for (i = 0; i < 6; i++) {
         unsigned int p1_koins = p1_profile.koins[i];
         unsigned int p2_koins = p2_profile.koins[i];
@@ -867,6 +867,90 @@ void init_wagering(void) {
     g_game_info.pselect.field_1f0 = 1;
     set_default_button_repeat_time();
     wager_completed_ran = 0;
+}
+
+int pselect_bgnd_has_weapon(void) {
+    struct PselectBgndEntry* tbl;
+    int max;
+    int pos;
+
+    switch (pselect_mode) {
+    case 0:
+        tbl = pselect_bgnd_tbl;
+        max = 0x16;
+        break;
+    case 1:
+        tbl = bg_pselect_bgnd_table;
+        max = 5;
+        break;
+    case 2:
+        tbl = pz_pselect_bgnd_table;
+        max = 6;
+        break;
+    default:
+        return 0;
+    }
+
+    if ((pos = background_selbox_pos) < 0 || pos > max) {
+        return 0;
+    }
+    return tbl[pos].flags & 4;
+}
+
+int pselect_bgnd_has_level_transition(void) {
+    struct PselectBgndEntry* tbl;
+    int max;
+    int pos;
+
+    switch (pselect_mode) {
+    case 0:
+        tbl = pselect_bgnd_tbl;
+        max = 0x16;
+        break;
+    case 1:
+        tbl = bg_pselect_bgnd_table;
+        max = 5;
+        break;
+    case 2:
+        tbl = pz_pselect_bgnd_table;
+        max = 6;
+        break;
+    default:
+        return 0;
+    }
+
+    if ((pos = background_selbox_pos) < 0 || pos > max) {
+        return 0;
+    }
+    return tbl[pos].flags & 2;
+}
+
+int pselect_bgnd_has_deathtrap(void) {
+    struct PselectBgndEntry* tbl;
+    int max;
+    int pos;
+
+    switch (pselect_mode) {
+    case 0:
+        tbl = pselect_bgnd_tbl;
+        max = 0x16;
+        break;
+    case 1:
+        tbl = bg_pselect_bgnd_table;
+        max = 5;
+        break;
+    case 2:
+        tbl = pz_pselect_bgnd_table;
+        max = 6;
+        break;
+    default:
+        return 0;
+    }
+
+    if ((pos = background_selbox_pos) < 0 || pos > max) {
+        return 0;
+    }
+    return tbl[pos].flags & 1;
 }
 
 /* TODO: [near miss] 96.43%; first balance producer improved; profile/zero register web remains. */
@@ -1036,94 +1120,6 @@ void pselect_handicap_show(void) {
 
 void pselect_bgnd_select_done(void) {
     f_arena_select_active = 0;
-}
-
-/* TODO: [near miss] 98.86%; canonical mode tables agree; bound/selection saved GPR roles differ. */
-int pselect_bgnd_has_weapon(void) {
-    struct PselectBgndEntry* tbl;
-    int max;
-    int pos;
-
-    switch (pselect_mode) {
-    case 0:
-        tbl = pselect_bgnd_tbl;
-        max = 0x16;
-        break;
-    case 1:
-        tbl = bg_pselect_bgnd_table;
-        max = 5;
-        break;
-    case 2:
-        tbl = pz_pselect_bgnd_table;
-        max = 6;
-        break;
-    default:
-        return 0;
-    }
-
-    pos = background_selbox_pos;
-    if (pos < 0 || pos > max) {
-        return 0;
-    }
-    return tbl[pos].flags & 4;
-}
-
-/* TODO: [near miss] 98.86%; canonical mode tables agree; bound/selection saved GPR roles differ. */
-int pselect_bgnd_has_level_transition(void) {
-    struct PselectBgndEntry* tbl;
-    int max;
-    int pos;
-
-    switch (pselect_mode) {
-    case 0:
-        tbl = pselect_bgnd_tbl;
-        max = 0x16;
-        break;
-    case 1:
-        tbl = bg_pselect_bgnd_table;
-        max = 5;
-        break;
-    case 2:
-        tbl = pz_pselect_bgnd_table;
-        max = 6;
-        break;
-    default:
-        return 0;
-    }
-
-    pos = background_selbox_pos;
-    if (pos < 0 || pos > max) {
-        return 0;
-    }
-    return tbl[pos].flags & 2;
-}
-
-/* TODO: [near miss] 98.86%; canonical tables and bounds agree; bound/selection volatile GPR roles differ. */
-int pselect_bgnd_has_deathtrap(void) {
-    struct PselectBgndEntry* tbl;
-    int max;
-
-    switch (pselect_mode) {
-    case 0:
-        tbl = pselect_bgnd_tbl;
-        max = 0x16;
-        break;
-    case 1:
-        tbl = bg_pselect_bgnd_table;
-        max = 5;
-        break;
-    case 2:
-        tbl = pz_pselect_bgnd_table;
-        max = 6;
-        break;
-    default:
-        return 0;
-    }
-
-    if (background_selbox_pos < 0 || background_selbox_pos > max) {
-        return 0;
-    }
-    return tbl[background_selbox_pos].flags & 1;
 }
 
 int pselect_get_arena_index(void) {

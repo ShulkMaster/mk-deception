@@ -85,12 +85,9 @@ static inline unsigned int sfh_read_le32(const unsigned char* data, int offset)
     const unsigned int* words = (const unsigned int*)data;
     unsigned int word = words[offset / sizeof(*words)];
 
-    unsigned int swapped = (word << 8) & 0x00FF0000U;
+    unsigned int swapped = (word << 24) | (word >> 24);
 
-    swapped = (swapped & ~0xFF000000U) | (word << 24);
-
-    swapped = (swapped & ~0x0000FF00U) | ((word >> 8) & 0x0000FF00U);
-    swapped = (swapped & ~0x000000FFU) | (word >> 24);
+    swapped |= ((word << 8) & 0x00FF0000U) | ((word >> 8) & 0x0000FF00U);
     return swapped;
 }
 
@@ -148,12 +145,12 @@ static inline int sfh_read_header_s16(const SFHHandle* handle, int offset,
 static inline const SFHStreamRecord* sfh_find_stream(
     const unsigned char* header, unsigned int stream_id)
 {
-    const SFHStreamRecord* stream;
-    const SFHStreamRecord* candidate;
     int i;
+    const SFHStreamRecord* candidate;
+    const SFHStreamRecord* stream;
 
-    i = 0;
     stream = 0;
+    i = 0;
     for (; i < 26; i++) {
         candidate = (const SFHStreamRecord*)(header + 0x180);
         if (candidate->id == stream_id) {
@@ -731,8 +728,8 @@ int SFH_IsEffFtrInf(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [breakthrough] 96.25%; shared search zero initialization restored;
- * pointer/counter homes and one copy-order difference remain. */
+/* TODO: [breakthrough] 96.67%; search state declared candidate/stream/i with stream zeroed first,
+ * result/index registers now retail; one mr r6,r3 vs clrlwi scheduling row remains. */
 int SFH_IsExistStmId(SFHHandle* handle, unsigned char stream_id,
     int* result)
 {

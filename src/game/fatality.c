@@ -780,21 +780,20 @@ void subzero_start_ice_chunks(PlyrPdata* player) {
     }
 }
 
-/* TODO: [near miss] 98.04%; CFG/ABI/accesses agree; stop at nonvolatile register coloring. */
 static float p_subzero_ice_chunk(void) {
     FatalityIceChunkPdata* data;
-    FatalityIceChunkPebble* chunk;
+    int chunk_index;
     FighterMirror* fighter;
     MkObj* limb;
     MkObj* owner;
     MkObj* model;
-    RwMatrix* chunk_matrix;
-    RwMatrix* limb_matrix;
+    int matrix_index;
+    int bone_index;
     MKMATRIX rotation;
     Vec offset;
-    int bone_index;
-    int chunk_index;
-    int matrix_index;
+    FatalityIceChunkPebble* chunk;
+    RwMatrix* limb_matrix;
+    RwMatrix* chunk_matrix;
     int fix_index;
 
     data = (FatalityIceChunkPdata*)apdata;
@@ -861,17 +860,14 @@ cleanup:
     return -1.0f;
 }
 
-static inline void subzero_adjust_iceman_material_depth(void) {
+static inline void subzero_set_iceman_material_depth(const int* material_ids) {
     int alternate_material_ids[9] = {
         0xA, 0x32, 0x14, 0x82, 0x78, 0x64, 0x5A, 0x8D, -1
-    };    int material_ids[9] = {
-        0xA, 0x32, 0x14, 0x82, 0x79, 0x64, 0x5B, 0x8C, -1
     };
-
-
     const int* ids;
     RpMaterial* material;
     int index;
+
     ids = material_ids;
     if (fatality_state.context->flags_14_bits.alternate_costume) {
         ids = alternate_material_ids;
@@ -885,7 +881,14 @@ static inline void subzero_adjust_iceman_material_depth(void) {
     }
 }
 
-/* TODO: [near miss] 99.99%; list/counter registers fixed; default list copied second but retail copies it first (frame 3c). */
+static inline void subzero_adjust_iceman_material_depth(void) {
+    int material_ids[9] = {
+        0xA, 0x32, 0x14, 0x82, 0x79, 0x64, 0x5B, 0x8C, -1
+    };
+
+    subzero_set_iceman_material_depth(material_ids);
+}
+
 MkObj* subzero_start_iceman(void) {
     FatalityIceblockAlphaPdata* alpha_data;
     MkObj* iceman;
@@ -1155,7 +1158,7 @@ float sz_kill_myself(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 96.71%; timeout and latch CFG agree; cleanup retains raw pointer instead of retail reload. */
+#pragma opt_common_subs off
 static float p_3d_distance_handler(void) {
     FatalityProjectilePdata* data;
     MkObj* object;
@@ -1185,6 +1188,7 @@ static float p_3d_distance_handler(void) {
     }
     return -1.0f;
 }
+#pragma opt_common_subs reset
 
 float subzero_his_tinkle_snd(void) {
     _mkproc_sleep_ticks = 60.0f;

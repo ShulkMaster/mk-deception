@@ -2926,7 +2926,6 @@ static float p_chomper2_controller(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough] 99.80%; retail chunk-crush effects fixed; four prologue GPR operands remain. */
 static inline void pz_fighter_offset_fatality_post(
     int player, float* target_x, float* target_z) {
     Vec offset = {0.05f, 0.0f, 0.0f};
@@ -2944,6 +2943,7 @@ static inline void pz_fighter_offset_fatality_post(
     }
 }
 
+/* TODO: [near miss] 99.80%; plyr_pdata owner r3/r4 swaps with the Vec template base (4 rows); loads, stores and CFG agree. */
 static float pz_fighter_chomper2_victim_crushed(void) {
     Vec blood_offset = {0.05f, 0.0f, 0.0f};
     float blood_x;

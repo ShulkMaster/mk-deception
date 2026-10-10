@@ -9371,15 +9371,20 @@ static inline void mk_chess_clear_move_effects(ChessPiece* piece)
     }
 }
 
-/* TODO: [near miss] 99.86%; cleanup and placement agree; pebble loop index colors r25 (retail r29, shared with piece snapshot). */
-void mk_chess_request_piece_move(ChessPiece* piece, unsigned char x, unsigned char y, int end_turn) {
+static inline void mk_chess_hide_move_pebbles(void)
+{
     unsigned int player;
-    unsigned char coordinates[sizeof(ChessMovementEvent)];
 
     destroy_mkprocs_pid(0xC020);
     for (player = 10; player <= 15; player++) {
         bgnd_hide_pebbles(player);
     }
+}
+
+void mk_chess_request_piece_move(ChessPiece* piece, unsigned char x, unsigned char y, int end_turn) {
+    unsigned char coordinates[sizeof(ChessMovementEvent)];
+
+    mk_chess_hide_move_pebbles();
     mk_chess_clear_move_effects(piece);
     mk_chess_set_game_mode(2);
     coordinates[0] = piece->cell_x;

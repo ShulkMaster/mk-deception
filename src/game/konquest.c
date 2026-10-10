@@ -3906,7 +3906,7 @@ float p_konquest_loop(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 95.59633%; branch/load placement and register allocation remain; no further evidence-backed source change. */
+#pragma opt_common_subs off
 void vdestroy_konquest_pui(struct KonquestPuiRuntime* pui) {
     struct KonquestChestOwner* owner;
     MkObj* render_object;
@@ -3965,6 +3965,7 @@ void vdestroy_konquest_pui(struct KonquestPuiRuntime* pui) {
     pui->hdr.instance = 0;
     mkhdr_memfree(&pui->hdr);
 }
+#pragma opt_common_subs reset
 
 inline void init_script_interpreter(void) {
     set_process_as_scriptable(aproc);
@@ -5652,7 +5653,7 @@ static void generate_door_trigger(
     }
 }
 
-/* TODO: [breakthrough needed] 91.63%; model-latch polarity and center/partner stores differ; script-string pool addends remain; preserve traversal locals. */
+/* TODO: [breakthrough needed] 91.97%; model-latch polarity and center/partner stores differ; script-string pool addends remain; preserve traversal locals. */
 static void generate_door_paths(void) {
     KonquestWaypoint* waypoints;
     MkPtr* link;
@@ -5701,14 +5702,7 @@ static void generate_door_paths(void) {
             info = door->info;
             enumeration_index = info->enumeration_index;
             if (enumeration_index >= 0 && door->path_waypoints == 0) {
-                model = info->object;
-                if (model != 0) {
-                    if (model->hdr.instance != info->object_instance) {
-                        model = 0;
-                    }
-                } else {
-                    model = 0;
-                }
+                model = MK_HDR_LIVE(info->object, info->object_instance);
                 if (model != 0) {
                     rotate_xz(
                         &rotated_center,
@@ -5733,15 +5727,7 @@ static void generate_door_paths(void) {
                         float partner_x;
                         float partner_z;
 
-                        partner_model = partner->info->object;
-                        if (partner_model != 0) {
-                            if (partner_model->hdr.instance !=
-                                partner->info->object_instance) {
-                                partner_model = 0;
-                            }
-                        } else {
-                            partner_model = 0;
-                        }
+                        partner_model = MK_HDR_LIVE(partner->info->object, partner->info->object_instance);
                         if (partner_model != 0) {
                             rotate_xz(
                                 &partner_center,
@@ -6917,7 +6903,7 @@ void konquest_transition_object_to_state(
     }
 }
 
-/* TODO: [near miss] 98.18%; only state-object validity guard r3/r4
+/* TODO: [near miss] 98.86%; only state-object validity guard r3/r4
  * coloring and one pointer reload remain; stop at coloring. */
 static void object_set_state(KonquestChildObject* record, int state) {
     struct KonquestObjectState* state_data;
@@ -6938,8 +6924,8 @@ static void object_set_state(KonquestChildObject* record, int state) {
     state_object = MK_LIVE(record->state_object, record->state_object_instance);
 
     if (state_object != 0) {
-        if (record->state_object->instance != 0) {
-            record->state_object->typed_vtbl->destroy(record->state_object);
+        if (state_object->instance != 0) {
+            state_object->typed_vtbl->destroy(state_object);
         }
         record->state_object = 0;
         record->state_object_instance = 0;
@@ -15478,15 +15464,14 @@ static void vdestroy_konquest_obj(struct KonquestObject* object) {
     mkhdr_memfree(&object->hdr);
 }
 
-/* TODO: [near miss] 96.03%; retail reloads object->owned_object after the live check
- * (check result in r4); only a pre-check slot pointer reproduces it (note 1307). */
+#pragma opt_common_subs off
 static void vdestroy_konquest_sobj(struct KonquestSobj* object) {
     KonquestDestroyable* owned_object =
         MK_LIVE(object->owned_object, object->owned_object_instance);
 
     if (owned_object != 0) {
-        if (owned_object->instance != 0) {
-            owned_object->vtbl->destroy(owned_object);
+        if (object->owned_object->instance != 0) {
+            object->owned_object->vtbl->destroy(object->owned_object);
         }
         object->owned_object = 0;
         object->owned_object_instance = 0;
@@ -15494,6 +15479,7 @@ static void vdestroy_konquest_sobj(struct KonquestSobj* object) {
     object->hdr.instance = 0;
     mkhdr_memfree(&object->hdr);
 }
+#pragma opt_common_subs reset
 
 static void vdestroy_konquest_sobj_info(MkHdr* object) {
     object->instance = 0;

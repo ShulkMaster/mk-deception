@@ -3111,7 +3111,7 @@ int collide_plyr_vs_plyr(void) {
     return 0;
 }
 
-/* TODO: [near miss] 99.48%; object/shape homes fixed by decl order; result and shape-item GPRs (r24/r23) remain. */
+/* TODO: [near miss] 99.90%; block-scoped outer stale-node next fixes result/shape homes; outer next r22 vs retail r25 (2 rows). */
 static int test_collision_vs_obstacles(
     PlyrInfo* player, const CollisionShape* shape) {
     BgndObstacleEventData callback_data;
@@ -3132,7 +3132,7 @@ static int test_collision_vs_obstacles(
         while (obstacle_item != 0) {
             obstacle_header = obstacle_item->hdr;
             if (obstacle_item->instance != obstacle_header->instance) {
-                next = obstacle_item->next;
+                MkPtr* next = obstacle_item->next;
                 discard_stale_mkptr(obstacle_item);
                 obstacle_item = next;
                 continue;

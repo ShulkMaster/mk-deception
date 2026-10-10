@@ -752,7 +752,6 @@ void mat_to_quat(Quat* out, const MKMATRIX* m) {
     RtQuatConvertFromMatrix(out, m);
 }
 
-/* TODO: [near miss] 99.69%; two symmetric fcmpu operand pairs remain; stop at comparison ordering. */
 void XYZ_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
     RwV3d saved;
     RwV3d neg;
@@ -765,11 +764,11 @@ void XYZ_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
     RwMatrixTranslate(m, &neg, 2);
     RwMatrixRotate(m, (const RwV3d*)&Xaxis, kRadToDeg * angles->x, 0);
     y_angle = angles->y;
-    if (y_angle != 0.0f) {
+    if (y_angle) {
         RwMatrixRotate(m, (const RwV3d*)&Yaxis, kRadToDeg * y_angle, 1);
     }
     z_angle = angles->z;
-    if (z_angle != 0.0f) {
+    if (z_angle) {
         RwMatrixRotate(m, (const RwV3d*)&Zaxis, kRadToDeg * z_angle, 1);
     }
     RwMatrixTranslate(m, &saved, 2);

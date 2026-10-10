@@ -3027,7 +3027,7 @@ void bgnd_rotate_sobj(unsigned int object_id, void* script, float x, float y,
         object->ang_vel.z = z;
     }
 }
-/* TODO: [near miss] 98.94%; auto-inlined bgnd_swap_textures loop; only frame/sobj_id r27/r28 coloring swap remains. */
+#pragma opt_loop_invariants off
 void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries, int frame) {
     unsigned int index = 0;
 
@@ -3037,6 +3037,7 @@ void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries, int frame) {
         index++;
     }
 }
+#pragma opt_loop_invariants reset
 #pragma auto_inline on
 void bgnd_swap_textures(int sobj_id, int material_id, unsigned int frame) {
     char sobj_error[80];
@@ -9319,7 +9320,6 @@ static float p_beetle_lair_front_wall_breaking(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.98%; initializer offsets now retail; only ground-height fadds operand order remains. */
 static float victim_fall_down_a_level(void) {
     Vec face_target = {0.0f, 0.0f, 0.0f};
     Vec target_position = {0.4512f, -0.5f, 18.8713f};
@@ -9327,6 +9327,7 @@ static float victim_fall_down_a_level(void) {
     Vec follower_position;
     Vec bone_position;
     MkSobj* debris_piece;
+    float ground_margin;
 
     stop_me();
     bulvan_function(1);
@@ -9352,7 +9353,8 @@ static float victim_fall_down_a_level(void) {
 
     plyr_obj->flags_08_bits.moving = 1;
     plyr_obj->gravity = -0.009f;
-    while (plyr_obj->pos.value.y > plyr_obj->ground_colls_y + 0.1f) {
+    ground_margin = 0.1f;
+    while (plyr_obj->pos.value.y > plyr_obj->ground_colls_y + ground_margin) {
         ani_1_frame();
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();

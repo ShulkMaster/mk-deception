@@ -435,16 +435,13 @@ static void format_profile_stat_pair(char* result, unsigned int raw_first,
     unsigned int first;
     unsigned int second;
 
-    first = 999999U;
-    if (raw_first < 1000000U) first = raw_first;
-    second = 999999U;
-    if (raw_second < 1000000U) second = raw_second;
+    first = raw_first < 1000000U ? raw_first : 999999U;
+    second = raw_second < 1000000U ? raw_second : 999999U;
     format_value_to_display(first_text, first);
     format_value_to_display(second_text, second);
     sprintf(result, "%s / %s", first_text, second_text);
 }
 
-/* TODO: [near miss] 99.95%; only the last expansion's second-clamp register (retail r31, ours r29) remains. */
 void get_profile_stats(char** outs) {
     StorageProfileSlot* slot;
     char result[24];
@@ -2130,8 +2127,8 @@ static inline int ppl_count_matching_profiles(const unsigned char* code) {
     for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
         for (slotIndex = 0; slotIndex < STORAGE_MAX_SLOTS; slotIndex++) {
             if (DEVICE_AT(device)->profiles[slotIndex].present != 0) {
-                if (multi_code_matches_slot(
-                        code, &DEVICE_AT(device)->profiles[slotIndex]) != 0 &&
+                if (multi_code_matches_pin(
+                        code, DEVICE_AT(device)->profiles[slotIndex].pin) != 0 &&
                     DEVICE_AT(device)->inUse[slotIndex] == 0) {
                     count += 1;
                 }
@@ -2152,8 +2149,8 @@ static inline int ppl_fill_matching_names(
         for (slotIndex = 0; slotIndex < STORAGE_MAX_SLOTS; slotIndex++) {
             if (DEVICE_AT(device)->profiles[slotIndex].present != 0 &&
                 DEVICE_AT(device)->inUse[slotIndex] == 0) {
-                if (multi_code_matches_slot(
-                        code, &DEVICE_AT(device)->profiles[slotIndex]) != 0) {
+                if (multi_code_matches_pin(
+                        code, DEVICE_AT(device)->profiles[slotIndex].pin) != 0) {
                     out[count] = DEVICE_AT(device)->profiles[slotIndex].name;
                     count += 1;
                 }
@@ -2163,7 +2160,6 @@ static inline int ppl_fill_matching_names(
     return count;
 }
 
-/* TODO: [near miss] 99.87%; only pin-compare code/pin cursor registers swap (r12/r30); shared helper coloring. */
 int ppl_get_multi_profile_names_p2(char** out) {
     int i;
     MkProc* proc;
@@ -2186,7 +2182,6 @@ int ppl_get_multi_profile_names_p2(char** out) {
     return count;
 }
 
-/* TODO: [near miss] 99.87%; only pin-compare code/pin cursor registers swap; shared helper coloring. */
 int ppl_get_multi_profile_names_p1(char** out) {
     int i;
     MkProc* proc;
@@ -2276,7 +2271,6 @@ static void ppl_get_multi_profile_icons(
     }
 }
 
-/* TODO: [near miss] 99.86%; only pin-compare code/pin cursor registers swap (r11/r12); shared helper coloring. */
 int ppl_get_multi_profile_count(int player) {
     int count;
     MkProc* proc;
