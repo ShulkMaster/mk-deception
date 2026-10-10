@@ -1906,7 +1906,7 @@ void toggle_danger_zone(int index) {
     background_danger_zones[index].enabled ^= 1;
 }
 
-/* TODO: [near miss] 99.26%; sphere-type guard is cmpwi + bne/b in retail (signed type or inline boundary), cmplwi + beq here. */
+/* TODO: [near miss] 99.52%; sphere-type guard signed compare recovered; retail branches bne+b over the body, here beq over it. */
 int keep_camera_out_of_danger_zones(Vec* position) {
     typedef struct DangerZoneScratch {
         float field_00;
@@ -1923,6 +1923,7 @@ int keep_camera_out_of_danger_zones(Vec* position) {
     float radius_squared;
     float distance_squared;
     DangerZoneScratch scratch;
+    int shape_type;
 
     memset(&scratch, 0, sizeof(scratch));
 
@@ -1939,7 +1940,8 @@ int keep_camera_out_of_danger_zones(Vec* position) {
                 MK_ATOMIC_PLUGIN(zone->object)->sobj;
         }
 
-        switch (zone->shape.type & 7) {
+        shape_type = zone->shape.type;
+        switch (shape_type & 7) {
         case 3:
             switch (zone->test_mode) {
             case 0:
@@ -1959,7 +1961,7 @@ int keep_camera_out_of_danger_zones(Vec* position) {
             break;
         case 1:
             inside = 0;
-            if (zone->shape.type != 0) {
+            if (shape_type != 0) {
                 radius_squared = zone->shape.sphere_radius *
                                  zone->shape.sphere_radius;
                 distance_squared =
@@ -4942,7 +4944,7 @@ int intro_done(void) {
     return (g_game_info.pause_flags >> 6) & 1;
 }
 
-/* TODO: [near miss] 94.83%; shared vector and interpolation staging recovered; FP homes and latch join remain. */
+/* TODO: [near miss] 95.72%; shared vector and interpolation staging recovered; latch join (retail bne+b) and FP homes remain. */
 static int radial_move_to_game_position(Vec* target_position,
                                         Vec* center, float rate) {
     CameraObj* camera;
@@ -4960,9 +4962,7 @@ static int radial_move_to_game_position(Vec* target_position,
 
     camera = camera_item.node;
     if (camera != 0) {
-        if (camera->hdr.instance != camera_item.instance) {
-            camera = 0;
-        }
+        camera = camera->hdr.instance != camera_item.instance ? 0 : camera;
     } else {
         camera = 0;
     }
@@ -4980,7 +4980,9 @@ static int radial_move_to_game_position(Vec* target_position,
     radial.x = target_position->x - center->x;
     radial.y = target_position->y - center->y;
     radial.z = target_position->z - center->z;
-    target_radius = gxMathFastSqrt(radial.x * radial.x + radial.z * radial.z);
+    target_radius = radial.x * radial.x;
+    target_radius = target_radius + radial.z * radial.z;
+    target_radius = gxMathFastSqrt(target_radius);
     angle_delta =
         (float)atan2(radial.x, radial.z) - current_angle;
     radius_delta = target_radius - current_radius;
@@ -5439,14 +5441,14 @@ static float p_shake_camera(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 94.76%; camera param colored r29 (retail r31) and the camera_item kill reuses the checked node instead of reloading it. */
+/* TODO: [near miss] 95.48%; camera param colored r29 (retail r31) and the camera_item kill reuses the checked node instead of reloading it. */
 void CameraDestroy(RwCamera* camera) {
     CameraObj* object;
 
     RESOLVE_CAMERA_OBJ(object);
     if (object != 0) {
-        if (camera_item.node->hdr.instance != 0) {
-            camera_item.node->hdr.typed_vtbl->destroy(&camera_item.node->hdr);
+        if (object->hdr.instance != 0) {
+            object->hdr.typed_vtbl->destroy(&object->hdr);
         }
         camera_item.node = 0;
         camera_item.instance = 0;

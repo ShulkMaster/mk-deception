@@ -734,7 +734,6 @@ static void CheckFor480PMode(void) {
     uFrameBlastCount = 0xF;
 }
 
-/* TODO: [near miss] 99.92%; A-button edge CFG agrees; one XOR source-order row remains after staging checks. */
 static void displayContinueMessage(PADStatus* pads, char* msg) {
     DragonTextPrompt prompt;
     char yesBuf[20];
@@ -744,7 +743,6 @@ static void displayContinueMessage(PADStatus* pads, char* msg) {
     unsigned char done;
     unsigned char ready;
     int i;
-    unsigned short btn;
 
     done = 0;
     ready = 0;
@@ -775,11 +773,10 @@ static void displayContinueMessage(PADStatus* pads, char* msg) {
         handle_reset_switch();
         for (i = 0; i < 2; i++) {
             if (pads[i].err == 0) {
-                btn = pads[i].button;
-                if ((btn & 1) == 1 || (btn & 2) == 2) {
+                if ((pads[i].button & 1) == 1 || (pads[i].button & 2) == 2) {
                     break;
                 }
-                if ((unsigned short)(btn & 0x100 & (prev[i].button ^ btn)) != 0) {
+                if ((unsigned short)(pads[i].button & 0x100 & (prev[i].button ^ pads[i].button)) != 0) {
                     done = 1;
                     break;
                 }

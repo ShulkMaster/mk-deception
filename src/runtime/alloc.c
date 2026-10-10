@@ -199,10 +199,11 @@ static inline void construct_subblock(
 }
 
 static inline SubBlock* split_subblock(SubBlock* subblock, unsigned long size) {
-    unsigned long old_size = subblock_size(subblock);
-    int was_free = subblock_is_free(subblock);
+    unsigned long tag = subblock->size;
+    unsigned long old_size = tag & ~7UL;
+    int was_free = !(tag & 2);
     int allocated = !was_free;
-    int previous_allocated = subblock->size & 4;
+    int previous_allocated = tag & 4;
     Block* owner = (Block*)((unsigned long)subblock->block & ~1UL);
     SubBlock* remainder = (SubBlock*)((unsigned char*)subblock + size);
 
@@ -304,7 +305,7 @@ void* __pool_alloc_clear(__mem_pool* pool, unsigned long size) {
     return ptr;
 }
 
-/* TODO: [breakthrough] 90.77%; growth owner reload recovered; split snapshot and linking schedule remain. */
+/* TODO: [breakthrough] 90.47%; growth owner reload recovered; raw-tag split snapshot now matches Block_subBlock, linking schedule remains. */
 void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size) {
     unsigned long old_size;
     unsigned long needed;
@@ -687,7 +688,6 @@ static Block* link_new_block(MemPoolObj* pool, unsigned long size) {
     return block;
 }
 
-/* TODO: [breakthrough] 93.84%; node size and unlink agree; split flag loads and scheduling remain. */
 static SubBlock* Block_subBlock(Block* block, unsigned long size) {
     SubBlock* start = *block_start(block);
     SubBlock* subblock;

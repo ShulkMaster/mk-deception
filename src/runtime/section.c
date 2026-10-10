@@ -177,17 +177,17 @@ void add_anim_section_by_name_async(int handle, const char* name,
     }
 }
 
-/* TODO: [near miss] 99.87%; pre-open file index uses r29 instead of retail r28. */
 int add_anim_section_async(int handle, MkFileInfo* info, int* palette_table,
                            int allow_duplicate, int clear_palette) {
-    int file_index;
+    int existing;
     SecSlotFileEntry* file;
+    int file_index;
     SecSlot* slot;
 
     if (!allow_duplicate) {
-        file_index = is_section_loading_or_loaded(handle, info);
-        if (file_index != 0) {
-            return file_index;
+        existing = is_section_loading_or_loaded(handle, info);
+        if (existing != 0) {
+            return existing;
         }
     }
     slot = get_sec_slot_from_handle(handle);

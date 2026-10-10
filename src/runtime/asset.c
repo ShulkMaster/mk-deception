@@ -181,15 +181,15 @@ static inline const char* section_model_member_name(const SecArtMember* members,
     return members[member_index].name_or_data;
 }
 
-/* TODO: [near miss] 99.56%; loaded object remains r30 versus retail r28. */
 MkObj* load_named_model_for_player(const char* name, int player,
                                    int object_type, int flags) {
     unsigned int* slots;
     unsigned int slot_index;
 
-    slots = plyr2_ss_tbl;
     if (player == 0) {
         slots = plyr1_ss_tbl;
+    } else {
+        slots = plyr2_ss_tbl;
     }
     for (slot_index = 0; slot_index < 2; slot_index++) {
         int member_index;

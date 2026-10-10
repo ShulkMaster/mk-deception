@@ -873,7 +873,7 @@ void pfx_post_sleep(void) {
     apfx_emitter_sobj = 0;
 }
 
-/* TODO: [breakthrough] 87.70%; global call-boundary reloads, binding gate
+/* TODO: [breakthrough] 87.92%; global call-boundary reloads, binding gate
  * and checked casts recovered; latch and virtual-wrapper CFG remain. */
 void pfx_pre_wake(void) {
     MkHdr* render_hdr;
@@ -881,18 +881,20 @@ void pfx_pre_wake(void) {
     MkHdr* emitter_hdr;
     MkHdr* proc_hdr;
     int begin_rc;
+    MkPfx* pfx;
 
-    apfx = (MkPfx*)apdata;
-    if (apfx == 0) {
+    pfx = (MkPfx*)apdata;
+    apfx = pfx;
+    if (pfx == 0) {
         return;
     }
 
     apfx_render_obj = 0;
     apfx_render_sobj = 0;
 
-    render_hdr = apfx->bind_hdr;
+    render_hdr = pfx->bind_hdr;
     if (render_hdr != 0) {
-        render_hdr = MK_LIVE(render_hdr, apfx->bind_inst);
+        render_hdr = MK_LIVE(render_hdr, pfx->bind_inst);
         if (render_hdr == 0) {
             mkproc_die();
         }

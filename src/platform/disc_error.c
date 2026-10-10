@@ -85,11 +85,11 @@ static __declspec(section ".sdata2") RwRGBA disc_clear_color = {0, 0, 0, 0xff};
 
 static inline void render_disc_message(PfxFontString* string, const char* text) {
     PfxFontSlot* font;
+    int frame;
     int height;
     int width;
     int top;
     int left;
-    int frame;
 
     font = load_font(6);
     height = pfxfont_get_height(font->metrics, text);
@@ -126,8 +126,6 @@ static inline void show_disc_message(const char* text) {
     gc_release_renderpipe();
 }
 
-/* TODO: [near miss] 99.94%; all three messages share show_disc_message, but the first expansion keeps
- * top/left in r29/r26 where retail has r26/r29 (loop and recovery copies agree); context-only coloring. */
 static int fs_error_handler(int error, const char* text) {
     int drive_status;
 

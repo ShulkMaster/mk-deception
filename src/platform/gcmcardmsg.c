@@ -1337,24 +1337,14 @@ static void mcard_msg_no_cards_at_settings_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 95.54054%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_no_cards_at_settings(void) {
-    const char* a;
-    const char* b;
-    const char* c;
-    const char* optA;
-    const char* optB;
-
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x38, 0));
-    a = nbc_find_text(0x3b, 0);
-    b = nbc_find_text(0x3a, 0);
-    c = nbc_find_text(0x39, 0);
-    sprintf(message_buffer, STR_MC_FMT_SDSDS, c, 1, b, 0x3a, a);
+    sprintf(message_buffer, STR_MC_FMT_SDSDS, nbc_find_text(0x39, 0), 1,
+            nbc_find_text(0x3a, 0), 0x3a, nbc_find_text(0x3b, 0));
     set_memcard_popup_message_body_text(message_buffer);
-    optA = nbc_find_text(0x15, 0);
-    optB = nbc_find_text(0x16, 0);
-    sprintf(message_buffer, STR_MC_FMT_SS_COMMA, optB, optA);
+    sprintf(message_buffer, STR_MC_FMT_SS_COMMA, nbc_find_text(0x16, 0),
+            nbc_find_text(0x15, 0));
     set_memcard_popup_message_options_text(message_buffer);
     set_memcard_popup_message_type(0xb);
     fire_up_memcard_mesage_screen();

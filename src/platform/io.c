@@ -524,8 +524,6 @@ static inline void reset_switch_log_state(void) {
     }
 }
 
-/* TODO: [near miss] 98.75%; log-reset phase agrees;
- * byte alpha decrement has one extra register copy. */
 static float p_switch_log_fadeoff(void) {
     int alpha;
 
@@ -535,7 +533,7 @@ static float p_switch_log_fadeoff(void) {
     while ((unsigned char)alpha > 8) {
         pfx_2d_obj_set_alpha_by_id(0x2083, alpha);
         _mkproc_sleep_ticks = 1.0f;
-        alpha = (unsigned char)(alpha - 8);
+        alpha = (alpha - 8) & 0xFF;
         aproc->vtbl->sleep();
     }
     pfx_2d_obj_set_alpha_by_id(0x2083, 0);
