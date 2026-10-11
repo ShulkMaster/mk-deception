@@ -1,33 +1,17 @@
 #ifndef MW_MWFILECONTAINERS_H
 #define MW_MWFILECONTAINERS_H
 
-template <class T, int Alignment>
-class mwFileMemAllocator {
-};
+#include "mslcpp/string.h"
+#include "mw/mwFileQueue.h"
+
+extern int mwFileStringCompareIgnoreCase(const char* left, const char* right);
 
 template <class T>
-class pointer_less {
+struct pointer_less {
+    bool operator()(const T* a, const T* b) const
+    {
+        return mwFileStringCompareIgnoreCase(a->name, b->name) < 0;
+    }
 };
-
-/* TODO: [Scope warn] Pointer-vector ABI declarations; template bodies remain retail. */
-namespace std {
-template <class T, class Allocator>
-class vector {
-public:
-    vector();
-    ~vector();
-    const T* begin() const;
-    const T* end() const;
-
-private:
-    unsigned long capacity;
-    unsigned long size_value;
-    T* storage;
-};
-
-template <class Iterator, class T, class Compare>
-Iterator lower_bound(Iterator first, Iterator last, const T& value,
-                     Compare compare);
-}
 
 #endif

@@ -545,8 +545,6 @@ static inline void pfx_bind_owned_emitter(MkPfx* pfx, MkObj* obj, int emitter)
     }
 }
 
-/* TODO: [near miss] 98.50%; native branches and operands agree;
- * two null assignments use moves instead of immediates. */
 MkObj* pfx_bind_emitter_num_to_new_obj(MkPfx* pfx, int object_type, int emitter) {
     PfxSlot* slot;
     MkObj* existing;
@@ -558,7 +556,13 @@ MkObj* pfx_bind_emitter_num_to_new_obj(MkPfx* pfx, int object_type, int emitter)
 
     slot = &pfx->slot_table[emitter];
     if (pfx->slot_table[emitter].flag_bits.owns_bind) {
-        existing = pfx_slot_bound_object(slot);
+        MkHdr* bound;
+
+        existing = 0;
+        bound = MK_LIVE(slot->hdr, slot->instance);
+        if (bound != 0) {
+            existing = (MkObj*)bound;
+        }
         if (existing != 0) {
             return existing;
         }

@@ -139,30 +139,6 @@ int orbit_position_to_end_point(const Vec* center, const Vec* endpoint,
                                 float* initial_speed, float* final_speed,
                                 unsigned int direction, int reset, float time);
 
-union CameraFloatBits {
-    float f;
-    unsigned int u;
-};
-
-static inline float camera_inv_sqrt(float value) {
-    union CameraFloatBits pun;
-    float guess;
-    float first_step;
-    float correction;
-
-    if (value <= 0.0f) {
-        return 0.0f;
-    }
-    pun.f = value;
-    pun.u = 0x5F375A00U - (pun.u >> 1);
-    guess = pun.f;
-    first_step = guess * (value * guess);
-    correction = 3.0f - first_step;
-    guess = 0.0625f * guess;
-    return guess * correction *
-           (12.0f - first_step * correction * correction);
-}
-
 static inline float normalize_interaction_angle(float angle) {
     return 0.000005992112f *
            (float)((int)(166886.1f * angle) & 0xFFFFF);
@@ -202,7 +178,7 @@ static inline void make_interaction_orbit_offset(Vec* out, float angle,
     float inverse_length;
 
     rotate_xz(out, &unit_z, angle);
-    inverse_length = camera_inv_sqrt(out->x * out->x + out->z * out->z);
+    inverse_length = gxMathFastInvSqrt(out->x * out->x + out->z * out->z);
     out->x *= inverse_length;
     out->z *= inverse_length;
     out->x *= radius;
@@ -243,7 +219,7 @@ static inline void chess_camera_look_at(const Vec* target) {
     direction.x = target->x - camera->pos.x;
     direction.y = target->y - camera->pos.y;
     direction.z = target->z - camera->pos.z;
-    inverse_length = camera_inv_sqrt(
+    inverse_length = gxMathFastInvSqrt(
         direction.x * direction.x + direction.y * direction.y +
         direction.z * direction.z);
     direction.x *= inverse_length;
@@ -479,7 +455,7 @@ static inline void get_target_movement_vector_impl(
                      (delta.x * delta.x + delta.y * delta.y);
     length = gxMathFastSqrt(length_squared);
     units_per_tick = length / (60.0f * (0.6f * duration));
-    inverse_length = camera_inv_sqrt(length_squared);
+    inverse_length = gxMathFastInvSqrt(length_squared);
     movement->x = delta.x * inverse_length * units_per_tick;
     movement->y = delta.y * inverse_length * units_per_tick;
     movement->z = delta.z * inverse_length * units_per_tick;
@@ -636,7 +612,7 @@ static float kick_camera(void) {
         delta.x = look_position.x - camera->pos.x;
         delta.y = look_position.y - camera->pos.y;
         delta.z = look_position.z - camera->pos.z;
-        inverse_length = camera_inv_sqrt(
+        inverse_length = gxMathFastInvSqrt(
             delta.x * delta.x + delta.y * delta.y + delta.z * delta.z);
         delta.x *= inverse_length;
         delta.y *= inverse_length;
@@ -827,7 +803,7 @@ static float generic_victory_camera(void) {
         direction.x = attacker->pos.value.x - initial_camera->pos.x;
         direction.y = attacker->pos.value.y - initial_camera->pos.y;
         direction.z = attacker->pos.value.z - initial_camera->pos.z;
-        inverse_length = camera_inv_sqrt(direction.x * direction.x +
+        inverse_length = gxMathFastInvSqrt(direction.x * direction.x +
                                          direction.y * direction.y +
                                          direction.z * direction.z);
         direction.x *= inverse_length;
@@ -880,9 +856,9 @@ static float generic_victory_camera(void) {
 
     get_target_movement_vector_impl(&moving_look_target, &look_target,
                                     &look_step, travel_time);
-    step_x_squared = (float)(look_step.x * look_step.x);
-    step_y_squared = (float)(look_step.y * look_step.y);
-    step_z_squared = (float)(look_step.z * look_step.z);
+    step_x_squared = look_step.x * look_step.x;
+    step_y_squared = look_step.y * look_step.y;
+    step_z_squared = look_step.z * look_step.z;
     step_length_squared = step_x_squared + step_y_squared + step_z_squared;
 
     while (move_to_end_point(&destination, &initial_speed, &final_speed, 0,
@@ -908,7 +884,7 @@ static float generic_victory_camera(void) {
         direction.x = moving_look_target.x - camera->pos.x;
         direction.y = moving_look_target.y - camera->pos.y;
         direction.z = moving_look_target.z - camera->pos.z;
-        inverse_length = camera_inv_sqrt(direction.x * direction.x +
+        inverse_length = gxMathFastInvSqrt(direction.x * direction.x +
                                          direction.y * direction.y +
                                          direction.z * direction.z);
         direction.x *= inverse_length;
@@ -1133,7 +1109,7 @@ float p_mk_chess_cam_chase_cursor(void) {
     movement.x = destination.x - (camera_x = camera->pos.x);
     movement.y = destination.y - camera->pos.y;
     movement.z = destination.z - camera->pos.z;
-    inverse_length = camera_inv_sqrt(
+    inverse_length = gxMathFastInvSqrt(
         movement.x * movement.x + movement.y * movement.y +
         movement.z * movement.z);
     movement.x *= inverse_length;
@@ -1153,7 +1129,7 @@ float p_mk_chess_cam_chase_cursor(void) {
     direction.x = chess_camera->current_look_at.x - camera->pos.x;
     direction.y = chess_camera->current_look_at.y - camera->pos.y;
     direction.z = chess_camera->current_look_at.z - camera->pos.z;
-    inverse_length = camera_inv_sqrt(
+    inverse_length = gxMathFastInvSqrt(
         direction.x * direction.x + direction.y * direction.y +
         direction.z * direction.z);
     direction.x *= inverse_length;
@@ -2841,7 +2817,7 @@ static void look_at_interaction_target(Vec* target, int snap_angles) {
     direction.x = target->x - camera->pos.x;
     direction.y = target->y - camera->pos.y;
     direction.z = target->z - camera->pos.z;
-    inverse_length = camera_inv_sqrt(direction.x * direction.x +
+    inverse_length = gxMathFastInvSqrt(direction.x * direction.x +
                                      direction.y * direction.y +
                                      direction.z * direction.z);
     direction.x *= inverse_length;
@@ -3336,7 +3312,7 @@ float get_pan_value(Vec* position) {
 
     forward.x = cam_forward_uv.x;
     forward.z = cam_forward_uv.z;
-    inverse_length = camera_inv_sqrt(
+    inverse_length = gxMathFastInvSqrt(
         forward.x * forward.x + forward.y * forward.y +
         forward.z * forward.z);
     forward.x *= inverse_length;
@@ -3347,7 +3323,7 @@ float get_pan_value(Vec* position) {
 
     right.x = cam_right_uv.x;
     right.z = cam_right_uv.z;
-    inverse_length = camera_inv_sqrt(
+    inverse_length = gxMathFastInvSqrt(
         right.x * right.x + right.y * right.y + right.z * right.z);
     right.x *= inverse_length;
     right.y *= inverse_length;
@@ -3713,7 +3689,7 @@ float p_scripted_camera(void) {
                 direction.x = look_target.x - camera->pos.x;
                 direction.y = look_target.y - camera->pos.y;
                 direction.z = look_target.z - camera->pos.z;
-                inverse_length = camera_inv_sqrt(
+                inverse_length = gxMathFastInvSqrt(
                     direction.x * direction.x + direction.y * direction.y +
                     direction.z * direction.z);
                 direction.x *= inverse_length;
@@ -3844,7 +3820,7 @@ void camera_special_function(int function) {
         direction.x = position.x - camera->pos.x;
         direction.y = position.y - camera->pos.y;
         direction.z = position.z - camera->pos.z;
-        inverse_length = camera_inv_sqrt(
+        inverse_length = gxMathFastInvSqrt(
             direction.x * direction.x + direction.y * direction.y +
             direction.z * direction.z);
         direction.x *= inverse_length;
@@ -4716,7 +4692,7 @@ static void attract_setup_flyby(struct AttractCameraState* state) {
     end_z = start.z + travel.z;
     length_squared = travel.z * travel.z +
                      (travel.x * travel.x + travel.y * travel.y);
-    inverse_length = camera_inv_sqrt(length_squared);
+    inverse_length = gxMathFastInvSqrt(length_squared);
     state->reference.center.x = travel.x * inverse_length;
     state->reference.center.y = travel.y * inverse_length;
     state->reference.center.z = travel.z * inverse_length;
@@ -4837,7 +4813,7 @@ float p_puzzle_game_camera_proc(void) {
     }
 }
 
-/* TODO: [near miss] 99.33%; null gate matches (single early-return chain); store-phase FPR colors remain. */
+/* TODO: [near miss] 99.33%; delta/square association and public null gate agree; store-phase FPR colors remain. */
 void get_target_movement_vector(const Vec* current_position,
                                 const Vec* target_position, Vec* movement,
                                 float duration) {
@@ -4907,7 +4883,7 @@ void skip_camera_intro(void) {
     direction.x = position.x - camera->pos.x;
     direction.y = position.y - camera->pos.y;
     direction.z = position.z - camera->pos.z;
-    inverse_length = camera_inv_sqrt(
+    inverse_length = gxMathFastInvSqrt(
         direction.x * direction.x + direction.y * direction.y +
         direction.z * direction.z);
     direction.x *= inverse_length;
@@ -5060,7 +5036,7 @@ int orbit_position_to_end_point(const Vec* center, const Vec* endpoint,
         radius_squared = dx * dx + dy * dy + dz * dz;
         initial_radius = radius_squared;
         initial_radius = gxMathFastSqrt(radius_squared);
-        inverse_radius = camera_inv_sqrt(radius_squared);
+        inverse_radius = gxMathFastInvSqrt(radius_squared);
         swing_vector.x = dx * inverse_radius;
         swing_vector.y = dy * inverse_radius;
         swing_vector.z = dz * inverse_radius;
@@ -5076,7 +5052,7 @@ int orbit_position_to_end_point(const Vec* center, const Vec* endpoint,
         radius_squared += final_vector.z * final_vector.z;
         final_radius = radius_squared;
         final_radius = gxMathFastSqrt(radius_squared);
-        inverse_radius = camera_inv_sqrt(radius_squared);
+        inverse_radius = gxMathFastInvSqrt(radius_squared);
         final_vector.x *= inverse_radius;
         final_vector.y *= inverse_radius;
         final_vector.z *= inverse_radius;
@@ -5149,7 +5125,7 @@ int orbit_position_to_end_point(const Vec* center, const Vec* endpoint,
 
     angle_rotated += current_speed;
     radius = radius_increment * angle_rotated + initial_radius;
-    inverse_radius = camera_inv_sqrt(
+    inverse_radius = gxMathFastInvSqrt(
         swing_vector.x * swing_vector.x + swing_vector.y * swing_vector.y +
         swing_vector.z * swing_vector.z);
     swing_vector.x *= inverse_radius;
@@ -5216,7 +5192,7 @@ int move_to_end_point(const Vec* endpoint, float* initial_speed,
 
         num_ticks = (60.0f * time);
         distance = gxMathFastSqrt(distance_squared);
-        inverse_distance = camera_inv_sqrt(distance_squared);
+        inverse_distance = gxMathFastInvSqrt(distance_squared);
         unit_vector.x = dx * inverse_distance;
         unit_vector.y = dy * inverse_distance;
         unit_vector.z = dz * inverse_distance;
@@ -5303,7 +5279,7 @@ void look_at_target(Vec* target) {
     direction.x = target->x - camera->pos.x;
     direction.y = target->y - camera->pos.y;
     direction.z = target->z - camera->pos.z;
-    inverse_length = camera_inv_sqrt(direction.x * direction.x +
+    inverse_length = gxMathFastInvSqrt(direction.x * direction.x +
                                      direction.y * direction.y +
                                      direction.z * direction.z);
     direction.x *= inverse_length;
@@ -5718,7 +5694,7 @@ void adj_cam_pos(void) {
             camera_info.pdata->target_pos.y - camera_midpoint.y;
         midpoint_to_cam_vector.z =
             camera_info.pdata->target_pos.z - camera_midpoint.z;
-        inverse_length = camera_inv_sqrt(
+        inverse_length = gxMathFastInvSqrt(
             midpoint_to_cam_vector.x * midpoint_to_cam_vector.x +
             midpoint_to_cam_vector.y * midpoint_to_cam_vector.y +
             midpoint_to_cam_vector.z * midpoint_to_cam_vector.z);
@@ -5879,7 +5855,7 @@ void get_play_camera_position(Vec* position) {
                      g_game_info.plyr0.slot.mirror_a->pos.value.z);
     }
 
-    inverse_distance = camera_inv_sqrt(distance_squared);
+    inverse_distance = gxMathFastInvSqrt(distance_squared);
     camera_direction.x = dz * inverse_distance;
     camera_direction.z = -(dx * inverse_distance);
     camera_distance =

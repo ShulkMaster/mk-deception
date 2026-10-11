@@ -376,77 +376,70 @@ void render_mkatomic(RpAtomic* atomic) {
     }
 }
 
-static inline void insert_translucent_atomic(const union TranslNodeFlags* source_flags,
-                                              RpAtomic* atomic, int priority, float depth)
-{
-    union TranslNodeFlags flags;
-    int node_index = num_render_nodes;
-    flags = *source_flags;
-    if (node_index < (int)(sizeof(transl_sort_nodes) / sizeof(transl_sort_nodes[0]))) {
-        struct TranslSortNode* node;
-        num_render_nodes = node_index + 1;
-        node = &transl_sort_nodes[node_index];
-        node->flags = flags;
-        node->payload = atomic;
-        node->priority = priority;
-        node->depth = depth;
-        BTreeInsert(node);
-    }
-}
-
-/* TODO: [breakthrough needed] 98.99%; dot product and sentinel recovered; flag slots and insertion/iterator coloring remain. */
 void render_mkobj(MkObj* object) {
+    int clump_index;
     RwLLLink* link;
     RwLLLink* list_head;
-    int clump_index;
-    int priority;
     float depth_bias;
     float depth;
     RwMatrix* camera_matrix;
     RwMatrix* atomic_ltm;
-    if (!object->hide_flag_bits.hidden || (int)f_render_all_atomics != 0) {
-        clump_index = 0;
-        while (clump_index < object->clump_count) {
-            RpClump* clump = object->clumps[clump_index];
-            if (clump != 0) {
-                link = clump->atomicList.next;
-                list_head = &clump->atomicList;
-                while (link != list_head) {
-                    RpAtomic* atomic = rpAtomicFromClumpNode(link);
-                    if ((atomic->object.flags & 4) != 0) {
-                        MksobjPluginData* plugin = MK_ATOMIC_PLUGIN(atomic);
-                        MkSobj* sobj = plugin->sobj;
-                        union TranslNodeFlags flags;
-                        priority = 0x10;
-                        depth_bias = 0.0f;
-                        if (sobj != 0) {
-                            priority = sobj->priority;
-                            depth_bias = sobj->z_offset;
-                        } else if ((plugin->flags & 0x80000000) != 0) {
-                            priority = 0x12;
-                        }
-                        flags.word = 0;
-                        if (priority == 0x12) {
-                            float delta_x, delta_y, delta_z;
-                            camera_matrix = camera_mat;
-                            atomic_ltm = RwFrameGetLTM(atomic->object.parent);
-                            delta_x = atomic_ltm->pos.x - camera_matrix->pos.x;
-                            delta_y = atomic_ltm->pos.y - camera_matrix->pos.y;
-                            delta_z = atomic_ltm->pos.z - camera_matrix->pos.z;
-                            depth =
-                                delta_z * camera_matrix->at.z +
-                                (delta_x * camera_matrix->at.x +
-                                 delta_y * camera_matrix->at.y);
-                            depth += depth_bias;
-                        } else {
-                            depth = 0.0f;
-                        }
-                        insert_translucent_atomic(&flags, atomic, priority, depth);
+    if (object->hide_flag_bits.hidden && (int)f_render_all_atomics == 0) {
+        return;
+    }
+    for (clump_index = 0; clump_index < object->clump_count; clump_index++) {
+        RpClump* clump = object->clumps[clump_index];
+        if (clump != 0) {
+            list_head = &clump->atomicList;
+            for (link = clump->atomicList.next; link != list_head; link = link->next) {
+                RpAtomic* const atomic = rpAtomicFromClumpNode(link);
+                if ((atomic->object.flags & 4) != 0) {
+                    MksobjPluginData* plugin = MK_ATOMIC_PLUGIN(atomic);
+                    MkSobj* sobj = plugin->sobj;
+                    struct TranslNodeFlagBits copied_flags;
+                    union TranslNodeFlags flags;
+                    int node_index;
+                    const struct TranslNodeFlagBits* source_flags;
+                    int priority;
+                    priority = 0x10;
+                    depth_bias = 0.0f;
+                    if (sobj != 0) {
+                        priority = sobj->priority;
+                        depth_bias = sobj->z_offset;
+                    } else if ((plugin->flags & 0x80000000) != 0) {
+                        priority = 0x12;
                     }
-                    link = link->next;
+                    flags.word = 0;
+                    if (priority == 0x12) {
+                        float delta_x, delta_y, delta_z;
+                        camera_matrix = camera_mat;
+                        atomic_ltm = RwFrameGetLTM(atomic->object.parent);
+                        delta_x = atomic_ltm->pos.x - camera_matrix->pos.x;
+                        delta_y = atomic_ltm->pos.y - camera_matrix->pos.y;
+                        delta_z = atomic_ltm->pos.z - camera_matrix->pos.z;
+                        depth =
+                            delta_z * camera_matrix->at.z +
+                            (delta_x * camera_matrix->at.x +
+                             delta_y * camera_matrix->at.y);
+                        depth += depth_bias;
+                    } else {
+                        depth = 0.0f;
+                    }
+                    source_flags = &flags.bits;
+                    node_index = num_render_nodes;
+                    copied_flags = *source_flags;
+                    if (node_index < (int)(sizeof(transl_sort_nodes) / sizeof(transl_sort_nodes[0]))) {
+                        struct TranslSortNode* node;
+                        node = &transl_sort_nodes[node_index];
+                        num_render_nodes = node_index + 1;
+                        node->flags.bits = copied_flags;
+                        node->payload = atomic;
+                        node->priority = priority;
+                        node->depth = depth;
+                        BTreeInsert(node);
+                    }
                 }
             }
-            clump_index++;
         }
     }
 }

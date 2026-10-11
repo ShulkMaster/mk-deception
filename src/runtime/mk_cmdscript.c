@@ -625,7 +625,6 @@ float call_player_script_function(ScriptSlot* slot) {
 
 void cmdscript_unload(ScriptSlot* slot) {
     ScriptSlotEntry* entry;
-    MkProc* saved;
 
     if (slot == 0) {
         return;
@@ -633,7 +632,7 @@ void cmdscript_unload(ScriptSlot* slot) {
     entry = slot_entry_at(slot->slot_index);
     entry->state = 0;
     if (entry->async_req != 0) {
-        saved = 0;
+        MkProc* saved = 0;
         if (aproc != 0) {
             saved = aproc;
             aproc = 0;
@@ -664,11 +663,9 @@ void vdestroy_cmdscript(CmdScript* script) {
 
 void unload_script(int slot_index) {
     ScriptSlotEntry* entry;
-    int state;
 
     entry = &script_slot_list[slot_index];
-    state = entry->state;
-    if (state == 2 || state == 1) {
+    if (entry->state == 2 || entry->state == 1) {
         cmdscript_unload(&entry->body);
     }
 }
@@ -701,12 +698,11 @@ ScriptSlot* cmdscript_loadfile_by_name(int language, const char* name) {
     return 0;
 }
 
-/* TODO: [near miss] 98.80%; entry/info register allocation differs in 16 rows. */
 ScriptSlot* cmdscript_loadfile_language_async(int language, MkFileInfo* file_info) {
-    ScriptSlotEntry* entry;
-    ScriptSlot* body;
     MkFileInfo* info;
+    ScriptSlot* body;
     MkProc* saved;
+    ScriptSlotEntry* entry;
     int selected_language;
 
     selected_language = get_language();
@@ -714,7 +710,7 @@ ScriptSlot* cmdscript_loadfile_language_async(int language, MkFileInfo* file_inf
     saved = aproc;
     aproc = 0;
     saved_aproc = saved;
-    entry = slot_entry_at(language);
+    entry = &script_slot_list[language];
     body = &entry->body;
     if (info->name != body->name) {
         strcpy(body->name, info->name);
@@ -736,6 +732,7 @@ ScriptSlot* cmdscript_loadfile_language_async(int language, MkFileInfo* file_inf
     aproc = saved_aproc;
     return body;
 }
+
 
 ScriptSlot* cmdscript_loadfile_language(int language, MkFileInfo* file_info) {
     MkFileInfo* info;
@@ -1029,15 +1026,14 @@ void fixup_data_tables(ScriptSlot* slot) {
     slot->tables_fixed_up = 1;
 }
 
-/* TODO: [breakthrough] 98.97%; unload CFG and unsigned index fixed; slot/member grouping and owner GPR allocation remain. */
+/* TODO: [near miss] 98.97895%; soft ceiling: inline owner/index GPR rotation and
+ * equivalent entry/body loads remain; preserve exact shared unload behavior. */
 void script_system_reset(void) {
     unsigned int i;
-    ScriptSlotEntry* entry;
 
     for (i = 1; i < SCRIPT_SLOT_COUNT; i++) {
-        entry = slot_entry_at(i);
         unload_script(i);
-        entry->state = 0;
+        slot_entry_at(i)->state = 0;
     }
     init_cmdscript_fields(&global_script_interpreter);
 }
@@ -1175,46 +1171,48 @@ void _conditional_branch(void) {
     cs->pc = base + rel;
 }
 
-/* TODO: [near miss] 98.73%; typed operand slots agree; args/op/right-index volatile GPR rotation remains (decl orders exhausted). */
 void _compare_float_float(void) {
+    unsigned int* args;
     CmdScript* cs;
+    CmdScriptReg index;
     CmdScriptRegister* destination;
     CmdScriptRegister* right;
     float a;
     float b;
-    int op;
     unsigned int result;
-    unsigned int* args;
+    CmdScriptOp op;
 
     result = 0;
     cs = active_cmdscript;
-    destination = &cs->registers[(args = current_args)[1]];
+    args = current_args;
+    index = args[1];
+    destination = &cs->registers[index];
     right = &cs->registers[args[2]];
     op = args[3];
     a = destination->real;
     b = right->real;
     switch (op) {
-    case 18:
+    case CMDSCRIPT_OP_LT:
         if (a < b)
             result = 1;
         break;
-    case 15:
+    case CMDSCRIPT_OP_EQ:
         if (a == b)
             result = 1;
         break;
-    case 16:
+    case CMDSCRIPT_OP_GT:
         if (a > b)
             result = 1;
         break;
-    case 14:
+    case CMDSCRIPT_OP_NE:
         if (a != b)
             result = 1;
         break;
-    case 19:
+    case CMDSCRIPT_OP_LE:
         if (a <= b)
             result = 1;
         break;
-    case 17:
+    case CMDSCRIPT_OP_GE:
         if (a >= b)
             result = 1;
         break;
@@ -1222,174 +1220,180 @@ void _compare_float_float(void) {
     destination->word = result;
 }
 
-/* TODO: [near miss] 91.34%; typed slots remove destination reload; operand schedule and GPR homes remain. */
 void _compare_uint_uint(void) {
     unsigned int* args;
     CmdScript* cs;
-    unsigned int* destination;
+    CmdScriptReg index;
+    CmdScriptRegister* destination;
+    CmdScriptRegister* right;
     unsigned int a;
     unsigned int b;
-    int op;
     unsigned int result;
+    CmdScriptOp op;
 
-    args = current_args;
     result = 0;
     cs = active_cmdscript;
-    destination = &cs->regs[args[1]];
-    op = args[3];
-    a = *destination;
-    b = *cmdscript_register_slot(cs, args[2]);
-    switch (op) {
-    case 18:
-        if (a < b) {
-            result = 1;
-        }
-        break;
-    case 15:
-        if (a == b) {
-            result = 1;
-        }
-        break;
-    case 16:
-        if (a > b) {
-            result = 1;
-        }
-        break;
-    case 14:
-        if (a != b) {
-            result = 1;
-        }
-        break;
-    case 19:
-        if (a <= b) {
-            result = 1;
-        }
-        break;
-    case 17:
-        if (a >= b) {
-            result = 1;
-        }
-        break;
-    case 13:
-        if (a != 0 || b != 0) {
-            result = 1;
-        }
-        break;
-    case 12:
-        if (a != 0 && b != 0) {
-            result = 1;
-        }
-        break;
-    }
-    *destination = result;
-}
-
-/* TODO: [breakthrough needed] 84.01%; 36 rows differ; inspect retail CFG and operand types. */
-void _compare_int_int(void) {
-    unsigned int* args;
-    CmdScript* cs;
-    int a;
-    int b;
-    int op;
-    int result;
-
     args = current_args;
-    result = 0;
+    index = args[1];
+    destination = &cs->registers[index];
+    right = &cs->registers[args[2]];
     op = args[3];
-    cs = active_cmdscript;
-    a = cs->regs[args[1]];
-    b = cs->regs[args[2]];
+    a = destination->word;
+    b = right->word;
     switch (op) {
-    case 18:
+    case CMDSCRIPT_OP_LT:
         if (a < b)
             result = 1;
         break;
-    case 15:
+    case CMDSCRIPT_OP_EQ:
         if (a == b)
             result = 1;
         break;
-    case 16:
+    case CMDSCRIPT_OP_GT:
         if (a > b)
             result = 1;
         break;
-    case 14:
+    case CMDSCRIPT_OP_NE:
         if (a != b)
             result = 1;
         break;
-    case 19:
+    case CMDSCRIPT_OP_LE:
         if (a <= b)
             result = 1;
         break;
-    case 17:
+    case CMDSCRIPT_OP_GE:
         if (a >= b)
             result = 1;
         break;
-    case 13:
+    case CMDSCRIPT_OP_LOGICAL_OR:
         if (a != 0 || b != 0)
             result = 1;
         break;
-    case 12:
+    case CMDSCRIPT_OP_LOGICAL_AND:
         if (a != 0 && b != 0)
             result = 1;
         break;
     }
-    cs->regs[args[1]] = result;
+    destination->word = result;
 }
 
-/* TODO: [near miss] 98.06%; ten args/op/right-index register rows
- * remain; stop until new operand-stream lifetime evidence. */
+void _compare_int_int(void) {
+    unsigned int* args;
+    CmdScript* cs;
+    CmdScriptReg index;
+    CmdScriptRegister* destination;
+    CmdScriptRegister* right;
+    int a;
+    int b;
+    int result;
+    CmdScriptOp op;
+
+    result = 0;
+    cs = active_cmdscript;
+    args = current_args;
+    index = args[1];
+    destination = &cs->registers[index];
+    right = &cs->registers[args[2]];
+    op = args[3];
+    a = destination->word;
+    b = right->word;
+    switch (op) {
+    case CMDSCRIPT_OP_LT:
+        if (a < b)
+            result = 1;
+        break;
+    case CMDSCRIPT_OP_EQ:
+        if (a == b)
+            result = 1;
+        break;
+    case CMDSCRIPT_OP_GT:
+        if (a > b)
+            result = 1;
+        break;
+    case CMDSCRIPT_OP_NE:
+        if (a != b)
+            result = 1;
+        break;
+    case CMDSCRIPT_OP_LE:
+        if (a <= b)
+            result = 1;
+        break;
+    case CMDSCRIPT_OP_GE:
+        if (a >= b)
+            result = 1;
+        break;
+    case CMDSCRIPT_OP_LOGICAL_OR:
+        if (a != 0 || b != 0)
+            result = 1;
+        break;
+    case CMDSCRIPT_OP_LOGICAL_AND:
+        if (a != 0 && b != 0)
+            result = 1;
+        break;
+    }
+    destination->word = result;
+}
+
 static void _combine_float_float(void) {
     unsigned int* args;
     CmdScript* cs;
+    CmdScriptReg index;
     CmdScriptRegister* destination;
     CmdScriptRegister* right;
     float a;
     float b;
-    int op;
     float result;
+    CmdScriptOp op;
 
     result = 0.0f;
     cs = active_cmdscript;
-    destination = &cs->registers[(args = current_args)[1]];
+    args = current_args;
+    index = args[1];
+    destination = &cs->registers[index];
     right = &cs->registers[args[2]];
     op = args[3];
     a = destination->real;
     b = right->real;
     switch (op) {
-    case 0:
+    case CMDSCRIPT_OP_ADD:
         result = a + b;
         break;
-    case 1:
+    case CMDSCRIPT_OP_SUB:
         result = a - b;
         break;
-    case 2:
+    case CMDSCRIPT_OP_MUL:
         result = a * b;
         break;
-    case 3:
+    case CMDSCRIPT_OP_DIV:
         result = a / b;
         break;
     }
     destination->real = result;
 }
 
-/* TODO: [near miss] 98.66%; typed slots agree; nine args/selector/RHS-offset register rows remain; stop at coloring. */
+/* TODO: [near miss] 99.146339%; argument owner restored; seven selector/source-slot register rows remain. */
 void _combine_uint_uint(void) {
-    CmdScript* cs;
     CmdScriptRegister* destination;
-    CmdScriptRegister* right;
+    CmdScript* cs;
     unsigned int a;
+    const unsigned int* right;
     unsigned int b;
-    unsigned int op;
     unsigned int result;
+    unsigned int op;
     unsigned int* args;
+    unsigned int destination_index;
+    unsigned int source_index;
 
     result = 0;
     cs = active_cmdscript;
-    destination = &cs->registers[(args = current_args)[1]];
-    right = &cs->registers[args[2]];
-    op = args[3];
+    args = current_args;
+    destination_index = *++args;
+    destination = &cs->registers[destination_index];
+    source_index = *++args;
+    right = cmdscript_register_slot(cs, source_index);
+    op = *++args;
     a = destination->word;
-    b = right->word;
+    b = *right;
     switch (op) {
     case 0:
         result = a + b;
@@ -1422,50 +1426,52 @@ void _combine_uint_uint(void) {
     destination->word = result;
 }
 
-/* TODO: [near miss] 98.66%; typed slots agree; args/op/right-index volatile GPR rotation remains (same as _compare_float_float). */
 void _combine_int_int(void) {
+    unsigned int* args;
     CmdScript* cs;
+    CmdScriptReg index;
     CmdScriptRegister* destination;
     CmdScriptRegister* right;
     int a;
     int b;
-    unsigned int op;
     int result;
-    unsigned int* args;
+    CmdScriptOp op;
 
     result = 0;
     cs = active_cmdscript;
-    destination = &cs->registers[(args = current_args)[1]];
+    args = current_args;
+    index = args[1];
+    destination = &cs->registers[index];
     right = &cs->registers[args[2]];
     op = args[3];
     a = destination->word;
     b = right->word;
     switch (op) {
-    case 0:
+    case CMDSCRIPT_OP_ADD:
         result = a + b;
         break;
-    case 1:
+    case CMDSCRIPT_OP_SUB:
         result = a - b;
         break;
-    case 2:
+    case CMDSCRIPT_OP_MUL:
         result = a * b;
         break;
-    case 3:
+    case CMDSCRIPT_OP_DIV:
         result = a / b;
         break;
-    case 4:
+    case CMDSCRIPT_OP_MOD:
         result = a % b;
         break;
-    case 5:
+    case CMDSCRIPT_OP_AND:
         result = a & b;
         break;
-    case 6:
+    case CMDSCRIPT_OP_OR:
         result = a | b;
         break;
-    case 7:
+    case CMDSCRIPT_OP_SHL:
         result = a << b;
         break;
-    case 8:
+    case CMDSCRIPT_OP_SHR:
         result = a >> b;
         break;
     }

@@ -3047,11 +3047,12 @@ void* get_mkx_mem(void* allocation) {
 }
 
 static inline void mkobj_destroy_clumps(MkObj* mkobj) {
-    RpClump* clump;
+    RpClump** slot;
     int i;
+    RpClump* clump;
 
     for (i = 0; i < mkobj->clump_count; i++) {
-        RpClump** slot = &mkobj->clumps[i];
+        slot = &mkobj->clumps[i];
 
         clump = *slot;
         if (clump != 0) {
@@ -3064,7 +3065,6 @@ static inline void mkobj_destroy_clumps(MkObj* mkobj) {
     }
 }
 
-/* TODO: [near miss] 99.44444%; semantic clump loop recovered; retained clump/slot registers remain swapped. */
 void vdestroy_mkobj(MkObj* mkobj) {
     mkobj->hdr.instance = 0;
     if (mkobj->hide_flag_bits.bit3 != 0) {

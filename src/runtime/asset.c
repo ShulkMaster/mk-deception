@@ -142,15 +142,15 @@ void annihilate_art_section_data(SecSlotFileEntry* entry) {
     }
 }
 
-/* TODO: [near miss] 98.93%; relocation phase is exact; palette cursor/index/value GPR rotation remains. */
 void process_anim_section_data(SecSlotFileEntry* entry) {
+    AnimScript* data;
+    SecArtMember* palette_members;
     int* palette;
     int i;
     int* palette_table = entry->palette_table;
-    SecArtMember* palette_members;
     SecFileHeader* sec = (SecFileHeader*)entry->buffer;
     if (sec->magic == SEC_MAGIC) {
-        entry->members = (SecArtMember*)(sec + 1);
+        entry->members = sec_file_members(sec);
         entry->member_count = sec->member_count;
         for (i = 0; i < entry->member_count; i++) {
             if (entry->members[i].data_offset != 0)
@@ -163,7 +163,7 @@ void process_anim_section_data(SecSlotFileEntry* entry) {
         if (palette_table != NULL) {
             int palette_index = 0;
             while (palette_index < (int)sec->member_count) {
-                AnimScript* data = palette_members[palette_index].data_or_texture;
+                data = palette_members[palette_index].data_or_texture;
                 if (data != NULL) data->palette_index = palette_index;
                 *palette = (int)data;
                 palette++;
@@ -809,9 +809,9 @@ MkObj* load_model_from_slot_transl(int handle, unsigned int art_oid,
     return object;
 }
 
-/* TODO: [near miss] 99.46809%; model construction agrees; file-index/entry GPR pair differs. */
 MkObj* load_named_model_from_slot(int slot, const char* name, int object_type,
                                   int transl) {
+    SecSlotFileEntry* entry;
     int file_index;
     if (slot == -1)
         return NULL;
@@ -819,9 +819,9 @@ MkObj* load_named_model_from_slot(int slot, const char* name, int object_type,
     if (file_index == 0)
         return NULL;
     while (file_index > 0) {
-        SecSlotFileEntry* entry =
-            get_nth_sec_slot_file_from_handle(slot, file_index);
-        int member_index = find_named_art_member(entry, name);
+        int member_index;
+        entry = get_nth_sec_slot_file_from_handle(slot, file_index);
+        member_index = find_named_art_member(entry, name);
 
         if (member_index >= 0)
             return load_model_member(entry, member_index, object_type, transl);

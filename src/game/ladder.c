@@ -222,8 +222,7 @@ int get_ladder_position(void) {
     return curr_ladder_pos;
 }
 
-/* TODO: [near miss] 97.15909%; CSE retains a byte offset across lock query;
- * whole-unit CSE-off closes this body but regresses siblings. */
+#pragma opt_common_subs off
 int advance_ladder_position(void) {
     int ladder_size;
     int mode;
@@ -276,6 +275,7 @@ int advance_ladder_position(void) {
     g_game_info.bgnd_id = background_id;
     return 0;
 }
+#pragma opt_common_subs reset
 
 void init_current_ladder_char(void) {
     curr_ladder_char = -1;

@@ -11,8 +11,6 @@ static const float kV3ToQuatParallelDot = 0.9999f;
 static const float kV3ToQuatAntiParallelDot = -0.9999f;
 static const float kV3ToQuatAxisEpsilon = 0.001f;
 static const float kNewtonIter3 = 3.0f;
-static const float kInvSqrtScale = 0.0625f;
-static const float kNewtonIter12 = 12.0f;
 static const float kHalf = 0.5f;
 
 union GxQuatFloatBits {
@@ -65,32 +63,6 @@ void gxQuatInterpQuat(Quat* out, const Quat* q1, const Quat* q2, float t) {
     }
 }
 
-static inline float gxQuatFloatFromBits(unsigned int value) {
-    union GxQuatFloatBits bits;
-
-    bits.u = value;
-    return bits.f;
-}
-
-static inline float gxQuatInvSqrt(float value) {
-    union GxQuatFloatBits in;
-    float result;
-    float guess;
-    float t1;
-    float t3;
-
-    if (value <= kZero) {
-        return kZero;
-    }
-    in.f = value;
-    guess = gxQuatFloatFromBits(0x5F375A00U - (in.u >> 1));
-    t1 = guess * (value * guess);
-    t3 = kNewtonIter3 - t1;
-    result = kInvSqrtScale * guess;
-    result = result * t3 * (kNewtonIter12 - (t1 * t3 * t3));
-    return result;
-}
-
 static inline float gxQuatHalfSqrt(float value) {
     union GxQuatFloatBits in, out;
     float guess;
@@ -130,7 +102,7 @@ void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
             axis.x = -v1->z;
             axis.y = kZero;
         }
-        scale = gxQuatInvSqrt(PSVECDotProduct(&axis, &axis));
+        scale = gxMathFastInvSqrt(PSVECDotProduct(&axis, &axis));
         PSVECScale(&axis, &axis, scale);
         out->x = axis.x;
         out->y = axis.y;
@@ -139,7 +111,7 @@ void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
         return;
     }
     PSVECCrossProduct(v1, v2, &axis);
-    scale = gxQuatInvSqrt(PSVECDotProduct(&axis, &axis));
+    scale = gxMathFastInvSqrt(PSVECDotProduct(&axis, &axis));
     wScale = gxQuatHalfSqrt(kHalf * (kOne - dot));
     PSVECScale(&axis, &axis, scale * wScale);
     out->x = axis.x;

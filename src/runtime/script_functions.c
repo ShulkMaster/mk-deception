@@ -33,6 +33,7 @@
 #include "runtime/cam_shake.h"
 #include "runtime/mk_vtbl.h"
 #include "runtime/asset.h"
+#include "game/plyr_sound.h"
 extern unsigned char* current_args;
 extern unsigned char* active_cmdscript;
 extern unsigned char* plyr_obj;
@@ -410,7 +411,7 @@ struct ScriptVecValueArgs {
 
 struct ScriptVecPointerArgs {
     unsigned int header;
-    const Vec* vector;
+    Vec* vector;
 };
 
 struct ScriptEntryArgs {
@@ -2171,7 +2172,6 @@ int npc_get_his_flag_state(int, int);
 int pan_vol_pitch_random_hit(int, void *, float, float, float);
 int pan_vol_pitch_random_snd_req(int, void *, float, float, float);
 int pan_vol_snd_req(int, void *, float, float);
-int plyr_snd_req_no_plyr_proc(int, int);
 int snd_req_vol(int, void *, float);
 float spad_get_pos(int, unsigned int);
 float spad_xz_cos_two_vectors(int, int);
@@ -9788,7 +9788,7 @@ void _plyr_snd_req_no_plyr_proc(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = plyr_snd_req_no_plyr_proc(args->slots[0].i, args->slots[1].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.u = plyr_snd_req_no_plyr_proc(args->slots[0].pointer, args->slots[1].i);
 }
 
 void _noobsmoke_sidekick_double_charge(void) {

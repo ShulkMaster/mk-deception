@@ -796,7 +796,26 @@ void ZYX_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
     RwMatrixTranslate(m, &saved, 2);
 }
 
-/* TODO: [near miss] 98.828125%; product tree and trig slots agree; eleven FP register rows remain; stop at coloring. */
+static inline void yxz_trig_to_matrix(
+    const float* cx, const float* sx, const float* cy, const float* sy,
+    const float* cz, const float* sz, MKMATRIX* m) {
+    float cycz = *cy * *cz;
+    float cysz = *cy * *sz;
+    float sysz = *sy * *sz;
+    float czsy = *cz * *sy;
+    m->right.x = *sx * sysz + cycz;
+    m->right.y = *cx * *sz;
+    m->right.z = cysz * *sx - czsy;
+    m->up.x = *sx * czsy - cysz;
+    m->up.y = *cx * *cz;
+    m->up.z = *sx * cycz + sysz;
+    m->at.x = *sy * *cx;
+    m->at.y = -*sx;
+    m->at.z = *cy * *cx;
+    m->flags = 3;
+}
+
+/* TODO: [near miss] 99.0625%; rounded products and trig slots agree; nine trig-input/cysz FP rows remain. */
 void YXZ_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
     float cz;
     float sz;
@@ -804,29 +823,12 @@ void YXZ_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
     float sx;
     float cy;
     float sy;
-    float cycz;
-    float cysz;
-    float sysz;
-    float czsy;
 
     gxMathCosSin(&cx, &sx, angles->x);
     gxMathCosSin(&cy, &sy, angles->y);
     gxMathCosSin(&cz, &sz, angles->z);
 
-    cycz = cy * cz;
-    cysz = cy * sz;
-    sysz = sy * sz;
-    czsy = cz * sy;
-    m->right.x = sx * sysz + cycz;
-    m->right.y = cx * sz;
-    m->right.z = cysz * sx - czsy;
-    m->up.x = sx * czsy - cysz;
-    m->up.y = cx * cz;
-    m->up.z = sx * cycz + sysz;
-    m->at.x = sy * cx;
-    m->at.y = -sx;
-    m->at.z = cy * cx;
-    m->flags = 3;
+    yxz_trig_to_matrix(&cx, &sx, &cy, &sy, &cz, &sz, m);
 }
 
 void y_angle_to_MKMATRIX(MKMATRIX* m, float angY) {

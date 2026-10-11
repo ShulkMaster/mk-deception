@@ -80,7 +80,6 @@ extern int p2_rumble_on;
 extern int mcard_msg_active;
 extern MslSoundHandle bgnd_music_ptr1;
 extern MslSoundHandle bgnd_music_ptr2;
-extern _mslSystem* msi;
 
 extern MkHdr* apdata_save;
 extern PlyrPdata* his_pdata;
@@ -1288,8 +1287,6 @@ void pfx_2d_obj_set_alpha_by_id(int id, int alpha) {
     apply_to_mklist(obj_set_alpha_by_id, &screen_obj_list);
 }
 
-#pragma opt_unroll_loops off
-#pragma ppc_unroll_instructions_limit 1
 void pfx_2d_obj_set_alpha(ScreenObj* obj, unsigned char alpha) {
     int i;
 
@@ -1298,8 +1295,6 @@ void pfx_2d_obj_set_alpha(ScreenObj* obj, unsigned char alpha) {
     }
     obj->pfx2d->mirror = 1;
 }
-#pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
 
 void destroy_fade_box(void) {
     destroy_mkprocs_pid(FADE_PROC_PID);
@@ -1432,7 +1427,7 @@ static float p_fade_screen(void) {
 
 #pragma dont_inline on
 /* TODO: [near miss] 98.81%; owner reloads and saved-register homes agree;
- * initial vertex publication retains volatile-register swaps. */
+ * initial vertex publication register swaps remain (24 instruction rows). */
 static void fade_screen(int frames, int color, int flag, int to_fade) {
     struct FadeScreenPdata* pdata;
     struct FadeScreenPdata* initial_fade;
@@ -1475,10 +1470,10 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
 
             if (pdata->color == 1) {
                 obj = load_named_2d_pfxobj(
-                    0, FADE_WHITE_OID, (char*)STR_WHITE_FADEBOX, 0, 0xD);
+                    0, FADE_WHITE_OID, STR_WHITE_FADEBOX, 0, 0xD);
             } else {
                 obj = load_named_2d_pfxobj(
-                    0, FADE_BLACK_OID, (char*)STR_FADEBOX, 0, 0xD);
+                    0, FADE_BLACK_OID, STR_FADEBOX, 0, 0xD);
             }
 
             if (obj != 0) {

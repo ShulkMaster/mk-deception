@@ -73,6 +73,46 @@ typedef union CmdScriptRegister {
     float real;
 } CmdScriptRegister;
 
+/* Register file index of the script VM (fourteen 4-byte cells). */
+typedef enum CmdScriptReg {
+    CMDSCRIPT_R0,
+    CMDSCRIPT_R1,
+    CMDSCRIPT_R2,
+    CMDSCRIPT_R3,
+    CMDSCRIPT_R4,
+    CMDSCRIPT_R5,
+    CMDSCRIPT_R6,
+    CMDSCRIPT_R7,
+    CMDSCRIPT_R8,
+    CMDSCRIPT_R9,
+    CMDSCRIPT_R10,
+    CMDSCRIPT_R11,
+    CMDSCRIPT_R12,
+    CMDSCRIPT_R13,
+    CMDSCRIPT_REG_COUNT
+} CmdScriptReg;
+
+/* Operator word of the _combine_* and _compare_* builtins. */
+typedef enum CmdScriptOp {
+    CMDSCRIPT_OP_ADD = 0,
+    CMDSCRIPT_OP_SUB = 1,
+    CMDSCRIPT_OP_MUL = 2,
+    CMDSCRIPT_OP_DIV = 3,
+    CMDSCRIPT_OP_MOD = 4,
+    CMDSCRIPT_OP_AND = 5,
+    CMDSCRIPT_OP_OR = 6,
+    CMDSCRIPT_OP_SHL = 7,
+    CMDSCRIPT_OP_SHR = 8,
+    CMDSCRIPT_OP_LOGICAL_AND = 12,
+    CMDSCRIPT_OP_LOGICAL_OR = 13,
+    CMDSCRIPT_OP_NE = 14,
+    CMDSCRIPT_OP_EQ = 15,
+    CMDSCRIPT_OP_GT = 16,
+    CMDSCRIPT_OP_GE = 17,
+    CMDSCRIPT_OP_LT = 18,
+    CMDSCRIPT_OP_LE = 19
+} CmdScriptOp;
+
 typedef struct CmdScript {
     MkVtable5* vtbl;                /* +0x00 */
     unsigned int instance;          /* +0x04 */
