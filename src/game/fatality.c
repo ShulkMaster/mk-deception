@@ -696,18 +696,6 @@ static inline FatalityEffectHandle fatality_bind_next_emitter(
     return emitter;
 }
 
-static inline MkObj* fatality_resolve_object_latch(
-    MkObj* object, unsigned int instance) {
-    if (object != 0) {
-        if (object->hdr.instance != instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
 void subzero_start_ice_chunks(PlyrPdata* player) {
     FatalityIceChunkPdata* data;
     MkHdr* process;

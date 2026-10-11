@@ -12,6 +12,7 @@
 #include "runtime/utils.h"
 #include "msl/mslcore.h"
 #include "runtime/cstring.h"
+#include "platform/io.h"
 #include "platform/main.h"
 #include "rw/rwframe.h"
 
@@ -596,6 +597,12 @@ void snd_set_game_vol(float volume) {
 
 
 
+static void debug_print_unload_general_bank(int bank) {
+    debug_print_message("+++++++++++++++++++++++++++++++++++++++++\n");
+    debug_print_message("++++ unload general: %i  +++++++++++++\n", bank);
+    debug_print_message("+++++++++++++++++++++++++++++++++++++++++\n");
+}
+
 static inline int get_sound_bank_number(unsigned int bank) {
     switch (bank >> 24) {
     case 0xFF:
@@ -675,7 +682,7 @@ static inline void unload_mode_bank_list(void)
     }
 }
 
-/* TODO: [near miss] 96.33%; bank address formed before admission (retail lwzx, late add) remains; .msb pool offset from stripped-code strings. */
+/* TODO: [near miss] 96.34%; bank address formed before admission (retail lwzx, late add) remains. */
 void setup_sound_bank_list_by_mode(int mode, int transition_mode) {
     if (mode < 0 || mode >= 0xF) {
         return;
@@ -720,6 +727,11 @@ void setup_sound_banks(int mode) {
     setup_sound_bank_list_by_mode(mode, transition_mode);
 }
 
+static void debug_print_load_konq_general_bank(int bank) {
+    debug_print_message("++++ load konq general: %i +++++++++++++\n", bank);
+    debug_print_message("++++++++++++++++++++++++++++++++++++++++++++\n");
+}
+
 static inline void load_sound_bank_and_slot_async(int bank, unsigned int slot) {
     char filename[0x98];
     if (bank != -1) {
@@ -744,7 +756,6 @@ static inline void load_sound_bank_and_slot_async(int bank, unsigned int slot) {
     }
 }
 
-/* TODO: [near miss] 99.99%; instructions agree; .msb pool offset from stripped-code strings remains. */
 void load_banks_on_list_async(int mode) {
     unsigned int* banks = bank_load_table[mode].banks;
     int count = bank_load_table[mode].count;
@@ -792,7 +803,6 @@ static inline int is_bank_on_list(int bank, int mode) {
     return 0;
 }
 
-/* TODO: [near miss] 99.99%; instructions agree; .msb literal pool offset remains. */
 void unload_banks_not_on_list(int mode) {
     int bank;
 
@@ -838,7 +848,6 @@ static inline void unload_sound_bank_slot(int slot) {
     }
 }
 
-/* TODO: [near miss] 99.99%; instructions agree; .msb pool offset from stripped-code strings remains. */
 void unload_slots_not_on_list(int mode) {
     int slot;
 
@@ -903,7 +912,6 @@ void wait_for_sound_banks_to_load(void) {
     }
 }
 
-/* TODO: [near miss] 99.99%; instructions agree; .msb pool offset from stripped-code strings remains. */
 void unload_pz_fighter_fatality_banks(void) {
     unload_sound_bank_slot(0x15);
 }
@@ -1033,7 +1041,6 @@ static void lsba_callbank(void* userdata) {
     }
 }
 
-/* TODO: [near miss] 99.99%; only the verified .msb literal pool offset remains (@stringBase0+0x8f9 retail vs +0x8a6; shared pool order). */
 void check_and_load_sound_bank_async(int bank, int slot) {
     char unload_filename[0x98];
     char load_filename[0x98];
@@ -1387,7 +1394,7 @@ int snd_calculate_volume(struct SoundRequest* request) {
     return result;
 }
 
-/* TODO: [near miss] 98.89%; one inner-exit row remains; play_sound shape blocked by caller inlining. */
+/* TODO: [near miss] 98.99%; inner sentinel adds li r30,0; retain scoped playback locals. */
 MslSoundHandle plyr_snd_req_no_plyr_proc(
     PlyrPdata* fighter, int sound_offset) {
     MslSoundHandle handle = 0;
@@ -1416,7 +1423,6 @@ MslSoundHandle plyr_snd_req_no_plyr_proc(
             } else if (sound_id < 0 || sound_id >= 0x1C0C) {
                 play_handle = 0;
             } else {
-                struct SoundRequest request;
                 play_handle = 0;
                 if (sound_id == -1) {
                     play_handle = 0;
@@ -1424,12 +1430,12 @@ MslSoundHandle plyr_snd_req_no_plyr_proc(
                     if (sound_id < 0 || sound_id >= 0x1C0C) {
                         play_handle = 0;
                     } else {
-                        SoundEntry* entry;
+                        struct SoundRequest request;
                         request.sound_id = sound_id;
                         request.volume = 1.0f;
                         request.apply_group_volume = 1;
                         if (snd_calculate_volume(&request)) {
-                            entry = &mk_sound_table[sound_id];
+                            SoundEntry* entry = &mk_sound_table[sound_id];
                             play_handle = mslBankPlayVol(
                                 request.bank, entry->bank, entry->sound,
                                 entry->field_0c, request.volume, entry->field_18);
@@ -1843,8 +1849,6 @@ MslSoundHandle random_hit(int group) {
 
 #pragma optimization_level 4
 
-/* TODO: [near miss] 99.97%; wave-path literal matches decoded retail bytes;
- * pool addend differs (0x956 vs 0x8ab); recover the TU pool first-use order. */
 int init_sounds(void) {
     current_sound_shuffle_state = 0;
     current_konq_sound_shuffle_state = 0;

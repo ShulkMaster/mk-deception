@@ -82,7 +82,6 @@ int get_field_size(int type) {
     return size;
 }
 
-/* TODO: [near miss] 99.95%; bounded render/parametric backing storage differs from retail symbol bases; recover safe TU aliases. */
 int pfx_field_get_type(int field) {
     int index;
 

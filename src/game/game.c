@@ -511,8 +511,6 @@ int is_timer_off(void) {
     return b_game_timer_off;
 }
 
-#pragma opt_unroll_loops off
-#pragma ppc_unroll_instructions_limit 1
 static void do_fight_effect(void) {
     int i;
     ScreenObj* round;
@@ -552,15 +550,15 @@ static void do_fight_effect(void) {
         return;
     }
 
-        fight->scale_x = 0.0f;
-        fight->scale_y = 0.0f;
-        center_fight_effect(fight);
-        fight->flag_bits.scaled = 1;
+    fight->scale_x = 0.0f;
+    fight->scale_y = 0.0f;
+    center_fight_effect(fight);
+    fight->flag_bits.scaled = 1;
 
-        round->x = screen_width / 2 - round->pfx2d->tex_w / 2;
-        round->y = screen_height / 2 - round->pfx2d->tex_h / 2;
-        round_number->x = round->x + 0xC6;
-        round_number->y = round->y;
+    round->x = screen_width / 2 - round->pfx2d->tex_w / 2;
+    round->y = screen_height / 2 - round->pfx2d->tex_h / 2;
+    round_number->x = round->x + 0xC6;
+    round_number->y = round->y;
 
     switch (g_game_info.pselect.field_1f4) {
     case 1:
@@ -622,8 +620,6 @@ static void do_fight_effect(void) {
         round_number->typed_vtbl->destroy(round_number);
     }
 }
-#pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
 
 void cleanup_fight(void) {
     memset(global_movesets, 0, sizeof(global_movesets));

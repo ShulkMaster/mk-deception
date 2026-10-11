@@ -1302,7 +1302,7 @@ static void generate_door_trigger(
 int mslSoundIsValid(MslSoundHandle handle);
 void sobj_use_material_color(MkSobj* object);
 void npc_shadow_set_alpha(int alpha);
-void npc_shadow_set_light_angle(const Vec* angles);
+void npc_shadow_set_light_angle(Vec* angles);
 void hide_atomic(void* atomic);
 MkProc* _create_mkproc_generic_tinystack(
     int pid, int priority, void* entry, int pdata_size, void** pdata);
@@ -10681,10 +10681,6 @@ void set_movement_npc(int target_type) {
     }
 }
 
-static inline MkProc* interaction_live_turn_proc(union KonquestNpc* npc) {
-    return MK_LIVE(npc->fields.turn_proc, npc->fields.turn_proc_instance);
-}
-
 static float p_konquest_interaction(void) {
     MkObj* hero;
     struct KonquestInteractionPdata* pdata;
@@ -10708,7 +10704,8 @@ static float p_konquest_interaction(void) {
 
     validated_turn_proc = MK_LIVE(pdata->npc->fields.turn_proc, pdata->npc->fields.turn_proc_instance);
     if (validated_turn_proc != 0) {
-        current_turn_proc = interaction_live_turn_proc(pdata->npc);
+        union KonquestNpc* npc = pdata->npc;
+        current_turn_proc = MK_LIVE(npc->fields.turn_proc, npc->fields.turn_proc_instance);
 
         if (current_turn_proc != 0) {
             if (pdata->npc->fields.turn_proc->instance != 0) {

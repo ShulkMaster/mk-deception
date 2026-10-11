@@ -118,12 +118,6 @@ static void update_power_bar_verts(void);
 static void update_combo_break_counts(void);
 
 static float bar_speed = 0.01f;
-static inline ScreenObj* screen_latch_object(PlyrScreenLatch* latch) {
-    ScreenObj* object = latch->object;
-
-    return MK_LIVE(object, latch->instance);
-}
-
 static inline PlyrFightingLightState* fighting_light_state(PlyrInfo* player) {
     return &player->fighting_lights;
 }
@@ -142,14 +136,8 @@ static inline int pbar_green_triggered(PlyrInfo* player,
     return 0;
 }
 
-static inline StringObj* string_latch_object(PlyrScreenLatch* latch) {
-    StringObj* object = latch->object;
-
-    return MK_LIVE(object, latch->instance);
-}
-
 static inline void set_latched_quad_alpha(PlyrScreenLatch* latch) {
-    ScreenObj* object = screen_latch_object(latch);
+    ScreenObj* object = MK_LIVE((ScreenObj*)latch->object, latch->instance);
     if (object != 0) {
         object->pfx2d->verts[0].a = 0xFF;
         object->pfx2d->verts[1].a = 0xFF;
@@ -230,7 +218,7 @@ static inline void brighten_screen(ScreenObj* object, int enabled) {
 static inline ScreenObj* ensure_combo_bolt(
     PlyrScreenLatch* latch, int player_index, int x_offset,
     PlyrInfo* player, int threshold) {
-    ScreenObj* object = screen_latch_object(latch);
+    ScreenObj* object = MK_LIVE((ScreenObj*)latch->object, latch->instance);
 
     if (object == 0) {
         object = load_2d_pfxobj(
@@ -575,7 +563,7 @@ static float p_unhide_pbar_items(void) {
     while (pbar_hide_string_items[string_index].latch != 0) {
         latch = pbar_hide_string_items[string_index].latch;
         string_item = &pbar_hide_string_items[string_index];
-        string = string_latch_object(latch);
+        string = MK_LIVE((StringObj*)latch->object, (latch)->instance);
         if (string != 0) {
             if (alpha <= string_item->alpha) {
                 set_string_obj_alpha(string, alpha);
@@ -628,10 +616,10 @@ void retract_power_bars(void) {
     if (!allowed) {
         return;
     }
-    p1_back = screen_latch_object(&p1_pbar_back_item);
-    p1_red = screen_latch_object(&p1_pbar_red_item);
-    p2_back = screen_latch_object(&p2_pbar_back_item);
-    p2_red = screen_latch_object(&p2_pbar_red_item);
+    p1_back = MK_LIVE((ScreenObj*)p1_pbar_back_item.object, p1_pbar_back_item.instance);
+    p1_red = MK_LIVE((ScreenObj*)p1_pbar_red_item.object, p1_pbar_red_item.instance);
+    p2_back = MK_LIVE((ScreenObj*)p2_pbar_back_item.object, p2_pbar_back_item.instance);
+    p2_red = MK_LIVE((ScreenObj*)p2_pbar_red_item.object, p2_pbar_red_item.instance);
     if (p1_back == 0 || p2_back == 0 || p1_red == 0 || p2_red == 0) {
         return;
     }
@@ -663,7 +651,8 @@ void retract_power_bars(void) {
     for (string_index = 0;
          pbar_hide_string_items[string_index].latch != 0; string_index++) {
         string_item = &pbar_hide_string_items[string_index];
-        string = string_latch_object(string_item->latch);
+        latch = string_item->latch;
+        string = MK_LIVE((StringObj*)latch->object, latch->instance);
         if (string != 0) {
             set_string_obj_alpha(string, 0.0f);
         }
@@ -672,10 +661,10 @@ void retract_power_bars(void) {
 }
 
 static float p_extend_powerbars(void) {
-    ScreenObj* p1_back = screen_latch_object(&p1_pbar_back_item);
-    ScreenObj* p1_red = screen_latch_object(&p1_pbar_red_item);
-    ScreenObj* p2_back = screen_latch_object(&p2_pbar_back_item);
-    ScreenObj* p2_red = screen_latch_object(&p2_pbar_red_item);
+    ScreenObj* p1_back = MK_LIVE((ScreenObj*)p1_pbar_back_item.object, p1_pbar_back_item.instance);
+    ScreenObj* p1_red = MK_LIVE((ScreenObj*)p1_pbar_red_item.object, p1_pbar_red_item.instance);
+    ScreenObj* p2_back = MK_LIVE((ScreenObj*)p2_pbar_back_item.object, p2_pbar_back_item.instance);
+    ScreenObj* p2_red = MK_LIVE((ScreenObj*)p2_pbar_red_item.object, p2_pbar_red_item.instance);
     MkHdr* pdata;
 
     if (p1_back == 0 || p2_back == 0 || p1_red == 0 || p2_red == 0) {
@@ -907,8 +896,8 @@ static void update_power_bar_verts(void) {
     float life;
     float fill;
 
-    player1 = screen_latch_object(&p1_pbar_item);
-    player2 = screen_latch_object(&p2_pbar_item);
+    player1 = MK_LIVE((ScreenObj*)p1_pbar_item.object, p1_pbar_item.instance);
+    player2 = MK_LIVE((ScreenObj*)p2_pbar_item.object, p2_pbar_item.instance);
     if (player1 == 0 || player2 == 0) {
         return;
     }
@@ -1138,7 +1127,7 @@ void destroy_pwr_bars(void) {
     for (screen_index = 0;
          pbar_item_list[screen_index] != 0; screen_index++) {
         latch = pbar_item_list[screen_index];
-        screen = screen_latch_object(latch);
+        screen = MK_LIVE((ScreenObj*)latch->object, latch->instance);
         if (screen != 0 && screen->instance != 0) {
             screen->typed_vtbl->destroy(screen);
         }
@@ -1147,7 +1136,7 @@ void destroy_pwr_bars(void) {
     for (string_index = 0;
          pbar_string_item_list[string_index] != 0; string_index++) {
         latch = pbar_string_item_list[string_index];
-        string = string_latch_object(latch);
+        string = MK_LIVE((StringObj*)latch->object, (latch)->instance);
         if (string != 0 && string->instance != 0) {
             string->typed_vtbl->destroy(string);
         }
@@ -1164,19 +1153,19 @@ void destroy_pwr_bars(void) {
         state->flags_word = 0;
         state->flags_word = 0;
 
-        screen = screen_latch_object(&state->base);
+        screen = MK_LIVE((ScreenObj*)state->base.object, state->base.instance);
         if (screen != 0 && screen->instance != 0) {
             screen->typed_vtbl->destroy(screen);
         }
-        screen = screen_latch_object(&state->red);
+        screen = MK_LIVE((ScreenObj*)state->red.object, state->red.instance);
         if (screen != 0 && screen->instance != 0) {
             screen->typed_vtbl->destroy(screen);
         }
-        screen = screen_latch_object(&state->green);
+        screen = MK_LIVE((ScreenObj*)state->green.object, state->green.instance);
         if (screen != 0 && screen->instance != 0) {
             screen->typed_vtbl->destroy(screen);
         }
-        screen = screen_latch_object(&state->airborne);
+        screen = MK_LIVE((ScreenObj*)state->airborne.object, state->airborne.instance);
         if (screen != 0 && screen->instance != 0) {
             screen->typed_vtbl->destroy(screen);
         }

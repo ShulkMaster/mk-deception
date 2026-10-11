@@ -424,14 +424,6 @@ static inline void moves_sleep(float ticks) {
     vtable->sleep();
 }
 
-static inline MkObj* moves_resolve_weapon_latch(
-    const PlyrMirrorObjLatch* latch) {
-    MkObj* object;
-
-    object = latch->obj;
-    return MK_HDR_LIVE(object, latch->instance);
-}
-
 static inline int moves_is_weapon_style(PlyrFighterDefinition* style) {
     PlyrStyleDefinition* weapon_data;
 
@@ -3536,7 +3528,6 @@ static float weapon_block(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 97.07%; retail order restored; player argument staging around the second weapon latch remains. */
 void advance_active_moveset(PlyrPdata* player) {
     PlyrMirrorSlots* slots;
     MkObj* sidekick;
@@ -3555,8 +3546,7 @@ void advance_active_moveset(PlyrPdata* player) {
         if (player->character_id == 0x1B) {
             if (g_game_info.feature_flags.bits.high_bit != 0) {
                 player->player_slot = 0;
-                sidekick = moves_resolve_weapon_latch(
-                    &player->tracked_obj_latch);
+                sidekick = MK_HDR_LIVE(player->tracked_obj_latch.obj, player->tracked_obj_latch.instance);
                 if (sidekick != 0) {
                     player->sidekick_active = 0;
                     tag_team_activate_player(
@@ -3597,25 +3587,21 @@ void advance_active_moveset(PlyrPdata* player) {
     slots = player->mirror_slots;
     if (slots != 0) {
         if (moves_is_weapon_style(player->fighter_definition) != 0) {
-            if (moves_resolve_weapon_latch(&slots->weapon[0].primary) != 0) {
+            if (MK_HDR_LIVE(slots->weapon[0].primary.obj, slots->weapon[0].primary.instance) != 0) {
                 plyr_weapon_grab(
-                    player, moves_resolve_weapon_latch(
-                                &slots->weapon[0].primary));
+                    player, MK_HDR_LIVE(slots->weapon[0].primary.obj, slots->weapon[0].primary.instance));
             }
-            if (moves_resolve_weapon_latch(&slots->weapon[1].primary) != 0) {
+            if (MK_HDR_LIVE(slots->weapon[1].primary.obj, slots->weapon[1].primary.instance) != 0) {
                 plyr_weapon2_grab(
-                    player, moves_resolve_weapon_latch(
-                                &slots->weapon[1].primary));
+                    player, MK_HDR_LIVE(slots->weapon[1].primary.obj, slots->weapon[1].primary.instance));
             }
-            if (moves_resolve_weapon_latch(&slots->weapon[2].primary) != 0) {
+            if (MK_HDR_LIVE(slots->weapon[2].primary.obj, slots->weapon[2].primary.instance) != 0) {
                 plyr_weapon3_grab(
-                    player, moves_resolve_weapon_latch(
-                                &slots->weapon[2].primary));
+                    player, MK_HDR_LIVE(slots->weapon[2].primary.obj, slots->weapon[2].primary.instance));
             }
-            if (moves_resolve_weapon_latch(&slots->weapon[3].primary) != 0) {
+            if (MK_HDR_LIVE(slots->weapon[3].primary.obj, slots->weapon[3].primary.instance) != 0) {
                 plyr_weapon4_grab(
-                    player, moves_resolve_weapon_latch(
-                                &slots->weapon[3].primary));
+                    player, MK_HDR_LIVE(slots->weapon[3].primary.obj, slots->weapon[3].primary.instance));
             }
             plyr_weapon_show(player, 1, slots);
             if (player->baraka_moveset_callback != 0) {

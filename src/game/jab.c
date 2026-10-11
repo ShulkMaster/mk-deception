@@ -238,11 +238,6 @@ struct JadeBindPdata {
     int parent_bone;
 };
 
-union JabFloatBits {
-    float f;
-    unsigned int u;
-};
-
 struct JabBoneMatcherState* start_bone_matcher(
     MkObj* parent, int parent_bone, MkObj* child, int child_bone,
     float blend);
@@ -1230,7 +1225,6 @@ void sh_start_grinder_crush_chunks(Vec* position, PlyrPdata* player) {
 }
 
 void sh_spawn_grinder_crush_blood(void) {
-    union JabFloatBits inverse;
     MkObj* emitter_object;
     Vec* velocities;
     Vec* positions;
@@ -1245,8 +1239,6 @@ void sh_spawn_grinder_crush_blood(void) {
     PfxEmitter* emitter;
     float length_sq;
     float inverse_length;
-    float half_x;
-    float newton;
     float speed;
     float x;
     float x_squared;
@@ -1289,17 +1281,7 @@ void sh_spawn_grinder_crush_blood(void) {
             y_squared = velocities->y * velocities->y;
             z_squared = velocities->z * velocities->z;
             length_sq = z_squared + (x_squared + y_squared);
-            if (length_sq <= 0.0f) {
-                inverse_length = 0.0f;
-            } else {
-                inverse.f = length_sq;
-                inverse.u = 0x5F375A00U - (inverse.u >> 1);
-                half_x = inverse.f * (length_sq * inverse.f);
-                newton = 3.0f - half_x;
-                inverse_length =
-                    0.0625f * inverse.f * newton *
-                    -((newton * (half_x * newton)) - 12.0f);
-            }
+            inverse_length = gxMathFastInvSqrt(length_sq);
             velocities->x = x * inverse_length;
             velocities->y *= inverse_length;
             velocities->z *= inverse_length;
@@ -1502,10 +1484,9 @@ void sh_start_grinder_chunk_spew(Vec* position, PlyrPdata* player) {
     }
 }
 
-/* TODO: [breakthrough needed] 95.53178%; recover displacement Vec stack stores
- * and duplicate timer/scale pointer homes; retail frame remains 0x10 larger. */
+/* TODO: [breakthrough needed] 95.53178%; displacement Vec stores and duplicate
+ * timer/scale pointer homes remain; frame is 0xE0 versus retail 0xF0. */
 float pfx_sh_grinder_meat_spew(void) {
-    union JabFloatBits inverse;
     float* destination_angles;
     PfxEmitter* emitter;
     float* destination_timers;
@@ -1535,8 +1516,6 @@ float pfx_sh_grinder_meat_spew(void) {
     Vec splat_position;
     float length_sq;
     float inverse_length;
-    float half_x;
-    float newton;
     float speed;
     float delta_x;
     float delta_y;
@@ -1672,17 +1651,7 @@ float pfx_sh_grinder_meat_spew(void) {
                     destination_velocities->x * destination_velocities->x +
                     destination_velocities->y * destination_velocities->y +
                     destination_velocities->z * destination_velocities->z;
-                if (length_sq <= 0.0f) {
-                    inverse_length = 0.0f;
-                } else {
-                    inverse.f = length_sq;
-                    inverse.u = 0x5F375A00U - (inverse.u >> 1);
-                    half_x = inverse.f * (length_sq * inverse.f);
-                    newton = 3.0f - half_x;
-                    inverse_length =
-                        0.0625f * inverse.f * newton *
-                        -((newton * (half_x * newton)) - 12.0f);
-                }
+                inverse_length = gxMathFastInvSqrt(length_sq);
                 destination_velocities->x = destination_velocities->x * inverse_length;
                 destination_velocities->y *= inverse_length;
                 destination_velocities->z *= inverse_length;
@@ -1966,10 +1935,10 @@ float pfx_react_falling_attach_smoke_to_bones_proc(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 97.11%; compaction, spawn and return structure agree; register association (vm r22 in retail, r31 here) and scheduling remain. */
+/* TODO: [near miss] 97.11%; field/table-owner register association and scheduling remain;
+ * normalization operations agree. */
 float pfx_kenshi_lift_smoke(void) {
     float* destination_scales;
-    union JabFloatBits inverse;
     PfxEmitter* emitter;
     MkObj* emitter_object;
     MkObj* tracked_object;
@@ -1997,8 +1966,6 @@ float pfx_kenshi_lift_smoke(void) {
     float along_bone;
     float length_sq;
     float inverse_length;
-    float half_x;
-    float newton;
     float dx;
     float dy;
     float dz;
@@ -2136,17 +2103,7 @@ float pfx_kenshi_lift_smoke(void) {
                     dx * dx +
                     dy * dy +
                     dz * dz;
-                if (length_sq <= 0.0f) {
-                    inverse_length = 0.0f;
-                } else {
-                    inverse.f = length_sq;
-                    inverse.u = 0x5F375A00U - (inverse.u >> 1);
-                    half_x = inverse.f * (length_sq * inverse.f);
-                    newton = 3.0f - half_x;
-                    inverse_length =
-                        0.0625f * inverse.f * newton *
-                        -((newton * (half_x * newton)) - 12.0f);
-                }
+                inverse_length = gxMathFastInvSqrt(length_sq);
                 destination_velocities->x = 0.05f * (dx * inverse_length);
                 destination_velocities->y = 0.05f * (dy * inverse_length);
                 destination_velocities->z = 0.05f * (dz * inverse_length);

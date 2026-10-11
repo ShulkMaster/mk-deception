@@ -136,7 +136,7 @@ void behavior_adjust_streams(PfxBehavior* source, PfxBehavior* destination)
     destination->current_streams[1].data = stream;
 }
 
-/* TODO: [breakthrough needed] 99.82%; TU peephole mode fixes text; shared jump-table regression needs recovery. */
+/* TODO: [near miss] 99.82%; peephole forwards initial count load through r3; TU flag recovery remains. */
 PfxKillInstruction* add_kill_insn(PfxBehavior* behavior, int opcode,
                                   unsigned int field)
 {

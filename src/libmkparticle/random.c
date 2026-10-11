@@ -152,7 +152,7 @@ void rnd_point_in_disc(PfxVec3* output, const PfxVec3* axis,
     output->z = perpendicular.z * radius;
 }
 
-/* TODO: [near miss] 99.48%; vector temps stack-resident and CFG exact; normalize inverse/sine FPR coloring (retail f1, ours f3) remains. */
+/* TODO: [near miss] 99.48%; stack-resident vectors and separate normalization correction agree; inverse/sine FPR coloring remains. */
 void rnd_point_in_sphere_section(PfxVec3* output, const PfxVec3* axis,
                                  float radius, float radius_spread,
                                  float angle, float angle_spread) {
@@ -202,7 +202,7 @@ void rnd_vector_from_point(PfxVec3* output, const PfxVec3* start,
     output->z = direction.z;
 }
 
-/* TODO: [near miss] 99.36%; vector temps stack-resident and CFG exact; normalize inverse/sine FPR coloring (retail f1, ours f3) remains. */
+/* TODO: [near miss] 99.36%; stack-resident vectors and separate normalization correction agree; inverse/sine FPR coloring remains. */
 void rnd_bend_vector(PfxVec3* vector, float angle, float angle_spread) {
     PfxVec3 random_vector;
     PfxVec3 perpendicular;

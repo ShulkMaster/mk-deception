@@ -30,8 +30,8 @@ typedef struct PfxFieldDescription {
 extern PfxFieldDefinition properties[];
 /* Retail render scans reach the adjacent first parametric row's zero flag.
  * One backing array preserves that read without crossing a C object boundary. */
-extern PfxFieldDefinition render_fields[10];
-#define parametric_fields (render_fields + 6)
+extern PfxFieldDefinition render_fields[6];
+extern PfxFieldDefinition parametric_fields[4];
 extern const int _num_render_fields;
 
 int get_size(int type);

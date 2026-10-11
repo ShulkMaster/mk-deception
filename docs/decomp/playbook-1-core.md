@@ -5,7 +5,7 @@ Read every task. Deeper tier only when triage points there.
 | Tier | File | Holds |
 |---|---|---|
 | 1 | this | protocol, gates, triage, H index, stops |
-| 2 | [playbook-2-common.md](playbook-2-common.md) | H01-H27 detail |
+| 2 | [playbook-2-common.md](playbook-2-common.md) | H01-H28 detail |
 | 3 | [playbook-3-uncommon.md](playbook-3-uncommon.md) | M01-M17: modes, FP, ABI shape, inline/macro, data/link |
 | 4 | [playbook-4-rare.md](playbook-4-rare.md) | N01-N13, hard stops, dead ends, permuter |
 
@@ -86,6 +86,7 @@ Tools:
 | Missing/extra reload of global or owner | H05, M12 |
 | Retail keeps value/address source recomputes, or reverse | H06 |
 | Retail derives value in the register it loaded into | H26 |
+| Home swap, decl sweeps neutral, single-use selector/index/latch local | H28 |
 | Load/store/pointer-advance order differs, same ops | H27, H14 |
 | Call args from one value computed in other order | H15, H16 |
 | Extra/missing `bl`, inlining differs | H07, M13 |
@@ -194,6 +195,9 @@ Core line only; detail = `## Hxx` in tier 2.
   register | one meaning for variable | compute in steps in one local.
 - **H27 Statement order** `[da]` | loads/stores/advances ordered differently
   | no alias between moved accesses | write statements in retail order.
+- **H28 Folded single-use local** `[da]` | home swap, decl sweeps neutral,
+  selector/index/latch local missing from webs | assigned once, used once |
+  enum-typed local; `= 0` in caller + `MK_LIVE` at call site.
 
 ## Stop
 

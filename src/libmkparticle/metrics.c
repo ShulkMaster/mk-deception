@@ -40,7 +40,6 @@ void pfxmetrics_event(PfxMetrics* metrics, int event) {
         metrics_interface.begin_counter(nonzero_counter);
         break;
     case 0x2000:
-        /* Retail's table contains byte offsets, so preserve its indexed store. */
         *(int*)((char*)counters + offset) =
             metrics_interface.end_counter(nonzero_counter);
         break;

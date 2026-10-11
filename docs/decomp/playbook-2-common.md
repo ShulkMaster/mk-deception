@@ -1253,6 +1253,31 @@ storing, advance cursors after stores, load node output ptr before size store
   no fake volatile). Check destination decls before statement order
   (`gc_native_display_pass_to_RW`: ISR-written RW XFB pointers `volatile`).
 
+## H28
+
+Single-use local folded into its use `[da]`.
+
+- IF a nonvolatile/arg home differs; capture/pcode shows a named local missing
+  from the web list while its value feeds the use directly (switch selector,
+  index, latch result). Retail numbers it as a low named web popped late; ours
+  is a late emission temp popped first. Decl-order sweeps neutral: a folded
+  web cannot be reordered.
+- REQUIRE the local assigned once from a plain load or inline result, used in
+  one statement.
+- TRY (1) enum type for opcode/selector/register-index locals: the int->enum
+  conversion blocks the fold, emits no code under `-enum int`; then declare
+  the lowest-wanted web last. (2) Null-initialised result consumed by a
+  latch `?:` inside an inline helper: put `= 0` in the caller (zero variable
+  must live outside the inlined helper) and latch with `MK_LIVE` at the call
+  site (retail `li 0`, not `mr` copy of the helper's own zero web).
+- Not blocking: int/unsigned/const/short/pointer typing, block scope, init vs
+  assignment, wrapper inline, second use (adds code).
+- Exemplars: `_compare_float_float` + 4 `_compare_*`/`_combine_*` siblings,
+  `pfx_bind_emitter_num_to_new_obj`. Open: wrapper local from inline call
+  result (`start_blood_particles_scripts` 99.43).
+- Find the web by gdb interference-graph capture (tier 4 hard stops), not by
+  sweeps.
+
 ## Traps
 
 - ELF `NOBITS` = zero storage; never read `sh_offset` as initializer before

@@ -402,7 +402,7 @@ void get_weapon_collision_def(MkObj* object, WeaponCollisionDef* collision) {
     collision->offset.z = ((const WeaponDefinition*)object->field_5C)->field_58;
 }
 
-static inline MkObj* weapon_latch_object(const PlyrMirrorObjLatch* latch) {
+static inline MkObj* weapon_latch_object(PlyrMirrorObjLatch* latch) {
     MkObj* object = latch->obj;
     if (object != 0) {
         if (object->hdr.instance == latch->instance) {
@@ -415,7 +415,7 @@ static inline MkObj* weapon_latch_object(const PlyrMirrorObjLatch* latch) {
     return object;
 }
 
-static inline void weapon_trail_show(const PlyrMirrorObjLatch* latch) {
+static inline void weapon_trail_show(PlyrMirrorObjLatch* latch) {
     MkObj* weapon = MK_HDR_LIVE(latch->obj, latch->instance);
 
     if (weapon != 0) {
@@ -459,7 +459,7 @@ void plyr_weapon_trail_show(PlyrMirrorSlots* slots) {
 
 #undef SHOW_WEAPON_TRAIL
 
-static inline void weapon_trail_hide(const PlyrMirrorObjLatch* latch) {
+static inline void weapon_trail_hide(PlyrMirrorObjLatch* latch) {
     MkObj* weapon = weapon_latch_object(latch);
 
     if (weapon != 0) {

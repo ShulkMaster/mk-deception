@@ -193,7 +193,7 @@ void get_weapon_collision_def(
 static float ray_intersection_with_shape(
     const CollisionShape* shape, const Vec* origin, Vec* direction);
 static float ray_intersection_with_quad(
-    const Vec* origin, const Vec* direction, const CollisionShape* quad);
+    const Vec* origin, Vec* direction, const CollisionShape* quad);
 int repel_shape_against_obstacle_list(
     PlyrInfo* player, CollisionShape* shape, Vec* movement, Vec* position,
     ConstrainInfo* info, Vec* test_position, int step_index);
@@ -268,8 +268,7 @@ static inline float collision_ray_to_plane(
     float origin_distance;
     float denominator;
 
-    origin_distance = normal->x * origin->x + normal->y * origin->y +
-        normal->z * origin->z;
+    origin_distance = collision_dot_vectors(normal, origin);
     denominator = normal->x * direction->x + normal->y * direction->y +
         normal->z * direction->z;
     if (denominator != 0.0f) {
@@ -1572,11 +1571,11 @@ static float ray_intersection_with_shape(
     }
 }
 
-/* TODO: [near miss] 99.702377%; aligned frame and ray-plane math agree;
- * plane-result FPR homes remain. */
+/* TODO: [near miss] 99.702377%; plane-result volatile FPR coloring remains;
+ * honest phase and neutral-subset checks exhausted. */
 static float ray_intersection_with_quad(
     const Vec* origin,
-    const Vec* direction,
+    Vec* direction,
     const CollisionShape* quad) {
     MKVECTOR normal;
     MKVECTOR point;

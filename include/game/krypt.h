@@ -147,7 +147,7 @@ void setup_tombstones(void);
 int load_pix_section(
     int slot, const CoffinEntry* entries, int index, int enabled, int flags);
 int load_binary_data(
-    MkFileInfo* file_info, CoffinEntry** entries, void* unused,
+    MkFileInfo* file_info, CoffinEntry** entries, char* strings,
     int* loaded, int entry_count);
 void display_prize_description(CoffinEntry* entries, int index, int last_index, int available,
                                unsigned int string_bank, int priority);

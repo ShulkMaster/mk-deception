@@ -765,11 +765,10 @@ void ck_decrement_bet(void) {
     }
 }
 
-/* TODO: [near miss] 99.40860%; CFG and output slot agree; nine affordability register rows remain; stop at coloring. */
+/* TODO: [near miss] 99.40860%; soft ceiling: nine affordability GPR rows remain; preserve lazy profile checks and output-slot ABI. */
 void ck_increment_bet(void) {
     MkProc* proc;
     MkHdr* pdata;
-    unsigned int next_amount;
     int koin;
 
     koin = get_current_wager_koin();
@@ -786,7 +785,8 @@ void ck_increment_bet(void) {
     }
 
     if (p1_profile_status == 1 && p2_profile_status == 1) {
-        next_amount = g_game_info.pselect.field_1d8 + g_game_info.pselect.field_1f0;
+        int next_amount =
+            g_game_info.pselect.field_1d8 + g_game_info.pselect.field_1f0;
         if ((unsigned int)p1_profile.koins[koin] >= next_amount &&
             (unsigned int)p2_profile.koins[koin] >= next_amount) {
             g_game_info.pselect.field_1d8 = next_amount;

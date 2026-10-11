@@ -377,11 +377,6 @@ struct BloodFallPdata {
     unsigned int emitters[3];
 };
 
-union BloodFallFloatBits {
-    float value;
-    unsigned int bits;
-};
-
 union KonquestSqrtBits {
     float value;
     unsigned int bits;
@@ -1290,7 +1285,7 @@ struct GroundCollTable npc_punched_ground_colls[5] = {
 void npc_xfer( KonquestNpc* npc, MkProcEntryFn entry, int next_state);
 static int is_this_a_current_event_for_today( const KonquestTime* event);
 void npc_shadow_set_alpha(int alpha);
-void npc_shadow_set_light_angle(const Vec* angles);
+void npc_shadow_set_light_angle(Vec* angles);
 void npc_shadow_teardown(void);
 void npc_shadow_init(void);
 void npc_assign_door_path(int door_id, int travel_mode);
@@ -2447,8 +2442,8 @@ static void set_shadow_bones(MkObj* shadow, MkObj* source, float scale) {
     RwFrameUpdateObjects(shadow->frame);
 }
 
-/* TODO: [near miss] 98.94%; three matrix-component FPRs are cyclically colored; check donor lifetime evidence. */
-void npc_shadow_set_light_angle(const Vec* angles) {
+/* TODO: [near miss] 99.19%; at.y/at.z temp FPRs and light_direction store order still differ from retail; light_direction store order permutations measured. */
+void npc_shadow_set_light_angle(Vec* angles) {
     MKMATRIX rotation;
     float projection_z;
     float projection_x;
@@ -2463,9 +2458,9 @@ void npc_shadow_set_light_angle(const Vec* angles) {
     YXZ_angles_to_MKMATRIX(angles, &rotation);
     projection_x = rotation.at.x / rotation.at.y;
     projection_z = rotation.at.z / rotation.at.y;
-    npc_shadows.light_direction.x = rotation.at.x;
     npc_shadows.light_direction.y = rotation.at.y;
     npc_shadows.light_direction.z = rotation.at.z;
+    npc_shadows.light_direction.x = rotation.at.x;
     MKMatrixSetIdentity(&npc_shadows.projection);
     npc_shadows.projection.up.x = -projection_x;
     npc_shadows.projection.up.y = 0.0f;
@@ -6902,21 +6897,7 @@ void npc_start_blood_fall(void) {
         y_squared = object->pos_vel.y * object->pos_vel.y;
         z_squared = object->pos_vel.z * object->pos_vel.z;
         length_squared = z_squared + (x_squared + y_squared);
-        if (length_squared <= 0.0f) {
-            inverse_length = 0.0f;
-        } else {
-            union BloodFallFloatBits estimate;
-            float product;
-            float correction;
-
-            estimate.value = length_squared;
-            estimate.bits = 0x5F375A00 - (estimate.bits >> 1);
-            product = estimate.value * (length_squared * estimate.value);
-            correction = 3.0f - product;
-            inverse_length =
-                0.0625f * estimate.value * correction *
-                -((correction * (product * correction)) - 12.0f);
-        }
+        inverse_length = gxMathFastInvSqrt(length_squared);
         object->pos_vel.x = x_velocity * inverse_length;
         object->pos_vel.y *= inverse_length;
         object->pos_vel.z *= inverse_length;

@@ -1998,23 +1998,28 @@ static float p_objects_moving(void) {
 }
 
 static inline void offset_constraint_fighter(
-    MkObj* fighter, const Vec* axis, float scale) {
+    Vec* position, Vec* axis, float scale) {
     float move_x = axis->x;
     float move_z = axis->z;
 
     move_x *= scale;
     move_z *= scale;
-    fighter->pos.value.x = fighter->pos.value.x + move_x;
-    fighter->pos.value.z = fighter->pos.value.z + move_z;
+    position->x = position->x + move_x;
+    position->z = position->z + move_z;
 }
 
-/* TODO: [near miss] 99.70930%; positive-arm scaled distance/X movement FPRs remain; other constraint operations agree. */
+static inline void offset_constraint_fighter_smooth(
+    Vec* position, Vec* axis, float distance) {
+    float scale = distance / 5.0f;
+    offset_constraint_fighter(position, axis, scale);
+}
+
 static void check_fighter_constraints(void) {
     unsigned int player;
 
     for (player = 0; player < 2; player++) {
-        MkObj* fighter;
         float distance;
+        MkObj* fighter;
 
         fighter = player == 0 ? g_game_info.plyr0.slot.mirror_a
                               : g_game_info.plyr1.slot.mirror_a;
@@ -2025,11 +2030,11 @@ static void check_fighter_constraints(void) {
                 (g_pz_fighters_engine.fighter_posts[0].z - fighter->pos.value.z);
 
         if (distance > 0.01) {
-            offset_constraint_fighter(
-                fighter, &g_pz_fighters_engine.constraint_axis, distance / 5.0f);
+            offset_constraint_fighter_smooth(
+                &fighter->pos.value, &g_pz_fighters_engine.constraint_axis, distance);
         } else if (distance < 0.002) {
             offset_constraint_fighter(
-                fighter, &g_pz_fighters_engine.constraint_axis, distance);
+                &fighter->pos.value, &g_pz_fighters_engine.constraint_axis, distance);
         }
 
         if (g_pz_fighters_engine.y_constraint_enabled[player] == 1 &&
@@ -3119,7 +3124,7 @@ void pz_fighters_calc_distance_to_desired_idle_pos(
     }
 }
 
-/* TODO: [near miss] 98.06%; angles stored raw then wrapped like retail; FPR coloring of the offset/wrap block remains. */
+/* TODO: [near miss] 98.05590%; raw/wrapped angle store order agrees; 41 FPR rows in correction and offset/wrap blocks remain. */
 static void pz_fighter_snap_to_distance(
     float desired_distance_squared, float current_distance_squared) {
     Vec my_position;
@@ -3155,7 +3160,7 @@ static void pz_fighter_snap_to_distance(
     his_angle.z = his_obj->ang.z;
 
     xz_unit_vector(&direction, &my_position, &his_position);
-    facing = (float)(double)gxMathArcTanYX(direction.x, direction.z);
+    facing = (double)gxMathArcTanYX(direction.x, direction.z);
     my_angle.y = facing;
     opposite_correction = -1.0f * correction;
     my_x_offset = direction.x * correction;

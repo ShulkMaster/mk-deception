@@ -1232,19 +1232,19 @@ static inline void mk_chess_close_spell_bars_vertical(ChessHudState* hud, int ne
     ScreenObj* image;
     turn_controllers_off();
     hud->countdown += hud->field_14;
-    image = mk_chess_live_screen(&mk_chess_pdata->manager.bar_38);
+    image = MK_LIVE(mk_chess_pdata->manager.bar_38.screen, mk_chess_pdata->manager.bar_38.instance);
     unhide_screen_obj(image);
     image->y += 8;
     image->scale_y -= 0.07f;
-    image = mk_chess_live_screen(&mk_chess_pdata->manager.bar_28);
+    image = MK_LIVE(mk_chess_pdata->manager.bar_28.screen, mk_chess_pdata->manager.bar_28.instance);
     unhide_screen_obj(image);
     image->y -= hud->countdown;
-    image = mk_chess_live_screen(&mk_chess_pdata->manager.bar_30);
+    image = MK_LIVE(mk_chess_pdata->manager.bar_30.screen, mk_chess_pdata->manager.bar_30.instance);
     unhide_screen_obj(image);
     image->y += hud->countdown;
     if (image->y > screen_height / 2 - 32) {
         image->y = screen_height / 2 - 32;
-        hide_screen_obj(mk_chess_live_screen(&mk_chess_pdata->manager.bar_38));
+        hide_screen_obj(MK_LIVE(mk_chess_pdata->manager.bar_38.screen, mk_chess_pdata->manager.bar_38.instance));
         hud->state = next_state;
         snd_req(0x397);
         if (hud->side == 1) {
@@ -1263,14 +1263,14 @@ static inline int mk_chess_close_spell_bars_horizontal(ChessHudState* hud)
     ScreenObj* image;
     turn_controllers_off();
     hud->countdown += hud->field_14;
-    image = mk_chess_live_screen(&mk_chess_pdata->manager.bar_28);
+    image = MK_LIVE(mk_chess_pdata->manager.bar_28.screen, mk_chess_pdata->manager.bar_28.instance);
     image->x += hud->countdown;
-    image = mk_chess_live_screen(&mk_chess_pdata->manager.bar_30);
+    image = MK_LIVE(mk_chess_pdata->manager.bar_30.screen, mk_chess_pdata->manager.bar_30.instance);
     image->x += hud->countdown;
     if (image->x < -255 || image->x > screen_width) {
         hide_screen_obj(image);
-        hide_screen_obj(mk_chess_live_screen(&mk_chess_pdata->manager.bar_28));
-        hide_screen_obj(mk_chess_live_screen(&mk_chess_pdata->manager.bar_38));
+        hide_screen_obj(MK_LIVE(mk_chess_pdata->manager.bar_28.screen, mk_chess_pdata->manager.bar_28.instance));
+        hide_screen_obj(MK_LIVE(mk_chess_pdata->manager.bar_38.screen, mk_chess_pdata->manager.bar_38.instance));
         return 1;
     }
     return 0;
@@ -2375,7 +2375,7 @@ static inline void mk_chess_display_rescue_piece(ChessHudState* hud, ChessPiece*
     unsigned int side;
     hide_screen_obj((ScreenObj*)hud->image_58);
     portrait = &mk_chess_pdata->sides[piece->side]->portraits[piece->type];
-    image = mk_chess_live_screen(portrait);
+    image = MK_LIVE((portrait)->screen, (portrait)->instance);
     image->pfx2d->verts[0].a = 255;
     hud->image_58 = (MkHdr*)image;
     hud->rescue_piece_type = piece->type;
@@ -2446,7 +2446,7 @@ static inline void mk_chess_slide_bottom_image(ChessSideHudState* hud,
 
 static inline void mk_chess_hide_bottom_team_image(ChessSideHudState* hud, int index)
 {
-    ScreenObj* image = mk_chess_live_screen(&mk_chess_pdata->sides[hud->saved_piece->side]->team_art[index]);
+    ScreenObj* image = MK_LIVE(mk_chess_pdata->sides[hud->saved_piece->side]->team_art[index].screen, mk_chess_pdata->sides[hud->saved_piece->side]->team_art[index].instance);
     if (image != 0) hide_screen_obj(image);
 }
 
@@ -2691,7 +2691,7 @@ void mk_chess_load_board_spell_hud(void);
 static void mk_chess_load_team_fx(void);
 float p_board_monitor(void);
 static float p_drone_monitor(void);
-int mk_chess_handle_turn_timeout_scenerios(unsigned int side);
+static int mk_chess_handle_turn_timeout_scenerios(unsigned int side);
 static float p_mk_chess_turn_expired(void);
 void mk_chess_request_piece_move(ChessPiece* piece, unsigned char x, unsigned char y, int end_turn);
 static float mk_chess_check_leader_vs_leader_condition(void);
@@ -6069,29 +6069,34 @@ static inline int chess_side_is_drone(ChessSideState* side) {
     return 0;
 }
 
-/* TODO: [near miss] 98.53%; typed drone predicate restores retail tail; manager/slot coloring remains. */
-static int mk_chess_check_input_from_correct_side_no_ai(void) {
+static inline int chess_input_from_side_no_ai(PlyrInfo* player) {
+    int switch_player = player->controller_slot;
     ChessManagerInfo* manager;
-    int switch_player;
-
-    if (switch_pdata->player == 0) {
-        return 0;
+    ChessModeState* mode = mk_chess_pdata;
+    if (mode != 0) {
+        manager = &mode->manager;
+    } else {
+        manager = 0;
     }
-
-    switch_player = switch_pdata->player->controller_slot;
-    manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
-
     if (manager->input_state == 10U) {
         return 1;
     }
     if (switch_player == manager->active_side) {
         return 1;
     }
-
-    if (chess_side_is_drone(mk_chess_pdata->sides[manager->active_side])) {
+    if (chess_side_is_drone(mode->sides[manager->active_side])) {
         return 0;
     }
     return 0;
+}
+
+/* TODO: [near miss] 99.11765%; full side-input predicate fixes mode owner;
+ * controller-slot/manager r3/r4 coloring remains. */
+static int mk_chess_check_input_from_correct_side_no_ai(void) {
+    if (switch_pdata->player == 0) {
+        return 0;
+    }
+    return chess_input_from_side_no_ai(switch_pdata->player);
 }
 
 int mk_chess_return_active_pad(void) {
@@ -8416,8 +8421,8 @@ static inline void mk_chess_update_selected_portrait(ChessSideHudState* hud,
     mk_chess_set_target_paper_alpha(portrait, mk_chess_target_paper_alpha(portrait, obscured));
 }
 
-/* TODO: [near miss] 99.77%; hud-first declaration fixes r31 owner;
- * team/mode r29/r30 and piece/saved r7/r9 swaps remain. */
+/* TODO: [near miss] 99.77%; team/mode r29/r30 and piece/saved r7/r9 swaps remain;
+ * retain screen-latch wrapper at measured inline boundary. */
 static float p_team_monitor(void)
 {
     ChessSideHudState* hud = (ChessSideHudState*)pdata_of_proc(aproc);
@@ -8556,21 +8561,21 @@ static float p_team_monitor(void)
     return 1.0f;
 }
 
-/* TODO: [near miss] 98.84%; timeout and notification registers agree;
- * spell-range lower-bound branch and unit order remain. */
-int mk_chess_handle_turn_timeout_scenerios(unsigned int side) {
+/* TODO: [near miss] 98.842102%; spell lower-bound branch polarity and extra retail jump remain. */
+static int mk_chess_handle_turn_timeout_scenerios(unsigned int side) {
     unsigned int timeout;
     int show_message = 0;
-    int message = 0;
+    unsigned int message = 0;
     if (mk_chess_pdata->turn_timeout != 0) {
         mk_chess_pdata->turn_timeout--;
         timeout = mk_chess_pdata->turn_timeout;
         if (timeout == 0) {
-            if (mk_chess_pdata->manager.input_state == 9U &&
-                mk_chess_pdata->manager.spell->state < 0x18 &&
-                mk_chess_pdata->manager.spell->state >= 0x13) {
-                mk_chess_pdata->turn_timeout = 1;
-                return 0;
+            if (mk_chess_pdata->manager.input_state == 9U) {
+                int spell_state = mk_chess_pdata->manager.spell->state;
+                if (spell_state < 0x18 && spell_state >= 0x13) {
+                    mk_chess_pdata->turn_timeout = 1;
+                    return 0;
+                }
             }
             if (side < 2) mk_chess_timeout_msg(5, side);
             return 1;
@@ -8903,7 +8908,7 @@ void mk_chess_register_name_and_portrait_in_team(
         flags = 0x20000000;
     }
     portrait_ref = &mk_chess_pdata->sides[side_index]->portraits[portrait_index];
-    if (mk_chess_live_screen(portrait_ref) == 0) {
+    if (MK_LIVE((portrait_ref)->screen, (portrait_ref)->instance) == 0) {
         portrait = mk_chess_create_portrait_from_library(library, flags);
         portrait_ref->screen = portrait;
         portrait_ref->instance = portrait->instance;
@@ -11346,7 +11351,7 @@ float mk_chess_piece_proc_force_dead(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.63%; right-side class index stays multiplied across the screen latch. */
+/* TODO: [near miss] 99.63%; right-side class index remains live across screen latch; retain wrapper. */
 void mk_chess_hud_set_piece_portrait(ChessPiece* piece)
 {
     ChessSideHudState* hud = mk_chess_pdata->sides[piece->side]->hud;
@@ -11888,16 +11893,16 @@ static float p_mk_chess_spell_hud(void)
         case 2:
             turn_controllers_off();
             hud->countdown += hud->field_14;
-            image = mk_chess_live_screen(&mk_chess_pdata->manager.bar_38);
+            image = MK_LIVE(mk_chess_pdata->manager.bar_38.screen, mk_chess_pdata->manager.bar_38.instance);
             unhide_screen_obj(image);
             image->scale_y += 0.06f * game_speed;
             image->y -= (int)(8.0f * game_speed);
-            image = mk_chess_live_screen(&mk_chess_pdata->manager.bar_28);
+            image = MK_LIVE(mk_chess_pdata->manager.bar_28.screen, mk_chess_pdata->manager.bar_28.instance);
             unhide_screen_obj(image);
             image->y -= hud->countdown;
             if (image->y > screen_height / 2 + 118)
                 image->y = screen_height / 2 + 118;
-            image = mk_chess_live_screen(&mk_chess_pdata->manager.bar_30);
+            image = MK_LIVE(mk_chess_pdata->manager.bar_30.screen, mk_chess_pdata->manager.bar_30.instance);
             unhide_screen_obj(image);
             image->y += hud->countdown;
             if (image->y < screen_height / 2 - 150) {
@@ -12068,16 +12073,16 @@ static void mk_chess_spell_targetting_display_hud(ChessHudState* hud, int hide)
     int finished = 0;
     int vertical_step;
 
-    mk_chess_restore_scroll_alpha(mk_chess_live_screen(&mode->manager.spell_hud[18]));
-    mk_chess_restore_scroll_alpha(mk_chess_live_screen(&mk_chess_pdata->manager.spell_hud[15]));
-    mk_chess_restore_scroll_alpha(mk_chess_live_screen(&mk_chess_pdata->manager.spell_hud[14]));
-    top_left_paper = mk_chess_live_screen(&mk_chess_pdata->manager.spell_hud[14]);
-    top_right_paper = mk_chess_live_screen(&mk_chess_pdata->manager.spell_hud[15]);
-    top_left_roll = mk_chess_live_screen(&mk_chess_pdata->manager.spell_hud[12]);
-    top_right_roll = mk_chess_live_screen(&mk_chess_pdata->manager.spell_hud[13]);
-    bottom_paper = mk_chess_live_screen(&mk_chess_pdata->manager.spell_hud[18]);
-    bottom_left_roll = mk_chess_live_screen(&mk_chess_pdata->manager.spell_hud[16]);
-    bottom_right_roll = mk_chess_live_screen(&mk_chess_pdata->manager.spell_hud[17]);
+    mk_chess_restore_scroll_alpha(MK_LIVE(mode->manager.spell_hud[18].screen, mode->manager.spell_hud[18].instance));
+    mk_chess_restore_scroll_alpha(MK_LIVE(mk_chess_pdata->manager.spell_hud[15].screen, mk_chess_pdata->manager.spell_hud[15].instance));
+    mk_chess_restore_scroll_alpha(MK_LIVE(mk_chess_pdata->manager.spell_hud[14].screen, mk_chess_pdata->manager.spell_hud[14].instance));
+    top_left_paper = MK_LIVE(mk_chess_pdata->manager.spell_hud[14].screen, mk_chess_pdata->manager.spell_hud[14].instance);
+    top_right_paper = MK_LIVE(mk_chess_pdata->manager.spell_hud[15].screen, mk_chess_pdata->manager.spell_hud[15].instance);
+    top_left_roll = MK_LIVE(mk_chess_pdata->manager.spell_hud[12].screen, mk_chess_pdata->manager.spell_hud[12].instance);
+    top_right_roll = MK_LIVE(mk_chess_pdata->manager.spell_hud[13].screen, mk_chess_pdata->manager.spell_hud[13].instance);
+    bottom_paper = MK_LIVE(mk_chess_pdata->manager.spell_hud[18].screen, mk_chess_pdata->manager.spell_hud[18].instance);
+    bottom_left_roll = MK_LIVE(mk_chess_pdata->manager.spell_hud[16].screen, mk_chess_pdata->manager.spell_hud[16].instance);
+    bottom_right_roll = MK_LIVE(mk_chess_pdata->manager.spell_hud[17].screen, mk_chess_pdata->manager.spell_hud[17].instance);
     if (hide == 0) {
         snd_req(0x394);
         top_left_paper->x = screen_width / 2;
@@ -12263,10 +12268,10 @@ static unsigned int mk_chess_spell_hud_choose_target_v2(ChessHudState* hud,
     } else {
         top_fade = 0;
     }
-    paper = mk_chess_live_screen(&mk_chess_pdata->manager.spell_hud[14]);
+    paper = MK_LIVE(mk_chess_pdata->manager.spell_hud[14].screen, mk_chess_pdata->manager.spell_hud[14].instance);
     alpha = mk_chess_target_paper_alpha(paper, top_fade);
     mk_chess_set_target_paper_alpha(paper, alpha);
-    paper = mk_chess_live_screen(&mk_chess_pdata->manager.spell_hud[15]);
+    paper = MK_LIVE(mk_chess_pdata->manager.spell_hud[15].screen, mk_chess_pdata->manager.spell_hud[15].instance);
     mk_chess_set_target_paper_alpha(paper, alpha);
     cam_calc_right_at_up_offsets(&cursor->pos.value, &bottom_forward, &bottom_right, &bottom_up);
     if (bottom_up > 5.8f && __fabs(bottom_right) < 4.0) {
@@ -12274,7 +12279,7 @@ static unsigned int mk_chess_spell_hud_choose_target_v2(ChessHudState* hud,
     } else {
         bottom_fade = 0;
     }
-    paper = mk_chess_live_screen(&mk_chess_pdata->manager.spell_hud[18]);
+    paper = MK_LIVE(mk_chess_pdata->manager.spell_hud[18].screen, mk_chess_pdata->manager.spell_hud[18].instance);
     alpha = mk_chess_target_paper_alpha(paper, bottom_fade);
     mk_chess_set_target_paper_alpha(paper, alpha);
     switch (hud->input_state) {
@@ -12932,7 +12937,7 @@ static void mk_chess_request_for_target(ChessHudState* hud) {
         unhide_screen_obj(image);
         mk_insert((MkHdr*)image, &hud->images);
         portrait = &mk_chess_pdata->sides[piece->side]->portraits[piece->type];
-        image = mk_chess_live_screen(portrait);
+        image = MK_LIVE((portrait)->screen, (portrait)->instance);
         image->pfx2d->verts[0].a = 255;
         hud->image_58 = (MkHdr*)image;
         hud->rescue_piece_type = piece->type;
@@ -14379,7 +14384,6 @@ void mk_chess_blend_to_my_cell_pos(float distance) {
     float original_x;
     float length_squared;
     float inverse_length;
-    union { float f; unsigned int u; } input, estimate;
 
     original_x = object->pos.value.x;
     dx = cell->position.x + piece->runtime.fields.cell_offset.x - original_x;
@@ -14388,19 +14392,7 @@ void mk_chess_blend_to_my_cell_pos(float distance) {
     if (length_squared < distance * distance) {
         return;
     }
-    if (length_squared <= 0.0f) {
-        inverse_length = 0.0f;
-    } else {
-        float product;
-        float correction;
-
-        input.f = length_squared;
-        estimate.u = 0x5F375A00U - (input.u >> 1);
-        product = estimate.f * (length_squared * estimate.f);
-        correction = 3.0f - product;
-        inverse_length = (0.0625f * estimate.f) * correction *
-            (12.0f - correction * (product * correction));
-    }
+    inverse_length = gxMathFastInvSqrt(length_squared);
     dx *= inverse_length;
     dz *= inverse_length;
     dx *= distance;

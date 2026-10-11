@@ -2298,13 +2298,12 @@ unsigned int start_blood_particles(
     return emitter;
 }
 
-/* TODO: [near miss] 98.86%; inlined blood loop player/object/bone/emitter homes reversed vs retail; coloring only. */
+/* TODO: [near miss] 99.4%; player/emitter saved homes swapped (r26/r29); retail numbers the result web as the first wrapper-level web, before the inlined bone/object/player copies; no honest wrapper spelling found yet. */
 unsigned int start_blood_particles_scripts(int particle_mask, unsigned int bone)
 {
-    MkObj* object = plyr_obj;
     PlyrPdata* player = plyr_pdata;
 
-    return start_blood_particles(particle_mask, bone, player, object);
+    return start_blood_particles(particle_mask, bone, player, plyr_obj);
 }
 
 extern int blood_type_list[12];
