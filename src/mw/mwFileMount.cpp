@@ -239,12 +239,13 @@ int mwFileDummyMountPoint::startOpenFileCommand(
     return -13;
 }
 
-/* TODO: [breakthrough needed] 34.59%; level=1 never inlines a base ctor whose own base is polymorphic (mwFileQueryable); retail inlines mwFileMountPoint(first, last). */
+#pragma inline_depth(2)
 mwFileDummyMountPoint::mwFileDummyMountPoint(const char* first,
                                              const char* last)
     : mwFileMountPoint(first, last)
 {
 }
+#pragma inline_depth(1)
 }
 
 class mwFileDevice {
@@ -538,8 +539,9 @@ mwFileServer* mwFileDummyMountPoint::getServer()
 }
 
 namespace {
-/* TODO: [breakthrough needed] 64.76%; ~mwFileMountPoint not inlined under level=1; retail inlines base dtor. */
+#pragma inline_depth(2)
 mwFileDummyMountPoint::~mwFileDummyMountPoint()
 {
 }
+#pragma inline_depth(1)
 }
