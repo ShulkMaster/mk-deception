@@ -3603,12 +3603,24 @@ void pulsate_object(
     }
 }
 
-static float p_bgnd_fade_object(void) {
-    MkSobj* object;
+static inline void bgnd_fade_apply_alpha(BgndFadeObjectData** handle) {
     unsigned int alpha;
-    BgndFadeObjectData* data;
+    MkSobj* object;
     RpAtomic* atomic;
     RpGeometry* geometry;
+
+    (*handle)->alpha_int = (*handle)->alpha;
+    object = (*handle)->object;
+    alpha = (*handle)->alpha_int;
+    atomic = object->atomic;
+    geometry = atomic->geometry;
+    geometry->flags |= 0x40;
+    set_atomic_material_alpha(atomic, alpha);
+    set_atomic_material_specular(object->atomic, alpha);
+}
+
+static float p_bgnd_fade_object(void) {
+    BgndFadeObjectData* data;
 
     data = (BgndFadeObjectData*)apdata;
     if (g_game_info.bgnd_obj == 0) {
@@ -3620,14 +3632,7 @@ static float p_bgnd_fade_object(void) {
         data->complete = 1;
         data->alpha = 0.0f;
     }
-    data->alpha_int = data->alpha;
-    object = data->object;
-    alpha = data->alpha_int;
-    atomic = object->atomic;
-    geometry = atomic->geometry;
-    geometry->flags |= 0x40;
-    set_atomic_material_alpha(atomic, alpha);
-    set_atomic_material_specular(object->atomic, alpha);
+    bgnd_fade_apply_alpha(&data);
     if (data->alpha == 0.0f) {
         hide_sobj(data->object);
         return -1.0f;
@@ -3635,14 +3640,10 @@ static float p_bgnd_fade_object(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.81481%; data-pointer r28/r29 coloring remains at alpha conversion; stop at coloring. */
 void bgnd_fade_object(int object_id, void* script, float fade_step) {
     MkProc* process;
     MkSobj* object;
     MkSobj* found;
-    unsigned int alpha;
-    RpAtomic* atomic;
-    RpGeometry* geometry;
     BgndFadeObjectData* data;
 
     data = 0;
@@ -3659,14 +3660,7 @@ void bgnd_fade_object(int object_id, void* script, float fade_step) {
             data->object = object;
             data->fade_step = fade_step;
             data->alpha = 255.0f;
-            data->alpha_int = data->alpha;
-            object = data->object;
-            alpha = data->alpha_int;
-            atomic = object->atomic;
-            geometry = atomic->geometry;
-            geometry->flags |= 0x40;
-            set_atomic_material_alpha(atomic, alpha);
-            set_atomic_material_specular(object->atomic, alpha);
+            bgnd_fade_apply_alpha(&data);
             mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
         }
     }

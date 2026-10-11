@@ -37,8 +37,6 @@ class _EmptyMemberOpt : public T1 {
 public:
     _EmptyMemberOpt(const T1& a) : T1(a), m_(0) {}
 
-    T1& first() { return *this; }
-    const T1& first() const { return *this; }
 
     T2 m_;
 };
@@ -46,11 +44,9 @@ public:
 template <class charT, class traits, class Allocator>
 class basic_string {
 public:
-    typedef traits traits_type;
     typedef Allocator allocator_type;
     typedef unsigned long size_type;
     typedef charT* pointer;
-    typedef const charT* const_pointer;
     typedef charT& reference;
     typedef charT* iterator;
 
@@ -62,7 +58,6 @@ public:
     iterator begin();
     iterator end();
 
-    size_type size() const { return size_; }
     size_type length() const { return size_; }
     size_type max_size() const;
     void reserve(size_type res_arg = 0);

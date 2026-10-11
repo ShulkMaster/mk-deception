@@ -11,7 +11,6 @@ class compressed_pair_imp;
 template <class T1, class T2>
 class compressed_pair_imp<T1, T2, true> : private T1 {
 public:
-    compressed_pair_imp() {}
     compressed_pair_imp(T2 y) : second_(y) {}
     compressed_pair_imp(const T1& x, T2 y) : T1(x), second_(y) {}
 
@@ -38,7 +37,6 @@ class compressed_pair : public details::compressed_pair_imp<T1, T2, true> {
     typedef details::compressed_pair_imp<T1, T2, true> base;
 
 public:
-    compressed_pair() {}
     compressed_pair(T2 y) : base(y) {}
     compressed_pair(const T1& x, T2 y) : base(x, y) {}
 

@@ -56,7 +56,7 @@ static struct ObstacleInfo obstacle_info_table[8] = {
 
 struct ConstrainState constrain_state;
 Vec tightrope_perp_uv;
-Vec tightrope_uv;
+extern Vec tightrope_uv;
 static int tightrope_set_this_tick;
 static float tightrope_dist;
 ConstrainInfo constrain_info;
@@ -425,7 +425,8 @@ void uv_to_opponent(Vec* direction) {
     }
 }
 
-/* TODO: [near miss] 99.91%; flag-value ABI matches; five vector BSS +0x24/+0x30 offsets remain for layout steward. */
+Vec tightrope_uv;
+
 void start_constrain_proc(void) {
     MkProcInitFlags proc_flags;
 

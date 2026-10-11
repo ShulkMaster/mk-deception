@@ -11,8 +11,6 @@ template <class T, class Container, class Compare>
 class priority_queue {
 public:
     typedef typename Container::value_type value_type;
-    typedef typename Container::size_type size_type;
-    typedef Container container_type;
 
     priority_queue(const Compare& x, const Container& y) : c(y), comp(x)
     {
@@ -20,7 +18,6 @@ public:
     }
 
     bool empty() const { return c.empty(); }
-    size_type size() const { return c.size(); }
     const value_type& top() const { return c.front(); }
 
     void push(const value_type& x);

@@ -3100,15 +3100,17 @@ void skip_end_of_trial_wrapup(void) {
     mission_state->player_two_wrapup_state = 2;
 }
 
-/* TODO: [near miss] 99.89%; equality comparison operand order remains. */
+#pragma opt_propagation off
 float end_of_trial_wrapup(int winner) {
+    int process_side;
+
     if (mission_state->display_flags & 1) {
         mission_state->player_one_wrapup_state = 2;
         mission_state->player_two_wrapup_state = 2;
         return 0.0f;
     }
-    if ((aproc->pid != 0x1001) ==
-        mission_state->fight->field_04) {
+    process_side = aproc->pid != 0x1001;
+    if (mission_state->fight->field_04 == process_side) {
         if (mission_state->player_one_wrapup_state != 0) {
             mission_state->player_one_wrapup_state = 2;
             return 0.0f;
@@ -3137,6 +3139,8 @@ float end_of_trial_wrapup(int winner) {
         ->jump_sleep(successful_trial_drone_wrapup, 0.0f);
     return 0.0f;
 }
+#pragma opt_propagation reset
+
 
 static inline struct TrialWrapupEntry* wrapup_select_entry(
     struct TrialWrapupEntry* table, unsigned short choice) {

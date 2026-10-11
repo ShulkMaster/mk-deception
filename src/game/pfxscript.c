@@ -179,7 +179,10 @@ struct PfxScriptEffect {
     char pad1D8[0x28];
     int emitter_count;
     PfxVmEmitter* emitter;
-    char pad208[0x14];
+    char pad208[4];
+    int behavior_count;
+    PfxBehavior** behavior_list;
+    char pad214[8];
     const char* metrics_name;
     char pad220[4];
     PfxMetrics* load_metrics;
@@ -358,7 +361,7 @@ static void bank_run_fx(struct PfxBank* bank);
 static unsigned int banks_find_owned_fx(
     const char* name, unsigned int owner);
 static void build_step_effect(
-    ScriptSlot* script, const struct PfxStepEffectDescription* description, int emitter_count);
+    ScriptSlot* script, struct PfxStepEffectDescription* description, int emitter_count);
 static void build_parametric_effect_from_table(
     ScriptSlot* script, const struct PfxParametricEffectDescription* description, int update);
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context);
@@ -1205,70 +1208,105 @@ void create_step_fx(struct PfxStepEffectDescription* effect, char* name) {
     }
 }
 
-void create_step_effect(const struct PfxStepEffectDescription* effect) {
+void create_step_effect(struct PfxStepEffectDescription* effect) {
     if (effect != 0) {
         build_step_effect(active_cmdscript->mko, effect, 1);
     }
 }
 
-/* TODO: [breakthrough] 70.84%; callback owners and float-copy widths fixed;
- * table initialization, owner reloads and stack layout remain. */
+static inline void animate_effect_texture(
+    float horizontal_scale, int vertical_frames, float speed) {
+    struct PfxScriptEnvironment* environment;
+    struct PfxScriptVm* effect;
+    RwRaster* texture;
+    float width;
+    float height;
+
+    environment = active_pfx_environment();
+    if (environment->emitter != 0) {
+        environment = active_pfx_environment();
+        effect = environment->effect;
+        if (effect != 0 && effect->texture != 0) {
+            texture = effect->texture->raster;
+            width = texture->width;
+            height = texture->height;
+            if (effect->initialization_mode != 0) {
+                effect->runtime_flags |= 0x100;
+            }
+            pfx_texture_animate(
+                (PfxVm*)effect, width,
+                (horizontal_scale * width),
+                (height / (horizontal_scale * (float)vertical_frames)),
+                vertical_frames, speed);
+            effect->texture_animation_enabled = 1;
+        }
+    }
+}
+
+/* TODO: [near miss] 99.22%; CFG and layout agree; remaining: flag compare
+ * signedness, emitter-loop coloring, slot-clear li/mr order, bank load order. */
 static void build_step_effect(
-    ScriptSlot* script, const struct PfxStepEffectDescription* description,
+    ScriptSlot* script, struct PfxStepEffectDescription* description,
     int emitter_count) {
     struct PfxScriptEnvironment* environment;
     int* remaining_effects;
-    struct PfxSpawnTableSlot table_slots[2];
-    PfxBuildInfo build;
-    PfxVmEmitter emitter_template;
-    struct PfxScriptEffect* effect;
+    struct PfxBank* bank;
+    char* effect_name;
     PfxVm* runtime;
     struct PfxScriptVm* script_runtime;
     PfxVmEmitter* emitter;
     PfxVmEmitter* first_emitter;
     PfxVmEmitter* emitter_source;
     PfxBehavior* behavior;
-    PfxBehavior* behavior_targets[10];
-    unsigned int behavior_fields[2];
-    unsigned int behavior_flags[2];
-    unsigned int scan_fields[2] = { 0, 0 };
-    unsigned int next_fields[2];
-    unsigned int next_flags[2];
     int behavior_index;
     int instruction_index;
+    PfxUpdateInstruction* instruction;
     int emitter_index;
     static void* old_ltm;
+    PfxVmEmitter emitter_template;
+    PfxBehavior* behavior_targets[10];
+    PfxBuildInfo build;
+    struct PfxSpawnTableSlot table_slots[2];
+    unsigned int scan_fields[2] = { 0, 0 };
+    unsigned int behavior_fields[2];
+    unsigned int behavior_flags[2];
+    unsigned int next_fields[2];
+    unsigned int next_flags[2];
+    struct PfxScriptEffect* effect;
 
     environment = active_pfx_environment();
     remaining_effects = environment->remaining_effects;
-    if (remaining_effects == 0 || *remaining_effects == 0) {
+    if (remaining_effects == 0) {
+        return;
+    }
+    if (*remaining_effects == 0) {
         return;
     }
 
     memset(table_slots, 0, sizeof(table_slots));
-    environment = active_pfx_environment();
-    environment->spawn_tables = table_slots;
+    for (emitter_index = 0; emitter_index < 2; emitter_index++) {
+        table_slots[emitter_index].type = 0;
+    }
+    active_pfx_environment()->spawn_tables = table_slots;
+    effect_name = description->effect_name;
     memset(&build, 0, sizeof(build));
     environment = active_pfx_environment();
     build.name = environment->effect_name_override;
     if (build.name == 0) {
-        build.name = description->effect_name;
+        build.name = effect_name;
+    }
+    if (g_profile_enabled != 0) {
+        build.metrics_frame_count = 0x384;
     }
     if (description->emitter->origin.x != 0.0f ||
         description->emitter->origin.y != 0.0f ||
         description->emitter->origin.z != 0.0f) {
         build.flag_bits.emitter_user_data = 1;
     }
-    if (g_profile_enabled != 0) {
-        build.metrics_frame_count = 0x384;
-    }
 
-    environment = active_pfx_environment();
-    environment->effect = 0;
-    environment = active_pfx_environment();
-    environment->texture_name = description->texture->name;
-    environment = active_pfx_environment();
-    environment->initialization_script =
+    active_pfx_environment()->effect = 0;
+    active_pfx_environment()->texture_name = description->texture->name;
+    active_pfx_environment()->initialization_script =
         description->emitter->initialization_script;
     environment = active_pfx_environment();
     if (environment->initialization_script == 0U) {
@@ -1278,22 +1316,20 @@ static void build_step_effect(
     memset(&emitter_template, 0, sizeof(emitter_template));
     g_pfx_cmo = script;
     emitter_template.birth_rate = parametric_birthrate;
-    environment = active_pfx_environment();
-    environment->emitter = &emitter_template;
+    active_pfx_environment()->emitter = &emitter_template;
     push_script_stack_frame(0);
-    environment = active_pfx_environment();
-    cmdscript_setup_execution(script, environment->initialization_script);
+    cmdscript_setup_execution(
+        script, active_pfx_environment()->initialization_script);
     cmdscript_execute(script);
-    environment = active_pfx_environment();
-    environment->emitter = 0;
+    active_pfx_environment()->emitter = 0;
     g_pfx_cmo = 0;
 
-    environment = active_pfx_environment();
-    environment->row_state.behavior_count = get_row_count_for_table_by_pointer(
-        script, description->behavior_scripts);
+    active_pfx_environment()->row_state.behavior_count =
+        get_row_count_for_table_by_pointer(
+            script, description->behavior_scripts);
     environment = active_pfx_environment();
     build.behavior_count = environment->row_state.behavior_count;
-    if (build.behavior_count == 0U) {
+    if (build.behavior_count == 0) {
         return;
     }
 
@@ -1303,15 +1339,12 @@ static void build_step_effect(
          behavior_index++) {
         behavior = &behavior_buffer[behavior_index];
         memset(behavior, 0, sizeof(*behavior));
-        environment = active_pfx_environment();
-        environment->behavior = &behavior_buffer[behavior_index];
+        active_pfx_environment()->behavior = &behavior_buffer[behavior_index];
         if (behavior_index < build.behavior_count - 1) {
-            environment = active_pfx_environment();
-            environment->next_behavior =
-                &behavior_buffer[behavior_index + 1];
+            active_pfx_environment()->next_behavior =
+                &behavior_buffer[behavior_index] + 1;
         } else {
-            environment = active_pfx_environment();
-            environment->next_behavior = 0;
+            active_pfx_environment()->next_behavior = 0;
         }
         push_script_stack_frame(0);
         cmdscript_setup_execution(
@@ -1327,10 +1360,10 @@ static void build_step_effect(
     for (behavior_index = 1;
          behavior_index < build.behavior_count;
          behavior_index++) {
-        behavior = &behavior_buffer[behavior_index];
         memset(next_fields, 0, sizeof(next_fields));
         memset(next_flags, 0, sizeof(next_flags));
-        pfx_behavior_scan_fields(behavior, next_fields, next_flags);
+        pfx_behavior_scan_fields(
+            &behavior_buffer[behavior_index], next_fields, next_flags);
         if (next_flags[1] != behavior_flags[1] ||
             next_flags[0] != behavior_flags[0]) {
             return;
@@ -1354,20 +1387,18 @@ static void build_step_effect(
         for (behavior_index = 0;
              behavior_index < build.behavior_count;
              behavior_index++) {
-            behavior = &behavior_buffer[behavior_index];
-            pfxvm_update_age(behavior, 0x301);
-            pfxvm_update_make_last_insn_first(behavior);
+            pfxvm_update_age(&behavior_buffer[behavior_index], 0x301);
+            pfxvm_update_make_last_insn_first(
+                &behavior_buffer[behavior_index]);
         }
         pfxvm_spawn_value(&emitter_template, 0x301, 0.0f);
         behavior_flags[1] |= 2;
         scan_fields[1] |= 2;
     }
 
-    environment = active_pfx_environment();
-    environment->emitter = &emitter_template;
+    active_pfx_environment()->emitter = &emitter_template;
     g_pfx_cmo = script;
     build.emitter_count = emitter_count;
-    effect = 0;
     new_pfx_create_raw_userdata(
         &build, 0, description->allocation_count,
         scan_fields[0], scan_fields[1],
@@ -1388,17 +1419,15 @@ static void build_step_effect(
             memcpy(emitter, emitter_source, sizeof(*emitter));
             emitter->transform = old_ltm;
         }
-        environment = active_pfx_environment();
-        environment->emitter = effect->emitter;
+        active_pfx_environment()->emitter = effect->emitter;
     }
     g_pfx_cmo = 0;
 
     for (emitter_index = 0; emitter_index < 2; emitter_index++) {
-        environment = active_pfx_environment();
-        if (table_slots[emitter_index].type != 0) {
+        if (active_pfx_environment()->spawn_tables[emitter_index].type != 0) {
             pfx_register_table(
                 (PfxTableRegistry*)effect->emitter_storage.emitters, emitter_index,
-                table_slots[emitter_index].table);
+                active_pfx_environment()->spawn_tables[emitter_index].table);
         }
     }
     pfx_copy_behavior_list((PfxVm*)effect->emitter_storage.emitters, build.behavior_count, behavior_buffer);
@@ -1407,9 +1436,9 @@ static void build_step_effect(
             &behavior_buffer[behavior_index];
     }
     pfx_behaviors_fixup_targets(
-        ((PfxVm*)effect->emitter_storage.emitters)->behavior_list, behavior_targets, build.behavior_count);
+        effect->behavior_list, behavior_targets, build.behavior_count);
     for (behavior_index = 0;
-         behavior_index < ((PfxVm*)effect->emitter_storage.emitters)->behavior_count;
+         behavior_index < effect->behavior_count;
          behavior_index++) {
         behavior = pfx_behavior((PfxVm*)effect->emitter_storage.emitters, behavior_index);
         if (behavior != 0) {
@@ -1417,10 +1446,9 @@ static void build_step_effect(
                  instruction_index <
                      behavior->update_instruction_count;
                  instruction_index++) {
-                if (behavior->update_instructions[instruction_index].opcode ==
-                    0xE) {
-                    behavior->update_instructions[instruction_index].target =
-                        &effect->behavior_target;
+                instruction = &behavior->update_instructions[instruction_index];
+                if (instruction->opcode == 0xE) {
+                    instruction->target = &effect->behavior_target;
                 }
             }
         }
@@ -1449,10 +1477,9 @@ static void build_step_effect(
     runtime = (PfxVm*)effect->emitter_storage.emitters;
     first_emitter->flags.bits.cycle_paused = 1;
     effect->lifecycle_flags.restart_cycle = 0;
-    environment = active_pfx_environment();
-    environment->source_effect = (MkPfx*)effect;
-    effect->effect_id = description->effect_id;
-    first_emitter->lifetime = description->emitter_lifetime;
+    active_pfx_environment()->source_effect = (MkPfx*)effect;
+    runtime->effect_id = description->effect_id;
+    first_emitter->birth_rate = description->emitter_lifetime;
     for (emitter_index = 1;
          emitter_index < effect->emitter_count;
          emitter_index++) {
@@ -1474,29 +1501,27 @@ static void build_step_effect(
     pfx_render_set_blendmode(
         (struct PfxRenderView*)runtime, description->blend_mode);
     if (description->texture->frame_count > 1) {
-        texture_animation(description->texture->horizontal_scale,
-                          description->texture->frame_count,
-                          description->texture->animation_speed);
+        animate_effect_texture(description->texture->horizontal_scale,
+                               description->texture->frame_count,
+                               description->texture->animation_speed);
     }
 
     if (pfx_verify((struct PfxVerifyView*)runtime) != 0) {
         (*remaining_effects)--;
-        if (current_effect_bank->effect_capacity <
-            current_effect_bank->effect_count) {
-            int index = current_effect_bank->effect_capacity;
-            current_effect_bank->effects[index].effect = effect;
-            current_effect_bank->effects[index].effect_instance =
+        bank = current_effect_bank;
+        if (bank->effect_capacity < bank->effect_count) {
+            bank->effects[bank->effect_capacity].effect = effect;
+            bank->effects[bank->effect_capacity].effect_instance =
                 effect->hdr.instance;
-            current_effect_bank->effect_owners[index] = 0;
-            current_effect_bank->effect_capacity++;
+            bank->effect_owners[bank->effect_capacity] = 0;
+            bank->effect_capacity++;
         }
         for (emitter_index = 0;
              emitter_index < runtime->emitter_count;
              emitter_index++) {
             pfx_emitter_reset(pfx_get_emitter(runtime, emitter_index));
         }
-        environment = active_pfx_environment();
-        environment->spawn_tables = 0;
+        active_pfx_environment()->spawn_tables = 0;
     }
 }
 

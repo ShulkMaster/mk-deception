@@ -641,12 +641,6 @@ struct MonkStateData {
     MkProcEntryFn control_proc;
 };
 
-/* TODO: [review] unused after canonical sleep migration; removal pending comment policy. */
-struct KonquestProcSleepVtable {
-    char pad00[0x18];
-    int (*sleep)(void);
-};
-
 typedef struct KonquestDestroyable KonquestDestroyable;
 typedef int (*KonquestDestroyFn)(KonquestDestroyable* object);
 

@@ -13,9 +13,7 @@ class __vector_deleter {
 public:
     typedef Allocator allocator_type;
     typedef unsigned long size_type;
-    typedef T value_type;
     typedef T* pointer;
-    typedef const T* const_pointer;
 
     __vector_deleter(const allocator_type& a) : cap_(a, 0), size_(0), data_(0) {}
     ~__vector_deleter();
@@ -26,7 +24,6 @@ public:
     allocator_type& alloc() { return cap_.first(); }
     const allocator_type& alloc() const { return cap_.first(); }
     size_type& cap() { return cap_.second(); }
-    const size_type& cap() const { return cap_.second(); }
 
     Metrowerks::compressed_pair<allocator_type, size_type> cap_;
     size_type size_;
@@ -81,7 +78,6 @@ public:
     typedef T* pointer;
     typedef const T* const_pointer;
     typedef T& reference;
-    typedef const T& const_reference;
     typedef T* iterator;
     typedef const T* const_iterator;
 
@@ -102,10 +98,8 @@ public:
     size_type size() const { return size_; }
     size_type max_size() const { return alloc().max_size(); }
     size_type capacity() const { return cap_.second(); }
-    bool empty() const { return size_ == 0; }
 
     reference operator[](size_type n) { return data_[n]; }
-    const_reference operator[](size_type n) const { return data_[n]; }
 
     void reserve(size_type n);
     void resize(size_type sz, const value_type& x);
@@ -114,8 +108,6 @@ public:
     iterator insert(iterator position, const value_type& x);
     iterator erase(iterator position);
     iterator erase(iterator first, iterator last);
-    void swap(__vector_pod& x);
-    void clear() { size_ = 0; }
 
     allocator_type& alloc() { return cap_.first(); }
     const allocator_type& alloc() const { return cap_.first(); }
@@ -126,7 +118,7 @@ public:
     pointer data_;
 };
 
-/* TODO: [near miss] 99.28%; only the @stringBase0 addend differs (template string pool order). */
+/* TODO: [near miss] 99.43%; only the @stringBase0 addend differs (template string pool order). */
 template <class T, class Allocator>
 void __vector_pod<T, Allocator>::reserve(size_type n)
 {
@@ -154,7 +146,7 @@ void __vector_pod<T, Allocator>::resize(size_type sz, const value_type& x)
     }
 }
 
-/* TODO: [near miss] 99.19%; only the @stringBase0 addends differ (template string pool order). */
+/* TODO: [near miss] 99.25%; only the @stringBase0 addends differ (template string pool order). */
 template <class T, class Allocator>
 void __vector_pod<T, Allocator>::insert(iterator position, size_type n, const value_type& x)
 {
@@ -247,20 +239,6 @@ __vector_pod<T, Allocator>::erase(iterator first, iterator last)
     return first;
 }
 
-template <class T, class Allocator>
-void __vector_pod<T, Allocator>::swap(__vector_pod& x)
-{
-    if (this != &x) {
-        Metrowerks::swap(cap_, x.cap_);
-        pointer tmp_data = data_;
-        data_ = x.data_;
-        x.data_ = tmp_data;
-        size_type tmp_size = size_;
-        size_ = x.size_;
-        x.size_ = tmp_size;
-    }
-}
-
 template <class T, class Allocator, bool IsPOD>
 class __vector_imp;
 
@@ -277,7 +255,6 @@ public:
     typedef T& reference;
     typedef const T& const_reference;
     typedef T* iterator;
-    typedef const T* const_iterator;
 
     __vector_imp(const allocator_type& a) : base(a) {}
     __vector_imp(const __vector_imp& x) : base(x.alloc())
@@ -286,16 +263,12 @@ public:
     }
 
     iterator begin() { return this->data_; }
-    const_iterator begin() const { return this->data_; }
     iterator end() { return this->data_ + this->size_; }
-    const_iterator end() const { return this->data_ + this->size_; }
-    reference front() { return *this->data_; }
     const_reference front() const { return *this->data_; }
 
     size_type size() const { return this->size_; }
     size_type max_size() const { return this->alloc().max_size(); }
     size_type capacity() const { return this->cap_.second(); }
-    bool empty() const { return this->size_ == 0; }
 
     reference operator[](size_type n) { return this->data_[n]; }
 
@@ -332,7 +305,6 @@ void __vector_imp<T, Allocator, false>::init(ForwardIterator first, ForwardItera
     }
 }
 
-/* TODO: [breakthrough needed] 87.5%; allocator construct and alloc() const stay out of line, retail inlines them. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::resize(size_type sz)
 {
@@ -381,7 +353,7 @@ void __vector_imp<T, Allocator, false>::reserve(size_type n)
     }
 }
 
-/* TODO: [breakthrough needed] 78%; allocator construct stays out of line (retail inlines it); recheck the realloc path after that. */
+/* TODO: [breakthrough needed] QueueItem 78.10%, Callback 67.99%; allocator construction and reallocation paths need retail inlining recovery. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::insert(iterator position, size_type n,
                                                const value_type& x)
@@ -460,7 +432,6 @@ public:
     typedef T** iterator;
     typedef T* const* const_iterator;
     typedef T*& reference;
-    typedef T* const& const_reference;
 
     __vector_imp() {}
     __vector_imp(const allocator_type& a) : base(base_allocator(a)) {}
@@ -493,7 +464,6 @@ public:
     typedef unsigned long size_type;
     typedef T value_type;
     typedef T* iterator;
-    typedef const T* const_iterator;
     typedef T& reference;
     typedef const T& const_reference;
 
@@ -501,10 +471,7 @@ public:
     vector(const vector& x) : base(x) {}
 
     iterator begin() { return base::begin(); }
-    const_iterator begin() const { return base::begin(); }
     iterator end() { return base::end(); }
-    const_iterator end() const { return base::end(); }
-    reference front() { return base::front(); }
     const_reference front() const { return base::front(); }
 
     bool empty() const { return this->size_ == 0; }
@@ -525,7 +492,6 @@ public:
     typedef T** iterator;
     typedef T* const* const_iterator;
     typedef T*& reference;
-    typedef T* const& const_reference;
 
     vector() {}
     explicit vector(const allocator_type& a) : base(a) {}
