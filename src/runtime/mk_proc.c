@@ -209,7 +209,6 @@ MkHdr* next_apdata(void) {
     return apdata;
 }
 
-/* TODO: [near miss] 99.68%; four operand-register coloring differences remain. */
 MkProc* get_mkproc_bigstack(MkProcInitFlags flags) {
     MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), MKPROC_ALLOC_FLAGS, 0, 0, 0);
     unsigned char* stack;
@@ -225,10 +224,8 @@ MkProc* get_mkproc_bigstack(MkProcInitFlags flags) {
         proc->flags = 0;
     }
     if (proc != 0) {
-        int proc_flags = flags.value;
-        MkVtableMkproc* vtbl = &vtbl_mkproc_bigstack;
-        proc->vtbl = vtbl;
-        proc->flags = proc_flags;
+        proc->vtbl = &vtbl_mkproc_bigstack;
+        proc->flags = flags.value;
         stack = _mwMemMalloc(bigstack_heap, MKPROC_BIGSTACK_BYTES, MKPROC_ALLOC_FLAGS, 0, 0, 0);
         if (stack != 0) {
             stack += MKPROC_BIGSTACK_BYTES - MKPROC_BIGSTACK_RESERVE;
@@ -244,7 +241,6 @@ MkProc* get_mkproc_bigstack(MkProcInitFlags flags) {
     return proc;
 }
 
-/* TODO: [near miss] 99.68%; four operand-register coloring differences remain. */
 MkProc* get_mkproc_tinystack(MkProcInitFlags flags) {
     MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), MKPROC_ALLOC_FLAGS, 0, 0, 0);
     unsigned char* stack;
@@ -260,9 +256,8 @@ MkProc* get_mkproc_tinystack(MkProcInitFlags flags) {
         proc->flags = 0;
     }
     if (proc != 0) {
-        int proc_flags = flags.value;
         proc->vtbl = &vtbl_mkproc_tinystack;
-        proc->flags = proc_flags;
+        proc->flags = flags.value;
         stack = _mwMemMalloc(tinystack_heap, MKPROC_TINYSTACK_BYTES, MKPROC_ALLOC_FLAGS, 0, 0, 0);
         if (stack != 0) {
             stack += MKPROC_TINYSTACK_BYTES;
@@ -278,8 +273,6 @@ MkProc* get_mkproc_tinystack(MkProcInitFlags flags) {
     return proc;
 }
 
-/* TODO: [near miss] 99.30%; five vtable/flags register rows remain;
- * stop until original constructor-lifetime evidence appears. */
 MkProc* get_mkproc_nostack(MkProcInitFlags flags) {
     MkProc* proc = _mwMemMalloc(mkproc_heap, sizeof(MkProc), MKPROC_ALLOC_FLAGS, 0, 0, 0);
 
@@ -294,10 +287,8 @@ MkProc* get_mkproc_nostack(MkProcInitFlags flags) {
         proc->flags = 0;
     }
     if (proc != 0) {
-        int proc_flags = flags.value;
-
         proc->vtbl = &vtbl_mkproc_nostack;
-        proc->flags = proc_flags;
+        proc->flags = flags.value;
         proc->stack_top = 0;
         proc->stack_ptr = proc->stack_top;
     }

@@ -156,7 +156,7 @@ extern void pz_fighter_reaction_xfer_him(int reaction);
 extern void obj_set_all_sobjs_priority(MkObj* object, int priority);
 
 
-static inline void projectile_set_target_position(const Vec* position) {
+static inline void projectile_set_target_position(Vec* position) {
     if (proj_pdata != 0) {
         proj_pdata->target_position.x = position->x;
         proj_pdata->target_position.y = position->y;
@@ -249,14 +249,10 @@ void set_active_projectile_target_ground(
     }
 }
 
-#pragma scheduling off
-/* TODO: [near miss] 99.7%; body matches; saved-LR/r31 epilogue load order remains. */
-void set_active_projectile_upward_attack(const Vec* target) {
+void set_active_projectile_upward_attack(Vec* target) {
     projectile_set_process_handler(p_projectile_launch_upward);
     projectile_set_target_position(target);
 }
-
-#pragma scheduling reset
 
 int get_bid_with_flip(MkObj* object, unsigned int bone_id) {
     if (object->hide_flag_bits.bit6) {
@@ -273,9 +269,7 @@ void active_projectile_setup_done(void) {
     proj_pdata = 0;
 }
 
-#pragma scheduling off
-/* TODO: [near miss] 88.23529%; bit7 li/lbz order remains; interleaved vector stores and owner reloads agree. */
-void set_active_projectile_velocity_damp(const Vec* damping) {
+void set_active_projectile_velocity_damp(Vec* damping) {
     if (proj_pdata != 0) {
         proj_pdata->flags.bytes.behavior.bits.velocity_damping_set = 1;
         proj_pdata->velocity_damping.x = damping->x;
@@ -284,20 +278,15 @@ void set_active_projectile_velocity_damp(const Vec* damping) {
     }
 }
 
-#pragma scheduling reset
-
 void set_active_projectile_max_ticks(int ticks) {
     if (proj_pdata != 0) {
         proj_pdata->max_ticks = ticks;
     }
 }
 
-#pragma scheduling off
-void set_active_projectile_target_pos(const Vec* position) {
+void set_active_projectile_target_pos(Vec* position) {
     projectile_set_target_position(position);
 }
-
-#pragma scheduling reset
 
 void set_active_projectile_p_handler(MkProcEntryFn handler) {
     projectile_set_process_handler(handler);

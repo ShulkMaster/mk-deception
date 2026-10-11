@@ -168,11 +168,12 @@ static inline PfxFieldSet pfx_memory_field_set(PfxVm* pfx) {
 
 #pragma push
 #pragma optimize_for_size on
-/* TODO: [near miss] 98.61%; helper and cursor ops agree; field-set stack homes and alignment compares remain. */
+/* TODO: [near miss] 99.97%; helper and cursor ops agree, alignment compares now signed; field-set temporary/destination stack homes (10/8) remain reversed. */
 void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
 {
     unsigned char* cursor;
     int index;
+    PfxFieldSet fields;
 
     cursor = memory;
     memset(cursor, 0, estimate->size);
@@ -182,7 +183,7 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
         cursor += estimate->particle_user_data_size * pfx->particle_capacity;
     }
 
-    if (((unsigned long)cursor & 0xF) != 0) {
+    if (((long)cursor & 0xF) != 0) {
         cursor = (unsigned char*)(((unsigned long)cursor + 0x10) & ~0xFUL);
     }
     for (index = 0; index < 3; index++) {
@@ -218,7 +219,7 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
         unsigned char* aligned;
 
         aligned = cursor;
-        if (((unsigned long)cursor & 0xF) != 0) {
+        if (((long)cursor & 0xF) != 0) {
             aligned += 0x10 - ((unsigned long)cursor & 0xF);
         }
         pfx->emitter_user_data = aligned;
@@ -236,8 +237,6 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
     }
 
     if (estimate->field_descriptions_size != 0) {
-        PfxFieldSet fields;
-
         pfx->field_count = estimate->field_count;
         pfx->field_descriptions = cursor;
         cursor += (estimate->field_count + 1) * sizeof(PfxFieldDescription);

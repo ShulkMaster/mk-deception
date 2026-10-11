@@ -1671,16 +1671,12 @@ void restart_effect_ppfx(struct PfxScriptEffect* effect) {
     pfx_emitter_restart_cycle(emitter);
 }
 
-/* TODO: [near miss] 81.91%; retail saves a zero across emitter lookup; remaining seven rows are lifetime/codegen. */
 void resume_effect(const char* name) {
     struct PfxScriptEffect* effect;
     effect = find_pfx_by_name(name);
     if (effect != 0) {
-        PfxVmEmitter* emitter;
-
         effect->lifecycle_flags.restart_cycle = 1;
-        emitter = pfx_get_emitter((PfxVm*)effect->emitter_storage.emitters, 0);
-        emitter->flags.bits.cycle_paused = 0;
+        pfx_get_emitter((PfxVm*)effect->emitter_storage.emitters, 0)->flags.bits.cycle_paused = 0;
     }
 }
 
@@ -2221,10 +2217,8 @@ struct PfxLoadScriptLatch {
     ScriptSlot* script;
 };
 
-static inline void pfx_cleanup_load_script(struct PfxLoadScriptLatch* latch) {
-    if (latch->command == 0) {
-        memset(latch, 0, sizeof(*latch));
-    } else {
+static inline void pfx_release_load_script(struct PfxLoadScriptLatch* latch) {
+    if (latch->command != 0) {
         if (latch->command->instance != 0) {
             ((MkHdr*)latch->command)->typed_vtbl->destroy(
                 (MkHdr*)latch->command);
@@ -2232,6 +2226,14 @@ static inline void pfx_cleanup_load_script(struct PfxLoadScriptLatch* latch) {
         latch->command = 0;
         cmdscript_unload(latch->script);
         latch->script = 0;
+    }
+}
+
+static inline void pfx_cleanup_load_script(struct PfxLoadScriptLatch* latch) {
+    if (latch->command == 0) {
+        memset(latch, 0, sizeof(*latch));
+    } else {
+        pfx_release_load_script(latch);
     }
 }
 
@@ -2248,14 +2250,18 @@ static inline int pfx_create_load_script(struct PfxLoadScriptLatch* latch) {
 
 static inline struct PfxBank* pfx_create_bank(char* name, int effect_count) {
     struct PfxBank* bank;
-    unsigned int owners_offset;
     unsigned int name_offset;
+    unsigned int owners_offset;
+    unsigned int size;
     int effect_index;
 
-    owners_offset = sizeof(*bank) + effect_count * sizeof(struct PfxEffectLatch);
-    name_offset = owners_offset + effect_count * sizeof(unsigned int);
-    bank = (struct PfxBank*)get_mkhdr(
-        &vtbl_effectbank, strlen(name) + name_offset + 1);
+    size = sizeof(*bank) + effect_count * sizeof(struct PfxEffectLatch);
+    owners_offset = size;
+    size += effect_count * sizeof(unsigned int);
+    name_offset = size;
+    size += strlen(name);
+    size++;
+    bank = (struct PfxBank*)get_mkhdr(&vtbl_effectbank, size);
     if (bank == 0) {
         return 0;
     }
@@ -2282,26 +2288,52 @@ static inline unsigned int pfx_bank_latch_handle(int bank_index) {
            ((bank_index + 1) & 0xF);
 }
 
-/* TODO: [breakthrough needed] 95.28%; callback count's second stack word and
- * original cleanup expansion remain unresolved; register/stack placement also differs. */
+static inline unsigned int pfx_alloc_bank(char* name, int effect_count) {
+    struct PfxBank* raw_bank;
+    struct PfxBank* bank;
+    int bank_index;
+
+    bank_index = 0;
+    while (bank_index < 15) {
+        raw_bank = MK_HDR_LIVE(banks[bank_index].bank,
+                               banks[bank_index].bank_instance);
+        if (raw_bank == 0) {
+            break;
+        }
+        bank_index++;
+    }
+    if (bank_index >= 15) {
+        return 0;
+    }
+    bank = pfx_create_bank(name, effect_count);
+    if (bank == 0) {
+        return 0;
+    }
+    banks[bank_index].bank = bank;
+    banks[bank_index].bank_instance = bank->hdr.instance;
+    bank->handle_bank = bank_index + 1;
+    bank_instance_counter[bank_index] =
+        (bank_instance_counter[bank_index] + 1) & 0xFF000000;
+    bank->handle_generation = bank_instance_counter[bank_index];
+    return pfx_bank_latch_handle(bank_index);
+}
+
+/* TODO: [breakthrough needed] 98.40%; unexplained zero store at stack 0xC beside the
+ * callback count shifts the load latch to 0x10; bank-size add order and handle rlwimi remain. */
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     struct PfxLoadScriptLatch load;
     CmdScript* saved_command;
     struct PfxBankLoadRow* rows;
     struct PfxBank* bank;
-    struct PfxBank* raw_bank;
     struct PfxScriptVm* built_effect;
-    MkObj* parent;
     unsigned int row_count;
-    unsigned int row_index;
     unsigned int row_number;
     unsigned int bank_handle;
-    unsigned int generation;
     int total_effects;
     int remaining_effects;
-    int bank_index;
     int language;
     int owner;
+    MkObj* parent;
 
     if (pfx_create_load_script(&load) != 0) {
         switch (context->art_id) {
@@ -2369,35 +2401,11 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
         behavior_buffer = get_mem(10 * sizeof(*behavior_buffer));
         row_count = get_row_count_for_table(load.script, load.script->table_count);
         total_effects = 0;
-        for (row_index = 0; row_index < row_count; row_index++) {
-            total_effects += rows[row_index].effect_count;
+        for (row_number = 1; row_number <= row_count; row_number++) {
+            total_effects += rows[row_number - 1].effect_count;
         }
 
-        bank_index = 0;
-        while (bank_index < 15) {
-            raw_bank = MK_HDR_LIVE(banks[bank_index].bank,
-                                   banks[bank_index].bank_instance);
-            if (raw_bank == 0) {
-                break;
-            }
-            bank_index++;
-        }
-        bank = 0;
-        bank_handle = 0;
-        if (bank_index < 15) {
-            bank = pfx_create_bank(name, total_effects);
-            if (bank != 0) {
-                banks[bank_index].bank = bank;
-                banks[bank_index].bank_instance = bank->hdr.instance;
-                bank->handle_bank = bank_index + 1;
-                generation =
-                    (bank_instance_counter[bank_index] + 1) & 0xFF000000;
-                bank_instance_counter[bank_index] = generation;
-                bank->handle_generation = bank_instance_counter[bank_index];
-                bank_handle = pfx_bank_latch_handle(bank_index);
-            }
-        }
-
+        bank_handle = pfx_alloc_bank(name, total_effects);
         bank = bank_from_handle(bank_handle);
         current_effect_bank = bank;
         if (current_effect_bank == 0) {
@@ -2923,9 +2931,9 @@ static unsigned int banks_find_owned_fx(
 }
 
 static inline void pfx_destroy_bank_effects(struct PfxBank* bank) {
+    int effect_index = 0;
     struct PfxEffectLatch* effect_latch;
     struct PfxScriptEffect* effect;
-    int effect_index = 0;
 
     for (; effect_index < bank->effect_count; effect_index++) {
         bank->effect_owners[effect_index] = 0;
@@ -2940,8 +2948,6 @@ static inline void pfx_destroy_bank_effects(struct PfxBank* bank) {
     }
 }
 
-/* TODO: [near miss] 98.36207%; complete destruction phase and loop-zero copy agree;
- * four saved register homes rotate across the loop and final free. */
 static void vdestroy_effectbank(struct PfxBank* bank) {
     pfx_destroy_bank_effects(bank);
     bank->hdr.instance = 0;

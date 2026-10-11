@@ -193,7 +193,7 @@ void get_weapon_collision_def(
 static float ray_intersection_with_shape(
     const CollisionShape* shape, const Vec* origin, Vec* direction);
 static float ray_intersection_with_quad(
-    const Vec* origin, const Vec* direction, const CollisionShape* quad);
+    const Vec* origin, Vec* direction, const CollisionShape* quad);
 int repel_shape_against_obstacle_list(
     PlyrInfo* player, CollisionShape* shape, Vec* movement, Vec* position,
     ConstrainInfo* info, Vec* test_position, int step_index);
@@ -268,8 +268,7 @@ static inline float collision_ray_to_plane(
     float origin_distance;
     float denominator;
 
-    origin_distance = normal->x * origin->x + normal->y * origin->y +
-        normal->z * origin->z;
+    origin_distance = collision_dot_vectors(normal, origin);
     denominator = normal->x * direction->x + normal->y * direction->y +
         normal->z * direction->z;
     if (denominator != 0.0f) {
@@ -1572,11 +1571,11 @@ static float ray_intersection_with_shape(
     }
 }
 
-/* TODO: [near miss] 99.702377%; aligned frame and ray-plane math agree;
- * plane-result FPR homes remain. */
+/* TODO: [near miss] 99.702377%; plane-result volatile FPR coloring remains;
+ * honest phase and neutral-subset checks exhausted. */
 static float ray_intersection_with_quad(
     const Vec* origin,
-    const Vec* direction,
+    Vec* direction,
     const CollisionShape* quad) {
     MKVECTOR normal;
     MKVECTOR point;
@@ -3111,7 +3110,6 @@ int collide_plyr_vs_plyr(void) {
     return 0;
 }
 
-/* TODO: [near miss] 99.48%; object/shape homes fixed by decl order; result and shape-item GPRs (r24/r23) remain. */
 static int test_collision_vs_obstacles(
     PlyrInfo* player, const CollisionShape* shape) {
     BgndObstacleEventData callback_data;
@@ -3132,9 +3130,7 @@ static int test_collision_vs_obstacles(
         while (obstacle_item != 0) {
             obstacle_header = obstacle_item->hdr;
             if (obstacle_item->instance != obstacle_header->instance) {
-                next = obstacle_item->next;
-                discard_stale_mkptr(obstacle_item);
-                obstacle_item = next;
+                obstacle_item = discard_stale_mkptr_and_advance(obstacle_item);
                 continue;
             }
             obstacle = (ArenaObstacle*)obstacle_header;
@@ -4395,12 +4391,11 @@ static void update_player_collision_nodes(PlayerCollisionData* collision) {
     }
 }
 
-/* TODO: [breakthrough] 85.14%; shared case exit recovered;
- * redundant dispatch exit and component load/store scheduling remain. */
+#pragma optimization_level 0
 void update_collision_obj_pos(CollisionObj* object, const Vec* position) {
     switch (object->shape.type & 7) {
     case 1:
-        return;
+        break;
     case 2:
         gxVectCopy(&object->shape.cylinder_center, position);
         break;
@@ -4412,6 +4407,7 @@ void update_collision_obj_pos(CollisionObj* object, const Vec* position) {
         return;
     }
 }
+#pragma optimization_level reset
 
 void set_collision_render_state(int enabled) {
     g_game_info.pause_flag_bits.paused = enabled;

@@ -3,7 +3,6 @@
 #include "libmkparticle/config.h"
 #include "libmkparticle/pfx_memory.h"
 
-/* Retail copies frame_time after r3-r7; frame_time is the last parameter. */
 #pragma peephole off
 void pfx_texture_animate(PfxVm* vm,
                          int texture_width, int frame_width, int frame_height,
@@ -28,7 +27,7 @@ void pfx_texture_animate(PfxVm* vm,
         if ((vm->flags_0x1D4 & 0x300) == 0) {
             return;
         }
-        if (((int)vm->flags_0x60 & 2) == 0) {
+        if ((vm->flags_0x60 & 2) == 0) {
             return;
         }
     }

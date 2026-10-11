@@ -3,7 +3,8 @@
 
 typedef enum mwTargetMemAlign {
     MW_TARGET_MEM_ALIGN_DEFAULT = 0,
-    MW_TARGET_MEM_ALIGN_32 = 3
+    MW_TARGET_MEM_ALIGN_32 = 3,
+    MW_TARGET_MEM_ALIGN_BUFFER = 5
 } mwTargetMemAlign;
 
 #endif

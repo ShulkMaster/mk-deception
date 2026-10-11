@@ -708,7 +708,6 @@ void bgnd_level_fatality_end(void);
 void bgnd_level_fatality_start(int player);
 void bgnd_level_transition_end(void);
 void bgnd_level_transition_start(void);
-int is_bgnd_locked(int bgnd_id);
 static int bgnd_cycle_tbl[22] = {
     0, 0x13, 0x12, 0xF, 6, 0xB, 0xC, 0xE, 7, 1, 8,
     0x10, 0x14, 0x11, 9, 0x15, 2, 5, 3, 0xD, 0xA, -1
@@ -721,17 +720,10 @@ AnimPdata* animate_obj( MkObj* object, AnimScript* script, const int* bone_tags,
 void set_obj_light_flags(MkObj* object, int flags);
 void set_obj_ang(MkObj* object, float x, float y, float z);
 void set_obj_pos(MkObj* object, float x, float y, float z);
-void bgnd_sobj_start_morph(MkObj* object, int sobj_id, int script_id, unsigned int flags);
 int bgnd_get_obj_pointer(int player);
 void scripted_camera_script_exit(void);
-void skytemple_arrange_fence_pebbles_around_pos(int player, unsigned int count, Vec* position);
-void skytemple_set_fence_pebble_vel( int player, unsigned int count, float x, float y, float z);
 static void sh_update_fatality_body_part(MkObj* object);
 extern void spawn_bld_splat(const char* name, int owner, Vec* position);
-
-static inline MkHdr* sh_get_latched_object(MkHdrLatch* latch) {
-    return MK_LIVE(latch->hdr, latch->instance);
-}
 
 static inline float bgnd_inv_sqrt_estimate(unsigned int bits) {
     union {
@@ -826,7 +818,7 @@ static inline void sh_launch_fatality_model(MkHdrLatch* latch,
                                             MkObj* source) {
     MkObj* object;
 
-    object = (MkObj*)sh_get_latched_object(latch);
+    object = (MkObj*)MK_LIVE(latch->hdr, latch->instance);
     if (object != 0) {
         float speed = 0.2f + frand(0.2f);
         float inverse_length;
@@ -876,8 +868,6 @@ extern void spawn_bld_splat(const char* name, int owner, Vec* position);
 
 static float p_sh_bottom_floor_blood_fall(void);
 static void sh_init_bottom_floor_blood_fall_pebbles( ShBloodFallProcessData* data);
-void sh_lower_level_pebble_unhide(void);
-void sh_lower_level_pebble_hide(void);
 
 static inline void sh_load_blood_fall_model(int index, unsigned int art_oid,
                                             int sobj_id, int count) {
@@ -921,7 +911,6 @@ static inline void sh_hide_latched_object(MkHdrLatch* latch) {
 }
 void bgnd_sh_level_2(void);
 void bgnd_sh_level_1(void);
-void bgnd_start_sh_fx(void);
 void bgnd_clean_slaughterhouse(void);
 static void destroy_slaughterhouse_pdata(SlaughterhouseData* pdata);
 void vdestroy_slaughterhouse_pdata(SlaughterhouseData* pdata);
@@ -937,7 +926,6 @@ static inline void sh_destroy_latched_object(MkHdrLatch* latch) {
         latch->instance = 0;
     }
 }
-void start_bl_beetles_live_top_floor(void);
 static float bl_bounce_fast_amount = 0.008f;
 static int bl_bounce_fast_ticks = 3;
 static float bl_bounce_calm_amount = 0.005f;
@@ -1496,7 +1484,6 @@ void bgnd_set_kill_plane_for_launched_sobj(int test_type);
 void start_sobj_launch_monitor(void);
 void bgnd_chunk_explosion_match_velocity_with_params( float velocity_scale, float vertical_velocity, float random_vertical_velocity, char* shard_name, int bounce_limit, unsigned int spawn_count, unsigned int scale_mode, int motion_mode);
 void start_chunk_launch_monitor(void);
-MkHdr* get_sobj_pebble_obj(MkSobj* object);
 void* get_general_pebble_data(PebbleData* pebble_data);
 BgndPebbleMonitor* ncs_create_pebble_monitor_proc( MkSobj* object, PebbleData* pebble_data, int mode, int count);
 void ncs_set_pebble_pos(PebbleData* data, int index, Vec* position);
@@ -1510,8 +1497,6 @@ void pebble_set_ang_vel(int player, int index, Vec* velocity);
 void pebble_set_ang(int player, int index, Vec* angles);
 void pebble_set_scale(int player, int index, Vec* scale);
 void pebble_set_vel(int player, int index, Vec* velocity);
-void pebble_get_pos(int player, int index, Vec* position);
-void pebble_set_pos(int player, int index, Vec* position);
 void bgnd_pebble_burst_at_pos(int unused, int first, int second, void* script, float x, float y, float z);
 void bgnd_pebble_burst_at_pebble_pos(int unused, int first, int second);
 void bgnd_pebble_burst_at_chunk_pos(int player, int first, int end);
@@ -1578,14 +1563,11 @@ static inline MkSobj* bgnd_lookup_sobj(int model_index, unsigned int object_id) 
     }
     return object;
 }
-void bgnd_set_material_color(int model_index, unsigned int object_id, int red, int green, int blue, int alpha);
 MkSobj* bgnd_fetch_sobj(int model_index, unsigned int object_id);
 MkObj* bgnd_fetch_obj(int model_id);
 void bgnd_unhide_pebbles(int player);
 void bgnd_hide_pebbles(int player);
 void bgnd_pebble_rand_scale(int player, void* script, float base, float range);
-void bgnd_pebble_gravity(int player, void* script, float gravity);
-void bgnd_init_pebbles(int player, unsigned int first, unsigned int end);
 void bgnd_start_cracks(void);
 void bgnd_remove_cracks(void);
 void bgnd_init_cracks(void);
@@ -1668,23 +1650,15 @@ void bgnd_collison_if_monitor_col( int list_index, unsigned int collision_id, in
 void bgnd_collision_if_enable_col(int list_index, unsigned int collision_id);
 void bgnd_collision_if_disable_col(int list_index, unsigned int collision_id);
 float bgnd_move_plyrs_to_initial_pos(void);
-void bgnd_set_new_ground_plane(void* script, float ground_y);
 void bgnd_set_player_shadow_ground_plane(int player, float ground_y);
 void bgnd_enable_wall_hider(unsigned int enabled);
 void bgnd_set_wall_hide_distance(void* script, float distance);
-void bgnd_add_fx_to_hide(const char* effect_name);
-void bgnd_add_wall_to_unhide(int object_id);
-void bgnd_add_wall_to_hide(int object_id);
-void bgnd_add_new_normal_check_for_hider( void* script_args, float normal_x, float normal_y, float normal_z, float distance);
-void bgnd_start_wall_hider(int unused);
-void bgnd_remove_wall_from_hider(unsigned int object_id);
 void bgnd_place_object_at_position( int object_id, int sobj_id, Vec* position, Vec* angles, int flags);
 void bgnd_place_weapon_at_position( int primary_object_id, int secondary_object_id, int primary_sobj_id, int secondary_sobj_id, int paired, float primary_x, float primary_y, float primary_z, float primary_angle_x, float primary_angle_y, float primary_angle_z, float secondary_x, float secondary_y, float secondary_z, float secondary_angle_x, float secondary_angle_y, float secondary_angle_z, int pickup_sobj_id, float radius, float height, float collision_x, float collision_y, float collision_z, int permanent);
 BgndDisplayedItem* bgnd_get_item_from_displayed_list(int item_id);
 void disable_bgnd_obj_repel(BgndDisplayedItem* item);
 void enable_bgnd_obj_repel(BgndDisplayedItem* item);
 int bgnd_get_exec_tick_ctr(void);
-void bgnd_act_at_time(int ticks, int script_function, void* script, float x, float y, float z);
 void bgnd_run_camera_script(int argument, int flags);
 void* ncs_bgnd_OBSTACLE_EVENT_get_plyr_pdata(void);
 void spad_set_y_angle_plus_offset_from_xz_vector(int index, void* script, float x, float z, float offset);
@@ -1701,11 +1675,8 @@ void spad_set_vector_y(int index, void* script, float y);
 float spad_xz_cos_two_vectors(int first, int second);
 void spad_set_heading_vector_to(int index, void* script, float heading, float offset);
 void spad_scale_vector(int destination, unsigned int source, void* script, float scale);
-void bgnd_xfer_attacker(int script_function);
 void mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance( PlyrPdata* player);
 void dont_fence_plyr_in(int disabled);
-void bgnd_takeover_plyr(PlyrInfo* player);
-float bgnd_process_active_sobj_info( int info_id, void* script_args, float angle_component, float offset);
 void bgnd_move_player(unsigned int player, int position_index, int angle_index);
 int bgnd_get_first_shape_center_for_obstacle_id(int obstacle_id, int scratch_index);
 void bgnd_make_displayed_item_pickupable_at_active_sobj_pos(int item_id);
@@ -1730,45 +1701,17 @@ void bgnd_set_active_sobj(int object_id);
 void bgnd_sobj_cam_frustum_test_into_transparent( unsigned int sobj_id, float scale, float y_offset);
 void obj_sobj_cam_frustum_test_into_transparent( MkObj* object, unsigned int sobj_id, float scale, float y_offset);
 void bgnd_sobj_cam_volume_test_steer_over( unsigned int sobj_id, float scale, float y_offset);
-void bgnd_clear_danger_zone_callback(PlyrPdata* pdata);
 void bgnd_register_danger_zone_callback(PlyrPdata* pdata, int callback);
-void bgnd_rx_notify( PlyrInfo* player_info, int reaction, unsigned int power_level, unsigned int flags);
-void bgnd_current_rx_set_info(int info_id, void* script_args, float value);
-float bgnd_current_rx_get_info(int info_id);
 void bgnd_setup_rx_handler(int handler);
-void bgnd_anim_camera_ended(void);
-void bgnd_anim_camera_setup(void);
-void bgnd_fade_object(int object_id, void* script, float fade_step);
-void pulsate_object( MkHdr* owner, int sobj_id, int max_hold_ticks, int min_hold_ticks, float fade_in_step, float fade_out_step);
-void bgnd_pulsate_object( int object_id, int max_hold_ticks, float fade_in_step, int min_hold_ticks, float fade_out_step);
-void bgnd_pulsate_object_with_caps_and_scale( int object_id, int max_hold_ticks, float fade_in_step, int min_hold_ticks, float fade_out_step, unsigned int min_alpha, unsigned int max_alpha, float scale_step_xz, float scale_step_y, float min_scale_xz, float min_scale_y, float max_scale_xz, float max_scale_y);
-void bgnd_pulsate_object_with_caps( int object_id, int max_hold_ticks, float fade_in_step, int min_hold_ticks, float fade_out_step, unsigned int min_alpha, unsigned int max_alpha);
 void bgnd_make_mkobj_transl(MkObj* object);
 void make_subobject_transl(MkSobj* object);
 void bgnd_make_object_transl(unsigned int object_id);
 void mks_xfer_collision_info_plyr_to_bgnd_script( PlyrPdata* player, int script_function);
 
-static inline MkProc* player_live_own_player_proc(PlyrPdata* owner) {
-    MkProc* object = owner->own_player_proc;
-    if (object != 0) {
-        if (object->instance == owner->own_player_proc_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 void mks_xfer_collision_info_plyr_to_script(int script_function, int player);
 void xfer_player_proc_to_script_manual_messaging( FighterMirror* fighter, MkObj* object, int function);
 void xfer_player_proc_to_script(MkObj* object, int function);
-void bgnd_append_texture_to_material(int sobj_id, int material_id, char* texture_name, int texture_slot);
-void bgnd_append_texture_to_material_tbl( const BgndAppendTextureEntry* entries);
-void bgnd_swap_textures(int sobj_id, int material_id, unsigned int frame);
-void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries, int frame);
 void bgnd_rotate_sobj(unsigned int object_id, void* script, float x, float y, float z);
-void bgnd_replace_tex_with_wiff_and_ani( int object_id, const char* wiff_name, float frame_rate, int first_frame, int texture_type);
 float bgnd_blood_control(int player, int enabled, void* script, float value);
 void bgnd_shadow_control(unsigned int enabled);
 void bgnd_always_face_y(unsigned int object_id);
@@ -1827,9 +1770,7 @@ void bgnd_sobj_set_rel_pos(unsigned int object_id, void* script, float x, float 
 void bgnd_unhide_sobj_and_children(unsigned int object_id);
 void bgnd_hide_sobj_and_children(unsigned int object_id);
 void bgnd_unhide_sobj(unsigned int object_id);
-void bgnd_unhide_sobj_list(unsigned int* object_ids);
 void bgnd_hide_sobj(unsigned int object_id);
-void bgnd_hide_sobj_list(unsigned int* object_ids);
 void bgnd_sobj_get_ang(unsigned int object_id, Vec* angles);
 void bgnd_sobj_set_ang(unsigned int object_id, void* script, float x, float y, float z);
 void bgnd_sobj_set_pos_vel(unsigned int object_id, void* script, float x, float y, float z);
@@ -1838,9 +1779,6 @@ float bgnd_sobj_get_y_pos(int object_id);
 float bgnd_sobj_get_x_pos(int object_id);
 void bgnd_sobj_set_pos(unsigned int object_id, void* script, float x, float y, float z);
 float bgnd_get_sobj_ang_y(int object_id);
-void bgnd_start_sobj_uv_scroll( int object_id, float u1, float v1, float u2, float v2, unsigned int translucent);
-void bgnd_start_sobj_uv_scroll_tbl(BgndUvScrollEntry* entries);
-void bgnd_light_set_color(int light_id, float red, float green, float blue);
 void bgnd_sobj_set_ani_framerate(unsigned int object_id, unsigned int material_id, void* script, float rate);
 void bgnd_sobj_set_ani_frame(unsigned int object_id, unsigned int material_id, int frame);
 void bgnd_sobj_set_alpha(unsigned int object_id, unsigned int alpha);
@@ -1849,15 +1787,12 @@ unsigned int bgnd_get_u32(int value_id);
 void bgnd_clear_face_opponent_flags(void);
 int bgnd_get_int(int value_id);
 void bgnd_create_sobjs(void);
-MkObj* bgnd_place_point_light_for_ticks( LightDef* light_def, int ticks, float radius_step, int offset_from_tightrope);
 float degrees_to_rad(void* script, float degrees);
 float rad_to_degrees(void* script, float radians);
 float int_to_float(int value);
 int float_to_int(void* script, float value);
 void obj_sobj_set_material(MkSobj* object, unsigned int alpha);
 RpAtomic* force_atomic_material_alpha(RpAtomic* atomic, void* alpha);
-float p_track_cam_ang_y_light(void);
-void load_bgnd_style(int player, const char* script_name, void* script_args);
 void ncs_bgnd_nuke_collision_to_script_interface(void);
 MkObj* retrieve_bgnd_obj(void);
 static inline void bgnd_destroy_collision_to_script_lists(void) {
@@ -1890,11 +1825,8 @@ static inline void bgnd_destroy_object_latch(
         *instance = 0;
     }
 }
-void destroy_background_extras(void);
 static void add_mkx_light_obj_to_bgnd_cleanup_list(MkHdr* header);
-int load_background(int bgnd_id);
 void init_bgnd_info_struct(void);
-int get_bgnd_flags(void);
 
 int get_bgnd_flags(void) {
     if (g_game_info.field_08 == 0) {
@@ -3027,7 +2959,7 @@ void bgnd_rotate_sobj(unsigned int object_id, void* script, float x, float y,
         object->ang_vel.z = z;
     }
 }
-/* TODO: [near miss] 98.94%; auto-inlined bgnd_swap_textures loop; only frame/sobj_id r27/r28 coloring swap remains. */
+#pragma opt_loop_invariants off
 void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries, int frame) {
     unsigned int index = 0;
 
@@ -3037,6 +2969,7 @@ void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries, int frame) {
         index++;
     }
 }
+#pragma opt_loop_invariants reset
 #pragma auto_inline on
 void bgnd_swap_textures(int sobj_id, int material_id, unsigned int frame) {
     char sobj_error[80];
@@ -3147,18 +3080,14 @@ void xfer_player_proc_to_script_manual_messaging(
     xfer_player_proc(process, bgnd_call_script_function);
 }
 
-/* TODO: [near miss] 99.0625%; first player-process latch swaps owner/object r4 and r5. */
 void mks_xfer_collision_info_plyr_to_script(int script_function,
                                              int player) {
-    PlyrPdata* pdata;
     MkProc* process;
 
     if (player == 1) {
-        pdata = g_active_obstacle_event_data->player_pdata;
-        process = MK_LIVE(pdata->player_proc, pdata->player_proc_instance);
+        process = MK_LIVE(g_active_obstacle_event_data->player_pdata->player_proc, g_active_obstacle_event_data->player_pdata->player_proc_instance);
     } else {
-        pdata = g_active_obstacle_event_data->player_pdata;
-        process = player_live_own_player_proc(pdata);
+        process = MK_LIVE(g_active_obstacle_event_data->player_pdata->own_player_proc, g_active_obstacle_event_data->player_pdata->own_player_proc_instance);
     }
     get_cmdscript_for_proc(process)->unk28 = script_function;
     xfer_player_proc(process, bgnd_call_script_function);
@@ -6790,14 +6719,19 @@ void bgnd_create_pebbles(
     }
     bgnd_create_pebbles_with_sobj(object, player, mode, count);
 }
-/* TODO: [near miss] 97.88%; frame agrees; retail reloads g_pebbles[player] before the mode switch and shares process/loop-2 index GPR; early reload local regresses. */
+/* TODO: [near miss] 98.90%; frame agrees; collection reloaded before the mode switch via accessor; remaining rows are saved-register coloring (count/offset r29/r30, process shares loop-2 index r24). */
+static inline BgndPebbleCollection* bgnd_pebble_collection_of(unsigned int player) {
+    return g_pebbles[player];
+}
+
 BgndPebbleControl* bgnd_create_pebbles_with_sobj(
     MkSobj* object, unsigned int player, int mode, unsigned int count) {
+    unsigned int index;
+    MkProc* process;
+    BgndPebbleCollection* collection;
     BgndPebblePlayerData* player_data;
     BgndPebblePlayerData* result;
     BgndPebbleControl* pebble;
-    MkProc* process;
-    unsigned int index;
 
     if (player >= 20) {
         return 0;
@@ -6846,6 +6780,7 @@ BgndPebbleControl* bgnd_create_pebbles_with_sobj(
 
     process = 0;
     player_data = 0;
+    collection = bgnd_pebble_collection_of(player);
     switch (mode) {
     case 0:
         process = _create_mkproc_generic_tinystack(
@@ -6869,7 +6804,7 @@ BgndPebbleControl* bgnd_create_pebbles_with_sobj(
         player_data->sobj = object;
         player_data->count = count;
         player_data->mode = mode;
-        player_data->collection = g_pebbles[player];
+        player_data->collection = collection;
         set_process_as_scriptable(process);
         mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
         result = player_data;
@@ -9319,7 +9254,6 @@ static float p_beetle_lair_front_wall_breaking(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.98%; initializer offsets now retail; only ground-height fadds operand order remains. */
 static float victim_fall_down_a_level(void) {
     Vec face_target = {0.0f, 0.0f, 0.0f};
     Vec target_position = {0.4512f, -0.5f, 18.8713f};
@@ -9327,6 +9261,7 @@ static float victim_fall_down_a_level(void) {
     Vec follower_position;
     Vec bone_position;
     MkSobj* debris_piece;
+    float ground_margin;
 
     stop_me();
     bulvan_function(1);
@@ -9352,7 +9287,8 @@ static float victim_fall_down_a_level(void) {
 
     plyr_obj->flags_08_bits.moving = 1;
     plyr_obj->gravity = -0.009f;
-    while (plyr_obj->pos.value.y > plyr_obj->ground_colls_y + 0.1f) {
+    ground_margin = 0.1f;
+    while (plyr_obj->pos.value.y > plyr_obj->ground_colls_y + ground_margin) {
         ani_1_frame();
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
@@ -9575,8 +9511,6 @@ static float p_beetle_lair_watch_remaining_fall_scene(void) {
     return -1.0f;
 }
 
-/* TODO: [breakthrough] 88.30%; angles2/angles4 aggregate literals restored (retail @5005/@5009);
- * launch copy/FPR scheduling and camera_dx/dz division shape remain. */
 static float p_beetle_lair_wall_breaking_controller(void) {
     Vec camera_start = {2.166f, -9.5f, 42.734f};
     Vec camera_end = {0.4512f, -0.5f, 18.8713f};
@@ -9601,8 +9535,6 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     MkObj* player_object;
     MkObj* opponent_object;
     MkSobj* chunk;
-    float camera_dx;
-    float camera_dz;
 
     data = (BlWallBreakControllerData*)apdata;
     _mkproc_sleep_ticks = data->initial_delay;
@@ -9678,17 +9610,13 @@ static float p_beetle_lair_wall_breaking_controller(void) {
         effect->depth_bias = -50.0f;
     }
 
-    camera_dx = camera_start.x - camera_end.x;
-    camera_dz = camera_start.z - camera_end.z;
-
     position0 = (Vec){0.4512f, 0.8f, 18.2113f};
-    velocity.x = 0.05f + camera_dx / 100.0f;
-    velocity.y = 0.05f;
-    velocity.z = camera_dz / 100.0f;
-    angular_velocity.x = 0.05f;
-    angular_velocity.y = 0.0f;
-    angular_velocity.z = 0.0f;
     angles0 = (Vec){3.1415927f, 0.0f, 0.0f};
+    velocity.y = 0.05f;
+    velocity.x = 0.05f + (camera_start.x - camera_end.x) / 100.0f;
+    velocity.z = (camera_start.z - camera_end.z) / 100.0f;
+    angular_velocity.x = angular_velocity.y = angular_velocity.z = 0.0f;
+    angular_velocity.x = 0.05f;
     chunk = obj_first_sobj(g_bgnd_preloaded_models[0]);
     bgnd_launch_chunk(
         chunk, &position0, &velocity, &angular_velocity, &angles0, 0,
@@ -9697,13 +9625,13 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     aproc->vtbl->sleep();
 
     position1 = (Vec){0.0f, 1.1f, 18.2113f};
-    velocity.x = 0.0f;
+    angles1 = (Vec){3.1415927f, 0.0f, 1.0471976f};
     velocity.y = -0.01f;
+    velocity.x = 0.0f;
     velocity.z = 0.105f;
+    angular_velocity.x = angular_velocity.y = angular_velocity.z = 0.0f;
     angular_velocity.x = 0.043f;
     angular_velocity.y = -0.07f;
-    angular_velocity.z = 0.0f;
-    angles1 = (Vec){3.1415927f, 0.0f, 1.0471976f};
     chunk = obj_first_sobj(g_bgnd_preloaded_models[1]);
     bgnd_launch_chunk(
         chunk, &position1, &velocity, &angular_velocity, &angles1, 0,
@@ -9712,13 +9640,13 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     aproc->vtbl->sleep();
 
     position2 = (Vec){0.6f, 1.3f, 18.2113f};
-    velocity.x = camera_dx / 110.0f - 0.11f;
-    velocity.y = 0.03f;
-    velocity.z = camera_dz / 110.0f;
-    angular_velocity.x = 0.05f;
-    angular_velocity.y = 0.0f;
-    angular_velocity.z = 0.18f;
     angles2 = (Vec){3.1415927f, 0.0f, 0.0f};
+    velocity.y = 0.03f;
+    velocity.x = (camera_start.x - camera_end.x) / 110.0f - 0.11f;
+    velocity.z = (camera_start.z - camera_end.z) / 110.0f;
+    angular_velocity.x = angular_velocity.y = angular_velocity.z = 0.0f;
+    angular_velocity.x = 0.05f;
+    angular_velocity.z = 0.18f;
     chunk = obj_first_sobj(g_bgnd_preloaded_models[2]);
     bgnd_launch_chunk(
         chunk, &position2, &velocity, &angular_velocity, &angles2, 0,
@@ -9727,13 +9655,13 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     aproc->vtbl->sleep();
 
     position3 = (Vec){-0.8512f, 1.3f, 18.2113f};
-    velocity.x = camera_dx / 300.0f - 0.05f;
-    velocity.y = 0.2f;
-    velocity.z = camera_dz / 200.0f;
-    angular_velocity.x = 0.2f;
-    angular_velocity.y = 0.0f;
-    angular_velocity.z = 0.15f;
     angles3 = (Vec){3.1415927f, 0.0f, 0.0f};
+    velocity.y = 0.2f;
+    velocity.x = (camera_start.x - camera_end.x) / 300.0f - 0.05f;
+    velocity.z = (camera_start.z - camera_end.z) / 200.0f;
+    angular_velocity.x = angular_velocity.y = angular_velocity.z = 0.0f;
+    angular_velocity.x = 0.2f;
+    angular_velocity.z = 0.15f;
     chunk = obj_first_sobj(g_bgnd_preloaded_models[3]);
     bgnd_launch_chunk(
         chunk, &position3, &velocity, &angular_velocity, &angles3, 0,
@@ -9742,13 +9670,13 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     aproc->vtbl->sleep();
 
     position4 = (Vec){-0.6f, 0.6f, 18.4313f};
-    velocity.x = camera_dx / 110.0f;
+    angles4 = (Vec){3.1415927f, 3.1415927f, 0.0f};
     velocity.y = 0.03f;
-    velocity.z = camera_dz / 110.0f;
+    velocity.x = (camera_start.x - camera_end.x) / 110.0f;
+    velocity.z = (camera_start.z - camera_end.z) / 110.0f;
+    angular_velocity.x = angular_velocity.y = angular_velocity.z = 0.0f;
     angular_velocity.x = 0.01f;
     angular_velocity.y = 0.1f;
-    angular_velocity.z = 0.0f;
-    angles4 = (Vec){3.1415927f, 3.1415927f, 0.0f};
     chunk = obj_first_sobj(g_bgnd_preloaded_models[4]);
     bgnd_launch_chunk(
         chunk, &position4, &velocity, &angular_velocity, &angles4, 0,
@@ -11264,7 +11192,7 @@ void start_bl_beetles_live_top_floor(void) {
     }
 }
 
-/* TODO: [near miss] 90.77%; retail re-reads latch->hdr after validation (ours reuses the validated pointer); registers follow. */
+#pragma opt_common_subs off
 static void destroy_slaughterhouse_pdata(SlaughterhouseData* pdata) {
     sh_destroy_latched_object(&pdata->blood_fall_pebbles[0]);
     sh_destroy_latched_object(&pdata->blood_fall_pebbles[1]);
@@ -11278,6 +11206,7 @@ static void destroy_slaughterhouse_pdata(SlaughterhouseData* pdata) {
     mkhdr_memfree(&pdata->hdr);
     g_slaughterhouse_pdata = 0;
 }
+#pragma opt_common_subs reset
 void vdestroy_slaughterhouse_pdata(SlaughterhouseData* pdata) {
     destroy_slaughterhouse_pdata(pdata);
 }
@@ -11994,13 +11923,11 @@ static void sh_start_fatality_body_parts(PlyrPdata* player) {
     sh_launch_fatality_model(
         &g_slaughterhouse_pdata->lower_level_pebbles[4], source);
 
-    object = (MkObj*)sh_get_latched_object(
-        &g_slaughterhouse_pdata->lower_level_pebbles[0]);
+    object = (MkObj*)MK_LIVE(g_slaughterhouse_pdata->lower_level_pebbles[0].hdr, g_slaughterhouse_pdata->lower_level_pebbles[0].instance);
     if (object != 0) {
         unhide_obj(object);
     }
-    pebble_data = (PebbleData*)sh_get_latched_object(
-        &g_slaughterhouse_pdata->blood_fall_pebbles[0]);
+    pebble_data = (PebbleData*)MK_LIVE(g_slaughterhouse_pdata->blood_fall_pebbles[0].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[0].instance);
     if (pebble_data != 0) {
         int index;
 
@@ -12040,13 +11967,11 @@ static void sh_start_fatality_body_parts(PlyrPdata* player) {
         }
     }
 
-    object = (MkObj*)sh_get_latched_object(
-        &g_slaughterhouse_pdata->lower_level_pebbles[2]);
+    object = (MkObj*)MK_LIVE(g_slaughterhouse_pdata->lower_level_pebbles[2].hdr, g_slaughterhouse_pdata->lower_level_pebbles[2].instance);
     if (object != 0) {
         unhide_obj(object);
     }
-    pebble_data = (PebbleData*)sh_get_latched_object(
-        &g_slaughterhouse_pdata->blood_fall_pebbles[2]);
+    pebble_data = (PebbleData*)MK_LIVE(g_slaughterhouse_pdata->blood_fall_pebbles[2].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[2].instance);
     if (pebble_data != 0) {
         ShBloodPebbleControl* control;
         float speed;
@@ -12124,7 +12049,7 @@ static void sh_update_fatality_body_part(MkObj* object) {
     }
 }
 
-/* TODO: [breakthrough] 92.25%; canonical latch branches recovered; movement Vec stack layout remains. */
+/* TODO: [breakthrough] 92.24790%; canonical latch CFG retained; movement Vec homes and loop GPR/FPR scheduling remain. */
 static float p_sh_fatality_body_parts(void) {
     ShFatalityBodyPartsProcessData* data;
     PebbleData* pebble_data;
@@ -12144,19 +12069,16 @@ static float p_sh_fatality_body_parts(void) {
         return 1.0f;
     }
 
-    object = (MkObj*)sh_get_latched_object(
-        &g_slaughterhouse_pdata->lower_level_pebbles[3]);
+    object = (MkObj*)MK_LIVE(g_slaughterhouse_pdata->lower_level_pebbles[3].hdr, g_slaughterhouse_pdata->lower_level_pebbles[3].instance);
     if (object != 0) {
         sh_update_fatality_body_part(object);
     }
-    object = (MkObj*)sh_get_latched_object(
-        &g_slaughterhouse_pdata->lower_level_pebbles[4]);
+    object = (MkObj*)MK_LIVE(g_slaughterhouse_pdata->lower_level_pebbles[4].hdr, g_slaughterhouse_pdata->lower_level_pebbles[4].instance);
     if (object != 0) {
         sh_update_fatality_body_part(object);
     }
 
-    pebble_data = (PebbleData*)sh_get_latched_object(
-        &g_slaughterhouse_pdata->blood_fall_pebbles[0]);
+    pebble_data = (PebbleData*)MK_LIVE(g_slaughterhouse_pdata->blood_fall_pebbles[0].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[0].instance);
     if (pebble_data != 0) {
         controls = pebble_data->user_data;
         index = 0;
@@ -12258,8 +12180,7 @@ static float p_sh_fatality_body_parts(void) {
         }
     }
 
-    pebble_data = (PebbleData*)sh_get_latched_object(
-        &g_slaughterhouse_pdata->blood_fall_pebbles[2]);
+    pebble_data = (PebbleData*)MK_LIVE(g_slaughterhouse_pdata->blood_fall_pebbles[2].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[2].instance);
     if (pebble_data != 0) {
         ShBloodPebbleControl* control =
             pebble_data->user_data;

@@ -377,11 +377,6 @@ struct BloodFallPdata {
     unsigned int emitters[3];
 };
 
-union BloodFallFloatBits {
-    float value;
-    unsigned int bits;
-};
-
 union KonquestSqrtBits {
     float value;
     unsigned int bits;
@@ -1290,7 +1285,7 @@ struct GroundCollTable npc_punched_ground_colls[5] = {
 void npc_xfer( KonquestNpc* npc, MkProcEntryFn entry, int next_state);
 static int is_this_a_current_event_for_today( const KonquestTime* event);
 void npc_shadow_set_alpha(int alpha);
-void npc_shadow_set_light_angle(const Vec* angles);
+void npc_shadow_set_light_angle(Vec* angles);
 void npc_shadow_teardown(void);
 void npc_shadow_init(void);
 void npc_assign_door_path(int door_id, int travel_mode);
@@ -1385,12 +1380,12 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
         (direction_x * direction_x + direction_y * direction_y);
     inverse_length = gxMathFastInvSqrt(length_squared);
 
-    direction_x *= inverse_length;
-    direction_y *= inverse_length;
-    direction_z *= inverse_length;
-    direction_x *= 3.0f;
-    direction_y *= 3.0f;
-    direction_z *= 3.0f;
+    direction_x = direction_x * inverse_length;
+    direction_y = direction_y * inverse_length;
+    direction_z = direction_z * inverse_length;
+    direction_x = 3.0f * direction_x;
+    direction_y = 3.0f * direction_y;
+    direction_z = 3.0f * direction_z;
     sphere.center.x += direction_x;
     sphere.center.y += direction_y;
     sphere.center.z += direction_z;
@@ -1409,10 +1404,7 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
         (delta_x * delta_x + delta_y * delta_y);
 
     npc->camera_distance_squared = distance_squared;
-    if (distance_squared <= 2500.0f) {
-        return 1;
-    }
-    return 0;
+    return distance_squared <= 2500.0f ? 1 : 0;
 }
 
 static RpMaterial* hide_npc_materials(
@@ -1704,18 +1696,8 @@ static int is_it_safe_to_make_this_npc_visible(KonquestNpc* npc) {
     return 1;
 }
 
-/* TODO: [near miss] 99.00%; visible-slot manager load schedules before index init (same as npc_make_invisible). */
-void npc_make_visible(KonquestNpc* npc) {
-    struct NpcManagerModelSlot* slot = 0;
-    struct KonquestNpcAnimState* animation = 0;
+static inline void npc_claim_visible_slot(KonquestNpc* npc) {
     int index;
-
-    if (npc->model_visible != 0) {
-        return;
-    }
-    if (is_it_safe_to_make_this_npc_visible(npc) == 0) {
-        return;
-    }
 
     for (index = 0; index < 15; index++) {
         if (npc_manager_pdata->visible_npcs[index] == 0) {
@@ -1734,6 +1716,21 @@ void npc_make_visible(KonquestNpc* npc) {
             break;
         }
     }
+}
+
+void npc_make_visible(KonquestNpc* npc) {
+    struct NpcManagerModelSlot* slot = 0;
+    struct KonquestNpcAnimState* animation = 0;
+    int index;
+
+    if (npc->model_visible != 0) {
+        return;
+    }
+    if (is_it_safe_to_make_this_npc_visible(npc) == 0) {
+        return;
+    }
+
+    npc_claim_visible_slot(npc);
 
     if (npc->data->events[7].script_function == 1) {
         for (index = 0; index < 2; index++) {
@@ -2445,8 +2442,8 @@ static void set_shadow_bones(MkObj* shadow, MkObj* source, float scale) {
     RwFrameUpdateObjects(shadow->frame);
 }
 
-/* TODO: [near miss] 98.94%; three matrix-component FPRs are cyclically colored; check donor lifetime evidence. */
-void npc_shadow_set_light_angle(const Vec* angles) {
+/* TODO: [near miss] 99.19%; at.y/at.z temp FPRs and light_direction store order still differ from retail; light_direction store order permutations measured. */
+void npc_shadow_set_light_angle(Vec* angles) {
     MKMATRIX rotation;
     float projection_z;
     float projection_x;
@@ -2461,9 +2458,9 @@ void npc_shadow_set_light_angle(const Vec* angles) {
     YXZ_angles_to_MKMATRIX(angles, &rotation);
     projection_x = rotation.at.x / rotation.at.y;
     projection_z = rotation.at.z / rotation.at.y;
-    npc_shadows.light_direction.x = rotation.at.x;
     npc_shadows.light_direction.y = rotation.at.y;
     npc_shadows.light_direction.z = rotation.at.z;
+    npc_shadows.light_direction.x = rotation.at.x;
     MKMatrixSetIdentity(&npc_shadows.projection);
     npc_shadows.projection.up.x = -projection_x;
     npc_shadows.projection.up.y = 0.0f;
@@ -2973,16 +2970,18 @@ static float p_update_npc_shadows(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 97.08%; only the model-age loop header differs (retail loads npc_manager_pdata into r4 before the 1.0f constant). */
+/* TODO: [near miss] 98.46%; only the model-age loop header differs (manager/index register homes and li r3,0 position). */
 void npc_update(int update_all) {
+    struct NpcManagerPdata* manager;
     MkPtr* link;
     int index;
     int models_made_visible = 0;
 
     npc_dispatch_timed_events_for_all_npcs();
+    manager = npc_manager_pdata;
     for (index = 0; index < 22; index++) {
-        if (npc_manager_pdata->models[index].available != 0) {
-            npc_manager_pdata->models[index].age += 1.0f;
+        if (manager->models[index].available != 0) {
+            manager->models[index].age += 1.0f;
         }
     }
     if (update_all == 0 && --wait_ticks > 0) {
@@ -4356,19 +4355,12 @@ static float p_hero_turn_and_face(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 98.20%; monk instance latch branches differ; inspect shared validation shape. */
 void hero_turn_to_face_position(const Vec* position) {
-    MkObj* hero = konquest_pdata->monk;
+    MkObj* hero;
     Vec direction = {0.0f, 0.0f, 0.0f};
     struct TurnAndFacePdata* pdata;
 
-    if (hero != 0) {
-        if (hero->hdr.instance != konquest_pdata->monk_instance) {
-            hero = 0;
-        }
-    } else {
-        hero = 0;
-    }
+    hero = MK_HDR_LIVE(konquest_pdata->monk, konquest_pdata->monk_instance);
     pdata = 0;
     if (hero != 0) {
         float angle;
@@ -5373,9 +5365,37 @@ static inline void npc_start_lip_synch(
     }
 }
 
-/* TODO: [near miss] 99.33%; body is the shared npc_start_lip_synch inline; texture pointer/instance copy rows differ in register allocation. */
+/* TODO: [near miss] 99.81%; lip pdata body written out (matches retail copy order); remaining rows swap the animation texture/instance load order. */
 void npc_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
-    npc_start_lip_synch(sound_id, keyframes);
+    KonquestLipSyncPdata* lip;
+
+    if (g_active_npc->animation != 0 && sound_id != -1 &&
+        _create_mkproc_generic_nostack(
+            0x8232, 0x1F, p_do_lip_synch, sizeof(*lip),
+            (MkHdr**)&lip) != 0) {
+        AniTextureControl* texture;
+        KonquestLipSyncPdata* target;
+        unsigned int texture_instance;
+        struct KonquestNpcAnimState* animation;
+
+        zero_pdata_payload(sizeof(*lip), &lip->hdr);
+        lip->mode = 1;
+        lip->npc = g_active_npc;
+        animation = g_active_npc->animation;
+        target = lip;
+        texture = animation->lip_texture;
+        texture_instance = animation->lip_texture_instance;
+        target->texture = texture;
+        target->texture_instance = texture_instance;
+        lip->sound_handle = sound_id;
+
+        texture = MK_LIVE(lip->texture, lip->texture_instance);
+
+        if (texture != 0) {
+            lip->keyframes = keyframes;
+        }
+        lip->stop_requested = 0;
+    }
 }
 
 void kill_lip_sync_procs(void) {
@@ -6056,7 +6076,7 @@ static int npc_update_pos_on_path(
     target_waypoint = npc->path->target_waypoint;
     if (npc->path != 0) {
         if ((unsigned int)(
-                npc->path->destination_type + (int)0x80000000) == 7) {
+                npc->path->destination_type + 0x80000000) == 7) {
             target.x = npc->path->destination.x;
             target.y = npc->path->destination.y;
             target.z = npc->path->destination.z;
@@ -6877,21 +6897,7 @@ void npc_start_blood_fall(void) {
         y_squared = object->pos_vel.y * object->pos_vel.y;
         z_squared = object->pos_vel.z * object->pos_vel.z;
         length_squared = z_squared + (x_squared + y_squared);
-        if (length_squared <= 0.0f) {
-            inverse_length = 0.0f;
-        } else {
-            union BloodFallFloatBits estimate;
-            float product;
-            float correction;
-
-            estimate.value = length_squared;
-            estimate.bits = 0x5F375A00 - (estimate.bits >> 1);
-            product = estimate.value * (length_squared * estimate.value);
-            correction = 3.0f - product;
-            inverse_length =
-                0.0625f * estimate.value * correction *
-                -((correction * (product * correction)) - 12.0f);
-        }
+        inverse_length = gxMathFastInvSqrt(length_squared);
         object->pos_vel.x = x_velocity * inverse_length;
         object->pos_vel.y *= inverse_length;
         object->pos_vel.z *= inverse_length;
@@ -6956,7 +6962,6 @@ void npc_set_my_punch_counter(int count) {
     }
 }
 
-/* TODO: [near miss] 99.94%; retail error sprintf reads the null npc->name (r28+8); npc->name here recolors every GPR (98.25%). */
 void npc_set_his_conversation_counter(
     KonquestNpcData* data, int count) {
     KonquestNpc* npc = npc_find_by_data_inline(data);
@@ -6967,7 +6972,7 @@ void npc_set_his_conversation_counter(
         sprintf(
             message,
             "NPC_ID: %s -- npc_set_his_conversation_counter -- Couldn't find npc",
-            data->name);
+            npc->name);
         return;
     }
     npc->conversation_count = count;

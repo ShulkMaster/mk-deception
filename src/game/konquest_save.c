@@ -215,24 +215,6 @@ static inline int is_mkptr_list_valid(MkPtr** list) {
     return list != 0;
 }
 
-static inline KonquestNpcSaveEntry* get_npc_save_entry(
-    KonquestRegionBuffer* buffer, int byte_offset) {
-    return (KonquestNpcSaveEntry*)((unsigned char*)buffer->npc_entries +
-                                   byte_offset);
-}
-
-static inline KonquestPuiSaveEntry* get_pui_save_entry(
-    KonquestRegionBuffer* buffer, int byte_offset) {
-    return (KonquestPuiSaveEntry*)((unsigned char*)buffer->pui_entries +
-                                   byte_offset);
-}
-
-static inline KonquestNpcEventSlot* get_npc_event_slot(
-    KonquestNpc* npc, int byte_offset) {
-    return (KonquestNpcEventSlot*)((unsigned char*)npc->event_slots +
-                                   byte_offset);
-}
-
 void profile_region_change(void) {
     full_konquest_save_to_memcard(p1_profile_konquest->region_arg, 0, 8);
 }
@@ -530,7 +512,7 @@ int load_konq_memory_from_krd_buffer(void) {
     return 1;
 }
 
-/* TODO: [near miss] 87.44%; CFG, layouts and store order agree; fixed-base vs cursor addressing, booleans and CTR lowering remain. */
+/* TODO: [breakthrough] 88.43891%; typed NPC/PUI/event indexing recovered; fixed-base record addressing, booleans and loop lowering remain. */
 int save_konq_memory_to_krd_buffer(int region) {
     KonquestRegionBuffer* buffer;
     MkPtr** trigger_list;
@@ -544,9 +526,7 @@ int save_konq_memory_to_krd_buffer(int region) {
     Vec pui_position;
     int trigger_count;
     int pui_count;
-    int pui_offset;
     int npc_count;
-    int npc_offset;
     unsigned int bit;
     unsigned int loaded;
 
@@ -586,7 +566,6 @@ int save_konq_memory_to_krd_buffer(int region) {
     }
     pui_list = &konquest_pdata->pui_list;
     pui_count = 0;
-    pui_offset = 0;
     if (is_mkptr_list_valid(pui_list)) {
         node = *pui_list;
         while (node != 0) {
@@ -601,7 +580,7 @@ int save_konq_memory_to_krd_buffer(int region) {
                 if (pui_count >= 0x19) {
                     break;
                 }
-                pui_save = get_pui_save_entry(buffer, pui_offset);
+                pui_save = &buffer->pui_entries[pui_count];
                 pui_save->inventory_bit =
                     get_konquest_pui_inventory_bit_index(pui);
                 get_konquest_pui_object_pos(&pui_position,
@@ -610,20 +589,17 @@ int save_konq_memory_to_krd_buffer(int region) {
                 pui_save->pos_y = pui_position.y;
                 pui_save->pos_z = pui_position.z;
                 pui_count++;
-                pui_offset += sizeof(KonquestPuiSaveEntry);
             }
             node = node->next;
         }
     }
     buffer->pui_count = pui_count;
     npc_count = 0;
-    npc_offset = 0;
     trigger_list = &konquest_pdata->npcs;
     if (is_mkptr_list_valid(trigger_list)) {
         node = *trigger_list;
         while (node != 0) {
             int flag_index;
-            int event_offset;
             unsigned int* packed_flags;
             KonquestNpc* npc;
 
@@ -635,7 +611,7 @@ int save_konq_memory_to_krd_buffer(int region) {
                 continue;
             }
             if (npc_count < 0x96 && npc != 0) {
-                npc_save = get_npc_save_entry(buffer, npc_offset);
+                npc_save = &buffer->npc_entries[npc_count];
                 npc_save->pos_x = npc->transform->field_58;
                 npc_save->pos_y = npc->transform->field_4C;
                 npc_save->pos_z = npc->transform->field_54;
@@ -662,18 +638,15 @@ int save_konq_memory_to_krd_buffer(int region) {
                 packed_flags = &npc_save->path_flags;
                 *packed_flags = 0;
                 flag_index = 0;
-                event_offset = 0;
                 do {
-                    if (get_npc_event_slot(npc, event_offset)->enabled != 0) {
+                    if (npc->event_slots[flag_index].enabled != 0) {
                         *packed_flags |= 1U << flag_index;
                     }
                     flag_index++;
-                    event_offset += sizeof(KonquestNpcEventSlot);
                 } while (flag_index < 7);
             }
             node = node->next;
             npc_count++;
-            npc_offset += sizeof(KonquestNpcSaveEntry);
         }
     }
     buffer->npc_count = npc_count;

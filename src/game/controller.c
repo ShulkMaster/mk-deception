@@ -610,8 +610,6 @@ void unassign_player(PlyrInfo* player) {
     }
 }
 
-#pragma opt_unroll_loops off
-#pragma ppc_unroll_instructions_limit 1
 void init_temp_switch_map(int player, int use_profile) {
     SwitchMapEntry* temp_map;
     PlayerProfile* profile;
@@ -642,9 +640,6 @@ void init_temp_switch_map(int player, int use_profile) {
         }
     }
 }
-#pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
-
 void set_default_switch_map(PlyrInfo* player) {
     int port;
 
@@ -754,8 +749,6 @@ void switch_map_unload_player_profile(PlyrInfo* player) {
     *use_temp_map = 0;
 }
 
-#pragma opt_unroll_loops off
-#pragma ppc_unroll_instructions_limit 1
 /* TODO: [near miss] 91.59%; table-copy behavior agrees; row-address GPR allocation and flag-store scheduling remain. */
 void init_player_switch_maps(void) {
     SwitchMapEntry* dest;
@@ -778,9 +771,6 @@ void init_player_switch_maps(void) {
     p1_rumble_on = 0;
     p2_rumble_on = 0;
 }
-
-#pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
 
 PlyrInfo* get_player_for_port(int port) {
     PlyrInfo* player;
@@ -833,8 +823,6 @@ PlyrInfo* get_player_for_port(int port) {
     return player;
 }
 
-#pragma opt_unroll_loops off
-#pragma ppc_unroll_instructions_limit 1
 int check_for_non_game_locked_controller_state(void) {
     int game_state;
 
@@ -944,5 +932,3 @@ void init_port_info_struct(void) {
         g_game_info.pads[i].stick_pack = 0;
     }
 }
-#pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset

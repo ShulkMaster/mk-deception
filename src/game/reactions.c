@@ -689,8 +689,6 @@ static inline void reaction_cleanup_active_player(void) {
     }
 }
 
-/* TODO: [breakthrough] 99.65767%; reaction lifetimes/cleanup owner fixed;
- * state/previous-state spill exchange, call constants and coloring remain. */
 int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     struct ReactionTransferPdata* transfer;
     PlyrPdata* boost_source;
@@ -699,23 +697,21 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     struct ReactionDispatchPair dispatch_pair;
     int face_after;
     CmdScript* cmdscript;
-    MkProc* opponent_proc;
+    int saved_state;
     MkProc* hold_proc;
+    MkProc* opponent_proc;
     PlyrPdata* victim;
     MkObj* victim_obj;
-    int original_previous_state;
-    int state_for_bgnd;
-    int saved_state;
-    int selected_reaction;
     int blocked;
+    int original_previous_state;
     int force_air;
+    int selected_reaction;
     int face_reaction;
+    int state_for_bgnd;
     int reaction_state;
     int big_boss;
     int both_special;
     int input_state;
-    float applied_damage;
-    float damage;
 
     reaction_state = tbl_xfer_addresses[reaction].state;
     face_after = 1;
@@ -818,8 +814,8 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
         plyr_spawn_anim(fighter->weapon_rest_animation, p_animate_weapon_rest);
     }
 
-    original_previous_state = plyr_pdata->previous_state;
     saved_state = plyr_pdata->state;
+    original_previous_state = plyr_pdata->previous_state;
     plyr_obj->flags_09_bits.wall_restricted = 0;
     hold_proc = MK_HDR_LIVE(plyr_pdata->hold_proc, plyr_pdata->hold_proc_instance);
 
@@ -925,55 +921,55 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
     }
 
     if (blocked != 0) {
-        applied_damage = damage_scale * 0.1f;
+        damage_scale *= 0.1f;
     } else {
-        applied_damage = damage_scale * plyr_pdata->damage_multiplier;
+        damage_scale *= plyr_pdata->damage_multiplier;
     }
     if (opponent_proc->pid == 0x1001) {
-        if (check_damage_valid_fc(0, applied_damage) != 0) {
-            applied_damage = 0.0f;
+        if (check_damage_valid_fc(0, damage_scale) != 0) {
+            damage_scale = 0.0f;
         }
         if (mode_of_play == 8) {
-            applied_damage =
-                trial_damage_callback(0, block_type, applied_damage);
+            damage_scale =
+                trial_damage_callback(0, block_type, damage_scale);
         }
         boost_source =
             g_game_info.plyr1.slot.pdata;
-        damage = applied_damage * 0.8f;
+        damage_scale *= 0.8f;
         if (boost_source->damage_boost_until >
             (unsigned int)game_tick_ctr) {
-            damage *= boost_source->damage_boost;
+            damage_scale *= boost_source->damage_boost;
         }
         if (should_weapon_block(g_game_info.plyr0.slot.pdata) != 0) {
-            damage *= 1.15f;
+            damage_scale *= 1.15f;
         }
-        adjust_p1_life(-damage);
+        adjust_p1_life(-damage_scale);
         (g_game_info.plyr0.slot.pdata)
-            ->combo_damage += damage;
+            ->combo_damage += damage_scale;
         if (g_game_info.plyr0.field_0C == 0.0f) {
             blocked = 0;
         }
     } else {
-        if (check_damage_valid_fc(1, applied_damage) != 0) {
-            applied_damage = 0.0f;
+        if (check_damage_valid_fc(1, damage_scale) != 0) {
+            damage_scale = 0.0f;
         }
         if (mode_of_play == 8) {
-            applied_damage =
-                trial_damage_callback(1, block_type, applied_damage);
+            damage_scale =
+                trial_damage_callback(1, block_type, damage_scale);
         }
         boost_source =
             g_game_info.plyr0.slot.pdata;
-        damage = applied_damage * 0.8f;
+        damage_scale *= 0.8f;
         if (boost_source->damage_boost_until >
             (unsigned int)game_tick_ctr) {
-            damage *= boost_source->damage_boost;
+            damage_scale *= boost_source->damage_boost;
         }
         if (should_weapon_block(g_game_info.plyr1.slot.pdata) != 0) {
-            damage *= 1.15f;
+            damage_scale *= 1.15f;
         }
-        adjust_p2_life(-damage);
+        adjust_p2_life(-damage_scale);
         (g_game_info.plyr1.slot.pdata)
-            ->combo_damage += damage;
+            ->combo_damage += damage_scale;
         if (g_game_info.plyr1.field_0C == 0.0f) {
             blocked = 0;
         }

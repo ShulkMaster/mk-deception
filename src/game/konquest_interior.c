@@ -1,5 +1,6 @@
 #include "game/game_info.h"
 #include "game/konquest.h"
+#include "math/gxMath.h"
 #include "math/gxVect.h"
 #include "math/mk_math.h"
 #include "runtime/asset.h"
@@ -12,11 +13,6 @@
 #include "runtime/section.h"
 #include "runtime/utils.h"
 #include "platform/io.h"
-
-union KonquestFloatBits {
-    float f;
-    unsigned int u;
-};
 
 struct KonquestRoomObjectTexture {
     unsigned int material_id;
@@ -307,15 +303,11 @@ void turn_to_face_interior_door(void) {
     Vec delta = {0.0f, 0.0f, 0.0f};
     Vec direction;
     Vec angles;
-    union KonquestFloatBits value_bits;
-    union KonquestFloatBits guess_bits;
     MkObj* hero;
     struct KonquestTrigger* trigger;
     float len_sq;
     float x_squared;
     float y_squared;
-    float guess;
-    float product;
     float normalization_factor;
 
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
@@ -332,17 +324,7 @@ void turn_to_face_interior_door(void) {
     len_sq = delta.z * delta.z;
     len_sq = len_sq + (x_squared + y_squared);
 
-    if (len_sq <= 0.0f) {
-        normalization_factor = 0.0f;
-    } else {
-        value_bits.f = len_sq;
-        guess_bits.u = 0x5F375A00U - (value_bits.u >> 1);
-        guess = guess_bits.f;
-        product = guess * (len_sq * guess);
-        normalization_factor = 3.0f - product;
-        normalization_factor = 0.0625f * guess * normalization_factor *
-                  -(normalization_factor * (product * normalization_factor) - 12.0f);
-    }
+    normalization_factor = gxMathFastInvSqrt(len_sq);
 
     direction.x = delta.x * normalization_factor;
     direction.y = delta.y * normalization_factor;
@@ -673,24 +655,19 @@ static inline void clear_interior_collision_lists(KonquestRoomObject* rec) {
     }
 }
 
-/* TODO: [near miss] 99.72%; cleanup phases agree; room-sobj cursor r28 versus retail r29 remains. */
-static void remove_interior_room_objects(void) {
-    MkObj* interior_object = konq_interior_save_data.interior_object;
-
-    if (interior_object != 0) {
-        interior_object =
-            (interior_object->hdr.instance ==
-             konq_interior_save_data.interior_object_instance)
-                ? interior_object
-                : 0;
-    } else {
-        interior_object = 0;
-    }
-
+static inline void clear_current_interior_collisions(void) {
     clear_interior_collision_lists(
         konq_interior_save_data.current_interior->room_objects);
     clear_interior_collision_lists(
         konq_interior_save_data.current_interior->script_objects);
+}
+
+static void remove_interior_room_objects(void) {
+    MkObj* interior_object = MK_HDR_LIVE(
+        konq_interior_save_data.interior_object,
+        konq_interior_save_data.interior_object_instance);
+
+    clear_current_interior_collisions();
 
     if (interior_object != 0) {
         konq_interior_hide_room_sobjs(interior_object);

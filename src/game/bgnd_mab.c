@@ -180,8 +180,6 @@ int is_weapon_style(int style);
 void advance_active_moveset(FighterMirror* fighter);
 static float p_player_body_explode(void);
 static float p_xpd_obj_monitor(void);
-MslSoundHandle plyr_snd_req_no_plyr_proc(
-    FighterMirror* fighter, int sound_id);
 MkObj* obj_sever_limb(
     MkObj* object, int limb, Vec* limb_velocities, int include_children);
 void limb_sever_show_z_meat_chunks(
@@ -773,13 +771,13 @@ float p_fish_attack_scream_sounds(void) {
         player = &g_game_info.plyr1;
     }
 
-    plyr_snd_req_no_plyr_proc(player->slot.fighter, 0x23);
+    plyr_snd_req_no_plyr_proc(player->slot.pdata, 0x23);
     _mkproc_sleep_ticks = 25.0f;
     aproc->vtbl->sleep();
-    plyr_snd_req_no_plyr_proc(player->slot.fighter, 0x22);
+    plyr_snd_req_no_plyr_proc(player->slot.pdata, 0x22);
     _mkproc_sleep_ticks = 45.0f;
     aproc->vtbl->sleep();
-    plyr_snd_req_no_plyr_proc(player->slot.fighter, 0x47);
+    plyr_snd_req_no_plyr_proc(player->slot.pdata, 0x47);
     return -1.0f;
 }
 

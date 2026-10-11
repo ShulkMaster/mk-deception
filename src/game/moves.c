@@ -424,14 +424,6 @@ static inline void moves_sleep(float ticks) {
     vtable->sleep();
 }
 
-static inline MkObj* moves_resolve_weapon_latch(
-    const PlyrMirrorObjLatch* latch) {
-    MkObj* object;
-
-    object = latch->obj;
-    return MK_HDR_LIVE(object, latch->instance);
-}
-
 static inline int moves_is_weapon_style(PlyrFighterDefinition* style) {
     PlyrStyleDefinition* weapon_data;
 
@@ -3536,7 +3528,6 @@ static float weapon_block(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 97.07%; retail order restored; player argument staging around the second weapon latch remains. */
 void advance_active_moveset(PlyrPdata* player) {
     PlyrMirrorSlots* slots;
     MkObj* sidekick;
@@ -3555,8 +3546,7 @@ void advance_active_moveset(PlyrPdata* player) {
         if (player->character_id == 0x1B) {
             if (g_game_info.feature_flags.bits.high_bit != 0) {
                 player->player_slot = 0;
-                sidekick = moves_resolve_weapon_latch(
-                    &player->tracked_obj_latch);
+                sidekick = MK_HDR_LIVE(player->tracked_obj_latch.obj, player->tracked_obj_latch.instance);
                 if (sidekick != 0) {
                     player->sidekick_active = 0;
                     tag_team_activate_player(
@@ -3597,25 +3587,21 @@ void advance_active_moveset(PlyrPdata* player) {
     slots = player->mirror_slots;
     if (slots != 0) {
         if (moves_is_weapon_style(player->fighter_definition) != 0) {
-            if (moves_resolve_weapon_latch(&slots->weapon[0].primary) != 0) {
+            if (MK_HDR_LIVE(slots->weapon[0].primary.obj, slots->weapon[0].primary.instance) != 0) {
                 plyr_weapon_grab(
-                    player, moves_resolve_weapon_latch(
-                                &slots->weapon[0].primary));
+                    player, MK_HDR_LIVE(slots->weapon[0].primary.obj, slots->weapon[0].primary.instance));
             }
-            if (moves_resolve_weapon_latch(&slots->weapon[1].primary) != 0) {
+            if (MK_HDR_LIVE(slots->weapon[1].primary.obj, slots->weapon[1].primary.instance) != 0) {
                 plyr_weapon2_grab(
-                    player, moves_resolve_weapon_latch(
-                                &slots->weapon[1].primary));
+                    player, MK_HDR_LIVE(slots->weapon[1].primary.obj, slots->weapon[1].primary.instance));
             }
-            if (moves_resolve_weapon_latch(&slots->weapon[2].primary) != 0) {
+            if (MK_HDR_LIVE(slots->weapon[2].primary.obj, slots->weapon[2].primary.instance) != 0) {
                 plyr_weapon3_grab(
-                    player, moves_resolve_weapon_latch(
-                                &slots->weapon[2].primary));
+                    player, MK_HDR_LIVE(slots->weapon[2].primary.obj, slots->weapon[2].primary.instance));
             }
-            if (moves_resolve_weapon_latch(&slots->weapon[3].primary) != 0) {
+            if (MK_HDR_LIVE(slots->weapon[3].primary.obj, slots->weapon[3].primary.instance) != 0) {
                 plyr_weapon4_grab(
-                    player, moves_resolve_weapon_latch(
-                                &slots->weapon[3].primary));
+                    player, MK_HDR_LIVE(slots->weapon[3].primary.obj, slots->weapon[3].primary.instance));
             }
             plyr_weapon_show(player, 1, slots);
             if (player->baraka_moveset_callback != 0) {
@@ -3652,12 +3638,8 @@ void sidekick_intro_check(void) {
     }
 }
 
-/* TODO: [breakthrough] 94.55%; restored live mirror angle/yaw reloads; defined vector Y zeros and pointer/FPR lifetimes remain. */
+/* TODO: [near miss] 99.96%; only wrapped_angle FPR coloring remains (f27 vs retail f26); stop at coloring. */
 static float p_plyr_sidekick_intro(void) {
-    union {
-        float f;
-        unsigned int u;
-    } inverse_bits;
     PlyrPdata* player;
     PlyrInfo* player_info;
     MkProc* anim_proc;
@@ -3672,49 +3654,25 @@ static float p_plyr_sidekick_intro(void) {
     Vec offset;
     float length_sq;
     float inverse_length;
-    float estimate_product;
-    float correction;
+    float wrapped_angle;
     float position_x;
     float position_y;
     float position_z;
     float angle_x;
     float angle_y;
     float angle_z;
-    float wrapped_angle;
     int function;
 
     player = ((struct MovesSidekickPdata*)apdata)->player;
-    sidekick = player->sidekick_obj;
-    if (sidekick != 0) {
-        sidekick = sidekick->hdr.instance ==
-                           player->sidekick_instance
-                       ? sidekick
-                       : 0;
-    } else {
-        sidekick = 0;
-    }
-    anim_proc = player->sidekick_anim_proc;
+    sidekick = MK_HDR_LIVE(player->sidekick_obj, player->sidekick_instance);
     player_info = player->plyr_info;
     opponent_object = player->his_obj;
-    main_object = player_info->slot.mirror_a;
-    if (anim_proc != 0) {
-        if (anim_proc->instance != player->sidekick_anim_instance) {
-            anim_proc = 0;
-        }
-    } else {
-        anim_proc = 0;
-    }
+    main_object = player->plyr_info->slot.mirror_a;
+    anim_proc = MK_LIVE(player->sidekick_anim_proc, player->sidekick_anim_instance);
     anim = (AnimPdata*)pdata_of_proc(anim_proc);
     sidekick->flags_09_bits.head_tracking = 1;
 
-    player_proc = player->own_player_proc;
-    if (player_proc != 0) {
-        if (player_proc->instance != player->own_player_proc_instance) {
-            player_proc = 0;
-        }
-    } else {
-        player_proc = 0;
-    }
+    player_proc = MK_LIVE(player->own_player_proc, player->own_player_proc_instance);
     get_cmdscript_for_proc(player_proc);
     tag_team_activate_player(
         sidekick, player_info->slot.pdata->sidekick_active);
@@ -3727,24 +3685,12 @@ static float p_plyr_sidekick_intro(void) {
     angle_z = angle_object->ang.z;
 
     length_sq = direction.x * direction.x + direction.z * direction.z;
-    if (length_sq <= 0.0f) {
-        inverse_length = 0.0f;
-    } else {
-        inverse_bits.f = length_sq;
-        inverse_bits.u = 0x5F375A00U - (inverse_bits.u >> 1);
-        estimate_product = inverse_bits.f * (length_sq * inverse_bits.f);
-        correction = 3.0f - estimate_product;
-        inverse_length =
-            0.0625f * inverse_bits.f * correction *
-            -((correction * (estimate_product * correction)) - 12.0f);
-    }
+    inverse_length = gxMathFastInvSqrt(length_sq);
     direction.x *= inverse_length;
     direction.z *= inverse_length;
     offset.x = 0.35f * direction.x;
-    offset.y = 0.0f;
     offset.z = 0.35f * direction.z;
     lateral.x = direction.z;
-    lateral.y = 0.0f;
     lateral.z = -direction.x;
     if (am_i_on_the_left2(
             player->plyr_info->slot.mirror_a,
@@ -3753,9 +3699,9 @@ static float p_plyr_sidekick_intro(void) {
     } else {
         v3_add_v3_scaled(&offset, &offset, &lateral, -0.55f);
     }
-    position_x = main_object->pos.value.x + offset.x;
+    position_x = offset.x += main_object->pos.value.x;
     position_y = g_game_info.field_34;
-    position_z = main_object->pos.value.z + offset.z;
+    position_z = offset.z += main_object->pos.value.z;
 
     sidekick->ground_colls_y = main_object->ground_colls_y;
     set_root_and_obj_movement_weights(anim, 0.0f, 0.5f);
@@ -3789,9 +3735,8 @@ static float p_plyr_sidekick_intro(void) {
     anim->step = 1.0f;
     moves_sleep(1.0f);
     unhide_obj(sidekick);
-    wrapped_angle =
-        0.000005992112f *
-        (float)(((int)(166886.1f * player->plyr_info->slot.mirror_a->ang.y)) & 0xFFFFF);
+    wrapped_angle = player->plyr_info->slot.mirror_a->ang.y;
+    wrapped_angle = 0.000005992112f * (float)((int)(166886.1f * wrapped_angle) & 0xFFFFF);
     gxMathSin(wrapped_angle);
     gxMathCos(wrapped_angle);
     moves_sleep(120.0f + (float)(unsigned short)randu0(30));
@@ -3844,8 +3789,7 @@ void noobsmoke_sidekick_projectile(void) {
     }
 }
 
-/* TODO: [breakthrough] 80.28%; sqrt byte-offset indexing corrected;
- * audit the remaining consumer CFG/ABI differences separately. */
+/* TODO: [near miss] 99.75%; retail recomputes the placement vector after tag_team_activate_player; only volatile FPR coloring of the recomputed dx/dz remains. */
 static float p_plyr_sidekick_projectile(void) {
     union {
         float f;
@@ -3858,7 +3802,9 @@ static float p_plyr_sidekick_projectile(void) {
     MkProc* player_proc;
     MkObj* sidekick;
     MkObj* main_object;
+    MkObj* angle_object;
     MkObj* opponent_object;
+    PlyrInfo* info;
     AnimPdata* anim;
     Vec direction;
     float length_sq;
@@ -3866,8 +3812,8 @@ static float p_plyr_sidekick_projectile(void) {
     float inverse_length;
     float estimate_product;
     float correction;
-    float placement_scale;
-    float object_weight;
+    float offset_x;
+    float offset_z;
     float wrapped_angle;
     float position_x;
     float position_y;
@@ -3875,84 +3821,64 @@ static float p_plyr_sidekick_projectile(void) {
     float angle_x;
     float angle_y;
     float angle_z;
+    float object_weight;
     int transition;
     int function;
 
+    object_weight = 2.0f;
+    transition = 0;
     pdata = (struct MovesSidekickPdata*)apdata;
     player = pdata->player;
     actions = pdata->player;
-    sidekick = player->sidekick_obj;
-    object_weight = 2.0f;
-    transition = 0;
-    if (sidekick != 0 &&
-        sidekick->hdr.instance != player->sidekick_instance) {
-        sidekick = 0;
-    }
-    anim_proc = player->sidekick_anim_proc;
-    if (anim_proc != 0 &&
-        anim_proc->instance != player->sidekick_anim_instance) {
-        anim_proc = 0;
-    }
-    anim = (AnimPdata*)pdata_of_proc(anim_proc);
-    main_object = player->plyr_info->slot.mirror_a;
+    sidekick = MK_HDR_LIVE(player->sidekick_obj, player->sidekick_instance);
+    info = player->plyr_info;
     opponent_object = player->his_obj;
+    main_object = player->plyr_info->slot.mirror_a;
+    anim_proc = MK_LIVE(player->sidekick_anim_proc, player->sidekick_anim_instance);
+    anim = (AnimPdata*)pdata_of_proc(anim_proc);
 
     direction.x = main_object->pos.value.x - opponent_object->pos.value.x;
     direction.y = 0.0f;
     direction.z = main_object->pos.value.z - opponent_object->pos.value.z;
     length_sq =
         direction.x * direction.x + direction.z * direction.z;
-    distance = 0.0f;
-    if (length_sq > 0.0f) {
-        bits.f = length_sq;
-        guess.u =
-            (unsigned int)GXMathSqrtTable[(bits.u >> 11) & 0x1FFF] << 8;
-        guess.u |=
-            (((bits.u & 0x7F800000U) + 0x3F800000U) >> 1) &
-            0x7F800000U;
-        distance =
-            0.5f * guess.f *
-            (3.0f - (guess.f * guess.f) / length_sq);
-    }
+    distance = gxMathFastSqrt(length_sq);
     if (distance < 3.2f) {
         object_weight = 0.75f;
     }
     moves_prepare_sidekick_entrance(anim, sidekick);
     if (am_i_on_the_left2(
-            main_object,
+            player->plyr_info->slot.mirror_a,
             player->his_plyr_pdata->plyr_info->slot.mirror_a) == 0) {
         transition = 8;
     }
 
-    player_proc = player->own_player_proc;
-    if (player_proc != 0 &&
-        player_proc->instance != player->own_player_proc_instance) {
-        player_proc = 0;
-    }
+    player_proc = MK_LIVE(player->own_player_proc, player->own_player_proc_instance);
     get_cmdscript_for_proc(player_proc);
     tag_team_activate_player(
-        sidekick, player->plyr_info->slot.pdata->sidekick_active);
+        sidekick, info->slot.pdata->sidekick_active);
 
-    inverse_length = 0.0f;
-    if (length_sq > 0.0f) {
-        inverse_bits.f = length_sq;
-        inverse_bits.u = 0x5F375A00U - (inverse_bits.u >> 1);
-        estimate_product =
-            inverse_bits.f * (length_sq * inverse_bits.f);
-        correction = 3.0f - estimate_product;
-        inverse_length =
-            0.0625f * inverse_bits.f * correction *
-            -((correction * (estimate_product * correction)) - 12.0f);
-    }
+    angle_object = info->slot.mirror_a;
+    direction.x = main_object->pos.value.x - opponent_object->pos.value.x;
+    direction.z = main_object->pos.value.z - opponent_object->pos.value.z;
+    angle_x = angle_object->ang.x;
+    angle_y = angle_object->ang.y;
+    angle_z = angle_object->ang.z;
+    length_sq =
+        direction.x * direction.x + direction.z * direction.z;
+    inverse_length = gxMathFastInvSqrt(length_sq);
     direction.x *= inverse_length;
     direction.z *= inverse_length;
-    placement_scale = distance < 3.2f ? 1.2f : 1.5f;
-    position_x = main_object->pos.value.x + direction.x * placement_scale;
+    if (distance < 3.2f) {
+        position_x = 1.2f * direction.x;
+        position_z = 1.2f * direction.z;
+    } else {
+        position_x = 1.5f * direction.x;
+        position_z = 1.5f * direction.z;
+    }
+    position_x += main_object->pos.value.x;
     position_y = g_game_info.field_34;
-    position_z = main_object->pos.value.z + direction.z * placement_scale;
-    angle_x = main_object->ang.x;
-    angle_y = main_object->ang.y;
-    angle_z = main_object->ang.z;
+    position_z += main_object->pos.value.z;
     sidekick->ground_colls_y = main_object->ground_colls_y;
     set_root_and_obj_movement_weights(anim, 0.0f, object_weight);
     sidekick->pos.value.x = position_x;
@@ -3968,7 +3894,7 @@ static float p_plyr_sidekick_projectile(void) {
         sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     ground_me(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
 
-    if (pdata->player->plyr_num == 0) {
+    if (player->plyr_num == 0) {
         destroy_mkprocs_pid(0xC028);
     } else {
         destroy_mkprocs_pid(0xC029);
@@ -3977,23 +3903,21 @@ static float p_plyr_sidekick_projectile(void) {
     anim->step = 1.25f;
     moves_sleep(1.0f);
     unhide_obj(sidekick);
-
-    wrapped_angle =
-        0.000005992112f *
-        (float)(((int)(166886.1f * main_object->ang.y)) & 0xFFFFF);
+    wrapped_angle = player->plyr_info->slot.mirror_a->ang.y;
+    wrapped_angle = 0.000005992112f * (float)((int)(166886.1f * wrapped_angle) & 0xFFFFF);
     gxMathSin(wrapped_angle);
     gxMathCos(wrapped_angle);
     moves_sleep(8.0f);
     anim->step = 0.75f;
     random_hit(8);
     moves_sleep(5.0f);
-    pdata->player->state_flags.bits.projectile_request = 1;
+    player->state_flags.bits.projectile_request = 1;
     moves_sleep(1.0f);
-    pdata->player->state_flags.bits.projectile_request = 1;
+    player->state_flags.bits.projectile_request = 1;
     moves_sleep(1.0f);
-    pdata->player->state_flags.bits.projectile_request = 1;
+    player->state_flags.bits.projectile_request = 1;
     moves_sleep(1.0f);
-    pdata->player->state_flags.bits.projectile_request = 1;
+    player->state_flags.bits.projectile_request = 1;
     moves_sleep(12.0f);
 
     set_root_and_obj_movement_weights(anim, 0.0f, 0.5f);
@@ -4012,7 +3936,7 @@ static float p_plyr_sidekick_projectile(void) {
     function =
         get_script_function_by_name(actions->cmo, "start_noob_exit_pfx");
     plyr_start_script_in_plyr_pdata_proc(
-        pdata->player, 0xC025, function);
+        player, 0xC025, function);
     snd_req(0x33B);
     moves_sleep(5.0f);
     hide_obj(sidekick);
@@ -4297,7 +4221,7 @@ void noobsmoke_sidekick_double_charge(void) {
     }
 }
 
-/* TODO: [near miss] 94.95%; retail order restored; CFG aligns with defined Vec Y zeros; FPR coloring remains. */
+/* TODO: [near miss] 99.87%; position stored back through offset.x/z as retail; remaining rows are late constant-pool loads and FPR coloring of the wrapped angle. */
 static float p_plyr_sidekick_charge(void) {
     union {
         float f;
@@ -4335,34 +4259,17 @@ static float p_plyr_sidekick_charge(void) {
 
     pdata = (struct MovesSidekickPdata*)apdata;
     player = pdata->player;
-    sidekick = player->sidekick_obj;
-    if (sidekick != 0) {
-        if (sidekick->hdr.instance != player->sidekick_instance) {
-            sidekick = 0;
-        }
-    } else {
-        sidekick = 0;
-    }
-    anim_proc = player->sidekick_anim_proc;
+    sidekick = MK_HDR_LIVE(player->sidekick_obj, player->sidekick_instance);
     info = player->plyr_info;
     opponent_object = player->his_obj;
     main_object = info->slot.mirror_a;
-    if (anim_proc != 0) {
-        if (anim_proc->instance != player->sidekick_anim_instance) {
-            anim_proc = 0;
-        }
-    } else {
-        anim_proc = 0;
-    }
+    anim_proc = MK_LIVE(player->sidekick_anim_proc,
+                        player->sidekick_anim_instance);
     anim = (AnimPdata*)pdata_of_proc(anim_proc);
     moves_prepare_sidekick_entrance(anim, sidekick);
     sidekick->flags_09_bits.head_tracking = 0;
 
-    player_proc = player->own_player_proc;
-    if (player_proc != 0 &&
-        player_proc->instance != player->own_player_proc_instance) {
-        player_proc = 0;
-    }
+    player_proc = MK_LIVE(player->own_player_proc, player->own_player_proc_instance);
     get_cmdscript_for_proc(player_proc);
     tag_team_activate_player(
         sidekick, info->slot.pdata->sidekick_active);
@@ -4376,25 +4283,12 @@ static float p_plyr_sidekick_charge(void) {
 
     length_sq =
         direction.x * direction.x + direction.z * direction.z;
-    if (length_sq <= 0.0f) {
-        inverse_length = 0.0f;
-    } else {
-        inverse_bits.f = length_sq;
-        inverse_bits.u = 0x5F375A00U - (inverse_bits.u >> 1);
-        estimate_product =
-            inverse_bits.f * (length_sq * inverse_bits.f);
-        correction = 3.0f - estimate_product;
-        inverse_length =
-            0.0625f * inverse_bits.f * correction *
-            -((correction * (estimate_product * correction)) - 12.0f);
-    }
+    inverse_length = gxMathFastInvSqrt(length_sq);
     direction.x *= inverse_length;
     direction.z *= inverse_length;
     offset.x = 0.5f * direction.x;
-    offset.y = 0.0f;
     offset.z = 0.5f * direction.z;
     lateral.x = direction.z;
-    lateral.y = 0.0f;
     lateral.z = -direction.x;
     if (am_i_on_the_left2(
             player->plyr_info->slot.mirror_a,
@@ -4405,9 +4299,9 @@ static float p_plyr_sidekick_charge(void) {
         v3_add_v3_scaled(&offset, &offset, &lateral, -0.45f);
         transition = 8;
     }
-    position_x = main_object->pos.value.x + offset.x;
+    position_x = offset.x = offset.x + main_object->pos.value.x;
     position_y = g_game_info.field_34;
-    position_z = main_object->pos.value.z + offset.z;
+    position_z = offset.z = offset.z + main_object->pos.value.z;
 
     sidekick->ground_colls_y = main_object->ground_colls_y;
     set_root_and_obj_movement_weights(anim, 0.0f, 1.0f);

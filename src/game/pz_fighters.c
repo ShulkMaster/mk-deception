@@ -1191,7 +1191,37 @@ void pz_fighter_classify_move_8012260C(
     }
 }
 
-/* TODO: [near miss] 96.80%; pending-move scan compares unsigned (retail cmpwi) and scan/branch coloring remain. */
+static inline int pz_fighter_has_pending_event_one(void) {
+    unsigned int index;
+
+    for (index = 0; index < g_pz_fighters_engine.pending_move_count; index++) {
+        if (g_pz_fighters_engine.pending_moves[index].event_type == 1) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* TODO: [near miss] 99.98%; p_puzzle_fighter_master retail threads the first super-ready branch past the second bar-level test. */
+static inline int pz_fighter_state_pair_invalid(int first, int second) {
+    switch (first) {
+    case 0:
+    case 1:
+    case 5:
+        break;
+    default:
+        return 1;
+    }
+    switch (second) {
+    default:
+        return 1;
+    case 0:
+    case 1:
+    case 5:
+        return 0;
+    }
+}
+
 static float p_puzzle_fighter_master(void) {
     int state1;
     int state2;
@@ -1283,38 +1313,9 @@ static float p_puzzle_fighter_master(void) {
                    state1 == 4) {
             pz_fighter_individual_plyr_do_something(1, state1);
         } else {
-            pending_active = 0;
-            for (i = 0; i < g_pz_fighters_engine.pending_move_count; i++) {
-                if (g_pz_fighters_engine.pending_moves[i].event_type == 1) {
-                    pending_active = 1;
-                    break;
-                }
-            }
-            if (pending_active == 1) {
-                switch (state1) {
-                case 0:
-                case 1:
-                case 5:
-                    switch (state2) {
-                    case 0:
-                    case 1:
-                    case 5:
-                        invalid_state = 0;
-                        break;
-                    default:
-                        invalid_state = 1;
-                        break;
-                    }
-                    break;
-                default:
-                    invalid_state = 1;
-                    break;
-                }
-            } else {
-                invalid_state = 1;
-            }
-
-            if (invalid_state == 0) {
+            pending_active = pz_fighter_has_pending_event_one();
+            if (pending_active == 1 &&
+                pz_fighter_state_pair_invalid(state1, state2) == 0) {
                 xfer_proc(
                     g_game_info.plyr0.idle_proc,
                     p_plyr_pz_fighter_entry);
@@ -1997,23 +1998,28 @@ static float p_objects_moving(void) {
 }
 
 static inline void offset_constraint_fighter(
-    MkObj* fighter, const Vec* axis, float scale) {
+    Vec* position, Vec* axis, float scale) {
     float move_x = axis->x;
     float move_z = axis->z;
 
     move_x *= scale;
     move_z *= scale;
-    fighter->pos.value.x = fighter->pos.value.x + move_x;
-    fighter->pos.value.z = fighter->pos.value.z + move_z;
+    position->x = position->x + move_x;
+    position->z = position->z + move_z;
 }
 
-/* TODO: [near miss] 99.70930%; positive-arm scaled distance/X movement FPRs remain; other constraint operations agree. */
+static inline void offset_constraint_fighter_smooth(
+    Vec* position, Vec* axis, float distance) {
+    float scale = distance / 5.0f;
+    offset_constraint_fighter(position, axis, scale);
+}
+
 static void check_fighter_constraints(void) {
     unsigned int player;
 
     for (player = 0; player < 2; player++) {
-        MkObj* fighter;
         float distance;
+        MkObj* fighter;
 
         fighter = player == 0 ? g_game_info.plyr0.slot.mirror_a
                               : g_game_info.plyr1.slot.mirror_a;
@@ -2024,11 +2030,11 @@ static void check_fighter_constraints(void) {
                 (g_pz_fighters_engine.fighter_posts[0].z - fighter->pos.value.z);
 
         if (distance > 0.01) {
-            offset_constraint_fighter(
-                fighter, &g_pz_fighters_engine.constraint_axis, distance / 5.0f);
+            offset_constraint_fighter_smooth(
+                &fighter->pos.value, &g_pz_fighters_engine.constraint_axis, distance);
         } else if (distance < 0.002) {
             offset_constraint_fighter(
-                fighter, &g_pz_fighters_engine.constraint_axis, distance);
+                &fighter->pos.value, &g_pz_fighters_engine.constraint_axis, distance);
         }
 
         if (g_pz_fighters_engine.y_constraint_enabled[player] == 1 &&
@@ -3118,7 +3124,7 @@ void pz_fighters_calc_distance_to_desired_idle_pos(
     }
 }
 
-/* TODO: [near miss] 98.06%; angles stored raw then wrapped like retail; FPR coloring of the offset/wrap block remains. */
+/* TODO: [near miss] 98.05590%; raw/wrapped angle store order agrees; 41 FPR rows in correction and offset/wrap blocks remain. */
 static void pz_fighter_snap_to_distance(
     float desired_distance_squared, float current_distance_squared) {
     Vec my_position;
@@ -3154,7 +3160,7 @@ static void pz_fighter_snap_to_distance(
     his_angle.z = his_obj->ang.z;
 
     xz_unit_vector(&direction, &my_position, &his_position);
-    facing = (float)(double)gxMathArcTanYX(direction.x, direction.z);
+    facing = (double)gxMathArcTanYX(direction.x, direction.z);
     my_angle.y = facing;
     opposite_correction = -1.0f * correction;
     my_x_offset = direction.x * correction;

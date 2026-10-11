@@ -256,11 +256,14 @@ static inline void subtract_script_loop_offset(
 }
 
 static inline void rebuild_anim_track_table(AnimPdata* anim) {
-    AnimScript* script = anim->script;
-    int track_count = script->track_count;
     void** track_data;
+    AnimScript* script;
+    int track_count;
     AnimChannelHeader* track;
     int i;
+
+    script = anim->script;
+    track_count = script->track_count;
 
     if (anim->track_capacity < track_count) {
         void** table = get_mem(2 * track_count * sizeof(*anim->track_data));
@@ -2713,7 +2716,6 @@ static int _set_frameno(AnimPdata* anim) {
     return result;
 }
 
-/* TODO: [near miss] 99.47%; track-table helper coloring (retail script r27/count r28/table r31) and clamp FP regs remain; helper reorders are mixed across consumers. */
 int transition_to_anim_script_frame(
     float transition_frames,
     float frame,
@@ -2724,8 +2726,8 @@ int transition_to_anim_script_frame(
     MkPtr* child_link;
     unsigned int i;
     float speed;
-    float frame_step;
     float maximum_step;
+    float frame_step;
     float saved_step;
     int maximum_step_int;
 
@@ -2769,10 +2771,10 @@ int transition_to_anim_script_frame(
     }
     rebuild_anim_track_table(anim);
     if ((flags & 0x10) != 0) {
+        float frame_ratio =
+            anim->old_frame / (float)(anim->old_script->frame_count - 1);
         float synchronized_frame =
-            anim->old_frame /
-            (float)(anim->old_script->frame_count - 1) *
-            (float)(anim->script->frame_count - 1);
+            frame_ratio * (float)(anim->script->frame_count - 1);
         anim->frame = synchronized_frame;
         anim->previous_frame = synchronized_frame;
     }
@@ -2837,6 +2839,7 @@ int transition_to_anim_script_frame(
                 child_link = obj->list_44;
                 while (child_link != 0) {
                     MkObj* child;
+                    unsigned int j;
 
                     if ((child = (MkObj*)child_link->hdr)->hdr.instance !=
                         child_link->instance) {
@@ -2845,8 +2848,8 @@ int transition_to_anim_script_frame(
                         discard_stale_mkptr(child_link);
                         child_link = next;
                     } else {
-                        for (i = 0; i < child->bone_count; i++) {
-                            MkBone* bone = child->bones[i];
+                        for (j = 0; j < child->bone_count; j++) {
+                            MkBone* bone = child->bones[j];
 
                             if (bone != 0) {
                                 bone->rotation_e0.x = bone->rotation.x;

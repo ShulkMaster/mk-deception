@@ -20,12 +20,12 @@ extern "C" {
 
 void set_active_projectile_target_ground(
     float ticks, float collision_ticks, float collision_radius);
-void set_active_projectile_upward_attack(const Vec* target);
+void set_active_projectile_upward_attack(Vec* target);
 int get_bid_with_flip(MkObj* object, unsigned int bone_id);
 void active_projectile_setup_done(void);
-void set_active_projectile_velocity_damp(const Vec* damping);
+void set_active_projectile_velocity_damp(Vec* damping);
 void set_active_projectile_max_ticks(int ticks);
-void set_active_projectile_target_pos(const Vec* position);
+void set_active_projectile_target_pos(Vec* position);
 void set_active_projectile_p_handler(float (*handler)(void));
 void set_active_projectile_dn_sound(int sound);
 void set_active_projectile_sound(

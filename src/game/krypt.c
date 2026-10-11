@@ -323,9 +323,9 @@ static inline void opening_coffin_effects_impl(Vec* origin) {
 }
 
 static inline void finish_coffin_opening_effects(Vec* origin) {
-    unsigned int effect;
     Vec dust_offset = {0.0f, 0.25f, 2.0f};
     Vec effect_position = {0.0f, 0.0f, 0.0f};
+    unsigned int effect;
     effect = fx_by_owner("coffin_dust_pfx", 4);
     fx_reset(effect);
     effect_position.x = origin->x + dust_offset.x;
@@ -1744,8 +1744,8 @@ static inline void move_picture_to_camera_impl(KryptScreenObjLatch* picture_latc
 }
 
 static inline unsigned int coffin_award_art_oid(CoffinEntry* entries, int index) {
-    unsigned int art_oid;
     MkFileInfo* art_section;
+    unsigned int art_oid;
 
     if (krypt_data_loaded == 0) {
         return 0;
@@ -1759,8 +1759,8 @@ static inline unsigned int coffin_award_art_oid(CoffinEntry* entries, int index)
     return (art_oid + 0x3EA) << 16;
 }
 
-/* TODO: [near miss] 99.16%; row helper matches; koin totals fold into
- * profile+k*4 instead of retail lwzx base; GPR coloring remains. */
+/* TODO: [near miss] 99.19%; award-art homes fixed; koin totals fold into
+ * profile+k*4 instead of retail lwzx base; dust fx handle home and signedness remain. */
 static float p_move_camera_and_open_coffin(void) {
     Vec coffin_position;
     Vec camera_angles = s_coffin_camera_angles;
@@ -2920,51 +2920,44 @@ int load_pix_section(
     load_art_section(slot, section);
     return ((gallery_art + 0x3EA) << 16) | flags;
 }
-/* TODO: [near miss] 98.904106%; reinspection confirms allocation-result and
- * relocation-loop register coloring; retain recovered length/offset boundaries. */
 int load_binary_data(
-    MkFileInfo* file_info, CoffinEntry** entries, void* unused,
+    MkFileInfo* file_info, CoffinEntry** entries, char* strings,
     int* loaded, int entry_count) {
-    char* strings;
-    MkFileEntry* file;
-    int file_size;
     int strings_size;
-    int entries_size;
+    MkFileEntry* file;
     int i;
 
     if (*loaded != 0) {
         return 1;
+    } else {
+        file = mk_file_open_language(file_info, "rb", (void*)1);
+        if (file == 0) {
+            return 0;
+        }
+
+        strings_size = mk_file_length(file) - entry_count * sizeof(CoffinEntry);
+        strings = get_mem(strings_size);
+        if (strings == 0) {
+            return 0;
+        }
+
+        *entries = get_mem(entry_count * sizeof(CoffinEntry));
+        if (*entries == 0) {
+            return 0;
+        }
+
+        mk_file_read(*entries, sizeof(CoffinEntry), entry_count, file);
+        mk_file_read(strings, 1, strings_size, file);
+        mk_file_close(file);
+
+        for (i = 0; i < entry_count; i++) {
+            (*entries)[i].blurb = strings + (unsigned int)(*entries)[i].blurb;
+            (*entries)[i].long_description =
+                strings + (unsigned int)(*entries)[i].long_description;
+        }
+
+        *loaded = 1;
     }
-
-    file = mk_file_open_language(file_info, "rb", (void*)1);
-    if (file == 0) {
-        return 0;
-    }
-
-    file_size = mk_file_length(file);
-    entries_size = entry_count * sizeof(CoffinEntry);
-    strings_size = file_size - entries_size;
-    strings = get_mem(strings_size);
-    if (strings == 0) {
-        return 0;
-    }
-
-    *entries = get_mem(entries_size);
-    if (*entries == 0) {
-        return 0;
-    }
-
-    mk_file_read(*entries, sizeof(CoffinEntry), entry_count, file);
-    mk_file_read(strings, 1, strings_size, file);
-    mk_file_close(file);
-
-    for (i = 0; i < entry_count; i++) {
-        (*entries)[i].blurb = strings + (unsigned int)(*entries)[i].blurb;
-        (*entries)[i].long_description =
-            strings + (unsigned int)(*entries)[i].long_description;
-    }
-
-    *loaded = 1;
     return 1;
 }
 static inline int find_available_konquest_key(void) {

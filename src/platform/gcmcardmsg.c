@@ -154,27 +154,38 @@ static inline int is_hault_message_id(int id) {
 }
 
 static inline void format_no_space_body(int device) {
-    const char* suffix = nbc_find_text(0x4f, 0);
-    const char* middle = nbc_find_text(0x4e, 0);
-    const char* detail = nbc_find_text(0x4d, 0);
-    const char* slotName = nbc_find_text(gc_mc_default_name[device], 0);
-    const char* prefix = nbc_find_text(0x4c, 0);
+    const char* middle;
+    const char* prefix;
+    const char* suffix;
+    const char* slotName;
+    const char* detail;
+
+    suffix = nbc_find_text(0x4f, 0);
+    middle = nbc_find_text(0x4e, 0);
+    detail = nbc_find_text(0x4d, 0);
+    slotName = nbc_find_text(gc_mc_default_name[device], 0);
+    prefix = nbc_find_text(0x4c, 0);
 
     sprintf(message_buffer, STR_MC_FMT_SSSDSDS, prefix, slotName, detail, 1, middle, 0x3a, suffix);
     set_memcard_popup_message_body_text(message_buffer);
 }
 
 static inline void format_no_space_options(const char* name) {
-    const char* last = nbc_find_text(0x51, 0);
-    const char* middle = nbc_find_text(0x50, 0);
-    const char* first = nbc_find_text(0x13, 0);
-    const char* prefix = nbc_find_text(0x12, 0);
+    const char* middle;
+    const char* last;
+    const char* first;
+    const char* prefix;
+
+    last = nbc_find_text(0x51, 0);
+    middle = nbc_find_text(0x50, 0);
+    first = nbc_find_text(0x13, 0);
+    prefix = nbc_find_text(0x12, 0);
 
     sprintf(message_buffer, STR_MC_FMT_NO_SPACE_OPTS, prefix, name, first, middle, last);
     set_memcard_popup_message_options_text(message_buffer);
 }
 
-/* TODO: [near miss] 99.62%; text, answer and cleanup agree; 14 saved-register coloring rows remain. */
+/* TODO: [near miss] 99.84%; text, answer and cleanup agree; six saved-register rows remain (body suffix/middle homes). */
 int gc_no_space_routine(const char* nameOrNull, int device) {
     const char* name;
     int ret;
@@ -1337,24 +1348,14 @@ static void mcard_msg_no_cards_at_settings_rtn(void) {
     }
 }
 
-/* TODO: [near miss] 95.54054%; retail pool restored; residual call/reload lowering. */
 void mcard_msg_no_cards_at_settings(void) {
-    const char* a;
-    const char* b;
-    const char* c;
-    const char* optA;
-    const char* optB;
-
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x38, 0));
-    a = nbc_find_text(0x3b, 0);
-    b = nbc_find_text(0x3a, 0);
-    c = nbc_find_text(0x39, 0);
-    sprintf(message_buffer, STR_MC_FMT_SDSDS, c, 1, b, 0x3a, a);
+    sprintf(message_buffer, STR_MC_FMT_SDSDS, nbc_find_text(0x39, 0), 1,
+            nbc_find_text(0x3a, 0), 0x3a, nbc_find_text(0x3b, 0));
     set_memcard_popup_message_body_text(message_buffer);
-    optA = nbc_find_text(0x15, 0);
-    optB = nbc_find_text(0x16, 0);
-    sprintf(message_buffer, STR_MC_FMT_SS_COMMA, optB, optA);
+    sprintf(message_buffer, STR_MC_FMT_SS_COMMA, nbc_find_text(0x16, 0),
+            nbc_find_text(0x15, 0));
     set_memcard_popup_message_options_text(message_buffer);
     set_memcard_popup_message_type(0xb);
     fire_up_memcard_mesage_screen();

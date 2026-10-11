@@ -73,6 +73,46 @@ typedef union CmdScriptRegister {
     float real;
 } CmdScriptRegister;
 
+/* Register file index of the script VM (fourteen 4-byte cells). */
+typedef enum CmdScriptReg {
+    CMDSCRIPT_R0,
+    CMDSCRIPT_R1,
+    CMDSCRIPT_R2,
+    CMDSCRIPT_R3,
+    CMDSCRIPT_R4,
+    CMDSCRIPT_R5,
+    CMDSCRIPT_R6,
+    CMDSCRIPT_R7,
+    CMDSCRIPT_R8,
+    CMDSCRIPT_R9,
+    CMDSCRIPT_R10,
+    CMDSCRIPT_R11,
+    CMDSCRIPT_R12,
+    CMDSCRIPT_R13,
+    CMDSCRIPT_REG_COUNT
+} CmdScriptReg;
+
+/* Operator word of the _combine_* and _compare_* builtins. */
+typedef enum CmdScriptOp {
+    CMDSCRIPT_OP_ADD = 0,
+    CMDSCRIPT_OP_SUB = 1,
+    CMDSCRIPT_OP_MUL = 2,
+    CMDSCRIPT_OP_DIV = 3,
+    CMDSCRIPT_OP_MOD = 4,
+    CMDSCRIPT_OP_AND = 5,
+    CMDSCRIPT_OP_OR = 6,
+    CMDSCRIPT_OP_SHL = 7,
+    CMDSCRIPT_OP_SHR = 8,
+    CMDSCRIPT_OP_LOGICAL_AND = 12,
+    CMDSCRIPT_OP_LOGICAL_OR = 13,
+    CMDSCRIPT_OP_NE = 14,
+    CMDSCRIPT_OP_EQ = 15,
+    CMDSCRIPT_OP_GT = 16,
+    CMDSCRIPT_OP_GE = 17,
+    CMDSCRIPT_OP_LT = 18,
+    CMDSCRIPT_OP_LE = 19
+} CmdScriptOp;
+
 typedef struct CmdScript {
     MkVtable5* vtbl;                /* +0x00 */
     unsigned int instance;          /* +0x04 */
@@ -109,7 +149,7 @@ extern CmdScript global_script_interpreter;
 void one_shot_script_func(ScriptSlot* script, unsigned int function, int wait);
 float p_run_one_shot_script(void);
 void load_string_bank_async(unsigned int bank, char* name);
-void load_string_bank(unsigned int bank, char* name);
+void load_string_bank(unsigned int bank, const char* name);
 char* get_string_by_id(unsigned int id);
 void cmdscript_reset_stack(void);
 void cmdscript_step_backward(void);
@@ -136,7 +176,7 @@ void cmdscript_unload(ScriptSlot* slot);
 void vdestroy_cmdscript(CmdScript* script);
 void unload_script(int slot_index);
 ScriptSlot* cmdscript_loadfile_language_by_name_async(int language, char* name);
-ScriptSlot* cmdscript_loadfile_language_by_name(int language, char* name);
+ScriptSlot* cmdscript_loadfile_language_by_name(int language, const char* name);
 ScriptSlot* cmdscript_loadfile_by_name(int language, const char* name);
 ScriptSlot* cmdscript_loadfile_language_async(int language, MkFileInfo* file_info);
 ScriptSlot* cmdscript_loadfile_language(int language, MkFileInfo* file_info);

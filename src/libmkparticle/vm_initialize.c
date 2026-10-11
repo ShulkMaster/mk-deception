@@ -3,8 +3,6 @@
 #include "libmkparticle/particle.h"
 #include "runtime/cstring.h"
 
-int pfx_get_struct_size(PfxVm* pfx, int field);
-
 static void _pfxvm_init_reflect(unsigned char* data, int stride, int count)
 {
     int remaining;
@@ -87,10 +85,9 @@ static void _pfxvm_init_divert(unsigned char* data, int stride, int count,
     }
 }
 
-/* TODO: [near miss] 98.87%; dispatch agrees; guarded particle-count load uses r30 rather than r0 plus copy. */
 void _pfxvm_execute_initial_behavior(PfxBehavior* behavior, float frame_time)
 {
-    int particle_count = behavior->active_particle_count;
+    const int particle_count = behavior->active_particle_count;
     PfxInitInstruction* instruction = behavior->init_instructions;
     unsigned char* destination;
     int stride;
@@ -150,7 +147,6 @@ void pfxvm_initial_reflect(PfxBehavior* behavior, unsigned int field)
     add_init_insn(behavior, 1, field);
 }
 
-#pragma opt_propagation off
 void pfxvm_initial_set_float_range(PfxBehavior* behavior, unsigned int field,
                                    PfxFloatRange* range)
 {
@@ -159,7 +155,6 @@ void pfxvm_initial_set_float_range(PfxBehavior* behavior, unsigned int field,
 
     memcpy(destination, range, sizeof(*range));
 }
-#pragma opt_propagation reset
 
 void pfxvm_initial_multiply_float_range(PfxBehavior* behavior,
                                         unsigned int field,

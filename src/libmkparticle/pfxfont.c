@@ -15,7 +15,6 @@
 
 static const float s_zero = 0.0f;
 static const float s_one = 1.0f;
-/* Font colors use byte-range float channels. */
 static const float s_255 = 255.0f;
 
 static int cull_mode;
@@ -119,7 +118,6 @@ void pfxfont_string_init(PfxFontString* ctx) {
     memset(ctx, 0, sizeof(*ctx));
     pfx_native_set_rgba(&ctx->instance0.native_color, s_255, s_255, s_255, s_255);
 
-    /* Align transform into pad at +0x10; identity diagonal via reloaded ptr. */
     ctx->transform = (PfxFontTransform*)(((unsigned long)ctx + 0x13) &
                                          ~(unsigned long)0xFul);
     one = s_one;
@@ -153,10 +151,6 @@ static unsigned char hex_char(const char* p) {
 }
 #pragma dont_inline reset
 
-/*
- * Scan from text; if a COLOR tag opens a new run, write RGBA into inst and
- * advance *pos. Returns drawable char count until next tag / NUL / cap 0x78.
- */
 #pragma dont_inline on
 static int find_drawable_boundary(const char* text, int* pos, PfxFontInstance* inst) {
     int count;
@@ -260,7 +254,6 @@ void pfxfont_string_set(PfxFontString* ctx, PfxFontSlot* font, const char* text,
                     line_end += 0x12;
                     continue;
                 }
-                /* Wrap measure uses glyph advance (not box_w). */
                 line_w += font->metrics->glyphs[ch - 0x20].advance;
                 line_w += font->metrics->letter_spacing;
             }
@@ -334,7 +327,6 @@ void pfxfont_string_set(PfxFontString* ctx, PfxFontSlot* font, const char* text,
                     }
                 } else if (ch >= 0x20) {
                     g = &font->metrics->glyphs[ch - 0x20];
-                    /* Pack the glyph quad position and UV bounds. */
                     quad.x0 = pen_x - g->off_x;
                     quad.y0 = pen_y - g->off_y;
                     quad.x1 = quad.x0 + g->box_w;
@@ -378,7 +370,6 @@ void pfxfont_string_render(PfxFontString* ctx, float x, float y) {
     int wx;
     int wy;
 
-    /* Apply the widescreen offset before rendering the first run. */
     g = &pfxsystem_globals;
     wx = g->widescreen_x;
     x += (float)wx;

@@ -398,14 +398,6 @@ void hide_player(PlyrPdata* player, int hide_weapons);
 static void start_hero_transform_effect(MkObj* object);
 static float p_blood_rush(void);
 
-static inline ScreenObj* get_screen_latch(struct KonquestScreenLatch* latch) {
-    ScreenObj* raw = latch->object;
-    ScreenObj* live;
-
-    live = MK_LIVE(raw, latch->instance);
-    return live;
-}
-
 static inline void hide_screen_latch(struct KonquestScreenLatch* latch) {
     ScreenObj* object = MK_LIVE(latch->object, latch->instance);
 
@@ -452,7 +444,7 @@ static inline MkProc* get_process_latch(
 static inline ScreenObj* load_prompt(
     struct KonquestTrialWindowPdata* pdata, struct KonquestScreenLatch* latch,
     const char* name, int insert) {
-    ScreenObj* object = get_screen_latch(latch);
+    ScreenObj* object = MK_LIVE(latch->object, latch->instance);
 
     if (object == 0) {
         object = load_named_2d_pfxobj(
@@ -472,7 +464,7 @@ static inline ScreenObj* load_prompt(
 static inline void place_frame_piece(
     struct KonquestScreenLatch* latch, int x, int y,
     float scale_x, float scale_y, int scaled) {
-    ScreenObj* object = get_screen_latch(latch);
+    ScreenObj* object = MK_LIVE(latch->object, latch->instance);
 
     if (object == 0) {
         return;
@@ -490,7 +482,7 @@ static inline void place_frame_piece(
 }
 
 static inline void destroy_screen_latch(struct KonquestScreenLatch* latch) {
-    ScreenObj* object = get_screen_latch(latch);
+    ScreenObj* object = MK_LIVE(latch->object, latch->instance);
 
     if (object != 0) {
         object = latch->object;
@@ -546,8 +538,7 @@ static inline MkObj* get_mission_monk(void) {
     if (state == 0) {
         live = 0;
     } else {
-        raw = state->monk;
-        live = MK_HDR_LIVE(raw, state->monk_instance);
+        live = MK_HDR_LIVE(state->monk, state->monk_instance);
     }
     return live;
 }
@@ -808,7 +799,7 @@ void give_koin_award(int amount, int type) {
     StringObj* title;
     ScreenObj* koin;
     StringObj* amount_string;
-    unsigned char alpha;
+    int alpha;
 
     duck_sounds(0.5f);
     _mkproc_sleep_ticks = 15.0f;
@@ -841,7 +832,7 @@ void give_koin_award(int amount, int type) {
 
     if (sign != 0) {
         alpha = 0;
-        while (alpha < 0xF0) {
+        while ((unsigned char)alpha < 0xF0) {
             pfx_2d_obj_set_alpha_by_id(0x9008, alpha);
             _mkproc_sleep_ticks = 1.0f;
             aproc->vtbl->sleep();
@@ -851,7 +842,7 @@ void give_koin_award(int amount, int type) {
         _mkproc_sleep_ticks = 120.0f;
         aproc->vtbl->sleep();
         alpha = 0xF0;
-        while (alpha != 0) {
+        while ((unsigned char)alpha != 0) {
             pfx_2d_obj_set_alpha_by_id(0x9008, alpha);
             _mkproc_sleep_ticks = 1.0f;
             aproc->vtbl->sleep();
@@ -1181,7 +1172,7 @@ int trial_show_standard_fight_messages(void) {
     return mission_state->display_flags & 1;
 }
 
-/* TODO: [near miss] 99.36%; first prompt latch goes through r4 then mr r29 in retail; four string-pool offsets (TU layout). */
+/* TODO: [near miss] 99.98%; only the four @stringBase0 offsets differ (retail pool is 13 bytes longer before OK_BUTTON; TU string layout). */
 void set_prompt_items(struct KonquestTrialWindowPdata* unused) {
     int y;
     struct KonquestTrialWindowPdata* pdata =
@@ -1195,8 +1186,15 @@ void set_prompt_items(struct KonquestTrialWindowPdata* unused) {
     y = (pdata->bottom - pdata->top) - 8;
 
     if (pdata->prompt_flags & 1) {
-        object = load_prompt(
-            pdata, &pdata->prompt_ok, "OK_BUTTON", 1);
+        object = MK_LIVE(pdata->prompt_ok.object, pdata->prompt_ok.instance);
+        if (object == 0) {
+            object = load_named_2d_pfxobj(pdata->art_slot, 0x9004, "OK_BUTTON", 0, pdata->priority - 1);
+            if (object != 0) {
+                pdata->prompt_ok.object = object;
+                pdata->prompt_ok.instance = object->instance;
+                mk_insert((MkHdr*)object, &aproc->pdata_list_b);
+            }
+        }
         if (object != 0) {
             object->flag_bits.hidden = 0;
             object->x =
@@ -1308,23 +1306,23 @@ static void text_window_fade_out(unsigned char ticks) {
             for (index = 0; index < 9; index++) {
                 hide_screen_latch(&pdata->frame[index]);
             }
-            object = get_screen_latch(&pdata->prompt_ok);
+            object = MK_LIVE(pdata->prompt_ok.object, pdata->prompt_ok.instance);
             if (object != 0) {
                 object->flag_bits.hidden = 1;
             }
-            object = get_screen_latch(&pdata->prompt_retry);
+            object = MK_LIVE(pdata->prompt_retry.object, pdata->prompt_retry.instance);
             if (object != 0) {
                 object->flag_bits.hidden = 1;
             }
-            object = get_screen_latch(&pdata->prompt_548);
+            object = MK_LIVE(pdata->prompt_548.object, pdata->prompt_548.instance);
             if (object != 0) {
                 object->flag_bits.hidden = 1;
             }
-            object = get_screen_latch(&pdata->prompt_cancel);
+            object = MK_LIVE(pdata->prompt_cancel.object, pdata->prompt_cancel.instance);
             if (object != 0) {
                 object->flag_bits.hidden = 1;
             }
-            object = get_screen_latch(&pdata->prompt_550);
+            object = MK_LIVE(pdata->prompt_550.object, pdata->prompt_550.instance);
             if (object != 0) {
                 object->flag_bits.hidden = 1;
             }
@@ -1537,7 +1535,7 @@ void trial_setup_onscreen_display_items(
 static inline void destroy_current_countdown_string(void) {
     struct KonquestMissionState* state = mission_state;
 
-    if (get_countdown_string_latch(state) != 0) {
+    if (get_countdown_string_latch(mission_state) != 0) {
         StringObj* string = state->countdown_string;
         if (string->instance != 0) {
             string->typed_vtbl->destroy(string);
@@ -1547,7 +1545,6 @@ static inline void destroy_current_countdown_string(void) {
     }
 }
 
-/* TODO: [near miss] 99.28%; both latch validations swap state/string r4/r5 (p_finish_countdown residue). */
 void trial_start_countdown(int countdown, float x, float y) {
     struct KonquestMissionState* state = get_mission_state();
 
@@ -1585,7 +1582,6 @@ void trial_start_countdown(int countdown, float x, float y) {
     }
 }
 
-/* TODO: [near miss] 99.24%; countdown-owner latch registers remain. */
 static float p_finish_countdown(void) {
     StringObj* string;
     struct KonquestMissionState* state;
@@ -1599,7 +1595,7 @@ static float p_finish_countdown(void) {
     }
 
     state = mission_state;
-    string = get_countdown_string_latch(state);
+    string = get_countdown_string_latch(mission_state);
     if (string != 0) {
         string = state->countdown_string;
         if (string->instance != 0) {
@@ -2209,15 +2205,16 @@ static void trial_show_move_message(void) {
     }
 }
 
-/* TODO: [near miss] 99.51%; first inlined get_screen_latch swaps r3/r4 and adds one mr;
- * the other four latches match. */
 static void show_background_box(
     int style, int x, int y, int priority, int width, int height) {
     struct KonquestBackgroundBox* box =
         &mission_state->background_boxes[style];
     ScreenObj* object;
 
-    object = get_screen_latch(&box->pieces[0]);
+    object = box->pieces[0].object;
+    object = (object != 0)
+        ? (box->pieces[0].object->instance == box->pieces[0].instance ? object : 0)
+        : 0;
     if (object == 0) {
         object = load_2d_pfxobj(
             0x2001E, 0x9006, 0x0A93000D, 0, priority);
@@ -2236,7 +2233,7 @@ static void show_background_box(
         pfx_2d_obj_set_alpha(object, 0xA5);
     }
 
-    object = get_screen_latch(&box->pieces[1]);
+    object = MK_LIVE(box->pieces[1].object, box->pieces[1].instance);
     if (object == 0) {
         object = load_2d_pfxobj(
             0x2001E, 0x9006, 0x0A93000E, 0, priority);
@@ -2255,7 +2252,7 @@ static void show_background_box(
         pfx_2d_obj_set_alpha(object, 0xA5);
     }
 
-    object = get_screen_latch(&box->pieces[2]);
+    object = MK_LIVE(box->pieces[2].object, box->pieces[2].instance);
     if (object == 0) {
         object = load_2d_pfxobj(
             0x2001E, 0x9006, 0x0A93000E, 0, priority);
@@ -2274,7 +2271,7 @@ static void show_background_box(
         pfx_2d_obj_set_alpha(object, 0xA5);
     }
 
-    object = get_screen_latch(&box->pieces[3]);
+    object = MK_LIVE(box->pieces[3].object, box->pieces[3].instance);
     if (object == 0) {
         object = load_2d_pfxobj(
             0x2001E, 0x9006, 0x0A93000E, 0, priority);
@@ -2293,7 +2290,7 @@ static void show_background_box(
         pfx_2d_obj_set_alpha(object, 0xA5);
     }
 
-    object = get_screen_latch(&box->pieces[4]);
+    object = MK_LIVE(box->pieces[4].object, box->pieces[4].instance);
     if (object == 0) {
         object = load_2d_pfxobj(
             0x2001E, 0x9006, 0x0A93000E, 0, priority);
@@ -2747,11 +2744,11 @@ static void increment_required_moves_progress(
     }
 }
 
-/* TODO: [breakthrough needed] 92.05%; guard joins agree; retained condition-array/index boundary needs evidence. */
 void trial_increment_state_value(
     int player, int state_index, int opponent_event) {
     struct KonquestMissionState* state = get_mission_state();
     struct KonquestSuccessCondition* conditions;
+    struct KonquestSuccessCondition* entry;
 
     mission_state = state;
     if (!(state != 0 && mode_of_play == 8) ||
@@ -2762,12 +2759,12 @@ void trial_increment_state_value(
         (opponent_event != 1 || player != state->fight->field_04) &&
         state->trial_type == 0) {
         conditions = state->success_conditions;
-        if (conditions[state_index].required_count <= 0 ||
-            conditions[state_index].current_count >=
-                conditions[state_index].required_count) {
+        entry = &conditions[state_index];
+        if (entry->required_count <= 0 ||
+            entry->current_count >= entry->required_count) {
             return;
         }
-        if (register_condition(&conditions[state_index].condition)) {
+        if (register_condition(&entry->condition)) {
             increment_progress_count(1);
             conditions[state_index].current_count++;
         }
@@ -3738,7 +3735,7 @@ static float p_finish_transform_player(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.19%; monk via get_mission_monk loads direct; sidekick/monk r31/r30 swap and process temp+copy remain. */
+#pragma opt_propagation off
 static float p_finish_transform_monk(void) {
     Vec position = {4000.0f, 0.0f, 4000.0f};
     Vec angles = {0.0f, 0.0f, 0.0f};
@@ -3801,6 +3798,8 @@ static float p_finish_transform_monk(void) {
         ->jump_sleep(p_idle, 0.0f);
     return 0.0f;
 }
+#pragma opt_propagation reset
+
 
 /* TODO: [near miss] 99.83%; flat body matches; first set swaps r28/r29 between first emitter and effect object (coloring only). */
 static void start_hero_transform_effect(MkObj* hero) {

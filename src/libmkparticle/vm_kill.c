@@ -34,7 +34,6 @@ void move_particle_to_behavior(PfxBehavior* source, int particle,
     destination->active_particle_count++;
 }
 
-#pragma peephole off
 void kill_behavior_particle(PfxBehavior* behavior, int particle)
 {
     int stride;
@@ -51,7 +50,6 @@ void kill_behavior_particle(PfxBehavior* behavior, int particle)
     }
     behavior->particle_count--;
 }
-#pragma peephole reset
 
 static void kill_on_int_field_less_than(PfxBehavior* behavior, int* field,
                                         int stride, int value)

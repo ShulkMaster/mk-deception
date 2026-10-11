@@ -545,8 +545,6 @@ static inline void pfx_bind_owned_emitter(MkPfx* pfx, MkObj* obj, int emitter)
     }
 }
 
-/* TODO: [near miss] 98.50%; native branches and operands agree;
- * two null assignments use moves instead of immediates. */
 MkObj* pfx_bind_emitter_num_to_new_obj(MkPfx* pfx, int object_type, int emitter) {
     PfxSlot* slot;
     MkObj* existing;
@@ -558,7 +556,13 @@ MkObj* pfx_bind_emitter_num_to_new_obj(MkPfx* pfx, int object_type, int emitter)
 
     slot = &pfx->slot_table[emitter];
     if (pfx->slot_table[emitter].flag_bits.owns_bind) {
-        existing = pfx_slot_bound_object(slot);
+        MkHdr* bound;
+
+        existing = 0;
+        bound = MK_LIVE(slot->hdr, slot->instance);
+        if (bound != 0) {
+            existing = (MkObj*)bound;
+        }
         if (existing != 0) {
             return existing;
         }
@@ -873,7 +877,7 @@ void pfx_post_sleep(void) {
     apfx_emitter_sobj = 0;
 }
 
-/* TODO: [breakthrough] 87.70%; global call-boundary reloads, binding gate
+/* TODO: [breakthrough] 87.92%; global call-boundary reloads, binding gate
  * and checked casts recovered; latch and virtual-wrapper CFG remain. */
 void pfx_pre_wake(void) {
     MkHdr* render_hdr;
@@ -881,18 +885,20 @@ void pfx_pre_wake(void) {
     MkHdr* emitter_hdr;
     MkHdr* proc_hdr;
     int begin_rc;
+    MkPfx* pfx;
 
-    apfx = (MkPfx*)apdata;
-    if (apfx == 0) {
+    pfx = (MkPfx*)apdata;
+    apfx = pfx;
+    if (pfx == 0) {
         return;
     }
 
     apfx_render_obj = 0;
     apfx_render_sobj = 0;
 
-    render_hdr = apfx->bind_hdr;
+    render_hdr = pfx->bind_hdr;
     if (render_hdr != 0) {
-        render_hdr = MK_LIVE(render_hdr, apfx->bind_inst);
+        render_hdr = MK_LIVE(render_hdr, pfx->bind_inst);
         if (render_hdr == 0) {
             mkproc_die();
         }

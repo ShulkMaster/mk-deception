@@ -177,17 +177,17 @@ void add_anim_section_by_name_async(int handle, const char* name,
     }
 }
 
-/* TODO: [near miss] 99.87%; pre-open file index uses r29 instead of retail r28. */
 int add_anim_section_async(int handle, MkFileInfo* info, int* palette_table,
                            int allow_duplicate, int clear_palette) {
-    int file_index;
+    int existing;
     SecSlotFileEntry* file;
+    int file_index;
     SecSlot* slot;
 
     if (!allow_duplicate) {
-        file_index = is_section_loading_or_loaded(handle, info);
-        if (file_index != 0) {
-            return file_index;
+        existing = is_section_loading_or_loaded(handle, info);
+        if (existing != 0) {
+            return existing;
         }
     }
     slot = get_sec_slot_from_handle(handle);
@@ -204,9 +204,14 @@ int add_anim_section_async(int handle, MkFileInfo* info, int* palette_table,
     return file_index;
 }
 
-/* TODO: [near miss] 97.10526%; guarded traversal agrees; retail keeps an initial head-to-cursor copy; honest forms exhausted. */
+static inline SecSlotFileEntry* sec_slot_first_file(int handle) {
+    SecSlot* slot = get_sec_slot_from_handle(handle);
+
+    return slot->files;
+}
+
 void wait_for_slot_load(int handle) {
-    SecSlotFileEntry* file = get_sec_slot_from_handle(handle)->files;
+    SecSlotFileEntry* file = sec_slot_first_file(handle);
 
     if (file == 0) {
         return;
@@ -282,7 +287,7 @@ static void release_slot_file_data(SecSlotFileEntry* file) {
         if (type == SEC_FILE_TYPE_ART) {
             annihilate_art_section_data(file);
         } else if ((type == SEC_FILE_TYPE_ANIM) &
-                   ((file->flags & 0x80) != 0)) {
+                   file->flag_bits.clear_palette) {
             int* palette = file->palette_table;
             int index;
             for (index = 0; index < file->member_count; index++) {
@@ -299,7 +304,6 @@ static void release_slot_file_data(SecSlotFileEntry* file) {
     file->section_id = 0;
 }
 
-/* TODO: [near miss] 97.17%; palette loop agrees; type temporary r3 vs r0 and flag-load schedule remain. */
 void unload_section_slot_file(int handle, int file_index) {
     SecSlot* slot;
     SecSlotFileEntry* file;
@@ -340,7 +344,6 @@ static inline void release_section_slot_files(SecSlot* slot) {
     slot->file_count = 0;
 }
 
-/* TODO: [near miss] 96.79%; both traversal owners agree; section type and eager flag schedule remain. */
 void unload_section_slot(int handle) {
     SecSlot* slot = get_sec_slot_from_handle(handle);
     release_section_slot_files(slot);
@@ -560,7 +563,6 @@ static void free_all_slot_groups_after_pos(int position) {
     }
 }
 
-/* TODO: [near miss] 97.61%; traversal agrees; shared section-type register and eager flag-load order remain. */
 static void free_all_slots_in_group(SecSlotGroup* group) {
     SecSlot* slot;
     unsigned int slot_index;

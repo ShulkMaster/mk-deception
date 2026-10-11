@@ -228,7 +228,6 @@ int check_switch(int port, int switch_index) {
                       g_game_info.pads[port].switch_map[switch_index].mask);
 }
 
-/* TODO: [near miss] 97.33%; final switch-index multiply precedes map load; operations and gates agree. */
 int check_switch_edge(int port, int switch_index) {
     PlyrInfo* player = g_game_info.pads[port].player;
     if (mode_of_play == 8 && current_player_is_drone()) {
@@ -245,10 +244,14 @@ int check_switch_edge(int port, int switch_index) {
     }
     if (port < 0 || port >= 3) return 0;
     if (!g_game_info.pads[port].flag_bits.connected) return 0;
-    return !is_plyr_controller_enabled(player)
-        ? 0
-        : (g_game_info.pads[port].switch_map[switch_index].mask &
-           g_game_info.pads[port].edge) != 0;
+    if (is_plyr_controller_enabled(player) == 0) {
+        return 0;
+    }
+    if ((g_game_info.pads[port].switch_map[switch_index].mask &
+         g_game_info.pads[port].edge) != 0) {
+        return 1;
+    }
+    return 0;
 }
 
 int check_switch_edge_any_pad(int switch_index) {
@@ -524,8 +527,6 @@ static inline void reset_switch_log_state(void) {
     }
 }
 
-/* TODO: [near miss] 98.75%; log-reset phase agrees;
- * byte alpha decrement has one extra register copy. */
 static float p_switch_log_fadeoff(void) {
     int alpha;
 
@@ -535,7 +536,7 @@ static float p_switch_log_fadeoff(void) {
     while ((unsigned char)alpha > 8) {
         pfx_2d_obj_set_alpha_by_id(0x2083, alpha);
         _mkproc_sleep_ticks = 1.0f;
-        alpha = (unsigned char)(alpha - 8);
+        alpha = (alpha - 8) & 0xFF;
         aproc->vtbl->sleep();
     }
     pfx_2d_obj_set_alpha_by_id(0x2083, 0);

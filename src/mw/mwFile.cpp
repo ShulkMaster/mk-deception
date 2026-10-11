@@ -164,6 +164,10 @@ extern "C" mwFileCommand* mwFileOpenAsync(
 extern "C" mwFileAsyncResult mwFileWaitForCompletion(mwFileCommand*);
 extern "C" void mwFileFreeCommand(mwFileCommand*);
 
+extern "C" {
+int mwFileClose(mwFile* file);
+}
+
 static const char stringBase0[] =
     "mwFile: WARNING - profile data only available on metrics builds of "
     "mwFile\n\0"
@@ -240,7 +244,7 @@ extern "C" long long mwFileSeek(
     return file->getPosition();
 }
 
-extern "C" int mwFileClose(mwFile* file)
+int mwFileClose(mwFile* file)
 {
     mwFileCommand* command;
     mwFileAsyncResult result;

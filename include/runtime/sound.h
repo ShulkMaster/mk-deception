@@ -2,6 +2,7 @@
 #define RUNTIME_SOUND_H
 
 #include "msl/msl_types.h"
+#include "game/plyr_sound.h"
 
 #ifdef __cplusplus
 extern "C" {

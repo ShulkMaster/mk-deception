@@ -9,8 +9,7 @@ static u32* g_baseVMtoARAM;
 static u32 g_totalAllocatedVM;
 static u32 g_nextARAMPageToCheck;
 
-/* TODO: [near miss] 96.88%; virtual mask and CTR loop agree;
- * byte offset folds into cursor and parameter homes swap. */
+#pragma opt_strength_reduction off
 int VMAlloc(void* virtual_address, u32 size)
 {
     u32 first_aram_page;
@@ -45,6 +44,7 @@ int VMAlloc(void* virtual_address, u32 size)
 
     return 1;
 }
+#pragma opt_strength_reduction reset
 
 u32 __VMTranslateVMPageToARAMPage(u32 virtual_address)
 {

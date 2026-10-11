@@ -33,6 +33,7 @@
 #include "runtime/cam_shake.h"
 #include "runtime/mk_vtbl.h"
 #include "runtime/asset.h"
+#include "game/plyr_sound.h"
 extern unsigned char* current_args;
 extern unsigned char* active_cmdscript;
 extern unsigned char* plyr_obj;
@@ -410,7 +411,7 @@ struct ScriptVecValueArgs {
 
 struct ScriptVecPointerArgs {
     unsigned int header;
-    const Vec* vector;
+    Vec* vector;
 };
 
 struct ScriptEntryArgs {
@@ -2171,7 +2172,6 @@ int npc_get_his_flag_state(int, int);
 int pan_vol_pitch_random_hit(int, void *, float, float, float);
 int pan_vol_pitch_random_snd_req(int, void *, float, float, float);
 int pan_vol_snd_req(int, void *, float, float);
-int plyr_snd_req_no_plyr_proc(int, int);
 int snd_req_vol(int, void *, float);
 float spad_get_pos(int, unsigned int);
 float spad_xz_cos_two_vectors(int, int);
@@ -2424,13 +2424,13 @@ void _set_bonematcher_flag(void) {
     }
 }
 
-/* TODO: [near miss] 80.62%; equivalent flag test retains argument-load staging differences. */
 void _get_bonematcher_flag(void) {
     struct ScriptFlagArgs* args;
     int shift;
 
     args = (struct ScriptFlagArgs*)current_args;
-    shift = 31 - args->bit;
+    shift = 31;
+    shift -= args->bit;
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         (args->object->flags & (1U << shift)) != 0;
 }
@@ -2462,13 +2462,13 @@ void _set_obj_flag(void) {
     }
 }
 
-/* TODO: [near miss] 80.62%; equivalent flag test retains argument-load scheduling and register differences. */
 void _get_obj_flag(void) {
     struct ScriptFlagArgs* args;
     int shift;
 
     args = (struct ScriptFlagArgs*)current_args;
-    shift = 31 - args->bit;
+    shift = 31;
+    shift -= args->bit;
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         (args->object->flags & (1U << shift)) != 0;
 }
@@ -2690,13 +2690,6 @@ void _pz_fighter_startup_attack(void) {
         args->slots[9].f);
 }
 
-static inline char* script_function_name_reference(
-    const struct ScriptDistanceFuncDef* functions, unsigned int function_index,
-    int string_relocation)
-{
-    return (char*)(string_relocation + functions[function_index].name_offset);
-}
-
 static inline void script_distance_branch(unsigned int function_index) {
     ACTIVE_DISTANCE_SCRIPT->program_counter =
         ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
@@ -2707,12 +2700,11 @@ static inline void script_distance_branch(unsigned int function_index) {
             ACTIVE_DISTANCE_SCRIPT->slot, function_index);
     trial_register_script_function(function_index);
     function_index--;
-    ACTIVE_DISTANCE_SCRIPT->function_name = script_function_name_reference(
-        ACTIVE_DISTANCE_SCRIPT->slot->functions, function_index,
-        ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) - 1;
+    ACTIVE_DISTANCE_SCRIPT->function_name =
+        &((char*)ACTIVE_DISTANCE_SCRIPT->slot->string_relocation)
+            [ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index].name_offset - 1];
 }
 
-/* TODO: [near miss] 99.73%; name-reference boundary recovered; two integer ADD operand rows remain. */
 void _pz_fighter_distance_check_wo_super_check(void) {
     int result = pz_fighter_distance_check_wo_super_check();
 
@@ -2723,7 +2715,6 @@ void _pz_fighter_distance_check_wo_super_check(void) {
     }
 }
 
-/* TODO: [near miss] 99.73%; name-reference boundary recovered; two integer ADD operand rows remain. */
 void _pz_fighter_distance_check(void) {
     int result = pz_fighter_distance_check();
 
@@ -2794,8 +2785,6 @@ void _attack_opponent_with(void) {
 void _drone_combo(void) {
 }
 
-/* TODO: [near miss] 95.00%; four final name-address ADD/SUB rows remain;
- * full branch helpers are neutral; separate address locals regress. */
 void _check_his_state(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
     unsigned int function_index;
@@ -2804,17 +2793,7 @@ void _check_his_state(void) {
     if (his_pdata->state == args->slots[0].i) {
         return;
     }
-    ACTIVE_DISTANCE_SCRIPT->program_counter =
-        ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
-        ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
-    ACTIVE_DISTANCE_SCRIPT->attributes = get_function_attributes_table(
-        ACTIVE_DISTANCE_SCRIPT->slot, function_index);
-    trial_register_script_function(function_index);
-    function_index--;
-    ACTIVE_DISTANCE_SCRIPT->function_name =
-        (char*)(ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index]
-                    .name_offset +
-                ACTIVE_DISTANCE_SCRIPT->slot->string_relocation - 1);
+    script_distance_branch(function_index);
 }
 
 void _drone_xfer_him(void) {
@@ -3145,21 +3124,18 @@ void _was_button_and_direction(void) {
     script->result = result;
 }
 
-/* TODO: [near miss] 99.77%; name-reference boundary recovered; one integer ADD operand row remains. */
 void _hit_branch(void) {
     if (plyr_pdata->collision_result == 1) {
         script_distance_branch(((struct ScriptRawArgs*)current_args)->slots[0].u);
     }
 }
 
-/* TODO: [near miss] 99.77%; name-reference boundary recovered; one integer ADD operand order remains. */
 void _block_branch(void) {
     if (plyr_pdata->collision_result == 2) {
         script_distance_branch(((struct ScriptRawArgs*)current_args)->slots[0].u);
     }
 }
 
-/* TODO: [near miss] 99.77%; name-reference boundary recovered; one integer ADD operand row remains. */
 void _miss_branch(void) {
     if (plyr_pdata->collision_result == 0) {
         script_distance_branch(((struct ScriptRawArgs*)current_args)->slots[0].u);
@@ -3472,9 +3448,9 @@ void _print_i(void) {
 void _print_s(void) {
 }
 
-/* TODO: [near miss] 94.05%; parsed index and name-reference boundary agree; final address arithmetic scheduling remains. */
 void _gosub(void) {
     unsigned int function_index;
+    const struct ScriptDistanceFuncDef* function;
 
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x12,
                &function_index);
@@ -3482,17 +3458,15 @@ void _gosub(void) {
     ACTIVE_DISTANCE_SCRIPT->program_counter =
         ACTIVE_DISTANCE_SCRIPT->slot->bytecode +
         ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1].code_offset;
-    ACTIVE_DISTANCE_SCRIPT->function_name = script_function_name_reference(
-        ACTIVE_DISTANCE_SCRIPT->slot->functions, function_index - 1,
-        ACTIVE_DISTANCE_SCRIPT->slot->string_relocation) - 1;
+    function = &ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index - 1];
+    ACTIVE_DISTANCE_SCRIPT->function_name =
+        &((char*)ACTIVE_DISTANCE_SCRIPT->slot->string_relocation)[function->name_offset - 1];
 }
 
-/* TODO: [near miss] 99.74%; name-reference boundary recovered; one integer ADD operand row remains. */
 void _branch(void) {
     script_distance_branch(((struct ScriptRawArgs*)current_args)->slots[0].u);
 }
 
-/* TODO: [near miss] 99.76%; name-reference boundary recovered; one integer ADD operand row remains. */
 void _true_branch(void) {
     if (((struct ScriptCommandView*)active_cmdscript)->result != 0) {
         script_distance_branch(((struct ScriptRawArgs*)current_args)->slots[0].u);
@@ -9814,7 +9788,7 @@ void _plyr_snd_req_no_plyr_proc(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = plyr_snd_req_no_plyr_proc(args->slots[0].i, args->slots[1].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.u = plyr_snd_req_no_plyr_proc(args->slots[0].pointer, args->slots[1].i);
 }
 
 void _noobsmoke_sidekick_double_charge(void) {
