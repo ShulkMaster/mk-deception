@@ -1701,18 +1701,8 @@ static int is_it_safe_to_make_this_npc_visible(KonquestNpc* npc) {
     return 1;
 }
 
-/* TODO: [near miss] 99.00%; visible-slot manager load schedules before index init (same as npc_make_invisible). */
-void npc_make_visible(KonquestNpc* npc) {
-    struct NpcManagerModelSlot* slot = 0;
-    struct KonquestNpcAnimState* animation = 0;
+static inline void npc_claim_visible_slot(KonquestNpc* npc) {
     int index;
-
-    if (npc->model_visible != 0) {
-        return;
-    }
-    if (is_it_safe_to_make_this_npc_visible(npc) == 0) {
-        return;
-    }
 
     for (index = 0; index < 15; index++) {
         if (npc_manager_pdata->visible_npcs[index] == 0) {
@@ -1731,6 +1721,21 @@ void npc_make_visible(KonquestNpc* npc) {
             break;
         }
     }
+}
+
+void npc_make_visible(KonquestNpc* npc) {
+    struct NpcManagerModelSlot* slot = 0;
+    struct KonquestNpcAnimState* animation = 0;
+    int index;
+
+    if (npc->model_visible != 0) {
+        return;
+    }
+    if (is_it_safe_to_make_this_npc_visible(npc) == 0) {
+        return;
+    }
+
+    npc_claim_visible_slot(npc);
 
     if (npc->data->events[7].script_function == 1) {
         for (index = 0; index < 2; index++) {
@@ -5365,9 +5370,37 @@ static inline void npc_start_lip_synch(
     }
 }
 
-/* TODO: [near miss] 99.33%; body is the shared npc_start_lip_synch inline; texture pointer/instance copy rows differ in register allocation. */
+/* TODO: [near miss] 99.81%; lip pdata body written out (matches retail copy order); remaining rows swap the animation texture/instance load order. */
 void npc_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
-    npc_start_lip_synch(sound_id, keyframes);
+    KonquestLipSyncPdata* lip;
+
+    if (g_active_npc->animation != 0 && sound_id != -1 &&
+        _create_mkproc_generic_nostack(
+            0x8232, 0x1F, p_do_lip_synch, sizeof(*lip),
+            (MkHdr**)&lip) != 0) {
+        AniTextureControl* texture;
+        KonquestLipSyncPdata* target;
+        unsigned int texture_instance;
+        struct KonquestNpcAnimState* animation;
+
+        zero_pdata_payload(sizeof(*lip), &lip->hdr);
+        lip->mode = 1;
+        lip->npc = g_active_npc;
+        animation = g_active_npc->animation;
+        target = lip;
+        texture = animation->lip_texture;
+        texture_instance = animation->lip_texture_instance;
+        target->texture = texture;
+        target->texture_instance = texture_instance;
+        lip->sound_handle = sound_id;
+
+        texture = MK_LIVE(lip->texture, lip->texture_instance);
+
+        if (texture != 0) {
+            lip->keyframes = keyframes;
+        }
+        lip->stop_requested = 0;
+    }
 }
 
 void kill_lip_sync_procs(void) {

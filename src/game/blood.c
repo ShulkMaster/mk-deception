@@ -1504,15 +1504,15 @@ static inline float blood_splat_distance(const struct BloodSplat* splat, const M
     return gxMathFastSqrt(x * x + y * y + z * z);
 }
 
-/* TODO: [near miss] 98.95%; scan CFG and layout agree; 32 register/operand rows and
- * one signed zero-compare row remain; check tick/list/sqrt webs. */
+/* TODO: [near miss] 99.15%; scan CFG and layout agree; register-coloring rows remain
+ * in the splat scan (tick/list base/ctr assignment); permuter 100s found nothing. */
 void spawn_bld_fall(
     const char* blood_type, MkBone* bone, Vec* position,
     Vec* velocity, FighterMirror* owner) {
     struct BleedGroundWatcherPdata* watcher;
     MkObj* object;
     MkPfx* pfx;
-    unsigned int effect;
+    int effect;
     int nearby_index;
     int oldest_index;
     int expired_nearby_count;

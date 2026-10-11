@@ -15027,26 +15027,24 @@ float p_mk_chess_loop(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough needed] 91.25352%; typed cursor-update stores improved; float scheduling and latch lowering remain. */
+/* TODO: [near miss] 99.68%; only volatile FPR coloring of cell x vs dx remains (retail f5/f3, ours f3/f5). */
 void mk_chess_cursor_tracker_update(ChessSideHudState* hud) {
-    Vec direction = {0.0f, 0.0f, 0.0f};
-    MkObj* cursor = (MkObj*)mk_chess_pdata->cursor.object;
     ChessCell* cell = &mk_chess_pdata->board[mk_chess_pdata->cursor.cell_x].cells[
         mk_chess_pdata->cursor.cell_y];
-    float original_x;
-    float dx;
+    Vec direction = {0.0f, 0.0f, 0.0f};
+    MkObj* cursor;
     float dz;
+    float dx;
+    float original_x;
     float squared_distance;
-    float step = 0.3f;
+    float step;
     float inverse_length;
-    unsigned int arrived = 0;
+    unsigned int arrived;
 
-    if (cursor != 0 && cursor->hdr.instance != mk_chess_pdata->cursor.object_instance) {
-        cursor = 0;
-    }
-    original_x = cursor->pos.value.x;
-    dx = cell->position.x - original_x;
+    cursor = MK_HDR_LIVE((MkObj*)mk_chess_pdata->cursor.object, mk_chess_pdata->cursor.object_instance);
     dz = cell->position.z - cursor->pos.value.z;
+    dx = cell->position.x - cursor->pos.value.x;
+    original_x = cursor->pos.value.x;
     squared_distance = dx * dx + dz * dz;
     if (squared_distance > 50.0f) {
         cursor->pos.value.x = cell->position.x;
@@ -15054,6 +15052,8 @@ void mk_chess_cursor_tracker_update(ChessSideHudState* hud) {
         hud->flag_bits.cursor_update = 0;
         return;
     }
+    arrived = 0;
+    step = 0.3f;
     if (squared_distance > 14.0f) {
         step *= 6.0f;
     } else if (squared_distance > 9.0f) {
@@ -15184,9 +15184,10 @@ static inline void remove_chess_roster_entry(
     ChessPiece** pieces;
 
     sides = mk_chess_pdata->sides;
-    count = sides[side]->live_piece_count;
+    team = sides[side];
+    count = team->live_piece_count;
     for (i = 0; i < count; i++) {
-        if (sides[side]->pieces[i]->id == piece->id) {
+        if (mk_chess_pdata->sides[side]->pieces[i]->id == piece->id) {
             mk_chess_pdata->sides[side]->live_piece_count--;
             if (keep_active != 0) {
                 team = mk_chess_pdata->sides[side];
@@ -15204,7 +15205,7 @@ static inline void remove_chess_roster_entry(
     }
 }
 
-/* TODO: [near miss] 98.37%; stale-link temporary and roster scan allocation remain. */
+/* TODO: [near miss] 99.04%; only the roster-scan side-array count load form (indexed lwzx in retail) remains. */
 void mk_chess_remove_piece_from_team(ChessPiece* piece, int keep_active) {
     ChessPieceEffect* effect;
     unsigned int side = piece->side;
@@ -15215,9 +15216,7 @@ void mk_chess_remove_piece_from_team(ChessPiece* piece, int keep_active) {
         while (link != 0) {
             effect = (ChessPieceEffect*)link->hdr;
             if (link->instance != effect->hdr.instance) {
-                MkPtr* next = link->next;
-                discard_stale_mkptr(link);
-                link = next;
+                link = discard_stale_mkptr_and_advance(link);
             } else {
                 if (effect->flags.bits.bit7) {
                     fx_pause_emit(effect->emitter);

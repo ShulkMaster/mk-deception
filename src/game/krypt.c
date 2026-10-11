@@ -323,9 +323,9 @@ static inline void opening_coffin_effects_impl(Vec* origin) {
 }
 
 static inline void finish_coffin_opening_effects(Vec* origin) {
-    unsigned int effect;
     Vec dust_offset = {0.0f, 0.25f, 2.0f};
     Vec effect_position = {0.0f, 0.0f, 0.0f};
+    unsigned int effect;
     effect = fx_by_owner("coffin_dust_pfx", 4);
     fx_reset(effect);
     effect_position.x = origin->x + dust_offset.x;
@@ -1744,8 +1744,8 @@ static inline void move_picture_to_camera_impl(KryptScreenObjLatch* picture_latc
 }
 
 static inline unsigned int coffin_award_art_oid(CoffinEntry* entries, int index) {
-    unsigned int art_oid;
     MkFileInfo* art_section;
+    unsigned int art_oid;
 
     if (krypt_data_loaded == 0) {
         return 0;
@@ -1759,8 +1759,8 @@ static inline unsigned int coffin_award_art_oid(CoffinEntry* entries, int index)
     return (art_oid + 0x3EA) << 16;
 }
 
-/* TODO: [near miss] 99.16%; row helper matches; koin totals fold into
- * profile+k*4 instead of retail lwzx base; GPR coloring remains. */
+/* TODO: [near miss] 99.19%; award-art homes fixed; koin totals fold into
+ * profile+k*4 instead of retail lwzx base; dust fx handle home and signedness remain. */
 static float p_move_camera_and_open_coffin(void) {
     Vec coffin_position;
     Vec camera_angles = s_coffin_camera_angles;

@@ -1033,66 +1033,74 @@ static void lsba_callbank(void* userdata) {
     }
 }
 
-/* TODO: [near miss] 98.64%; body/frame agree; upper-bound guard jumps
- * and verified .msb literal pool offset remain. */
+/* TODO: [near miss] 99.99%; only the verified .msb literal pool offset remains (@stringBase0+0x8f9 retail vs +0x8a6; shared pool order). */
 void check_and_load_sound_bank_async(int bank, int slot) {
     char unload_filename[0x98];
     char load_filename[0x98];
 
-    if (bank != -1 && bank >= 0 && bank < 0x88 && slot >= 0 && slot < 0x1D) {
-        if (loaded_sbank_data[slot].bank_index != -1 && slot >= 0 && slot < 0x1D) {
-            int old_bank = loaded_sbank_data[slot].bank_index;
-            int use_count = sound_bank_use_count(old_bank);
-            if (use_count == 1 && old_bank != -1 && old_bank >= 0 && old_bank < 0x88) {
-                unload_filename[0] = '\0';
-                strcat(unload_filename, sbank_data[old_bank].name);
-                strcat(unload_filename, ".msb");
-                if (sbank_data[old_bank].handle != 0) {
-                    mslBankUnLoad(sbank_data[old_bank].handle);
-                    sbank_data[old_bank].handle = 0;
-                } else if (sbank_data[old_bank].async_state == 1) {
-                    switch (mslBankLoadAsyncCancelNamed(unload_filename)) {
-                    case 0:
-                        if (sbank_data[old_bank].handle != 0) {
-                            mslBankUnLoad(sbank_data[old_bank].handle);
-                        }
-                        sbank_data[old_bank].handle = 0;
-                        break;
-                    case 1:
-                        sbank_data[old_bank].handle = 0;
-                        break;
-                    default:
-                        sbank_data[old_bank].handle = 0;
-                        break;
+    if (bank == -1) {
+        return;
+    }
+    if (bank < 0 || bank >= 0x88) {
+        return;
+    }
+    if (slot < 0 || slot >= 0x1D) {
+        return;
+    }
+
+    if (loaded_sbank_data[slot].bank_index != -1 && slot >= 0 && slot < 0x1D) {
+        int old_bank = loaded_sbank_data[slot].bank_index;
+        int use_count = sound_bank_use_count(old_bank);
+        if (use_count == 1 && old_bank != -1 && old_bank >= 0 && old_bank < 0x88) {
+            unload_filename[0] = '\0';
+            strcat(unload_filename, sbank_data[old_bank].name);
+            strcat(unload_filename, ".msb");
+            if (sbank_data[old_bank].handle != 0) {
+                mslBankUnLoad(sbank_data[old_bank].handle);
+                sbank_data[old_bank].handle = 0;
+            } else if (sbank_data[old_bank].async_state == 1) {
+                switch (mslBankLoadAsyncCancelNamed(unload_filename)) {
+                case 0:
+                    if (sbank_data[old_bank].handle != 0) {
+                        mslBankUnLoad(sbank_data[old_bank].handle);
                     }
+                    sbank_data[old_bank].handle = 0;
+                    break;
+                case 1:
+                    sbank_data[old_bank].handle = 0;
+                    break;
+                default:
+                    sbank_data[old_bank].handle = 0;
+                    break;
                 }
             }
-            loaded_sbank_data[slot].bank_index = -1;
-            loaded_sbank_data[slot].active = 0;
         }
+        loaded_sbank_data[slot].bank_index = -1;
+        loaded_sbank_data[slot].active = 0;
+    }
 
-        if (bank != -1) {
-            SoundBankData* bank_data = &sbank_data[bank];
+    if (bank != -1) {
+        SoundBankData* bank_data = &sbank_data[bank];
 
-            if (bank_data->handle == 0 && bank != -1) {
-                load_filename[0] = '\0';
-                strcat(load_filename, bank_data->name);
-                strcat(load_filename, ".msb");
-                if (bank_data->handle == 0 && sbank_data[bank].async_state == 0) {
-                    bank_data->handle = 0;
-                    sbank_data[bank].async_state = 1;
-                    sbank_data[bank].callback = lsba_callbank;
-                    sbank_data[bank].callback_field_18 = 0;
-                    sbank_data[bank].callback_bank = &bank_data->bank_index;
-                    sbank_data[bank].callback_state = 0;
-                    mslBankLoadAsync(msi, 0, load_filename, &bank_data->callback);
-                }
+        if (bank_data->handle == 0 && bank != -1) {
+            load_filename[0] = '\0';
+            strcat(load_filename, bank_data->name);
+            strcat(load_filename, ".msb");
+            if (bank_data->handle == 0 && sbank_data[bank].async_state == 0) {
+                bank_data->handle = 0;
+                sbank_data[bank].async_state = 1;
+                sbank_data[bank].callback = lsba_callbank;
+                sbank_data[bank].callback_field_18 = 0;
+                sbank_data[bank].callback_bank = &bank_data->bank_index;
+                sbank_data[bank].callback_state = 0;
+                mslBankLoadAsync(msi, 0, load_filename, &bank_data->callback);
             }
-            loaded_sbank_data[slot].bank_index = bank;
-            loaded_sbank_data[slot].active = sbank_data[bank].active;
         }
+        loaded_sbank_data[slot].bank_index = bank;
+        loaded_sbank_data[slot].active = sbank_data[bank].active;
     }
 }
+
 
 #undef CANCEL_OR_UNLOAD_BANK
 
@@ -1379,7 +1387,7 @@ int snd_calculate_volume(struct SoundRequest* request) {
     return result;
 }
 
-/* TODO: [near miss] 98.89%; inner sentinel exit (bne/b vs beq) remains; play_sound shape blocked by caller inlining. */
+/* TODO: [near miss] 98.89%; one inner-exit row remains; play_sound shape blocked by caller inlining. */
 MslSoundHandle plyr_snd_req_no_plyr_proc(
     PlyrPdata* fighter, int sound_offset) {
     MslSoundHandle handle = 0;
@@ -1410,7 +1418,9 @@ MslSoundHandle plyr_snd_req_no_plyr_proc(
             } else {
                 struct SoundRequest request;
                 play_handle = 0;
-                if (sound_id != -1) {
+                if (sound_id == -1) {
+                    play_handle = 0;
+                } else {
                     if (sound_id < 0 || sound_id >= 0x1C0C) {
                         play_handle = 0;
                     } else {

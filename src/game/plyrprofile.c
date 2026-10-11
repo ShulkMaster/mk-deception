@@ -2720,9 +2720,23 @@ int get_coffin_bit(const unsigned char* bits, unsigned int index) {
     return (mask & bits[index >> 3]) != 0;
 }
 
-/* TODO: [near miss] 96.59574%; copy widths/indices agree; source base/index/value registers and preheader order remain. */
 void set_profile_to_default(PlayerProfile* profile) {
-    set_profile_to_default_impl(profile);
+    unsigned char* konquest;
+    int i;
+
+    memset(profile, 0, sizeof(*profile));
+    profile->active = 1;
+    strcpy(
+        profile->name,
+        nbc_find_text(NBC_DEFAULT_PROFILE_NAME, NBC_DEFAULT_PROFILE_SUB));
+    for (i = 0; i < PROFILE_SWITCHMAP_COUNT; i++) {
+        profile->switch_map[i] = default_switch_map[i].mask;
+    }
+    konquest = profile->konquest;
+    memset(konquest, 0, sizeof(profile->konquest));
+    *(int*)(konquest + KONQUEST_FIELD_68) = PROFILE_KONQUEST_FIELD_68;
+    profile->unlock_cat7.value = PROFILE_DEFAULT_UNLOCK_CAT7_LO;
+    profile->unlock_cat6 = PROFILE_DEFAULT_UNLOCK_CAT5;
 }
 
 void unload_p2_player_profile(void) {

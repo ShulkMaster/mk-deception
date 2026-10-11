@@ -548,7 +548,6 @@ void init_fighting_state_lights(void) {
     }
 }
 
-/* TODO: [near miss] 99.27%; string loop agrees; screen latch/object register pair remains. */
 static float p_unhide_pbar_items(void) {
     struct PbarFadePdata* pdata = (struct PbarFadePdata*)apdata;
     struct PbarHideStringItem* string_item;
@@ -563,7 +562,7 @@ static float p_unhide_pbar_items(void) {
     screen_index = 0;
     while (pbar_hide_screen_items[screen_index] != 0) {
         latch = pbar_hide_screen_items[screen_index];
-        screen = screen_latch_object(latch);
+        screen = MK_LIVE((ScreenObj*)latch->object, latch->instance);
         if (screen != 0 && screen->pfx2d->verts[0].a < 0xFF) {
             screen->pfx2d->verts[0].a = alpha;
             screen->pfx2d->verts[1].a = alpha;
@@ -596,7 +595,6 @@ static float p_unhide_pbar_items(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.62%; hide-screen loop swaps latch/screen (r6/r7) vs retail; stop at coloring. */
 void retract_power_bars(void) {
     ScreenObj* p1_back;
     ScreenObj* p1_red;
@@ -654,7 +652,7 @@ void retract_power_bars(void) {
     for (screen_index = 0;
          pbar_hide_screen_items[screen_index] != 0; screen_index++) {
         latch = pbar_hide_screen_items[screen_index];
-        screen = screen_latch_object(latch);
+        screen = MK_LIVE((ScreenObj*)latch->object, latch->instance);
         if (screen != 0) {
             screen->pfx2d->verts[0].a = 0;
             screen->pfx2d->verts[1].a = 0;
@@ -1101,9 +1099,22 @@ int adjust_player_life(int player_index, float amount) {
     return 0;
 }
 
-/* TODO: [near miss] 99.13%; shares place_plyr_medals with init_pwr_bars (exact); destroy-loop and medal-row index/x coloring remain. */
 void update_plyr_medals(void) {
-    update_plyr_medals_impl();
+    int i;
+
+    if (mode_of_play == 8 && trial_show_standard_fight_messages() == 0) {
+        return;
+    }
+    for (i = 0; i < 8; i++) {
+        if (medal_objs[i] != 0) {
+            destroy_screen_obj(medal_objs[i]);
+            medal_objs[i] = 0;
+        }
+    }
+
+    place_plyr_medals(&g_game_info.plyr0, 0, BAR_BACK_X + 0x100);
+    place_plyr_medals(&g_game_info.plyr1, 3,
+                      screen_width - (BAR_BACK_X + 0x120));
 }
 
 void destroy_pwr_bars(void) {

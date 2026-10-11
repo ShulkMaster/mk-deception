@@ -1237,8 +1237,6 @@ int load_plyr_model_async(int player, int char_id, int* flags) {
     return 1;
 }
 
-/* TODO: [near miss] 98.69%; language/pdata staging differs;
- * propagation-off closes scratch; whole-TU control needs free leases. */
 static float p_load_plyr_model_async(void) {
     struct LoadPlyrModelPdata* pdata = (struct LoadPlyrModelPdata*)apdata;
     int player;
@@ -1258,7 +1256,11 @@ static float p_load_plyr_model_async(void) {
     player = pdata->player;
     char_id = pdata->char_id;
     flags = pdata->flags;
-    language = player == 0 ? 3 : 7;
+    if (player == 0) {
+        language = 3;
+    } else {
+        language = 7;
+    }
     alternate = flags.bits.alternate;
     if (alternate != 0) {
         model_files =

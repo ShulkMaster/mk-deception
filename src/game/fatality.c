@@ -3390,39 +3390,27 @@ int fat_bgnd_char_setup_radius_check(
     return 1;
 }
 
-/* TODO: [near miss] 69.86%; sqrt table indexing and strict ranges agree;
- * remaining register allocation and FP scheduling need separate recovery. */
 int fatality_check_distance(unsigned int action) {
-    union {
-        float value;
-        unsigned int bits;
-    } estimate;
-    FatalityDistanceLimits* limits;
+    PlyrStatusData* status;
     float squared_distance;
     float distance;
 
-    limits = plyr_pdata->status_data->fatality_limits;
+    status = plyr_pdata->status_data;
     squared_distance = xz_distance_between_players();
-    distance = 0.0f;
-    if (squared_distance > 0.0f) {
-        estimate.value = squared_distance;
-        estimate.bits =
-            ((unsigned int)GXMathSqrtTable[
-                 (estimate.bits >> 11) & 0x1FFF] << 8) |
-            ((((estimate.bits & 0x7F800000) + 0x3F800000) >> 1) &
-             0x7F800000);
-        distance = 0.5f *
-            (estimate.value *
-             (3.0f -
-              (estimate.value * estimate.value) / squared_distance));
-    }
+    distance = gxMathFastSqrt(squared_distance);
     if (action == (unsigned int)do_my_fatality) {
-        return distance > limits->primary_min &&
-               distance < limits->primary_max;
+        if (distance > status->fatality_limits->primary_min &&
+            distance < status->fatality_limits->primary_max) {
+            return 1;
+        }
+        return 0;
     }
     if (action == (unsigned int)do_my_2nd_fatality) {
-        return distance > limits->secondary_min &&
-               distance < limits->secondary_max;
+        if (distance > status->fatality_limits->secondary_min &&
+            distance < status->fatality_limits->secondary_max) {
+            return 1;
+        }
+        return 0;
     }
     return 1;
 }

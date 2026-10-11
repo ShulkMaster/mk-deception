@@ -6349,9 +6349,39 @@ static void handle_trigger_preprocess(struct KonquestTriggerStruct* trigger) {
     }
 }
 
-/* TODO: [near miss] 96.8421%; branch/register lowering remains; stop at trial cap. */
 void execute_trigger(struct KonquestTriggerStruct* trigger) {
-    execute_trigger_inline(trigger);
+    MkProc* proc;
+    struct KonquestTriggerScriptPdata* pdata;
+
+    if (trigger->owned_data->type != 2 ||
+        konquest_pdata->active_trigger == 0) {
+        proc = MK_LIVE(trigger->script_proc, trigger->script_proc_instance);
+        if (proc != 0) {
+            xfer_proc(proc, p_run_trigger_script);
+        } else {
+            proc = _create_mkproc_generic_bigstack(
+                0x9019, 0x18, p_run_trigger_script, sizeof(*pdata),
+                (MkHdr**)&pdata);
+            if (proc != 0) {
+                set_process_as_scriptable(proc);
+                trigger->script_proc = proc;
+                trigger->script_proc_instance = proc->instance;
+                pdata->trigger = trigger;
+                pdata->trigger_instance = trigger->hdr.instance;
+            }
+        }
+        if (proc != 0) {
+            if (trigger->owned_data->type == 2) {
+                konquest_pdata->active_trigger = trigger;
+                konquest_pdata->active_trigger_instance =
+                    trigger->hdr.instance;
+            }
+            trigger->flag_bits.bit3 = 1;
+            if (trigger->owned_data->type == 1) {
+                trigger->owned_data->state = 0;
+            }
+        }
+    }
 }
 
 void fire_trigger(struct KonquestTriggerDefinition* definition) {
@@ -10651,7 +10681,10 @@ void set_movement_npc(int target_type) {
     }
 }
 
-/* TODO: [near miss] 99.70%; retail reloads turn_proc (r6) for the second latch check where our CSE reuses r3. */
+static inline MkProc* interaction_live_turn_proc(union KonquestNpc* npc) {
+    return MK_LIVE(npc->fields.turn_proc, npc->fields.turn_proc_instance);
+}
+
 static float p_konquest_interaction(void) {
     MkObj* hero;
     struct KonquestInteractionPdata* pdata;
@@ -10675,12 +10708,12 @@ static float p_konquest_interaction(void) {
 
     validated_turn_proc = MK_LIVE(pdata->npc->fields.turn_proc, pdata->npc->fields.turn_proc_instance);
     if (validated_turn_proc != 0) {
-        current_turn_proc = MK_LIVE(pdata->npc->fields.turn_proc, pdata->npc->fields.turn_proc_instance);
+        current_turn_proc = interaction_live_turn_proc(pdata->npc);
 
         if (current_turn_proc != 0) {
-            if (current_turn_proc->instance != 0) {
-                ((KonquestDestroyable*)current_turn_proc)->vtbl->destroy(
-                    (KonquestDestroyable*)current_turn_proc);
+            if (pdata->npc->fields.turn_proc->instance != 0) {
+                ((KonquestDestroyable*)pdata->npc->fields.turn_proc)->vtbl->destroy(
+                    (KonquestDestroyable*)pdata->npc->fields.turn_proc);
             }
             pdata->npc->fields.turn_proc = 0;
             pdata->npc->fields.turn_proc_instance = 0;

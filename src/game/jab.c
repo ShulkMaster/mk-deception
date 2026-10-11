@@ -1477,8 +1477,7 @@ void sh_start_grinder_crush_blood(Vec* position) {
     }
 }
 
-/* TODO: [near miss] 97.22%; final y preload and f0/f1 copy scheduling remain; whole-TU scheduling off regresses siblings. */
-void sh_start_grinder_chunk_spew(const Vec* position, int chunk_type) {
+void sh_start_grinder_chunk_spew(Vec* position, PlyrPdata* player) {
     MkPfx* effect;
     MkObj* emitter_object;
 
@@ -1495,7 +1494,7 @@ void sh_start_grinder_chunk_spew(const Vec* position, int chunk_type) {
         effect->field_90 = 0x82;
         effect->depth_bias = -50.0f;
         effect->field_298 = 120.0f;
-        effect->field_2B8 = chunk_type;
+        effect->decal_owner = (FighterMirror*)player;
         emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
         emitter_object->pos.value.x = position->x;
         emitter_object->pos.value.y = position->y;
@@ -1722,8 +1721,7 @@ float pfx_sh_grinder_meat_spew(void) {
     return result;
 }
 
-/* TODO: [near miss] 97.22%; final Vec copy preloads y/z; supported TU scheduling controls regress. */
-void sh_start_grinder_meat_spew(const Vec* position, int chunk_type) {
+void sh_start_grinder_meat_spew(Vec* position, PlyrPdata* player) {
     MkPfx* effect;
     MkObj* emitter_object;
 
@@ -1740,7 +1738,7 @@ void sh_start_grinder_meat_spew(const Vec* position, int chunk_type) {
         effect->field_90 = 0x82;
         effect->depth_bias = -50.0f;
         effect->field_298 = 120.0f;
-        effect->field_2B8 = chunk_type;
+        effect->decal_owner = (FighterMirror*)player;
         emitter_object = (MkObj*)pfx_get_emitter_obj(effect, 0);
         emitter_object->pos.value.x = position->x;
         emitter_object->pos.value.y = position->y;
@@ -1968,10 +1966,10 @@ float pfx_react_falling_attach_smoke_to_bones_proc(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 96.75%; compaction, spawn and return structure agree; register association and scheduling remain. */
+/* TODO: [near miss] 97.11%; compaction, spawn and return structure agree; register association (vm r22 in retail, r31 here) and scheduling remain. */
 float pfx_kenshi_lift_smoke(void) {
+    float* destination_scales;
     union JabFloatBits inverse;
-    PfxVm* vm;
     PfxEmitter* emitter;
     MkObj* emitter_object;
     MkObj* tracked_object;
@@ -1984,10 +1982,8 @@ float pfx_kenshi_lift_smoke(void) {
     float* source_timers;
     float* destination_timers;
     float* source_scales;
-    float* destination_scales;
     float* last_timer;
     float* last_scale;
-    unsigned char* source_colors;
     unsigned char* destination_colors;
     unsigned char* last_color;
     int field_stride;
@@ -2006,6 +2002,8 @@ float pfx_kenshi_lift_smoke(void) {
     float dx;
     float dy;
     float dz;
+    unsigned char* source_colors;
+    PfxVm* vm;
 
     vm = (PfxVm*)apfx->matrix;
     emitter_object = (MkObj*)pfx_get_emitter_obj(apfx, 0);
