@@ -198,7 +198,6 @@ static RwStream* MkmaterialDataWriteStream(RwStream* stream, int length, const v
     return stream;
 }
 
-/* TODO: [near miss] 98.802399%; only allocation-result move versus flag extraction scheduling remains. */
 static RwStream* MkmaterialDataReadStream(RwStream* stream, int length, void* object, int offset,
                                           int size) {
     MkmaterialUvScroll vec4_values;
@@ -229,7 +228,7 @@ static RwStream* MkmaterialDataReadStream(RwStream* stream, int length, void* ob
         extra_allocation = RwEngineInstance->fpMalloc(
             extra_count * sizeof(*extra->data) + sizeof(*extra), 0x30000);
         extra = &extra_allocation->extra;
-        extra->field_00 = (version_flags >> 13) & 1;
+        extra->field_00 = (version_flags & 0x2000) != 0;
         extra->count = extra_count;
         extra->data = extra_allocation->inline_data;
         for (index = 0; index < (unsigned int)extra_count; index++) {

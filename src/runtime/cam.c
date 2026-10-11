@@ -472,8 +472,8 @@ static inline void get_target_movement_vector_impl(
     float length;
     float inverse_length;
 
-    delta.y = target_position->y - current_position->y;
     delta.x = target_position->x - current_position->x;
+    delta.y = target_position->y - current_position->y;
     delta.z = target_position->z - current_position->z;
     length_squared = delta.z * delta.z +
                      (delta.x * delta.x + delta.y * delta.y);
@@ -2134,9 +2134,8 @@ void initialize_background_danger_zones(void) {
     memset(background_danger_zones, 0, sizeof(background_danger_zones));
 }
 
-/* TODO: [near miss] 96.94%; pdata capture and pitch/roll structure agree; saved camera-pointer registers and sqrt FPR coloring remain. */
+/* TODO: [near miss] 98.65%; sqrt via gxMathFastSqrt; saved-register ranking remains (pdata r30 vs r25, 68 rows). */
 float p_krypt_camera_loop(void) {
-    union CameraFloatBits guess_bits, value_bits;
     CameraPdata* pdata;
     CameraObj* cam;
     union CameraVecBits default_pos;
@@ -2153,7 +2152,6 @@ float p_krypt_camera_loop(void) {
     float d_ang_y;
     float roll_delta;
     float ang_err_sq;
-    float guess;
     int pos_done;
 
     pdata = camera_info.pdata;
@@ -2194,20 +2192,7 @@ float p_krypt_camera_loop(void) {
         dz = pdata->target_pos.z - cam->pos.z;
         dist_sq = dy * dy;
         dist_sq = dx * dx + dist_sq + dz * dz;
-        value_bits.f = dist_sq;
-
-        if (dist_sq <= 0.0f) {
-            dist = 0.0f;
-        } else {
-            guess_bits.u =
-                (unsigned int)GXMathSqrtTable[(value_bits.u >> 11) & 0x1FFF] << 8;
-            guess_bits.u |=
-                (((value_bits.u & 0x7F800000U) + 0x3F800000U) >> 1) &
-                0x7F800000U;
-            guess = guess_bits.f;
-            guess *= 3.0f - (guess * guess) / dist_sq;
-            dist = 0.5f * guess;
-        }
+        dist = gxMathFastSqrt(dist_sq);
 
         if (dist < 0.01f) {
             cam->pos.x = pdata->target_pos.x;
@@ -2239,14 +2224,14 @@ float p_krypt_camera_loop(void) {
         if (d_ang_x > 3.1415927f) {
             d_ang_x = d_ang_x - 6.2831855f;
         } else if (d_ang_x < -3.1415927f) {
-            d_ang_x = d_ang_x + 6.2831855f;
+            d_ang_x += 6.2831855f;
         }
 
         d_ang_y = pdata->target_ang.y - cam->ang.y;
         if (d_ang_y > 3.1415927f) {
             d_ang_y = d_ang_y - 6.2831855f;
         } else if (d_ang_y < -3.1415927f) {
-            d_ang_y = d_ang_y + 6.2831855f;
+            d_ang_y += 6.2831855f;
         }
 
         ang_err_sq = d_ang_x * d_ang_x + d_ang_y * d_ang_y;
@@ -2259,7 +2244,7 @@ float p_krypt_camera_loop(void) {
             d_ang_x *= speed_scale;
             d_ang_y *= speed_scale;
             roll_delta = 0.0f;
-            roll_delta *= speed_scale;
+            roll_delta = speed_scale * roll_delta;
             cam->ang.x = old_pitch + d_ang_x;
             cam->ang.y += d_ang_y;
             cam->ang.z += roll_delta;
@@ -4852,16 +4837,15 @@ float p_puzzle_game_camera_proc(void) {
     }
 }
 
-/* TODO: [near miss] 97.56%; output-null branch shape and x/y FPR colors remain; stop without new phase evidence. */
+/* TODO: [near miss] 99.33%; null gate matches (single early-return chain); store-phase FPR colors remain. */
 void get_target_movement_vector(const Vec* current_position,
                                 const Vec* target_position, Vec* movement,
                                 float duration) {
-    if (current_position != 0 && target_position != 0) {
-        if (movement != 0) {
-            get_target_movement_vector_impl(current_position, target_position,
-                                            movement, duration);
-        }
+    if (current_position == 0 || target_position == 0 || movement == 0) {
+        return;
     }
+    get_target_movement_vector_impl(current_position, target_position,
+                                        movement, duration);
 }
 
 void set_camera_target_angle(CamVec3* angle) {
@@ -4944,7 +4928,7 @@ int intro_done(void) {
     return (g_game_info.pause_flags >> 6) & 1;
 }
 
-/* TODO: [near miss] 95.72%; shared vector and interpolation staging recovered; latch join (retail bne+b) and FP homes remain. */
+/* TODO: [near miss] 99.95%; latch matched via MK_HDR_LIVE; two FP temp rows remain (x*x in f3 vs f6 at the target-radius sum). */
 static int radial_move_to_game_position(Vec* target_position,
                                         Vec* center, float rate) {
     CameraObj* camera;
@@ -4960,12 +4944,7 @@ static int radial_move_to_game_position(Vec* target_position,
     float next_angle;
     float next_height;
 
-    camera = camera_item.node;
-    if (camera != 0) {
-        camera = camera->hdr.instance != camera_item.instance ? 0 : camera;
-    } else {
-        camera = 0;
-    }
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     if (camera == 0) {
         return 0;
     }
@@ -5006,7 +4985,7 @@ static int radial_move_to_game_position(Vec* target_position,
 
     next_height = camera->pos.y +
                   (target_position->y - camera->pos.y) * rate;
-    radial = (Vec){0.0f, 0.0f, 0.0f};
+    radial.x = radial.y = radial.z = 0.0f;
     rotate_xz(&radial, &Zaxis, next_angle);
     radial.x *= next_radius;
     radial.y *= next_radius;

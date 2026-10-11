@@ -87,16 +87,16 @@ long long debug_get_usec_timer(void) {
            ((OS_BUS_CLOCK >> 2) / 125000);
 }
 
-static inline void pathname_normalize_separators(char* cursor) {
-    while (*cursor != '\0') {
-        if (*cursor == '\\') {
-            *cursor = '/';
+static inline void pathname_normalize_separators(char* path) {
+    int i;
+
+    for (i = 0; path[i] != '\0'; i++) {
+        if (path[i] == '\\') {
+            path[i] = '/';
         }
-        cursor++;
     }
 }
 
-/* TODO: [breakthrough] 99.04%; normalization helper fixes cursor copy; slash/cursor GPR assignments remain. */
 char* pathname_create(const char* path, int prepend_art_path) {
     const char* art_path = "/art/";
 

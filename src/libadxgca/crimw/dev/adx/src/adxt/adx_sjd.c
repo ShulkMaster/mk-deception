@@ -257,6 +257,7 @@ static inline void adxsjd_pad_out(AdxSjdHandle* handle)
     s32 bytes;
     s32 samples;
     s32 chunk_bytes;
+    u32 pad_bytes;
 
     if (handle->pending_leading_samples <= 0) {
         return;
@@ -275,12 +276,12 @@ static inline void adxsjd_pad_out(AdxSjdHandle* handle)
             handle->output[channel], 0, &chunk);
     }
     samples = bytes / 2;
-    bytes = samples * 2;
-    if (bytes > 0) {
+    pad_bytes = (bytes / 2) * 2;
+    if ((s32)pad_bytes > 0) {
         for (channel = 0; channel < handle->channel_count; channel++) {
             handle->output[channel]->interface->get_chunk(
-                handle->output[channel], 0, bytes, &chunk);
-            memset(chunk.data, 0, bytes);
+                handle->output[channel], 0, pad_bytes, &chunk);
+            memset(chunk.data, 0, pad_bytes);
             handle->output[channel]->interface->put_chunk(
                 handle->output[channel], 1, &chunk);
         }
@@ -419,8 +420,8 @@ static inline void adxsjd_skip_out(AdxSjdHandle* handle)
     ADXCRS_Unlock();
 }
 
-/* TODO: [near miss] 99.65%; RE4 pad/decode/skip CFG agrees; one r28/r23 copy in the inlined
- * pad_out remains, reachable only with a steering unsigned size local; stop. */
+/* TODO: [near miss] 99.90%; pad/decode/skip CFG agrees; pad_out size is an unsigned local (retail converts
+ * the signed size once); only the pad size/sample count swap (r23/r27) remains. */
 void ADXSJD_ExecHndl(AdxSjdHandle* handle)
 {
     adxsjd_pad_out(handle);

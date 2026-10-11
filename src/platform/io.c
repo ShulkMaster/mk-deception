@@ -228,7 +228,6 @@ int check_switch(int port, int switch_index) {
                       g_game_info.pads[port].switch_map[switch_index].mask);
 }
 
-/* TODO: [near miss] 97.33%; final switch-index multiply precedes map load; operations and gates agree. */
 int check_switch_edge(int port, int switch_index) {
     PlyrInfo* player = g_game_info.pads[port].player;
     if (mode_of_play == 8 && current_player_is_drone()) {
@@ -245,10 +244,14 @@ int check_switch_edge(int port, int switch_index) {
     }
     if (port < 0 || port >= 3) return 0;
     if (!g_game_info.pads[port].flag_bits.connected) return 0;
-    return !is_plyr_controller_enabled(player)
-        ? 0
-        : (g_game_info.pads[port].switch_map[switch_index].mask &
-           g_game_info.pads[port].edge) != 0;
+    if (is_plyr_controller_enabled(player) == 0) {
+        return 0;
+    }
+    if ((g_game_info.pads[port].switch_map[switch_index].mask &
+         g_game_info.pads[port].edge) != 0) {
+        return 1;
+    }
+    return 0;
 }
 
 int check_switch_edge_any_pad(int switch_index) {

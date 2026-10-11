@@ -25,7 +25,7 @@ typedef struct PuzzleAttackRuntimeFlags {
 } PuzzleAttackRuntimeFlags;
 
 typedef struct PuzzleFighterMove {
-    unsigned int event_type; /* +0x00 */
+    int event_type; /* +0x00 */
     float block_count; /* +0x04 */
     float chain_count; /* +0x08 */
     char pad0C[4];

@@ -155,13 +155,11 @@ static inline void init_cmdscript_fields(CmdScript* cs) {
 }
 
 static inline void dispatch_cmdscript_until_end(ScriptSlot* slot) {
-    unsigned int instruction;
-    unsigned int* instruction_pc;
     unsigned int header;
     ScriptBuiltinFn builtin;
 
     while (active_cmdscript->pc != (unsigned int*)slot->pad8c) {
-        while ((instruction = *(instruction_pc = active_cmdscript->pc)) == 0 &&
+        while (*active_cmdscript->pc == 0 &&
             active_cmdscript->stack_sp != active_cmdscript->stack_mem) {
             active_cmdscript->stack_end = active_cmdscript->stack_sp;
             active_cmdscript->stack_sp--;
@@ -174,11 +172,11 @@ static inline void dispatch_cmdscript_until_end(ScriptSlot* slot) {
                 return;
             }
         }
-        if (instruction == 0 || active_cmdscript->state == 2) {
+        if (*active_cmdscript->pc == 0 || active_cmdscript->state == 2) {
             break;
         }
 
-        active_cmdscript->prev_pc = instruction_pc;
+        active_cmdscript->prev_pc = active_cmdscript->pc;
         builtin = *(ScriptBuiltinFn*)active_cmdscript->pc++;
         current_args = active_cmdscript->pc++;
         active_cmdscript->arg_header = current_args;
@@ -227,7 +225,6 @@ void one_shot_script_func(ScriptSlot* script, unsigned int function, int wait) {
     }
 }
 
-/* TODO: [near miss] 99.26%; ownership, stack-pop CFG and dispatch agree; stack-probe register coloring remains. */
 float p_run_one_shot_script(void) {
     OneShotScriptPdata* pdata;
 
@@ -563,7 +560,6 @@ void* get_data_table(ScriptSlot* slot, unsigned int index) {
     return resolve_table_row(slot, index);
 }
 
-/* TODO: [near miss] 99.20792%; shared executor restores CFG and global reloads; dispatch probe GPR coloring remains. */
 void cmdscript_execute(ScriptSlot* slot)
 {
     execute_cmdscript(slot);
@@ -576,10 +572,11 @@ void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index) {
     void* attrs_table;
     char* function_name;
 
-    if (active_cmdscript != 0 && func_index <= slot->func_count) {
-        if (func_index == 0) {
-            return;
-        }
+    if (active_cmdscript == 0 || func_index > slot->func_count ||
+        func_index == 0) {
+        return;
+    }
+    {
         active_cmdscript->mko = slot;
         active_cmdscript->stack_end = active_cmdscript->stack_sp + 1;
         attrs_id = slot->func_defs[func_index - 1].attrs_id;
@@ -615,7 +612,6 @@ void cmdscript_set_parameters(CmdScript* script, unsigned int count, ...) {
     }
 }
 
-/* TODO: [near miss] 99.34%; interpreter/transfer CFG agrees; eleven stack-probe register-color rows remain, stop at tier 1. */
 float call_player_script_function(ScriptSlot* slot) {
     execute_cmdscript(slot);
     if (active_cmdscript->continuation != 0) {
