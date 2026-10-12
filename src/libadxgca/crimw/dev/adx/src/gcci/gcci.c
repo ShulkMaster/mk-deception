@@ -266,7 +266,7 @@ static inline unsigned long gcci_elapsed_milliseconds(unsigned long start)
     return (0xFFFFFFFF - start) + current;
 }
 
-/* TODO: [near miss] 99.56731%; control flow and polling agree; start/debug register pair remains. */
+/* TODO: [near miss] 99.57%; start/debug saved-register pair remains; stop at clean-C coloring ceiling. */
 void gcCiStopTr(void* object)
 {
     GcCiObject* handle = object;
@@ -375,7 +375,7 @@ static inline int gcci_is_any_transferring(GcCiObject* current)
     return 0;
 }
 
-/* TODO: [near miss] 99.04%; index and &gcg_ci_debug swap r30/r28 around the update loop; overflow subf scheduled one slot early. */
+/* TODO: [near miss] 99.04%; loop index/debug base swap r30/r28 and overflow subf schedules early; honest forms exhausted, stop at coloring. */
 int gcCiReqRd(void* object, int sectors, void* buffer)
 {
     GcCiObject* current;

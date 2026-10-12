@@ -33,11 +33,11 @@ static CFTConvTable cft_conv_v_itbl;
 static CFTConvTable cft_conv_u_itbl;
 static CFTConvTable cft_conv_y_itbl;
 
-/* TODO: [near miss] 99.26%; Y/row offset pair and steward-owned BSS placement remain. */
-void CFT_MakeArgb8888ColAdjTbl(CFTArgbTable table)
+/* TODO: [near miss] 99.26%; Y/row offset pair and BSS first-use order remain. */
+void CFT_MakeArgb8888ColAdjTbl(void* buffer)
 {
+    float (*table)[256][4] = buffer;
     u8* conv_y;
-    s32 offset;
     u8* conv_u;
     u8* conv_v;
     float (*yuv_coeff)[3];
@@ -55,7 +55,7 @@ void CFT_MakeArgb8888ColAdjTbl(CFTArgbTable table)
     conv_y = cft_conv_y_itbl;
 
     for (index = 0; index < 256; index++) {
-        offset = index * 4;
+        s32 offset = index * 4;
 
         cft_ptr_y__rgb[offset + 1] =
             cft_yuv_rgb_coeff[0][0] * (float)*conv_y;

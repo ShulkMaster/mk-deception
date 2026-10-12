@@ -118,11 +118,10 @@ static inline void mslBankStopActiveSounds(mslLoadedBank* bank)
 
 static inline void mslBankUnloadSounds(mslLoadedBank* bank)
 {
-    int i;
-    mslBankSoundEntry* sound_entry;
+    int i = 0;
 
-    sound_entry = bank->sounds.pointer;
-    for (i = 0; i < bank->sound_count; i++, sound_entry++) {
+    for (mslBankSoundEntry* sound_entry = bank->sounds.pointer;
+         i < bank->sound_count; i++, sound_entry++) {
         if (sound_entry->sound != 0) {
             mslSoundUncommit(sound_entry->sound);
             mslSoundUnLoad(sound_entry->sound);
@@ -171,7 +170,7 @@ extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 87.34%; recover original command-slot iterator
+/* TODO: [breakthrough needed] 87.44%; recover original command-slot iterator
  * and stripped sound-name producer; stack ownership differs before coloring. */
 extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
     mslBankSoundDefinition* definition;
@@ -203,11 +202,10 @@ extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
 
     sound_entry = bank->sounds.pointer;
     for (i = 0; i < bank->sound_count; i++, sound_entry++) {
-        mslCmdItem** command_slot;
+        mslBankSoundDefinition* sound_definition = sound_entry->definition;
+        mslCmdItem** command_slot = &sound_definition->commands;
 
-        definition = sound_entry->definition;
-        command_slot = &definition->commands;
-        for (j = 0; j < definition->command_count; j++) {
+        for (j = 0; j < sound_definition->command_count; j++) {
             *command_slot = command_item;
             command_item++;
             command_slot = &command_item;

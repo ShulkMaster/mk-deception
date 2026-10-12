@@ -312,8 +312,7 @@ _ListNode* ListNodeAlloc(ListPool* pool) {
     return node;
 }
 
-/* TODO: [near miss] 99.49%; retail copies an already-zero GPR for the index;
- * current code materializes zero; reset helper/loop forms did not close it. */
+/* TODO: [near miss] 99.49%; index zero is li rather than retail mr at +0x118; stop at source-boundary ceiling. */
 int ListPoolAttach(
     ListPool* pool, void* memory, msl_u32 element_count,
     msl_u32 element_size) {

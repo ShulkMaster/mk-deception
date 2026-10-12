@@ -395,9 +395,8 @@ static inline void mslSetCurrentVoiceAddress(_AXVPB* voice, unsigned long addres
 }
 
 static inline void mslResetVoiceAdpcmHistory(_AXVPB* voice, unsigned short pred_scale) {
-    unsigned long sync = voice->sync;
+    unsigned long sync = voice->sync | 0x20000;
     voice->pb.adpcm.pred_scale = pred_scale;
-    sync |= 0x20000;
     voice->pb.adpcm.yn1 = 0;
     voice->pb.adpcm.yn2 = 0;
     voice->sync = sync;
@@ -732,8 +731,8 @@ int SBPlayable_Stream::Pause(void) {
     return result;
 }
 
-/* TODO: [near miss] 96.01%; secondary address/result copy, AX register allocation,
- * and secondary loop-publication scheduling remain. */
+/* TODO: [near miss] 96.37%; ADPCM dirty-sync snapshots fixed; secondary result copy
+ * and loop-publication scheduling/coloring remain. */
 void SBPlayable_Stream::iUpdate_AXUser(void) {
     SBPlayable_Stream* stream = this;
     int primary_block;

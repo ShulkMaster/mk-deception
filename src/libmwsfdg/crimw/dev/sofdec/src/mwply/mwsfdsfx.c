@@ -345,6 +345,29 @@ void MWSFSFX_SetCompoMode(MwsPlayer* player, int mode)
     SFX_SetCompoMode(mwsfsfx_GetTagInfo(player->sfx), mode);
 }
 
+enum MwsFrameStructure {
+    MWS_FRAME_STRUCTURE_1 = 1,
+    MWS_FRAME_STRUCTURE_2 = 2,
+    MWS_FRAME_STRUCTURE_3 = 3
+};
+
+enum MwsPictureStructure {
+    MWS_PICTURE_STRUCTURE_1 = 1,
+    MWS_PICTURE_STRUCTURE_2 = 2,
+    MWS_PICTURE_STRUCTURE_3 = 3
+};
+
+enum MwsChromaFormat {
+    MWS_CHROMA_FORMAT_1 = 1,
+    MWS_CHROMA_FORMAT_2 = 2,
+    MWS_CHROMA_FORMAT_3 = 3
+};
+
+enum MwsChromaPosition {
+    MWS_CHROMA_POSITION_0 = 0,
+    MWS_CHROMA_POSITION_1 = 1
+};
+
 static inline void mwsfsfx_SetPln(SFXPlaneBuffer* plane, void* pixels,
                                   int width, int height)
 {
@@ -353,8 +376,8 @@ static inline void mwsfsfx_SetPln(SFXPlaneBuffer* plane, void* pixels,
     plane->height = height;
 }
 
-/* TODO: [near miss] 98.54%; player/output/pool-base coloring and Cb-load order remain;
- * typed pixel staging is neutral; prior local forms exhausted. */
+/* TODO: [near miss] 99.92%; typed selectors recover pool/player/output homes;
+ * Cb pixel/pitch load order remains (two rows). */
 void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
                             SFXFrameInfo* output)
 {
@@ -364,15 +387,21 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
     int converted;
     int width;
     int height;
+    enum MwsFrameStructure frame_structure;
+    enum MwsPictureStructure picture_structure;
+    enum MwsChromaFormat chroma_format;
+    enum MwsChromaPosition chroma_position_h;
+    enum MwsChromaPosition chroma_position_v;
 
-    switch (input->frame_structure) {
-    case 1:
+    frame_structure = (enum MwsFrameStructure)input->frame_structure;
+    switch (frame_structure) {
+    case MWS_FRAME_STRUCTURE_1:
         converted = 1;
         break;
-    case 2:
+    case MWS_FRAME_STRUCTURE_2:
         converted = 2;
         break;
-    case 3:
+    case MWS_FRAME_STRUCTURE_3:
         converted = 3;
         break;
     default:
@@ -403,14 +432,15 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
     output->field_5C = 0;
 
     converted = 3;
-    switch (player->picture_structure) {
-    case 1:
+    picture_structure = (enum MwsPictureStructure)player->picture_structure;
+    switch (picture_structure) {
+    case MWS_PICTURE_STRUCTURE_1:
         converted = 1;
         break;
-    case 2:
+    case MWS_PICTURE_STRUCTURE_2:
         converted = 2;
         break;
-    case 3:
+    case MWS_PICTURE_STRUCTURE_3:
         converted = 3;
         break;
     default:
@@ -420,14 +450,15 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
     output->picture_structure = converted;
 
     converted = 1;
-    switch (player->chroma_format) {
-    case 1:
+    chroma_format = (enum MwsChromaFormat)player->chroma_format;
+    switch (chroma_format) {
+    case MWS_CHROMA_FORMAT_1:
         converted = 1;
         break;
-    case 2:
+    case MWS_CHROMA_FORMAT_2:
         converted = 2;
         break;
-    case 3:
+    case MWS_CHROMA_FORMAT_3:
         converted = 3;
         break;
     default:
@@ -440,11 +471,12 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
     output->field_6C = player->field_098;
     output->field_70 = player->field_09C;
     converted = 1;
-    switch (player->chroma_position_0) {
-    case 0:
+    chroma_position_h = (enum MwsChromaPosition)player->chroma_position_0;
+    switch (chroma_position_h) {
+    case MWS_CHROMA_POSITION_0:
         converted = 0;
         break;
-    case 1:
+    case MWS_CHROMA_POSITION_1:
         converted = 1;
         break;
     default:
@@ -454,11 +486,12 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
     output->chroma_position_h = converted;
 
     converted = 1;
-    switch (player->chroma_position_1) {
-    case 0:
+    chroma_position_v = (enum MwsChromaPosition)player->chroma_position_1;
+    switch (chroma_position_v) {
+    case MWS_CHROMA_POSITION_0:
         converted = 0;
         break;
-    case 1:
+    case MWS_CHROMA_POSITION_1:
         converted = 1;
         break;
     default:

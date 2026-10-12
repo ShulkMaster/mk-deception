@@ -258,7 +258,7 @@ static SfdCreateConfig mwsfd_vonlysfd_crepara = {
 static SfdMpvParameters mwsfd_mpvpara = {
     0xC0, 0xF0, 0x160, 0x1E0, 0, 0x160, 0x1E0, 4, 0};
 static SfdAdxtParameters mwsfd_adxtpara = {0x5DCC, 0x120, 0, 2, 0xBB80, 0xC1C0, 0};
-static int mwsfd_packsize = 0x800;
+static long mwsfd_packsize = 0x800;
 
 
 static int mwsfdcre_bufnum;
@@ -271,7 +271,7 @@ static int tab;
 static int rfb;
 static int aib;
 static int vib;
-static int sib;
+static long sib;
 static int sjb;
 static unsigned char* mwsfd_sisjadr;
 
@@ -792,7 +792,7 @@ static inline void* mwsfcre_MallocX(MwsPlayer* player, int size)
     return mwsfcre_Alloc(player, size);
 }
 
-/* TODO: [near miss] 99.73%; two compiler-retained audio-predicate branches and remainder r3/r4 homes remain after bounded refinement. */
+/* TODO: [near miss] 99.78%; two dead b (+0x598/+0xaac) = case-4-first arm of mwsfcre_UsesAudio whose statement IRO kept but the backend dropped; only asm does that, so honest C ceiling (note 7060). */
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
                                     MwsCreateParams* params)
 {

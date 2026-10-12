@@ -70,8 +70,6 @@ static void do_add_fields(int count, const unsigned char* source,
     }
 }
 
-/* TODO: [near miss] 99.51%; ground height/negative scale swap f2/f3;
- * honest staging exhausted; stop at FP coloring. */
 static void do_bounce(int count, unsigned char* positions,
                       int position_stride, unsigned char* velocities,
                       int velocity_stride, const unsigned char* bounce_counts,
@@ -79,7 +77,12 @@ static void do_bounce(int count, unsigned char* positions,
                       int bounce_count_stride, float scale)
 {
     float* ground = pfx_get_field(0, -2, 0x500);
-    float ground_y = ground != 0 ? *ground : 0.0f;
+    float ground_y;
+    if (ground != 0) {
+        ground_y = *ground;
+    } else {
+        ground_y = 0.0f;
+    }
     while (count-- > 0) {
         PfxVec3* position = (PfxVec3*)positions;
         PfxVec3* velocity = (PfxVec3*)velocities;
@@ -293,9 +296,10 @@ static void scalar_multiply(int count, unsigned char* values, int stride,
     }
 }
 
-static void do_add_constant_v3(int count, const unsigned char* source,
+static void do_add_constant_v3(float frame_time, int count,
+                               const unsigned char* source,
                                unsigned char* destination, int stride,
-                               float frame_time, float x, float y, float z)
+                               float x, float y, float z)
 {
     x *= frame_time;
     y *= frame_time;
@@ -312,9 +316,10 @@ static void do_add_constant_v3(int count, const unsigned char* source,
     }
 }
 
-static void do_add_constant(int count, const unsigned char* source,
+static void do_add_constant(float frame_time, int count,
+                            const unsigned char* source,
                             unsigned char* destination, int stride,
-                            float frame_time, float amount)
+                            float amount)
 {
     while (count-- > 0) {
         *(float*)destination = *(const float*)source + amount * frame_time;
@@ -339,9 +344,9 @@ static void add_jitter(int count, unsigned char* values, int stride,
     }
 }
 
-static void do_update_age(int count, const unsigned char* source,
-                          unsigned char* destination, int stride,
-                          float frame_time)
+static void do_update_age(float frame_time, int count,
+                          const unsigned char* source,
+                          unsigned char* destination, int stride)
 {
     while (count-- > 0) {
         *(float*)destination = *(const float*)source + frame_time;
@@ -374,11 +379,11 @@ static void add_oscillate(int count, unsigned char* values, int stride,
     }
 }
 
-static void do_fade_alpha(int count, PfxUpdateArguments* arguments,
+static void do_fade_alpha(float frame_time, int count,
+                          PfxUpdateArguments* arguments,
                           const unsigned char* source,
                           unsigned char* destination, int color_stride,
-                          const unsigned char* ages, int age_stride,
-                          float frame_time)
+                          const unsigned char* ages, int age_stride)
 {
     float alpha_rate =
         (float)(arguments->fade.start_alpha - arguments->fade.end_alpha) /
@@ -405,10 +410,10 @@ static void do_fade_alpha(int count, PfxUpdateArguments* arguments,
     }
 }
 
-static void do_lerp_color(int count, const PfxUpdateArguments* arguments,
+static void do_lerp_color(float frame_time, int count,
+                          const PfxUpdateArguments* arguments,
                           unsigned char* destination, int color_stride,
-                          const unsigned char* ages, int age_stride,
-                          float frame_time)
+                          const unsigned char* ages, int age_stride)
 {
     float position;
     float inverse_duration = 1.0f / arguments->color_lerp.duration;
@@ -449,10 +454,10 @@ static void do_lerp_color(int count, const PfxUpdateArguments* arguments,
     }
 }
 
-static void do_texture_anim(int count, PfxUpdateArguments* arguments,
+static void do_texture_anim(float frame_time, int count,
+                            PfxUpdateArguments* arguments,
                             unsigned char* destination, int texture_stride,
-                            const unsigned char* ages, int age_stride,
-                            float frame_time)
+                            const unsigned char* ages, int age_stride)
 {
     PfxTextureAnim animation;
     const PfxTextureAnim* source;
@@ -472,12 +477,9 @@ static void do_texture_anim(int count, PfxUpdateArguments* arguments,
     }
 }
 
-/* TODO: [near miss] 96.33334%; pow exponent move is scheduled after GPR
- * saves; whole-unit scheduling-on regresses 35 other functions. */
-static void do_attract(int count, unsigned char* source,
-                       unsigned char* destination, int stride,
-                       PfxVec3* target, float frame_time,
-                       float strength)
+static void do_attract(float frame_time, int count,
+                       unsigned char* source, unsigned char* destination,
+                       int stride, PfxVec3* target, float strength)
 {
     float factor = pow(strength, frame_time);
     while (count-- > 0) {
@@ -509,13 +511,20 @@ static void do_assign_constant_v3(unsigned char* destination, int stride,
     }
 }
 
-/* TODO: [breakthrough] 90.444443%; age traversal stride owners corrected;
- * final stack-check source and opcode argument scheduling remain unresolved. */
+/* TODO: [breakthrough] 94.86%; frame-time-first opcode calls corrected;
+ * saved-owner coloring and final fieldstack result comparison remain unresolved. */
 void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
 {
-    int current_stride;
-    int instruction_index;
     PfxUpdateInstruction* instruction;
+    int instruction_index;
+    int current_stride;
+    PfxFieldBuffer* previous;
+    PfxFieldBuffer* current;
+    unsigned char* previous_value;
+    unsigned char* current_value;
+    unsigned char* argument_value;
+    int argument_stride;
+    int field_offset;
     if (behavior->particle_count == 0) {
         return;
     }
@@ -523,15 +532,8 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
     for (instruction_index = 0;
          instruction_index < behavior->update_instruction_count;
          instruction_index++, instruction++) {
-        PfxFieldBuffer* previous =
-            &behavior->previous_streams[instruction->field.stream];
-        PfxFieldBuffer* current =
-            &behavior->current_streams[instruction->field.stream];
-        unsigned char* previous_value;
-        unsigned char* current_value;
-        unsigned char* argument_value;
-        int argument_stride;
-        int field_offset;
+        previous = &behavior->previous_streams[instruction->field.stream];
+        current = &behavior->current_streams[instruction->field.stream];
         if (previous->data == 0) {
             continue;
         }
@@ -679,15 +681,15 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
             switch (pfx_field_get_type(instruction->field.description)) {
             case 1:
                 do_add_constant_v3(
-                    behavior->particle_count, previous_value, current_value,
-                    current_stride, frame_time,
+                    frame_time, behavior->particle_count, previous_value,
+                    current_value, current_stride,
                     instruction->arguments.vector.x,
                     instruction->arguments.vector.y,
                     instruction->arguments.vector.z);
                 break;
             case 3:
-                do_add_constant(behavior->particle_count, previous_value,
-                                current_value, current_stride, frame_time,
+                do_add_constant(frame_time, behavior->particle_count,
+                                previous_value, current_value, current_stride,
                                 instruction->arguments.vector.x);
                 break;
             }
@@ -700,11 +702,10 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
             age_values += behavior->current_streams[age_field->stream].stride *
                           behavior->active_particle_count;
             do_fade_alpha(
-                behavior->particle_count, &instruction->arguments,
+                frame_time, behavior->particle_count, &instruction->arguments,
                 previous_value, current_value, current_stride,
                 age_values,
-                behavior->previous_streams[age_field->stream].stride,
-                frame_time);
+                behavior->previous_streams[age_field->stream].stride);
             break;
         }
         case 13: {
@@ -716,11 +717,10 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
             age_values += behavior->current_streams[age_field->stream].stride *
                           behavior->active_particle_count;
             do_lerp_color(
-                behavior->particle_count, &instruction->arguments,
+                frame_time, behavior->particle_count, &instruction->arguments,
                 current_value, current_stride,
                 age_values,
-                behavior->previous_streams[age_field->stream].stride,
-                frame_time);
+                behavior->previous_streams[age_field->stream].stride);
             break;
         }
         case 14: {
@@ -732,24 +732,23 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
             age_values += behavior->current_streams[age_field->stream].stride *
                           behavior->active_particle_count;
             do_texture_anim(
-                behavior->particle_count, &instruction->arguments,
+                frame_time, behavior->particle_count, &instruction->arguments,
                 current_value, current_stride,
                 age_values,
-                behavior->previous_streams[age_field->stream].stride,
-                frame_time);
+                behavior->previous_streams[age_field->stream].stride);
             break;
         }
         case 17:
             push_field(&instruction->field);
             break;
         case 15:
-            do_attract(behavior->particle_count, previous_value, current_value,
-                       current_stride, (PfxVec3*)argument_value,
-                       frame_time, instruction->scalar_04);
+            do_attract(frame_time, behavior->particle_count, previous_value,
+                       current_value, current_stride, (PfxVec3*)argument_value,
+                       instruction->scalar_04);
             break;
         case 1:
-            do_update_age(behavior->particle_count, previous_value,
-                          current_value, current_stride, frame_time);
+            do_update_age(frame_time, behavior->particle_count,
+                          previous_value, current_value, current_stride);
             break;
         case 16:
             do_update_roundrobin(behavior->particle_count, previous_value,

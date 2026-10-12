@@ -23,6 +23,7 @@ typedef float CFTArgbTable[3][256][4];
 typedef char CFTYcc420PlanarSizeCheck[sizeof(CFTYcc420Planar) == 0x18 ? 1 : -1];
 typedef char CFTArgb8888OutputSizeCheck[sizeof(CFTArgb8888Output) == 0x10 ? 1 : -1];
 
+void CFT_MakeArgb8888ColAdjTbl(void* table);
 void CFT_MakeYcc422ColAdjTbl(void* table);
 
 #endif

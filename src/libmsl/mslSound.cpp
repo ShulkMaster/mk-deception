@@ -403,7 +403,7 @@ extern "C" int mslSoundPlayNow(_ListNode* node) {
     return 1;
 }
 
-/* TODO: [near miss] 99.61%; shared failure cleanup CFG recovered; base/rollback owner allocation remains. */
+/* TODO: [near miss] 99.91%; shared failure cleanup CFG recovered; base_sound r27/r28 home swap remains. */
 extern "C" int mslSoundAttach(
     mslRuntimeSound* sound, mslBankSoundEntry* bank_sound) {
     const mslRuntimeSound* base_sound;
@@ -481,8 +481,8 @@ extern "C" int mslSoundAttach(
                     bank_sound->owner_bank,
                     (const char*)wave_command->source.pointer, 1);
                 if (wave_command->attached_wave == 0) {
-                    mslCmdItem* rollback = sound->current_command;
                     int j;
+                    mslCmdItem* rollback = sound->current_command;
 
                     for (j = 0; j < i; j++, rollback++) {
                         if (rollback->type == 1) {
