@@ -1036,9 +1036,9 @@ static inline void enter_profile_code(unsigned char code[6], int* digit) {
 }
 
 static inline int profile_codes_equal(
-    const unsigned char entered[6], const unsigned char original[6]) {
-    const unsigned char* entered_cursor;
-    const unsigned char* original_cursor;
+    unsigned char entered[6], unsigned char original[6]) {
+    unsigned char* entered_cursor;
+    unsigned char* original_cursor;
     int i;
 
     entered_cursor = entered;
@@ -1070,8 +1070,8 @@ static inline int find_free_profile_slot(StorageDevice* storage) {
     return slot;
 }
 
-/* TODO: [near miss] 99.71%; profile flow agrees; reset-loop zero reuse and
- * code-entry helper/save-slot GPR coloring remain. */
+/* TODO: [near miss] 99.70935%; pre-RA reset-zero sharing and confirmation/slot
+ * homes remain; recover zero provenance without losing indexed induction. */
 float p_create_profile(void) {
     int answered;
     int code_confirmed;
@@ -2321,7 +2321,6 @@ static inline void mark_profile_as_in_use_impl(int device, int slot) {
     DEVICE_AT(device)->inUse[slot] = 1;
 }
 
-/* TODO: [near miss] 99.76%; pin-compare cursor register swap in both count expansions and one polling entry branch remain. */
 StorageProfileSlot* scan_storage_for_code(int* state, int player, int port,
                                           unsigned char* code, int* device, int* slot) {
     int matchCount;
@@ -2375,17 +2374,17 @@ StorageProfileSlot* scan_storage_for_code(int* state, int player, int port,
         previousCount = matchCount;
         timer = 0;
 
-        for (;;) {
+        while (selected == 0) {
             matchCount = ppl_count_matching_profiles(code);
             if (previousCount != matchCount) {
-                break;
+                goto rescan;
             }
 
             if (timer-- == 0) {
                 if (update_storage_status(0) != 0) {
                     fire_screen_studio_event(0x1FE4, 1);
                     fire_screen_studio_event(0x1FE4, 2);
-                    break;
+                    goto rescan;
                 }
                 timer = 0x1E;
             }
@@ -2415,10 +2414,9 @@ StorageProfileSlot* scan_storage_for_code(int* state, int player, int port,
             }
             _mkproc_sleep_ticks = kOne;
             mkproc_sleep();
-            if (selected != 0) {
-                return profile;
-            }
         }
+        return profile;
+    rescan:;
     }
 }
 

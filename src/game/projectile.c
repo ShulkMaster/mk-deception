@@ -151,7 +151,7 @@ extern void trial_state_collision_check(
 extern int reaction_xfer_him(
     int reaction, float damage_scale, int block_type);
 extern int collide_sphere_vs_plyr(
-    PlyrInfo* player, const Vec* center, float radius);
+    PlyrInfo* player, Vec* center, float radius);
 extern void pz_fighter_reaction_xfer_him(int reaction);
 extern void obj_set_all_sobjs_priority(MkObj* object, int priority);
 
@@ -817,6 +817,11 @@ void retarget_projectile(struct ProjectilePdata* pdata) {
 }
 
 
+static inline float projectile_length_squared(const Vec* velocity) {
+    return velocity->x * velocity->x + velocity->y * velocity->y +
+           velocity->z * velocity->z;
+}
+
 static inline void projectile_cross_v3(Vec* out, const Vec* a, const Vec* b) {
     out->x = a->y * b->z - a->z * b->y;
     out->y = a->z * b->x - a->x * b->z;
@@ -963,11 +968,10 @@ static void projectile_impale(struct ProjectilePdata* pdata, MkObj* victim) {
     victim->flags_08_bits.gravity_enabled = 0;
 }
 
-/* TODO: [near miss] 98.82481%; script snapshots and velocity-X retention agree;
- * square-root FP homes and collision-call staging remain. */
 static float p_projectile_handler(void) {
     struct ProjectilePdata* projectile;
     PlyrPdata* victim;
+    PlyrPdata* impaled;
     MkObj* object;
     MkObj* target;
     Vec bone_position;
@@ -1022,10 +1026,7 @@ static float p_projectile_handler(void) {
                 if (distance_squared < 0.25f) {
                     proj_pdata->flags.bytes.behavior.bits.track_3d = 0;
                 } else if (distance_squared < 3.0f) {
-                    speed = gxMathFastSqrt(
-                        object->pos_vel.x * object->pos_vel.x +
-                        object->pos_vel.y * object->pos_vel.y +
-                        object->pos_vel.z * object->pos_vel.z);
+                    speed = gxMathFastSqrt(projectile_length_squared(&object->pos_vel));
                     object->pos_vel.x = dx;
                     object->pos_vel.z = dz;
                     inverse_length = gxMathFastInvSqrt(
@@ -1041,12 +1042,13 @@ static float p_projectile_handler(void) {
                 }
             }
 
-            target = proj_pdata->target.impaled_target->his_obj;
-            victim = proj_pdata->target.impaled_target->his_plyr_pdata;
+            impaled = proj_pdata->target.impaled_target;
+            target = impaled->his_obj;
+            victim = impaled->his_plyr_pdata;
             collision = simple_3d_projectile_collision(
                 &target->pos.value, &proj_pdata->retarget_object->pos.value,
                 &object->pos.value,
-                proj_pdata->flags.bytes.setup.bits.collision_info_set != 0,
+                !!proj_pdata->flags.bytes.setup.bits.collision_info_set,
                 proj_pdata->collision_radius, proj_pdata->collision_depth,
                 proj_pdata->collision_height);
             proj_pdata->target.impaled_target->his_plyr_pdata->duck_reaction_active = 1;

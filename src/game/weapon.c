@@ -943,17 +943,17 @@ void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     }
 }
 
-/* TODO: [near miss] 98.17%; unsigned chain terminator agrees; stop at nonvolatile owner-register coloring. */
+/* TODO: [near miss] 98.58%; unsigned chain terminator agrees; stop at nonvolatile owner/map-index register coloring (r29/r31). */
 void mkobj_update_weapon_trail(MkObj* trail_model) {
     MkObj* weapon;
     WeaponDefinition* definition;
     RwMatrix* weapon_matrix;
     RwMatrix* trail_matrix;
     WeaponTrailMap* map;
-    MkBone* trail_bone;
-    MkBone* parent_bone;
     MkBone* child_bone;
-    RwMatrix* child_matrix;
+    MkBone* parent_bone;
+    MkBone* trail_bone;
+    int* chain_root;
     RwMatrix* trail_cache;
     Vec* trail_position;
     Vec displacement;
@@ -961,7 +961,7 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
     Vec child_direction;
     Quat rotation;
     MKMATRIX rotation_matrix;
-    int* chain_root;
+    RwMatrix* child_matrix;
     int map_index;
 
     weapon = MK_HDR_LIVE((MkObj*)trail_model->parent_hdr, trail_model->parent_inst);
