@@ -28,7 +28,8 @@ static inline void* mmp_screen_poly_at(const MkMovieTexPlayer* player, int scree
 }
 
 static inline RwTexture* mmp_saved_texture_at(MkMovieTexPlayer* player, int screen_offset) {
-    return *(RwTexture**)((char*)&player->saved_texture + screen_offset);
+    screen_offset += RW_OFFSET_OF(MkMovieTexPlayer, saved_texture);
+    return *(RwTexture**)((char*)player + screen_offset);
 }
 
 /* TODO: [near miss] 99.17%; playing flag and scan index differ only in register coloring; stop. */
@@ -51,7 +52,7 @@ void mkMovieTexPlayerIdleUpdate(void) {
     }
 }
 
-/* TODO: [near miss] 96.83%; size profile restores compact saves; loop scheduling remains. */
+/* TODO: [near miss] 96.83%; screen-loop player-base rematerialization and GPR allocation differ. */
 void movie_player_reset(void) {
     int playerIndex;
     MkMovieTexPlayer* player;
@@ -107,7 +108,7 @@ static inline MkMovieTexPlayer* mmp_prepare_movie_path(
     int block_size;
 
     if (use_mfs != 0) {
-        block = load_named_binary_block(GetArtSlot__Fv(), (char*)name, &block_size);
+        block = load_named_binary_block(GetArtSlot__Fv(), name, &block_size);
         if (block != 0) {
             sprintf(player->path, STR_MFS_PATH_FMT, block, block_size);
         } else {
@@ -120,7 +121,7 @@ static inline MkMovieTexPlayer* mmp_prepare_movie_path(
     return player;
 }
 
-/* TODO: [near miss] 98.17%; path helper recovers shared success join; binding addressing and register residue remain. */
+/* TODO: [near miss] 98.17%; screen-slot indexed/displacement addressing and screen/offset register allocation differ. */
 void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int unused3, int use_mfs) {
     int screenCount;
     void* screenPoly;
