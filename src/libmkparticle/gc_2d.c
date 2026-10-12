@@ -3,7 +3,6 @@
 
 #include "libmkparticle/gc_2d.h"
 #include "libmkparticle/gc_state.h"
-#include "libmkparticle/pfx_rw_types.h"
 #include "dolphin/gx.h"
 #include "platform/display_metrics.h"
 #include "rw/dltextur.h"
@@ -113,8 +112,8 @@ void native2d_draw(Pfx2dObj* obj) {
 }
 
 #pragma optimization_level 4
-/* TODO: [near miss] 93.179779%; coordinate and UV operations agree; indexed
- * walks still fold differently, with raster and FP register residue. */
+/* TODO: [near miss] 99.55%; indexed walks agree; eight reciprocal/extent
+ * FP register differences remain; declaration-order trial regresses. */
 void native2d_instance_geometry(Pfx2dObj* obj) {
     float tex_w;
     float tex_h;
@@ -125,11 +124,11 @@ void native2d_instance_geometry(Pfx2dObj* obj) {
     float half;
     int i;
     Pfx2dGpuVtx* gpu_base;
-    PfxNativeRasterView* ras;
+    RwRaster* raster;
 
-    ras = pfx_rw_texture_view(obj->texture)->raster;
-    tex_w = ras->width;
-    tex_h = ras->height;
+    raster = obj->texture->raster;
+    tex_w = raster->originalWidth;
+    tex_h = raster->originalHeight;
 
     inv_w = 1.0f / tex_w;
     inv_h = 1.0f / tex_h;

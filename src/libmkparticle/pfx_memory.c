@@ -10,7 +10,8 @@
 #include "runtime/mk_mem.h"
 #include "runtime/cstring.h"
 
-/* TODO: [breakthrough needed] 85.79%; loop/mask compiler modes improve this body but regress pfx_estimate_size; recover shared TU shape. */
+/* TODO: [breakthrough needed] 93.26%; field-loop lowering and size accumulation differ;
+ * recover table/index ownership under the shared TU compiler mode. */
 int pfx_estimate_render_size(PfxVm* vm)
 {
     int size;
@@ -78,7 +79,8 @@ void pfx_particle_set_memory(PfxParticleMemory* particle,
     particle->user_data_size = estimate->particle_user_data_size;
 }
 
-/* TODO: [near miss] 93.08%; signed byte flag and CFG agree; compact saves and sum association remain; stop after honest staging check. */
+/* TODO: [breakthrough needed] 98.23%; compact saves agree; initial IR
+ * reassociates the parametric-size term after the remaining size sum. */
 void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
                        PfxBuildInfo* build)
 {
@@ -168,7 +170,8 @@ static inline PfxFieldSet pfx_memory_field_set(PfxVm* pfx) {
 
 #pragma push
 #pragma optimize_for_size on
-/* TODO: [near miss] 99.97%; helper and cursor ops agree, alignment compares now signed; field-set temporary/destination stack homes (10/8) remain reversed. */
+/* TODO: [near miss] 97.40%; returned field-set copy emits four extra stores and a 0x40 frame;
+ * recover the two retail aggregate instances under the shared propagation mode. */
 void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
 {
     unsigned char* cursor;
@@ -267,6 +270,7 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
 
 /* TODO: [near miss] 95.00%; pointer induction versus byte offset and saved-register homes remain. */
 #pragma pop
+/* TODO: [near miss] 95.00%; behavior-copy order agrees; source induction and saved homes remain. */
 void pfx_copy_behavior_list(PfxVm* pfx, int count, const PfxBehavior* source)
 {
     int index;
@@ -290,8 +294,6 @@ void pfx_copy_behavior_list(PfxVm* pfx, int count, const PfxBehavior* source)
     }
 }
 
-/* TODO: [near miss] 93.68%; negation/add scheduling and r4/r5 coloring remain;
- * whole-TU propagation control needs an independent consumer/data audit. */
 void* pfx_effect_memory_alloc(PfxVm* vm, int size, int align)
 {
     unsigned char* allocation;

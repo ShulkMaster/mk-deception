@@ -36,7 +36,7 @@ float xz_to_y_ang(const Vec* v);
 void scale_xz(Vec* out, const Vec* v, float s);
 
 /* Three-dimensional vector and angle operations. */
-void midpoint_v3(Vec* out, const Vec* a, const Vec* b);
+void midpoint_v3(Vec* out, Vec* a, Vec* b);
 float dist2_v3_to_v3(const Vec* a, const Vec* b);
 float dist_v3_to_v3(Vec* a, Vec* b);
 void uv_from_angle_y(Vec* out, float angle_y);

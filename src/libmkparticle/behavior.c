@@ -21,7 +21,6 @@ PfxBehavior* pfx_behavior(PfxVm* pfx, int index)
     return pfx->behavior_list[index];
 }
 
-#pragma peephole off
 void bind_behavior_to_effect(PfxBehavior* behavior, PfxVm* pfx)
 {
     int index;
@@ -109,9 +108,7 @@ void bind_behavior_to_effect(PfxBehavior* behavior, PfxVm* pfx)
     }
     behavior->effect = pfx;
 }
-#pragma peephole reset
 
-#pragma peephole off
 void behavior_adjust_streams(PfxBehavior* source, PfxBehavior* destination)
 {
     unsigned char* stream;
@@ -136,9 +133,7 @@ void behavior_adjust_streams(PfxBehavior* source, PfxBehavior* destination)
     }
     destination->current_streams[1].data = stream;
 }
-#pragma peephole reset
 
-#pragma peephole off
 PfxKillInstruction* add_kill_insn(PfxBehavior* behavior, int opcode,
                                   unsigned int field)
 {
@@ -154,9 +149,7 @@ PfxKillInstruction* add_kill_insn(PfxBehavior* behavior, int opcode,
     behavior->kill_instruction_count++;
     return instruction;
 }
-#pragma peephole reset
 
-#pragma peephole off
 void pfx_behaviors_frame_begin(PfxVm* pfx)
 {
     int index;
@@ -203,7 +196,6 @@ void pfx_behaviors_frame_begin(PfxVm* pfx)
         }
     }
 }
-#pragma peephole reset
 
 void pfx_behaviors_frame_end(PfxVm* pfx)
 {
@@ -259,8 +251,6 @@ PfxInitInstruction* add_init_insn(PfxBehavior* behavior, int opcode,
     return instruction;
 }
 
-/* TODO: [breakthrough] 96.00885%; signed storage tags recovered;
- * direct indexed members need pending whole-TU peephole mode integration. */
 void pfx_behavior_scan_fields(PfxBehavior* behavior,
                               PfxFieldSet* particle_fields,
                               PfxFieldSet* render_fields)
@@ -272,29 +262,27 @@ void pfx_behavior_scan_fields(PfxBehavior* behavior,
     }
 
     for (index = 0; index < behavior->update_instruction_count; index++) {
-        PfxUpdateInstruction* instruction;
         int storage;
 
-        instruction = &behavior->update_instructions[index];
-        add_field(render_fields, instruction->field.description);
-        switch (instruction->opcode) {
+        add_field(render_fields, behavior->update_instructions[index].field.description);
+        switch (behavior->update_instructions[index].opcode) {
         case 2:
         case 9:
         case 11:
         case 15:
-            storage = instruction->argument_0x14 & 0xF00;
+            storage = behavior->update_instructions[index].argument_0x14 & 0xF00;
             if (storage == 0x300 || storage == 0x100) {
-                add_field(particle_fields, instruction->argument_0x14);
+                add_field(particle_fields, behavior->update_instructions[index].argument_0x14);
             }
             break;
         case 10:
-            storage = instruction->field.description & 0xF00;
+            storage = behavior->update_instructions[index].field.description & 0xF00;
             if (storage == 0x300 || storage == 0x100) {
-                add_field(particle_fields, instruction->field.description);
+                add_field(particle_fields, behavior->update_instructions[index].field.description);
             }
-            storage = instruction->argument_0x18 & 0xF00;
+            storage = behavior->update_instructions[index].argument_0x18 & 0xF00;
             if (storage == 0x300 || storage == 0x100) {
-                add_field(particle_fields, instruction->argument_0x18);
+                add_field(particle_fields, behavior->update_instructions[index].argument_0x18);
             }
             break;
         case 1:
@@ -304,25 +292,25 @@ void pfx_behavior_scan_fields(PfxBehavior* behavior,
         case 6:
         case 7:
         case 8:
-            add_field(particle_fields, instruction->field.description);
+            add_field(particle_fields, behavior->update_instructions[index].field.description);
             break;
         case 12:
-            add_field(particle_fields, instruction->argument_0x14);
+            add_field(particle_fields, behavior->update_instructions[index].argument_0x14);
             break;
         case 13:
-            add_field(particle_fields, instruction->argument_0x14);
+            add_field(particle_fields, behavior->update_instructions[index].argument_0x14);
             break;
         case 14:
-            add_field(particle_fields, instruction->argument_0x14);
+            add_field(particle_fields, behavior->update_instructions[index].argument_0x14);
             break;
         case 17:
-            storage = instruction->field.description & 0xF00;
+            storage = behavior->update_instructions[index].field.description & 0xF00;
             if (storage == 0x300 || storage == 0x100) {
-                add_field(particle_fields, instruction->field.description);
+                add_field(particle_fields, behavior->update_instructions[index].field.description);
             }
             break;
         case 16:
-            add_field(particle_fields, instruction->field.description);
+            add_field(particle_fields, behavior->update_instructions[index].field.description);
             break;
         }
     }
@@ -339,7 +327,6 @@ void pfx_behavior_scan_fields(PfxBehavior* behavior,
     }
 }
 
-#pragma peephole off
 void pfxvm_update_make_last_insn_first(PfxBehavior* behavior)
 {
     PfxUpdateInstruction instruction;
@@ -361,4 +348,3 @@ void pfxvm_update_make_last_insn_first(PfxBehavior* behavior)
     memcpy(&behavior->update_instructions[0], &instruction,
            sizeof(instruction));
 }
-#pragma peephole reset

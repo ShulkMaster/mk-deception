@@ -5,9 +5,9 @@ Read every task. Deeper tier only when triage points there.
 | Tier | File | Holds |
 |---|---|---|
 | 1 | this | protocol, gates, triage, H index, stops |
-| 2 | [playbook-2-common.md](playbook-2-common.md) | H01-H28 detail |
+| 2 | [playbook-2-common.md](playbook-2-common.md) | H01-H30 detail |
 | 3 | [playbook-3-uncommon.md](playbook-3-uncommon.md) | M01-M17: modes, FP, ABI shape, inline/macro, data/link |
-| 4 | [playbook-4-rare.md](playbook-4-rare.md) | N01-N13, hard stops, dead ends, permuter |
+| 4 | [playbook-4-rare.md](playbook-4-rare.md) | N01-N14, trace procedure, hard stops, dead ends, permuter |
 
 Rule = `IF mismatch | REQUIRE evidence | TRY one change`. No evidence -> skip
 rule. No rule fits -> investigate or stop. Diagnostics, not recipes. IDs
@@ -33,6 +33,17 @@ mk-da symbols). Recheck under GC/2.7 before relying on it for game/CRI code.
 - Scratch may use dirty tricks (pragmas, aliases, `volatile`, permuter
   residue) as leads `[da]`. Lead = evidence of shape retail wants, never the
   answer. Find honest source doing same thing.
+- Classify residue before grinding (R4): diff mwcc_trace `initial` vs
+  `presched` pcode for the block owning the differing row (tier 4 Trace
+  procedure). Instruction made/removed by a pcode pass (value numbering,
+  code motion, strength reduction) or absent from `initial` = not coloring;
+  decl sweeps and permuter cannot fix it (H29, N14). Only residue present in
+  `initial` and moved by allocation = coloring (H15, H21).
+- Shared definition (struct/union layout, prototype, flag) with many
+  consumers: change one, measure every consumer + includer together, never
+  one function at a time. Aggregate layout moves registers: keep
+  `sizeof`/`offsetof`/align = retail; row movement on a neutral flatten is a
+  lead, note it.
 - Keep math, stores, call order, access widths, lazy null checks.
 - Never land: `register`, fake `volatile`, dead sinks, empty arms, invented
   fields/lifetimes/padding, wrong prototypes, undefined returns, asm,
@@ -69,6 +80,9 @@ Tools:
 
 - Ghidra MCP: verify project, select program explicitly. Pseudocode looks
   unrelated -> compare raw bytes and ELF symbol bounds.
+- mwcc_trace (GC2.7 regalloc/inline/pcode): callable via DecompStudio
+  `submit` even when the tool catalog omits it; full command + reading guide
+  = tier 4 Trace procedure.
 - m2c rejects directives in context: preprocess scratch copy with project
   include paths/defines. Union-member and data-base guesses still need
   retail offsets/relocs.
@@ -101,7 +115,9 @@ Tools:
 | Stack slots, frame size, store order | H14, H24 |
 | Local struct in stack (`lfs`/`stfs` off r1) vs FPRs, or reverse | M07 |
 | Dead `b` after loop arm, `li r,0` on normal exit | H11, M13 |
-| `li rX,0` vs `mr rX,rZero` | H15, H11 |
+| `li rX,0` vs `mr rX,rZero`; `li;li` vs `li;mr` in a preheader | H29, H15, H11 |
+| Retail-only `b` to a case body between switch dispatch and first arm | N14 |
+| Differing instruction absent from pre-RA `initial` pcode | H29, N14 (not coloring) |
 | Same ops, regs swapped | H15, H21, H22, then tier 4 stops |
 | Add/or operands commuted in one row | H15, H22 |
 | Call result move order | H16 |
@@ -198,6 +214,15 @@ Core line only; detail = `## Hxx` in tier 2.
 - **H28 Folded single-use local** `[da]` | home swap, decl sweeps neutral,
   selector/index/latch local missing from webs | assigned once, used once |
   enum-typed local; `= 0` in caller + `MK_LIVE` at call site.
+- **H29 Constant owner kind** | retail `li;li`, ours `li;mr` (or reverse) in
+  one block, no call between | trace `initial` shows separate LIs, `presched`
+  the MR | constant's owner = real named local at its first text-order use
+  (not inline/`@` local, temp, or later use).
+- **H30 Inline nesting depth** | several saved homes rotate, capture shows a
+  top-level inline `@` object popping before the value retail colours later |
+  both are statement-level inline objects | move the earlier helper call into
+  a wrapper inline (nested objects number below top-level ones); match handle
+  types to the API.
 
 ## Stop
 
@@ -207,7 +232,8 @@ Core line only; detail = `## Hxx` in tier 2.
   Hard stops). `TODO: [near miss]` + score + residual.
 - Exhausted decl/spelling searches are not new evidence. Reopen ceiling only
   for new lifetime, CFG, or owner hypothesis.
-- Before ceiling: N13 subset sweep of recorded byte-neutral edits.
+- Before ceiling: R4 classification (H29/N14), then N13 subset sweep of
+  recorded byte-neutral edits.
 - Needs assembly -> skip unless user grants per-function permission
   (AGENTS.md).
 

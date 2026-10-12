@@ -429,16 +429,13 @@ void ADXSJD_ExecHndl(AdxSjdHandle* handle)
     adxsjd_skip_out(handle);
 }
 
-/* TODO: [near miss] 99.848490%; raw-format member rename is codegen-neutral;
- * retained footer CFG differs only in linked-loop r31/r28 coloring. */
+/* TODO: [near miss] 99.85%; linked-loop limit/length r31/r28 coloring remains. */
 void adxsjd_decexec_start(AdxSjdHandle* handle)
 {
     AdxBasicDecoderExt* decoder = handle->decoder;
     SJ* input = handle->input;
     SJCK remainder;
     s16 footer_length;
-    s32 length;
-    s32 index;
 
     if (handle->trap_num_samples >= 0 &&
         handle->trap_count >= handle->trap_num_samples &&
@@ -475,6 +472,9 @@ void adxsjd_decexec_start(AdxSjdHandle* handle)
 
         if (handle->link_switch != 0) {
             for (;;) {
+                s32 length;
+                s32 index;
+
                 input->interface->get_chunk(
                     input, 1, 0x7FFFFFFF, &handle->input_chunk);
                 length = handle->input_chunk.len;

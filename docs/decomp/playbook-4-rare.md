@@ -122,6 +122,71 @@ joint sweep of recorded neutrals before any soft ceiling.
   + `privGetUserSizeFromBlock`) alone byte-identical; `unsigned int copySize`
   alone still off; both -> exact.
 
+## N14
+
+Dead branch-only block to a case body. IF retail has an unreachable `b T`
+between a switch dispatch fall-off and the first arm (`T` = a real arm body)
+and ours lacks it | REQUIRE mwcc_trace `initial` pcode (or capture `list.py`)
+lacks the block with current source | TRY nothing in honest C: classify
+`soft_ceiling` with the pcode evidence. Do not request asm.
+
+- Mechanism (GC2.7 `-O>=1`): frontend keeps `case 4: ...` as label + goto;
+  IRO folds it (`IroJump.c chain_label` retargets label->goto, `IRO_RemoveLabels`
+  Nops the label, `IRO_RemoveUnreachable` deletes the goto). Dead stores in the
+  arm are Nop'd by `IROUseDef eliminateUnused` in the same loop, then chained.
+  Only `IROLinearAsm` is exempt from both. Backend deletes only dead register
+  defs and coalesced copies; a copy in the arm (`x = param`) survives IRO but
+  emits `mr`; a separate-arm constant emits a real `li`. Backend
+  `optimize_branches` threads `b`-only blocks and never deletes orphans, so
+  the orphan exists only if a statement that emits no code survived IRO.
+- Empty-label / `case N: break;` trial (H10/H11 backend half) is folded by IRO
+  at every level >= 1; `#pragma optimization_level` is the full `-opt level`.
+  Only a self-copy `asm { mr x,x }` survives (RE4 CRI pass 66 uses it):
+  forbidden here, it is a compiler-quirk stand-in, not retail asm.
+- Exemplar ceiling: `mwsfcre_CreateSfd` (99.78, 2 rows, 3696 B): dead `b` at
+  +0x598 / +0xaac from the case-4-first arm of `mwsfcre_UsesAudio`.
+
+## Trace procedure
+
+Classify, then fix. Commands are repeatable; examples: notes 7060-7062
+(`mwsfcre_CreateSfd`), 7135-7137 (`p_create_profile`), 7061 / 6609 / 6394.
+
+1. Scratch TU (0.1 s): copy the unit .c to scratch; FLAGS = mwcc flags from
+   `ninja -t commands build/GQNE5D/src/<unit>.o` minus `-c/-o/-MMD`, plus the
+   unit's `-i`; RETAIL = `build/GQNE5D/obj/<unit>.o`. `.agent-work/decomp/
+   ai-check-attack/capture/tu.py SRC [FUNC]` = per-function difflib rows;
+   `N=40 cmp.py SRC FUNC` = aligned rows. Reproduce DecompStudio rows first.
+2. Classify the row from retail ASM (which values trade homes, first
+   differing instruction), then `submit {commands:[{cmd:"mwcc_trace",
+   draft:<id>, fn:"<fn>", what:["regalloc","inline","pcode"], json:true,
+   timeout:300}], wait:true}` (60 s times out on big units; parse the ~1 MB
+   JSON with python, never read it). Structure: `pcode` = stages `initial`
+   (codegen output, no pcode optimizer), `presched`, two `precolor`;
+   `regalloc` per class (3 = FPR, 4 = GPR): `nodes[{color,degree,flags,
+   neighbors}]` + `coloring_order`. Operand = 12 bytes: byte0 kind (0 reg, 2
+   imm, 3 mem), byte1 class, byte2 flags (1 use, 2 def), int16 at +4 = reg.
+3. **Diff `initial` vs `presched` for the block owning the row.** Instruction
+   appears/disappears there -> optimizer provenance (value numbering, code
+   motion, SR): H29, N14; no decl sweep or permuter can change it. Present in
+   both -> coloring: step 4.
+4. Real allocator: `PCMIN=250 capf.py SRC OUT.json` (gdb under wibo), `anal.py
+   OUT.json K PREFIX` where K = the `simplify_entry` dump index whose node
+   count equals the trace's (dumps come in build/simplify/rewrite triples).
+   `replay mismatch []` first. Map vregs from first definitions in PREFIX.txt:
+   low = real named locals (reverse decl order), then `@N` inline locals and
+   params, then expression temps, then SR/CTR regs. Build the per-vreg table
+   (our colour vs retail colour), apply simplify/stall/push-tail rules (Hard
+   stops), change ONE source fact that moves that node, retrace.
+5. Compiler source for the exact predicate (`~/projects/decomp/mwcc`:
+   `ValueNumbering.c`, `CodeGen.c`, `CInline.c`, `IrOptimizer.c`, `IroJump.c`,
+   `IROUseDef.c`, `PCodeAssembly.c`), then a one-line micro-TU lab per
+   hypothesis (0.1 s each) before touching the real unit.
+6. Pitfalls: gdb backtraces are garbage under wibo (read `[esp]`); `eval` of
+   `-pragma "cats off"` flags breaks in sh/fish (drive mwcc from python with
+   `shlex`); a sibling below 100 shows the same rows in every scratch build
+   (read live scores first); `gGPRCoalesceFirst/Last` are not in
+   `config/GC_2_7/bindings.json` (infer the window from the vreg table).
+
 ## Hard stops
 
 After the applicable honest source check, stop at:
@@ -144,7 +209,8 @@ After the applicable honest source check, stop at:
     variable's first web, webs in a group forward) < CSE temps (value used
     twice; reverse source) < loop temps (hoisted invariants, strength-reduced
     bases; reverse source) < `?:`/`&&`-mask results and inline-helper
-    locals/results (reverse source) < plain emission temps (forward). A named
+    locals/results (reverse source; NESTED inline expansions number below all
+    top-level ones, H30) < plain emission temps (forward). A named
     local assigned once from a `?:` or an inline result is propagated away and
     lives on as that temp. Multi-def local: 2nd webs from in-place copy
     (`x = src; x = c(x) ? x : 0`) number forward; direct `x = c ? src : 0`
