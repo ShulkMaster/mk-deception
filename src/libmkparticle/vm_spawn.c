@@ -34,27 +34,27 @@ int has_spawncode_for(PfxVmEmitter* emitter, unsigned int field)
 static void v3_x_mat_4(PfxVec3* output, PfxVec3* vector,
                        const PfxMatrix* matrix)
 {
-    output->x = matrix->elements[12] +
-        (vector->z * matrix->elements[8] +
-         (vector->x * matrix->elements[0] + vector->y * matrix->elements[4]));
-    output->y = matrix->elements[13] +
-        (vector->z * matrix->elements[9] +
-         (vector->x * matrix->elements[1] + vector->y * matrix->elements[5]));
-    output->z = matrix->elements[14] +
-        (vector->z * matrix->elements[10] +
-         (vector->x * matrix->elements[2] + vector->y * matrix->elements[6]));
+    output->x = matrix->elements[3][0] +
+        (vector->z * matrix->elements[2][0] +
+         (vector->x * matrix->elements[0][0] + vector->y * matrix->elements[1][0]));
+    output->y = matrix->elements[3][1] +
+        (vector->z * matrix->elements[2][1] +
+         (vector->x * matrix->elements[0][1] + vector->y * matrix->elements[1][1]));
+    output->z = matrix->elements[3][2] +
+        (vector->z * matrix->elements[2][2] +
+         (vector->x * matrix->elements[0][2] + vector->y * matrix->elements[1][2]));
 }
 
 static void rotate_v3_by_mat4(PfxVec3* vector, const PfxMatrix* matrix)
 {
     PfxVec3 result;
 
-    result.x = vector->z * matrix->elements[8] +
-        (vector->x * matrix->elements[0] + vector->y * matrix->elements[4]);
-    result.y = vector->z * matrix->elements[9] +
-        (vector->x * matrix->elements[1] + vector->y * matrix->elements[5]);
-    result.z = vector->z * matrix->elements[10] +
-        (vector->x * matrix->elements[2] + vector->y * matrix->elements[6]);
+    result.x = vector->z * matrix->elements[2][0] +
+        (vector->x * matrix->elements[0][0] + vector->y * matrix->elements[1][0]);
+    result.y = vector->z * matrix->elements[2][1] +
+        (vector->x * matrix->elements[0][1] + vector->y * matrix->elements[1][1]);
+    result.z = vector->z * matrix->elements[2][2] +
+        (vector->x * matrix->elements[0][2] + vector->y * matrix->elements[1][2]);
     *vector = result;
 }
 
@@ -573,11 +573,11 @@ void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
                         break;
                     case 1:
                         transformed.x = ((PfxVec3*)destination)->x +
-                            ((PfxMatrix*)pfx)->elements[12];
+                            ((PfxMatrix*)pfx)->elements[3][0];
                         transformed.y = ((PfxVec3*)destination)->y +
-                            ((PfxMatrix*)pfx)->elements[13];
+                            ((PfxMatrix*)pfx)->elements[3][1];
                         transformed.z = ((PfxVec3*)destination)->z +
-                            ((PfxMatrix*)pfx)->elements[14];
+                            ((PfxMatrix*)pfx)->elements[3][2];
                         break;
                     default:
                         transformed.x = 0.0f;
@@ -592,8 +592,8 @@ void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
                                   &transform->matrix);
             } else if (instruction->field_description == 0x103) {
                 *(float*)destination += gxMathArcTanYX(
-                    transform->matrix.elements[2],
-                    transform->matrix.elements[0]);
+                    transform->matrix.elements[0][2],
+                    transform->matrix.elements[0][0]);
             }
         }
     }

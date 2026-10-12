@@ -174,8 +174,8 @@ void pfx_behaviors_fixup_targets(PfxBehavior** behaviors,
 PfxInitInstruction* add_init_insn(PfxBehavior* behavior, int opcode,
                                   unsigned int field);
 void pfx_behavior_scan_fields(PfxBehavior* behavior,
-                              unsigned int* particle_fields,
-                              unsigned int* render_fields);
+                              PfxFieldSet* particle_fields,
+                              PfxFieldSet* render_fields);
 void pfxvm_update_make_last_insn_first(PfxBehavior* behavior);
 void _pfxvm_execute_initial_behavior(PfxBehavior* behavior, float frame_time);
 void pfxvm_initial_reflect(PfxBehavior* behavior, unsigned int field);
