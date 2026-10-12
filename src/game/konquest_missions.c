@@ -334,7 +334,7 @@ void setDroneOverrideSwitch(int activated, struct DroneOverrideInfo* info);
 void set_ani_speed(float speed);
 static float p_run_special_move(void);
 static float call_mission_script(void);
-void move_player(MkObj* object, const Vec* position, Vec* angle);
+void move_player(MkObj* object, Vec* position, Vec* angle);
 int is_weapon_style(PlyrFighterDefinition* fighter);
 int is_pX_airborn(int player);
 MkProc* konquest_set_dialog_text(
@@ -366,6 +366,9 @@ static float failed_trial_drone_wrapup(void);
 static float successful_trial_drone_wrapup(void);
 static float successful_trial_player_wrapup(void);
 static float p_finish_countdown(void);
+void load_window_frame(void);
+void text_window_fade_in(unsigned char ticks);
+void create_string_objects(void);
 float p_show_text_window(void);
 static float p_transform_into_monk(void);
 static float p_transform_into_player(void);
@@ -485,41 +488,11 @@ static inline void destroy_screen_latch(struct KonquestScreenLatch* latch) {
     ScreenObj* object = MK_LIVE(latch->object, latch->instance);
 
     if (object != 0) {
-        object = latch->object;
         if (object->instance != 0) {
             ((void (*)(ScreenObj*))object->vtbl->destroy)(object);
         }
         latch->object = 0;
         latch->instance = 0;
-    }
-}
-
-static inline void text_window_fade_in(unsigned char ticks) {
-    struct KonquestTrialWindowPdata* pdata =
-        (struct KonquestTrialWindowPdata*)apdata;
-    unsigned char alpha = 0;
-
-    if (pdata != 0) {
-        unsigned char target = pdata->color;
-        unsigned char step = target / ticks;
-
-        do {
-            pfx_2d_obj_set_alpha_by_id(0x9002, alpha);
-            if (pdata->prompt_flags & 0x10) {
-                pfx_2d_obj_set_alpha_by_id(0x9004, alpha);
-            }
-            if (target - step < alpha) {
-                alpha = target;
-            } else {
-                alpha += step;
-            }
-            _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep();
-        } while (alpha < target);
-        pfx_2d_obj_set_alpha_by_id(0x9002, target);
-        if (pdata->prompt_flags & 0x10) {
-            pfx_2d_obj_set_alpha_by_id(0x9004, target);
-        }
     }
 }
 
@@ -783,8 +756,6 @@ int trial_get_background_root(void) {
     return (int)konquest_save_data.background_and_flags >> 16;
 }
 
-/* TODO: [near miss] 97.76%; alpha argument gets clrlwi (retail passes it unmasked,
- * so check the pfx_2d_obj_set_alpha_by_id parameter type); sign/koin coloring swaps. */
 void give_koin_award(int amount, int type) {
     static const char* mission_complete[6] = {
         "MISSION COMPLETE", "MISI\323N COMPLETA", "AUFTRAG ERFOLGREICH",
@@ -796,8 +767,8 @@ void give_koin_award(int amount, int type) {
     };
     char amount_text[8];
     ScreenObj* sign;
-    StringObj* title;
     ScreenObj* koin;
+    StringObj* title;
     StringObj* amount_string;
     int alpha;
 
@@ -1173,6 +1144,64 @@ int trial_show_standard_fight_messages(void) {
 }
 
 /* TODO: [near miss] 99.98%; only the four @stringBase0 offsets differ (retail pool is 13 bytes longer before OK_BUTTON; TU string layout). */
+void load_window_frame(void) {
+    struct KonquestTrialWindowPdata* pdata = (struct KonquestTrialWindowPdata*)apdata;
+    int frame_flags;
+    int index;
+
+    if (pdata != 0) {
+        frame_flags = 0;
+        ((ScreenObjFlags*)&frame_flags)->hidden = 1;
+        for (index = 0; index < 9; index++) {
+            ScreenObj* object = load_2d_pfxobj(
+                pdata->art_slot, 0x9004,
+                (unsigned long)(
+                    get_artid_of_named_item_in_slot(
+                        pdata->art_slot, "JNY_WINDOW01", 1) + index),
+                frame_flags, pdata->priority);
+
+            pdata->frame[index].object = object;
+            pdata->frame[index].instance = object->instance;
+            mk_insert((MkHdr*)object, &aproc->pdata_list_b);
+        }
+    }
+}
+
+void create_string_objects(void) {
+    struct KonquestTrialWindowPdata* pdata;
+
+    pdata = (struct KonquestTrialWindowPdata*)apdata;
+    if (pdata != 0) {
+        int alignment;
+        StringObj* string;
+        unsigned char color[4];
+        unsigned int packed_color;
+
+        if (pdata->prompt_flags & 0x800) {
+            alignment = 1;
+        } else if (pdata->prompt_flags & 0x1000) {
+            alignment = 2;
+        } else {
+            alignment = 0;
+        }
+        string = create_wrapped_string(
+            0x9002, load_font(pdata->font), pdata->text,
+            pdata->left, pdata->bottom, pdata->width,
+            0, alignment, 2);
+        string->priority = pdata->priority - 2;
+        packed_color = pdata->color;
+        color[0] = packed_color >> 24;
+        color[1] = packed_color >> 16;
+        color[2] = packed_color >> 8;
+        color[3] = packed_color;
+        pfxfont_set_string_color(
+            &string->pfx, (unsigned int*)color);
+        pdata->top = string->text_h;
+        mk_insert((MkHdr*)string, &aproc->pdata_list_b);
+        insert_2d_obj((ScreenObj*)string);
+    }
+}
+
 void set_prompt_items(struct KonquestTrialWindowPdata* unused) {
     int y;
     struct KonquestTrialWindowPdata* pdata =
@@ -1236,7 +1265,6 @@ void set_prompt_items(struct KonquestTrialWindowPdata* unused) {
     }
 }
 
-/* TODO: [near miss] 99.75%; frame[0] latch object and pdata->bottom swap r10/r11 (coloring only). */
 void plot_and_show_window_frame(struct KonquestTrialWindowPdata* unused) {
     struct KonquestTrialWindowPdata* pdata =
         (struct KonquestTrialWindowPdata*)apdata;
@@ -1334,70 +1362,46 @@ static void text_window_fade_out(unsigned char ticks) {
 #pragma ppc_unroll_instructions_limit 40
 #pragma opt_unroll_loops reset
 
-/* TODO: [near miss] 92.81%; frame loop hoists frame_flags.word (retail reloads it from
- * the stack) and the JNY_WINDOW01 string-pool offset differs (0x6c vs 0xa2). */
-float p_show_text_window(void) {
+void text_window_fade_in(unsigned char ticks) {
     struct KonquestTrialWindowPdata* pdata =
         (struct KonquestTrialWindowPdata*)apdata;
-    struct KonquestTrialWindowPdata* window = pdata;
+    unsigned char alpha = 0;
+
+    if (pdata != 0) {
+        unsigned char target = pdata->color;
+        unsigned char step = target / ticks;
+
+        do {
+            pfx_2d_obj_set_alpha_by_id(0x9002, alpha);
+            if (pdata->prompt_flags & 0x10) {
+                pfx_2d_obj_set_alpha_by_id(0x9004, alpha);
+            }
+            if (target - step < alpha) {
+                alpha = target;
+            } else {
+                alpha += step;
+            }
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+        } while (alpha < target);
+        pfx_2d_obj_set_alpha_by_id(0x9002, target);
+        if (pdata->prompt_flags & 0x10) {
+            pfx_2d_obj_set_alpha_by_id(0x9004, target);
+        }
+    }
+}
+
+/* TODO: [breakthrough] window setup helpers restored (MAP sizes exact); fade-in
+ * alpha web coloring and destroy_screen_latch latch shape remain. */
+float p_show_text_window(void) {
+    struct KonquestTrialWindowPdata* window =
+        (struct KonquestTrialWindowPdata*)apdata;
     int result = 0;
 
-    if ((pdata->prompt_flags & 0x10) && pdata != 0) {
-        union {
-            unsigned int word;
-            struct {
-                ScreenObjFlags bits;
-                unsigned char pad[3];
-            } bytes;
-        } frame_flags;
-        int index;
-
-        frame_flags.word = 0;
-        frame_flags.bytes.bits.hidden = 1;
-        for (index = 0; index < 9; index++) {
-            ScreenObj* object = load_2d_pfxobj(
-                pdata->art_slot, 0x9004,
-                (unsigned long)(
-                    get_artid_of_named_item_in_slot(
-                        pdata->art_slot, "JNY_WINDOW01", 1) + index),
-                frame_flags.word, pdata->priority);
-
-            pdata->frame[index].object = object;
-            pdata->frame[index].instance = object->instance;
-            mk_insert((MkHdr*)object, &aproc->pdata_list_b);
-        }
+    if (window->prompt_flags & 0x10) {
+        load_window_frame();
     }
-
-    pdata = (struct KonquestTrialWindowPdata*)apdata;
-    if (pdata != 0) {
-        int alignment;
-        StringObj* string;
-        unsigned char color[4];
-        unsigned int packed_color;
-
-        if (pdata->prompt_flags & 0x800) {
-            alignment = 1;
-        } else if (pdata->prompt_flags & 0x1000) {
-            alignment = 2;
-        } else {
-            alignment = 0;
-        }
-        string = create_wrapped_string(
-            0x9002, load_font(pdata->font), pdata->text,
-            pdata->left, pdata->bottom, pdata->width,
-            0, alignment, 2);
-        string->priority = pdata->priority - 2;
-        packed_color = pdata->color;
-        color[0] = packed_color >> 24;
-        color[1] = packed_color >> 16;
-        color[2] = packed_color >> 8;
-        color[3] = packed_color;
-        pfxfont_set_string_color(
-            &string->pfx, (unsigned int*)color);
-        pdata->top = string->text_h;
-        mk_insert((MkHdr*)string, &aproc->pdata_list_b);
-        insert_2d_obj((ScreenObj*)string);
-    }
+    create_string_objects();
 
     set_prompt_items(window);
     if (window->prompt_flags & 0x10) {
@@ -2834,7 +2838,7 @@ void trial_start_new_round(void) {
 
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
-/* TODO: [near miss] 99.28%; sign loader x/arg scheduling, monk latch homes and medal-reset constant regs differ. */
+/* TODO: [near miss] 99.43%; loader staging and medal-reset GPR homes remain; preserve retail table order. */
 int trial_end_round(void) {
     struct KonquestMissionState* state;
     struct KonquestRequiredSequenceList* sequences;
@@ -3636,8 +3640,8 @@ static float p_transform_into_monk(void) {
         xfer_proc(animation_process, p_anim_idle);
         animation->step = -1.0f;
         transition_to_anim_script_frame(
-            0.05f, 105.0f, animation,
-            bgnd_animations.transform_animation, 0x43);
+            animation, bgnd_animations.transform_animation, 0x43, 0.05f,
+            105.0f);
         plyr_obj->flags_08_bits.scale_active = 1;
         plyr_obj->scale.z = 1.0f;
         plyr_obj->scale.x = 1.0f;
@@ -3701,8 +3705,7 @@ static float p_finish_transform_player(void) {
 
     xfer_proc(animation_process, p_anim_idle);
     set_anim_script_frame(
-        63.0f, animation,
-        bgnd_animations.transform_animation, 0x43);
+        animation, bgnd_animations.transform_animation, 0x43, 63.0f);
     plyr_obj->pos.value.x = monk->pos.value.x;
     plyr_obj->pos.value.y = monk->pos.value.y;
     plyr_obj->pos.value.z = monk->pos.value.z;
@@ -3766,8 +3769,7 @@ static float p_finish_transform_monk(void) {
     monk = get_mission_monk();
     xfer_proc(monk_process, p_anim_idle);
     set_anim_script_frame(
-        32.0f, animation,
-        bgnd_animations.monk_transform_animation, 0x43);
+        animation, bgnd_animations.monk_transform_animation, 0x43, 32.0f);
     monk->pos.value.x = player_object->pos.value.x;
     monk->pos.value.y = player_object->pos.value.y;
     monk->pos.value.z = player_object->pos.value.z;

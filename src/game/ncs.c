@@ -2298,7 +2298,7 @@ unsigned int start_blood_particles(
     return emitter;
 }
 
-/* TODO: [near miss] 99.4%; player/emitter saved homes swapped (r26/r29); retail numbers the result web as the first wrapper-level web, before the inlined bone/object/player copies; no honest wrapper spelling found yet. */
+/* TODO: [near miss] 99.43%; player/emitter homes and global-load order differ; recover scalar return-object ownership. */
 unsigned int start_blood_particles_scripts(int particle_mask, unsigned int bone)
 {
     PlyrPdata* player = plyr_pdata;
@@ -2537,31 +2537,26 @@ void limb_sever_throw_away(
 }
 
 static inline MkObj* limb_sever_set_motion_inline(
-    MkObj* owner, int limb, const Vec* velocity,
+    MkObj* owner, int limb, Vec* velocity,
     struct NcsLimbUpdatePdata* motion, int enable_ground,
     int ground_value, int field_18, int include_children,
     float gravity, float ground_offset, float field_11C) {
-    FighterMirror* fighter;
-    FighterObjectRef* ref;
     MkObj* severed = 0;
 
     if (motion != 0) {
-        if (owner == g_game_info.plyr0.slot.mirror_a) {
-            fighter = g_game_info.plyr0.slot.fighter;
-        } else {
-            fighter = g_game_info.plyr1.slot.fighter;
-        }
-        ref = &fighter->severed_limbs[limb];
-        severed = MK_HDR_LIVE(ref->object, ref->instance);
+        FighterMirror* fighter;
+        fighter = owner == g_game_info.plyr0.slot.mirror_a
+            ? g_game_info.plyr0.slot.fighter : g_game_info.plyr1.slot.fighter;
+        severed = MK_HDR_LIVE(fighter->severed_limbs[limb].object,
+            fighter->severed_limbs[limb].instance);
         if (severed == 0) {
             severed = obj_sever_limb(owner, limb, 0, include_children);
             if (severed == 0) {
-                return severed;
+                goto done;
             }
-            ref->object = severed;
-            ref->instance = severed->hdr.instance;
+            fighter->severed_limbs[limb].object = severed;
+            fighter->severed_limbs[limb].instance = severed->hdr.instance;
         }
-
         motion->severed_mask |= 1 << limb;
         severed->pos_vel.x = velocity->x;
         severed->pos_vel.y = velocity->y;
@@ -2582,10 +2577,10 @@ static inline MkObj* limb_sever_set_motion_inline(
         motion->field_18 = field_18;
         update_mkobj(severed);
     }
+done:
     return severed;
 }
 
-/* TODO: [breakthrough] 99.15%; canonical inline motion recovered; creation-failure exit adds one branch. */
 MkObj* limb_sever_pop_head_up(
     PlyrInfo* player, float x_velocity, float y_velocity,
     float z_velocity, float gravity) {
@@ -2738,10 +2733,7 @@ static inline MkObj* mks_limb_sever_inline(
         fighter = g_game_info.plyr1.slot.fighter;
     }
     severed_ref = &fighter->severed_limbs[limb];
-    severed = severed_ref->object;
-    if (severed != 0 && severed->hdr.instance != severed_ref->instance) {
-        severed = 0;
-    }
+    severed = MK_HDR_LIVE(severed_ref->object, severed_ref->instance);
     if (severed == 0) {
         severed = obj_sever_limb(object, limb, 0, include_children);
         if (severed != 0) {
@@ -2764,7 +2756,8 @@ void limb_sever_explode_apart_plyr_num(
     }
 }
 
-/* TODO: [near miss] 98.62%; entry order and vector slots agree; inline creation-failure bne+b joins and local_velocity store residue remain. */
+/* TODO: [breakthrough needed] 99.76%; retail retains overwritten local-X stores;
+ * recover original vector producer evidence before restoring redundant writes. */
 void limb_sever_explode_apart(
     PlyrInfo* player, float arg1, float arg2, float strength, int mode) {
     struct NcsLimbUpdatePdata* update;
@@ -3095,7 +3088,6 @@ MkProc* plyr_spawn_his_anim_limb(
     return proc;
 }
 
-/* TODO: [near miss] 99.01%; creation-failure early return lowers as bne+b instead of retail beq to final result. */
 MkObj* limb_sever_set_motion(
     MkObj* owner, int limb, Vec* velocity, float gravity,
     struct NcsLimbUpdatePdata* motion, int enable_ground, float ground_offset,
@@ -3111,7 +3103,7 @@ MkObj* limb_sever_set_motion(
         if (severed == 0) {
             severed = obj_sever_limb(owner, limb, 0, include_children);
             if (severed == 0) {
-                return severed;
+                goto done;
             }
             fighter->severed_limbs[limb].object = severed;
             fighter->severed_limbs[limb].instance = severed->hdr.instance;
@@ -3136,6 +3128,7 @@ MkObj* limb_sever_set_motion(
         motion->field_18 = field_18;
         update_mkobj(severed);
     }
+done:
     return severed;
 }
 

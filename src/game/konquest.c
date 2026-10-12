@@ -120,7 +120,7 @@ struct KonquestRegionTable {
     const char* map_art_name;
     char pad0C[0x0C];
     const char* supplemental_art_name;
-    const char* effect_bank_name;
+    char* effect_bank_name;
     int weather_enabled;
     char pad24[4];
     unsigned int setup_function;
@@ -1288,7 +1288,6 @@ static float p_load_hero_art_section(void);
 void insert_ground_me_mkobj(MkObj* object);
 void obj_apply_to_sobj_with_id(
     MkObj* object, int id, void (*callback)(void*));
-int load_effect_bank(const char* name);
 static void initialize_tile_patch_sobj(MkSobj* object);
 static void generate_door_paths(void);
 static void generate_door_trigger(
@@ -2482,39 +2481,39 @@ static inline KonquestChildObject* find_object_child_by_enumeration(
     return 0;
 }
 void konquest_transition_object_to_state( int object_uid, int enumeration, int state);
-static inline float door_path_distance_squared(
-    MkObj* hero, KonquestWaypoint* path, Vec* delta) {
-    float edge_length_squared;
-    float projection_numerator;
-    float edge_length;
-    float projection;
+static inline void calc_closest_point_on_line(
+    Vec* out, Vec* point, Vec* start, Vec* end) {
     float edge_x;
     float edge_y;
     float edge_z;
-    float hero_x;
-    float hero_z;
+    float length_squared;
+    float length;
+    float x_product;
+    float z_product;
+    float projection_numerator;
+    float projection;
+    edge_x = end->x - start->x;
+    edge_y = end->y - start->y;
+    edge_z = end->z - start->z;
+    length_squared = edge_z * edge_z + (edge_x * edge_x + edge_y * edge_y);
+    x_product = (point->x - start->x) * edge_x;
+    z_product = (point->z - start->z) * edge_z;
+    projection_numerator = x_product + z_product;
+    length = gxMathFastSqrt(length_squared);
+    projection = projection_numerator / (length * length);
+    out->x = projection * (end->x - start->x) + start->x;
+    out->y = 0.0f;
+    out->z = projection * (end->z - start->z) + start->z;
+}
 
-    edge_y = path[1].position.y - path[0].position.y;
-    edge_x = path[1].position.x - path[0].position.x;
-    hero_x = hero->pos.value.x - path[0].position.x;
-    edge_z = path[1].position.z - path[0].position.z;
-    edge_length_squared =
-        edge_z * edge_z + (edge_x * edge_x + edge_y * edge_y);
-    hero_z = hero->pos.value.z - path[0].position.z;
-    projection_numerator = hero_x * edge_x + hero_z * edge_z;
-    edge_length = gxMathFastSqrt(edge_length_squared);
-    projection = projection_numerator / (edge_length * edge_length);
-    delta->x =
-        hero->pos.value.x -
-        (projection *
-             (path[1].position.x - path[0].position.x) +
-         path[0].position.x);
-    delta->y = hero->pos.value.y - 0.0f;
-    delta->z =
-        hero->pos.value.z -
-        (projection *
-             (path[1].position.z - path[0].position.z) +
-         path[0].position.z);
+static inline float door_path_distance_squared(
+    MkObj* hero, KonquestWaypoint* path, Vec* delta) {
+    Vec closest;
+    calc_closest_point_on_line(&closest, &hero->pos.value,
+        &path[0].position, &path[1].position);
+    delta->x = hero->pos.value.x - closest.x;
+    delta->y = hero->pos.value.y - closest.y;
+    delta->z = hero->pos.value.z - closest.z;
     return delta->z * delta->z +
            (delta->x * delta->x + delta->y * delta->y);
 }
@@ -5150,7 +5149,7 @@ static void initialize_tile_patch_sobj(MkSobj* object) {
     sobj_set_priority(object, 9);
 }
 
-/* TODO: [Scope warn] section-context block: removing it drops 99.98% -> 99.93%. */
+/* TODO: [Scope warn] section-context block: hoisting it drops 100% -> 99.95%; context stack homes change. */
 void load_konquest_tiles(void) {
     MkObj* model;
 
@@ -5647,7 +5646,7 @@ static void generate_door_trigger(
     }
 }
 
-/* TODO: [breakthrough needed] 91.97%; model-latch polarity and center/partner stores differ; script-string pool addends remain; preserve traversal locals. */
+/* TODO: [breakthrough needed] 91.97%; model-latch branches and center/partner stores differ; script-string pool addends remain. */
 static void generate_door_paths(void) {
     KonquestWaypoint* waypoints;
     MkPtr* link;
@@ -6514,8 +6513,8 @@ KonquestChildObject* find_child_subobject_by_enumeration(
     return 0;
 }
 
-/* TODO: [near miss] 98.46%; first fast-sqrt result is copied into position_ticks
- * (fmr) instead of coalescing into the preloaded-zero f25; see notes. */
+/* TODO: [near miss] 98.46%; inline sqrt result copies and post-loop latch
+ * zero homes remain after exact FPR/GPR replay; stop at owner/coloring. */
 static void object_transition_to_state(
     KonquestChildObject* record, int state, int play_sound) {
     struct KonquestObjectState* state_data;
@@ -6537,8 +6536,8 @@ static void object_transition_to_state(
     float angle_speed;
     float inverse;
     int enumeration_index;
-        MKMATRIX* matrix;
-        MkSobj* object;
+    MKMATRIX* matrix;
+    MkSobj* object;
 
     if (konquest_pdata->region_table->enumerations == 0) {
         return;
@@ -6785,9 +6784,9 @@ void konquest_open_door(int enumeration, int remain_open) {
     }
 }
 
-/* TODO: [breakthrough needed] 89.71%; path projection FP scheduling and hero-latch coloring remain; inspect helper shape while preserving traversal locals. */
+/* TODO: [near miss] 97.94%; projection and displacement agree; stop at FPR coloring and instruction scheduling. */
 void turn_to_face_exterior_door(void) {
-    struct KonquestObject* building;
+    float point_delta_x;
     KonquestChildObject* door;
     KonquestWaypoint* path;
     MkObj* hero;
@@ -6806,6 +6805,7 @@ void turn_to_face_exterior_door(void) {
     float next_z;
     float side_edge_x;
     float side_edge_z;
+    struct KonquestObject* building;
 
     turn_direction = 1;
     done = 0;
@@ -6826,15 +6826,16 @@ void turn_to_face_exterior_door(void) {
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     start_x = path[0].position.x;
-    delta.x = hero->pos.value.x - start_x;
+    point_delta_x = hero->pos.value.x - start_x;
     next_x = path[1].position.x;
     next_z = path[1].position.z;
     start_z = path[0].position.z;
     side_edge_x = next_x - start_x;
     side_edge_z = next_z - start_z;
+    delta.x = point_delta_x;
     delta.y = hero->pos.value.y - path[0].position.y;
     delta.z = hero->pos.value.z - start_z;
-    if (side_edge_z * delta.x - side_edge_x * delta.z < 0.0f) {
+    if (side_edge_z * point_delta_x - side_edge_x * delta.z < 0.0f) {
         turn_direction = 0;
     }
 
@@ -6842,12 +6843,12 @@ void turn_to_face_exterior_door(void) {
         0.8f) {
         if (turn_direction != 0) {
             transition_to_anim_script_frame(
-                0.05f, 0.0f, konquest_pdata->hero_anim,
-                (AnimScript*)konquest_animations[30], 0);
+                konquest_pdata->hero_anim,
+                (AnimScript*)konquest_animations[30], 0, 0.05f, 0.0f);
         } else {
             transition_to_anim_script_frame(
-                0.05f, 0.0f, konquest_pdata->hero_anim,
-                (AnimScript*)konquest_animations[29], 0);
+                konquest_pdata->hero_anim,
+                (AnimScript*)konquest_animations[29], 0, 0.05f, 0.0f);
         }
     }
 
@@ -10090,11 +10091,32 @@ static float p_konquest_inventory(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.49%; string offsets agree; pdata/hero/right_panel/fade
- * colors rotate; preserve traversal locals and check supported lifetimes. */
+static inline ScreenObj* load_konquest_map_fade(void) {
+    ScreenObj* fade;
+
+    fade = load_2d_pfxobj(0, 0x2098, 0x10017, 0, 0x40);
+    if (fade != 0) {
+        fade->x = -50;
+        fade->y = -50;
+        fade->flag_bits.scaled = 1;
+        fade->scale_x = 50.0f;
+        fade->scale_y = 40.0f;
+        pfx_2d_obj_set_alpha(fade, 0xFF);
+    }
+    return fade;
+}
+
+static inline void place_konquest_map_label(ScreenObj* legend, int string_id, int y) {
+    const char* text;
+
+    text = get_string_by_id(string_id);
+    string_left_xy(0x8314, 0xF, text, legend->x + 0x19, y, 0x20);
+}
+
+/* TODO: [near miss] 99.79%; label placement agrees; legend/fade homes and portal arguments differ. */
 static float p_konquest_map_screen(void) {
     struct KonquestPdata* pdata;
-    MkObj* hero;
+    const MkObj* hero;
     ScreenObj* right_panel;
     ScreenObj* fade;
     ScreenObj* cursor;
@@ -10107,7 +10129,7 @@ static float p_konquest_map_screen(void) {
     int index;
 
     pdata = konquest_pdata;
-    hero = MK_HDR_LIVE(pdata->hero_object, pdata->hero_instance);
+    hero = konquest_live_hero(pdata);
     map_scale_x = 1.0f;
     map_scale_z = 1.0f;
 
@@ -10144,15 +10166,7 @@ static float p_konquest_map_screen(void) {
     right_panel = load_named_2d_pfxobj_xy(
         0x60027, 0x8313, "MAP_LEGEND", 0,
         map_left + 0x200, 0, 0x21);
-    fade = load_2d_pfxobj(0, 0x2098, 0x10017, 0, 0x40);
-    if (fade != 0) {
-        fade->x = -50;
-        fade->y = -50;
-        fade->flag_bits.scaled = 1;
-        fade->scale_x = 50.0f;
-        fade->scale_y = 40.0f;
-        pfx_2d_obj_set_alpha(fade, 0xFF);
-    }
+    fade = load_konquest_map_fade();
 
     map_center_x = map_left + 0x100;
     map_center_y = screen_height / 2;
@@ -10294,15 +10308,9 @@ static float p_konquest_map_screen(void) {
 
     load_ssf(konquest_common_file_table);
     load_string_bank(0x50000, "konquest_map_strings_eng.mko");
-    string_left_xy(
-        0x8314, 0xF, get_string_by_id(0x50000), right_panel->x + 0x19,
-        0xD8, 0x20);
-    string_left_xy(
-        0x8314, 0xF, get_string_by_id(0x50001), right_panel->x + 0x19,
-        0xB8, 0x20);
-    string_left_xy(
-        0x8314, 0xF, get_string_by_id(0x50002), right_panel->x + 0x19,
-        0x95, 0x20);
+    place_konquest_map_label(right_panel, 0x50000, 0xD8);
+    place_konquest_map_label(right_panel, 0x50001, 0xB8);
+    place_konquest_map_label(right_panel, 0x50002, 0x95);
 
     while (check_switch_edge(konquest_pdata->input_port, 3) == 0 &&
            check_switch_edge(konquest_pdata->input_port, 6) == 0 &&
@@ -11406,7 +11414,7 @@ void calc_print_speed_for_nis_dialog(MkProc* dialog, unsigned int ticks) {
     pdata->active = 1;
 }
 
-/* TODO: [Scope warn] delimiter-array block: removing it drops 100% -> 96.45%; in-place memcpy reaches 97.17%. */
+/* TODO: [Scope warn] delimiter-array block: hoisting its initializer drops 100% -> 96.45%; initialization scheduling changes. */
 static float p_konquest_dialog(void) {
     struct KonquestDialogPdata* pdata;
     char* token;
@@ -15613,7 +15621,6 @@ void show_fight_message(int message) {
     }
 }
 
-/* TODO: [near miss] 99.01%; loops/FPR homes match; final transition call loads konquest_pdata before frame_count convert. */
 static float p_hero_teleport(void) {
     struct KonquestTeleportPdata* pdata;
     struct KonquestGrounding* grounding;
@@ -15718,9 +15725,8 @@ static float p_hero_teleport(void) {
     hero->pos.value.z = pdata->target.z;
     run_konquest_teleport_script("hero_do_teleport_end_effect");
     transition_to_anim_script_frame(
-        1.0f, ((AnimScript*)konquest_animations[31])->frame_count,
-        konquest_pdata->hero_anim, (AnimScript*)konquest_animations[31],
-        3);
+        konquest_pdata->hero_anim, (AnimScript*)konquest_animations[31], 3,
+        1.0f, ((AnimScript*)konquest_animations[31])->frame_count);
     konquest_pdata->hero_anim->step = -0.25f;
     while (konquest_pdata->hero_anim->frame > 0.0f) {
         grounding->camera_target->alpha = (
@@ -16226,8 +16232,7 @@ static float p_hero_portal_in(void) {
 
     script = (AnimScript*)konquest_animations[31];
     set_anim_script_frame(
-        script->frame_count, konquest_pdata->hero_anim,
-        script, 3);
+        konquest_pdata->hero_anim, script, 3, script->frame_count);
     konquest_pdata->hero_anim->step = -0.25f;
     _mkproc_sleep_ticks = 10.0f;
     aproc->vtbl->sleep();

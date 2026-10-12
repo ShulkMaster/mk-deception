@@ -69,7 +69,7 @@ int g_GameLossesInARow;
 
 extern int trial_get_round_length(void);
 extern int pause_player;
-extern void move_player(MkObj* object, const Vec* position, const Vec* angles);
+extern void move_player(MkObj* object, Vec* position, Vec* angles);
 extern void show_player(PlyrPdata* player);
 extern void bgnd_swap_level(int level);
 static char timer_string[10];
@@ -86,11 +86,6 @@ struct GameInfoInitFlagBits {
 union GameInfoInitPrefix {
     int word;
     struct GameInfoInitFlagBits bits;
-};
-
-struct JoinProcVtable {
-    int (*reserved[6])(void);
-    int (*sleep)(void* vtbl);
 };
 
 struct BgndAnimationsView {
@@ -478,15 +473,14 @@ extern float p_champion_screen(void);
 
 static void ck_do_fatality(void);
 
-static inline StringObj* validated_string_instance(
-    StringObj* object, unsigned int instance) {
-    return MK_LIVE(object, instance);
+static inline void win_effect_sleep(float ticks) {
+    _mkproc_sleep_ticks = ticks;
+    aproc->vtbl->sleep();
 }
 
-static inline ScreenObj* validated_screen_instance(
-    ScreenObj* object, unsigned int instance) {
-    return MK_LIVE(object, instance);
-}
+
+
+
 
 static inline void center_fight_effect(ScreenObj* object) {
     object->x = (float)(screen_width / 2) -
@@ -957,6 +951,16 @@ void destroy_onscreen_fight_2d_objects(void) {
     }
 }
 
+typedef struct ScreenObjLatch {
+    ScreenObj* obj;
+    unsigned int instance;
+} ScreenObjLatch;
+
+typedef struct StringObjLatch {
+    StringObj* obj;
+    unsigned int instance;
+} StringObjLatch;
+
 static inline int game_count_active_players(void) {
     int count = 0;
 
@@ -969,25 +973,21 @@ static inline int game_count_active_players(void) {
     return count;
 }
 
-/* TODO: [breakthrough needed] 96.77680%; retail seeds eight handle/instance latches by
- * copying one zero register (constant propagation defeats chained forms); coloring follows. */
+/* TODO: [near miss] 99.55%; latch pairs are scalar structs (retail zero sharing) and alpha arms are byte typed;
+ * fatality_left and flawless_text still swap homes with their instance members and two table-base temps use r0. */
 void do_win_effect(void) {
     PlyrInfo* victor;
     PlyrInfo* defeated;
     int timing_index;
     int deathtrap_index;
     StringObj* winner_text;
-    StringObj* winner_text_handle;
     StringObj* flawless_text;
-    StringObj* flawless_text_handle;
     ScreenObj* fatality_left;
-    ScreenObj* fatality_left_handle;
     ScreenObj* fatality_right;
-    ScreenObj* fatality_right_handle;
-    unsigned int winner_text_instance;
-    unsigned int flawless_text_instance;
-    unsigned int fatality_left_instance;
-    unsigned int fatality_right_instance;
+    ScreenObjLatch fatality_left_latch;
+    ScreenObjLatch fatality_right_latch;
+    StringObjLatch winner_text_latch;
+    StringObjLatch flawless_text_latch;
     float intro_ticks;
     float hold_ticks;
     float tail_ticks;
@@ -999,15 +999,15 @@ void do_win_effect(void) {
     int icon_x;
     char message[0x50];
 
-    fatality_left_handle = 0;
-    fatality_left_instance = 0;
+    fatality_left_latch.obj = 0;
+    fatality_left_latch.instance = 0;
     fatality_left = 0;
-    fatality_right_handle = 0;
-    fatality_right_instance = 0;
-    winner_text_handle = 0;
-    winner_text_instance = 0;
-    flawless_text_handle = 0;
-    flawless_text_instance = 0;
+    fatality_right_latch.obj = 0;
+    winner_text_latch.obj = 0;
+    winner_text_latch.instance = 0;
+    flawless_text_latch.obj = 0;
+    fatality_right_latch.instance = 0;
+    flawless_text_latch.instance = 0;
     fatality_right = 0;
     flawless_text = 0;
     victor = 0;
@@ -1080,19 +1080,21 @@ void do_win_effect(void) {
     winner_text = string_center_xy(
         0x2023, 0x11, message, screen_width / 2, 0x154, 0x1D);
     if (winner_text != 0) {
-        winner_text_handle = winner_text;
-        winner_text_instance = winner_text->instance;
+        winner_text_latch.obj = winner_text;
+        winner_text_latch.instance = winner_text->instance;
     }
 
-    _mkproc_sleep_ticks = intro_ticks;
-    aproc->vtbl->sleep();
+    win_effect_sleep(intro_ticks);
 
     if (f_fatality_was_done != 0 &&
         is_big_boss(defeated->slot.pdata) == 0) {
+        MkFileInfo* fatality_art;
+
         if (get_current_ssf_file() != fatalityanims_file_table) {
             load_ssf(fatalityanims_file_table);
         }
-        add_art_section(0x50015, find_section_by_name("fatality_art.sec"));
+        fatality_art = find_section_by_name("fatality_art.sec");
+        add_art_section(0x50015, fatality_art);
 
         if (g_game_info.field_200 == 3) {
             fatality_left = load_2d_pfxobj_xy(
@@ -1114,71 +1116,67 @@ void do_win_effect(void) {
 
         alpha = 0;
         if (fatality_left != 0 && fatality_right != 0) {
-            fatality_left_handle = fatality_left;
-            fatality_left_instance = fatality_left->instance;
-            fatality_right_handle = fatality_right;
-            fatality_right_instance = fatality_right->instance;
+            fatality_left_latch.obj = fatality_left;
+            fatality_left_latch.instance = fatality_left->instance;
+            fatality_right_latch.obj = fatality_right;
+            fatality_right_latch.instance = fatality_right->instance;
 
             while (alpha < 0xFF) {
-                fatality_left = validated_screen_instance(
-                    fatality_left_handle, fatality_left_instance);
-                fatality_right = validated_screen_instance(
-                    fatality_right_handle, fatality_right_instance);
+                fatality_left = MK_LIVE(
+                    fatality_left_latch.obj, fatality_left_latch.instance);
+                fatality_right = MK_LIVE(
+                    fatality_right_latch.obj, fatality_right_latch.instance);
                 if (fatality_left != 0) {
                     pfx_2d_obj_set_alpha(fatality_left, alpha);
                 }
                 if (fatality_right != 0) {
                     pfx_2d_obj_set_alpha(fatality_right, alpha);
                 }
-                alpha = 0xFF - alpha > 4 ? alpha + 4 : 0xFF;
-                _mkproc_sleep_ticks = 1.0f;
-                ((struct JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+                alpha = 0xFF - alpha > 4 ? (unsigned char)(alpha + 4)
+                                  : (unsigned char)0xFF;
+                win_effect_sleep(1.0f);
             }
 
-            fatality_left = validated_screen_instance(
-                fatality_left_handle, fatality_left_instance);
-            fatality_right = validated_screen_instance(
-                fatality_right_handle, fatality_right_instance);
+            fatality_left = MK_LIVE(
+                fatality_left_latch.obj, fatality_left_latch.instance);
+            fatality_right = MK_LIVE(
+                fatality_right_latch.obj, fatality_right_latch.instance);
             if (fatality_left != 0) {
                 pfx_2d_obj_set_alpha(fatality_left, alpha);
             }
             if (fatality_right != 0) {
                 pfx_2d_obj_set_alpha(fatality_right, alpha);
             }
-            _mkproc_sleep_ticks = hold_ticks;
-            aproc->vtbl->sleep();
+            win_effect_sleep(hold_ticks);
         }
     } else if (g_game_info.plyr0.field_0C == g_game_info.plyr0.field_10 ||
                g_game_info.plyr1.field_0C == g_game_info.plyr1.field_10) {
         flawless_text = string_center_xy(
             0x2023, 0x11, get_string(6), screen_width / 2, 0x12C, 0x1D);
-        flawless_text_instance = flawless_text->instance;
-        flawless_text_handle = flawless_text;
+        flawless_text_latch.instance = flawless_text->instance;
+        flawless_text_latch.obj = flawless_text;
         snd_req(0x16);
-        _mkproc_sleep_ticks = hold_ticks;
-        aproc->vtbl->sleep();
+        win_effect_sleep(hold_ticks);
     }
 
     if (g_game_info.pause_flag_bits.fatality_window != 0 &&
         f_fatality_was_done == 0) {
-        _mkproc_sleep_ticks = tail_ticks;
-        aproc->vtbl->sleep();
+        win_effect_sleep(tail_ticks);
     } else if (g_game_info.plyr0.field_0C != g_game_info.plyr0.field_10 ||
                g_game_info.plyr1.field_0C == g_game_info.plyr1.field_10) {
-        _mkproc_sleep_ticks = 45.0f;
-        ((struct JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        win_effect_sleep(45.0f);
     }
 
     alpha = 0xFF;
     while (alpha != 0) {
-        winner_text = validated_string_instance(
-            winner_text_handle, winner_text_instance);
-        fatality_left = validated_screen_instance(
-            fatality_left_handle, fatality_left_instance);
-        fatality_right = validated_screen_instance(
-            fatality_right_handle, fatality_right_instance);
-        flawless_text = validated_string_instance(
-            flawless_text_handle, flawless_text_instance);
+        winner_text = MK_LIVE(
+            winner_text_latch.obj, winner_text_latch.instance);
+        fatality_left = MK_LIVE(
+            fatality_left_latch.obj, fatality_left_latch.instance);
+        fatality_right = MK_LIVE(
+            fatality_right_latch.obj, fatality_right_latch.instance);
+        flawless_text = MK_LIVE(
+            flawless_text_latch.obj, flawless_text_latch.instance);
 
         if (winner_text != 0) {
             set_string_obj_alpha(winner_text, (float)alpha / 255.0f);
@@ -1192,9 +1190,8 @@ void do_win_effect(void) {
         if (fatality_right != 0) {
             pfx_2d_obj_set_alpha(fatality_right, alpha);
         }
-        alpha = alpha < 4 ? 0 : (unsigned char)(alpha - 4);
-        _mkproc_sleep_ticks = 1.0f;
-        ((struct JoinProcVtable*)aproc->vtbl)->sleep(aproc->vtbl);
+        alpha = alpha < 4 ? (unsigned char)0 : (unsigned char)(alpha - 4);
+        win_effect_sleep(1.0f);
     }
 
     if (flawless_text != 0 && flawless_text->instance != 0) {
@@ -1222,8 +1219,7 @@ void do_win_effect(void) {
                     get_current_wager_koin(), icon_x);
                 game_save_loop_count = 5;
                 init_wagering();
-                _mkproc_sleep_ticks = 60.0f;
-                aproc->vtbl->sleep();
+                win_effect_sleep(60.0f);
             }
             return;
         }
@@ -1242,8 +1238,7 @@ void do_win_effect(void) {
             show_koin_award(
                 victor->field_04, g_game_info.pselect.field_1ec,
                 g_game_info.pselect.field_1e4, icon_x);
-            _mkproc_sleep_ticks = 60.0f;
-            aproc->vtbl->sleep();
+            win_effect_sleep(60.0f);
         }
     }
 }

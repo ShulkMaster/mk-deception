@@ -278,6 +278,7 @@ float konquest_camera_loop(void);
 extern MkPtr* special_light_list;
 
 void set_interior_cam_pos_and_ang(void);
+void add_standard_ir_triggers(void);
 
 static inline void konq_interior_apply_fight_objects(
     MkObj* object, KonquestRoomObject* rec) {
@@ -364,6 +365,7 @@ static inline void clear_current_interior_collisions(void) {
 }
 static float p_konq_interior_loop(void);
 static float p_konq_interior_entry_point(void);
+static inline void load_interior_art(void);
 
 static inline int konq_interior_id_in_list(unsigned int* list, unsigned int id) {
     if (list != 0) {
@@ -460,7 +462,6 @@ void start_konquest_interior(
     }
 }
 
-/* TODO: [near miss] 99.64%; camera setter recovered; entry/model homes and stripped-owner string order remain. */
 static float p_konq_interior_entry_point(void) {
     MkObj* hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
@@ -468,7 +469,6 @@ static float p_konq_interior_entry_point(void) {
     Vec monk_angles = {0.0f, 0.0f, 0.0f};
     Vec monk_angle_base = {0.0f, 0.0f, 0.0f};
     MkObj* interior_object;
-    MkObj* model;
     int* npc_data;
     unsigned int npc_count;
     unsigned int index;
@@ -500,24 +500,7 @@ static float p_konq_interior_entry_point(void) {
     fade_to_black(4, 0);
 
     if (konquest_pdata->region_table->interior_art_name != 0) {
-        wait_for_slot_load(0xA002F);
-        interior_object = MK_HDR_LIVE(konq_interior_save_data.interior_object, konq_interior_save_data.interior_object_instance);
-
-        if (interior_object == 0) {
-            model = load_named_model_from_slot(
-                0xA002F, "BACKGROUND", 0x301E, 0);
-            if (model != 0) {
-                konq_interior_save_data.interior_object = model;
-                konq_interior_save_data.interior_object_instance =
-                    model->hdr.instance;
-                obj_create_sobjs(model);
-                model->pos.value.x = konquest_pdata->fallback_tile_position.x;
-                model->pos.value.y = konquest_pdata->fallback_tile_position.y;
-                model->pos.value.z = konquest_pdata->fallback_tile_position.z;
-                konq_interior_hide_room_sobjs(model);
-                model->light_flags = 1;
-            }
-        }
+        load_interior_art();
     }
     pause_weather_effects();
 
@@ -637,6 +620,30 @@ static float p_konq_interior_entry_point(void) {
     aproc->vtbl
         ->jump_sleep(p_konq_interior_loop, 0.0f);
     return 0.0f;
+}
+
+static inline void load_interior_art(void) {
+    MkObj* interior_object;
+    MkObj* model;
+
+    wait_for_slot_load(0xA002F);
+    interior_object = MK_HDR_LIVE(konq_interior_save_data.interior_object, konq_interior_save_data.interior_object_instance);
+
+    if (interior_object == 0) {
+        model = load_named_model_from_slot(
+            0xA002F, "BACKGROUND", 0x301E, 0);
+        if (model != 0) {
+            konq_interior_save_data.interior_object = model;
+            konq_interior_save_data.interior_object_instance =
+                model->hdr.instance;
+            obj_create_sobjs(model);
+            model->pos.value.x = konquest_pdata->fallback_tile_position.x;
+            model->pos.value.y = konquest_pdata->fallback_tile_position.y;
+            model->pos.value.z = konquest_pdata->fallback_tile_position.z;
+            konq_interior_hide_room_sobjs(model);
+            model->light_flags = 1;
+        }
+    }
 }
 
 #pragma auto_inline on
@@ -918,6 +925,32 @@ static void place_interior_room_objects(KonquestRoomObject* rec) {
         }
     }
     interior_object->flags_08_bits.bit7 = 1;
+}
+
+void add_standard_ir_triggers(void) {
+    struct KonquestTile* tile;
+    float trigger_x;
+    float trigger_y;
+    float trigger_z;
+    int function;
+
+    tile = get_nth_tile_struct(
+        konquest_pdata->tile_width * konquest_pdata->tile_height);
+    trigger_x =
+        konq_interior_save_data.current_interior->trigger_position.x +
+        tile->position.x;
+    trigger_y =
+        konq_interior_save_data.current_interior->trigger_position.y +
+        tile->position.y;
+    trigger_z =
+        konq_interior_save_data.current_interior->trigger_position.z +
+        tile->position.z;
+    function = get_script_function_by_name(
+        konquest_pdata->script_owner, "standard_ir_exit");
+
+    add_temporary_trigger(
+        0x1FE, 1, 1, 1, function, trigger_x, trigger_y, trigger_z,
+        1.0f);
 }
 
 float get_ir_cam_pos_x(int include_offset) {
