@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+int load_effect_bank(char* name);
+
 void fx_set(unsigned int handle, int field, float value);
 unsigned int fx_next_emitter(unsigned int handle);
 int emitter_id_from_handle(unsigned int handle);

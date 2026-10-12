@@ -37,7 +37,7 @@ extern const int _num_render_fields;
 int get_size(int type);
 unsigned int map_field_to_propertyflag(int description);
 unsigned int map_field_to_renderflag(int description);
-void add_field(unsigned int* fields, unsigned int description);
+void add_field(PfxFieldSet* fields, unsigned int description);
 int map_field_to_stream(int description);
 int get_field_count(PfxFieldSet* fields);
 void field_copy(PfxFieldBuffer* destination, PfxFieldBuffer* source,

@@ -8772,7 +8772,6 @@ int drone_ai_can_push(struct DroneAI* drone) {
     }
 }
 
-/* TODO: [Scope warn] attack-index tail scope: removing it drops 100% to 99.89362%. */
 static AiFightstyleAttack* get_random_fightstyle_attack(
     PlyrFighterDefinition* fighter, int attack_group, int flags) {
     struct DroneAI* drone;
@@ -8786,6 +8785,7 @@ static AiFightstyleAttack* get_random_fightstyle_attack(
     int attempts;
     int accepted;
     struct DroneAI* reset_drone;
+    int attack_index;
 
     command_index = 0;
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
@@ -8876,30 +8876,26 @@ static AiFightstyleAttack* get_random_fightstyle_attack(
         reset_drone->command_active = 0;
         return 0;
     }
-    {
-        int attack_index;
-
-        attack_index = drone->ai_command[command_index];
-        if (attack_index < 0 || attack_index >= 25) {
-            reset_drone = get_player_number(plyr_obj) == 0
-                              ? &g_DroneAI1 : &g_DroneAI2;
-            reset_drone->ai_command = 0;
-            reset_drone->ai_command_arg = 0;
-            reset_drone->ai_command_target = -1;
-            reset_drone->ai_command_value = 0.0f;
-            reset_drone->ai_command_flag0 = 0;
-            reset_drone->ai_command_flag1 = 0;
-            reset_drone->ai_command_flag2 = 0;
-            reset_drone->command_active = 0;
-            return 0;
-        }
-        advance_cur_cmd_idx();
-        attacks = ((AiFightstyleAttackTable*)
-                       plyr_pdata->fighter_definition->move_blend_data)
-                      ->attacks;
-        attacks += attack_index;
-        return attacks;
+    attack_index = drone->ai_command[command_index];
+    if (attack_index < 0 || attack_index >= 25) {
+        reset_drone = get_player_number(plyr_obj) == 0
+                          ? &g_DroneAI1 : &g_DroneAI2;
+        reset_drone->ai_command = 0;
+        reset_drone->ai_command_arg = 0;
+        reset_drone->ai_command_target = -1;
+        reset_drone->ai_command_value = 0.0f;
+        reset_drone->ai_command_flag0 = 0;
+        reset_drone->ai_command_flag1 = 0;
+        reset_drone->ai_command_flag2 = 0;
+        reset_drone->command_active = 0;
+        return 0;
     }
+    advance_cur_cmd_idx();
+    attacks = ((AiFightstyleAttackTable*)
+                   plyr_pdata->fighter_definition->move_blend_data)
+                  ->attacks;
+    attacks += attack_index;
+    return attacks;
 }
 
 static int get_random_fightstyle_index(

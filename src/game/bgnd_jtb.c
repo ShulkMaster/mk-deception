@@ -952,7 +952,6 @@ void nb_place_slave_in_bgnd(
         collision_offset_z);
 }
 
-/* TODO: [near miss] 95.58%; two normalized-component frsp boundaries and FP tail scheduling remain. */
 void rd_set_impact_vector(float scale) {
     Vec impact = nb_impact_zero;
     float squared_length;
@@ -973,9 +972,9 @@ void rd_set_impact_vector(float scale) {
     g_game_info.impact_vector.y = impact.y;
     g_game_info.impact_vector.x = impact.x;
     g_game_info.impact_vector.z = impact.z;
-    g_game_info.impact_vector.x = impact.x * scale;
-    g_game_info.impact_vector.y = impact.y * scale;
-    g_game_info.impact_vector.z = impact.z * scale;
+    g_game_info.impact_vector.x *= scale;
+    g_game_info.impact_vector.y *= scale;
+    g_game_info.impact_vector.z *= scale;
 }
 
 void bgnd_jtb_debug_info(void) {

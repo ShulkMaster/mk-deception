@@ -2,7 +2,7 @@
 #define LIBMKPARTICLE_PFXMATH_H
 
 typedef struct PfxMatrix {
-    float elements[16];
+    float elements[4][4];
 } PfxMatrix;
 
 void mat_set_identity(PfxMatrix* matrix);

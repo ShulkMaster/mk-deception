@@ -763,8 +763,8 @@ static inline void update_tightrope_plane(MkObj* player_1, MkObj* player_2) {
         tightrope_uv.x = direction.x;
         tightrope_uv.y = direction.y;
         tightrope_uv.z = direction.z;
-        tightrope_perp_uv.x = direction.z;
-        tightrope_perp_uv.z = -direction.x;
+        tightrope_perp_uv.x = tightrope_uv.z;
+        tightrope_perp_uv.z = -tightrope_uv.x;
         if (!g_game_info.feature_flags.bits.high_bit) {
             tightrope_dist =
                 CONSTRAIN_P1_OBJECT->pos.value.x * tightrope_perp_uv.x +
@@ -804,8 +804,8 @@ static inline void apply_tightrope_to_players(MkObj* player_1) {
     }
 }
 
-/* TODO: [breakthrough] 98.65%; update/apply CFG and player reloads recovered;
- * vector publication FP/FRSP and second-player GPR remain. */
+/* TODO: [near miss] 99.86%; vector publication matches (perp derived from the stored uv);
+ * only the saved GPR of the reloaded second player differs (r30 vs retail r31). */
 static void keep_players_on_tightrope(void) {
     MkObj* player_2;
     MkObj* player_1;

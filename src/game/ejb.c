@@ -1961,8 +1961,7 @@ void blend_to_ani_nosleep(
 
 void glitch_to_ani_frame(
     AniData* animation, int flags, float frame) {
-    set_anim_script_frame(
-        frame, plyr_anim_pdata, animation, flags);
+    set_anim_script_frame(plyr_anim_pdata, animation, flags, frame);
     _mkproc_sleep_ticks = 1.0f;
     aproc->vtbl->sleep();
 }
@@ -1970,7 +1969,7 @@ void glitch_to_ani_frame(
 void blend_to_ani_frame(
     AniData* animation, int flags, float blend, float frame) {
     transition_to_anim_script_frame(
-        blend, frame, plyr_anim_pdata, animation, flags);
+        plyr_anim_pdata, animation, flags, blend, frame);
     _mkproc_sleep_ticks = 1.0f;
     aproc->vtbl->sleep();
 }
@@ -2493,8 +2492,7 @@ float two_player_animation_blend(
     } else {
         plyr_anim_pdata->hand_transition = 1.0f;
         plyr_anim_pdata->step = attacker_step;
-        set_anim_script_frame(
-            victim_frame, plyr_anim_pdata, animation, 3);
+        set_anim_script_frame(plyr_anim_pdata, animation, 3, victim_frame);
     }
     return 0.0f;
 }

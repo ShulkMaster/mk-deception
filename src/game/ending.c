@@ -435,10 +435,9 @@ static inline int ending_skip_pressed(int port) {
     return check_switch_edge(port, 6) != 0;
 }
 
-/* TODO: [near miss] 98.77%; pooled strings agree; image pointer homes and skip Boolean lowering remain. */
 float p_champion_screen(void) {
-    const char* image_a;
     const char* image_b;
+    const char* image_a;
     int champion;
     int screen_x;
     int ticks;
@@ -513,7 +512,7 @@ float p_champion_screen(void) {
             } else {
                 port = g_game_info.plyr1.pad_index;
             }
-            if (ending_skip_pressed(port)) {
+            if (ending_skip_pressed(port) != 0) {
                 ticks = 0x320;
             }
             _mkproc_sleep_ticks = 1.0f;
@@ -543,11 +542,11 @@ void ending_show_image(int image) {
     fade_to_black(8, 1);
 }
 
-/* TODO: [near miss] 99.28612%; countdown and byte-alpha operations agree; register homes remain. */
+/* TODO: [near miss] 99.70%; countdown and byte-alpha operations agree; current_final/next_alpha register homes (r15/r16) and divide temp remain. */
 static void fade_ending_screen_images(int image, int ticks) {
-    unsigned char current_final;
+    unsigned char next_alpha;
     unsigned char current_alpha;
-    ScreenObj* image_3b;
+    int remaining;
     ScreenObj* image_1a;
     ScreenObj* image_1b;
     ScreenObj* image_2a;
@@ -555,8 +554,8 @@ static void fade_ending_screen_images(int image, int ticks) {
     ScreenObj* image_3a;
     unsigned char current_step;
     unsigned char next_step;
-    int remaining;
-    unsigned char next_alpha;
+    ScreenObj* image_3b;
+    unsigned char current_final;
     unsigned char next_final;
 
     remaining = ticks;

@@ -1299,10 +1299,11 @@ static inline void queue_blood_spawn(
 }
 
 static inline void prepare_blood_path(
-    BloodModelData* model, BloodPath* destination,
+    BloodModelData* model, int path_index,
     const BloodPath* source, const Vec* weights) {
-    BloodSurfaceRecord* record;
+    BloodPath* destination = &model->paths[path_index];
     BloodSurface* surface;
+    BloodSurfaceRecord* record;
     int triangle_index;
     int point_index;
     int corner;
@@ -1330,13 +1331,13 @@ static inline void prepare_blood_path(
         for (corner = 0; corner < 3; corner++) {
             if (record->neighbors[corner] == destination->record_indices[point_index + 1]) {
                 destination->corner_indices[point_index] = corner;
-                break;
+                goto next_point;
             }
         }
-        if (corner == 3) {
-            destination->corner_indices[point_index] = -1;
-            break;
-        }
+        destination->corner_indices[point_index] = -1;
+        break;
+    next_point:
+        continue;
     }
 }
 
@@ -1432,7 +1433,6 @@ GusherPdata* start_gusher(
     return pdata;
 }
 
-/* TODO: [near miss] 98.42%; post-calc null-bone return duplicates the shared failure load. */
 static float p_gusher(void) {
     GusherPdata* pdata;
     MkObj* object;
@@ -1462,7 +1462,7 @@ static float p_gusher(void) {
                 calc_bone_world_mat(object, pdata->bone);
                 bone = object->bones[pdata->bone];
                 if (bone == 0) {
-                    return -1.0f;
+                    goto fail;
                 }
 
                 v3_x_mat(
@@ -1489,6 +1489,7 @@ static float p_gusher(void) {
             return time;
         }
     }
+fail:
     return -1.0f;
 }
 
@@ -1504,8 +1505,8 @@ static inline float blood_splat_distance(const struct BloodSplat* splat, const M
     return gxMathFastSqrt(x * x + y * y + z * z);
 }
 
-/* TODO: [near miss] 99.15%; scan CFG and layout agree; register-coloring rows remain
- * in the splat scan (tick/list base/ctr assignment); permuter 100s found nothing. */
+/* TODO: [near miss] 99.15%; splat-scan tick, list-base and counter homes differ;
+ * structured reset/add regresses; nested-entry jump remains under review. */
 void spawn_bld_fall(
     const char* blood_type, MkBone* bone, Vec* position,
     Vec* velocity, FighterMirror* owner) {
@@ -1918,7 +1919,7 @@ void reset_blood_decals(void) {
 }
 
 static inline MkProc* bleed_start_foot_prints(
-    FighterMirror* fighter, MkObj* object) {
+    MkObj* object, FighterMirror* fighter) {
     MkProc* foot_proc;
     struct FootPrintPdata* foot_pdata;
 
@@ -1951,7 +1952,7 @@ static inline MkProc* bleed_start_foot_prints(
     return foot_proc;
 }
 
-/* TODO: [near miss] 99.03%; flag-value ABI recovered; footprint slots, splat-loop indexing and player-owner registers remain. */
+/* TODO: [near miss] 99.13%; flag-value ABI recovered; footprint slots, splat-loop indexing and player-owner registers remain. */
 void bleed_restart(void) {
     MkProc* proc;
     MkProc* foot_proc;
@@ -2003,7 +2004,7 @@ void bleed_restart(void) {
     }
 
     foot_proc = bleed_start_foot_prints(
-        g_game_info.plyr0.slot.fighter, g_game_info.plyr0.slot.mirror_a);
+        g_game_info.plyr0.slot.mirror_a, g_game_info.plyr0.slot.fighter);
     if (foot_proc != 0) {
         ((PlyrPdata*)g_game_info.plyr0.slot.fighter)->foot_print_proc =
             foot_proc;
@@ -2012,7 +2013,7 @@ void bleed_restart(void) {
     }
 
     foot_proc = bleed_start_foot_prints(
-        g_game_info.plyr1.slot.fighter, g_game_info.plyr1.slot.mirror_a);
+        g_game_info.plyr1.slot.mirror_a, g_game_info.plyr1.slot.fighter);
     if (foot_proc != 0) {
         ((PlyrPdata*)g_game_info.plyr1.slot.fighter)->foot_print_proc =
             foot_proc;
@@ -2101,7 +2102,6 @@ static inline MkProc* create_blood_footprint_process(FighterMirror* fighter, MkO
     return foot_proc;
 }
 
-/* TODO: [breakthrough] 95.98%; destination and relocation owners recovered; neighbor exhaustion and register association remain. */
 void plyr_obj_load_bld_data(
     FighterMirror* fighter, BloodModelData* model, MkObj* object,
     char* path_name) {
@@ -2109,7 +2109,6 @@ void plyr_obj_load_bld_data(
     BloodSurface* source_surface;
     BloodPath* source_paths[10];
     BloodPath** path_cursor;
-    BloodPath* destination;
     MkProc* foot_proc;
     int relocate;
     int art_section;
@@ -2127,7 +2126,7 @@ void plyr_obj_load_bld_data(
             object);
         file = load_named_bloodpath_data_from_slot(
             art_section, path_name);
-        source_surface = &file->surface;
+        source_surface = (BloodSurface*)file;
         if (file->relocation_marker < 0) {
             relocate = 0;
         } else {
@@ -2136,9 +2135,9 @@ void plyr_obj_load_bld_data(
         path_cursor = file->paths;
         if (relocate) {
             source_surface->vertices = (BloodSurfaceVertex*)(
-                (char*)file + (unsigned int)source_surface->vertices);
+                (unsigned int)source_surface->vertices + (unsigned int)file);
             source_surface->triangles = (int(*)[3])(
-                (char*)file + (unsigned int)source_surface->triangles);
+                (unsigned int)source_surface->triangles + (unsigned int)file);
         }
         for (index = 0; index < 10; index++) {
             source_paths[index] = (BloodPath*)(
@@ -2167,36 +2166,16 @@ void plyr_obj_load_bld_data(
     }
 
     obj_bld_surface_build_polys(object, &model->surface, source_surface);
-    destination = &model->paths[0];
-    prepare_blood_path(
-        model, destination, source_paths[0], &std_bp_parms);
-    destination = &model->paths[1];
-    prepare_blood_path(
-        model, destination, source_paths[1], &std_bp_parms);
-    destination = &model->paths[2];
-    prepare_blood_path(
-        model, destination, source_paths[2], &std_bp_parms);
-    destination = &model->paths[3];
-    prepare_blood_path(
-        model, destination, source_paths[3], &std_bp_parms);
-    destination = &model->paths[4];
-    prepare_blood_path(
-        model, destination, source_paths[4], &std_bp_parms);
-    destination = &model->paths[5];
-    prepare_blood_path(
-        model, destination, source_paths[5], &std_bp_parms);
-    destination = &model->paths[6];
-    prepare_blood_path(
-        model, destination, source_paths[6], &std_bp_parms);
-    destination = &model->paths[7];
-    prepare_blood_path(
-        model, destination, source_paths[7], &std_bp_parms);
-    destination = &model->paths[8];
-    prepare_blood_path(
-        model, destination, source_paths[8], &std_bp_parms);
-    destination = &model->paths[9];
-    prepare_blood_path(
-        model, destination, source_paths[9], &std_bp_parms);
+    prepare_blood_path(model, 0, source_paths[0], &std_bp_parms);
+    prepare_blood_path(model, 1, source_paths[1], &std_bp_parms);
+    prepare_blood_path(model, 2, source_paths[2], &std_bp_parms);
+    prepare_blood_path(model, 3, source_paths[3], &std_bp_parms);
+    prepare_blood_path(model, 4, source_paths[4], &std_bp_parms);
+    prepare_blood_path(model, 5, source_paths[5], &std_bp_parms);
+    prepare_blood_path(model, 6, source_paths[6], &std_bp_parms);
+    prepare_blood_path(model, 7, source_paths[7], &std_bp_parms);
+    prepare_blood_path(model, 8, source_paths[8], &std_bp_parms);
+    prepare_blood_path(model, 9, source_paths[9], &std_bp_parms);
 }
 
 static inline unsigned int get_plyr_blood_artid(PlyrPdata* pdata, char* name,
@@ -2572,7 +2551,7 @@ static float p_bleed(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 97.73%; shared path/removal effects agree; register webs and load
+/* TODO: [near miss] 97.87%; shared path/removal effects agree; register webs and load
  * scheduling remain. */
 static void do_pfx_bleed(MkHdr* hdr) {
     struct BloodParticlePosition* destination;
@@ -2582,7 +2561,6 @@ static void do_pfx_bleed(MkHdr* hdr) {
     MkPfx* pfx;
     int position_stride;
     int state_stride;
-    int removed_count;
     int index;
 
     apdata = hdr;
@@ -2591,6 +2569,7 @@ static void do_pfx_bleed(MkHdr* hdr) {
     if (pfx != 0) {
         vm = (PfxVm*)pfx->matrix;
         if (!apfx_render_obj->hide_flag_bits.hidden && vm->particle_cursor != 0) {
+            int removed_count;
             position_stride = vm->transforms[0].particle_field_stride;
             destination = pfx_get_field(vm, -2, 0x100);
             source = pfx_get_field(vm, -1, 0x100);
@@ -2880,17 +2859,18 @@ static inline MkPfx* blood_find_bound_pfx(MkBone* bone, unsigned int art_id) {
     return 0;
 }
 
-/* TODO: [near miss] 98.40%; algorithm/CFG/widths agree; saved owner/index and volatile coloring remain; stop at coloring. */
+/* TODO: [near miss] 99.31%; algorithm/CFG/widths agree; saved bone-index/pfx-pointer homes (r14/r20/r21) and arg-copy order remain. */
 int obj_spawn_bld(
     MkObj* object, struct BloodVelocityState* previous, int batch_count,
     struct BloodSpawnStep* step, BloodPath* path, int point_index,
     const Vec* position, unsigned int art_id, PlyrPdata* owner) {
+    int spawned;
     struct BloodParticleDefinition* definition;
     BloodSurfaceRecord* record;
+    MkPfx* pfx;
     PfxVm* vm;
     struct BloodVelocityState* state;
     struct BloodVelocityState* prior_state;
-    MkPfx* pfx;
     MkBone* bone;
     struct BloodParticlePosition* particle_position;
     Vec weights;
@@ -2902,10 +2882,9 @@ int obj_spawn_bld(
     int cursor;
     int state_stride;
     int position_stride;
-    int path_point;
-    int last_path_point;
-    int spawned;
     int batch;
+    int last_path_point;
+    int path_point;
     int frame;
 
     definition = step->definition;

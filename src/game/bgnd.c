@@ -1,6 +1,6 @@
 #include "game/bgnd.h"
 #include "runtime/anim_api_ext.h"
-#include "game/pfxscript_api.h"
+#include "game/pfxscript.h"
 #include "platform/display.h"
 #include "game/profile_unlock.h"
 #include "game/ejb.h"
@@ -539,20 +539,17 @@ static float p_bgnd_timer_monitor(void);
 static float p_bgnd_script_in_proc(void);
 static void bgnd_pebble_burst_at(int player, const Vec* position,
                                  unsigned int first, unsigned int end);
-int fx_by_owner(const char* name, int owner);
 void fx_resume_emit(unsigned int effect);
-void resume_effect(const char* name);
 void reset_effect(const char* name);
 MkObj* mk_chess_launch_fx_at_pos_with_obj_emit_based(
     unsigned int effect, float x, float y, float z);
-void fx_reset(unsigned int effect);
 void start_blood_particles(int effect, int bone_id, PlyrPdata* player,
                            void* limb);
 void set_collision_render_state(int enabled);
 void shake_camera(int amplitude, float duration);
 double pow(double base, double exponent);
 MkPfx* find_pfx_by_name(const char* name);
-void move_player(MkObj* object, const Vec* position, const Vec* angles);
+void move_player(MkObj* object, Vec* position, Vec* angles);
 MkProc* get_player_proc(void* object);
 void run_reaction_cleanup_function(PlyrPdata* player);
 static float bgnd_call_script_function(void);
@@ -702,7 +699,6 @@ extern MkVtable5 vtbl_slaughterhouse_pdata;
 void turn_fog_on(void);
 void turn_fog_off(void);
 void initialize_bgnd_collisions(void* data);
-int load_effect_bank(char* name);
 void mk_chess_init_bgnd_for_fight_mode(void);
 void bgnd_level_fatality_end(void);
 void bgnd_level_fatality_start(int player);
@@ -740,9 +736,13 @@ static inline void sh_normalize_blood_xz(Vec* vector) {
     float inverse_length;
     float squared;
     float x;
+    float x_squared;
+    float z_squared;
 
     x = vector->x;
-    squared = x * x + vector->z * vector->z;
+    x_squared = x * x;
+    z_squared = vector->z * vector->z;
+    squared = x_squared + z_squared;
     inverse_length = gxMathFastInvSqrt(squared);
     vector->x = x * inverse_length;
     vector->z *= inverse_length;
@@ -1104,7 +1104,6 @@ float bgnd_launch_chunk(
     const Vec* angular_velocity, const Vec* angles, unsigned int end_mode,
     const Vec* scale, int field_0C, float vertical_accel, int field_10);
 
-extern unsigned int fx(const char* name);
 extern void shake_camera_y(int count, float strength);
 
 static inline void bl_front_wall_effect_at(
@@ -8330,80 +8329,111 @@ static float plyr_is_prone(void) {
     update_mkobj(plyr_obj);
     return 1.0f;
 }
-/* TODO: [breakthrough needed] 91.82%; shared flag CFG restored; missing inline field-address boundaries leave setup/shape-argument residue. */
+static inline void remove_bgnd_danger_zone_obstacle(unsigned int zone_index) {
+    if (zone_index <= 24) {
+        if (bgnd_danger_zones[zone_index].obstacle != 0) {
+            delete_obstacle_from_background_by_id(bgnd_danger_zones[zone_index].obstacle_id);
+            bgnd_danger_zones[zone_index].obstacle = 0;
+        }
+    }
+}
+
+static inline ArenaObstacle* build_bgnd_danger_zone_box(
+    CollisionShape* shape, unsigned int zone_index) {
+    unsigned int obstacle_id = bgnd_danger_zones[zone_index].obstacle_id;
+    ArenaObstacle* obstacle;
+
+    build_col_shape_vertical_box(shape, &bgnd_danger_zones[zone_index].center,
+        bgnd_danger_zones[zone_index].width, bgnd_danger_zones[zone_index].height,
+        bgnd_danger_zones[zone_index].depth, bgnd_danger_zones[zone_index].y_angle);
+    obstacle = add_shape_to_background_obstacle_list(shape, obstacle_id);
+    if (obstacle != 0) {
+        return obstacle;
+    }
+    return 0;
+}
+
+static inline ArenaObstacle* build_bgnd_danger_zone_cylinder(
+    CollisionShape* shape, unsigned int zone_index) {
+    unsigned int obstacle_id = bgnd_danger_zones[zone_index].obstacle_id;
+    ArenaObstacle* obstacle;
+
+    build_col_shape_vertical_cylinder(shape, &bgnd_danger_zones[zone_index].center,
+        bgnd_danger_zones[zone_index].width, bgnd_danger_zones[zone_index].height);
+    obstacle = add_shape_to_background_obstacle_list(shape, obstacle_id);
+    if (obstacle != 0) {
+        return obstacle;
+    }
+    return 0;
+}
+
+static inline ArenaObstacle* rebuild_bgnd_danger_zone_obstacle(unsigned int zone_index) {
+    ArenaObstacle* obstacle;
+    CollisionShape special_cylinder_shape;
+    CollisionShape cylinder_shape;
+    CollisionShape box_shape;
+
+    switch (bgnd_danger_zones[zone_index].shape_type) {
+    case 0:
+        obstacle = build_bgnd_danger_zone_box(&box_shape, zone_index);
+        break;
+    case 1:
+        obstacle = build_bgnd_danger_zone_cylinder(&cylinder_shape, zone_index);
+        break;
+    case 2:
+        obstacle = build_bgnd_danger_zone_cylinder(&special_cylinder_shape, zone_index);
+        obstacle->flags.bits.inverted = 1;
+        break;
+    default:
+        return 0;
+    }
+    obstacle->flags.bits.danger_zone = 1;
+    return obstacle;
+}
+
+static inline void bgnd_init_danger_zone_fields(
+    unsigned int zone_index, int shape_type, unsigned int obstacle_id,
+    float height, unsigned int collision_script_function, const Vec* center) {
+    bgnd_danger_zones[zone_index].shape_type = shape_type;
+    bgnd_danger_zones[zone_index].obstacle_id = obstacle_id;
+    bgnd_danger_zones[zone_index].collision_script_function = collision_script_function;
+    bgnd_danger_zones[zone_index].height = height;
+    bgnd_danger_zones[zone_index].width = 1.0f;
+    bgnd_danger_zones[zone_index].depth = 1.0f;
+    bgnd_danger_zones[zone_index].y_angle = 0.0f;
+    bgnd_danger_zones[zone_index].center.x = center->x;
+    bgnd_danger_zones[zone_index].center.y = center->y;
+    bgnd_danger_zones[zone_index].center.z = center->z;
+}
+
 void bgnd_create_danger_zone(
     int shape_type, unsigned int zone_index, unsigned int obstacle_id,
     float height, unsigned int collision_script_function) {
     ArenaObstacle* obstacle;
-    BgndDangerZone* zone;
-    unsigned int shape_obstacle_id;
     Vec center = {0.0f, 0.0f, 0.0f};
-    CollisionShape box_shape;
-    CollisionShape cylinder_shape;
-    CollisionShape special_cylinder_shape;
 
     if (shape_type < 3 && zone_index < 24) {
-        if (get_obstacle_type_from_id(obstacle_id) != 7) {
-            return;
-        }
-        zone = &bgnd_danger_zones[zone_index];
-        if (zone->obstacle == 0) {
-            zone->shape_type = shape_type;
-            zone->obstacle_id = obstacle_id;
-            zone->collision_script_function = collision_script_function;
-            zone->height = height;
-            zone->width = 1.0f;
-            zone->depth = 1.0f;
-            zone->y_angle = 0.0f;
-            zone->center.x = center.x;
-            zone->center.y = center.y;
-            zone->center.z = center.z;
-            switch (zone->shape_type) {
-            case 0:
-                shape_obstacle_id = zone->obstacle_id;
-                build_col_shape_vertical_box(
-                    &box_shape, &zone->center, zone->width, zone->height,
-                    zone->depth, zone->y_angle);
-                obstacle = add_shape_to_background_obstacle_list(
-                    &box_shape, shape_obstacle_id);
-                obstacle = obstacle != 0 ? obstacle : 0;
-                goto mark_danger_zone;
-            case 1:
-                shape_obstacle_id = zone->obstacle_id;
-                build_col_shape_vertical_cylinder(
-                    &cylinder_shape, &zone->center, zone->width, zone->height);
-                obstacle = add_shape_to_background_obstacle_list(
-                    &cylinder_shape, shape_obstacle_id);
-                obstacle = obstacle != 0 ? obstacle : 0;
-                goto mark_danger_zone;
-            case 2:
-                shape_obstacle_id = zone->obstacle_id;
-                build_col_shape_vertical_cylinder(
-                    &special_cylinder_shape, &zone->center, zone->width,
-                    zone->height);
-                obstacle = add_shape_to_background_obstacle_list(
-                    &special_cylinder_shape, shape_obstacle_id);
-                obstacle = obstacle != 0 ? obstacle : 0;
-                obstacle->flags.bits.inverted = 1;
-                goto mark_danger_zone;
-            default:
-                obstacle = 0;
-                goto publish_obstacle;
+        switch (get_obstacle_type_from_id(obstacle_id)) {
+        case 7:
+            if (bgnd_danger_zones[zone_index].obstacle == 0) {
+                bgnd_init_danger_zone_fields(
+                    zone_index, shape_type, obstacle_id, height,
+                    collision_script_function, &center);
+                obstacle = rebuild_bgnd_danger_zone_obstacle(zone_index);
+                bgnd_danger_zones[zone_index].obstacle = obstacle;
+                if (collision_script_function != 0) {
+                    bgnd_collision_if_monitor_col_as(
+                        7, obstacle_id, collision_script_function, 0);
+                }
+                set_background_obstacle_repel_flag(obstacle_id, 0);
+                bgnd_enable_danger_zone(zone_index, 0);
+                g_active_bgnd_danger_zone = zone_index;
             }
-        mark_danger_zone:
-            obstacle->flags.bits.danger_zone = 1;
-        publish_obstacle:
-            zone->obstacle = obstacle;
-            if (collision_script_function != 0) {
-                bgnd_collision_if_monitor_col_as(
-                    7, obstacle_id, collision_script_function, 0);
-            }
-            set_background_obstacle_repel_flag(obstacle_id, 0);
-            bgnd_enable_danger_zone(zone_index, 0);
-            g_active_bgnd_danger_zone = zone_index;
+            break;
         }
     }
 }
+
 void bgnd_set_active_danger_zone(unsigned int zone) {
     if (zone < 0x18) {
         g_active_bgnd_danger_zone = zone;
@@ -8479,122 +8509,32 @@ void bgnd_delete_danger_zone(unsigned int zone_index) {
         }
     }
 }
-/* TODO: [breakthrough needed] 88.74%; ID snapshots, reloads and shared flags agree;
- * recover inline field-address boundaries for deletion and shape dispatch. */
 void bgnd_set_danger_zone_center_position(float x, float y, float z) {
     ArenaObstacle* obstacle;
-    BgndDangerZone* zone;
-    unsigned int shape_obstacle_id;
-    CollisionShape box_shape;
-    CollisionShape cylinder_shape;
-    CollisionShape special_cylinder_shape;
 
-    zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
-    zone->center.x = x;
-    zone->center.y = y;
-    zone->center.z = z;
-    if (g_active_bgnd_danger_zone <= 24) {
-        if (zone->obstacle != 0) {
-            ArenaObstacle** obstacle_slot = &zone->obstacle;
-            delete_obstacle_from_background_by_id(zone->obstacle_id);
-            *obstacle_slot = 0;
-        }
-    }
-    switch (bgnd_danger_zones[g_active_bgnd_danger_zone].shape_type) {
-    case 0:
-        zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
-        shape_obstacle_id = zone->obstacle_id;
-        build_col_shape_vertical_box(
-            &box_shape, &zone->center, zone->width, zone->height,
-            zone->depth, zone->y_angle);
-        obstacle = add_shape_to_background_obstacle_list(
-            &box_shape, shape_obstacle_id);
-        obstacle = obstacle != 0 ? obstacle : 0;
-        goto mark_danger_zone;
-    case 1:
-        zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
-        shape_obstacle_id = zone->obstacle_id;
-        build_col_shape_vertical_cylinder(
-            &cylinder_shape, &zone->center, zone->width, zone->height);
-        obstacle = add_shape_to_background_obstacle_list(
-            &cylinder_shape, shape_obstacle_id);
-        obstacle = obstacle != 0 ? obstacle : 0;
-        goto mark_danger_zone;
-    case 2:
-        zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
-        shape_obstacle_id = zone->obstacle_id;
-        build_col_shape_vertical_cylinder(
-            &special_cylinder_shape, &zone->center, zone->width, zone->height);
-        obstacle = add_shape_to_background_obstacle_list(
-            &special_cylinder_shape, shape_obstacle_id);
-        obstacle = obstacle != 0 ? obstacle : 0;
-        obstacle->flags.bits.inverted = 1;
-        goto mark_danger_zone;
-    default:
-        obstacle = 0;
-        goto publish_obstacle;
-    }
-mark_danger_zone:
-    obstacle->flags.bits.danger_zone = 1;
-publish_obstacle:
-    zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
-    zone->obstacle = obstacle;
-    set_background_obstacle_repel_flag(zone->obstacle_id, 0);
+    bgnd_danger_zones[g_active_bgnd_danger_zone].center.x = x;
+    bgnd_danger_zones[g_active_bgnd_danger_zone].center.y = y;
+    bgnd_danger_zones[g_active_bgnd_danger_zone].center.z = z;
+    remove_bgnd_danger_zone_obstacle(g_active_bgnd_danger_zone);
+    obstacle = rebuild_bgnd_danger_zone_obstacle(g_active_bgnd_danger_zone);
+    bgnd_danger_zones[g_active_bgnd_danger_zone].obstacle = obstacle;
+    set_background_obstacle_repel_flag(
+        bgnd_danger_zones[g_active_bgnd_danger_zone].obstacle_id, 0);
     bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
 }
-/* TODO: [breakthrough needed] 72.47%; recover pre-builder obstacle ID
- * snapshots, post-call global ownership and shared shape-result CFG. */
+
 void bgnd_set_danger_zone_width(float width) {
     ArenaObstacle* obstacle;
-    BgndDangerZone* zone;
-    CollisionShape box_shape;
-    CollisionShape cylinder_shape;
-    CollisionShape special_cylinder_shape;
 
-    if (g_active_bgnd_danger_zone <= 24) {
-        zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
-        if (zone->obstacle != 0) {
-            delete_obstacle_from_background_by_id(zone->obstacle_id);
-            zone->obstacle = 0;
-        }
-    }
-    zone = &bgnd_danger_zones[g_active_bgnd_danger_zone];
-    zone->width = width;
-    switch (zone->shape_type) {
-    case 0:
-        build_col_shape_vertical_box(
-            &box_shape, &zone->center, zone->width, zone->height,
-            zone->depth, zone->y_angle);
-        obstacle = add_shape_to_background_obstacle_list(
-            &box_shape, zone->obstacle_id);
-        obstacle = obstacle != 0 ? obstacle : 0;
-        obstacle->flags.bits.danger_zone = 1;
-        break;
-    case 1:
-        build_col_shape_vertical_cylinder(
-            &cylinder_shape, &zone->center, zone->width, zone->height);
-        obstacle = add_shape_to_background_obstacle_list(
-            &cylinder_shape, zone->obstacle_id);
-        obstacle = obstacle != 0 ? obstacle : 0;
-        obstacle->flags.bits.danger_zone = 1;
-        break;
-    case 2:
-        build_col_shape_vertical_cylinder(
-            &special_cylinder_shape, &zone->center, zone->width, zone->height);
-        obstacle = add_shape_to_background_obstacle_list(
-            &special_cylinder_shape, zone->obstacle_id);
-        obstacle = obstacle != 0 ? obstacle : 0;
-        obstacle->flags.value |= 0x10;
-        obstacle->flags.bits.danger_zone = 1;
-        break;
-    default:
-        obstacle = 0;
-        break;
-    }
-    zone->obstacle = obstacle;
-    set_background_obstacle_repel_flag(zone->obstacle_id, 0);
+    remove_bgnd_danger_zone_obstacle(g_active_bgnd_danger_zone);
+    bgnd_danger_zones[g_active_bgnd_danger_zone].width = width;
+    obstacle = rebuild_bgnd_danger_zone_obstacle(g_active_bgnd_danger_zone);
+    bgnd_danger_zones[g_active_bgnd_danger_zone].obstacle = obstacle;
+    set_background_obstacle_repel_flag(
+        bgnd_danger_zones[g_active_bgnd_danger_zone].obstacle_id, 0);
     bgnd_enable_danger_zone(g_active_bgnd_danger_zone, 0);
 }
+
 void bgnd_set_danger_zone_radius(float radius) {
     int shape_type;
 
@@ -8603,68 +8543,6 @@ void bgnd_set_danger_zone_radius(float radius) {
         bgnd_set_danger_zone_width(radius);
     }
 }
-static inline void remove_bgnd_danger_zone_obstacle(unsigned int zone_index) {
-    if (zone_index <= 24) {
-        if (bgnd_danger_zones[zone_index].obstacle != 0) {
-            delete_obstacle_from_background_by_id(bgnd_danger_zones[zone_index].obstacle_id);
-            bgnd_danger_zones[zone_index].obstacle = 0;
-        }
-    }
-}
-
-static inline ArenaObstacle* build_bgnd_danger_zone_box(
-    CollisionShape* shape, unsigned int zone_index) {
-    unsigned int obstacle_id = bgnd_danger_zones[zone_index].obstacle_id;
-    ArenaObstacle* obstacle;
-
-    build_col_shape_vertical_box(shape, &bgnd_danger_zones[zone_index].center,
-        bgnd_danger_zones[zone_index].width, bgnd_danger_zones[zone_index].height,
-        bgnd_danger_zones[zone_index].depth, bgnd_danger_zones[zone_index].y_angle);
-    obstacle = add_shape_to_background_obstacle_list(shape, obstacle_id);
-    if (obstacle != 0) {
-        return obstacle;
-    }
-    return 0;
-}
-
-static inline ArenaObstacle* build_bgnd_danger_zone_cylinder(
-    CollisionShape* shape, unsigned int zone_index) {
-    unsigned int obstacle_id = bgnd_danger_zones[zone_index].obstacle_id;
-    ArenaObstacle* obstacle;
-
-    build_col_shape_vertical_cylinder(shape, &bgnd_danger_zones[zone_index].center,
-        bgnd_danger_zones[zone_index].width, bgnd_danger_zones[zone_index].height);
-    obstacle = add_shape_to_background_obstacle_list(shape, obstacle_id);
-    if (obstacle != 0) {
-        return obstacle;
-    }
-    return 0;
-}
-
-static inline ArenaObstacle* rebuild_bgnd_danger_zone_obstacle(unsigned int zone_index) {
-    ArenaObstacle* obstacle;
-    CollisionShape special_cylinder_shape;
-    CollisionShape cylinder_shape;
-    CollisionShape box_shape;
-
-    switch (bgnd_danger_zones[zone_index].shape_type) {
-    case 0:
-        obstacle = build_bgnd_danger_zone_box(&box_shape, zone_index);
-        break;
-    case 1:
-        obstacle = build_bgnd_danger_zone_cylinder(&cylinder_shape, zone_index);
-        break;
-    case 2:
-        obstacle = build_bgnd_danger_zone_cylinder(&special_cylinder_shape, zone_index);
-        obstacle->flags.bits.inverted = 1;
-        break;
-    default:
-        return 0;
-    }
-    obstacle->flags.bits.danger_zone = 1;
-    return obstacle;
-}
-
 void bgnd_set_danger_zone_depth(float depth) {
     ArenaObstacle* obstacle;
 
@@ -10004,7 +9882,7 @@ void bgnd_reg_col_cb_for_beetle_lair(void) {
 void bgnd_clean_beetlelair(void) { g_bl_beetles = 0; }
 static inline void bl_init_beetle(
     BlBeetleControl* beetle, Pebble* pebble,
-    const Vec* position, float local_scale, int personality,
+    Vec* position, float local_scale, int personality,
     int movement_state, int personality_ticks, float distance_limit_sq,
     int transition_ticks, int surface) {
     Vec scale;
@@ -10038,10 +9916,12 @@ static inline void bl_init_beetle(
                                  beetle->heading_degrees, &scale,
                                  &beetle->position);
 }
-/* TODO: [near miss] 98.65%; ranges use bl_init_beetle; data/beetle/pebble GPR coloring remains (data r31, retail r26). */
+/* TODO: [near miss] 98.87%; shared pebble pointer improves GPR homes;
+ * owner/axis bases and per-range register coloring remain. */
 static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
     BlBeetleControl* beetles;
     BlBeetleControl* beetle;
+    Pebble* pebble;
     Vec position;
     int random_ticks;
     int index;
@@ -10050,7 +9930,6 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
     index = 0;
     for (; index < 6; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        Pebble* pebble;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 1.99f + sfrand(0.8f);
         position.x = -1.0f + sfrand(0.8f);
@@ -10062,7 +9941,6 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
     }
     for (; index < 9; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        Pebble* pebble;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 5.0f + sfrand(0.15f);
         position.x = -4.0f + sfrand(0.15f);
@@ -10074,7 +9952,6 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
     }
     for (; index < 21; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        Pebble* pebble;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 1.99f + sfrand(0.25f);
         position.x = -1.0f + sfrand(0.25f);
@@ -10086,7 +9963,6 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
     }
     for (; index < 23; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        Pebble* pebble;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = sfrand(7.0f);
         position.x = sfrand(7.0f);
@@ -10098,7 +9974,6 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
     }
     for (; index < 27; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        Pebble* pebble;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.y = 2.0f + sfrand(1.5f);
         position.x = sfrand(2.5f);
@@ -10110,7 +9985,6 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
     }
     for (; index < 31; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        Pebble* pebble;
         random_ticks = (unsigned short)randu0(60);
         position.z = sfrand(7.0f);
         position.x = sfrand(7.0f);
@@ -10123,11 +9997,16 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
     data->pebble_data->count = 31;
 }
 
-/* TODO: [near miss] 99.52%; loops 1-3 and the last loop swap beetle/pebble GPRs; f21/f22 swap in the movement-target loops. */
+static inline float bl_jittered_scale(float base, float jitter) {
+    return base + frand(jitter);
+}
+
+/* TODO: [near miss] 99.76%; second-loop pointer/ticks homes and loops 1-3,5-7
+ * FP scale-vs-position homes remain; GDB capture confirms vreg-order coloring. */
 static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
-    Pebble* pebble;
-    BlBeetleControl* beetles;
     BlBeetleControl* beetle;
+    BlBeetleControl* beetles;
+    Pebble* pebble;
     Vec position;
     int random_ticks;
     int index;
@@ -10135,7 +10014,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     beetles = data->pebble_data->user_data;
     index = 0;
     for (; index < 5; index++) {
-        float local_scale = 1.7f + frand(0.25f);
+        float local_scale = bl_jittered_scale(1.7f, 0.25f);
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 37.0f + sfrand(1.4f);
         position.x = 0.2f + sfrand(1.4f);
@@ -10146,18 +10025,18 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
                        random_ticks, 1.0f, 0x136, 0);
     }
     for (; index < 7; index++) {
-        float local_scale = 1.0f + frand(0.25f);
+        float local_scale = bl_jittered_scale(1.0f, 0.25f);
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 40.0f + sfrand(0.25f);
         position.x = 0.2f + sfrand(0.85f);
         position.y = -9.9f;
         pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 0,
-                       random_ticks, 0.5f, 0, 0);
+        bl_init_beetle(&beetles[index], pebble, &position,
+                       local_scale, 2, 0, random_ticks, 0.5f, 0, 0);
     }
     for (; index < 10; index++) {
-        float local_scale = 1.35f + frand(0.15f);
+        float local_scale = bl_jittered_scale(1.35f, 0.15f);
+        unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 34.25f + sfrand(0.45f);
         position.x = -0.03f + sfrand(0.05f);
@@ -10168,7 +10047,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
                        random_ticks, 0.5f, 0, 0);
     }
     for (; index < 12; index++) {
-        float local_scale = 1.0f + frand(0.45f);
+        float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.y = -7.0f + sfrand(1.5f);
@@ -10183,7 +10062,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->movement_target.z = 47.9f;
     }
     for (; index < 14; index++) {
-        float local_scale = 1.0f + frand(0.45f);
+        float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.y = -7.0f + sfrand(1.5f);
@@ -10198,7 +10077,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->movement_target.z = 47.7f;
     }
     for (; index < 16; index++) {
-        float local_scale = 1.0f + frand(0.45f);
+        float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.y = -7.0f + sfrand(1.5f);
@@ -10213,7 +10092,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->movement_target.z = 47.7f;
     }
     for (; index < 19; index++) {
-        float local_scale = 1.0f + frand(0.45f);
+        float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 21.5f + sfrand(0.85f);
@@ -10226,7 +10105,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->speed_scale = 0.5f + frand(0.25f);
     }
     for (; index < 21; index++) {
-        float local_scale = 1.0f + frand(0.45f);
+        float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 44.0f + sfrand(1.5f);
@@ -10241,7 +10120,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->movement_target.z = 44.0f;
     }
     for (; index < 22; index++) {
-        float local_scale = 1.0f + frand(0.45f);
+        float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 44.0f + sfrand(1.5f);
@@ -10256,7 +10135,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->movement_target.z = 44.0f;
     }
     for (; index < 24; index++) {
-        float local_scale = 1.0f + frand(0.45f);
+        float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 23.0f + sfrand(1.5f);
@@ -10271,7 +10150,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->movement_target.z = 23.0f;
     }
     for (; index < 25; index++) {
-        float local_scale = 1.0f + frand(0.45f);
+        float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 23.0f + sfrand(1.5f);
@@ -10286,7 +10165,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->movement_target.z = 23.0f;
     }
     for (; index < 28; index++) {
-        float local_scale = 1.0f + frand(0.45f);
+        float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 21.5f + sfrand(0.85f);
@@ -11455,7 +11334,6 @@ static inline void sh_place_blood_pebble(
     control->position.y = origin->y;
     control->position.z = rotated_direction.z + origin->z;
 }
-/* TODO: [near miss] 99.84%; stack homes agree; small/largest loops swap index and stride GPRs; index-first decl regresses. */
 static void sh_init_bottom_floor_blood_fall_pebbles(
     ShBloodFallProcessData* data) {
     PebbleData* largest;
@@ -11464,6 +11342,7 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
     Vec large_scale;
     Vec small_scale;
     Vec largest_scale;
+    int index;
 
     large = MK_HDR_LIVE((PebbleData*) g_slaughterhouse_pdata->blood_fall_pebbles[1].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[1].instance);
 
@@ -11472,7 +11351,6 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
     largest = MK_HDR_LIVE((PebbleData*) g_slaughterhouse_pdata->blood_fall_pebbles[2].hdr, g_slaughterhouse_pdata->blood_fall_pebbles[2].instance);
 
     if (large != 0) {
-        int index;
         ShBloodPebbleControl* controls;
 
         controls = large->user_data;
@@ -11507,7 +11385,6 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
     }
     if (small != 0) {
         ShBloodPebbleControl* controls;
-        int index;
 
         controls = small->user_data;
         index = 0;
@@ -11541,7 +11418,6 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
     }
     if (largest != 0) {
         ShBloodPebbleControl* controls;
-        int index;
 
         controls = largest->user_data;
         index = 0;
@@ -11574,11 +11450,12 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
         }
     }
 }
-/* TODO: [near miss] 98.07%; sh_place_blood_pebble expansions land;
- * controls/control/index r28-r30 rotation dominates; next: H15 decl order. */
+/* TODO: [near miss] 99.59264%; loop owners and countdown agree; two sqrt
+ * scratch homes and localized FPR/operand coloring remain; H15 stop. */
 static void sh_update_blood_fall_pebbles(
     PebbleData* pebble_data, int* active_splats, Vec* origin,
     float gravity) {
+    ShBloodPebbleControl* control;
     ShBloodPebbleControl* controls;
     int index;
 
@@ -11589,7 +11466,7 @@ static void sh_update_blood_fall_pebbles(
     controls = pebble_data->user_data;
     index = 0;
     while (index < pebble_data->count) {
-        ShBloodPebbleControl* control = &controls[index];
+        control = &controls[index];
 
         if (control->state == 0) {
             control->position.y += game_speed * control->velocity.y;
@@ -11651,8 +11528,7 @@ static void sh_update_blood_fall_pebbles(
                 control->angle_degrees, &control->scale, &control->position);
         } else if (control->state == 1) {
             control->velocity.x *= 0.97f;
-            control->lifetime -= 1.0f;
-            if (control->lifetime <= 0.0f) {
+            if ((control->lifetime -= 1.0f) <= 0.0f) {
                 control->state = 0;
                 sh_place_blood_pebble(control, origin);
                 control->position.y += 9.15f;
@@ -12043,10 +11919,12 @@ static void sh_update_fatality_body_part(MkObj* object) {
     }
 }
 
-/* TODO: [breakthrough] 92.24790%; canonical latch CFG retained; movement Vec homes and loop GPR/FPR scheduling remain. */
+/* TODO: [breakthrough needed] 93.64%; retail loop homes and unfused XZ products recovered;
+ * addressed movement Vec ownership remains unresolved. */
 static float p_sh_fatality_body_parts(void) {
     ShFatalityBodyPartsProcessData* data;
     PebbleData* pebble_data;
+    ShBloodPebbleControl* control;
     ShBloodPebbleControl* controls;
     MkObj* object;
     int index;
@@ -12077,7 +11955,7 @@ static float p_sh_fatality_body_parts(void) {
         controls = pebble_data->user_data;
         index = 0;
         while (index < pebble_data->count) {
-            ShBloodPebbleControl* control = &controls[index];
+            control = &controls[index];
 
             control->lifetime -= game_speed;
             if (control->lifetime <= 0.0f) {
@@ -12088,9 +11966,9 @@ static float p_sh_fatality_body_parts(void) {
                     step.x = game_speed * control->velocity.x;
                     step.y = game_speed * control->velocity.y;
                     step.z = game_speed * control->velocity.z;
-                    control->position.x += step.x;
-                    control->position.y += step.y;
-                    control->position.z += step.z;
+                    control->position.x = step.x + control->position.x;
+                    control->position.y = step.y + control->position.y;
+                    control->position.z = step.z + control->position.z;
                     control->velocity.y -= 0.004f;
                     control->angle_degrees += control->angle_step;
                     if (control->angle_degrees > 360.0f) {
@@ -12109,9 +11987,9 @@ static float p_sh_fatality_body_parts(void) {
                                 "sh_bloodsplat", 0, &splat_position);
                             control->state = 2;
                             control->position.z = 21.6f;
-                            control->velocity.x = 0.0f;
-                            control->velocity.y = 0.0f;
                             control->velocity.z = 0.0f;
+                            control->velocity.y = 0.0f;
+                            control->velocity.x = 0.0f;
                             control->velocity.y = -0.001f;
                             control->angle_step = 90.0f;
                         }
@@ -12201,8 +12079,8 @@ static float p_sh_fatality_body_parts(void) {
                     control->velocity.x = camera_obj->pos.x - control->position.x;
                     control->velocity.z = camera_obj->pos.z - control->position.z;
                     sh_normalize_blood_xz(&control->velocity);
-                    control->velocity.x *= 0.07f;
-                    control->velocity.z *= 0.07f;
+                    control->velocity.x = 0.07f * control->velocity.x;
+                    control->velocity.z = 0.07f * control->velocity.z;
                     control->velocity.y = -0.002f;
                     control->state = 1;
                 }
