@@ -292,7 +292,7 @@ int get_current_bgnd(void) {
     return g_game_info.bgnd_id;
 }
 
-void set_constrain_last_pos_pdata(const Vec* position) {
+void set_constrain_last_pos_pdata(Vec* position) {
     if (plyr_pdata != 0) {
         set_constrain_last_pos(plyr_pdata->plyr_num, position);
     }

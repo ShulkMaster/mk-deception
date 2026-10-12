@@ -2790,7 +2790,8 @@ void advance_my_current_switch(void) {
     p2_current_switch_time = p2_switch_log[p2_current_log_index].tick;
 }
 
-/* TODO: [near miss] 89.69%; retail order restored; shared i*20 indexed base/base+4 loads still differ. */
+/* TODO: [breakthrough needed] 89.69%; frontend uses an element-based tick load;
+ * retail requires independently indexed field bases. */
 void update_my_last_switch(void) {
     unsigned int index;
     int switch_id;
@@ -4768,7 +4769,8 @@ float x_advance_moveset(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.78%; retail order restored; r3/r4 coloring around animation field stores remains. */
+/* TODO: [near miss] 99.78%; r3/r4 homes for conversion base and animation
+ * reloads differ in seven rows; preserve direct stores and unsigned tick subtraction. */
 void attack_to_frame_x(AniData* animation, float frame, float blend_rate,
                        float step, float weight, unsigned int voice_event,
                        unsigned int whoosh_event, int transition) {

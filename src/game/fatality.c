@@ -3035,7 +3035,7 @@ void bone_matcher_set_ang_pos(
     }
 }
 
-/* TODO: [near miss] 92.14286%; validation/flag agree; latch CFG and flag agree; root/object homes and two return copies remain. */
+/* TODO: [near miss] 92.14%; return copies coalesce to r3; root/object homes differ. */
 MkObj* weapon_bm_ignore(int weapon, int ignored) {
     PlyrMirrorObjLatch* latch;
     MkObj* object;

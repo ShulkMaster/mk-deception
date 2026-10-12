@@ -1639,9 +1639,6 @@ static float r_block_hit_projectile(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.97%; hit/world Vec stack homes are swapped;
- * recover their declaration ownership before changing the scopes. */
-/* TODO: [Scope warn] bone_offset/world_position/screen_position block: hoisting drops 99.97% -> 90.60%. */
 static float r_combo_broken_part2(void) {
     struct ReactionImageFaderPdata* fader;
     PlyrInfo* source;
@@ -1651,7 +1648,10 @@ static float r_combo_broken_part2(void) {
     int index;
     int half_width;
 
+    Vec world_position;
+    Vec bone_offset;
     Vec hit_position;
+    RwV2d screen_position;
 
     object = plyr_obj;
     if (plyr_pdata->plyr_num == 0) {
@@ -1666,22 +1666,18 @@ static float r_combo_broken_part2(void) {
         effect, hit_position.x, hit_position.y, hit_position.z);
 
     source = plyr_pdata->plyr_info;
-    {
-        Vec bone_offset = {0.0f, 0.0f, 0.0f};
-        Vec world_position;
-        RwV2d screen_position;
+    bone_offset = (Vec){0.0f, 0.0f, 0.0f};
 
-        image = load_named_2d_pfxobj(
-            0x10005, 0xC021, "BREAKER", 0, 0x2F);
-        get_bone_offset_world_pos(
-            source->slot.mirror_a, 9, &bone_offset, &world_position);
-        world_position.y = 1.7f + g_game_info.field_34;
-        camera_get_screen_pos_from_world_pos(
-            &world_position, &screen_position);
-        half_width = image->pfx2d->tex_w / 2;
-        image->x = (int)screen_position.x - half_width;
-        image->y = screen_position.y;
-    }
+    image = load_named_2d_pfxobj(
+        0x10005, 0xC021, "BREAKER", 0, 0x2F);
+    get_bone_offset_world_pos(
+        source->slot.mirror_a, 9, &bone_offset, &world_position);
+    world_position.y = 1.7f + g_game_info.field_34;
+    camera_get_screen_pos_from_world_pos(
+        &world_position, &screen_position);
+    half_width = image->pfx2d->tex_w / 2;
+    image->x = (int)screen_position.x - half_width;
+    image->y = screen_position.y;
 
     if (_create_mkproc_generic_nostack(
             0xC02A, 0x1F, p_image_fader,

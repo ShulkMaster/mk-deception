@@ -1877,8 +1877,8 @@ static float pz_fighters_grinder_fatality_in_progress(void) {
     return pz_fatality_finish_timed_fatality();
 }
 
-/* TODO: [near miss] 99.90385%; secondary grinder r29/r30 coloring remains;
- * direct snapshot regresses bytes and two ng runs yield no honest closure. */
+/* TODO: [near miss] 99.90%; operations and callback lifetimes agree;
+ * only secondary grinder r29/r30 homes remain; stop at coloring. */
 static float pz_fighter_load_and_place_initial_grinders(void) {
     struct PuzzleEffectBankContext effect_context;
     struct PuzzleFighterRenderObject* grinders[2];
@@ -3791,8 +3791,8 @@ static float pz_fighter_objects_falling_actively_fighting(int active) {
     return pz_fatality_set_random_hazard_phase(active);
 }
 
-/* TODO: [near miss] 99.83796%; post-offset helper matches without bare
- * scope; five victim-x/delta-x FPR rows remain. */
+/* TODO: [near miss] 99.84%; five victim-x/delta-x FPR rows remain;
+ * late aggregate flattening is code-neutral and regresses pool layout. */
 static float pz_fighters_objects_falling_fatality_prep(void) {
     static int one_last_hit = 1;
     static int start_pointing = 1;

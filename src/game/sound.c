@@ -1769,7 +1769,8 @@ MslSoundHandle pan_vol_pitch_random_hit(
     return result;
 }
 
-/* TODO: [near miss] 92.57%; existing O1 scope duplicates table index; sentinel exit and constant load schedule differ. */
+/* TODO: [breakthrough needed] 92.57%; existing O1 scope retains two index shifts;
+ * need compiler-stable table lookup and sentinel exit evidence. */
 MslSoundHandle random_hit(int group) {
     struct SoundRequest request;
     int* sounds;

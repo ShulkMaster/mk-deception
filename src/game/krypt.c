@@ -211,25 +211,17 @@ static inline void reset_coffin_pebble_counts(void) {
 static inline void place_visible_coffin_rows_from(Vec* origin) {
     int col;
     int row;
-    int row_end;
+    int first_row;
     float x;
 
-    row = krypt_pdata->current_row - 1;
-    if (row > 0x10) {
-        row = 0x10;
-    }
-    if (row < 0) {
-        row = 0;
-    }
+    first_row = krypt_pdata->current_row - 1;
+    if (first_row > 0x10) first_row = 0x10;
+    if (first_row < 0) first_row = 0;
     col = krypt_pdata->current_column - 4;
-    if (col < 0) {
-        col = 0;
-    } else if (col > 0xB) {
-        col = 0xB;
-    }
+    if (col < 0) col = 0;
+    else if (col > 0xB) col = 0xB;
     x = 3.0f * (float)col + -28.5f;
-    row_end = row + 4;
-    for (; row < row_end; row++) {
+    for (row = first_row; row < first_row + 4; row++) {
         origin->x = x;
         origin->y = 0.0f;
         origin->z = -(5.0f * (float)row - 50.0f);
@@ -239,29 +231,13 @@ static inline void place_visible_coffin_rows_from(Vec* origin) {
 
 static inline void rebuild_visible_coffin_rows(void) {
     Vec origin = {0.0f, 0.0f, 0.0f};
-    int col;
-    int row;
-    int first_row;
-    float x;
     krypt_pdata->coffin_pebble_type0->count = 0;
     krypt_pdata->coffin_pebble_type1->count = 0;
     krypt_pdata->coffin_pebble_type2->count = 0;
     krypt_pdata->coffin_pebble_type3->count = 0;
     krypt_pdata->lid_closed_pebbles->count = 0;
     krypt_pdata->lid_open_pebbles->count = 0;
-    first_row = krypt_pdata->current_row - 1;
-    if (first_row > 0x10) first_row = 0x10;
-    if (first_row < 0) first_row = 0;
-    col = krypt_pdata->current_column - 4;
-    if (col < 0) col = 0;
-    else if (col > 0xB) col = 0xB;
-    x = 3.0f * (float)col + -28.5f;
-    for (row = first_row; row < first_row + 4; row++) {
-        origin.x = x;
-        origin.y = 0.0f;
-        origin.z = -(5.0f * (float)row - 50.0f);
-        set_pebble_positions_for_row(row, col, 9, &origin);
-    }
+    place_visible_coffin_rows_from(&origin);
 }
 
 static const Vec s_coffin_offset = {-0.582f, -0.503f, 1.4008f};
@@ -325,19 +301,20 @@ static inline void opening_coffin_effects_impl(Vec* origin) {
 static inline void finish_coffin_opening_effects(Vec* origin) {
     Vec dust_offset = {0.0f, 0.25f, 2.0f};
     Vec effect_position = {0.0f, 0.0f, 0.0f};
-    int effect;
-    effect = fx_by_owner("coffin_dust_pfx", 4);
-    fx_reset(effect);
+    unsigned int dust;
+    int fountain;
+    dust = fx_by_owner("coffin_dust_pfx", 4);
+    fx_reset(dust);
     effect_position.x = origin->x + dust_offset.x;
     effect_position.y = origin->y + dust_offset.y;
     effect_position.z = origin->z + dust_offset.z;
     fx_set_param_v3(
-        effect, 0x202, effect_position.x, effect_position.y,
+        dust, 0x202, effect_position.x, effect_position.y,
         effect_position.z);
-    fx_restart_emit(effect);
-    effect = fx_by_owner("dirt_fountain", 4);
-    if (effect != 0) {
-        fx_set(effect, 0x204, 1.0f);
+    fx_restart_emit(dust);
+    fountain = fx_by_owner("dirt_fountain", 4);
+    if (fountain != 0) {
+        fx_set(fountain, 0x204, 1.0f);
     }
 }
 
@@ -1763,12 +1740,48 @@ static inline unsigned int coffin_award_art_oid(CoffinEntry* entries, int index)
     return (art_oid + 0x3EA) << 16;
 }
 
-static inline void award_koins(int amount, unsigned int koin_type) {
+static inline CoffinEntry* selected_coffin_entry(void) {
+    return &coffin_data[
+        krypt_pdata->current_column + krypt_pdata->current_row * 20];
+}
+
+static inline void show_coffin_award(int selected) {
+    unsigned int art_oid;
+
+    if (krypt_pdata->award_image_left == 0) {
+        load_ssf(krypt_art_file_table);
+        art_oid = coffin_award_art_oid(
+            coffin_data,
+            krypt_pdata->current_column + krypt_pdata->current_row * 20);
+        krypt_pdata->award_image_left = load_2d_pfxobj_xy(
+            0x150067, 0x830F, art_oid, 0,
+            screen_width / 2 - 0xC0, screen_height / 2 - 0x80, 0x4C);
+        krypt_pdata->award_image_right = load_2d_pfxobj_xy(
+            0x150067, 0x830F, (art_oid + 1), 0,
+            screen_width / 2 + 0x40, screen_height / 2 - 0x80, 0x4C);
+    }
+    display_prize_description_impl(
+        coffin_data, selected, 0x190, krypt_data_loaded, 0x20000, 0x4A);
+}
+
+static inline void award_koins(void) {
+    CoffinEntry* entry;
+    unsigned int koin_type;
+    int amount;
     unsigned int* totals;
     ProfileCommon* profile;
     StringObj* wallet_text;
     int old_total;
 
+    if (krypt_pdata->award_applied != 0) {
+        return;
+    }
+    entry = selected_coffin_entry();
+    if ((unsigned int)entry->movie_kind < 100U) {
+        return;
+    }
+    koin_type = entry->movie_kind - 100;
+    amount = entry->unlock_or_movie;
     totals = krypt_pdata->profile_common->koin_totals;
     profile = krypt_pdata->profile_common;
     old_total = totals[koin_type];
@@ -1791,7 +1804,6 @@ static inline void award_koins(int amount, unsigned int koin_type) {
     }
 }
 
-/* TODO: [near miss] 99.82%; award/dust nonvolatile homes r24-r28 permuted, award entry r3/r4 swapped. */
 static float p_move_camera_and_open_coffin(void) {
     Vec coffin_position;
     Vec camera_angles = s_coffin_camera_angles;
@@ -1805,8 +1817,6 @@ static float p_move_camera_and_open_coffin(void) {
     ScreenObj* notice_left;
     ScreenObj* notice_right;
     ScreenObj* notice_bottom;
-    unsigned int art_oid;
-    int koin_type;
     int selected;
     int column;
     int row;
@@ -1891,22 +1901,8 @@ static float p_move_camera_and_open_coffin(void) {
     unhide_screen_obj(notice_right);
     unhide_screen_obj(notice_bottom);
 
-    if (krypt_pdata->award_image_left == 0) {
-        load_ssf(krypt_art_file_table);
-        art_oid = coffin_award_art_oid(
-            coffin_data,
-            krypt_pdata->current_column + krypt_pdata->current_row * 20);
-        krypt_pdata->award_image_left = load_2d_pfxobj_xy(
-            0x150067, 0x830F, art_oid, 0,
-            screen_width / 2 - 0xC0, screen_height / 2 - 0x80, 0x4C);
-        krypt_pdata->award_image_right = load_2d_pfxobj_xy(
-            0x150067, 0x830F, (art_oid + 1), 0,
-            screen_width / 2 + 0x40, screen_height / 2 - 0x80, 0x4C);
-    }
-    display_prize_description_impl(
-        coffin_data, selected, 0x190, krypt_data_loaded, 0x20000, 0x4A);
-    entry = &coffin_data[
-        krypt_pdata->current_column + krypt_pdata->current_row * 20];
+    show_coffin_award(selected);
+    entry = selected_coffin_entry();
     snd_req(award_sound_table[entry->award_sound_index]);
 
     object = load_named_2d_pfxobj(0x140066, 0x830F, "OK_BUTTON", 0, 0x4C);
@@ -1992,17 +1988,7 @@ static float p_move_camera_and_open_coffin(void) {
     }
     heads_up_display_visible(1);
 
-    if (krypt_pdata->award_applied == 0) {
-        int amount;
-
-        entry = &coffin_data[
-            krypt_pdata->current_column + krypt_pdata->current_row * 20];
-        if ((unsigned int)entry->movie_kind >= 100U) {
-            amount = entry->unlock_or_movie;
-            koin_type = entry->movie_kind - 100;
-            award_koins(amount, koin_type);
-        }
-    }
+    award_koins();
     mkproc_jump_sleep(p_krypt_loop);
     return 0.0f;
 }

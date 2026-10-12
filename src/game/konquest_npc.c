@@ -946,7 +946,6 @@ static inline int npc_get_navigation_direction(
 }
 
 static inline void npc_suspend_animation_wait(void) {
-    CmdScript* script;
     CmdScript* saved_script;
     KonquestNpc* npc = g_active_npc;
 
@@ -958,8 +957,7 @@ static inline void npc_suspend_animation_wait(void) {
         g_active_npc->wait_ticks = 0.0f;
         return;
     }
-    script = active_cmdscript;
-    script->state = 2;
+    active_cmdscript->state = 2;
     saved_script = active_cmdscript;
     npc = g_active_npc;
     cmdscript_step_backward();
@@ -1348,7 +1346,6 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
     }
 
     tile = get_nth_tile_struct(npc->tile_index);
-    inverse_length = 0.0f;
 
     if (tile == 0 || tile->loaded == 0) {
         return 0;
@@ -2848,7 +2845,17 @@ void npc_force_state_for_npc(KonquestNpc* npc, int next_state) {
     }
 }
 
-/* TODO: [near miss] 99.92%; only next_timed_event local coloring (retail r31, here r30) remains. */
+static inline void npc_activate_timed_event(
+    KonquestNpc* npc, KonquestTimedEvent* event, int initialize) {
+    if (npc->animation_override == 0) {
+        npc_set_event_script(npc, 0, event->script_function);
+        if (event->event_slot_3_script != 0) {
+            npc_set_event_script(npc, 3, event->event_slot_3_script);
+        }
+        npc_setup_path_for_event(npc, event, initialize);
+    }
+}
+
 static void npc_check_next_event(KonquestNpc* npc) {
     if (npc->animation_override == 0 &&
         is_time_a_greater_than_time_b(
@@ -2865,17 +2872,7 @@ static void npc_check_next_event(KonquestNpc* npc) {
         }
         if (npc->flags_1D_field_bit0 == 0 &&
             npc->flags_1C_field_bit1 == 0) {
-            KonquestTimedEvent* event = npc->next_timed_event;
-
-            if (npc->animation_override == 0) {
-                npc_set_event_script(
-                    npc, 0, event->script_function);
-                if (event->event_slot_3_script != 0) {
-                    npc_set_event_script(
-                        npc, 3, event->event_slot_3_script);
-                }
-                npc_setup_path_for_event(npc, event, 0);
-            }
+            npc_activate_timed_event(npc, npc->next_timed_event, 0);
             npc_force_state_for_npc(npc, 0);
             npc_find_next_timed_event(npc);
         }
@@ -2888,15 +2885,7 @@ static void setup_current_and_next_events(
 
     current_event = npc_find_current_timed_event(npc);
     if (current_event != 0) {
-        if (npc->animation_override == 0) {
-            npc_set_event_script(
-                npc, 0, current_event->script_function);
-            if (current_event->event_slot_3_script != 0) {
-                npc_set_event_script(
-                    npc, 3, current_event->event_slot_3_script);
-            }
-            npc_setup_path_for_event(npc, current_event, initialize);
-        }
+        npc_activate_timed_event(npc, current_event, initialize);
     } else {
         npc->events[0].script_function = 0;
     }
@@ -3036,7 +3025,8 @@ void npc_update(int update_all) {
     }
 }
 
-/* TODO: [near miss] 99.87%; script-name add dest/operand coloring (r4,r0,r5 vs r5,r5,r0) remains; add-then-subi order matches. */
+/* TODO: [near miss] 99.87%; script-name add/subi survive initial and presched;
+ * full-width pointer sum still uses r5 instead of retail r4. */
 static void npc_invisible_update(KonquestNpc* npc) {
     if (konquest_editor_mode_on == 0) {
         int previous_state;
@@ -3048,7 +3038,6 @@ static void npc_invisible_update(KonquestNpc* npc) {
             if (npc->events[previous_state].script_function != 0) {
                 ScriptSlot* slot;
                 unsigned int script_function;
-                unsigned int function_index;
 
                 if (npc->wait_ticks == 0.0f) {
                     int active;
@@ -3087,6 +3076,7 @@ static void npc_invisible_update(KonquestNpc* npc) {
                         g_active_npc->wait_ticks = 0.0f;
                     }
                     if (g_active_npc->wait_ticks > 0.0f) {
+                        unsigned int function_index;
                         char* function_name;
 
                         memcpy(
@@ -4627,7 +4617,8 @@ void npc_set_ani_frame(float frame) {
     }
 }
 
-/* TODO: [near miss] 99.85%; only first npc_suspend_animation_wait script/npc r27/r28 coloring remains. */
+/* TODO: [near miss] 99.85%; first wait snapshot webs color script/NPC r29/r28;
+ * retail uses r28/r27; operations and second expansion agree. */
 void npc_blend_to_ani_string(int* animation_ids) {
     unsigned int count = get_row_count_for_table_by_pointer(
         konquest_pdata->waypoint_script, animation_ids);

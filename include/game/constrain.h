@@ -71,8 +71,8 @@ typedef struct ArenaObstacle {
 
 struct CollisionShape;
 
-void set_constrain_last_pos(int player, const Vec* position);
-void set_constrain_last_pos_pdata(const Vec* position);
+void set_constrain_last_pos(int player, Vec* position);
+void set_constrain_last_pos_pdata(Vec* position);
 ArenaObstacle* add_shape_to_background_obstacle_list(
     const struct CollisionShape* shape, unsigned int obstacle_id);
 void set_background_obstacle_disable_flag(

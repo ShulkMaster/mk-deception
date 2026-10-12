@@ -1822,8 +1822,7 @@ static inline void pz_fighter_pop_pending_event(void) {
         }                                                                 \
     } while (0)
 
-static inline void pz_dispatch_happy_reaction(void) {
-    unsigned int happy_player = g_pz_fighters_engine.fighter_move.player;
+static inline void pz_dispatch_happy_reaction(unsigned int happy_player) {
     PlyrPdata* happy_pdata;
     PlyrPdata* unhappy_pdata;
 
@@ -2293,7 +2292,7 @@ static float pz_fighters_handle_next_pending_move(void) {
         PZ_DISPATCH_BOMB_REACTION();
     case 9:
         g_pz_fighters_engine.random_fatality_active = 1;
-        pz_dispatch_happy_reaction();
+        pz_dispatch_happy_reaction(g_pz_fighters_engine.fighter_move.player);
         break;
     }
     return 0.0f;
@@ -2373,7 +2372,7 @@ static float pz_fighters_handle_next_pending_move_simplified(void) {
         PZ_DISPATCH_BOMB_REACTION();
     case 9:
         g_pz_fighters_engine.random_fatality_active = 1;
-        pz_dispatch_happy_reaction();
+        pz_dispatch_happy_reaction(g_pz_fighters_engine.fighter_move.player);
         break;
     }
     return 0.0f;

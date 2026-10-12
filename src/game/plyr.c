@@ -5,6 +5,7 @@
 #include "game/ai.h"
 #include "game/bgnd.h"
 #include "game/cloth.h"
+#include "game/constrain.h"
 #include "game/moveset.h"
 #include "game/plyr.h"
 #include "game/pfxscript_api.h"
@@ -127,7 +128,6 @@ extern void limb_sever_hide_z_meat_chunks_all(MkObj* object);
 extern void plyr_obj_load_bld_data(
     FighterMirror* pdata, BloodModelData* blood_data, MkObj* object,
     const char* path_name);
-extern void start_constrain_proc(void);
 extern void init_debug_variables(void);
 extern void pull_bone_hierarchy_mkobj(void* object);
 extern void create_shadow_proc(

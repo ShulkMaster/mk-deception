@@ -14,6 +14,11 @@ typedef struct CollisionQuad {
     CollisionPaddedVec vertices[4];
 } CollisionQuad;
 
+typedef struct CollisionSphere {
+    Vec center;
+    float radius;
+} CollisionSphere;
+
 typedef struct CollisionCylinder {
     CollisionPaddedVec axis;
     CollisionPaddedVec center;
@@ -43,55 +48,13 @@ typedef char CollisionBoxSizeCheck[
 
 typedef struct CollisionShape {
     union {
-        char data00[0x80];
         CollisionCylinder cylinder;
         CollisionBox box;
-        struct {
-            Vec sphere_center; /* +0x00 */
-            float sphere_radius; /* +0x0C */
-        };
-        struct {
-            Vec cylinder_axis; /* +0x00 */
-            char cylinder_pad0C[4];
-            Vec cylinder_center; /* +0x10 */
-            char cylinder_pad1C[4];
-            float cylinder_radius; /* +0x20 */
-            float cylinder_height; /* +0x24 */
-        };
-        struct {
-            Vec box_corner_0;      /* +0x00 */
-            float box_pad_0C;
-            Vec box_corner_1;      /* +0x10 */
-            float box_pad_1C;
-            Vec box_corner_2;      /* +0x20 */
-            float box_pad_2C;
-            Vec box_corner_3;      /* +0x30 */
-            float box_pad_3C;
-            Vec box_axis_0;        /* +0x40 */
-            float box_axis_0_min;  /* +0x4C */
-            Vec box_axis_1;        /* +0x50 */
-            float box_axis_0_max;  /* +0x5C */
-            Vec box_axis_2;        /* +0x60 */
-            float box_axis_1_min;  /* +0x6C */
-            float box_axis_1_max;  /* +0x70 */
-            float box_axis_2_min;  /* +0x74 */
-            float box_axis_2_max;  /* +0x78 */
-            float box_field_0x7C;  /* +0x7C */
-        };
-        struct {
-            Vec quad_vertex_0;     /* +0x00 */
-            float quad_pad_0C;
-            Vec quad_vertex_1;     /* +0x10 */
-            float quad_pad_1C;
-            Vec quad_vertex_2;     /* +0x20 */
-            float quad_pad_2C;
-            Vec quad_vertex_3;     /* +0x30 */
-        };
+        CollisionSphere sphere;
         CollisionQuad quad;
-        CollisionPaddedVec quad_vertices[8];
     };
-    unsigned int type; /* +0x80, low three bits select the shape kind */
-} __attribute__((aligned(16))) CollisionShape; /* 0x90 */
+    unsigned int type;
+} __attribute__((aligned(16))) CollisionShape;
 
 typedef struct CollisionObjList {
     MkHdr hdr;
@@ -133,6 +96,9 @@ struct PlayerCollisionData {
     float attack_radius; /* +0x940C */
 };
 
+typedef char CollisionPaddedVecSizeCheck[sizeof(CollisionPaddedVec) == 0x10 ? 1 : -1];
+typedef char CollisionSphereSizeCheck[sizeof(CollisionSphere) == 0x10 ? 1 : -1];
+typedef char CollisionQuadSizeCheck[sizeof(CollisionQuad) == 0x40 ? 1 : -1];
 typedef char CollisionShapeSizeCheck[sizeof(CollisionShape) == 0x90 ? 1 : -1];
 typedef char PlayerCollisionNodeSizeCheck[sizeof(PlayerCollisionNode) == 0x130 ? 1 : -1];
 typedef char PlayerCollisionDataSizeCheck[sizeof(PlayerCollisionData) == 0x9410 ? 1 : -1];
@@ -144,6 +110,8 @@ struct ConstrainInfo;
 void generate_obstacles(int handle, char* name, MkPtr** obstacle_list);
 CollisionObj* get_collision_obj(void);
 float repel_check_plyrs(void);
+int repel_against_global_collision_list(
+    Vec* position, Vec* movement, Vec* result_position);
 void repel_against_obstacle_list(
     PlyrInfo* player, Vec* previous_position, Vec* movement,
     Vec* position, struct ConstrainInfo* info);

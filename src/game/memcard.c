@@ -427,8 +427,7 @@ void reset_sg_status(StorageDevice* device, int slot) {
     set_profile_to_default((PlayerProfile*)&device->profiles[slot]);
 }
 
-/* TODO: [near miss] 82.51%; stores/calls agree; loop counter and zero-copy
- * registers are allocated in a different order. */
+/* TODO: [near miss] 82.51%; loop zero sharing differs before allocation; counter and device-offset homes remain. */
 void reset_storage_device_status_structure(int device) {
     StorageDevice* base;
     int i;

@@ -190,7 +190,7 @@ static inline int color_component(float value) {
     return value;
 }
 
-/* TODO: [near miss] 87.60%; TEV/coordinate homes agree; RGB load/conversion interleave remains. */
+/* TODO: [near miss] 87.60%; shared RGB helper lowers identically; load/conversion schedule remains. */
 void ProcessSpecularity(
     RpMaterial* material,
     RwTexture* base_texture,
