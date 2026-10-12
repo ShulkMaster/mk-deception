@@ -226,7 +226,7 @@ void vdestroy_pfx(MkPfx* pfx) {
 
 void render_pfx_clone(PfxClone* clone) {
     MkPfx* pfx;
-    float* mat;
+    float (*mat)[4];
     float save[16];
     float* inv;
     float zero;
@@ -243,10 +243,10 @@ void render_pfx_clone(PfxClone* clone) {
 
     zero = kZero;
     one = kOne;
-    mat[3] = zero;
-    mat[7] = zero;
-    mat[11] = zero;
-    mat[15] = one;
+    mat[0][3] = zero;
+    mat[1][3] = zero;
+    mat[2][3] = zero;
+    mat[3][3] = one;
 
     if (((pfx->flags80 >> 5) & 1) != 0) {
         inv = inverse_camera_matrix;
@@ -648,13 +648,13 @@ void* pfx_create_raw_userdata(int extra_size, int userdata_size, int field_90,
 
 static inline PfxVm* scan_pfx_emitter_fields(MkPfx* pfx, PfxEmitter* emitter)
 {
-    unsigned int field_pair[2] = {0, 0};
+    PfxFieldSet field_pair = {0, 0};
     PfxVm* vm;
 
-    pfx_emitter_scan_for_fields(emitter, field_pair);
+    pfx_emitter_scan_for_fields(emitter, &field_pair);
     vm = pfx_vm(pfx);
-    pfx->field_214 |= field_pair[0];
-    pfx->field_A0 |= field_pair[1];
+    pfx->field_214 |= field_pair.render_flags;
+    pfx->field_A0 |= field_pair.particle_flags;
     return vm;
 }
 
@@ -827,7 +827,7 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
 static void apfx_set_transform_matrix(void) {
     MkPfx* pfx;
     PfxVm* vm;
-    float* dst;
+    float (*dst)[4];
     void* src;
     int slot;
     float zero;
@@ -847,10 +847,10 @@ static void apfx_set_transform_matrix(void) {
     memcpy(dst, src, sizeof(vm->transforms[slot].matrix));
     zero = kZero;
     one = kOne;
-    dst[3] = zero;
-    dst[7] = zero;
-    dst[11] = zero;
-    dst[15] = one;
+    dst[0][3] = zero;
+    dst[1][3] = zero;
+    dst[2][3] = zero;
+    dst[3][3] = one;
 }
 
 void pfx_post_sleep(void) {

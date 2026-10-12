@@ -137,7 +137,7 @@ void init_shadow(ShadowObject* shadow, MkObj* object) {
     }
 }
 
-/* TODO: [near miss] 96.53%; AA/projection input scheduling and GPR coloring remain. */
+/* TODO: [near miss] 96.59%; AA/projection input scheduling and GPR coloring remain. */
 void UpdateShadow(MkObj* fighter_object, PlyrPdata* owner, MkObj* object) {
     MkObj* fighter;
     RwCamera* camera;
@@ -146,7 +146,6 @@ void UpdateShadow(MkObj* fighter_object, PlyrPdata* owner, MkObj* object) {
     PlyrMirrorSlots* lights;
     MkObj* validated;
     RwV2d view_window;
-    RwCamera* ip_camera;
     RwRaster* src_raster;
     MKVECTOR center;
     MKVECTOR light_pos;
@@ -244,6 +243,7 @@ void UpdateShadow(MkObj* fighter_object, PlyrPdata* owner, MkObj* object) {
     clear_flags = ShadowAA;
     ShadowCameraUpdate_flag = 0;
     if (clear_flags != 0) {
+        RwCamera* ip_camera;
         RwRaster* dst_raster = owner->shadow_raster;
         RwRGBA clear_color = {0xFF, 0xFF, 0xFF, 0x00};
 
