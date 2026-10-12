@@ -1,6 +1,7 @@
 #include "game/konquest_save.h"
 #include "game/storage_types.h"
 #include "game/konquest.h"
+#include "game/konquest_time.h"
 #include "game/konquest_items.h"
 #include "math/gxVect.h"
 #include "runtime/cam.h"
@@ -11,7 +12,7 @@ typedef struct KonquestProfileSave {
     int profile_valid;
     int profile_serial;
     char pad08[4];
-    char common_time[0x18];
+    KonquestTime common_time;
     char pad24[0x28];
     float monk_pos_x;
     float monk_pos_y;
@@ -37,7 +38,7 @@ typedef struct KonquestPdata {
     MkObj* monk_obj;
     unsigned int monk_instance;
     char pad100[0x38];
-    char current_time[0x18];
+    KonquestTime current_time;
     char pad150[0x1A4];
     MkPtr* pui_list;
 } KonquestPdata;
@@ -181,7 +182,6 @@ int save_profile(int profile, int arg);
 /* Decl: include/game/plyrprofile.h */
 int validate_konq_save_location(int player);
 int validate_konq_load_location(int player);
-void set_current_time(char* time);
 void set_monk_position(float x, float y, float z, float w);
 void update_tile_grid(void);
 void mcard_msg_card_inaccessable_in_konq(void);
@@ -223,7 +223,8 @@ static inline void copy_common_konquest_profile_data(
     KonquestProfileSave* profile) {
     MkObj* monk;
 
-    memcpy(&profile->common_time[0], konquest_pdata->current_time, 0x18);
+    memcpy(&profile->common_time, &konquest_pdata->current_time,
+        sizeof(profile->common_time));
     monk = MK_HDR_LIVE(konquest_pdata->monk_obj, konquest_pdata->monk_instance);
     if (monk != 0) {
         profile->monk_pos_x = monk->pos.value.x;
@@ -297,7 +298,7 @@ void full_konquest_load_from_memcard(void) {
     buffer = &konq_region_data_buffer;
     camera_pdata = get_pdata_of_camera();
     if (profile->profile_serial != 0) {
-        set_current_time(profile->common_time);
+        set_current_time(&profile->common_time);
     }
     if (profile->profile_valid != 0) {
         monk = MK_HDR_LIVE(konquest_pdata->monk_obj, konquest_pdata->monk_instance);

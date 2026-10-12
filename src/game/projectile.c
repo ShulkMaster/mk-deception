@@ -121,14 +121,10 @@ struct ProjectileFollowerPdata {
 
 static struct ProjectilePdata* proj_pdata;
 
-void set_active_projectile_velocity_to_hit_gnd(float ticks);
-MkObj* set_active_projectile_tracking_light(LightDef* definition);
 static float p_point_light_follower(void);
-void set_active_projectile_rx_info(
-    int reaction, int flags, float scale);
 static MkObj* start_projectile_from_specific_plyr_bone(
     int bone_id, MkObj* existing_object, const char* model_name,
-    float speed, float tolerance, const Vec* bone_offset,
+    float speed, float tolerance, Vec* bone_offset,
     int use_sidekick);
 static void ps_projectile(void);
 static void pw_projectile(void);
@@ -574,7 +570,7 @@ void set_active_projectile_not_duckable(void) {
 }
 
 void set_active_projectile_rx_info(
-    int reaction, int flags, float scale) {
+    int reaction, float scale, int flags) {
     if (proj_pdata != 0) {
         proj_pdata->reaction = reaction;
         proj_pdata->reaction_scale = scale;
@@ -631,7 +627,7 @@ static inline MkObj* projectile_create_attached_process(
  * inverse-length FPR coloring remain; recover the factory exit shape. */
 static MkObj* start_projectile_from_specific_plyr_bone(
     int bone_id, MkObj* existing_object, const char* model_name,
-    float speed, float tolerance, const Vec* bone_offset,
+    float speed, float tolerance, Vec* bone_offset,
     int use_sidekick) {
     struct ProjectilePdata* projectile;
     MkHdr* allocated_data;
@@ -669,16 +665,16 @@ static MkObj* start_projectile_from_specific_plyr_bone(
 
     if (use_sidekick == 0) {
         get_bone_offset_world_pos(
-            plyr_obj, bone_id, (Vec*)bone_offset, &position);
+            plyr_obj, bone_id, bone_offset, &position);
     } else {
         launch_object = MK_HDR_LIVE(
             plyr_pdata->sidekick_obj, plyr_pdata->sidekick_instance);
         if (launch_object == 0) {
             get_bone_offset_world_pos(
-                plyr_obj, bone_id, (Vec*)bone_offset, &position);
+                plyr_obj, bone_id, bone_offset, &position);
         } else {
             get_bone_offset_world_pos(
-                launch_object, bone_id, (Vec*)bone_offset, &position);
+                launch_object, bone_id, bone_offset, &position);
         }
     }
     object->pos.value.x = position.x;
@@ -745,7 +741,7 @@ static MkObj* start_projectile_from_specific_plyr_bone(
 
 MkObj* start_projectile_from_sidekick_bone(
     int bone_id, MkObj* existing_object, const char* model_name,
-    float speed, float tolerance, const Vec* bone_offset) {
+    float speed, float tolerance, Vec* bone_offset) {
     return start_projectile_from_specific_plyr_bone(
         bone_id, existing_object, model_name, speed, tolerance,
         bone_offset, 1);
@@ -753,7 +749,7 @@ MkObj* start_projectile_from_sidekick_bone(
 
 MkObj* start_projectile_from_plyr_bone(
     int bone_id, MkObj* existing_object, const char* model_name,
-    float speed, float tolerance, const Vec* bone_offset) {
+    float speed, float tolerance, Vec* bone_offset) {
     return start_projectile_from_specific_plyr_bone(
         bone_id, existing_object, model_name, speed, tolerance,
         bone_offset, 0);

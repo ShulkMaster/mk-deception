@@ -312,13 +312,10 @@ static inline unsigned long variable_allocation_size(unsigned long size) {
 /* TODO: [near miss] 96.16%; coalescing and split-helper register associations remain; stop at coloring. */
 void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size) {
     unsigned long old_size;
-    unsigned long needed;
     unsigned long is_variable;
     SubBlock* subblock;
     SubBlock* remainder;
     Block* block;
-    SubBlock** start;
-    void* result;
 
     if (ptr == NULL) {
         return __pool_alloc(pool, size);
@@ -331,7 +328,11 @@ void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size) {
     is_variable = (*(unsigned long*)((unsigned char*)ptr - 4) & 1) != 0;
     old_size = allocation_size(ptr);
     if (size > old_size) {
+        void* result;
+
         if (is_variable) {
+            unsigned long needed;
+            SubBlock** start;
             if (size > ~0UL - 48) {
                 return NULL;
             }
@@ -557,20 +558,23 @@ static inline int block_is_empty(const Block* block) {
     return empty;
 }
 
-/* TODO: [near miss] 99.05%; size macro removes redundant reloads; volatile register homes remain. */
-static void deallocate_from_var_pools(MemPoolObj* pool, void* ptr) {
-    SubBlock* subblock = (SubBlock*)((unsigned char*)ptr - 8);
-    unsigned long tag = subblock->size;
-    Block* block = (Block*)((unsigned long)subblock->block & ~1UL);
-    SubBlock** start;
+static inline void set_subblock_free(SubBlock* subblock) {
     SubBlock* next;
-    unsigned long size;
+    unsigned long size = subblock_size(subblock);
 
-    size = tag & ~7UL;
-    subblock->size = tag & ~2UL;
+    subblock->size &= ~2UL;
     next = (SubBlock*)((unsigned char*)subblock + size);
     next->size &= ~4UL;
     *(unsigned long*)((unsigned char*)next - sizeof(unsigned long)) = size;
+}
+
+/* TODO: [near miss] 99.88%; free-mark phase matches; merge_next flag/length r5/r6 homes remain swapped. */
+static void deallocate_from_var_pools(MemPoolObj* pool, void* ptr) {
+    SubBlock* subblock = (SubBlock*)((unsigned char*)ptr - 8);
+    Block* block = (Block*)((unsigned long)subblock->block & ~1UL);
+    SubBlock** start;
+
+    set_subblock_free(subblock);
     start = block_start(block);
     if (*start != NULL) {
         subblock->prev = (*start)->prev;

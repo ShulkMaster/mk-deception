@@ -187,19 +187,19 @@ static RpAtomic* atomic_set_HAnimHierarchy(
 static RwFrame* get_child_frame_hierarchy(
     RwFrame* frame, void* out_data);
 
-static inline void* anim_script_data(const void* script, unsigned int offset) {
+static inline void* anim_script_data(void* script, unsigned int offset) {
     return (unsigned char*)script + offset;
 }
 
 
 static void _bone_make_parents_my_children(MkBone* bone);
 
-static inline float anim_last_frame(const AnimScript* script) {
+static inline float anim_last_frame(AnimScript* script) {
     return (float)script->frame_count - 1.0f;
 }
 
 static inline void select_flip_map(
-    AnimPdata* anim, const unsigned int* flags) {
+    AnimPdata* anim, unsigned int* flags) {
     MkObj* obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
     int flipped;
 
@@ -219,7 +219,7 @@ static inline void select_flip_map(
 
 static inline void add_script_loop_offset(
     AnimScript* script, Vec* offset, float* angle) {
-    const float scale = 0.000030518044f;
+    float scale = 0.000030518044f;
     float scaled_x;
     float scaled_y;
     float scaled_z;
@@ -241,7 +241,7 @@ static inline void add_script_loop_offset(
 
 static inline void subtract_script_loop_offset(
     AnimScript* script, Vec* offset, float* angle) {
-    const float scale = 0.000030518044f;
+    float scale = 0.000030518044f;
     float scaled_x;
     float scaled_y;
     float scaled_z;
@@ -306,7 +306,7 @@ static inline int mkptr_list_exists(MkPtr** list) {
 
 static inline int anim_selection_script(
     AnimPdata* hand,
-    const struct AnimSelectionFrame* selection,
+    struct AnimSelectionFrame* selection,
     AnimScript** scripts,
     int script_count,
     AnimScript** result) {
@@ -692,7 +692,7 @@ failed:
 }
 
 static inline void compose_bone_rotation(
-    Quat* out, const Quat* parent, const Quat* target) {
+    Quat* out, Quat* parent, Quat* target) {
     float dot = parent->z * target->z +
         (parent->x * target->x + parent->y * target->y);
     float cross_x =
@@ -716,7 +716,7 @@ static inline void compose_bone_rotation(
     out->z += parent->z * tw;
 }
 
-/* TODO: [near miss] 98.10%; mapped-ID compare agrees; parent/child bone GPR allocation and compose/weighted-correction FPR coloring remain. */
+/* TODO: [near miss] 98.29%; mapped-ID compare agrees; parent/child bone GPR allocation and compose/weighted-correction FPR coloring remain. */
 static float p_bone_matcher(void) {
     BoneMatcherState* matcher = (BoneMatcherState*)apdata;
     MkObj* parent_obj;
@@ -731,8 +731,8 @@ static float p_bone_matcher(void) {
     Vec parent_offset;
     Vec child_offset;
     Quat composed_rotation;
-    const Quat* target_rotation;
-    const Vec* target_translation;
+    Quat* target_rotation;
+    Vec* target_translation;
     unsigned int parent_bid;
     unsigned int child_bid;
     unsigned int mapped_bid;
@@ -955,12 +955,12 @@ static float p_bone_matcher(void) {
         child_delta_x = correction_x * child_weight;
         child_delta_y = correction_y * child_weight;
         child_delta_z = correction_z * child_weight;
-        parent_obj->pos.value.x += parent_delta_x;
-        parent_obj->pos.value.y += parent_delta_y;
-        parent_obj->pos.value.z += parent_delta_z;
-        child_obj->pos.value.x += child_delta_x;
-        child_obj->pos.value.y += child_delta_y;
-        child_obj->pos.value.z += child_delta_z;
+        parent_obj->pos.value.x = parent_delta_x + parent_obj->pos.value.x;
+        parent_obj->pos.value.y = parent_delta_y + parent_obj->pos.value.y;
+        parent_obj->pos.value.z = parent_delta_z + parent_obj->pos.value.z;
+        child_obj->pos.value.x = child_delta_x + child_obj->pos.value.x;
+        child_obj->pos.value.y = child_delta_y + child_obj->pos.value.y;
+        child_obj->pos.value.z = child_delta_z + child_obj->pos.value.z;
         update_obj_pos(child_obj);
         update_obj_pos(parent_obj);
     } else {
@@ -1142,8 +1142,8 @@ int advance_anim(AnimPdata* anim) {
 }
 
 static inline void anim_unpack_quat(
-    Quat* out, const struct AnimPackedQuatFrame* frame) {
-    const float scale = 0.00048828125f;
+    Quat* out, struct AnimPackedQuatFrame* frame) {
+    float scale = 0.00048828125f;
     unsigned int word;
 
     out->x = scale * (float)(short)frame->packed_xy.x;
@@ -2895,7 +2895,7 @@ void transition_to_anim_script(
 }
 
 
-/* TODO: [near miss] 99.41%; frame span matches; first live obj/root bone/rotation take r26/r27/r29 (retail r31/r26/r27). */
+/* TODO: [near miss] 99.41%; first live object/root bone/rotation homes differ; helper typing cleaned, stop at coloring. */
 int set_anim_script_frame(
     AnimPdata* anim,
     AnimScript* script,
@@ -3179,10 +3179,8 @@ AnimPdata* get_mkpdata_anim(void) {
     return anim;
 }
 
-/* TODO: [near miss] 99.33962%; cloth-loop offset and bone pointer use r5/r7 opposite retail. */
 int obj_get_bid_for_tid(MkObj* obj, int tag) {
     unsigned int bone_index = tag & 0xFFF;
-    unsigned int i;
     MkBone* bone;
 
     if (bone_index < obj->bone_count) {
@@ -3192,17 +3190,16 @@ int obj_get_bid_for_tid(MkObj* obj, int tag) {
         }
     }
     if ((tag & 0x2000) != 0) {
-        for (i = 0; i < obj->cloth_bone_count; i++) {
-            bone = obj->cloth_bones[i].bone;
-            if (tag == bone->tag) {
-                return obj->cloth_bones[i].bone->bone_index;
+        for (bone_index = 0; bone_index < obj->cloth_bone_count; bone_index++) {
+            if (tag == obj->cloth_bones[bone_index].bone->tag) {
+                return obj->cloth_bones[bone_index].bone->bone_index;
             }
         }
     } else {
-        for (i = 0; i < obj->bone_count; i++) {
-            bone = obj->bones[i];
+        for (bone_index = 0; bone_index < obj->bone_count; bone_index++) {
+            bone = obj->bones[bone_index];
             if (bone != 0 && bone->tag == tag) {
-                return i;
+                return bone_index;
             }
         }
     }
@@ -3322,7 +3319,7 @@ MkBone* alloc_bone(void) {
     return bone;
 }
 
-/* TODO: [breakthrough] 96.25%; typed bone-slot traversal restores indexed publication; extra cursor operations, owner reload and GPR homes remain. */
+/* TODO: [breakthrough] 96.25%; indexed bone publication recovered; cursor operations, owner reload and GPR homes remain. */
 static void process_obj_bones(MkObj* obj, int* tags) {
     RpClump* clump = obj->clump;
     RpHAnimHierarchy* found_hierarchy = 0;
@@ -3520,69 +3517,71 @@ void bone_make_parents_my_children(MkBone* bone) {
     RtQuatConvertFromMatrix(&bone->rotation, bone->parent_matrix);
 }
 
-static inline void quat_to_normalized_matrix(
-    RwMatrix* matrix, const Quat* rotation) {
-    float x = rotation->x;
-    float y = rotation->y;
-    float z = rotation->z;
-    float w = rotation->w;
-    float x_squared = x * x;
-    float y_squared = y * y;
-    float z_squared = z * z;
-    float w_squared = w * w;
-    float magnitude_squared =
-        w_squared + (z_squared + (x_squared + y_squared));
-    float scale = 2.0f / magnitude_squared;
-    float xs = x * scale;
-    float ys = y * scale;
-    float zs = z * scale;
-    float xx = x * xs;
-    float yy = y * ys;
-    float zz = z * zs;
-    float xw = xs * w;
-    float yz = y * zs;
-    float xz = z * xs;
-    float yw = ys * w;
-    float xy = x * ys;
-    float zw = zs * w;
+static inline void quat_to_normalized_matrix(RwMatrix* matrix, Quat* rotation) {
+    float scale;
+    Vec scaled;
+    Vec weighted;
+    Vec square;
+    Vec cross;
+
+    scale = 2.0f / (rotation->w * rotation->w +
+        (rotation->z * rotation->z +
+        (rotation->x * rotation->x + rotation->y * rotation->y)));
+    scaled.x = rotation->x * scale;
+    scaled.y = rotation->y * scale;
+    scaled.z = rotation->z * scale;
+    weighted.x = scaled.x * rotation->w;
+    weighted.y = scaled.y * rotation->w;
+    weighted.z = scaled.z * rotation->w;
+    square.x = rotation->x * scaled.x;
+    square.y = rotation->y * scaled.y;
+    square.z = rotation->z * scaled.z;
+    cross.x = rotation->y * scaled.z;
+    cross.y = rotation->z * scaled.x;
+    cross.z = rotation->x * scaled.y;
 
     matrix->pos.x = 0.0f;
     matrix->pos.y = 0.0f;
     matrix->pos.z = 0.0f;
     matrix->flags = 3;
-    matrix->right.x = 1.0f - (yy + zz);
-    matrix->up.y = 1.0f - (zz + xx);
-    matrix->at.z = 1.0f - (xx + yy);
-    matrix->up.z = yz + xw;
-    matrix->at.y = yz - xw;
-    matrix->right.z = xz - yw;
-    matrix->at.x = xz + yw;
-    matrix->right.y = xy + zw;
-    matrix->up.x = xy - zw;
+    matrix->right.x = 1.0f - (square.y + square.z);
+    matrix->up.y = 1.0f - (square.z + square.x);
+    matrix->at.z = 1.0f - (square.x + square.y);
+    matrix->up.z = cross.x + weighted.x;
+    matrix->at.y = cross.x - weighted.x;
+    matrix->right.z = cross.y - weighted.y;
+    matrix->at.x = cross.y + weighted.y;
+    matrix->right.y = cross.z + weighted.z;
+    matrix->up.x = cross.z - weighted.z;
 }
 
-/* TODO: [breakthrough needed] 84.65%; retail tests transform_parent twice (detach block), inlined quat->matrix FPR order differs; detach helpers grow the frame. */
+/* TODO: [breakthrough] 94.74%; parent/head snapshots recovered; unlink guard and quaternion schedule remain. */
 static void _bone_make_parents_my_children(MkBone* bone) {
-    MkBone* parent = bone->transform_parent;
     Vec displacement;
     Quat inverse_rotation __attribute__((aligned(16)));
+    MkBone* parent = bone->transform_parent;
+    MkBone* sibling;
 
     if (parent == 0) {
         return;
     }
-    if (parent->tree_child == bone) {
+    sibling = bone->transform_parent->tree_child;
+    if (sibling == bone) {
         parent->tree_child = bone->tree_next;
         if (parent->tree_child == 0) {
             parent->flags_54_bits.has_children = 0;
         }
     } else {
-        MkBone* sibling = parent->tree_child;
-        while (sibling != 0) {
-            if (sibling->tree_next == bone) {
-                sibling->tree_next = bone->tree_next;
-                break;
+        if (sibling != 0) {
+            while (sibling->tree_next != bone) {
+                sibling = sibling->tree_next;
+                if (sibling == 0) {
+                    break;
+                }
             }
-            sibling = sibling->tree_next;
+            if (sibling != 0) {
+                sibling->tree_next = bone->tree_next;
+            }
         }
     }
     bone->transform_parent = 0;

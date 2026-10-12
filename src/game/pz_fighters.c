@@ -1355,8 +1355,7 @@ static float p_puzzle_fighter_master(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 98.65%; shared failure branches and coordinate FPRs differ;
- * dx/dz declaration swap is neutral; retain recovered policy. */
+/* TODO: [near miss] 99.86%; player-2 displacement and player-1 absolute FPR homes remain. */
 static int pz_fighter_check_for_player_to_center_position_control(void) {
     float player1_distance;
     float player2_distance;
@@ -1390,154 +1389,161 @@ static int pz_fighter_check_for_player_to_center_position_control(void) {
                 g_pz_fighters_engine.super_move_active != 1 &&
                 g_game_info.plyr0.slot.pdata->state != 0x605 &&
                 g_game_info.plyr1.slot.pdata->state != 0x605) {
-                if (g_pz_fighters_engine.fighter_state[0] == 0 ||
-                    g_pz_fighters_engine.fighter_state[0] == 1) {
-                    player1_busy = 0;
-                } else {
-                    player1_busy = 10;
-                }
-                if (g_pz_fighters_engine.fighter_state[1] == 0 ||
-                    g_pz_fighters_engine.fighter_state[1] == 1) {
-                    player2_busy = 0;
-                } else {
-                    player2_busy = 10;
-                }
-                if (player1_busy == 0 || player2_busy == 0) {
-                    dz = g_game_info.plyr0.slot.mirror_a->pos.value.z -
-                         g_pz_fighters_engine.player1_idle_z;
-                    dx = g_game_info.plyr0.slot.mirror_a->pos.value.x -
-                         g_pz_fighters_engine.player1_idle_x;
-                    player1_distance = dx * dx + dz * dz;
-                    player1_absolute = player1_distance;
-                    if (dx > 0.0f) {
-                        player1_distance *= -1.0f;
-                    }
-                    dz = g_game_info.plyr1.slot.mirror_a->pos.value.z -
-                         g_pz_fighters_engine.player2_idle_z;
-                    dx = g_game_info.plyr1.slot.mirror_a->pos.value.x -
-                         g_pz_fighters_engine.player2_idle_x;
-                    player2_distance = dx * dx + dz * dz;
-                    player2_absolute = player2_distance;
-                    if (dx < 0.0f) {
-                        player2_distance *= -1.0f;
-                    }
+                goto apply_control;
+            }
+        }
+    }
+    return 0;
 
-                    if (player1_absolute > 0.8f && player2_absolute > 0.8f) {
-                        player_distance = xz_distance_between_players();
-                        if (player_distance < 2.0f) {
-                            dx = g_pz_fighters_engine.fighter_posts[0].x -
-                                 g_game_info.plyr0.slot.mirror_a->pos.value.x;
-                            dz = g_pz_fighters_engine.fighter_posts[0].z -
-                                 g_game_info.plyr0.slot.mirror_a->pos.value.z;
-                            player1_wall = dx * dx + dz * dz;
-                            dx = g_pz_fighters_engine.fighter_posts[1].x -
-                                 g_game_info.plyr1.slot.mirror_a->pos.value.x;
-                            dz = g_pz_fighters_engine.fighter_posts[1].z -
-                                 g_game_info.plyr1.slot.mirror_a->pos.value.z;
-                            player2_wall = dx * dx + dz * dz;
+apply_control:
+    if (g_pz_fighters_engine.fighter_state[0] == 0 ||
+        g_pz_fighters_engine.fighter_state[0] == 1) {
+        player1_busy = 0;
+    } else {
+        player1_busy = 10;
+    }
+    if (g_pz_fighters_engine.fighter_state[1] == 0 ||
+        g_pz_fighters_engine.fighter_state[1] == 1) {
+        player2_busy = 0;
+    } else {
+        player2_busy = 10;
+    }
+    if (player1_busy == 0 || player2_busy == 0) {
+        dz = g_game_info.plyr0.slot.mirror_a->pos.value.z -
+             g_pz_fighters_engine.player1_idle_z;
+        dx = g_game_info.plyr0.slot.mirror_a->pos.value.x;
+        dx -= g_pz_fighters_engine.player1_idle_x;
+        player1_distance = dx * dx + dz * dz;
+        player1_absolute = player1_distance;
+        if (dx > 0.0f) {
+            player1_distance = -1.0f * player1_distance;
+        }
+        dz = g_game_info.plyr1.slot.mirror_a->pos.value.z -
+             g_pz_fighters_engine.player2_idle_z;
+        dx = g_game_info.plyr1.slot.mirror_a->pos.value.x -
+             g_pz_fighters_engine.player2_idle_x;
+        player2_distance = dx * dx + dz * dz;
+        player2_absolute = player2_distance;
+        if (dx < 0.0f) {
+            player2_distance = -1.0f * player2_distance;
+        }
 
-                            if (player1_wall > 6.8f && player1_busy == 0 &&
-                                player1_distance > 0.0f) {
-                                g_pz_fighters_engine.fighter_move.player = 0;
-                                pz_fighter_handle_off_wall_attack(
-                                    &g_pz_fighters_engine.fighter_move);
-                                return 1;
-                            }
-                            if (player2_wall > 6.8f && player2_busy == 0 &&
-                                player2_distance > 0.0f) {
-                                g_pz_fighters_engine.fighter_move.player = 1;
-                                pz_fighter_handle_off_wall_attack(
-                                    &g_pz_fighters_engine.fighter_move);
-                                return 1;
-                            }
-                            if (player1_wall <= 6.8f && player1_busy == 0 &&
-                                player1_distance > 0.0f) {
-                                g_pz_fighters_engine.fighter_move.player = 0;
-                                pz_fighter_handle_distance_attack(
-                                    &g_pz_fighters_engine.fighter_move);
-                                return 1;
-                            }
-                            if (player2_wall <= 6.8f && player2_busy == 0 &&
-                                player2_distance > 0.0f) {
-                                g_pz_fighters_engine.fighter_move.player = 1;
-                                pz_fighter_handle_distance_attack(
-                                    &g_pz_fighters_engine.fighter_move);
-                                return 1;
-                            }
-                        } else {
-                            if (player1_busy == 0 && player1_distance > 0.0f) {
-                                g_pz_fighters_engine.fighter_move.player = 0;
-                                pz_fighter_handle_center_pos_range_attack(
-                                    &g_pz_fighters_engine.fighter_move);
-                                return 1;
-                            }
-                            if (player2_busy == 0 && player2_distance > 0.0f) {
-                                g_pz_fighters_engine.fighter_move.player = 1;
-                                pz_fighter_handle_center_pos_range_attack(
-                                    &g_pz_fighters_engine.fighter_move);
-                                return 1;
-                            }
-                        }
-                    } else if (player1_absolute > 1.45f) {
-                        if (xz_distance_between_players() > 1.7f) {
-                            if (player1_busy == 0) {
-                                g_pz_fighters_engine.fighter_move.player = 0;
-                                pz_fighter_handle_center_pos_single_range_move(
-                                    &g_pz_fighters_engine.fighter_move);
-                                return 1;
-                            }
-                        } else if (player1_busy == 0) {
-                            g_pz_fighters_engine.fighter_move.player = 0;
-                            pz_fighter_handle_center_pos_single_close_move(
-                                &g_pz_fighters_engine.fighter_move);
-                            return 1;
-                        }
-                    } else if (player2_absolute > 1.45f) {
-                        if (xz_distance_between_players() > 1.7f) {
-                            if (player2_busy == 0) {
-                                g_pz_fighters_engine.fighter_move.player = 1;
-                                pz_fighter_handle_center_pos_single_range_move(
-                                    &g_pz_fighters_engine.fighter_move);
-                                return 1;
-                            }
-                        } else if (player2_busy == 0) {
-                            g_pz_fighters_engine.fighter_move.player = 1;
-                            pz_fighter_handle_center_pos_single_close_move(
-                                &g_pz_fighters_engine.fighter_move);
-                            return 1;
-                        }
-                    } else if (player2_distance > 0.4f &&
-                               g_pz_fighters_engine.balance_out_of_range == 1) {
-                        if (player2_busy == 0) {
-                            g_pz_fighters_engine.fighter_move.player = 1;
-                            pz_fighter_handle_center_pos_minor_adjustment(
-                                &g_pz_fighters_engine.fighter_move);
-                            g_pz_fighters_engine.balance_out_of_range = 0;
-                            return 1;
-                        }
-                    } else if (player1_distance > 0.4f &&
-                               g_pz_fighters_engine.balance_out_of_range == 1) {
-                        if (player1_busy == 0) {
-                            g_pz_fighters_engine.fighter_move.player = 0;
-                            pz_fighter_handle_center_pos_minor_adjustment(
-                                &g_pz_fighters_engine.fighter_move);
-                            g_pz_fighters_engine.balance_out_of_range = 0;
-                            return 1;
-                        }
-                    } else if ((player1_distance > 0.08f &&
-                                player2_distance > 0.15f) ||
-                               (player1_distance > 0.15f &&
-                                player2_distance > 0.08f)) {
-                        if (player1_busy == 0 && player2_busy == 0) {
-                            g_pz_fighters_engine.fighter_move.player =
-                                randu0(1) & 0xffff;
-                            pz_fighter_handle_dual_off_center_Move(
-                                &g_pz_fighters_engine.fighter_move);
-                            return 1;
-                        }
-                    }
+        if (player1_absolute > 0.8f && player2_absolute > 0.8f) {
+            player_distance = xz_distance_between_players();
+            if (player_distance < 2.0f) {
+                dx = g_pz_fighters_engine.fighter_posts[0].x -
+                     g_game_info.plyr0.slot.mirror_a->pos.value.x;
+                dz = g_pz_fighters_engine.fighter_posts[0].z -
+                     g_game_info.plyr0.slot.mirror_a->pos.value.z;
+                player1_wall = dx * dx + dz * dz;
+                dx = g_pz_fighters_engine.fighter_posts[1].x -
+                     g_game_info.plyr1.slot.mirror_a->pos.value.x;
+                dz = g_pz_fighters_engine.fighter_posts[1].z -
+                     g_game_info.plyr1.slot.mirror_a->pos.value.z;
+                player2_wall = dx * dx + dz * dz;
+
+                if (player1_wall > 6.8f && player1_busy == 0 &&
+                    player1_distance > 0.0f) {
+                    g_pz_fighters_engine.fighter_move.player = 0;
+                    pz_fighter_handle_off_wall_attack(
+                        &g_pz_fighters_engine.fighter_move);
+                    return 1;
+                }
+                if (player2_wall > 6.8f && player2_busy == 0 &&
+                    player2_distance > 0.0f) {
+                    g_pz_fighters_engine.fighter_move.player = 1;
+                    pz_fighter_handle_off_wall_attack(
+                        &g_pz_fighters_engine.fighter_move);
+                    return 1;
+                }
+                if (player1_wall <= 6.8f && player1_busy == 0 &&
+                    player1_distance > 0.0f) {
+                    g_pz_fighters_engine.fighter_move.player = 0;
+                    pz_fighter_handle_distance_attack(
+                        &g_pz_fighters_engine.fighter_move);
+                    return 1;
+                }
+                if (player2_wall <= 6.8f && player2_busy == 0 &&
+                    player2_distance > 0.0f) {
+                    g_pz_fighters_engine.fighter_move.player = 1;
+                    pz_fighter_handle_distance_attack(
+                        &g_pz_fighters_engine.fighter_move);
+                    return 1;
+                }
+            } else {
+                if (player1_busy == 0 && player1_distance > 0.0f) {
+                    g_pz_fighters_engine.fighter_move.player = 0;
+                    pz_fighter_handle_center_pos_range_attack(
+                        &g_pz_fighters_engine.fighter_move);
+                    return 1;
+                }
+                if (player2_busy == 0 && player2_distance > 0.0f) {
+                    g_pz_fighters_engine.fighter_move.player = 1;
+                    pz_fighter_handle_center_pos_range_attack(
+                        &g_pz_fighters_engine.fighter_move);
+                    return 1;
                 }
             }
+        } else if (player1_absolute > 1.45f) {
+            if (xz_distance_between_players() > 1.7f) {
+                if (player1_busy == 0) {
+                    g_pz_fighters_engine.fighter_move.player = 0;
+                    pz_fighter_handle_center_pos_single_range_move(
+                        &g_pz_fighters_engine.fighter_move);
+                    return 1;
+                }
+            } else if (player1_busy == 0) {
+                g_pz_fighters_engine.fighter_move.player = 0;
+                pz_fighter_handle_center_pos_single_close_move(
+                    &g_pz_fighters_engine.fighter_move);
+                return 1;
+            }
+        } else if (player2_absolute > 1.45f) {
+            if (xz_distance_between_players() > 1.7f) {
+                if (player2_busy == 0) {
+                    g_pz_fighters_engine.fighter_move.player = 1;
+                    pz_fighter_handle_center_pos_single_range_move(
+                        &g_pz_fighters_engine.fighter_move);
+                    return 1;
+                }
+            } else if (player2_busy == 0) {
+                g_pz_fighters_engine.fighter_move.player = 1;
+                pz_fighter_handle_center_pos_single_close_move(
+                    &g_pz_fighters_engine.fighter_move);
+                return 1;
+            }
+        } else if (player2_distance > 0.4f &&
+                   g_pz_fighters_engine.balance_out_of_range == 1) {
+            if (player2_busy == 0) {
+                g_pz_fighters_engine.fighter_move.player = 1;
+                pz_fighter_handle_center_pos_minor_adjustment(
+                    &g_pz_fighters_engine.fighter_move);
+                g_pz_fighters_engine.balance_out_of_range = 0;
+                return 1;
+            }
+        } else if (player1_distance > 0.4f &&
+                   g_pz_fighters_engine.balance_out_of_range == 1) {
+            if (player1_busy == 0) {
+                g_pz_fighters_engine.fighter_move.player = 0;
+                pz_fighter_handle_center_pos_minor_adjustment(
+                    &g_pz_fighters_engine.fighter_move);
+                g_pz_fighters_engine.balance_out_of_range = 0;
+                return 1;
+            }
+        } else if ((player1_distance > 0.08f &&
+                    player2_distance > 0.15f) ||
+                   (player1_distance > 0.15f &&
+                    player2_distance > 0.08f)) {
+            int result = 0;
+
+            if (player1_busy == 0 && player2_busy == 0) {
+                g_pz_fighters_engine.fighter_move.player =
+                    randu0(1) & 0xffff;
+                pz_fighter_handle_dual_off_center_Move(
+                    &g_pz_fighters_engine.fighter_move);
+                result = 1;
+            }
+            return result;
         }
     }
     return 0;
@@ -1818,8 +1824,14 @@ static inline void pz_fighter_pop_pending_event(void) {
 
 static inline void pz_dispatch_happy_reaction(void) {
     unsigned int happy_player = g_pz_fighters_engine.fighter_move.player;
-    PlyrPdata* happy_pdata = puzzle_player_pdata(happy_player);
-    PlyrPdata* unhappy_pdata = happy_pdata->his_plyr_pdata;
+    PlyrPdata* happy_pdata;
+    PlyrPdata* unhappy_pdata;
+
+    if (happy_player == 0)
+        happy_pdata = g_game_info.plyr0.slot.pdata;
+    else
+        happy_pdata = g_game_info.plyr1.slot.pdata;
+    unhappy_pdata = happy_pdata->his_plyr_pdata;
 
     pz_fighter_shake_camera(3, 0.02f);
     g_pz_fighters_engine.fighter_move.mode = 15;
@@ -2224,7 +2236,7 @@ static void pz_fighter_process_immediate_request(void) {
     }
 }
 
-/* TODO: [near miss] 99.72%; happy-reaction player/pdata/unhappy take r29/r30/r28 (retail r30/r31/r29). */
+/* TODO: [near miss] 99.79%; happy/unhappy pdata saved-register coloring remains; stop at clean-C ceiling. */
 static float pz_fighters_handle_next_pending_move(void) {
     PuzzleFighterMove* move;
 
@@ -2287,7 +2299,7 @@ static float pz_fighters_handle_next_pending_move(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.75%; happy-reaction player/pointer register coloring remains. */
+/* TODO: [near miss] 99.81%; happy/unhappy pdata saved-register coloring remains; stop at clean-C ceiling. */
 static float pz_fighters_handle_next_pending_move_simplified(void) {
     PuzzleFighterMove* move;
 
@@ -2897,12 +2909,11 @@ void pz_fighter_dont_fudge_desired_distance(void) {
     g_pz_fighters_engine.fighter_move.active_flags |= PZ_FIGHTER_DISTANCE_FIXED;
 }
 
-/* TODO: [near miss] 99.57%; reaction/mode and reaction-started saved GPRs differ in nine rows. */
 float pz_fighter_ani_attack(
-    float end_frame, int reaction, float reaction_frame,
+    float end_frame, const int reaction, float reaction_frame,
     float hit_distance, unsigned int reaction_mode) {
-    int reaction_started;
     int frame_clamped = 0;
+    int reaction_started;
     reaction_started = 0;
 
     while (plyr_anim_pdata->frame <= end_frame && frame_clamped == 0) {

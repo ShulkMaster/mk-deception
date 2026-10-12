@@ -13,6 +13,8 @@ struct KonquestTriggerStruct;
 void vdestroy_trigger_struct(struct KonquestTriggerStruct* trigger);
 struct KonquestTriggerDefinition;
 struct MkObj;
+struct KonquestTime;
+void set_current_time(struct KonquestTime* time);
 
 typedef struct KonquestWaypoint {
     Vec position;                /* +0x00 */

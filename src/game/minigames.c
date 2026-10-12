@@ -4080,11 +4080,10 @@ static int pzsm_antibreakers(struct PuzzlePlayerState* player,
     }
     return 1;
 }
-/* TODO: [near miss] 99.02%; CFG exact; cell/loaded type/zero_phase take r10/r29/r11
- * (retail r29/r8/r6) in the arrange pass; stop at coloring. */
+/* TODO: [near miss] 99.32%; CFG exact; cell r29 as retail; volatile rotation remains
+ * (board/type/phase r8/r12/r7 vs retail r9/r8/r7); decl-order sweep flat. */
 static int pzsm_arrange(struct PuzzlePlayerState* player,
                         struct PuzzlePlayerState* opponent) {
-    struct PuzzleBoardCell* cell;
     int zero_phase;
     int start_row = 0;
     int start_column = 0;
@@ -4137,6 +4136,7 @@ arrange:
     for (; start_column < 8; start_column++) {
         for (; start_row < 14; start_row++) {
             unsigned int type;
+            struct PuzzleBoardCell* cell;
 
             cell = &player->board[start_row * 8 + start_column];
             type = cell->type;
@@ -4144,7 +4144,7 @@ arrange:
             if (type == 0) {
                 continue;
             }
-            zero_phase = player->supermove_phase_ticks == 0;
+            zero_phase = player->supermove_phase_ticks == 0 ? 1 : 0;
             if (type == (zero_phase
                              ? PUZZLE_BLOCK_WILDCARD
                              : (unsigned int)player->supermove_phase_ticks)) {
@@ -4170,9 +4170,8 @@ arrange:
                                       ? PUZZLE_BLOCK_WILDCARD
                                       : (unsigned int)
                                             player->supermove_phase_ticks) ||
-                             search_cell->type ==
-                                 (unsigned int)player->supermove_phase_ticks +
-                                     4)) {
+                             (unsigned int)player->supermove_phase_ticks +
+                                     4 == search_cell->type)) {
                             goto swap;
                         }
                     }
@@ -4497,16 +4496,36 @@ static void pzsm_edger_cleanup(void) {
     }
 }
 
-/* TODO: [near miss] 99.47%; remaining residue is local GPR allocation in the
- * edge board walk. */
+static inline void puzzle_supermove_break_cell(
+    struct PuzzleBoardCell* cell, int* changed) {
+    unsigned int color;
+    int is_wildcard;
+    unsigned int current;
+    unsigned int type;
+
+    cell->state = 0x2B;
+    cell->flag_bits.matched = 0;
+    cell->flag_bits.effect_bit = 0;
+    for (color = 0; color < 4; color++) {
+        is_wildcard = color == 0;
+        type = PUZZLE_BLOCK_WILDCARD;
+        if (!is_wildcard) {
+            type = color;
+        }
+        current = cell->type;
+        if (current == type || current == color + 4) {
+            cell->animation = puzzle_ctrl->block_animations[color];
+            cell->type = is_wildcard ? PUZZLE_BLOCK_WILDCARD : color;
+            *changed = 1;
+            break;
+        }
+    }
+}
+
 static int pzsm_edge_clear(struct PuzzlePlayerState* player,
                            struct PuzzlePlayerState* opponent) {
-    int is_wildcard;
-    unsigned int color;
     struct PuzzleBoardCell* cell;
     int edge_index;
-    unsigned int type;
-    unsigned int current;
     struct PuzzleBoardCell* row;
     int object_index;
     int changed;
@@ -4585,24 +4604,7 @@ static int pzsm_edge_clear(struct PuzzlePlayerState* player,
         cell = &row[edge_index * 7];
 
         if (cell->type != 0) {
-            cell->state = 0x2B;
-            cell->flag_bits.matched = 0;
-            cell->flag_bits.effect_bit = 0;
-            for (color = 0; color < 4; color++) {
-                is_wildcard = color == 0;
-                type = PUZZLE_BLOCK_WILDCARD;
-                if (!is_wildcard) {
-                    type = color;
-                }
-
-                current = cell->type;
-                if (current == type || current == color + 4) {
-                    cell->animation = puzzle_ctrl->block_animations[color];
-                    cell->type = is_wildcard ? PUZZLE_BLOCK_WILDCARD : color;
-                    changed = 1;
-                    break;
-                }
-            }
+            puzzle_supermove_break_cell(cell, &changed);
         }
     }
 
@@ -5003,7 +5005,7 @@ static void pzsm_rain_dance_cleanup(void) {
     pzsm_release_rain_dance_resources();
 }
 
-/* TODO: [near miss] 99.12%; storm owner branch/literal timing and distance coloring remain;
+/* TODO: [near miss] 99.19%; storm owner branch/literal timing remains;
  * stop without new owner-selection evidence. */
 static int pzsm_rain_dance(struct PuzzlePlayerState* player,
                            struct PuzzlePlayerState* opponent) {
@@ -5155,10 +5157,9 @@ static int pzsm_rain_dance(struct PuzzlePlayerState* player,
             if (previous_row == row) {
                 previous_column =
                     (unsigned short)player->supermove_delay_ticks;
-                distance = previous_column - column;
-                if (previous_column < column) {
-                    distance = column - previous_column;
-                }
+                distance = previous_column < column
+                    ? column - previous_column
+                    : previous_column - column;
                 if (distance <= 1) {
                     continue;
                 }

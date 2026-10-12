@@ -452,7 +452,7 @@ void mcard_msg_save_failed(int device) {
     sleep_aproc(90.0f);
 }
 
-void mcard_msg_create_failed(int device) {
+void mcard_msg_create_failed(void) {
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x87, 0));
     set_memcard_popup_message_body_text(STR_MC_FMT_SPACE);
@@ -464,7 +464,7 @@ void mcard_msg_create_failed(int device) {
     sleep_aproc(90.0f);
 }
 
-void mcard_msg_create_successful(int device) {
+void mcard_msg_create_successful(void) {
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x86, 0));
     set_memcard_popup_message_body_text(STR_MC_FMT_SPACE);
@@ -476,7 +476,7 @@ void mcard_msg_create_successful(int device) {
     sleep_aproc(90.0f);
 }
 
-void mcard_msg_save_successful(int device) {
+void mcard_msg_save_successful(void) {
     init_memcard_msg_screen();
     set_memcard_popup_message_title_text(nbc_find_text(0x82, 0));
     set_memcard_popup_message_body_text(STR_MC_FMT_BODY_SPACES);

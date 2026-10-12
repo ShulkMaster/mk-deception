@@ -281,10 +281,10 @@ void pz_fighter_reaction_xfer_him(int reaction);
 static float p_force_reaction(void);
 static float p_pz_shake_camera(void);
 
-int init_3d_move_no_aniproc(void);
+void init_3d_move_no_aniproc(void);
 void set_ani_weight(float weight);
 void set_ani_speed(float speed);
-void stop_me();
+void stop_me(void);
 void avoid_double_ani(void);
 void random_foot(int type);
 void snd_major_hit_voice(void);
@@ -533,7 +533,7 @@ static inline int select_scripted_move(
     unsigned int move_index,
     int distance_class,
     unsigned short roll) {
-    const struct PuzzleCharacterMoveTable* table =
+    struct PuzzleCharacterMoveTable* table =
         &g_pz_fighter_tables.characters[move_index];
     unsigned int index;
 
@@ -1442,8 +1442,8 @@ void pz_fighter_kill_global_projectile(void) {
     }
 }
 
-/* TODO: [near miss] 98.63%; shared frame local improves allocation; declaration
- * order is neutral. Owner/flag coloring and constant labels remain. */
+/* TODO: [near miss] 98.63%; 55 owner/flag register rows remain;
+ * operations and CFG agree; need supported owner lifetimes. */
 static float p_pz_fighter_projectile_launcher(void) {
     struct PuzzleProjectile* projectile = (struct PuzzleProjectile*)apdata;
     int passed_target = 0;
@@ -1495,7 +1495,7 @@ static float p_pz_fighter_projectile_launcher(void) {
                 passed_target = 1;
             }
             if (passed_target == 1) {
-                void* saved_pdata = apdata;
+                MkHdr* saved_pdata = apdata;
 
                 apdata = (MkHdr*)projectile->owner;
                 fx_reset(projectile->effect);
@@ -1916,18 +1916,9 @@ static float pz_fighter_workthecrowd(void) {
     return 0.0f;
 }
 
-static inline void pz_play_beg_repeats(int flags) {
-    unsigned int loop = 0;
-    do {
-        blend_to_ani(pz_shared_ani.beg_loop, flags, 0.1f);
-        ani_to_end();
-        loop++;
-    } while (loop < 2);
-}
-
-/* TODO: [near miss] 99.13043%; repeat argument conversion restores frame and operations; flags/counter registers remain rotated. */
 static float pz_fighter_beg(void) {
     unsigned int flags = 3;
+    unsigned int loop;
 
     head_tracking_off();
     if (plyr_pdata->plyr_num == 1) {
@@ -1937,7 +1928,10 @@ static float pz_fighter_beg(void) {
     plyr_obj->flags_08_bits.moving = 0;
     blend_to_ani(pz_shared_ani.beg_start, flags, 0.1f);
     set_ani_speed(0.8f);
-    pz_play_beg_repeats(flags);
+    for (loop = 0; loop < 2; loop++) {
+        blend_to_ani(pz_shared_ani.beg_loop, flags, 0.1f);
+        ani_to_end();
+    }
     blend_to_ani(pz_shared_ani.beg_end, flags, 0.1f);
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.05f);

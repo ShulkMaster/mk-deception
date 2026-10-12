@@ -261,7 +261,6 @@ int is_he_airborn(void);
 void launch_me_up(float vertical_velocity, float gravity);
 void myvel_my_angle_y(float angle, float x_velocity, float z_velocity);
 void bulvan_function(int enabled);
-void myvel_his_angle_y_inout(float y, float x, float z);
 int my_joypad_state_5(void);
 
 void wait_to_land(void);
@@ -1642,7 +1641,7 @@ static float r_block_hit_projectile(void) {
 
 /* TODO: [near miss] 99.97%; hit/world Vec stack homes are swapped;
  * recover their declaration ownership before changing the scopes. */
-/* TODO: [Scope warn] hit_position and bone_offset/world_position/screen_position blocks: hoisting drops 99.97% -> 90.59%. */
+/* TODO: [Scope warn] bone_offset/world_position/screen_position block: hoisting drops 99.97% -> 90.60%. */
 static float r_combo_broken_part2(void) {
     struct ReactionImageFaderPdata* fader;
     PlyrInfo* source;
@@ -1652,21 +1651,19 @@ static float r_combo_broken_part2(void) {
     int index;
     int half_width;
 
-    {
-        Vec hit_position;
+    Vec hit_position;
 
-        object = plyr_obj;
-        if (plyr_pdata->plyr_num == 0) {
-            effect = fx_by_owner("breaker_hit_fx", 1);
-        } else {
-            effect = fx_by_owner("breaker_hit_fx", 2);
-        }
-        effect = fx_next_emitter(effect);
-        get_bone_world_pos(object, 0, &hit_position);
-        hit_position.y = 1.7f + g_game_info.field_34;
-        mk_chess_launch_fx_at_pos_with_obj_emit_based(
-            effect, hit_position.x, hit_position.y, hit_position.z);
+    object = plyr_obj;
+    if (plyr_pdata->plyr_num == 0) {
+        effect = fx_by_owner("breaker_hit_fx", 1);
+    } else {
+        effect = fx_by_owner("breaker_hit_fx", 2);
     }
+    effect = fx_next_emitter(effect);
+    get_bone_world_pos(object, 0, &hit_position);
+    hit_position.y = 1.7f + g_game_info.field_34;
+    mk_chess_launch_fx_at_pos_with_obj_emit_based(
+        effect, hit_position.x, hit_position.y, hit_position.z);
 
     source = plyr_pdata->plyr_info;
     {
@@ -2324,11 +2321,9 @@ static float r_sidehead3_dive(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.49315%; equivalent ordered-sign bne+b branch remains;
- * measured scalar, owner, complete-step and in-place helpers regress. */
-static float r_sidehead3_spin(void) {
-    float flight_ticks;
+#define SIDEHEAD_ABS(value) ((value) >= 0.0f ? (value) : -(value))
 
+static float r_sidehead3_spin(void) {
     high_flash_check();
     face_opponent_now();
     got_hit_fx(0, 2, 1, 3, 0, 0.05f, 0);
@@ -2338,12 +2333,9 @@ static float r_sidehead3_spin(void) {
     plyr_anim_pdata->step = 0.7f;
     blend_to_ani(shared_ani.side_head_spin, 3, 0.33f);
     launch_me_up(0.06f, -0.003f);
-    flight_ticks = 2.0f * (plyr_obj->pos_vel.y / plyr_obj->gravity);
-    if (flight_ticks >= 0.0f) {
-    } else {
-        flight_ticks = -flight_ticks;
-    }
-    plyr_anim_pdata->step = 27.0f / flight_ticks;
+    plyr_anim_pdata->step =
+        27.0f /
+        SIDEHEAD_ABS(2.0f * (plyr_obj->pos_vel.y / plyr_obj->gravity));
     ani_to_frame_x(27.0f);
     wait_to_land();
     tightrope_restrictions_on();

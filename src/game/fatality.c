@@ -3,7 +3,7 @@
 #include "math/gxMath.h"
 #include "game/projectile.h"
 #include "runtime/anim_api_ext.h"
-#include "game/pfxscript_api.h"
+#include "game/pfxscript.h"
 #include "runtime/anim_pdata.h"
 #include "runtime/anim_api.h"
 #include "runtime/mk_cmdscript.h"
@@ -359,16 +359,6 @@ typedef struct FatalitySonicWavePdata {
     unsigned int player_mask;
 } FatalitySonicWavePdata;
 
-typedef struct FatalityIceSubobject {
-    MkHdr hdr;
-    unsigned char flags08;
-    unsigned char flags09;
-    char pad0A[0x1E];
-    float field28;
-    char pad2C[4];
-    Vec scale;
-} FatalityIceSubobject;
-
 typedef struct FatalityEmitterBind {
     int bone_id;
     Vec position;
@@ -553,10 +543,7 @@ float sz_kill_myself(void);
 float subzero_rx_freeze(void);
 void material_set_zbias(RpMaterial* material, float bias);
 
-typedef int FatalityEffectHandle;
-extern FatalityEffectHandle fx_by_owner(
-    const char* name, unsigned int owner);
-extern void fx_resume_emit(FatalityEffectHandle handle);
+extern void fx_resume_emit(unsigned int handle);
 extern MkPfx* find_pfx_by_name(const char* name);
 extern void reset_effect(const char* name);
 extern void resume_effect(const char* name);
@@ -650,10 +637,10 @@ static inline void start_loading_fatality_anims(int secondary) {
         &fatality_state.player->fatality_palette, 1, 0);
 }
 
-static inline FatalityEffectHandle fatality_bind_next_emitter(
-    FatalityEffectHandle effect_handle, MkObj* object,
+static inline int fatality_bind_next_emitter(
+    int effect_handle, MkObj* object,
     int bone_id, int bind_render) {
-    FatalityEffectHandle emitter;
+    int emitter;
     MkPfx* effect;
     int emitter_id;
 
@@ -1797,28 +1784,12 @@ static float p_raiden_summon_lightning_bolt(void) {
     return result;
 }
 
-static inline MkObj* fatality_live_mirror_object(PlyrMirrorObjLatch* latch)
-{
-    MkObj* object = latch->obj;
-    MkObj* live;
-    if (object != 0) {
-        if (object->hdr.instance == latch->instance) {
-            live = object;
-        } else {
-            live = 0;
-        }
-    } else {
-        live = 0;
-    }
-    return live;
-}
-
 void fix_axe_angle(const Vec* angles) {
     PlyrMirrorObjLatch* latch;
     MkObj* axe;
 
     latch = &fatality_state.player->mirror_slots->weapon[0].secondary;
-    axe = fatality_live_mirror_object(latch);
+    axe = MK_HDR_LIVE(latch->obj, latch->instance);
 
     if (axe != 0) {
         YXZ_angles_to_quat(angles, &axe->orientation_quat);
@@ -1972,9 +1943,9 @@ MkObj* fatality_boraicho_get_jug(Vec* angles, Vec* offset) {
     return jug;
 }
 
-static inline FatalityEffectHandle fatality_spawn_root_emitter(
+static inline int fatality_spawn_root_emitter(
     const char* name, unsigned int owner, MkObj* object) {
-    FatalityEffectHandle handle = fx_by_owner(name, owner);
+    int handle = fx_by_owner(name, owner);
 
     if (handle == 0) {
         return 0;
@@ -1982,8 +1953,8 @@ static inline FatalityEffectHandle fatality_spawn_root_emitter(
     return fatality_bind_next_emitter(handle, object, 0x40000000, 0);
 }
 
-FatalityEffectHandle fatality_boraicho_light_fart_torch(MkObj* torch) {
-    FatalityEffectHandle emitter;
+unsigned int fatality_boraicho_light_fart_torch(MkObj* torch) {
+    int emitter;
     MkPfx* effect;
     int art_section;
 
@@ -2244,12 +2215,12 @@ void fatality_explode_victim(PlyrInfo* player_info, float arg1, float arg2) {
 
 void fire_multi_emitter_pfx_via_tbl(
     const char* effect_name, FatalityEmitterBind* table,
-    MkObj* object, FatalityEffectHandle* handles) {
+    MkObj* object, unsigned int* handles) {
     int index;
     FatalityEmitterBind* bind;
     int emitter_id;
     MkPfx* effect;
-    FatalityEffectHandle emitter;
+    unsigned int emitter;
 
     emitter = fx_by_owner(
         effect_name,
@@ -2287,10 +2258,10 @@ void fire_multi_emitter_pfx_via_tbl(
     }
 }
 
-FatalityEffectHandle pfxhandle_bgnd_spawn_at_sobj_id(
+unsigned int pfxhandle_bgnd_spawn_at_sobj_id(
     const char* name, unsigned int sobj_id) {
-    FatalityEffectHandle effect_handle;
-    FatalityEffectHandle emitter;
+    int effect_handle;
+    unsigned int emitter;
     MkSobj* sobj;
     MkPfx* effect;
 
@@ -2317,8 +2288,8 @@ FatalityEffectHandle pfxhandle_bgnd_spawn_at_sobj_id(
     return emitter;
 }
 
-FatalityEffectHandle pfxhandle_spawn_at_bid_next_bind_render(
-    FatalityEffectHandle effect_handle, MkObj* object, int bone_id)
+unsigned int pfxhandle_spawn_at_bid_next_bind_render(
+    unsigned int effect_handle, MkObj* object, int bone_id)
 {
     MkPfx* effect;
 
@@ -2340,8 +2311,8 @@ FatalityEffectHandle pfxhandle_spawn_at_bid_next_bind_render(
     return effect_handle;
 }
 
-FatalityEffectHandle pfxhandle_spawn_at_bid_next(
-    FatalityEffectHandle effect, MkObj* object, int bone_id) {
+unsigned int pfxhandle_spawn_at_bid_next(
+    unsigned int effect, MkObj* object, int bone_id) {
     MkPfx* pfx;
     int emitter_id;
 
@@ -2363,11 +2334,11 @@ FatalityEffectHandle pfxhandle_spawn_at_bid_next(
     return effect;
 }
 
-FatalityEffectHandle pfxhandle_spawn_at_bid(
+unsigned int pfxhandle_spawn_at_bid(
     const char* name, MkObj* object, int bone_id) {
-    FatalityEffectHandle emitter;
+    unsigned int emitter;
     MkPfx* effect;
-    FatalityEffectHandle handle;
+    int handle;
     int emitter_id;
 
     handle = fx_by_owner(name, 1 << plyr_pdata->plyr_info->controller_slot);
@@ -3290,9 +3261,9 @@ static inline void fatality_adjust_to_radius(
 
 }
 
-/* TODO: [near miss] 89.47%; math/CFG agree; initial scheduling, FP homes and equivalent exception exit remain; stop at coloring. */
+/* TODO: [breakthrough] 96.60%; mutable input restores load scheduling; FP homes and equivalent exception exit remain. */
 int fat_bgnd_char_setup_radius_check(
-    const FatalityRadiusCheck* check) {
+    FatalityRadiusCheck* check) {
     Vec attacker_delta;
     Vec victim_delta;
     const Vec* selected;

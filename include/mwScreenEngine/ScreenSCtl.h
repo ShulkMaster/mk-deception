@@ -172,31 +172,56 @@ public:
  */
 typedef GVTextureCollection ImageListTexCollection;
 
-typedef struct ImageList {
-    void* vtbl; /* +0x00 */
-    ScreenObjectHead head; /* +0x04 .. +0x8F */
-    int collectionId; /* +0x90 */
-    int gvContext; /* +0x94 -- Dispatcher unused arg (often -1) */
-    int optionId; /* +0x98 */
-    int pad9C; /* +0x9C */
-    int unkA0; /* +0xA0 */
-    GMTextureInfo_t textureInfo; /* +0xA4 */
-    ScreenNode** itemNodes; /* +0xAC -- Malloc(count*4) */
-    ScreenNode* linkNode; /* +0xB0 -- GetScreenNode when hasLinkNode */
-    /*
-     * +0xB4 .. +0xF3: unused by ImageList methods (ProcessParams / Update /
-     * Refresh* / Scroll* / HandleEvent). Gap before layout floats.
-     */
-    unsigned char padB4[0x40]; /* +0xB4 .. +0xF3 */
-    float layoutX; /* +0xF4 -- from first poly verts when linked */
-    float layoutY; /* +0xF8 */
-    float layoutZ; /* +0xFC */
-    int scrollBase; /* +0x100 -- Update window origin */
-    int focusIndex; /* +0x104 -- clamped to tex count */
-    int itemCount; /* +0x108 -- GetInt(0) */
-    int wrap; /* +0x10C -- GetBoolean(3); init 1 */
-    int hasLinkNode; /* +0x110 -- GetBoolean(4) */
-} ImageList; /* 0x114 */
+class ImageList : public ScreenControl {
+public:
+    virtual ~ImageList();
+    virtual void Init();
+    virtual void Dispose();
+    virtual int HandleAction(ScreenMgr* mgr, const ScreenAction* action);
+    virtual void HandleEvent(ScreenMgr* mgr, int event, int arg);
+    virtual void ProcessParams(ScreenParams* params);
+    virtual void Update();
+    virtual void RefreshCollection();
+    virtual void RefreshOption();
+    virtual void Increment(int delta);
+    virtual void Decrement(int delta);
+    virtual void ScrollInc(int delta);
+    virtual void ScrollDec(int delta);
+
+    GMTextureInfo_t textureInfo;
+    ScreenNode** itemNodes;
+    ScreenNode* linkNode;
+
+    unsigned char padB4[0x40];
+    float layoutX;
+    float layoutY;
+    float layoutZ;
+    int scrollBase;
+    int focusIndex;
+    int itemCount;
+    int wrap;
+    int hasLinkNode;
+};
+typedef char check_ImageList_layout[
+    (sizeof(ScreenControl) == 0xA4 && __alignof__(ImageList) == 4 &&
+     sizeof(ImageList) == 0x114 &&
+     (unsigned long)&((ImageList*)0)->m_collectionId == 0x90 &&
+     (unsigned long)&((ImageList*)0)->m_gvContext == 0x94 &&
+     (unsigned long)&((ImageList*)0)->m_optionId == 0x98 &&
+     (unsigned long)&((ImageList*)0)->m_pad9C == 0x9C &&
+     (unsigned long)&((ImageList*)0)->field_0xA0 == 0xA0 &&
+     (unsigned long)&((ImageList*)0)->textureInfo == 0xA4 &&
+     (unsigned long)&((ImageList*)0)->itemNodes == 0xAC &&
+     (unsigned long)&((ImageList*)0)->linkNode == 0xB0 &&
+     (unsigned long)&((ImageList*)0)->padB4 == 0xB4 &&
+     (unsigned long)&((ImageList*)0)->layoutX == 0xF4 &&
+     (unsigned long)&((ImageList*)0)->layoutY == 0xF8 &&
+     (unsigned long)&((ImageList*)0)->layoutZ == 0xFC &&
+     (unsigned long)&((ImageList*)0)->scrollBase == 0x100 &&
+     (unsigned long)&((ImageList*)0)->focusIndex == 0x104 &&
+     (unsigned long)&((ImageList*)0)->itemCount == 0x108 &&
+     (unsigned long)&((ImageList*)0)->wrap == 0x10C &&
+     (unsigned long)&((ImageList*)0)->hasLinkNode == 0x110) ? 1 : -1];
 
 /* 'WIFI' WifImage -- WiFi status image control.
  * ProcessParams: imageCount@+0xF4 (max 0x10), float@+0xF8, statusNode@+0xAC,
@@ -224,27 +249,55 @@ typedef struct WifImage {
  * ProcessParams: itemCount, collection/option ids, wrap, hasLink/hasParam
  * flags, optional linkedNode + paramB0, itemNodes[] Malloc, color from text.
  */
-typedef struct TextList {
-    void* vtbl; /* +0x00 */
-    ScreenObjectHead head; /* +0x04 .. +0x8F */
-    int collectionId; /* +0x90 */
-    int gvContext; /* +0x94 */
-    int optionId; /* +0x98 */
-    int pad9C; /* +0x9C */
-    int unkA0; /* +0xA0 */
-    ScreenNode** itemNodes; /* +0xA4 -- ScreenNode table */
-    ScreenNode* linkedNode; /* +0xA8 -- GetScreenNode when hasLinkedNode */
-    char** strings; /* +0xAC -- GameVariables string collection */
-    int paramB0; /* +0xB0 -- GetInt when hasParamB0 */
-    unsigned char color[4]; /* +0xB4 -- RGBA from ScreenText seData */
-    int focusIndex; /* +0xB8 -- init 0 */
-    int focusMax; /* +0xBC -- option cursor / string index */
-    int stringCount; /* +0xC0 -- GetStringCollection count */
-    int itemCount; /* +0xC4 -- GetInt(0) */
-    int wrap; /* +0xC8 -- GetBoolean(3); init 1 */
-    int hasLinkedNode; /* +0xCC -- GetBoolean(5) */
-    int hasParamB0; /* +0xD0 -- GetBoolean(4) */
-    int unkD4; /* +0xD4 -- set 1 when GameVariables present */
-} TextList; /* 0xD8 */
+class TextList : public ScreenControl {
+public:
+    virtual ~TextList();
+    virtual void Init();
+    virtual void Dispose();
+    virtual int HandleAction(ScreenMgr* mgr, const ScreenAction* action);
+    virtual void HandleEvent(ScreenMgr* mgr, int event, int arg);
+    virtual void ProcessParams(ScreenParams* params);
+    virtual void Update();
+    virtual void RefreshCollection();
+    virtual void RefreshOption();
+    virtual void Move(int delta);
+    virtual void ScrollInc(int delta);
+    virtual void ScrollDec(int delta);
+
+    ScreenNode** itemNodes;
+    ScreenNode* linkedNode;
+    char** strings;
+    int paramB0;
+    unsigned char color[4];
+    int focusIndex;
+    int focusMax;
+    int stringCount;
+    int itemCount;
+    int wrap;
+    int hasLinkedNode;
+    int hasParamB0;
+    int unkD4;
+};
+typedef char check_TextList_layout[
+    (sizeof(ScreenControl) == 0xA4 && __alignof__(TextList) == 4 &&
+     sizeof(TextList) == 0xD8 &&
+     (unsigned long)&((TextList*)0)->m_collectionId == 0x90 &&
+     (unsigned long)&((TextList*)0)->m_gvContext == 0x94 &&
+     (unsigned long)&((TextList*)0)->m_optionId == 0x98 &&
+     (unsigned long)&((TextList*)0)->m_pad9C == 0x9C &&
+     (unsigned long)&((TextList*)0)->field_0xA0 == 0xA0 &&
+     (unsigned long)&((TextList*)0)->itemNodes == 0xA4 &&
+     (unsigned long)&((TextList*)0)->linkedNode == 0xA8 &&
+     (unsigned long)&((TextList*)0)->strings == 0xAC &&
+     (unsigned long)&((TextList*)0)->paramB0 == 0xB0 &&
+     (unsigned long)&((TextList*)0)->color == 0xB4 &&
+     (unsigned long)&((TextList*)0)->focusIndex == 0xB8 &&
+     (unsigned long)&((TextList*)0)->focusMax == 0xBC &&
+     (unsigned long)&((TextList*)0)->stringCount == 0xC0 &&
+     (unsigned long)&((TextList*)0)->itemCount == 0xC4 &&
+     (unsigned long)&((TextList*)0)->wrap == 0xC8 &&
+     (unsigned long)&((TextList*)0)->hasLinkedNode == 0xCC &&
+     (unsigned long)&((TextList*)0)->hasParamB0 == 0xD0 &&
+     (unsigned long)&((TextList*)0)->unkD4 == 0xD4) ? 1 : -1];
 
 #endif

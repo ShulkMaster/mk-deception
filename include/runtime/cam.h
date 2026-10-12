@@ -19,6 +19,7 @@ typedef struct BackgroundDangerZone BackgroundDangerZone;
 
 BackgroundDangerZone* add_background_danger_zone(
     RpAtomic* atomic, int type, int mode);
+void initialize_background_danger_zones(void);
 void set_danger_zone_properties(
     BackgroundDangerZone* zone, float scale, float y_offset);
 

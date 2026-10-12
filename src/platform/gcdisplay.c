@@ -1152,23 +1152,23 @@ static void display_image(void) {
     wgPipe[0] = 0x100;
 }
 
-/* TODO: [near miss] 96.90%; 8x4 tile traversal and instruction order agree;
- * 24 localized GPR operands remain. */
+/* TODO: [near miss] 98.49%; 8x4 tile traversal and instruction order agree;
+ * 13 localized GPR operands remain. */
 void tile_image(unsigned char* dest) {
     unsigned char* tmp;
     const unsigned char* image;
     unsigned char* output;
-    int tile;
-    int output_offset;
     const unsigned char* tile_source;
     int pixel;
     int tile_x;
     int tile_y;
+    int output_offset;
+    int tile;
 
     tmp = _mwMemMalloc(wave_heap, sizeof(loading_image), 5, 0, 0, 0);
     image = loading_image;
-    output_offset = 0;
-    for (tile = 0; tile < 0x800; tile++) {
+    output_offset = tile = 0;
+    for (; tile < 0x800; tile++) {
         tile_x = (tile % 32) * 8;
         tile_y = (tile / 32) * 4;
         tile_source = image + tile_x;

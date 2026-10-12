@@ -1212,27 +1212,23 @@ void xfer_player_proc(MkProc* proc, MkProcEntryFn entry) {
     xfer_proc(proc, entry);
 }
 
-/* TODO: [near miss] 99.37143%; flags/output-pointer loads swap;
- * recover another honest initialization abstraction after neutral lifetime/helper probes. */
+/* TODO: [near miss] 99.37%; retail loads pdata before *flags; flag load hoists above first pdata load. */
 int load_plyr_model_async(int player, int char_id, int* flags) {
-    union {
-        MkHdr* header;
-        struct LoadPlyrModelPdata* loader;
-    } pdata_out;
+    struct LoadPlyrModelPdata* pdata;
     int pid;
     unsigned int flag_word;
 
     pid = player + LOAD_PLYR_MODEL_PID;
     destroy_mkprocs_pid(pid);
     if (_create_mkproc_generic_bigstack(
-            pid, 0x1F, p_load_plyr_model_async, sizeof(struct LoadPlyrModelPdata), &pdata_out.header) == 0) {
+            pid, 0x1F, p_load_plyr_model_async, sizeof(struct LoadPlyrModelPdata), (MkHdr**)&pdata) == 0) {
         return 0;
     }
 
     flag_word = *flags;
-    pdata_out.loader->player = player;
-    pdata_out.loader->char_id = char_id;
-    pdata_out.loader->flags.word = flag_word;
+    pdata->player = player;
+    pdata->char_id = char_id;
+    pdata->flags.word = flag_word;
     return 1;
 }
 
@@ -1510,7 +1506,6 @@ static inline void initialize_player_shadow(
     }
 }
 
-/* TODO: [near miss] 99.84%; 13 rows: his_obj/his_pdata and plyr_obj saved-pointer r5/r6 homes after the sidekick block remain. */
 float p_plyr_start(void) {
     MkObj* shadow = 0;
     FighterRuntimeData* runtime;
@@ -1638,8 +1633,8 @@ float p_plyr_start(void) {
     saved_object = plyr_obj;
     if (plyr_pdata->sidekick_available != 0) {
         runtime = plyr_pdata->runtime_data;
-        sidekick = MK_HDR_LIVE(plyr_pdata->sidekick_obj, plyr_pdata->sidekick_instance);
-        plyr_obj = sidekick;
+        sidekick = plyr_pdata->sidekick_obj;
+        plyr_obj = sidekick = sidekick != 0 ? (plyr_pdata->sidekick_obj->hdr.instance == plyr_pdata->sidekick_instance ? plyr_pdata->sidekick_obj : 0) : 0;
         if (plyr_pdata->plyr_info->flags_14_bits.alternate_costume) {
             sidekick->ground_colls = runtime->alternate_ground_collision;
             start_script = runtime->alternate_start_script;

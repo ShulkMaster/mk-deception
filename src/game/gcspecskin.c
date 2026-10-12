@@ -10,6 +10,7 @@
 #include "rw/rpskin.h"
 #include "rw/rtquat.h"
 #include "rw/rwframe.h"
+#include "rw/rwcamera_internal.h"
 #include "rw/gamecube_texture.h"
 #include "rw/rwvector.h"
 #include "math/gxMath.h"
@@ -45,16 +46,6 @@ struct SpecWorld {
     unsigned char pad00[0x34];
     RwLLLink point_lights;
     RwLLLink directional_lights;
-};
-
-struct SpecCamera {
-    unsigned char pad00[0x20];
-    RwMatrix view_matrix;
-    unsigned char pad60[0x20];
-    float near_plane;
-    float far_plane;
-    float fog_plane;
-    float z_scale;
 };
 
 struct SpecMesh {
@@ -356,11 +347,10 @@ static RpAtomic* MKReflectionRenderCallback(
     return atomic;
 }
 
-/* TODO: [near miss] 99.56%; only atomic/resource parameter registers are
- * swapped (r30/r31); local declaration order does not move them. */
+/* TODO: [near miss] 99.56%; atomic/resource r30/r31 homes remain swapped; stop at coloring. */
 static RpAtomic* MKSpecSkinRenderCallback(
     RpAtomic* atomic, struct SpecResourceEntry* resource) {
-    struct SpecCamera* camera;
+    RwCamera* camera;
     RpSkin* skin;
     RwMatrix* atomic_ltm;
     void* vertex_format;
@@ -404,12 +394,12 @@ static RpAtomic* MKSpecSkinRenderCallback(
     RwMatrixMultiply(
         &object_to_camera,
         RwFrameGetLTM(atomic->object.parent),
-        &camera->view_matrix);
+        &camera->viewMatrix);
     z_dist = object_to_camera.pos.z;
-    z_near = camera->near_plane;
-    z_scale = camera->near_plane *
-        (camera->z_scale * camera->far_plane) /
-        (camera->far_plane - camera->near_plane);
+    z_near = camera->nearPlane;
+    z_scale = camera->nearPlane *
+        (camera->zScale * camera->farPlane) /
+        (camera->farPlane - camera->nearPlane);
     if (z_dist < z_near) {
         z_dist = z_near;
     }
@@ -496,7 +486,7 @@ static inline int* spec_priority_slot(
     return (int*)((unsigned char*)base + byte_offset);
 }
 
-/* TODO: [near miss] 97.35%; declaration order improves coloring; header address staging and inlined material load schedule remain. */
+/* TODO: [near miss] 98.02%; declaration order improves coloring; header address staging and inlined material load schedule remain. */
 static void SpecSkinProcessMaterialList(
     RpAtomic* atomic, struct SpecResourceEntry* resource) {
     struct SpecMesh* alpha_meshes[64];
@@ -505,19 +495,19 @@ static void SpecSkinProcessMaterialList(
     struct SpecMeshHeader* mesh_header;
     struct SpecDisplayHeader* display_header;
     unsigned int num_meshes;
+    unsigned int mesh_index;
     struct SpecMesh* mesh;
     struct SpecDisplayList* display_lists;
     struct SpecMesh* first_mesh;
-    unsigned int mesh_index;
     int alpha_count = 0;
     int reflection_count = 0;
     int i;
     unsigned int reflection_offset = 0;
 
     display_header = &resource->display_resource->header;
-    bLastMatUploadedRoot = 1;
     display_lists =
         &display_header->lists[display_header->display_list_count - 1];
+    bLastMatUploadedRoot = 1;
     mesh_header = resource->mesh_header;
     first_mesh = mesh_header->meshes;
     num_meshes = mesh_header->num_meshes;
@@ -856,7 +846,7 @@ static inline void FindGlobalLights(void) {
         for (link = world->directional_lights.next;
              link != &world->directional_lights;
              link = link->next) {
-            struct SpecLight* light = light_from_link(link);
+            struct SpecLight* light = RW_CONTAINER_OF(link, struct SpecLight, in_world);
 
             if (light == 0) {
                 continue;
@@ -892,7 +882,7 @@ static inline void FindLocalLights(void) {
         for (link = world->point_lights.next;
              link != &world->point_lights;
              link = link->next) {
-            struct SpecLight* light = light_from_link(link);
+            struct SpecLight* light = RW_CONTAINER_OF(link, struct SpecLight, in_world);
 
             if (light == 0) {
                 continue;
@@ -1003,7 +993,7 @@ static inline void upload_directional_light(
     lighting->light_count++;
 }
 
-/* TODO: [near miss] 99.62%; FP and stack layout agree; GPR homes in the inlined FindGlobalLights/FindLocalLights loops and the first point-light upload index/object pair remain. */
+/* TODO: [near miss] 99.69%; FP and stack layout agree; GPR homes in the inlined FindGlobalLights/FindLocalLights loops and the first point-light upload index/object pair remain. */
 static RpAtomic* GCSpecSkinLighting(
     RpAtomic* atomic, struct SpecLightingData* lighting) {
     RpMaterial* specular_material;

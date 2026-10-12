@@ -1243,7 +1243,6 @@ void do_win_effect(void) {
     }
 }
 
-/* TODO: [near miss] 99.85%; first respawn block colors the player-0 mirror pointer r3 and BgndMisc r6 (retail r6/r3); typed misc local, inline reads and mirror locals measured. */
 void reset_fight(int death_trap) {
     Vec player2_angles;
     Vec player1_angles;
@@ -1273,8 +1272,8 @@ void reset_fight(int death_trap) {
         g_game_info.plyr0.slot.mirror_a->pos.value.y = g_game_info.field_34;
         g_game_info.plyr1.slot.mirror_a->pos.value.y = g_game_info.field_34;
         if (g_game_info.plyr0.slot.mirror_a != 0) {
+            player1_angles.x = g_game_info.misc->player0_angles.x;
             misc = g_game_info.misc;
-            player1_angles.x = misc->player0_angles.x;
             player1_angles.y = misc->player0_angles.y;
             player1_angles.z = misc->player0_angles.z;
             misc->player0_start.y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
@@ -1991,8 +1990,9 @@ static struct LoadingScreenEntry* get_loading_table(void) {
     }
 }
 
-/* TODO: [near miss] 98.15%; pdata and meter nonvolatiles swap (r29/r30); stop at coloring. */
+/* TODO: [near miss] 99.85%; final progress scale FPR homes and 0.5f pool entry remain (/ 2.0f form reaches report-exact but drops a retail sdata2 entry). */
 static float p_load_screen(void) {
+    ScreenObj* last_image;
     struct LoadScreenPdata* pdata;
     ScreenObj* meter;
     float progress;
@@ -2003,7 +2003,6 @@ static float p_load_screen(void) {
 
     if (meter == 0) {
         ScreenObj* image;
-        ScreenObj* last_image;
         ScreenObj* line;
         ScreenObj* loading_icon;
         int x;
@@ -2095,25 +2094,24 @@ static float p_load_screen(void) {
             meter->x = loading_icon->x + 0x39;
             meter->y = loading_icon->y + 0x18;
         }
-        return 1.0f;
-    }
+    } else {
+        if (g_game_info.flag_bits.load_complete) {
+            meter->scale_x = 91.0f;
+            _mkproc_sleep_ticks = 6.0f;
+            aproc->vtbl->sleep();
+            delete_screen_obj_oid(0x2058);
+            unload_section_slot(pdata->section_slot);
+            g_game_info.flag_bits.high_res_path = 0;
+            return -1.0f;
+        }
 
-    if (g_game_info.flag_bits.load_complete) {
-        meter->scale_x = 91.0f;
-        _mkproc_sleep_ticks = 6.0f;
-        aproc->vtbl->sleep();
-        delete_screen_obj_oid(0x2058);
-        unload_section_slot(pdata->section_slot);
-        g_game_info.flag_bits.high_res_path = 0;
-        return -1.0f;
-    }
+        progress = (float)num_files_loaded / pdata->file_count;
 
-    progress = (float)num_files_loaded / pdata->file_count;
-
-    if (progress > 1.0f) {
-        progress = 1.0f;
+        if (progress > 1.0f) {
+            progress = 1.0f;
+        }
+        meter->scale_x = (int)(183.0f * progress * 0.5f);
     }
-    meter->scale_x = (int)(183.0f * progress * 0.5f);
     return 1.0f;
 }
 

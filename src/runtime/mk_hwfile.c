@@ -77,7 +77,54 @@ static _mwFile* async_to_mwFile(MkHwFileRequest* request) {
     return request->mwFile;
 }
 
-/* TODO: [near miss] 98.98%; shared return/CTR scan match; count/entry and release pool/index registers remain. */
+static inline MkHwFileRequest* hwfile_pool_alloc(MkHwFileHandlePool* pool) {
+    MkHwFileRequest* request;
+    signed char* free_entry;
+    int count;
+    int index;
+
+    if (pool == 0) {
+        request = 0;
+    } else {
+        index = 0;
+        free_entry = pool->freelist;
+        count = pool->count;
+        for (; index < count; index++, free_entry++) {
+            if (*free_entry == 0) {
+                break;
+            }
+        }
+        if (index == pool->count) {
+            request = 0;
+        } else {
+            pool->freeCount--;
+            pool->freelist[index] = 1;
+            request = (MkHwFileRequest*)((unsigned char*)pool->base +
+                                         pool->handleSize * index);
+        }
+    }
+    return request;
+}
+
+static inline void hwfile_pool_release(MkHwFileHandlePool* pool,
+                                       MkHwFileRequest* request) {
+    int byte_offset;
+    int index;
+
+    if (pool != 0 && request >= pool->base &&
+        (unsigned char*)request <= (unsigned char*)pool->base +
+            pool->handleSize * (pool->count - 1)) {
+        byte_offset = (unsigned char*)request - (unsigned char*)pool->base;
+        index = byte_offset / pool->handleSize;
+        if (byte_offset % pool->handleSize == 0 &&
+            pool->freelist[index] != 0) {
+            pool->freelist[index] = 0;
+            pool->freeCount++;
+        }
+    }
+}
+
+/* TODO: [near miss] 99.34%; pool scan matches; release pool/index r4/r5 homes remain swapped. */
 MkHwFileRequest* mk_hwfile_open(const char* path, const char* mode) {
     char path_buffer[256];
     MkHwFileRequest* request;
@@ -91,28 +138,7 @@ MkHwFileRequest* mk_hwfile_open(const char* path, const char* mode) {
     } else {
         path_buffer[0] = '\0';
         strcat(path_buffer, path);
-        if (!HANDLE_POOL_AVAILABLE(&handle_pool)) {
-            request = 0;
-        } else {
-            int index;
-            signed char* free_entry;
-
-            index = 0;
-            free_entry = handle_pool.freelist;
-            for (; index < handle_pool.count; index++, free_entry++) {
-                if (*free_entry == 0) {
-                    break;
-                }
-            }
-            if (index == handle_pool.count) {
-                request = 0;
-            } else {
-                handle_pool.freeCount--;
-                handle_pool.freelist[index] = 1;
-                request = (MkHwFileRequest*)((unsigned char*)handle_pool.base +
-                                             handle_pool.handleSize * index);
-            }
-        }
+        request = hwfile_pool_alloc(&handle_pool);
         if (request == 0) {
             request = 0;
         } else {
@@ -122,23 +148,7 @@ MkHwFileRequest* mk_hwfile_open(const char* path, const char* mode) {
             request->openCommand = mwFileOpenAsync(
                 path_buffer, mwFileOpenModeToFlags(mode), open_callback, request);
             if (request->openCommand == 0) {
-                MkHwFileHandlePool* pool = &handle_pool;
-                int byte_offset;
-                int release_index;
-
-                if (HANDLE_POOL_AVAILABLE(pool) &&
-                    request >= pool->base &&
-                    (unsigned char*)request <= (unsigned char*)pool->base +
-                        pool->handleSize * (pool->count - 1)) {
-                    byte_offset = (unsigned char*)request -
-                                  (unsigned char*)pool->base;
-                    release_index = byte_offset / pool->handleSize;
-                    if (byte_offset % pool->handleSize == 0 &&
-                        pool->freelist[release_index] != 0) {
-                        pool->freelist[release_index] = 0;
-                        pool->freeCount++;
-                    }
-                }
+                hwfile_pool_release(&handle_pool, request);
                 request = 0;
             }
         }
@@ -234,7 +244,13 @@ int mk_hwfile_tell(MkHwFileRequest* request) {
     return offset;
 }
 
-/* TODO: [near miss] 97.18%; retail retains an inner safe-free guard; pool owner and index still use swapped GPRs. */
+/* TODO: [near miss] 98.79%; safe-free guard recovered; pool owner and index still use swapped GPRs (r4/r5). */
+static inline void mk_hwfile_free_command_safe(void* command) {
+    if (command != 0) {
+        mwFileFreeCommand(command);
+    }
+}
+
 void mk_hwfile_close(MkHwFileRequest* request) {
     void* command;
     int byte_offset;
@@ -249,7 +265,7 @@ void mk_hwfile_close(MkHwFileRequest* request) {
                 mwFileFreeCommand(command);
             }
             if (request->openCommand != 0) {
-                mwFileFreeCommand(request->openCommand);
+                mk_hwfile_free_command_safe(request->openCommand);
                 request->openCommand = 0;
             }
             if (HANDLE_POOL_AVAILABLE(&handle_pool) &&

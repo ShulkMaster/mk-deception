@@ -432,9 +432,8 @@ void* get_cdf_data(int handle, unsigned int art_oid) {
     return data;
 }
 
-/* TODO: [near miss] 99.60%; ART finder, alpha indexing and guard agree;
- * seven texture-register substitutions remain. */
 RwTexture* load_named_alpha_texture_from_slot(int handle, const char* name) {
+    RwTexture* tex;
     int file_count;
     int file_index;
     SecSlotFileEntry* entry;
@@ -459,7 +458,6 @@ RwTexture* load_named_alpha_texture_from_slot(int handle, const char* name) {
                     (unsigned int)entry->member_count) {
                     if (strcmp(entry->members[member_index].name_or_data,
                                name) == 0) {
-                        RwTexture* tex;
                         if (entry != NULL) {
                             tex = entry->members[member_index].texture;
                             if (tex != NULL) {

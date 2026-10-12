@@ -692,7 +692,7 @@ static float p_konq_interior_loop(void) {
     return 1.0f;
 }
 
-/* TODO: [borked] 98.68%; NPC removal lacks retail null guard; recover NPC loop and pool layout. */
+/* TODO: [breakthrough] 98.70%; NPC removal null guard restored; indexed traversal retains extra offset and saved register. */
 static float p_konq_interior_exit_point(void) {
     MkObj* hero;
     MkObj* interior_object;
@@ -763,8 +763,8 @@ static float p_konq_interior_exit_point(void) {
 
             if (npc != 0) {
                 npc->flags_bits.in_interior = 0;
+                remove_npc(npc_data[index]);
             }
-            remove_npc(npc_data[index]);
         }
     }
 

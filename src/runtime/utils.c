@@ -898,23 +898,23 @@ void service_game_timers(void) {
     g_game_info.field_20C += 1;
 }
 
-/* TODO: [near miss] 97.50%; loop state and parameter homes differ;
+/* TODO: [near miss] 97.95%; loop state and parameter homes differ;
  * current/target math and live-instance latch agree. */
 void display_numerical_change(
     StringObj* string, int font, int start, int change,
     int ticks, int acceleration_interval) {
-    unsigned int instance;
-    char text[40];
     int current = start;
+    char text[40];
+    unsigned int instance;
     int target = current + change;
     int step = change < 0 ? -1 : 1;
-    int tick_count = 0;
     int acceleration_count = 0;
+    int tick_count = 0;
 
     if (string != 0) {
         instance = string->instance;
 
-        while (current != target) {
+        while (target != current) {
             StringObj* live;
 
             _mkproc_sleep_ticks = 1.0f;
@@ -1425,9 +1425,6 @@ static float p_fade_screen(void) {
     return done != 0 ? kFadeDoneTick : kFadeSleepTick;
 }
 
-#pragma dont_inline on
-/* TODO: [near miss] 98.81%; owner reloads and saved-register homes agree;
- * initial vertex publication register swaps remain (24 instruction rows). */
 static void fade_screen(int frames, int color, int flag, int to_fade) {
     struct FadeScreenPdata* pdata;
     struct FadeScreenPdata* initial_fade;
@@ -1438,8 +1435,6 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
     int next_alpha;
     int wait_count;
     int tick_allowed;
-    int i;
-    unsigned char alpha;
 
     frames = ((float)frames * inverse_game_speed);
     if (find_mkproc_pid(FADE_PROC_PID) == 0) {
@@ -1501,11 +1496,7 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
                     obj = MK_LIVE(initial_fade->screen_obj, initial_fade->screen_instance);
 
                     if (obj != 0) {
-                        alpha = initial_fade->alpha;
-                        for (i = 0; i < 4; i++) {
-                            obj->pfx2d->verts[i].a = alpha;
-                        }
-                        obj->pfx2d->mirror = 1;
+                        publish_fade_screen_alpha(obj, initial_fade->alpha);
 
                         if (initial_fade->audio_flag != 0) {
                             volume = snd_get_game_vol() - volume_step;
@@ -1529,11 +1520,7 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
                     obj = MK_LIVE(initial_fade->screen_obj, initial_fade->screen_instance);
 
                     if (obj != 0) {
-                        alpha = initial_fade->alpha;
-                        for (i = 0; i < 4; i++) {
-                            obj->pfx2d->verts[i].a = alpha;
-                        }
-                        obj->pfx2d->mirror = 1;
+                        publish_fade_screen_alpha(obj, initial_fade->alpha);
 
                         if (initial_fade->audio_flag != 0) {
                             volume = snd_get_game_vol();
@@ -1572,7 +1559,6 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
         }
     }
 }
-#pragma dont_inline reset
 
 void fade_from_black(int frames, int flag) {
     fade_screen(frames, 0, flag, 0);
@@ -1951,7 +1937,7 @@ UvScrollControl* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1,
                                       float v1, float u2, float v2) {
     UvScrollControl* ctrl;
     RpGeometry* geom;
-    void* skin;
+    RpSkin* skin;
     int count;
     int i;
     RpMaterial* material;
@@ -2028,7 +2014,7 @@ UvScrollControl* sobj_start_uv_scroll(MkObj* owner, MkSobj* subobject, float u1,
 UvScrollControl* start_sobj_uv_scroll(
     MkObj* owner, int sobj_id, float u1, float v1, float u2, float v2) {
     MkSobj* subobject;
-    void* result;
+    UvScrollControl* result;
 
     subobject = obj_create_sobjs_by_id(owner, sobj_id);
     if (subobject != 0) {

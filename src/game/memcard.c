@@ -5,6 +5,7 @@
 #include "game/mcardmsg.h"
 #include "game/plyrprofile.h"
 #include "platform/gcmcard.h"
+#include "platform/gcmcardmsg.h"
 #include "runtime/cstdio.h"
 #include "runtime/cstring.h"
 #include "runtime/mk_proc.h"
@@ -15,28 +16,11 @@
 
 #pragma use_lmw_stmw on
 
-void mcard_msg_end(void);
-void mcard_msg_read(int device);
-void mcard_msg_save(int device);
-void mcard_msg_auto_save(int device);
-void mcard_msg_create(int device);
-void mcard_msg_deleting_data(int device);
-void mcard_msg_middle_sleep(int mode, int unused);
-void mcard_msg_save_successful(void);
-void mcard_msg_save_failed(int device);
-void mcard_msg_create_successful(void);
-void mcard_msg_create_failed(void);
-void mcard_msg_delete_successful_generic(void);
-void mcard_msg_delete_failed_generic(void);
-void mcard_msg_profile_reset_confirmation(void);
-void mcard_msg_cant_enter_konquest(int device, const char* profileName);
-void update_storage_status_for_one_device(int device);
 
 extern char konq_region_data_buffer[0x1F54];
 extern int p1_profile_device;
 extern int p1_profile_slot;
 extern int msg_cant_enter_konquest_answer;
-extern int msg_profile_reset_confirmation_answer;
 
 #define STR_SPACE " "
 #define STR_COUNT_UNIT "%d %s"
@@ -849,7 +833,7 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
 }
 
 #pragma dont_inline on
-/* TODO: [near miss] 98.47%; buffer/pool ownership recovered; progress-add order and coloring remain. */
+/* TODO: [near miss] 99.63%; progress-add order aligns; region-save and mode-check register allocation remains. */
 int save_to_memcard_w_error(int device, int mode, const char* title, void* settings, int flag,
                             unsigned int* freeBlocks, int* freeBytes) {
     StorageDevice* dev;
@@ -860,19 +844,14 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
     int result;
     int cont;
     int tries;
-    int profile;
-    int chunk;
-    int chunkOff;
-    int progressBase;
-    char* regionBuffer;
     MkVtableMkproc* vtbl;
 
+    result = 0;
     dev = DEVICE_AT(device);
     deviceFreeBytes = &dev->freeBytes;
     deviceFreeBlocks = &dev->freeBlocks;
     modeMinus1 = mode - 1;
     modeMinus6 = mode - 6;
-    result = 0;
 
     for (;;) {
         result = 0;
@@ -931,7 +910,11 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                 vtbl = aproc->vtbl;
                 vtbl->sleep();
                 if (result == 0) {
-                    regionBuffer = konq_region_data_buffer;
+                    int chunkOff;
+                    int profile;
+                    char* regionBuffer = konq_region_data_buffer;
+                    int chunk;
+                    int progressBase;
                     memset(regionBuffer, 0, SAVE_CHUNK_SIZE);
                     profile = 0;
                     progressBase = 0;
@@ -951,7 +934,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                             chunk += 1;
                             chunkOff += SAVE_CHUNK_SIZE;
                         }
-                        mu_access_progress = (chunk + progressBase) + 0x13;
+                        mu_access_progress = chunk + (progressBase + 0x13);
                         fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
                         _mkproc_sleep_ticks = kThree;
                         vtbl = aproc->vtbl;

@@ -24,7 +24,7 @@ typedef struct GVTextureCollection {
 /* Embedded two-word Get/FreeTextureCollection state used by ImageList. */
 typedef struct GMTextureInfo_t {
     GVTextureCollection* data; /* +0x00 */
-    unsigned int ready; /* +0x04 */
+    int ready; /* +0x04 */
 } GMTextureInfo_t;
 
 #endif

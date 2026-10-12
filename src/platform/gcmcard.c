@@ -193,15 +193,15 @@ static inline int gc_resolve_profile_crc_answer(int device)
     return continue_loading;
 }
 
-/* TODO: [near miss] 98.09689%; answer dispatch restored; device/index coloring and redundant format-result branch remain. */
+/* TODO: [near miss] 98.62%; device/index allocation agrees; redundant format-result branch remains. */
 int check_load_profile_result(int* result, int device) {
     StorageDevice* dev;
     int cont;
     int answer;
     const char* name;
 
+    DEVICE_AT(device)->status = *result;
     dev = DEVICE_AT(device);
-    dev->status = *result;
 
     switch (*result) {
     case 8:
@@ -462,7 +462,7 @@ int format_card_and_create_mkda_file(int device) {
     return result;
 }
 
-static inline int gc_mount_checked(int device) {
+static inline int mem_card_mount(int device) {
     unsigned char* work;
     CARDCallback detach;
     s32 rc;
@@ -503,7 +503,7 @@ static inline int gc_mount_checked(int device) {
     }
 }
 
-static inline int gc_unmount_checked(int device) {
+static inline int mem_card_unmount(int device) {
     s32 rc;
 
     if (device < 0 || device >= 2)
@@ -584,7 +584,7 @@ int gc_format_procedure(int device) {
             break;
         }
 
-        rc = gc_mount_checked(device);
+        rc = mem_card_mount(device);
 
         if (rc != 0 && (unsigned int)(rc + 0x34) > 1) {
             break;
@@ -620,7 +620,7 @@ int gc_format_procedure(int device) {
     }
 
     if (formatted) {
-        rc = gc_unmount_checked(device);
+        rc = mem_card_unmount(device);
         if (rc == 0) {
             mcard_msg_format_successful(device);
             f_writing_to_memcard = 0;
@@ -640,13 +640,13 @@ int gc_delete_file(int device, const char* fileName) {
         return 0;
     }
 
-    mapped = gc_mount_checked(device);
+    mapped = mem_card_mount(device);
     if (mapped == 0) {
         do {
             rc = CARDDelete(device, fileName);
         } while (rc == -1);
         if (rc == 0) {
-            mapped = gc_unmount_checked(device);
+            mapped = mem_card_unmount(device);
             if (mapped != 0)
                 mapped = 4;
             if (mapped == 0)
@@ -762,7 +762,7 @@ int load_from_memcard2(int device, int modeFlag, unsigned int offset, const char
         goto done;
     }
 
-    status = gc_mount_checked(device);
+    status = mem_card_mount(device);
     if (status != 0) {
         switch (status) {
         case -10: result = 1; goto done;
@@ -853,7 +853,7 @@ int load_from_memcard2(int device, int modeFlag, unsigned int offset, const char
         result = 6;
         goto unmount_file;
     }
-    status = gc_unmount_checked(device);
+    status = mem_card_unmount(device);
     if (status != 0) {
         switch (status) {
         case -10: result = 1; break;
@@ -1003,7 +1003,7 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
         seekBlock = (offset - 0x28B8U) / 0x1F54U + 2;
     }
     gc_seek_position = seekBlock;
-    status = gc_mount_checked(device);
+    status = mem_card_mount(device);
     if (status != 0) {
         switch (status) {
         case -10: result = 1; goto done;
@@ -1135,7 +1135,7 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
         }
         goto unmount_file;
     }
-    status = gc_unmount_checked(device);
+    status = mem_card_unmount(device);
     if (status != 0) {
         switch (status) {
         case -10: result = 1; break;
@@ -1173,7 +1173,6 @@ done:
 }
 
 
-/* TODO: [near miss] 99.39%; 64-bit serial and removal state recovered; flag publication homes remain. */
 void gc_mem_card_status_changes_for_one_device(int device) {
     int serialRc;
     u64 serial;
@@ -1207,23 +1206,18 @@ void gc_mem_card_status_changes_for_one_device(int device) {
     case -0x80: {
         unsigned int mask = mcmasks[device];
         if ((last_card_state & (int)mask) == 0) {
-            last_card_state |= (int)mask;
             insertions |= (int)mask;
+            last_card_state |= (int)mask;
         }
         last_card_serial_no[device] = 0;
         return;
     }
     case -3: {
         unsigned int mask = mcmasks[device];
-        int state = last_card_state;
-        int pending = insertions;
-        unsigned int retained_mask = ~mask;
-
-        insertions = pending & (int)retained_mask;
-        if ((state & (int)mask) != 0) {
-            int removed = removals;
-            last_card_state = state & (int)retained_mask;
-            removals = removed | (int)mask;
+        insertions &= ~(int)mask;
+        if ((last_card_state & (int)mask) != 0) {
+            removals |= (int)mask;
+            last_card_state &= ~(int)mask;
         }
         last_card_serial_no[device] = 0;
         return;

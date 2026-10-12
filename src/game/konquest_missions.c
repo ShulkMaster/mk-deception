@@ -417,33 +417,6 @@ static inline void hide_background_box(struct KonquestBackgroundBox* box) {
     }
 }
 
-static inline StringObj* get_countdown_string_latch(
-    struct KonquestMissionState* state) {
-    if (state->countdown_string != 0) {
-        if (state->countdown_string->instance == state->countdown_string_instance) {
-            return state->countdown_string;
-        }
-        return 0;
-    }
-    return 0;
-}
-
-static inline MkProc* get_process_latch(
-    MkProc* process, unsigned int instance) {
-    MkProc* live;
-
-    if (process != 0) {
-        if (instance == process->instance) {
-            live = process;
-        } else {
-            live = 0;
-        }
-    } else {
-        live = 0;
-    }
-    return live;
-}
-
 static inline ScreenObj* load_prompt(
     struct KonquestTrialWindowPdata* pdata, struct KonquestScreenLatch* latch,
     const char* name, int insert) {
@@ -1143,7 +1116,6 @@ int trial_show_standard_fight_messages(void) {
     return mission_state->display_flags & 1;
 }
 
-/* TODO: [near miss] 99.98%; only the four @stringBase0 offsets differ (retail pool is 13 bytes longer before OK_BUTTON; TU string layout). */
 void load_window_frame(void) {
     struct KonquestTrialWindowPdata* pdata = (struct KonquestTrialWindowPdata*)apdata;
     int frame_flags;
@@ -1391,8 +1363,8 @@ void text_window_fade_in(unsigned char ticks) {
     }
 }
 
-/* TODO: [breakthrough] window setup helpers restored (MAP sizes exact); fade-in
- * alpha web coloring and destroy_screen_latch latch shape remain. */
+/* TODO: [near miss] 95.18%; inlined frame/alpha GPR homes and destroy_screen_latch
+ * result homes/reloads differ; preserve typed helper boundaries. */
 float p_show_text_window(void) {
     struct KonquestTrialWindowPdata* window =
         (struct KonquestTrialWindowPdata*)apdata;
@@ -1539,7 +1511,7 @@ void trial_setup_onscreen_display_items(
 static inline void destroy_current_countdown_string(void) {
     struct KonquestMissionState* state = mission_state;
 
-    if (get_countdown_string_latch(mission_state) != 0) {
+    if (MK_LIVE(mission_state->countdown_string, mission_state->countdown_string_instance) != 0) {
         StringObj* string = state->countdown_string;
         if (string->instance != 0) {
             string->typed_vtbl->destroy(string);
@@ -1591,7 +1563,7 @@ static float p_finish_countdown(void) {
     struct KonquestMissionState* state;
 
     aproc->flags_bits.use_game_speed = 1;
-    string = get_countdown_string_latch(mission_state);
+    string = MK_LIVE(mission_state->countdown_string, mission_state->countdown_string_instance);
     if (string != 0) {
         update_string_obj(string, 1, "0");
         _mkproc_sleep_ticks = 60.0f;
@@ -1599,7 +1571,7 @@ static float p_finish_countdown(void) {
     }
 
     state = mission_state;
-    string = get_countdown_string_latch(mission_state);
+    string = MK_LIVE(mission_state->countdown_string, mission_state->countdown_string_instance);
     if (string != 0) {
         string = state->countdown_string;
         if (string->instance != 0) {
@@ -3807,14 +3779,12 @@ static float p_finish_transform_monk(void) {
 #pragma opt_propagation reset
 
 
-/* TODO: [near miss] 99.83%; flat body matches; first set swaps r28/r29 between first emitter and effect object (coloring only). */
 static void start_hero_transform_effect(MkObj* hero) {
     unsigned int emitter;
     MkObj* effect_object;
     MkPfx* particle;
 
-    emitter = fx_by_owner("hero_transform_smoke", 4);
-    emitter = fx_next_emitter(emitter);
+    emitter = fx_next_emitter(fx_by_owner("hero_transform_smoke", 4));
     particle = pfx_from_emitter(emitter);
     effect_object = pfx_bind_emitter_num_to_new_obj(particle, 0x6015, 0);
     get_bone_world_pos(hero, 0x10, &effect_object->pos.value);
@@ -3852,8 +3822,7 @@ static void start_hero_transform_effect(MkObj* hero) {
     pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x09, 10);
     fx_restart_emit(emitter);
 
-    emitter = fx_by_owner("hero_transform_explode", 4);
-    emitter = fx_next_emitter(emitter);
+    emitter = fx_next_emitter(fx_by_owner("hero_transform_explode", 4));
     particle = pfx_from_emitter(emitter);
     effect_object = pfx_bind_emitter_num_to_new_obj(particle, 0x6015, 0);
     get_bone_world_pos(hero, 0x10, &effect_object->pos.value);

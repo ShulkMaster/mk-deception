@@ -1827,8 +1827,8 @@ void init_bgnd_info_struct(void) {
     g_game_info.field_78 = 0;
     g_game_info.mode_table = 0;
 }
-/* TODO: [near miss] 97.54%; retail pools g_current_reaction_info/collision lists off
- * bgnd_animations (TU data layout: bgnd.c defines no .bss); r30/r31 coloring follows. */
+/* TODO: [breakthrough needed] 97.65%; pooled BSS ownership remains incomplete;
+ * recover bgnd_generic_proc_item storage and full retail layout before coloring. */
 int load_background(int bgnd_id) {
     char* art_name;
     int art_id;
@@ -1901,7 +1901,7 @@ int load_background(int bgnd_id) {
         if (g_game_info.section->anims != 0) {
             load_background_anims(g_game_info.section->anims, bgnd_id);
         } else {
-            memset(bgnd_animations, 0, 0x84);
+            memset(bgnd_animations, 0, sizeof(bgnd_animations));
         }
     }
 
@@ -1946,7 +1946,7 @@ int load_background(int bgnd_id) {
     }
 
     if (g_game_info.sky != 0) {
-        mk_insert((MkHdr*)g_game_info.sky, &g_game_info.bgnd_obj->child_list);
+        mk_insert(&g_game_info.sky->hdr, &g_game_info.bgnd_obj->child_list);
     }
 
     apply_to_mklist(add_mkx_light_obj_to_bgnd_cleanup_list,
@@ -1987,8 +1987,8 @@ int load_background(int bgnd_id) {
     }
 
     g_game_info.bgnd_id = bgnd_id;
-    ctx.art_id = art_id;
     ctx.bgnd_obj = g_game_info.bgnd_obj;
+    ctx.art_id = art_id;
     ctx.pad = 0;
     active_cmdscript->mko = g_game_info.cmdscript;
     g_game_info.cmdscript->load_ctx = &ctx;
@@ -3942,8 +3942,7 @@ void bgnd_rotate_xz_about_orgin_active_sobj(float angle) {
     g_active_sobj->ang.y = angle;
     update_mksobj(g_active_sobj);
 }
-#pragma dont_inline on
-/* TODO: [near miss] 99.60674%; item ID and displayed-list head coloring remains; preserve explicit discard under dont_inline. */
+/* TODO: [near miss] 99.60674%; item ID, displayed-list head and zero register homes remain; stop at coloring. */
 void bgnd_make_displayed_item_pickupable_at_active_sobj_pos(int item_id) {
     BgndDisplayedItem* item;
     MkPtr** displayed_list;
@@ -3970,8 +3969,7 @@ void bgnd_make_displayed_item_pickupable_at_active_sobj_pos(int item_id) {
             list_item = (BgndDisplayedItem*)link->hdr;
             if (link->instance != list_item->hdr.instance) {
                 MkPtr* next = link->next;
-                link->hdr = 0;
-                destroy_mkptr(link);
+                discard_stale_mkptr(link);
                 link = next;
             } else if (list_item->type == item_id) {
                 mk_pull_discard(&list_item->hdr, displayed_list);
@@ -3991,7 +3989,6 @@ void bgnd_make_displayed_item_pickupable_at_active_sobj_pos(int item_id) {
         }
     }
 }
-#pragma dont_inline reset
 int bgnd_get_first_shape_center_for_obstacle_id(int obstacle_id,
                                                 int scratch_index) {
     return get_first_shape_center_for_obstacle_id(

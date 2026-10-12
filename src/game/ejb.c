@@ -3315,7 +3315,7 @@ float xz_distance_between_players(void) {
     return delta_x * delta_x + delta_z * delta_z;
 }
 
-/* TODO: [near miss] 98.52%; the gxMathSin result goes through f0 before f31 (extra fmr) in both angle branches; stop at coloring. */
+/* TODO: [near miss] 98.52%; the gxMathSin result goes through f0 before f31 (extra fmr) in both angle branches; stop at call-result coloring. */
 void myvel_his_angle_y_inout(
     float angle_offset, float x_velocity, float z_velocity) {
     float camera_z;

@@ -80,7 +80,7 @@ void mat_x_mat(MKMATRIX* out, const MKMATRIX* a, const MKMATRIX* b);
 void set_mat(MKMATRIX* dst, const MKMATRIX* src);
 float ang_sub_ang(float angle_a, float angle_b);
 float quat_extract_ang_y(const Quat* q);
-void interp_quat(Quat* out, const Quat* q1, const Quat* q2, float weight);
+void interp_quat(Quat* out, Quat* q1, Quat* q2, float weight);
 void quat_x_quat(Quat* out, const Quat* a, const Quat* b);
 void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2);
 void quat_to_mat(MKMATRIX* out, const Quat* q);

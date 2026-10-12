@@ -122,7 +122,6 @@ void gxVectV3V3ToQuat(Quat* out, const Vec* v1, const Vec* v2) {
 
 void gxQuatQuatToMat(Mat33* out, const Quat* q) {
     Mtx m;
-    int three;
 
     PSMTXQuat(m, q);
     out->col0[0] = m[0][0];
@@ -137,8 +136,7 @@ void gxQuatQuatToMat(Mat33* out, const Quat* q) {
     out->col2[1] = m[1][2];
     out->col2[2] = m[2][2];
     out->pad2 = kZero;
-    three = 3;
-    out->flags = three;
+    out->flags = 3;
 }
 
 void gxQuatNorm(Quat* q) {

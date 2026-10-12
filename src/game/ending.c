@@ -225,8 +225,7 @@ static inline int count_credits_text(void) {
 /* TODO: [near miss] 99.35185%; duration and width lifetimes recovered; twelve FP/GPR coloring rows remain; tier 2. */
 void ending_show_text(int string_id, int duration) {
     MkHdr* pdata;
-    const char* text;
-    int width;
+    char* text;
     int adjusted_duration;
     int frame_rate;
 
@@ -240,6 +239,8 @@ void ending_show_text(int string_id, int duration) {
     if (_create_mkproc_generic_bigstack(
             0x9002, aproc->priority + 1, p_show_text_window,
             sizeof(struct EndingTextWindowPdata), &pdata) != 0) {
+        int width;
+
         zero_pdata_payload(sizeof(struct EndingTextWindowPdata), pdata);
         width = screen_width;
         text_window_state = 0;
@@ -542,8 +543,8 @@ void ending_show_image(int image) {
     fade_to_black(8, 1);
 }
 
-/* TODO: [near miss] 99.70%; countdown and byte-alpha operations agree; current_final/next_alpha register homes (r15/r16) and divide temp remain. */
 static void fade_ending_screen_images(int image, int ticks) {
+    unsigned char current_final;
     unsigned char next_alpha;
     unsigned char current_alpha;
     int remaining;
@@ -555,7 +556,6 @@ static void fade_ending_screen_images(int image, int ticks) {
     unsigned char current_step;
     unsigned char next_step;
     ScreenObj* image_3b;
-    unsigned char current_final;
     unsigned char next_final;
 
     remaining = ticks;
@@ -567,14 +567,13 @@ static void fade_ending_screen_images(int image, int ticks) {
     image_3b = MK_LIVE(ending_image_3b_item.object, ending_image_3b_item.instance);
 
     if (image == 1) {
-        image_1a->flag_bits.hidden = 0;
-
-        next_alpha = 0;
-        current_step = 0xFF / (ticks + 1);
-        image_1b->flag_bits.hidden = 0;
         current_alpha = 0;
+        current_step = 0xFF / (ticks + 1);
+        image_1a->flag_bits.hidden = 0;
+        image_1b->flag_bits.hidden = 0;
 
         current_final = 0xFF;
+        next_alpha = 0;
         next_final = 0;
         next_step = 0;
     } else if (image == 2) {

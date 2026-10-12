@@ -9,6 +9,7 @@
 #include "game/constrain.h"
 #include "game/ejb.h"
 #include "game/pfxscript.h"
+#include "game/fatality.h"
 #include "game/pwrbar.h"
 #include "platform/main.h"
 #include "libmkparticle/particle.h"
@@ -108,9 +109,6 @@ void fx_resume_emit(unsigned int effect);
 void pull_bone_hierarchy_mkobj(MkObj* object);
 void obj_set_all_sobjs_priority(MkObj* object, int priority);
 int pfx_plyr_bankowner(PlyrInfo* player);
-void fx_pause_emit(unsigned int effect);
-unsigned int pfxhandle_spawn_at_bid_next(
-    unsigned int effect, MkObj* object, int bone);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, unsigned int alpha);
 
 void trial_state_collision_check(int collision_result, int player);
@@ -307,8 +305,7 @@ void kill_ermac_eyes(void) {
     }
 }
 
-void dizzy_kill_pfx(
-    MkObj* opponent, int unused, PlyrPdata* player, int enabled) {
+void dizzy_kill_pfx(void) {
     if (plyr_pdata != 0) {
         switch (plyr_pdata->character_id) {
         case 6:

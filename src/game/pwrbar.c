@@ -781,7 +781,7 @@ float p_move_pbars_off_screen(void) {
         for (string_index = 0;
              pbar_string_item_list[string_index] != 0; string_index++) {
             latch = pbar_string_item_list[string_index];
-            string = (StringObj*)MK_LIVE((ScreenObj*)latch->object, latch->instance);
+            string = MK_LIVE((StringObj*)latch->object, latch->instance);
             if (string != 0) {
                 string->render_y += 6;
             }

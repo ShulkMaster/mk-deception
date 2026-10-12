@@ -333,8 +333,7 @@ static void MatFunc1(RwRGBAReal* color, GXColor* material, void*, float intensit
 
 #pragma push
 #pragma optimize_for_size on
-/* TODO: [near miss] 99.53%; size mode restores induction-update order;
- * atomic/sentinel/next GPR homes remain swapped. */
+/* TODO: [near miss] 99.53%; atomic/sentinel/next saved-register homes differ; stop at clean-C coloring ceiling. */
 void GCNSetupNonRenderwarePipeline(RpClump* clump, MkObj* owner) {
     RwLLLink* sentinel = &clump->atomicList;
     RwLLLink* link = clump->atomicList.next;

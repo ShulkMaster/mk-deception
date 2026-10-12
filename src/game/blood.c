@@ -2538,7 +2538,7 @@ static float p_bleed(void) {
         item = *list;
         while (item != 0) {
             hdr = item->hdr;
-            if (item->instance != hdr->instance) {
+            if (hdr->instance != item->instance) {
                 next = item->next;
                 discard_stale_mkptr(item);
                 item = next;

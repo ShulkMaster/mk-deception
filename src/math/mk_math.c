@@ -52,8 +52,10 @@ static float mk_inv_sqrt(float x) {
     return guess * correction * (kNewton12 - (scaled_input * correction * correction));
 }
 
-/* TODO: [near miss] 97.59%; coefficient preparation and FP operations agree; input/component register coloring remains. */
+/* TODO: [near miss] 98.70%; named point components agree; direction-Z/scaled-X FPR homes remain. */
 int intersect_xz_lines(const Vec* p, const Vec* dir, Vec* out, float a, float b) {
+    float px;
+    float pz;
     float dx;
     float dz;
     float neg_dx;
@@ -63,17 +65,19 @@ int intersect_xz_lines(const Vec* p, const Vec* dir, Vec* out, float a, float b)
     float cross;
     float t;
 
+    px = p->x;
+    pz = p->z;
     dx = dir->x;
     dz = dir->z;
     neg_a = -a;
     neg_dx = -dx;
     bx = dx * b;
     bz = dz * b;
-    cross = p->x * dz + p->z * neg_dx;
+    cross = px * dz + pz * neg_dx;
     if (cross == kZero) {
         return 0;
     }
-    t = -(neg_a + (p->x * bx + p->z * bz)) / cross;
+    t = -(neg_a + (px * bx + pz * bz)) / cross;
     out->x = dz * t + bx;
     out->z = neg_dx * t + bz;
     out->y = kZero;
@@ -573,13 +577,12 @@ static inline void interpolate_quat_components(
     out->w = weight_1 * q1->w + weight_2 * q2->w;
 }
 
-/* TODO: [near miss] 89.00%; weight/dot/sign FPR ownership and component load/store scheduling remain. */
-void interp_quat(Quat* out, const Quat* q1, const Quat* q2, float t) {
-    float sign;
+void interp_quat(Quat* out, Quat* q1, Quat* q2, float t) {
     float oneMinusT;
     float dot;
     float theta;
     float invSin;
+    float sign;
     float len;
     float inv;
 
@@ -602,7 +605,8 @@ void interp_quat(Quat* out, const Quat* q1, const Quat* q2, float t) {
         t = invSin * gxMathSin(t * theta);
         oneMinusT = invSin * gxMathSin(oneMinusT * theta);
     }
-    interpolate_quat_components(out, q1, q2, t, oneMinusT * sign);
+    oneMinusT *= sign;
+    interpolate_quat_components(out, q1, q2, t, oneMinusT);
     if (dot > kSlerpNormDotThresh) {
         len = out->x * out->x + out->y * out->y + out->z * out->z + out->w * out->w;
         if (len < kSlerpDotThresh || len > kSlerpNormDotThresh) {
@@ -687,38 +691,35 @@ void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
     out->w = gxMathFastSqrt(half);
 }
 
-/* TODO: [near miss] 95.82%; products, FP order and frame agree;
- * quaternion component/product FPR coloring remains. */
+/* TODO: [near miss] 97.45%; rounded products and store order agree;
+ * component/cross-product FPR coloring remains. */
 void quat_to_mat(MKMATRIX* out, const Quat* q) {
     float y = q->y;
     float z = q->z;
     float x = q->x;
-    float yy = y * y;
     float w = q->w;
-    float zz = z * z;
     float xy = x * y;
     float wz = w * z;
     float zx = z * x;
     float wy = w * y;
-    float xx = x * x;
     float yz;
     float wx;
 
-    out->right.x = -(kTwo * (yy + zz) - kOne);
+    out->right.x = -(kTwo * (y * y + z * z) - kOne);
     yz = y * z;
     wx = w * x;
     out->right.y = kTwo * (xy + wz);
     out->right.z = kTwo * (zx - wy);
     out->up.x = kTwo * (xy - wz);
-    out->up.y = -(kTwo * (xx + zz) - kOne);
+    out->up.y = -(kTwo * (x * x + z * z) - kOne);
     out->up.z = kTwo * (yz + wx);
     out->at.x = kTwo * (zx + wy);
     out->at.y = kTwo * (yz - wx);
-    out->at.z = -(kTwo * (xx + yy) - kOne);
+    out->at.z = -(kTwo * (x * x + y * y) - kOne);
     out->flags = 3;
 }
 
-/* TODO: [near miss] 97.91667%; trig slots, product tree and stores agree; seventeen FP register rows remain. */
+/* TODO: [near miss] 97.92%; seventeen FP home rows remain; shared helper fixes this but regresses matrix sibling. */
 void YXZ_angles_to_quat(const Vec* angles, Quat* out) {
     float sy;
     float cy;

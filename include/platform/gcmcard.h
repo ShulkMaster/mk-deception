@@ -3,14 +3,9 @@
 
 #include "dolphin/card.h"
 
-/*
- * gcmcard.o - Midway GC memcard facade (B20 + B21 PPWLS).
- * Campaign history: docs/campaigns/index.md (B20-B22)
- * Uses the canonical Dolphin CARDFileInfo shared with card.a.
- */
-
 int init_gc_memcard(void);
 int update_storage_status(int flag);
+int update_storage_status_for_one_device(int device);
 const char* get_device_reference_name(int device);
 
 int format_card_and_create_mkda_file(int device);
@@ -36,8 +31,6 @@ int bad_save_region_data_result_resolution(int* result, int device);
 extern int gc_seek_position;
 extern int force_insertions;
 extern int force_removals;
-/* const: retail places mcmasks in .sdata2 (r2-relative); non-const lands in
- * .sdata and flips the base register on every access. */
 extern const int mcmasks[2];
 
 #endif

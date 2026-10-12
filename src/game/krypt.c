@@ -1139,12 +1139,12 @@ static inline int coffin_uses_near_tombstone(int index) {
     return 0;
 }
 
-/* TODO: [near miss] 96.07%; PFX field owners, inner-loop GPR/FPR coloring, and constant-pool order remain. */
+/* TODO: [near miss] 96.56%; PFX owner and loop register coloring plus constant-load scheduling remain. */
 static void set_letter_positions_and_values(PfxVm* pfx) {
-    float z_far;
     int col;
     int uv_stride;
     float* uv;
+    float origin_x;
     float base_x;
     int pos_stride;
     int view_row;
@@ -1152,8 +1152,6 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
     int row_off;
     Vec* pos;
     float base_z;
-    float z_near;
-    int row;
     int opened;
     int coffin_idx;
     int is_near;
@@ -1163,11 +1161,15 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
     pos = pfx_get_field(pfx, -2, 0x100);
     pos_stride = pfx_get_struct_size(pfx, 0x100);
     tombstone_viewport_origin(&view_row, &view_col);
-    base_x = tombstone_col_x(view_col);
+    origin_x = tombstone_col_x(view_col);
+    base_x = origin_x;
     base_z = tombstone_row_z(view_row);
 
     for (row_off = 0; row_off < 4; row_off++) {
         int col_off;
+        int row;
+        float z_near;
+        float z_far;
         row = view_row + row_off;
         z_near = s_tomb_z_near + base_z;
         z_far = s_tomb_z_far + base_z;
@@ -1200,7 +1202,7 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
             base_x += s_tomb_col_spacing;
         }
         base_z -= s_tomb_row_spacing;
-        base_x = tombstone_col_x(view_col);
+        base_x = origin_x;
     }
 }
 
@@ -1360,6 +1362,7 @@ static void set_koin_positions_and_colors(PfxVm* pfx) {
     int view_col;
     int row_off;
     int uv_stride;
+    float origin_x;
     float base_x;
     int col_off;
     float base_z;
@@ -1379,7 +1382,8 @@ static void set_koin_positions_and_colors(PfxVm* pfx) {
     pos_stride = pfx_get_struct_size(pfx, 0x100);
     tombstone_viewport_origin(&view_row, &view_col);
     base_z = tombstone_row_z(view_row);
-    base_x = tombstone_col_x(view_col);
+    origin_x = tombstone_col_x(view_col);
+    base_x = origin_x;
 
     for (row_off = 0; row_off < 4; row_off++) {
         row = view_row + row_off;
@@ -1404,7 +1408,7 @@ static void set_koin_positions_and_colors(PfxVm* pfx) {
             base_x += s_tomb_col_spacing;
         }
         base_z -= s_tomb_row_spacing;
-        base_x = tombstone_col_x(view_col);
+        base_x = origin_x;
     }
 }
 
@@ -2382,7 +2386,7 @@ static float handle_controller_input(void) {
     }
     return 1.0f;
 }
-/* TODO: [near miss] 99.56%; dialog_type/no_button (r30/r23) and dialog object r24-r26 coloring remain. */
+/* TODO: [near miss] 99.56%; 33 saved-GPR rows remain; recent latch/const controls exhausted, stop at coloring. */
 static int do_dialog(int dialog_type) {
     int result;
     ScreenObj* dialog_left;
