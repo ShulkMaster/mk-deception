@@ -35,16 +35,16 @@ static inline void make_chroma_tables(CFTArgbTable table)
     }
 }
 
-/* TODO: [breakthrough] 94.28%; indexed chroma loop recovers retail conversion homes;
- * channel owners and luminance conversion scheduling remain. */
+/* TODO: [breakthrough] 97.22%; paired ramps recover conversion slots and homes;
+ * separate chroma owners and middle-ramp alpha scheduling remain. */
 void CFT_MakeArgb8888Alp3211Tbl(
     CFTArgbTable table, u8 alpha0, u8 alpha1, u8 alpha2)
 {
     s32 i;
+    float (*y_table)[4];
     s32 luminance_sample;
     s32 middle_pairs;
     s32 high_pairs;
-    float* y_table;
 
     make_chroma_tables(table);
     for (i = 0; i < 48; i++) {
@@ -53,58 +53,50 @@ void CFT_MakeArgb8888Alp3211Tbl(
         table[0][i][1] = -16.0f * (255.0f / 219.0f) + 0.5f;
         table[0][i][0] = alpha0;
     }
-    y_table = &table[0][48][0];
+    y_table = &table[0][48];
     luminance_sample = 48;
     for (middle_pairs = 0; middle_pairs < 41; middle_pairs++) {
-        float luminance0 =
-            (255.0f / 55.0f) * clamp_table_value((float)luminance_sample - 68.0f) + 0.5f;
-        float next_sample;
-        float luminance1;
+        s32 sample;
 
-        y_table[3] = luminance0;
-        next_sample = (float)++luminance_sample - 68.0f;
-        y_table[2] = luminance0;
-        y_table[1] = luminance0;
-        y_table[0] = alpha1;
-        luminance1 = (255.0f / 55.0f) * clamp_table_value(next_sample) + 0.5f;
-        ++luminance_sample;
-        y_table[7] = luminance1;
-        y_table[6] = luminance1;
-        y_table[5] = luminance1;
-        y_table[4] = alpha1;
-        y_table += 8;
+        for (sample = 0; sample < 2; sample++) {
+            float luminance = (255.0f / 55.0f) *
+                clamp_table_value((float)luminance_sample - 68.0f) + 0.5f;
+
+            (*y_table)[3] = luminance;
+            (*y_table)[2] = luminance;
+            (*y_table)[1] = luminance;
+            (*y_table)[0] = alpha1;
+            luminance_sample++;
+            y_table++;
+        }
     }
-    y_table = &table[0][130][0];
+    y_table = &table[0][130];
     luminance_sample = 130;
     for (high_pairs = 0; high_pairs < 63; high_pairs++) {
-        float luminance0 =
-            2.2972972f * clamp_table_value(247.0f - (float)luminance_sample) + 0.5f;
-        float next_sample;
-        float luminance1;
+        s32 sample;
 
-        y_table[3] = luminance0;
-        next_sample = 247.0f - (float)++luminance_sample;
-        y_table[2] = luminance0;
-        y_table[1] = luminance0;
-        y_table[0] = alpha2;
-        luminance1 = 2.2972972f * clamp_table_value(next_sample) + 0.5f;
-        ++luminance_sample;
-        y_table[7] = luminance1;
-        y_table[6] = luminance1;
-        y_table[5] = luminance1;
-        y_table[4] = alpha2;
-        y_table += 8;
+        for (sample = 0; sample < 2; sample++) {
+            float luminance = 2.2972972f *
+                clamp_table_value(247.0f - (float)luminance_sample) + 0.5f;
+
+            (*y_table)[3] = luminance;
+            (*y_table)[2] = luminance;
+            (*y_table)[1] = luminance;
+            (*y_table)[0] = alpha2;
+            luminance_sample++;
+            y_table++;
+        }
     }
 }
 
-/* TODO: [breakthrough] 94.55%; indexed chroma loop recovers retail 0x30 frame;
- * separate channel owners and high-luminance conversion homes remain. */
+/* TODO: [breakthrough] 96.65%; paired high ramp recovers conversion slots;
+ * separate chroma owners and luminance cursor/counter homes remain. */
 void CFT_MakeArgb8888Alp3110Tbl(
     CFTArgbTable table, u8 alpha0, u8 alpha1, u8 alpha2)
 {
     s32 i;
     s32 high_pairs;
-    float* y_table;
+    float (*y_table)[4];
 
     make_chroma_tables(table);
     for (i = 0; i < 9; i++) {
@@ -113,39 +105,34 @@ void CFT_MakeArgb8888Alp3110Tbl(
         table[0][i][1] = 0.0f;
         table[0][i][0] = alpha0;
     }
-    y_table = &table[0][9][0];
+    y_table = &table[0][9];
     i = 9;
     for (; i < 134; i++) {
         float luminance =
             (255.0f / 110.0f) * clamp_table_value((float)i - 16.0f) + 0.5f;
 
-        y_table[3] = luminance;
-        y_table[2] = luminance;
-        y_table[1] = luminance;
-        y_table[0] = alpha1;
-        y_table += 4;
+        (*y_table)[3] = luminance;
+        (*y_table)[2] = luminance;
+        (*y_table)[1] = luminance;
+        (*y_table)[0] = alpha1;
+        y_table++;
     }
-    y_table = &table[0][134][0];
+    y_table = &table[0][134];
     i = 134;
     for (high_pairs = 0; high_pairs < 61; high_pairs++) {
-        float luminance0 =
-            (255.0f / 110.0f) * clamp_table_value(251.0f - (float)i) + 0.5f;
-        float next_chroma;
-        float luminance1;
+        s32 sample;
 
-        y_table[3] = luminance0;
-        next_chroma = 251.0f - (float)++i;
-        y_table[2] = luminance0;
-        y_table[1] = luminance0;
-        y_table[0] = alpha2;
-        luminance1 =
-            (255.0f / 110.0f) * clamp_table_value(next_chroma) + 0.5f;
-        ++i;
-        y_table[7] = luminance1;
-        y_table[6] = luminance1;
-        y_table[5] = luminance1;
-        y_table[4] = alpha2;
-        y_table += 8;
+        for (sample = 0; sample < 2; sample++) {
+            float luminance = (255.0f / 110.0f) *
+                clamp_table_value(251.0f - (float)i) + 0.5f;
+
+            (*y_table)[3] = luminance;
+            (*y_table)[2] = luminance;
+            (*y_table)[1] = luminance;
+            (*y_table)[0] = alpha2;
+            i++;
+            y_table++;
+        }
     }
 }
 

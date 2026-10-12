@@ -213,7 +213,7 @@ void pfx_emitter_run_frame(PfxVm* pfx, int emitter_index, float frame_time)
 }
 
 void pfx_emitter_scan_for_fields(PfxVmEmitter* emitter,
-                                 unsigned int* fields)
+                                 PfxFieldSet* fields)
 {
     int index;
 

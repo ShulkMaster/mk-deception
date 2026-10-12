@@ -43,7 +43,7 @@ static struct PfxDiagnosticStrings diagnostic_strings = {
     "PFX HALT:%s\n"
 };
 
-static void v3_x_mat_4(PfxVec3* out, PfxVec3* v, float* m);
+static void v3_x_mat_4(PfxVec3* out, PfxVec3* v, float (*m)[4]);
 /* Retail function order. */
 
 int get_propfield_size(int type) {
@@ -138,26 +138,26 @@ int pfx_frame_begin(PfxVm* pfx) {
     }
     if (emitter != 0) {
         if (emitter->pfx_transform != 0) {
-            float* matrix;
+            float (*matrix)[4];
 
             matrix = emitter->pfx_transform->elements;
             pfx->world_position.x =
-                matrix[12] +
-                (emitter->position.z * matrix[8] +
-                 (emitter->position.x * matrix[0] +
-                  emitter->position.y * matrix[4]));
+                matrix[3][0] +
+                (emitter->position.z * matrix[2][0] +
+                 (emitter->position.x * matrix[0][0] +
+                  emitter->position.y * matrix[1][0]));
             matrix = emitter->pfx_transform->elements;
             pfx->world_position.y =
-                matrix[13] +
-                (emitter->position.z * matrix[9] +
-                 (emitter->position.x * matrix[1] +
-                  emitter->position.y * matrix[5]));
+                matrix[3][1] +
+                (emitter->position.z * matrix[2][1] +
+                 (emitter->position.x * matrix[0][1] +
+                  emitter->position.y * matrix[1][1]));
             matrix = emitter->pfx_transform->elements;
             pfx->world_position.z =
-                matrix[14] +
-                (emitter->position.z * matrix[10] +
-                 (emitter->position.x * matrix[2] +
-                  emitter->position.y * matrix[6]));
+                matrix[3][2] +
+                (emitter->position.z * matrix[2][2] +
+                 (emitter->position.x * matrix[0][2] +
+                  emitter->position.y * matrix[1][2]));
         } else {
             pfx->world_position.x = emitter->position.x;
             pfx->world_position.y = emitter->position.y;
@@ -347,7 +347,7 @@ void pfxvm_require_field(PfxVm* pfx, int field) {
     changed = 0;
     fields.render_flags = pfx->flags_0x1D4;
     fields.particle_flags = pfx->flags_0x60;
-    add_field((unsigned int*)&fields.render_flags, field);
+    add_field(&fields, field);
     if (field == 0x403) {
         pfx->flag151_40 = 1;
     }
@@ -415,10 +415,10 @@ void pfx_count_add(PfxVm* pfx) {
     current_particle_count += pfx->transforms[pfx->active_transform].live;
 }
 
-static void v3_x_mat_4(PfxVec3* out, PfxVec3* v, float* m) {
-    out->x = m[12] + (v->z * m[8] + (v->x * m[0] + v->y * m[4]));
-    out->y = m[13] + (v->z * m[9] + (v->x * m[1] + v->y * m[5]));
-    out->z = m[14] + (v->z * m[10] + (v->x * m[2] + v->y * m[6]));
+static void v3_x_mat_4(PfxVec3* out, PfxVec3* v, float (*m)[4]) {
+    out->x = m[3][0] + (v->z * m[2][0] + (v->x * m[0][0] + v->y * m[1][0]));
+    out->y = m[3][1] + (v->z * m[2][1] + (v->x * m[0][1] + v->y * m[1][1]));
+    out->z = m[3][2] + (v->z * m[2][2] + (v->x * m[0][2] + v->y * m[1][2]));
 }
 
 /* TODO: [breakthrough] 95.82%; owner reloads and retail copy boundary recovered; ring address association and saved GPR coloring remain. */

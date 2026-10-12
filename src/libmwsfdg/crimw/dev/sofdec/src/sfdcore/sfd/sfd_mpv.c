@@ -1292,8 +1292,8 @@ static int sfmpv_ExecServerSub(SfdHandle* handle)
     return result;
 }
 
-/* TODO: [near miss] 94.544304%; backward-search output, signed caps,
- * and null return align; forward-search and coloring differences remain. */
+/* TODO: [breakthrough needed] 94.54%; shared cap branches and length
+ * reloads remain; recover the original helper or compiler boundary. */
 static int sfmpv_GetActiveSize(SfdHandle* handle, int* active_size,
                                int* delimiter_type, int* has_data)
 {

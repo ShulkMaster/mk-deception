@@ -59,24 +59,24 @@ void pfx_get_billboard_vector(PfxVm* vm, PfxVec3* axis0,
         return;
     }
 
-    axis1->x = vm->basis0.x * transform->matrix.elements[0] +
-               vm->basis0.y * transform->matrix.elements[1] +
-               vm->basis0.z * transform->matrix.elements[2];
-    axis1->y = vm->basis0.x * transform->matrix.elements[4] +
-               vm->basis0.y * transform->matrix.elements[5] +
-               vm->basis0.z * transform->matrix.elements[6];
-    axis1->z = vm->basis0.x * transform->matrix.elements[8] +
-               vm->basis0.y * transform->matrix.elements[9] +
-               vm->basis0.z * transform->matrix.elements[10];
-    axis0->x = vm->basis1.x * transform->matrix.elements[0] +
-               vm->basis1.y * transform->matrix.elements[1] +
-               vm->basis1.z * transform->matrix.elements[2];
-    axis0->y = vm->basis1.x * transform->matrix.elements[4] +
-               vm->basis1.y * transform->matrix.elements[5] +
-               vm->basis1.z * transform->matrix.elements[6];
-    axis0->z = vm->basis1.x * transform->matrix.elements[8] +
-               vm->basis1.y * transform->matrix.elements[9] +
-               vm->basis1.z * transform->matrix.elements[10];
+    axis1->x = vm->basis0.x * transform->matrix.elements[0][0] +
+               vm->basis0.y * transform->matrix.elements[0][1] +
+               vm->basis0.z * transform->matrix.elements[0][2];
+    axis1->y = vm->basis0.x * transform->matrix.elements[1][0] +
+               vm->basis0.y * transform->matrix.elements[1][1] +
+               vm->basis0.z * transform->matrix.elements[1][2];
+    axis1->z = vm->basis0.x * transform->matrix.elements[2][0] +
+               vm->basis0.y * transform->matrix.elements[2][1] +
+               vm->basis0.z * transform->matrix.elements[2][2];
+    axis0->x = vm->basis1.x * transform->matrix.elements[0][0] +
+               vm->basis1.y * transform->matrix.elements[0][1] +
+               vm->basis1.z * transform->matrix.elements[0][2];
+    axis0->y = vm->basis1.x * transform->matrix.elements[1][0] +
+               vm->basis1.y * transform->matrix.elements[1][1] +
+               vm->basis1.z * transform->matrix.elements[1][2];
+    axis0->z = vm->basis1.x * transform->matrix.elements[2][0] +
+               vm->basis1.y * transform->matrix.elements[2][1] +
+               vm->basis1.z * transform->matrix.elements[2][2];
 
     axis1->x *= scale0;
     axis1->y *= scale0;

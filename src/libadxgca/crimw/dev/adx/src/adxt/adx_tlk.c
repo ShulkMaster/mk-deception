@@ -61,6 +61,10 @@ extern void ADXSTM_BindFileNw(
     ADXStream* stream, const char* filename, void* directory,
     s32 offset, s32 sector_count);
 extern s32 ADXSTM_Start(ADXStream* stream);
+extern s32 ADXSTM_GetNumSctIbuf(ADXStream* stream);
+s32 ADXT_GetStat(ADXTHandle* handle);
+s32 ADXT_GetNumChan(ADXTHandle* handle);
+s32 ADXT_GetSfreq(ADXTHandle* handle);
 
 extern AXRNAHandle* ADXRNA_Create(
     SJ** output, s32 maximum_channels, void* work);
@@ -92,87 +96,6 @@ static const char adxt_get_dec_data_length_error[] =
     "E04041901 ADXT_GetDecDtLen: parameter error";
 static const char adxt_get_dec_samples_error[] =
     "E02080818 ADXT_GetDecNumSmpl: parameter error";
-static const char adxt_get_pause_error[] =
-    "E02080847 ADXT_GetStatPause: parameter error";
-static const char adxt_pause_error[] =
-    "E02080846 ADXT_Pause: parameter error";
-static const char adxt_is_ready_error[] =
-    "E02080831 ADXT_IsReadyPlayStart: parameter error";
-static const char adxt_set_wait_error[] =
-    "E02080830 ADXT_SetWaitPlayStart: parameter error";
-static const char adxt_get_input_error[] =
-    "E02080833 ADXT_GetInputSj: parameter error";
-static const char adxt_set_loop_error[] =
-    "E02080828 ADXT_SetLpFlg: parameter error";
-static const char adxt_get_loop_error[] =
-    "E02080829 ADXT_GetLpCnt: parameter error";
-static const char adxt_clear_error[] =
-    "E02080844 ADXT_ClearErrCode: parameter error";
-static const char adxt_get_error_error[] =
-    "E02080843 ADXT_GetErrCode: parameter error";
-static const char adxt_completed_error[] =
-    "E02080802 ADXT_IsCompleted: parameter error";
-static const char adxt_input_safety_error[] =
-    "E02080836 ADXT_IsIbufSafety: parameter error";
-static const f32 adxt_zero_float = 0.0f;
-static const char adxt_input_time_error[] =
-    "E02080835 ADXT_GetIbufRemainTime: parameter error";
-static const f32 adxt_negative_one = -1.0f;
-static const char adxt_get_status_error[] =
-    "E02080814 ADXT_GetStat: parameter error";
-static const char adxt_get_channels_error[] =
-    "E02080820 ADXT_GetNumChan: parameter error";
-static const char adxt_get_frequency_error[] =
-    "E02080819 ADXT_GetSfreq: parameter error";
-static const char adxt_get_output_samples_error[] =
-    "E02080837 ADXT_GetNumSmplObuf: parameter error";
-static const char adxt_get_input_sectors_error[] =
-    "E02080834 ADXT_GetNumSctIbuf: parameter error";
-static const char adxt_set_reload_sectors_error[] =
-    "E02080839 ADXT_SetReloadSct: parameter error";
-static const char adxt_reset_reload_time_error[] =
-    "E03111501 ADXT_ResetReloadTime: parameter error";
-static const f32 adxt_default_reload_ratio = 0.85f;
-static const char adxt_set_reload_time_error[] =
-    "E02080838 ADXT_SetReloadTime: parameter error";
-static const char adxt_set_server_frequency_error[] =
-    "E02080840 ADXT_SetSvrFreq: parameter error";
-static const char adxt_get_volume_error[] =
-    "E02080824 ADXT_GetOutVol: parameter error";
-static const char adxt_set_volume_error[] =
-    "E02080823 ADXT_SetOutVol: parameter error";
-static const char adxt_get_balance_error[] =
-    "E02080871 ADXT_GetOutBalance: parameter error";
-static const char adxt_set_balance_error[] =
-    "E02080870 ADXT_SetOutBalance: parameter error";
-static const char adxt_get_pan_error[] =
-    "E02080826 ADXT_GetOutPan: parameter error";
-static const char adxt_set_pan_error[] =
-    "E02080825 ADXT_SetOutPan: parameter error";
-static const char adxt_set_pan_channel_error[] =
-    "E8101208 ADXT_SetOutPan: parameter error";
-static const char adxt_get_bits_error[] =
-    "E02080821 ADXT_GetFmtBps: parameter error";
-static const char adxt_get_header_length_error[] =
-    "E02080822 ADXT_GetHdrLen: parameter error";
-static const char adxt_get_samples_error[] =
-    "E02080817 ADXT_GetNumSmpl: parameter error";
-static const f32 adxt_ticks_per_vsync = 100.0f;
-static const char adxt_get_time_error[] =
-    "E02080815 ADXT_GetTime: parameter error";
-static const f32 adxt_milliseconds = 1000.0f;
-static const f32 adxt_positive_time_limit = 60.0f;
-static const f32 adxt_negative_time_limit = -60.0f;
-static const char adxt_stop_error[] =
-    "E02080813 ADXT_Stop: parameter error";
-static const char adxt_start_sj_error[] =
-    "E02080812 ADXT_StartSj: parameter error";
-static const char adxt_destroy_error[] =
-    "E02080805 ADXT_Destroy: parameter error";
-static const char adxt_create_error[] =
-    "E02080804 ADXT_Create: parameter error";
-static const char adxt_too_many_handles_error[] =
-    "E03100801 ADXT_Create: Too many handles.\n";
 
 s32 adxstm_seteos_sct = 25;
 s32 adxt_time_adjust_sw = 1;
@@ -334,6 +257,109 @@ s32 ADXT_DiscardSmpl(ADXTHandle* handle, s32 samples)
     handle->playback_start_vsync = adxt_vsync_cnt;
     return discarded;
 }
+
+static const char adxt_get_pause_error[] =
+    "E02080847 ADXT_GetStatPause: parameter error";
+static const char adxt_pause_error[] =
+    "E02080846 ADXT_Pause: parameter error";
+static const char adxt_is_ready_error[] =
+    "E02080831 ADXT_IsReadyPlayStart: parameter error";
+static const char adxt_set_wait_error[] =
+    "E02080830 ADXT_SetWaitPlayStart: parameter error";
+static const char adxt_get_input_error[] =
+    "E02080833 ADXT_GetInputSj: parameter error";
+static const char adxt_set_loop_error[] =
+    "E02080828 ADXT_SetLpFlg: parameter error";
+static const char adxt_get_loop_error[] =
+    "E02080829 ADXT_GetLpCnt: parameter error";
+static const char adxt_clear_error[] =
+    "E02080844 ADXT_ClearErrCode: parameter error";
+static const char adxt_get_error_error[] =
+    "E02080843 ADXT_GetErrCode: parameter error";
+static const char adxt_completed_error[] =
+    "E02080802 ADXT_IsCompleted: parameter error";
+static const char adxt_input_safety_error[] =
+    "E02080836 ADXT_IsIbufSafety: parameter error";
+/* TODO: [breakthrough needed] Donor body emits 0xF8 vs MAP 0x170;
+ * recover original accessor inline boundaries. */
+f32 ADXT_GetIbufRemainTime(ADXTHandle* handle)
+{
+    f32 remaining_time = 0.0f;
+    s32 status;
+    s32 channels;
+    s32 frequency;
+
+    if (handle == 0) {
+        ADXERR_CallErrFunc1("E02080835 ADXT_GetIbufRemainTime: parameter error");
+        return -1.0f;
+    }
+    status = ADXT_GetStat(handle);
+    channels = ADXT_GetNumChan(handle);
+    frequency = ADXT_GetSfreq(handle);
+    if (status >= ADXT_STATUS_BUFFERING && channels > 0 && frequency > 0) {
+        remaining_time =
+            (f32)(ADXSTM_GetNumSctIbuf(handle->stream) * ADXT_SECTOR_SIZE /
+                  (channels * 18) * 32) / (f32)frequency;
+    }
+    return remaining_time;
+}
+static const char adxt_get_status_error[] =
+    "E02080814 ADXT_GetStat: parameter error";
+static const char adxt_get_channels_error[] =
+    "E02080820 ADXT_GetNumChan: parameter error";
+static const char adxt_get_frequency_error[] =
+    "E02080819 ADXT_GetSfreq: parameter error";
+static const char adxt_get_output_samples_error[] =
+    "E02080837 ADXT_GetNumSmplObuf: parameter error";
+static const char adxt_get_input_sectors_error[] =
+    "E02080834 ADXT_GetNumSctIbuf: parameter error";
+static const char adxt_set_reload_sectors_error[] =
+    "E02080839 ADXT_SetReloadSct: parameter error";
+/* TODO: [breakthrough needed] Donor body emits 0x74 vs MAP 0x94;
+ * verify the original reload accessor and conversion width. */
+void ADXT_ResetReloadTime(ADXTHandle* handle)
+{
+    if (handle == 0) {
+        ADXERR_CallErrFunc1("E03111501 ADXT_ResetReloadTime: parameter error");
+        return;
+    }
+    handle->reload_threshold_sectors =
+        (s16)(0.85f * (f32)handle->stream_buffer_sectors);
+}
+static const char adxt_set_reload_time_error[] =
+    "E02080838 ADXT_SetReloadTime: parameter error";
+static const char adxt_set_server_frequency_error[] =
+    "E02080840 ADXT_SetSvrFreq: parameter error";
+static const char adxt_get_volume_error[] =
+    "E02080824 ADXT_GetOutVol: parameter error";
+static const char adxt_set_volume_error[] =
+    "E02080823 ADXT_SetOutVol: parameter error";
+static const char adxt_get_balance_error[] =
+    "E02080871 ADXT_GetOutBalance: parameter error";
+static const char adxt_set_balance_error[] =
+    "E02080870 ADXT_SetOutBalance: parameter error";
+static const char adxt_get_pan_error[] =
+    "E02080826 ADXT_GetOutPan: parameter error";
+static const char adxt_set_pan_error[] =
+    "E02080825 ADXT_SetOutPan: parameter error";
+static const char adxt_set_pan_channel_error[] =
+    "E8101208 ADXT_SetOutPan: parameter error";
+static const char adxt_get_bits_error[] =
+    "E02080821 ADXT_GetFmtBps: parameter error";
+static const char adxt_get_header_length_error[] =
+    "E02080822 ADXT_GetHdrLen: parameter error";
+static const char adxt_get_samples_error[] =
+    "E02080817 ADXT_GetNumSmpl: parameter error";
+s32 ADXT_GetTimeReal(ADXTHandle* handle)
+{
+    s32 sample_count;
+    s32 scale;
+
+    ADXT_GetTime(handle, &sample_count, &scale);
+    return 100.0f * ((f32)sample_count / (f32)scale);
+}
+static const char adxt_get_time_error[] =
+    "E02080815 ADXT_GetTime: parameter error";
 
 void ADXT_TermSupply(ADXTHandle* handle)
 {
@@ -548,7 +574,7 @@ static inline void adxt_GetTimeSfreq2(
     *sample_count += handle->time_offset;
 }
 
-/* TODO: [blocked] 99.95%; literals verified; recover TU float-pool and BSS first-use layout. */
+/* TODO: [breakthrough] 99.98%; pool offsets agree; six BSS offsets remain. */
 void ADXT_GetTime(ADXTHandle* handle, s32* sample_count, s32* scale)
 {
     s32 actual_count;
@@ -604,6 +630,17 @@ void ADXT_GetTime(ADXTHandle* handle, s32* sample_count, s32* scale)
     *sample_count += handle->time_offset;
     *scale = adxt_time_unit;
 }
+
+static const char adxt_stop_error[] =
+    "E02080813 ADXT_Stop: parameter error";
+static const char adxt_start_sj_error[] =
+    "E02080812 ADXT_StartSj: parameter error";
+static const char adxt_destroy_error[] =
+    "E02080805 ADXT_Destroy: parameter error";
+static const char adxt_create_error[] =
+    "E02080804 ADXT_Create: parameter error";
+static const char adxt_too_many_handles_error[] =
+    "E03100801 ADXT_Create: Too many handles.\n";
 
 s32 ADXT_GetStat(ADXTHandle* handle)
 {
@@ -829,8 +866,6 @@ void ADXT_Destroy(ADXTHandle* handle)
     ADXCRS_Unlock();
 }
 
-/* TODO: [near miss] 99.99%; code identical; strings/floats pool in the wrong order (TU data layout:
- * retail pools literals in parse order with stripped functions' strings; ours puts named arrays first). */
 ADXTHandle* ADXT_Create(s32 maximum_channels, void* work, s32 work_size)
 {
     ADXTHandle* handle;
@@ -915,7 +950,7 @@ ADXTHandle* ADXT_Create(s32 maximum_channels, void* work, s32 work_size)
     handle->stream_buffer_sectors =
         handle->input_buffer_size / ADXT_SECTOR_SIZE;
     handle->reload_threshold_sectors =
-        (s16)(adxt_default_reload_ratio * (f32)handle->stream_buffer_sectors);
+        (s16)(0.85f * (f32)handle->stream_buffer_sectors);
     handle->output_volume = 0;
     for (channel = 0; channel < maximum_channels; channel++) {
         handle->output_pan[channel] = ADXT_DEFAULT_PAN;

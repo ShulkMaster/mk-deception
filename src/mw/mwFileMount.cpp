@@ -3,8 +3,6 @@
 #include "mw/mwFileContainers.h"
 #include "mw/mwFileMutex.h"
 
-extern int mwFileStringCompareIgnoreCase(const char*, const char*);
-
 class mwFileServer;
 
 struct mwFileTypeInfo {
@@ -202,7 +200,7 @@ mwFileDirectoryMountPoint::~mwFileDirectoryMountPoint()
     }
 }
 
-/* TODO: [breakthrough needed] 70.81%; base mwFileMountPoint ctor not inlined (level=1: base of polymorphic mwFileQueryable never inlines); retail inlines it. */
+/* TODO: [breakthrough needed] 70.97%; base mwFileMountPoint ctor not inlined (level=1: base of polymorphic mwFileQueryable never inlines); retail inlines it. */
 mwFileDirectoryMountPoint::mwFileDirectoryMountPoint(const char* mount_name)
     : mwFileMountPoint(mount_name), parent(0)
 {

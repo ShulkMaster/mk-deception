@@ -9,10 +9,8 @@ static inline double dctac_Cos(double angle, int column) {
     return cos(angle * (0.5 + (double)column));
 }
 
-/* TODO: [near miss] 92.36%; unrolled multiply-add FPR/load scheduling remains;
- * accumulator scope, loop shape and declaration forms were already measured. */
 void dctac_TransDouble(const double* input, double* output,
-                       const double transform[8][8]) {
+                       double transform[8][8]) {
     double temporary[64];
     double sum;
     int row;

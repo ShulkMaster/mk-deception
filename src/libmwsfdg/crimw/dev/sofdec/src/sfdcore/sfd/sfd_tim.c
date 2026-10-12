@@ -2,7 +2,7 @@
 #include "sofdec/uty_math.h"
 
 const int SFTIM_prate[9] = {
-    1, 24000, 24000, 25000, 29970, 30000, 50000, 59940, 60000,
+    1, 23976, 24000, 25000, 29970, 30000, 50000, 59940, 60000,
 };
 
 int sftim_v_sample = 0;
@@ -118,7 +118,8 @@ int SFTIM_IsGetFrmTimeTunit(SfdHandle* handle, int value, int scale)
     return ready;
 }
 
-/* TODO: [near miss] 88.40%; repeat-count snapshot recovered; clock conversion scheduling and constant addressing remain. */
+/* TODO: [breakthrough needed] 88.40%; retail non-SDA constants and clock
+ * reloads remain; verify compiler mode before register tuning. */
 int SFTIM_IsGetFrmTime(SfdHandle* handle, const SfdFrameTime* frame_time)
 {
     int ready;
@@ -632,7 +633,8 @@ static int sftim_CheckStagnant(SfdHandle* handle)
     return 0;
 }
 
-/* TODO: [near miss] 99.79%; timer arithmetic and condition flow agree; normal-clock sample loads remain reversed. */
+/* TODO: [near miss] 99.79%; normal-clock word loads remain reversed;
+ * recover clock-read ownership before allocation tuning. */
 int SFTIM_IsStagnant(SfdHandle* handle)
 {
     if (sftim_CheckStagnant(handle) != 0) {

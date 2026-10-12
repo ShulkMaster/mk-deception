@@ -81,21 +81,21 @@ unsigned int map_field_to_renderflag(int description)
     return 0;
 }
 
-void add_field(unsigned int* fields, unsigned int description)
+void add_field(PfxFieldSet* fields, unsigned int description)
 {
     unsigned int flag;
-    unsigned int* destination;
+    int* destination;
 
     switch (description & 0xF00) {
     case 0x100:
     case 0x400:
         description = (description & ~0xF00) | 0x100;
         flag = map_field_to_renderflag(description);
-        destination = fields;
+        destination = &fields->render_flags;
         break;
     case 0x300:
         flag = map_field_to_propertyflag(description);
-        destination = fields + 1;
+        destination = &fields->particle_flags;
         break;
     default:
         return;

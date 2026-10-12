@@ -9,7 +9,9 @@
 
 #include "game/game_info.h"
 #include "game/memcard.h"
+extern "C" {
 #include "game/plyrprofile.h"
+}
 #include "game/settings.h"
 #include "libmkparticle/particle.h"
 #include "libmkparticle/pfx2d.h"
@@ -18,6 +20,8 @@
 #include "mwScreenEngine/GameVariables.h"
 #include "mwScreenEngine/ScreenMgr.h"
 #include "mwScreenEngine/ScreenAction.h"
+#include "mwScreenEngine/ScreenMiscAction.h"
+#include "mwScreenEngine/ScreenParams.h"
 #include "mwScreenEngine/ScreenPoly.h"
 #include "mwScreenEngine/ScreenAnimControl.h"
 #include "mwScreenEngine/ScreenSCtl.h"
@@ -50,6 +54,8 @@
 
 extern "C" {
 
+#include "game/acb.h"
+#include "game/pfxscript.h"
 #include "rw/rwframe.h"
 #include "runtime/mk_mem.h"
 
@@ -82,7 +88,6 @@ int GetBoolean__12ScreenParamsFUi(void* params, unsigned int index);
 float GetFloat__12ScreenParamsFUi(void* params, unsigned int index);
 ScreenNode* GetScreenNode__12ScreenParamsFUi(void* params, unsigned int index);
 char* GetName__12ScreenParamsFUi(void* params, unsigned int index);
-unsigned int GetColor__12ScreenParamsFUi(void* params, unsigned int index);
 int GetCount__12ScreenParamsCFv(void* params);
 unsigned int HasSubActions__11ScreenEventCFUi(void* event,
                                               unsigned int index);
@@ -557,8 +562,6 @@ void set_popup_title_text(const char* text);
 
 void set_popup_message_text(const char* text);
 
-void screen_engine_process_events(void);
-
 static inline void queue_paused_studio_event(int event, int flags) {
     int i;
 
@@ -577,16 +580,6 @@ static inline void queue_paused_studio_event(int event, int flags) {
         }
     }
 }
-int broadcast_screen_studio_event(int event, int flag);
-
-void fire_screen_studio_event(int event, int flag);
-
-void wait_for_screen_close(void);
-
-void preload_screen_data(const char* name, int slot);
-
-void load_screen(const char* name, int slot, MkHdr* share_pdata, int unload_slot);
-
 static int screen_engine_is_deferred(void) {
     int deferred;
 
@@ -626,16 +619,6 @@ static void drain_paused_studio_events(void) {
         *flags_ptr = 0;
     } while (i < 12);
 }
-void vdestroy_screen_engine(MkHdr* hdr);
-
-void screen_engine_render(void);
-
-void* get_screen_pdata(void);
-
-void screen_share_pdata(MkHdr* share);
-
-void pause_screen_engine(int paused);
-
 struct RepeatButtonPdata {
     MkHdr hdr;
     int port;
@@ -665,8 +648,6 @@ static float p_repeat_button_input__Fv(void);
                 _proc->sleep_ticks = button_repeat_time;                \
                 _proc->flags_bits.skip_if_paused = 1;         \
             }                                                                  \
-        } else {                                                               \
-            _proc = 0;                                                         \
         }                                                                      \
     } while (0)
 
@@ -692,21 +673,11 @@ static float p_repeat_button_input__Fv(void);
         }                                                                      \
     } while (0)
 
-void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx);
-
 static float p_repeat_analog_stick_input__Fv(void);
 
 static float p_repeat_button_input__Fv(void);
 
-void set_target_game_mode(int menu_player_arg, int mode);
-
-float p_handle_screen_engine_controller__Fv(void);
-
-float p_screen_engine_tick__Fv(void);
-
 int check_allow_screen_engine_control__Fv(void);
-
-void init_screen_engine(void);
 
 static const float kGvFloatZero = 0.0f;
 
@@ -764,7 +735,6 @@ struct GVStringMatrixIsland {
     char* multiProfileP2[14];
 };
 
-void* get_movelist_strings(unsigned int* out_max);
 int wager_load_koin_count_string_array__F8PLYR_NUM(int player);
 extern int p1_profile_status;
 extern int p2_profile_status;
@@ -791,8 +761,6 @@ char* get_controller_vibration_string(int player);
 char* pselect_get_player_name(int player);
 int get_konq_profile_value(int type, int index);
 char* locate_inventory_text(int page);
-char* movelist_get_character_name(void);
-char* movelist_get_counter(void);
 char* pselect_get_style_name(int player, int style);
 char* pselect_get_difficulty_level(int player);
 char* pselect_get_arena_name(void);
@@ -1247,10 +1215,6 @@ extern void vdebug_print_message(const char* fmt, ...);
 extern void snd_req(int sound_id);
 extern void snd_stop_all(void);
 extern void fx_resume_emit(unsigned int handle);
-extern void fx_reset(void);
-extern void movelist_change_style(void);
-extern void start_movelist(void);
-extern void movelist_change_move(int move);
 extern void pselect_update_selbox_pos(int player, int position);
 extern void send_player_status_msg(void* player);
 extern void pselect_start_code_entry(int player, int pad);
@@ -1425,7 +1389,7 @@ void Dispose__8WifImageFv(WifImage* self);
 void HandleEvent__8WifImageFP9ScreenMgrii(WifImage* self, void* mgr, int event,
                                           int arg);
 
-void ProcessParams__11SpreadSheetFP12ScreenParams(SpreadSheet* self, void* params);
+void ProcessParams__11SpreadSheetFP12ScreenParams(SpreadSheet* self, ScreenParams* params);
 
 extern void FreeStringCollection__22GameVariableDispatcherFUiUiPPcUi(
     void* self, unsigned int unused, unsigned int id, char** strings,
@@ -1497,15 +1461,15 @@ void ScrollUp__11SpreadSheetFi(SpreadSheet* self, int delta);
 void ScrollDown__11SpreadSheetFi(SpreadSheet* self, int delta);
 
 static void SpreadSheetSyncOptionArray(SpreadSheet* self) {
-    if (self->optionId < 0) {
+    if (self->m_optionId < 0) {
         return;
     }
     if (m_pGameVariables__13ScreenControl == 0) {
         return;
     }
     SetIntArray__22GameVariableDispatcherFUiUiPii(
-        m_pGameVariables__13ScreenControl, self->pad9C,
-        self->optionId, &self->scrollX, 4);
+        m_pGameVariables__13ScreenControl, self->m_pad9C,
+        self->m_optionId, &self->scrollX, 4);
 }
 
 static void SpreadSheetFireSpEvent(SpreadSheet* self, int event) {
@@ -1514,28 +1478,28 @@ static void SpreadSheetFireSpEvent(SpreadSheet* self, int event) {
 
 static void SpreadSheetSetRowStateFire(SpreadSheet* self, int row, int value) {
     SetRowState__22GameVariableDispatcherFUiUiii(
-        m_pGameVariables__13ScreenControl, self->pad9C,
-        self->collectionId, row, value);
+        m_pGameVariables__13ScreenControl, self->m_pad9C,
+        self->m_collectionId, row, value);
     SpreadSheetFireSpEvent(self, 0x53500000);
 }
 
 static int SpreadSheetGetRowState(SpreadSheet* self, int row) {
     return GetRowState__22GameVariableDispatcherFUiUii(
-        m_pGameVariables__13ScreenControl, self->pad9C,
-        self->collectionId, row);
+        m_pGameVariables__13ScreenControl, self->m_pad9C,
+        self->m_collectionId, row);
 }
 
 static void SpreadSheetSetColStateFire(SpreadSheet* self, int col, int value) {
     SetColState__22GameVariableDispatcherFUiUiii(
-        m_pGameVariables__13ScreenControl, self->pad9C,
-        self->collectionId, col, value);
+        m_pGameVariables__13ScreenControl, self->m_pad9C,
+        self->m_collectionId, col, value);
     SpreadSheetFireSpEvent(self, 0x53500001);
 }
 
 static int SpreadSheetGetColState(SpreadSheet* self, int col) {
     return GetColState__22GameVariableDispatcherFUiUii(
-        m_pGameVariables__13ScreenControl, self->pad9C,
-        self->collectionId, col);
+        m_pGameVariables__13ScreenControl, self->m_pad9C,
+        self->m_collectionId, col);
 }
 
 static void SpreadSheetCompareSubActions(SpreadSheet* self, const void* action, int lhs,
@@ -1546,21 +1510,15 @@ static void SpreadSheetCompareSubActions(SpreadSheet* self, const void* action, 
 }
 
 static void SpreadSheetRebuildClampNoUpdate(SpreadSheet* self) {
-    void** vtbl;
-    void (*clearContents)(SpreadSheet* self);
-    void (*allocateCollection)(SpreadSheet* self);
 
     if (m_pGameVariables__13ScreenControl == 0) {
         return;
     }
-    if (self->collectionId == -1) {
+    if (self->m_collectionId == -1) {
         return;
     }
-    vtbl = (void**)self->vtbl;
-    clearContents = (void (*)(SpreadSheet*))vtbl[0x58 / 4];
-    clearContents(self);
-    allocateCollection = (void (*)(SpreadSheet*))vtbl[0x50 / 4];
-    allocateCollection(self);
+    self->ClearContents();
+    self->AllocateCollection();
     if (self->scrollY >= self->unkE8 && self->unkE8 > 0) {
         self->scrollY = self->unkE8 - 1;
         self->scrollX = self->scrollY - self->rows + 1;
@@ -1579,8 +1537,8 @@ static void SpreadSheetRebuildClampNoUpdate(SpreadSheet* self) {
 void HandleEvent__11SpreadSheetFP9ScreenMgrii(SpreadSheet* self, void* mgr, int event,
                                               int arg);
 
-int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, void* mgr,
-                                                            const void* actionIn);
+int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, ScreenMgr* mgr,
+                                                            const ScreenAction* action);
 
 void Init__8TextListFv(TextList* self);
 
@@ -1895,8 +1853,7 @@ float p_handle_screen_engine_controller__Fv(void) {
     return kSleepOne;
 }
 
-/* TODO: [near miss] 99.60%; `*--slotBits` store gives retail stw -4 + lwzu; only the
- * stick_bits addi scheduling and r0/r4 swap before the store remain. */
+/* TODO: [near miss] 99.60481%; mask/index homes, base-addi schedule and retail relocation metadata remain. */
 void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) {
     unsigned int bits;
     unsigned int* slotBits;
@@ -2595,7 +2552,7 @@ int mkGameVariables::GetStringMatrixCollection(int id, char*** out, int& rows) {
         count = 3;
         break;
     case 0x65:
-        *out = (char**)get_movelist_strings(&count);
+        *out = (char**)get_movelist_strings((int*)&count);
         rows = 3;
         break;
     case 0x3c:
@@ -2850,9 +2807,9 @@ char* mkGameVariables::GetString(int id) {
         get_gallery_page_number_string(temp_string_buf_3481);
         return temp_string_buf_3481;
     case 0x97:
-        return movelist_get_counter();
+        return (char*)movelist_get_counter();
     case 0x96:
-        return movelist_get_character_name();
+        return (char*)movelist_get_character_name();
     case 0x1f74:
         return pselect_get_player_name(0);
     case 0x1f75:
@@ -3298,11 +3255,11 @@ void Update__17SpreadSheet_imageFv(SpreadSheet_image* self) {
     void** textures;
     void (**vtbl)(void);
 
-    if (self->sheet.rows <= 0 || self->sheet.cols <= 0 || self->unk11C == 0) {
+    if (self->rows <= 0 || self->cols <= 0 || self->unk11C == 0) {
         return;
     }
     sourceCount = *(int*)((char*)self->unk11C + 0x14);
-    if (self->sheet.unkEC < 1 || self->sheet.unkE8 < 1) {
+    if (self->unkEC < 1 || self->unkE8 < 1) {
         for (cell = 0; cell < sourceCount; cell++) {
             poly = self->unk118[cell];
             ((void (*)(void*, int))((void**)poly->vtbl)[7])(poly, 0);
@@ -3311,20 +3268,20 @@ void Update__17SpreadSheet_imageFv(SpreadSheet_image* self) {
     if (self->unk120 == 0) {
         return;
     }
-    visibleRows = self->sheet.unkE8;
-    if (self->sheet.rows < visibleRows) {
-        visibleRows = self->sheet.rows;
+    visibleRows = self->unkE8;
+    if (self->rows < visibleRows) {
+        visibleRows = self->rows;
     }
-    visibleCols = self->sheet.unkEC;
-    if (self->sheet.cols < visibleCols) {
-        visibleCols = self->sheet.cols;
+    visibleCols = self->unkEC;
+    if (self->cols < visibleCols) {
+        visibleCols = self->cols;
     }
     textures = *(void***)((char*)self->unk11C + 8);
-    for (y = 0; y < self->sheet.cols; y++) {
-        for (x = 0; x < self->sheet.rows; x++) {
-            cell = x + y * self->sheet.rows;
-            source = x + self->sheet.scrollX +
-                     self->sheet.unkE8 * (y + self->sheet.unkD4);
+    for (y = 0; y < self->cols; y++) {
+        for (x = 0; x < self->rows; x++) {
+            cell = x + y * self->rows;
+            source = x + self->scrollX +
+                     self->unkE8 * (y + self->unkD4);
             poly = self->unk118[cell];
             if (y < visibleCols && x < visibleRows && source < sourceCount) {
                 vtbl = (void (**)(void))poly->vtbl;
@@ -3356,35 +3313,35 @@ void Update__17SpreadSheet_imageFv(SpreadSheet_image* self) {
             } else {
                 ((void (*)(void*, int))((void**)poly->vtbl)[7])(poly, 0);
             }
-            if (self->sheet.bindNodeB0 != 0 && y == 0 &&
-                self->sheet.scrollY == x + self->sheet.scrollX) {
+            if (self->bindNodeB0 != 0 && y == 0 &&
+                self->scrollY == x + self->scrollX) {
                 vert = &poly->verts[vert_map__10ScreenPoly[0]];
-                marker = (ScreenPoly*)self->sheet.nodeB0;
+                marker = (ScreenPoly*)self->nodeB0;
                 ((void (*)(void*, int))((void**)marker->vtbl)[7])(marker, 1);
-                marker->offsetX = vert->x - self->sheet.layout0[0];
+                marker->offsetX = vert->x - self->layout0[0];
                 marker->offsetY =
-                    (480.0f - vert->y) - self->sheet.layout0[1];
+                    (480.0f - vert->y) - self->layout0[1];
             }
         }
-        if (self->sheet.bindNodeB4 != 0 &&
-            self->sheet.unkDC == y + self->sheet.unkD4) {
-            cell = self->sheet.scrollY + y * self->sheet.rows -
-                   self->sheet.scrollX;
+        if (self->bindNodeB4 != 0 &&
+            self->unkDC == y + self->unkD4) {
+            cell = self->scrollY + y * self->rows -
+                   self->scrollX;
             poly = self->unk118[cell];
             vert = &poly->verts[vert_map__10ScreenPoly[0]];
-            marker = (ScreenPoly*)self->sheet.nodeB4;
+            marker = (ScreenPoly*)self->nodeB4;
             ((void (*)(void*, int))((void**)marker->vtbl)[7])(marker, 1);
-            marker->offsetX = vert->x - self->sheet.layout1[0];
-            marker->offsetY = (480.0f - vert->y) - self->sheet.layout1[1];
+            marker->offsetX = vert->x - self->layout1[0];
+            marker->offsetY = (480.0f - vert->y) - self->layout1[1];
         }
     }
-    if (self->sheet.unkE8 == 0 || self->sheet.unkEC == 0) {
-        if (self->sheet.nodeB0 != 0) {
-            marker = (ScreenPoly*)self->sheet.nodeB0;
+    if (self->unkE8 == 0 || self->unkEC == 0) {
+        if (self->nodeB0 != 0) {
+            marker = (ScreenPoly*)self->nodeB0;
             ((void (*)(void*, int))((void**)marker->vtbl)[7])(marker, 0);
         }
-        if (self->sheet.nodeB4 != 0) {
-            marker = (ScreenPoly*)self->sheet.nodeB4;
+        if (self->nodeB4 != 0) {
+            marker = (ScreenPoly*)self->nodeB4;
             ((void (*)(void*, int))((void**)marker->vtbl)[7])(marker, 0);
         }
     }
@@ -3409,11 +3366,11 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
     unsigned char color[4];
     void (**vtbl)(void);
 
-    if (self->sheet.rows <= 0 || self->sheet.cols <= 0) {
+    if (self->rows <= 0 || self->cols <= 0) {
         return;
     }
-    sourceCount = self->sheet.unkEC * self->sheet.unkE8;
-    if (self->sheet.unkEC < 1 || self->sheet.unkE8 < 1) {
+    sourceCount = self->unkEC * self->unkE8;
+    if (self->unkEC < 1 || self->unkE8 < 1) {
         for (cell = 0; cell < sourceCount; cell++) {
             text = self->unk118[cell];
             ((void (*)(void*, int))((void**)text->vtbl)[7])(text, 0);
@@ -3422,19 +3379,19 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
     if (self->unk11C == 0) {
         return;
     }
-    visibleRows = self->sheet.unkE8;
-    if (self->sheet.rows < visibleRows) {
-        visibleRows = self->sheet.rows;
+    visibleRows = self->unkE8;
+    if (self->rows < visibleRows) {
+        visibleRows = self->rows;
     }
-    visibleCols = self->sheet.unkEC;
-    if (self->sheet.cols < visibleCols) {
-        visibleCols = self->sheet.cols;
+    visibleCols = self->unkEC;
+    if (self->cols < visibleCols) {
+        visibleCols = self->cols;
     }
-    for (y = 0; y < self->sheet.cols; y++) {
-        for (x = 0; x < self->sheet.rows; x++) {
-            cell = x + y * self->sheet.rows;
-            source = x + self->sheet.scrollX +
-                     self->sheet.unkE8 * (y + self->sheet.unkD4);
+    for (y = 0; y < self->cols; y++) {
+        for (x = 0; x < self->rows; x++) {
+            cell = x + y * self->rows;
+            source = x + self->scrollX +
+                     self->unkE8 * (y + self->unkD4);
             text = self->unk118[cell];
             if (y < visibleCols && x < visibleRows && source < sourceCount) {
                 vtbl = (void (**)(void))text->vtbl;
@@ -3456,13 +3413,13 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
                 }
                 ((void (*)(void*))vtbl[3])(text);
                 ((void (*)(void*, int))vtbl[7])(text, 1);
-                if (self->sheet.useColor != 0) {
-                    if ((self->sheet.bindNodeB0 == 0 ||
-                         self->sheet.scrollY != x + self->sheet.scrollX) &&
-                        (self->sheet.bindNodeB4 == 0 ||
-                         self->sheet.unkDC != y + self->sheet.unkD4)) {
-                        if (self->sheet.bindNodeB0 != 0 ||
-                            self->sheet.bindNodeB4 != 0) {
+                if (self->useColor != 0) {
+                    if ((self->bindNodeB0 == 0 ||
+                         self->scrollY != x + self->scrollX) &&
+                        (self->bindNodeB4 == 0 ||
+                         self->unkDC != y + self->unkD4)) {
+                        if (self->bindNodeB0 != 0 ||
+                            self->bindNodeB4 != 0) {
                             live = text->stringObj;
                             if (live != 0 &&
                                 live->instance !=
@@ -3470,10 +3427,10 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
                                 live = 0;
                             }
                             if (live != 0) {
-                                color[0] = self->sheet.cellColors[cell * 4 + 0];
-                                color[1] = self->sheet.cellColors[cell * 4 + 1];
-                                color[2] = self->sheet.cellColors[cell * 4 + 2];
-                                color[3] = self->sheet.cellColors[cell * 4 + 3];
+                                color[0] = self->cellColors[cell * 4 + 0];
+                                color[1] = self->cellColors[cell * 4 + 1];
+                                color[2] = self->cellColors[cell * 4 + 2];
+                                color[3] = self->cellColors[cell * 4 + 3];
                                 pfxfont_set_string_color(&live->pfx,
                                                          (unsigned int*)color);
                                 text->flags |= 1;
@@ -3487,10 +3444,10 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
                             live = 0;
                         }
                         if (live != 0) {
-                            color[0] = self->sheet.color[0];
-                            color[1] = self->sheet.color[1];
-                            color[2] = self->sheet.color[2];
-                            color[3] = self->sheet.color[3];
+                            color[0] = self->color[0];
+                            color[1] = self->color[1];
+                            color[2] = self->color[2];
+                            color[3] = self->color[3];
                             pfxfont_set_string_color(&live->pfx,
                                                      (unsigned int*)color);
                             text->flags |= 1;
@@ -3500,24 +3457,24 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
             } else {
                 ((void (*)(void*, int))((void**)text->vtbl)[7])(text, 0);
             }
-            if (self->sheet.bindNodeB0 != 0 &&
-                self->sheet.scrollY == x + self->sheet.scrollX) {
+            if (self->bindNodeB0 != 0 &&
+                self->scrollY == x + self->scrollX) {
                 live = text->stringObj;
                 if (live != 0 &&
                     live->instance != (unsigned int)text->stringObjInstance) {
                     live = 0;
                 }
                 pos = live == 0 ? text->seData->posX : live->x;
-                marker = (ScreenPoly*)self->sheet.nodeB0;
+                marker = (ScreenPoly*)self->nodeB0;
                 ((void (*)(void*, int))((void**)marker->vtbl)[7])(marker, 1);
-                marker->offsetX = pos - self->sheet.layout0[0];
+                marker->offsetX = pos - self->layout0[0];
                 marker->offsetY = kGvFloatZero;
             }
         }
-        if (self->sheet.bindNodeB4 != 0 &&
-            self->sheet.unkDC == y + self->sheet.unkD4) {
-            cell = self->sheet.scrollY + y * self->sheet.rows -
-                   self->sheet.scrollX;
+        if (self->bindNodeB4 != 0 &&
+            self->unkDC == y + self->unkD4) {
+            cell = self->scrollY + y * self->rows -
+                   self->scrollX;
             text = self->unk118[cell];
             live = text->stringObj;
             if (live != 0 &&
@@ -3525,19 +3482,19 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
                 live = 0;
             }
             pos = live == 0 ? text->seData->posY : 480 - live->y;
-            marker = (ScreenPoly*)self->sheet.nodeB4;
+            marker = (ScreenPoly*)self->nodeB4;
             ((void (*)(void*, int))((void**)marker->vtbl)[7])(marker, 1);
             marker->offsetX = kGvFloatZero;
-            marker->offsetY = pos - self->sheet.layout1[1];
+            marker->offsetY = pos - self->layout1[1];
         }
     }
-    if (self->sheet.unkE8 == 0 || self->sheet.unkEC == 0) {
-        if (self->sheet.nodeB0 != 0) {
-            marker = (ScreenPoly*)self->sheet.nodeB0;
+    if (self->unkE8 == 0 || self->unkEC == 0) {
+        if (self->nodeB0 != 0) {
+            marker = (ScreenPoly*)self->nodeB0;
             ((void (*)(void*, int))((void**)marker->vtbl)[7])(marker, 0);
         }
-        if (self->sheet.nodeB4 != 0) {
-            marker = (ScreenPoly*)self->sheet.nodeB4;
+        if (self->nodeB4 != 0) {
+            marker = (ScreenPoly*)self->nodeB4;
             ((void (*)(void*, int))((void**)marker->vtbl)[7])(marker, 0);
         }
     }
@@ -3553,7 +3510,7 @@ void ClearContents__17SpreadSheet_imageFv(SpreadSheet_image* self) {
     int count;
     int i;
 
-    count = self->sheet.rows * self->sheet.cols;
+    count = self->rows * self->cols;
     cells = self->unk118;
     if (cells == 0) {
         return;
@@ -3586,7 +3543,7 @@ void ClearContents__16SpreadSheet_textFv(SpreadSheet_text* self) {
     StringObj* live;
     unsigned char color[4];
 
-    count = self->sheet.rows * self->sheet.cols;
+    count = self->rows * self->cols;
     if (self->unk118 == 0) {
         return;
     }
@@ -3620,51 +3577,43 @@ void AllocateCollection__17SpreadSheet_imageFv(SpreadSheet_image* self) {
 
     count = 0;
     FreeTextureCollection__22GameVariableDispatcherFUiiP15GMTextureInfo_t(
-        m_pGameVariables__13ScreenControl, self->sheet.pad9C,
-        self->sheet.collectionId, (GMTextureInfo_t*)&self->unk11C);
+        m_pGameVariables__13ScreenControl, self->m_pad9C,
+        self->m_collectionId, (GMTextureInfo_t*)&self->unk11C);
     self->unk11C = 0;
     self->unk120 = 0;
-    self->sheet.unkEC =
+    self->unkEC =
         GetTextureCollection__22GameVariableDispatcherFUiiP15GMTextureInfo_tRUi(
             m_pGameVariables__13ScreenControl,
-            self->sheet.pad9C, self->sheet.collectionId,
+            self->m_pad9C, self->m_collectionId,
             (GMTextureInfo_t*)&self->unk11C, &count);
-    self->sheet.unkE8 = count;
+    self->unkE8 = count;
     self->unk120 = 1;
 }
 
 void AllocateCollection__16SpreadSheet_textFv(SpreadSheet_text* self) {
     FreeStringCollection__22GameVariableDispatcherFUiUiPPcUi(
-        m_pGameVariables__13ScreenControl, self->sheet.pad9C,
-        self->sheet.collectionId, (char**)self->unk11C,
-        self->sheet.unkE8 * self->sheet.unkEC);
+        m_pGameVariables__13ScreenControl, self->m_pad9C,
+        self->m_collectionId, (char**)self->unk11C,
+        self->unkE8 * self->unkEC);
     self->unk11C = 0;
-    self->sheet.unkEC =
+    self->unkEC =
         GetStringMatrixCollection__22GameVariableDispatcherFUiUiPPPcRi(
             m_pGameVariables__13ScreenControl,
-            self->sheet.pad9C,
-            self->sheet.collectionId,
-            (char***)&self->unk11C, &self->sheet.unkE8);
+            self->m_pad9C,
+            self->m_collectionId,
+            (char***)&self->unk11C, &self->unkE8);
 }
 
-/* TODO: [near miss] 93.53623%; Update is a real virtual call; subclass slots 0x50/0x58 still
- * go through the raw vtable pointer. */
 void RefreshCollection__11SpreadSheetFv(SpreadSheet* self) {
-    void** vtbl;
-    void (*clearContents)(SpreadSheet* self);
-    void (*allocateCollection)(SpreadSheet* self);
 
     if (m_pGameVariables__13ScreenControl == 0) {
         return;
     }
-    if (self->collectionId == -1) {
+    if (self->m_collectionId == -1) {
         return;
     }
-    vtbl = (void**)self->vtbl;
-    clearContents = (void (*)(SpreadSheet*))vtbl[0x58 / 4];
-    clearContents(self);
-    allocateCollection = (void (*)(SpreadSheet*))vtbl[0x50 / 4];
-    allocateCollection(self);
+    self->ClearContents();
+    self->AllocateCollection();
     if (self->scrollY >= self->unkE8 && self->unkE8 > 0) {
         self->scrollY = self->unkE8 - 1;
         self->scrollX = self->scrollY - self->rows + 1;
@@ -3689,8 +3638,8 @@ void RefreshOption__11SpreadSheetFi(SpreadSheet* self, int doUpdate) {
         return;
     }
     GetIntArray__22GameVariableDispatcherFUiUiPii(
-        m_pGameVariables__13ScreenControl, self->pad9C,
-        self->optionId, &self->scrollX, 4);
+        m_pGameVariables__13ScreenControl, self->m_pad9C,
+        self->m_optionId, &self->scrollX, 4);
     if (self->scrollY < 0 || self->unkE8 == 0) {
         self->scrollY = 0;
     } else if (self->scrollY >= self->unkE8) {
@@ -3873,48 +3822,51 @@ void ScrollDown__11SpreadSheetFi(SpreadSheet* self, int delta) {
 }
 #pragma auto_inline reset
 
-/* TODO: [near miss] 0% objdiff (about 65% by opcode); event compare cascade scheduling differs. */
 void HandleEvent__11SpreadSheetFP9ScreenMgrii(SpreadSheet* self, void* mgr, int event,
                                               int arg) {
-    if (event == 0x405) {
-        if (self->unkE8 == 0 || self->unkEC == 0) {
-            SpreadSheetRebuildClampNoUpdate(self);
-            RefreshOption__11SpreadSheetFi(self, 1);
-        }
-    } else if (event == 0x407) {
+    switch (event) {
+    case 0x407:
         self->scrollX = 0;
         self->unkD4 = 0;
         self->scrollY = 0;
         self->unkDC = 0;
         SetIntArray__22GameVariableDispatcherFUiUiPii(
-            m_pGameVariables__13ScreenControl, self->pad9C,
-            self->optionId, &self->scrollX, 4);
+            m_pGameVariables__13ScreenControl, self->m_pad9C,
+            self->m_optionId, &self->scrollX, 4);
         RefreshCollection__11SpreadSheetFv(self);
         RefreshOption__11SpreadSheetFi(self, 1);
-    } else if (event == 0x53500003) {
+        break;
+    case 0x405:
+        if (self->unkE8 == 0 || self->unkEC == 0) {
+            SpreadSheetRebuildClampNoUpdate(self);
+            RefreshOption__11SpreadSheetFi(self, 1);
+        }
+    case 0x406:
+    case 0x3EB:
+        break;
+    case 0x53500003:
         RefreshCollection__11SpreadSheetFv(self);
         RefreshOption__11SpreadSheetFi(self, 1);
+        break;
     }
 }
 
-/* TODO: [near miss] 99.58129%; nested single-use GetInt/state results and real Refresh*
- * virtual calls restored; one extra p0 copy in the origin-compare case remains. */
-int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, void* mgr,
-                                                            const void* actionIn) {
-    const ScreenAction* action;
-    void* params;
+/* TODO: [near miss] 99.84%; 25 rows of row-index/visible-count coloring and add operand order remain; stop at coloring. */
+int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, ScreenMgr* mgr,
+                                                            const ScreenAction* action) {
+    ScreenParams* params;
     int arg;
     int result;
     int p0;
     int p1;
     int p2;
-    int idx;
+    int rowIndex;
+    int columnIndex;
     int state;
     int lhs;
     int vis;
     void* node;
 
-    action = (const ScreenAction*)actionIn;
     arg = action->m_arg;
     params = action->m_params;
     result = 1;
@@ -3954,50 +3906,52 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         break;
     case 0x53500000:
         p0 = GetInt__12ScreenParamsFUi(params, 0);
-        idx = self->unkD4 + p0;
+        rowIndex = self->unkD4 + p0;
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetSetRowStateFire(self, idx, p1);
+        SpreadSheetSetRowStateFire(self, rowIndex, p1);
         break;
     case 0x53500001:
         p0 = GetInt__12ScreenParamsFUi(params, 0);
-        idx = self->unkD4 + p0;
+        rowIndex = self->unkD4 + p0;
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        p1 += SpreadSheetGetRowState(self, idx);
-        SpreadSheetSetRowStateFire(self, idx, p1);
+        p1 += SpreadSheetGetRowState(self, rowIndex);
+        SpreadSheetSetRowStateFire(self, rowIndex, p1);
         break;
     case 0x53500002:
         p0 = GetInt__12ScreenParamsFUi(params, 0);
-        idx = self->unkD4 + p0;
-        state = SpreadSheetGetRowState(self, idx);
-        SpreadSheetSetRowStateFire(self, idx, state - GetInt__12ScreenParamsFUi(params, 1));
+        rowIndex = self->unkD4 + p0;
+        state = SpreadSheetGetRowState(self, rowIndex);
+        SpreadSheetSetRowStateFire(self, rowIndex, state - GetInt__12ScreenParamsFUi(params, 1));
         break;
     case 0x53500003:
-        idx = self->unkDC;
-        state = SpreadSheetGetRowState(self, idx);
-        SpreadSheetSetRowStateFire(self, idx, state - GetInt__12ScreenParamsFUi(params, 0));
+        rowIndex = self->unkDC;
+        state = SpreadSheetGetRowState(self, rowIndex);
+        SpreadSheetSetRowStateFire(self, rowIndex, state - GetInt__12ScreenParamsFUi(params, 0));
         break;
     case 0x53500004:
-        idx = self->unkDC;
+        rowIndex = self->unkDC;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
-        p0 += SpreadSheetGetRowState(self, idx);
-        SpreadSheetSetRowStateFire(self, idx, p0);
+        p0 += SpreadSheetGetRowState(self, rowIndex);
+        SpreadSheetSetRowStateFire(self, rowIndex, p0);
         break;
     case 0x53500005:
-        idx = self->unkDC;
-        state = SpreadSheetGetRowState(self, idx);
-        SpreadSheetSetRowStateFire(self, idx, state - GetInt__12ScreenParamsFUi(params, 0));
+        rowIndex = self->unkDC;
+        state = SpreadSheetGetRowState(self, rowIndex);
+        SpreadSheetSetRowStateFire(self, rowIndex, state - GetInt__12ScreenParamsFUi(params, 0));
         break;
-    case 0x53500006:
-        idx = self->unkD4;
-        p0 = GetInt__12ScreenParamsFUi(params, 0);
+    case 0x53500006: {
+        ScreenCompareOp comparison;
+        rowIndex = self->unkD4;
+        comparison = (ScreenCompareOp)GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, actionIn, idx, p0, p1);
+        SpreadSheetCompareSubActions(self, action, rowIndex, comparison, p1);
         break;
+    }
     case 0x53500007:
         state = SpreadSheetGetRowState(self, self->unkD4 + GetInt__12ScreenParamsFUi(params, 0));
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         p2 = GetInt__12ScreenParamsFUi(params, 2);
-        SpreadSheetCompareSubActions(self, actionIn, state, p1, p2);
+        SpreadSheetCompareSubActions(self, action, state, p1, p2);
         break;
     case 0x53500008:
         vis = self->unkEC - self->unkD4;
@@ -4006,97 +3960,97 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         }
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, actionIn, vis, p0, p1);
+        SpreadSheetCompareSubActions(self, action, vis, p0, p1);
         break;
     case 0x53500009:
-        idx = self->unkDC - self->unkD4;
+        rowIndex = self->unkDC - self->unkD4;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, actionIn, idx, p0,
+        SpreadSheetCompareSubActions(self, action, rowIndex, p0,
                                      p1);
         break;
     case 0x5350000A:
-        idx = self->unkDC;
+        rowIndex = self->unkDC;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, actionIn, idx, p0, p1);
+        SpreadSheetCompareSubActions(self, action, rowIndex, p0, p1);
         break;
     case 0x5350000C:
-        idx = self->unkDC;
+        rowIndex = self->unkDC;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         if (self->unkEC > 0) {
             if (self->unkEC == 1) {
                 lhs = p1;
-            } else if (idx == 0) {
+            } else if (rowIndex == 0) {
                 lhs = 0;
-            } else if (idx == self->unkEC - 1) {
+            } else if (rowIndex == self->unkEC - 1) {
                 lhs = 2;
             } else {
                 lhs = 1;
             }
-            SpreadSheetCompareSubActions(self, actionIn, lhs, p0, p1);
+            SpreadSheetCompareSubActions(self, action, lhs, p0, p1);
         }
         break;
     case 0x5350000B:
         state = SpreadSheetGetRowState(self, self->unkDC);
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, actionIn, state, p0, p1);
+        SpreadSheetCompareSubActions(self, action, state, p0, p1);
         break;
     case 0x53500030:
         p0 = GetInt__12ScreenParamsFUi(params, 0);
-        idx = self->scrollX + p0;
+        columnIndex = self->scrollX + p0;
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetSetColStateFire(self, idx, p1);
+        SpreadSheetSetColStateFire(self, columnIndex, p1);
         break;
     case 0x53500031:
         p0 = GetInt__12ScreenParamsFUi(params, 0);
-        idx = self->scrollX + p0;
+        columnIndex = self->scrollX + p0;
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        p1 += SpreadSheetGetColState(self, idx);
-        SpreadSheetSetColStateFire(self, idx, p1);
+        p1 += SpreadSheetGetColState(self, columnIndex);
+        SpreadSheetSetColStateFire(self, columnIndex, p1);
         break;
     case 0x53500032:
         p0 = GetInt__12ScreenParamsFUi(params, 0);
-        idx = self->scrollX + p0;
-        state = SpreadSheetGetColState(self, idx);
-        SpreadSheetSetColStateFire(self, idx, state - GetInt__12ScreenParamsFUi(params, 1));
+        columnIndex = self->scrollX + p0;
+        state = SpreadSheetGetColState(self, columnIndex);
+        SpreadSheetSetColStateFire(self, columnIndex, state - GetInt__12ScreenParamsFUi(params, 1));
         break;
     case 0x53500033:
-        idx = self->scrollY;
+        columnIndex = self->scrollY;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
-        SpreadSheetSetColStateFire(self, idx, p0);
+        SpreadSheetSetColStateFire(self, columnIndex, p0);
         break;
     case 0x53500039:
-        idx = self->scrollY - self->scrollX;
+        columnIndex = self->scrollY - self->scrollX;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, actionIn, idx, p0,
+        SpreadSheetCompareSubActions(self, action, columnIndex, p0,
                                      p1);
         break;
     case 0x53500034:
-        idx = self->scrollY;
+        columnIndex = self->scrollY;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
-        p0 += SpreadSheetGetColState(self, idx);
-        SpreadSheetSetColStateFire(self, idx, p0);
+        p0 += SpreadSheetGetColState(self, columnIndex);
+        SpreadSheetSetColStateFire(self, columnIndex, p0);
         break;
     case 0x53500035:
-        idx = self->scrollY;
-        state = SpreadSheetGetColState(self, idx);
-        SpreadSheetSetColStateFire(self, idx, state - GetInt__12ScreenParamsFUi(params, 0));
+        columnIndex = self->scrollY;
+        state = SpreadSheetGetColState(self, columnIndex);
+        SpreadSheetSetColStateFire(self, columnIndex, state - GetInt__12ScreenParamsFUi(params, 0));
         break;
     case 0x53500036:
-        idx = self->scrollX;
+        columnIndex = self->scrollX;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, actionIn, idx, p0, p1);
+        SpreadSheetCompareSubActions(self, action, columnIndex, p0, p1);
         break;
     case 0x53500037:
         state = SpreadSheetGetColState(self, self->scrollX + GetInt__12ScreenParamsFUi(params, 0));
         p1 = GetInt__12ScreenParamsFUi(params, 1);
         p2 = GetInt__12ScreenParamsFUi(params, 2);
-        SpreadSheetCompareSubActions(self, actionIn, state, p1, p2);
+        SpreadSheetCompareSubActions(self, action, state, p1, p2);
         break;
     case 0x53500038:
         vis = self->unkE8 - self->scrollX;
@@ -4105,35 +4059,35 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         }
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, actionIn, vis, p0, p1);
+        SpreadSheetCompareSubActions(self, action, vis, p0, p1);
         break;
     case 0x5350003A:
-        idx = self->scrollY;
+        columnIndex = self->scrollY;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        if (ScreenIntegerCompare__Fiii(idx, p0, p1) != 0 ||
+        if (ScreenIntegerCompare__Fiii(columnIndex, p0, p1) != 0 ||
             (self->unkE8 == 1 && p1 != 1)) {
-            ProcessSubActions__12ScreenObjectFPC12ScreenActioni(self, actionIn, 0);
+            ProcessSubActions__12ScreenObjectFPC12ScreenActioni(self, action, 0);
         }
         break;
     case 0x5350003C:
-        idx = self->scrollY;
+        columnIndex = self->scrollY;
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        if (idx == 0) {
+        if (columnIndex == 0) {
             lhs = 0;
-        } else if (idx == self->unkE8 - 1) {
+        } else if (columnIndex == self->unkE8 - 1) {
             lhs = 2;
         } else {
             lhs = 1;
         }
-        SpreadSheetCompareSubActions(self, actionIn, lhs, p0, p1);
+        SpreadSheetCompareSubActions(self, action, lhs, p0, p1);
         break;
     case 0x5350003B:
         state = SpreadSheetGetColState(self, self->scrollY);
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, actionIn, state, p0, p1);
+        SpreadSheetCompareSubActions(self, action, state, p0, p1);
         break;
     case 0x7DB:
         node = GetScreenNode__12ScreenParamsFUi(params, 0);
@@ -4148,7 +4102,7 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, v
         break;
     default:
         result = HandleAction__13ScreenControlFP9ScreenMgrPC12ScreenAction(self, mgr,
-                                                                           actionIn);
+                                                                           action);
         break;
     }
     return result;
@@ -4165,7 +4119,7 @@ void FinishSetup__17SpreadSheet_imageFP12ScreenParamsi(
     ScreenPolyVert* linkedVert;
 
     paramCount = GetCount__12ScreenParamsCFv(params);
-    count = self->sheet.rows * self->sheet.cols;
+    count = self->rows * self->cols;
     self->unk118 = (ScreenPoly**)Malloc__10ScreenUtilFUliPc(
         (unsigned long)(paramCount - nodeIndex) * sizeof(ScreenPoly*),
         kMallocTagInit,
@@ -4174,22 +4128,22 @@ void FinishSetup__17SpreadSheet_imageFP12ScreenParamsi(
         self->unk118[i] = (ScreenPoly*)GetScreenNode__12ScreenParamsFUi(
             params, nodeIndex);
     }
-    if (self->sheet.bindNodeB0 != 0) {
+    if (self->bindNodeB0 != 0) {
         first = *self->unk118;
-        linked = (ScreenPoly*)self->sheet.nodeB0;
+        linked = (ScreenPoly*)self->nodeB0;
         firstVert = &first->verts[vert_map__10ScreenPoly[0]];
         linkedVert = &linked->verts[vert_map__10ScreenPoly[0]];
-        self->sheet.layout0[0] = firstVert->x - linkedVert->x;
-        self->sheet.layout0[1] =
+        self->layout0[0] = firstVert->x - linkedVert->x;
+        self->layout0[1] =
             (480.0f - firstVert->y) - (480.0f - linkedVert->y);
-        self->sheet.layout0[2] = kGvFloatZero;
+        self->layout0[2] = kGvFloatZero;
     }
-    if (self->sheet.bindNodeB4 != 0) {
+    if (self->bindNodeB4 != 0) {
         first = *self->unk118;
         firstVert = &first->verts[vert_map__10ScreenPoly[0]];
-        self->sheet.layout1[0] = firstVert->x - kGvFloatZero;
-        self->sheet.layout1[1] = (480.0f - firstVert->y) - kGvFloatZero;
-        self->sheet.layout1[2] = kGvFloatZero;
+        self->layout1[0] = firstVert->x - kGvFloatZero;
+        self->layout1[1] = (480.0f - firstVert->y) - kGvFloatZero;
+        self->layout1[2] = kGvFloatZero;
     }
 }
 
@@ -4204,12 +4158,12 @@ void FinishSetup__16SpreadSheet_textFP12ScreenParamsi(
     float y;
 
     paramCount = GetCount__12ScreenParamsCFv(params);
-    count = self->sheet.rows * self->sheet.cols;
+    count = self->rows * self->cols;
     self->unk118 = (ScreenText**)Malloc__10ScreenUtilFUliPc(
         (unsigned long)(paramCount - nodeIndex) * sizeof(ScreenText*),
         kMallocTagInit,
         (char*)(stringBase0 + 0x285));
-    self->sheet.cellColors = (unsigned char*)Malloc__10ScreenUtilFUliPc(
+    self->cellColors = (unsigned char*)Malloc__10ScreenUtilFUliPc(
         count << 2, kMallocTagInit,
         (char*)(stringBase0 + 0x285));
     for (i = 0; i < count; i++, nodeIndex++) {
@@ -4225,18 +4179,18 @@ void FinishSetup__16SpreadSheet_textFP12ScreenParamsi(
             live = 0;
         }
         if (live == 0) {
-            self->sheet.cellColors[i * 4 + 0] = text->seData->color[0];
-            self->sheet.cellColors[i * 4 + 1] = text->seData->color[1];
-            self->sheet.cellColors[i * 4 + 2] = text->seData->color[2];
-            self->sheet.cellColors[i * 4 + 3] = text->seData->color[3];
+            self->cellColors[i * 4 + 0] = text->seData->color[0];
+            self->cellColors[i * 4 + 1] = text->seData->color[1];
+            self->cellColors[i * 4 + 2] = text->seData->color[2];
+            self->cellColors[i * 4 + 3] = text->seData->color[3];
         } else {
-            self->sheet.cellColors[i * 4 + 0] = live->pfx.instance0.rgba[0];
-            self->sheet.cellColors[i * 4 + 1] = live->pfx.instance0.rgba[1];
-            self->sheet.cellColors[i * 4 + 2] = live->pfx.instance0.rgba[2];
-            self->sheet.cellColors[i * 4 + 3] = live->pfx.instance0.rgba[3];
+            self->cellColors[i * 4 + 0] = live->pfx.instance0.rgba[0];
+            self->cellColors[i * 4 + 1] = live->pfx.instance0.rgba[1];
+            self->cellColors[i * 4 + 2] = live->pfx.instance0.rgba[2];
+            self->cellColors[i * 4 + 3] = live->pfx.instance0.rgba[3];
         }
     }
-    if (self->sheet.bindNodeB0 != 0) {
+    if (self->bindNodeB0 != 0) {
         text = *self->unk118;
         live = text->stringObj;
         if (live != 0 &&
@@ -4250,11 +4204,11 @@ void FinishSetup__16SpreadSheet_textFP12ScreenParamsi(
             x = live->x;
             y = 480 - live->y;
         }
-        self->sheet.layout0[0] = x - kGvFloatZero;
-        self->sheet.layout0[1] = y - kGvFloatZero;
-        self->sheet.layout0[2] = kGvFloatZero - kGvFloatZero;
+        self->layout0[0] = x - kGvFloatZero;
+        self->layout0[1] = y - kGvFloatZero;
+        self->layout0[2] = kGvFloatZero - kGvFloatZero;
     }
-    if (self->sheet.bindNodeB4 != 0) {
+    if (self->bindNodeB4 != 0) {
         text = *self->unk118;
         live = text->stringObj;
         if (live != 0 &&
@@ -4268,13 +4222,13 @@ void FinishSetup__16SpreadSheet_textFP12ScreenParamsi(
             x = live->x;
             y = 480 - live->y;
         }
-        self->sheet.layout1[0] = x - kGvFloatZero;
-        self->sheet.layout1[1] = y - kGvFloatZero;
-        self->sheet.layout1[2] = kGvFloatZero - kGvFloatZero;
+        self->layout1[0] = x - kGvFloatZero;
+        self->layout1[1] = y - kGvFloatZero;
+        self->layout1[2] = kGvFloatZero - kGvFloatZero;
     }
 }
 
-void ProcessParams__11SpreadSheetFP12ScreenParams(SpreadSheet* self, void* params) {
+void ProcessParams__11SpreadSheetFP12ScreenParams(SpreadSheet* self, ScreenParams* params) {
     int nextIndex;
     int bits;
 
@@ -4284,8 +4238,8 @@ void ProcessParams__11SpreadSheetFP12ScreenParams(SpreadSheet* self, void* param
     self->unkEC = GetInt__12ScreenParamsFUi(params, 3);
     self->flag104 = self->unkE8 > 0;
     self->flag108 = self->unkEC > 0;
-    self->collectionId = GetResourceID__12ScreenParamsFUi(params, 4);
-    self->optionId = GetResourceID__12ScreenParamsFUi(params, 5);
+    self->m_collectionId = GetResourceID__12ScreenParamsFUi(params, 4);
+    self->m_optionId = GetResourceID__12ScreenParamsFUi(params, 5);
     self->useColor = GetBoolean__12ScreenParamsFUi(params, 6);
     bits = GetInt__12ScreenParamsFUi(params, 7);
     bits &= 1;
@@ -4297,12 +4251,9 @@ void ProcessParams__11SpreadSheetFP12ScreenParams(SpreadSheet* self, void* param
     nextIndex = 0xa;
     ((SpreadSheet_text*)self)->hasExtraRes = GetBoolean__12ScreenParamsFUi(params, 9);
     if (self->useColor != 0) {
-        unsigned int colorWord;
+        ScreenColor colorWord = params->GetColor(nextIndex++);
         unsigned char* colorBytes;
-
-        colorWord =
-            GetColor__12ScreenParamsFUi(params, nextIndex++);
-        colorBytes = (unsigned char*)&colorWord;
+        colorBytes = (unsigned char*)&colorWord.value;
         self->color[0] = colorBytes[0];
         self->color[1] = colorBytes[1];
         self->color[2] = colorBytes[2];
@@ -4345,7 +4296,7 @@ void Dispose__17SpreadSheet_imageFv(SpreadSheet_image* self) {
         (*(ClearContents**)self)[0x58 / 4](self);
         FreeTextureCollection__22GameVariableDispatcherFUiiP15GMTextureInfo_t(
             m_pGameVariables__13ScreenControl,
-            self->sheet.gvContext, self->sheet.collectionId,
+            self->m_gvContext, self->m_collectionId,
             (GMTextureInfo_t*)&self->unk11C);
         self->unk120 = 0;
         self->unk11C = 0;
@@ -4360,18 +4311,18 @@ void Dispose__16SpreadSheet_textFv(SpreadSheet_text* self) {
         Free__10ScreenUtilFPv(self->unk118);
         self->unk118 = 0;
     }
-    if (self->sheet.cellColors != 0) {
-        Free__10ScreenUtilFPv(self->sheet.cellColors);
-        self->sheet.cellColors = 0;
+    if (self->cellColors != 0) {
+        Free__10ScreenUtilFPv(self->cellColors);
+        self->cellColors = 0;
     }
     if (self->unk11C != 0) {
         (*(ClearContents**)self)[0x58 / 4](self);
         FreeStringCollection__22GameVariableDispatcherFUiUiPPcUi(
             m_pGameVariables__13ScreenControl,
-            self->sheet.gvContext,
-            self->sheet.collectionId,
+            self->m_gvContext,
+            self->m_collectionId,
             (char**)self->unk11C,
-            self->sheet.rows * self->sheet.cols);
+            self->rows * self->cols);
         self->unk11C = 0;
     }
     Dispose__13ScreenControlFv(self);
@@ -4383,8 +4334,8 @@ void Init__11SpreadSheetFv(SpreadSheet* self) {
 
 void* __dt__17SpreadSheet_imageFv(SpreadSheet_image* self, short del) {
     if (self != 0) {
-        self->sheet.vtbl = &__vt__17SpreadSheet_image;
-        self->sheet.vtbl = &__vt__11SpreadSheet;
+        ((ScreenControlView*)self)->vtbl = &__vt__17SpreadSheet_image;
+        ((ScreenControlView*)self)->vtbl = &__vt__11SpreadSheet;
         __dt__13ScreenControlFv(self, 0);
         if (del > 0) {
             __dl__13ScreenControlFPv(self);
@@ -4395,8 +4346,8 @@ void* __dt__17SpreadSheet_imageFv(SpreadSheet_image* self, short del) {
 
 void* __dt__16SpreadSheet_textFv(SpreadSheet_text* self, short del) {
     if (self != 0) {
-        self->sheet.vtbl = &__vt__16SpreadSheet_text;
-        self->sheet.vtbl = &__vt__11SpreadSheet;
+        ((ScreenControlView*)self)->vtbl = &__vt__16SpreadSheet_text;
+        ((ScreenControlView*)self)->vtbl = &__vt__11SpreadSheet;
         __dt__13ScreenControlFv(self, 0);
         if (del > 0) {
             __dl__13ScreenControlFPv(self);
@@ -7178,11 +7129,11 @@ void set_target_game_mode(int menu_player_arg, int mode) {
     }
 }
 
-/* TODO: [breakthrough needed] 0% objdiff (sparse switch not mappable, ~54.8% by opcode); frame r28-r31/0x60 vs retail r27-r31/0x70 and one shared tail remain. */
+/* TODO: [breakthrough] 97.18%; switch and canonical APIs recovered; normalized player selection, case boundaries and color stack order remain. */
 void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
     ScreenEngineClient* self, ScreenMgr* mgr, const ScreenAction* action,
     int handled) {
-    void* params;
+    ScreenParams* params;
     void* node;
     Screen* activeScreen;
     ScreenResourceLibrary* activeLibrary;
@@ -7193,14 +7144,10 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
     int value;
     int value2;
     int resource;
-    unsigned int colorValue;
-    unsigned int vertexColor;
-    int profileStatus;
-    unsigned char* profile;
     unsigned char* colorBytes;
     float colorScale[4];
-    unsigned char textColor[4];
-    unsigned char savedTextColor[4];
+    unsigned int textColor;
+    unsigned int savedTextColor;
 
     params = action->m_params;
     if (params == 0) {
@@ -7213,23 +7160,24 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
 
     id = action->m_arg;
     switch (id) {
-    case 1:
-        animScreen = action->m_object->m_screen;
-        value = GetInt__12ScreenParamsFUi(params, 0);
-        animScene = GetAnimScene__6ScreenFi(animScreen, value);
-        resource = GetResourceID__12ScreenParamsFUi(params, 1);
-        value = game_variables.GetInt(resource);
-        PlayUntilTime__15ScreenAnimSceneFi(
-            animScene,
-            (float)*(int*)(*(char**)((char*)animScene + 0x14) + 4) *
-                ((float)value / 100.0f));
-        break;
-    case 0x432:
-        value = GetInt__12ScreenParamsFUi(params, 0);
-        if (value != 0 && value == 2) {
-            ProcessActionSubActions(action);
+    case 0x6590: {
+        ScreenObject* actionObject = action->m_object;
+        int resourceId;
+        int comparison;
+        int rightValue;
+
+        resourceId = GetResourceID__12ScreenParamsFUi(params, 0);
+        comparison = GetInt__12ScreenParamsFUi(params, 1);
+        rightValue = GetInt__12ScreenParamsFUi(params, 2);
+        if (ScreenIntegerCompare__Fiii(
+                GetInt__22GameVariableDispatcherFi(
+                    m_pGameVariables__13ScreenControl, resourceId),
+                comparison, rightValue) != 0) {
+            ProcessSubActions__12ScreenObjectFPC12ScreenActioni(
+                actionObject, action, 0);
         }
         break;
+    }
     case 0x7e3:
         RefreshAllOptions__13ScreenControlFP6Screen(
             action->m_object->m_screen);
@@ -7237,6 +7185,173 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
     case 0x7e4:
         RefreshAllCollections__13ScreenControlFP6Screen(
             action->m_object->m_screen);
+        break;
+    case 0x2b01:
+        resource = GetResourceID__12ScreenParamsFUi(params, 0);
+        SetString__22GameVariableDispatcherFiPc(
+            m_pGameVariables__13ScreenControl, resource,
+            (char*)stringBase0 + 0x1c8);
+        RefreshAllOptions__13ScreenControlFP6Screen(
+            action->m_object->m_screen);
+        break;
+    case 0x1393:
+        {
+            ScreenText* text;
+            StringObj* live;
+
+            text = (ScreenText*)GetScreenObject__12ScreenParamsFUi(params, 0);
+            ScreenColor colorValue = params->GetColor(1);
+            live = MK_LIVE(text->stringObj,
+                           (unsigned int)text->stringObjInstance);
+            if (live != 0) {
+                colorBytes = (unsigned char*)&textColor;
+                colorBytes[0] = ((unsigned char*)&colorValue.value)[0];
+                colorBytes[1] = ((unsigned char*)&colorValue.value)[1];
+                colorBytes[2] = ((unsigned char*)&colorValue.value)[2];
+                colorBytes[3] = ((unsigned char*)&colorValue.value)[3];
+                pfxfont_set_string_color(
+                    &live->pfx,
+                    &textColor);
+                text->flags |= 1;
+            }
+        }
+        break;
+    case 0x1394: {
+        ScreenPolyVert* vertex;
+
+        node = GetScreenObject__12ScreenParamsFUi(params, 0);
+        value = GetInt__12ScreenParamsFUi(params, 1);
+        ScreenColor vertexColor = params->GetColor(2);
+        colorBytes = (unsigned char*)&vertexColor.value;
+        vertex = &((ScreenPoly*)node)->verts[vert_map__10ScreenPoly[value]];
+        vertex->rgba[0] = colorBytes[0];
+        vertex->rgba[1] = colorBytes[1];
+        vertex->rgba[2] = colorBytes[2];
+        vertex->rgba[3] = colorBytes[3];
+        ((ScreenPoly*)node)->flags |= 1;
+        break;
+    }
+    case 0x1395: {
+        node = GetScreenObject__12ScreenParamsFUi(params, 0);
+        ScreenColor colorValue = params->GetColor(1);
+        colorBytes = (unsigned char*)&colorValue.value;
+        colorScale[0] = (float)colorBytes[0] / 255.0f;
+        colorScale[1] = (float)colorBytes[1] / 255.0f;
+        colorScale[2] = (float)colorBytes[2] / 255.0f;
+        colorScale[3] = (float)colorBytes[3] / 255.0f;
+        SetColorScale__12ScreenObjectFP8SEVec4_t(node, colorScale);
+        break;
+    }
+    case 0x2b03:
+        resource = GetResourceID__12ScreenParamsFUi(params, 0);
+        value = GetInt__12ScreenParamsFUi(params, 1);
+        SetInt__22GameVariableDispatcherFUiUii(
+            m_pGameVariables__13ScreenControl, 0, resource,
+            GetInt__22GameVariableDispatcherFi(m_pGameVariables__13ScreenControl,
+                                               resource) + value);
+        break;
+    case 0x2afa:
+        {
+            ScreenText* text;
+            StringObj* live;
+            char* name;
+            char* string;
+            int activeIndex;
+
+            text = (ScreenText*)GetScreenObject__12ScreenParamsFUi(params, 0);
+            name = GetName__12ScreenParamsFUi(params, 1);
+            activeIndex = mgr->m_activeCount;
+            activeScreen = activeIndex < 0 ? 0 : mgr->m_stack[activeIndex];
+            activeLibrary = activeScreen->m_set->m_resourceLib;
+            string = (char*)activeLibrary->GetString(name);
+
+            live = MK_LIVE(text->stringObj,
+                           (unsigned int)text->stringObjInstance);
+            if (live != 0) {
+                colorBytes = (unsigned char*)&savedTextColor;
+            colorBytes[0] = live->pfx.instance0.rgba[0];
+                colorBytes[1] = live->pfx.instance0.rgba[1];
+                colorBytes[2] = live->pfx.instance0.rgba[2];
+                colorBytes[3] = live->pfx.instance0.rgba[3];
+                update_string_obj_pfx(live, text->font, string);
+                pfxfont_set_string_color(
+                    &live->pfx,
+                    &savedTextColor);
+            }
+        }
+        break;
+    case 0x13a8:
+        start_movelist();
+        break;
+    case 0x13a7:
+        movelist_change_style(GetInt__12ScreenParamsFUi(params, 0));
+        break;
+    case 0x13a9:
+        node = GetScreenObject__12ScreenParamsFUi(params, 0);
+        movelist_change_move(*(int*)((char*)node + 0xdc));
+        break;
+    case 0x1396:
+        node = GetScreenObject__12ScreenParamsFUi(params, 0);
+        if (((struct ScreenParticle*)node)->fxHandle != 0) {
+            fx_resume_emit(((struct ScreenParticle*)node)->fxHandle);
+        }
+        break;
+    case 0x1397:
+        node = GetScreenObject__12ScreenParamsFUi(params, 0);
+        if (((struct ScreenParticle*)node)->fxHandle != 0) {
+            fx_reset(((struct ScreenParticle*)node)->fxHandle);
+        }
+        break;
+    case 0x2af8:
+        resource = GetResourceID__12ScreenParamsFUi(params, 0);
+        value = GetInt__12ScreenParamsFUi(params, 1);
+        SetInt__22GameVariableDispatcherFUiUii(
+            m_pGameVariables__13ScreenControl, 0, resource, value);
+        break;
+    case 0x138a:
+        resource = GetResourceID__12ScreenParamsFUi(params, 0);
+        if ((unsigned int)resource >= 0x3d) {
+            vdebug_print_message(stringBase0 + 0x264, resource);
+            break;
+        }
+        if (ui_sound_table[resource] == 0x1b4e) {
+            MkProc* proc;
+            MkHdr* pdata;
+
+            proc = find_mkproc_pid(0x2001);
+            if (proc != 0) {
+                pdata = pdata_of_proc(proc);
+                if (pdata != 0) {
+                    set_snd_vol(*(int*)((char*)pdata + 8), 0x1c0a,
+                                1.0f);
+                }
+            }
+        }
+        snd_req(ui_sound_table[resource]);
+        break;
+    case 0x1392:
+        snd_stop_all();
+        break;
+    case 0x2328:
+        value = GetInt__12ScreenParamsFUi(params, 0);
+        node = GetScreenNode__12ScreenParamsFUi(params, 1);
+        if (GetCount__12ScreenParamsCFv(params) == 4) {
+            value2 = GetInt__12ScreenParamsFUi(params, 2);
+            resource = GetInt__12ScreenParamsFUi(params, 3);
+        } else {
+            value2 = 0x100;
+            resource = 0x100;
+        }
+        mkMovieTexInit(value, node, value2, resource);
+        break;
+    case 0x2329:
+        screen_engine_play_movie(GetResourceID__12ScreenParamsFUi(params, 1));
+        break;
+    case 0x232b:
+        mkMovieTexStop(GetInt__12ScreenParamsFUi(params, 0));
+        break;
+    case 0x232a:
+        movie_player_reset();
         break;
     case SE_ACT_SET_TARGET_GAME_MODE:
         player = action->m_flags - 1;
@@ -7268,101 +7383,29 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         }
         Dispose__9ScreenMgrFUi(screen_manager, 0);
         break;
-    case 0x138a:
-        resource = GetResourceID__12ScreenParamsFUi(params, 0);
-        if ((unsigned int)resource < 0x3d) {
-            if (ui_sound_table[resource] == 0x1b4e) {
-                MkProc* proc;
-                MkHdr* pdata;
-
-                proc = find_mkproc_pid(0x2001);
-                if (proc != 0) {
-                    pdata = pdata_of_proc(proc);
-                    if (pdata != 0) {
-                        set_snd_vol(*(int*)((char*)pdata + 8), 0x1c0a,
-                                    1.0f);
-                    }
-                }
-            }
-            snd_req(ui_sound_table[resource]);
-        } else {
-            vdebug_print_message(stringBase0 + 0x264, resource);
-        }
-        break;
-    case 0x1392:
+    case 0x235a:
+        fade_to_black(8, 1);
         snd_stop_all();
         break;
-    case 0x1393:
-        {
-            ScreenText* text;
-            StringObj* live;
+    case 0x1f56:
+        g_game_info.players[0].player_state = 1;
+        fire_screen_studio_event(0x1fa4, 0);
+        break;
+    case 0x1f57:
+        g_game_info.players[1].player_state = 1;
+        fire_screen_studio_event(0x1fa4, 1);
+        break;
+    case 0x1f45: {
+        PlyrInfo* playerInfo = &g_game_info.players[1];
 
-            text = (ScreenText*)GetScreenObject__12ScreenParamsFUi(params, 0);
-            colorValue = GetColor__12ScreenParamsFUi(params, 1);
-            live = text->stringObj;
-            if (live != 0 &&
-                live->instance != (unsigned int)text->stringObjInstance) {
-                live = 0;
-            }
-            if (live != 0) {
-                textColor[0] = ((unsigned char*)&colorValue)[0];
-                textColor[1] = ((unsigned char*)&colorValue)[1];
-                textColor[2] = ((unsigned char*)&colorValue)[2];
-                textColor[3] = ((unsigned char*)&colorValue)[3];
-                pfxfont_set_string_color(
-                    &live->pfx,
-                    (unsigned int*)textColor);
-                text->flags |= 1;
-            }
+        if (action->m_flags - 1 == 0) {
+            playerInfo = &g_game_info.players[0];
         }
+        playerInfo->flags_14_bits.alternate_costume = 1;
         break;
-    case 0x1395:
-        node = GetScreenObject__12ScreenParamsFUi(params, 0);
-        colorValue = GetColor__12ScreenParamsFUi(params, 1);
-        colorBytes = (unsigned char*)&colorValue;
-        colorScale[0] = (float)colorBytes[0] / 255.0f;
-        colorScale[1] = (float)colorBytes[1] / 255.0f;
-        colorScale[2] = (float)colorBytes[2] / 255.0f;
-        colorScale[3] = (float)colorBytes[3] / 255.0f;
-        SetColorScale__12ScreenObjectFP8SEVec4_t(node, colorScale);
-        break;
-    case 0x1394:
-        node = GetScreenObject__12ScreenParamsFUi(params, 0);
-        value = GetInt__12ScreenParamsFUi(params, 1);
-        vertexColor = GetColor__12ScreenParamsFUi(params, 2);
-        colorBytes = (unsigned char*)&vertexColor;
-        ((ScreenPoly*)node)->verts[vert_map__10ScreenPoly[value]].rgba[0] =
-            colorBytes[0];
-        ((ScreenPoly*)node)->verts[vert_map__10ScreenPoly[value]].rgba[1] =
-            colorBytes[1];
-        ((ScreenPoly*)node)->verts[vert_map__10ScreenPoly[value]].rgba[2] =
-            colorBytes[2];
-        ((ScreenPoly*)node)->verts[vert_map__10ScreenPoly[value]].rgba[3] =
-            colorBytes[3];
-        ((ScreenPoly*)node)->flags |= 1;
-        break;
-    case 0x1396:
-        node = GetScreenObject__12ScreenParamsFUi(params, 0);
-        if (((struct ScreenParticle*)node)->fxHandle != 0) {
-            fx_resume_emit(((struct ScreenParticle*)node)->fxHandle);
-        }
-        break;
-    case 0x1397:
-        node = GetScreenObject__12ScreenParamsFUi(params, 0);
-        if (*(void**)((char*)node + 0x14) != 0) {
-            fx_reset();
-        }
-        break;
-    case 0x13a7:
-        GetInt__12ScreenParamsFUi(params, 0);
-        movelist_change_style();
-        break;
-    case 0x13a8:
-        start_movelist();
-        break;
-    case 0x13a9:
-        node = GetScreenObject__12ScreenParamsFUi(params, 0);
-        movelist_change_move(*(int*)((char*)node + 0xdc));
+    }
+    case 0x1f42:
+        bg_pselect_set_character(GetInt__12ScreenParamsFUi(params, 0) - 1);
         break;
     case 0x1f40:
         value = GetInt__12ScreenParamsFUi(params, 0);
@@ -7383,34 +7426,55 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
             }
         }
         break;
-    case 0x1f42:
-        bg_pselect_set_character(GetInt__12ScreenParamsFUi(params, 0) - 1);
-        break;
     case 0x1f43:
         player = action->m_flags - 1;
         pselect_start_code_entry(
             player, (&g_game_info.players[0])[player].pad_index);
+        break;
+    case 0x2ee1:
+        pselect_start_code_entry(
+            0, ((PlyrInfo*)((char*)&g_game_info.players[0] +
+                           (action->m_flags - 1) * 0x6c))->pad_index);
+        break;
+    case 1:
+        animScreen = action->m_object->m_screen;
+        value = GetInt__12ScreenParamsFUi(params, 0);
+        animScene = GetAnimScene__6ScreenFi(animScreen, value);
+        resource = GetResourceID__12ScreenParamsFUi(params, 1);
+        value = game_variables.GetInt(resource);
+        PlayUntilTime__15ScreenAnimSceneFi(
+            animScene,
+            (float)*(int*)(*(char**)((char*)animScene + 0x14) + 4) *
+                ((float)value / 100.0f));
         break;
     case 0x1f44:
         if (pselect_background_select_available() != 0) {
             ProcessActionSubActions(action);
         }
         break;
-    case 0x1f45:
-        player = action->m_flags == 1 ? 0 : 1;
-        ((unsigned char*)((char*)&g_game_info.players[0] + player * 0x6c))[0x14] |= 0x80;
-        break;
-    case 0x1f46:
-        set_ppwls_input_done();
-        break;
-    case 0x1f47:
-        reset_ppwls_timeout();
-        break;
     case 0x1f48:
         if (((ScreenGameFlags*)&g_game_info.field_04)->high != 0 &&
             ((ScreenGameFlags*)&g_game_info.field_04)->second != 0) {
             ProcessActionSubActions(action);
         }
+        break;
+    case 0x1f4f:
+        start_loading_kontent_image();
+        break;
+    case 0x1f65:
+        kill_kontent_bio_text();
+        break;
+    case 0x1f66:
+        unhide_kontent_bio_text();
+        break;
+    case 0x1f67:
+        hide_kontent_bio_text();
+        break;
+    case 0x1f47:
+        reset_ppwls_timeout();
+        break;
+    case 0x1f46:
+        set_ppwls_input_done();
         break;
     case 0x1f49:
         format_or_recreate_left_device();
@@ -7424,9 +7488,6 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
     case 0x1f4e:
         pselect_handicap_show(1, 0);
         break;
-    case 0x1f4f:
-        start_loading_kontent_image();
-        break;
     case 0x1f50:
         if (((ScreenGameFlags*)&g_game_info.field_04)->high == 0 &&
             count_all_profiles() != 0) {
@@ -7435,157 +7496,35 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         break;
     case 0x1f51:
         if (((ScreenGameFlags*)&g_game_info.field_04)->high == 0) {
-            value = GetInt__12ScreenParamsFUi(params, 0);
-            if (value == 1) {
-                profileStatus = p1_profile_status;
-                profile = (unsigned char*)&p1_profile;
+            if (GetInt__12ScreenParamsFUi(params, 0) - 1 == 0) {
+                if (p1_profile_status != 1 ||
+                    *(int*)((unsigned char*)&p1_profile + 0x514) == 0) {
+                    break;
+                }
             } else {
-                profileStatus = p2_profile_status;
-                profile = (unsigned char*)&p2_profile;
+                if (p2_profile_status != 1 ||
+                    *(int*)((unsigned char*)&p2_profile + 0x514) == 0) {
+                    break;
+                }
             }
-            if (profileStatus == 1 && *(int*)(profile + 0x514) != 0) {
-                ProcessActionSubActions(action);
-            }
+            ProcessActionSubActions(action);
         }
-        break;
-    case 0x1f52:
-        bg_pselect_save_team(action->m_flags - 1);
         break;
     case 0x1f53:
         bg_pselect_load_team(action->m_flags - 1);
         break;
-    case 0x1f56:
-        g_game_info.players[0].player_state = 1;
-        fire_screen_studio_event(0x1fa4, 0);
+    case 0x1f52:
+        bg_pselect_save_team(action->m_flags - 1);
         break;
-    case 0x1f57:
-        g_game_info.players[1].player_state = 1;
-        fire_screen_studio_event(0x1fa4, 1);
-        break;
-    case 0x1f58:
-        wager_completed();
-        break;
-    case 0x1f59:
-        wager_cancelled();
-        break;
-    case 0x1f5b:
-        ck_decrement_bet();
-        break;
-    case 0x1f5c:
-        ck_decrement_wager_koin_type();
-        break;
-    case 0x1f5d:
-        ck_increment_wager_koin_type();
-        break;
-    case 0x1f5a:
-        ck_increment_bet();
-        break;
-    case 0x1f5f:
-        pselect_random_select(action->m_flags - 1);
-        break;
-    case 0x1f60:
-        play_current_soundtrack();
-        break;
-    case 0x1f62:
-        if (g_game_info.pad_overlay.pselect.field_1d0 != 0) {
-            ProcessActionSubActions(action);
-        }
-        break;
-    case 0x1f63:
-        pselect_player_canceled(GetInt__12ScreenParamsFUi(params, 0) - 1);
-        break;
-    case 0x1f64:
-        if (pselect_is_random(action->m_flags - 1) != 0) {
-            ProcessActionSubActions(action);
-        }
-        break;
-    case 0x1f65:
-        kill_kontent_bio_text();
-        break;
-    case 0x1f66:
-        unhide_kontent_bio_text();
-        break;
-    case 0x1f67:
-        hide_kontent_bio_text();
-        break;
-    case 0x2328:
+    case 0x432:
         value = GetInt__12ScreenParamsFUi(params, 0);
-        node = GetScreenNode__12ScreenParamsFUi(params, 1);
-        if (GetCount__12ScreenParamsCFv(params) == 4) {
-            value2 = GetInt__12ScreenParamsFUi(params, 2);
-            resource = GetInt__12ScreenParamsFUi(params, 3);
-        } else {
-            value2 = 0x100;
-            resource = 0x100;
-        }
-        mkMovieTexInit(value, node, value2, resource);
-        break;
-    case 0x2329:
-        screen_engine_play_movie(GetResourceID__12ScreenParamsFUi(params, 1));
-        break;
-    case 0x232a:
-        movie_player_reset();
-        break;
-    case 0x232b:
-        mkMovieTexStop(GetInt__12ScreenParamsFUi(params, 0));
-        break;
-    case 0x235a:
-        fade_to_black(8, 1);
-        snd_stop_all();
-        break;
-    case 0x2afa:
-        {
-            ScreenText* text;
-            StringObj* live;
-            char* name;
-            char* string;
-            int activeIndex;
-
-            text = (ScreenText*)GetScreenObject__12ScreenParamsFUi(params, 0);
-            name = GetName__12ScreenParamsFUi(params, 1);
-            activeIndex = mgr->m_activeCount;
-            activeScreen = activeIndex < 0 ? 0 : mgr->m_stack[activeIndex];
-            activeLibrary = activeScreen->m_set->m_resourceLib;
-            string = (char*)activeLibrary->GetString(name);
-
-            live = text->stringObj;
-            if (live != 0 &&
-                live->instance != (unsigned int)text->stringObjInstance) {
-                live = 0;
-            }
-            if (live != 0) {
-                savedTextColor[0] = live->pfx.instance0.rgba[0];
-                savedTextColor[1] = live->pfx.instance0.rgba[1];
-                savedTextColor[2] = live->pfx.instance0.rgba[2];
-                savedTextColor[3] = live->pfx.instance0.rgba[3];
-                update_string_obj_pfx(live, text->font, string);
-                pfxfont_set_string_color(
-                    &live->pfx,
-                    (unsigned int*)savedTextColor);
-            }
+        if (value != 0 && value == 2) {
+            ProcessActionSubActions(action);
         }
         break;
-    case 0x2af8:
-        resource = GetResourceID__12ScreenParamsFUi(params, 0);
-        value = GetInt__12ScreenParamsFUi(params, 1);
-        SetInt__22GameVariableDispatcherFUiUii(
-            m_pGameVariables__13ScreenControl, 0, resource, value);
-        break;
-    case 0x2b01:
-        resource = GetResourceID__12ScreenParamsFUi(params, 0);
-        SetString__22GameVariableDispatcherFiPc(
-            m_pGameVariables__13ScreenControl, resource,
-            (char*)stringBase0 + 0x1c8);
-        RefreshAllOptions__13ScreenControlFP6Screen(
-            action->m_object->m_screen);
-        break;
-    case 0x2b03:
-        resource = GetResourceID__12ScreenParamsFUi(params, 0);
-        value = GetInt__12ScreenParamsFUi(params, 1);
-        SetInt__22GameVariableDispatcherFUiUii(
-            m_pGameVariables__13ScreenControl, 0, resource,
-            GetInt__22GameVariableDispatcherFi(m_pGameVariables__13ScreenControl,
-                                               resource) + value);
+    case 0xff0007:
+        pp_name_entry_proces_char_entry(
+            GetName__12ScreenParamsFUi(params, 0));
         break;
     case 0x2c88:
         {
@@ -7604,22 +7543,52 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
             set_snd_vol(*(int*)((char*)pdata + 8), 0x1c0a, 1.0f);
         }
         break;
-    case 0x2ee0:
-        save_game_settings_in_action_handler();
-        break;
-    case 0x2ee1:
-        pselect_start_code_entry(
-            0, ((PlyrInfo*)((char*)&g_game_info.players[0] +
-                           (action->m_flags - 1) * 0x6c))->pad_index);
-        break;
-    case 0x2ee2:
-        reset_video_defaults();
-        break;
     case 0x32c8:
         reset_default_gameplay_settings();
         break;
+    case 0x1f5a:
+        ck_increment_bet();
+        break;
+    case 0x1f5b:
+        ck_decrement_bet();
+        break;
+    case 0x1f5c:
+        ck_decrement_wager_koin_type();
+        break;
+    case 0x1f5d:
+        ck_increment_wager_koin_type();
+        break;
+    case 0x1f59:
+        wager_cancelled();
+        break;
+    case 0x1f58:
+        wager_completed();
+        break;
+    case 0x1f5f:
+        pselect_random_select(action->m_flags - 1);
+        break;
+    case 0x1f62:
+        if (g_game_info.pad_overlay.pselect.field_1d0 != 0) {
+            ProcessActionSubActions(action);
+        }
+        break;
+    case 0x2ee0:
+        save_game_settings_in_action_handler();
+        break;
+    case 0x1f60:
+        play_current_soundtrack();
+        break;
+    case 0x2ee2:
     case 0x36b0:
         reset_video_defaults();
+        break;
+    case 0x1f63:
+        pselect_player_canceled(GetInt__12ScreenParamsFUi(params, 0) - 1);
+        break;
+    case 0x1f64:
+        if (pselect_is_random(action->m_flags - 1) != 0) {
+            ProcessActionSubActions(action);
+        }
         break;
     case 0x36b2:
         adjust_screen_reset();
@@ -7627,20 +7596,9 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
     case 0x36b3:
         adjust_screen_position(GetInt__12ScreenParamsFUi(params, 0));
         break;
-    case 0x6590:
-        resource = GetResourceID__12ScreenParamsFUi(params, 0);
-        value = GetInt__12ScreenParamsFUi(params, 1);
-        value2 = GetInt__12ScreenParamsFUi(params, 2);
-        if (ScreenIntegerCompare__Fiii(
-                GetInt__22GameVariableDispatcherFi(
-                    m_pGameVariables__13ScreenControl, resource),
-                value, value2) != 0) {
-            ProcessActionSubActions(action);
-        }
-        break;
-    case 0xff0007:
-        pp_name_entry_proces_char_entry(
-            GetName__12ScreenParamsFUi(params, 0));
+    case 0x1f41:
+    case 0x2b02:
+    case 0x36b1:
         break;
     }
 }
@@ -8281,22 +8239,22 @@ void* CreateInstance__20mkScreenEngineClientFP9ScreenMgriP12ScreenParams(
         ssText = (SpreadSheet_text*)__nw__13ScreenControlFUl(0x120);
         if (ssText != 0) {
             __ct__13ScreenControlFv(ssText);
-            ssText->sheet.vtbl = &__vt__11SpreadSheet;
-            ssText->sheet.rows = 0;
-            ssText->sheet.cols = 0;
-            ssText->sheet.unkE8 = 0;
-            ssText->sheet.unkEC = 0;
-            ssText->sheet.flagF0 = 0;
-            ssText->sheet.cellArray = 0;
-            ssText->sheet.flag104 = 1;
-            ssText->sheet.flag108 = 1;
-            ssText->sheet.scrollX = 0;
-            ssText->sheet.unkD4 = 0;
-            ssText->sheet.scrollY = 0;
-            ssText->sheet.unkDC = 0;
-            ssText->sheet.nodeB0 = 0;
-            ssText->sheet.nodeB4 = 0;
-            ssText->sheet.vtbl = &__vt__16SpreadSheet_text;
+            ((ScreenControlView*)ssText)->vtbl = &__vt__11SpreadSheet;
+            ssText->rows = 0;
+            ssText->cols = 0;
+            ssText->unkE8 = 0;
+            ssText->unkEC = 0;
+            ssText->flagF0 = 0;
+            ssText->cellArray = 0;
+            ssText->flag104 = 1;
+            ssText->flag108 = 1;
+            ssText->scrollX = 0;
+            ssText->unkD4 = 0;
+            ssText->scrollY = 0;
+            ssText->unkDC = 0;
+            ssText->nodeB0 = 0;
+            ssText->nodeB4 = 0;
+            ((ScreenControlView*)ssText)->vtbl = &__vt__16SpreadSheet_text;
             ssText->unk11C = 0;
             ssText->unk118 = 0;
         }
@@ -8305,22 +8263,22 @@ void* CreateInstance__20mkScreenEngineClientFP9ScreenMgriP12ScreenParams(
         ssImage = (SpreadSheet_image*)__nw__13ScreenControlFUl(0x124);
         if (ssImage != 0) {
             __ct__13ScreenControlFv(ssImage);
-            ssImage->sheet.vtbl = &__vt__11SpreadSheet;
-            ssImage->sheet.rows = 0;
-            ssImage->sheet.cols = 0;
-            ssImage->sheet.unkE8 = 0;
-            ssImage->sheet.unkEC = 0;
-            ssImage->sheet.flagF0 = 0;
-            ssImage->sheet.cellArray = 0;
-            ssImage->sheet.flag104 = 1;
-            ssImage->sheet.flag108 = 1;
-            ssImage->sheet.scrollX = 0;
-            ssImage->sheet.unkD4 = 0;
-            ssImage->sheet.scrollY = 0;
-            ssImage->sheet.unkDC = 0;
-            ssImage->sheet.nodeB0 = 0;
-            ssImage->sheet.nodeB4 = 0;
-            ssImage->sheet.vtbl = &__vt__17SpreadSheet_image;
+            ((ScreenControlView*)ssImage)->vtbl = &__vt__11SpreadSheet;
+            ssImage->rows = 0;
+            ssImage->cols = 0;
+            ssImage->unkE8 = 0;
+            ssImage->unkEC = 0;
+            ssImage->flagF0 = 0;
+            ssImage->cellArray = 0;
+            ssImage->flag104 = 1;
+            ssImage->flag108 = 1;
+            ssImage->scrollX = 0;
+            ssImage->unkD4 = 0;
+            ssImage->scrollY = 0;
+            ssImage->unkDC = 0;
+            ssImage->nodeB0 = 0;
+            ssImage->nodeB4 = 0;
+            ((ScreenControlView*)ssImage)->vtbl = &__vt__17SpreadSheet_image;
             ssImage->unk118 = 0;
             ssImage->unk11C = 0;
             ssImage->unk120 = 0;
