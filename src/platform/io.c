@@ -606,16 +606,16 @@ static inline void scan_switch_sequence(
         if (--history < 0) history = 29;
         expected = requirements[remaining];
         switch (expected) {
-        case (int)0x80000001:
+        case 0x80000001:
             if ((unsigned int)entry->switch_index != toward) return;
             break;
-        case (int)0x80000002:
+        case 0x80000002:
             if ((unsigned int)entry->switch_index != away) return;
             break;
-        case (int)0x80000003:
+        case 0x80000003:
             if ((unsigned int)entry->switch_index != 0xC) return;
             break;
-        case (int)0x80000004:
+        case 0x80000004:
             if ((unsigned int)entry->switch_index != 0xE) return;
             break;
         default:

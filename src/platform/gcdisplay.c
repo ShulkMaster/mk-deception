@@ -37,10 +37,6 @@ unsigned char loading_image[0x10000] = {
 GXTexObj feedbackTex;
 static struct GcNativeDisplay gc_native_display;
 static GXColor Black = {0, 0, 0, 0xFF};
-static const GXColor kTextWhite = {0xFF, 0xFF, 0xFF, 0xFF};
-static const GXColor kRenderBlack = {0, 0, 0, 0xFF};
-static const GXColor kMovieRenderBlack = {0, 0, 0, 0xFF};
-static const GXColor kFeedbackColor = {0xC4, 0xC4, 0xC4, 0xFF};
 static int uFrameBlastCount = 0xF;
 static void* LastSheet;
 static OSFontHeader* FontData;
@@ -125,7 +121,7 @@ void feedback_effect(void) {
         {0.0f, 1.0f, 0.0f, 0.0f},
         {0.0f, 0.0f, -1.0f, 0.0f},
     };
-    GXColor color = kFeedbackColor;
+    GXColor color = {0xC4, 0xC4, 0xC4, 0xFF};
     GXColor amb;
     GXColor mat;
     int h;
@@ -330,9 +326,8 @@ void gc_native_display_render_image(void) {
     gc_native_display_render(render_image, 0);
 }
 
-/* TODO: [near miss] 97.78%; clear-color load precedes matrix setup; local literal regresses the exact constant pool. */
 void gc_native_display_render_movie(void* ctx) {
-    GXColor clearColor = kMovieRenderBlack;
+    GXColor clearColor = {0, 0, 0, 0xFF};
     Mtx posMtx = {
         {1.0f, 0.0f, 0.0f, 0.0f},
         {0.0f, 1.0f, 0.0f, 0.0f},
@@ -363,9 +358,8 @@ void gc_native_display_render_movie(void* ctx) {
     GXCopyDisp(_RwGCXFBDisp, 1);
 }
 
-/* TODO: [near miss] 98.88%; captured black-load schedule remains; literal form regresses constant-pool data. */
 static void gc_native_display_render(NativeRenderCb cb, void* arg) {
-    GXColor black = kRenderBlack;
+    GXColor black = {0, 0, 0, 0xFF};
     Mtx posMtx = {
         {1.0f, 0.0f, 0.0f, 0.0f},
         {0.0f, 1.0f, 0.0f, 0.0f},
@@ -499,13 +493,12 @@ static void render_text(void* text) {
 }
 
 #pragma dont_inline on
-/* TODO: [near miss] 92.98%; named white-color copy prologue differs; anonymous initializer needs TU data reconciliation. */
 static void render_text_without_clear(char* text, int x, int y) {
     char* walk;
     GXColor color;
 
     walk = text;
-    color = kTextWhite;
+    color = (GXColor){0xFF, 0xFF, 0xFF, 0xFF};
     if (FontData != 0) {
         for (; *walk != '\0'; walk++) {
         }
@@ -1159,15 +1152,15 @@ static void display_image(void) {
     wgPipe[0] = 0x100;
 }
 
-/* TODO: [near miss] 96.43%; 8x4 tile traversal and instruction order agree;
- * 27 localized GPR operands remain. */
+/* TODO: [near miss] 96.90%; 8x4 tile traversal and instruction order agree;
+ * 24 localized GPR operands remain. */
 void tile_image(unsigned char* dest) {
     unsigned char* tmp;
     const unsigned char* image;
-    const unsigned char* tile_source;
     unsigned char* output;
     int tile;
     int output_offset;
+    const unsigned char* tile_source;
     int pixel;
     int tile_x;
     int tile_y;

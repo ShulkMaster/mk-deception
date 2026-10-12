@@ -663,6 +663,26 @@ int gc_delete_file(int device, const char* fileName) {
     return 0;
 }
 
+static inline int mem_card_open(int device, const char* fileName, CARDFileInfo* fileInfo) {
+    s32 rc;
+
+    if (device < 0 || device >= 2) {
+        return -99;
+    }
+    do {
+        rc = CARDOpen(device, fileName, fileInfo);
+    } while (rc == -1);
+    switch (rc) {
+    case 0: return 0;
+    case -3: return -10;
+    case -4: return -4;
+    case -5:
+    case -10:
+    case -128:
+    default: return -99;
+    }
+}
+
 static inline int finish_memcard_load_after_unmount(int device, int result) {
     s32 rc;
 
@@ -684,8 +704,23 @@ static inline int finish_memcard_load_after_close(int device, CARDFileInfo* file
     return finish_memcard_load_after_unmount(device, result);
 }
 
-/* TODO: [breakthrough] 91.44%; shared unmount and checksum values recovered;
- * read-error close placement, result lifetime, and mask scheduling remain. */
+static inline int calc_data_checksum(unsigned char* buffer, unsigned int length) {
+    int sum = 0;
+    unsigned int i;
+    unsigned int bit = 0x80;
+
+    for (i = 0; i < length; i++) {
+        unsigned char oldBit = bit;
+        sum += (unsigned char)(*buffer++ | oldBit);
+        bit = (unsigned char)bit >> 1;
+        if (bit == 0) {
+            bit = 0x80;
+        }
+    }
+    return sum;
+}
+
+/* TODO: [breakthrough] 96.21%; shared cleanup/helpers recovered; checksum shift and SDK argument-copy boundaries remain. */
 int load_from_memcard2(int device, int modeFlag, unsigned int offset, const char* unusedStr,
                        const char* fileName, void* buffer, int size, const char* unusedCardName,
                        int unusedNameLen, unsigned int* freeBlocks, int* freeBytes,
@@ -695,11 +730,7 @@ int load_from_memcard2(int device, int modeFlag, unsigned int offset, const char
     int status;
     int result;
     CARDFileInfo fileInfo;
-    unsigned char* walk;
     unsigned int checksumLength;
-    unsigned int remaining;
-    unsigned int bit;
-    int sum;
     int storedChecksum;
     unsigned int seekBlock;
 
@@ -717,140 +748,135 @@ int load_from_memcard2(int device, int modeFlag, unsigned int offset, const char
     do {
         rc = CARDProbeEx(device, 0, &sectorSize);
     } while (rc == -1);
-
     if (rc != 0) {
         switch (rc) {
-        case -3: return 1;
-        case -2: return 10;
+        case -3: result = 1; break;
+        case -2: result = 10; break;
         case -128:
-        default: return 4;
+        default: result = 4; break;
         }
+        goto done;
     }
-    if (sectorSize != 0x2000)
-        return 8;
+    if (sectorSize != 0x2000) {
+        result = 8;
+        goto done;
+    }
 
     status = gc_mount_checked(device);
-    switch (status) {
-    case -10: return 1;
-    case -50: return 10;
-    case -51: result = 11; break;
-    case -52: result = 9; break;
-    case -99:
-    default: return 4;
-    case 0:
-        do {
-            rc = CARDFreeBlocks(device, (s32*)freeBlocks, (s32*)freeBytes);
-        } while (rc == -1);
-        if (rc != 0) {
-            *freeBlocks = 0;
-            switch (rc) {
-            case -3: result = 1; break;
-            case -6:
-            case -128:
-            default: result = 4; break;
-            }
-        } else {
-            *freeBlocks = (*freeBlocks + 0x1FFF) >> 13;
-            if (device < 0 || device >= 2) status = -99;
-            else {
-                do {
-                    rc = CARDOpen(device, fileName, &fileInfo);
-                } while (rc == -1);
-                switch (rc) {
-                case 0: status = 0; break;
-                case -3: status = -10; break;
-                case -4: status = -4; break;
-                case -5:
-                case -10:
-                case -128:
-                default: status = -99; break;
-                }
-            }
-            if (status != 0) {
-                switch (status) {
-                case -2: result = 7; break;
-                case -6: result = 5; break;
-                case -4: result = 2; break;
-                case -10: result = 1; break;
-                case -3:
-                case -99:
-                default: result = 4; break;
-                }
-            } else {
-                seekBlock = 0;
-                if (offset >= 0x28B8U)
-                    seekBlock = (offset - 0x28B8U) / 0x1F54U + 2;
-                gc_seek_position = seekBlock;
-                rc = mem_card_read(&fileInfo, buffer, size);
-                if (rc != 0) {
-                    switch (rc) {
-                    case -2: result = 7; break;
-                    case -10: result = 1; break;
-                    case -4: result = 2; break;
-                    case -53: result = 6; break;
-                    case -3:
-                    case -99:
-                    default: result = 4; break;
-                    }
-                    gc_seek_position = 0;
-                    do {
-                        rc = CARDClose(&fileInfo);
-                    } while (rc == -1);
-                } else {
-                    gc_seek_position = 0;
-                    do {
-                        rc = CARDClose(&fileInfo);
-                    } while (rc == -1);
-                    switch (rc) {
-                    case 0: status = 0; break;
-                    case -3: status = -10; break;
-                    case -128:
-                    default: status = -99; break;
-                    }
-                    if (status != 0) {
-                        switch (status) {
-                        case -2: result = 7; break;
-                        case -10: result = 1; break;
-                        case -4: result = 2; break;
-                        case -3:
-                        case -9:
-                        case -99:
-                        default: result = 4; break;
-                        }
-                    } else {
-                        checksumLength = (unsigned int)size - 4;
-                        walk = buffer;
-                        bit = 0x80;
-                        sum = 0;
-                        for (remaining = 0; remaining < checksumLength; remaining++) {
-                            unsigned char data = *walk;
-                            unsigned char oldBit = bit;
-                            bit = (unsigned char)bit >> 1;
-                            walk++;
-                            sum += (unsigned char)(data | oldBit);
-                            if (bit == 0) bit = 0x80;
-                        }
-                        storedChecksum = sum;
-                        if (compare_checksums((char*)buffer + checksumLength,
-                            (const char*)&storedChecksum) == 0) {
-                            *checksumFailOut = 1;
-                            result = 6;
-                        } else {
-                            status = gc_unmount_checked(device);
-                            switch (status) {
-                            case 0: return 0;
-                            case -10: result = 1; break;
-                            case -99:
-                            default: result = 4; break;
-                            }
-                        }
-                    }
-                }
-            }
+    if (status != 0) {
+        switch (status) {
+        case -10: result = 1; goto done;
+        case -50: result = 10; goto done;
+        case -51: result = 11; break;
+        case -52: result = 9; break;
+        case -99:
+        default: result = 4; goto done;
         }
-        break;
+        goto unmount_file;
     }
-    return finish_memcard_load_after_unmount(device, result);
+
+    do {
+        rc = CARDFreeBlocks(device, (s32*)freeBlocks, (s32*)freeBytes);
+    } while (rc == -1);
+    if (rc != 0) {
+        *freeBlocks = 0;
+        switch (rc) {
+        case -3: result = 1; break;
+        case -6:
+        case -128:
+        default: result = 4; break;
+        }
+        goto unmount_file;
+    }
+    *freeBlocks = (*freeBlocks + 0x1FFF) >> 13;
+
+    status = mem_card_open(device, fileName, &fileInfo);
+    if (status != 0) {
+        switch (status) {
+        case -2: result = 7; break;
+        case -6: result = 5; break;
+        case -4: result = 2; break;
+        case -10: result = 1; break;
+        case -3:
+        case -99:
+        default: result = 4; break;
+        }
+        goto unmount_file;
+    }
+
+    seekBlock = 0;
+    if (offset >= 0x28B8U)
+        seekBlock = (offset - 0x28B8U) / 0x1F54U + 2;
+    gc_seek_position = seekBlock;
+    rc = mem_card_read(&fileInfo, buffer, size);
+    if (rc != 0) {
+        switch (rc) {
+        case -2: result = 7; break;
+        case -10: result = 1; break;
+        case -4: result = 2; break;
+        case -53: result = 6; break;
+        case -3:
+        case -99:
+        default: result = 4; break;
+        }
+        goto close_file;
+    }
+
+    gc_seek_position = 0;
+    do {
+        rc = CARDClose(&fileInfo);
+    } while (rc == -1);
+    switch (rc) {
+    case 0: status = 0; break;
+    case -3: status = -10; break;
+    case -128:
+    default: status = -99; break;
+    }
+    if (status != 0) {
+        switch (status) {
+        case -2: result = 7; break;
+        case -10: result = 1; break;
+        case -4: result = 2; break;
+        case -3:
+        case -9:
+        case -99:
+        default: result = 4; break;
+        }
+        goto unmount_file;
+    }
+
+    checksumLength = (unsigned int)size - sizeof(storedChecksum);
+    storedChecksum = calc_data_checksum(buffer, checksumLength);
+    if (compare_checksums((char*)buffer + checksumLength,
+        (const char*)&storedChecksum) == 0) {
+        *checksumFailOut = 1;
+        result = 6;
+        goto unmount_file;
+    }
+    status = gc_unmount_checked(device);
+    if (status != 0) {
+        switch (status) {
+        case -10: result = 1; break;
+        case -99:
+        default: result = 4; break;
+        }
+        goto unmount_file;
+    }
+    return status;
+
+close_file:
+    gc_seek_position = 0;
+    do {
+        rc = CARDClose(&fileInfo);
+    } while (rc == -1);
+unmount_file:
+    if (device >= 0 && device < 2) {
+        do {
+            rc = CARDUnmount(device);
+        } while (rc == -1);
+    }
+done:
+    return result;
 }
 
 static inline int finish_memcard_save_after_unmount(int device, int result) {
@@ -875,7 +901,51 @@ static inline int finish_memcard_save_after_close(int device, CARDFileInfo* file
     return finish_memcard_save_after_unmount(device, result);
 }
 
-/* TODO: [breakthrough] 88.29%; remaining shared cleanup joins and checksum lowering differ from retail. */
+static inline int mem_card_close(CARDFileInfo* fileInfo) {
+    s32 rc;
+
+    gc_seek_position = 0;
+    do {
+        rc = CARDClose(fileInfo);
+    } while (rc == -1);
+    switch (rc) {
+    case 0: return 0;
+    case -3: return -10;
+    case -128:
+    default: return -99;
+    }
+}
+
+static inline int mem_card_write(CARDFileInfo* fileInfo, void* buffer, int size) {
+    int writeLen;
+    s32 rc;
+
+    writeLen = ((size + 0x1FFF) / 0x2000) * 0x2000;
+    if ((unsigned int)writeLen > sizeof(gc_memcard_io_buffer)) {
+        return -99;
+    } else {
+        memcpy(gc_memcard_io_buffer, buffer, size);
+        if (writeLen - size > 0) {
+            memset((unsigned char*)buffer + size, 0, writeLen - size);
+        }
+        do {
+            rc = CARDWrite(fileInfo, gc_memcard_io_buffer, writeLen, gc_seek_position << 13);
+        } while (rc == -1);
+        switch (rc) {
+        case 0: return 0;
+        case -3: return -10;
+        case -4: return -4;
+        case -5:
+        case CARD_RESULT_NOPERM:
+        case CARD_RESULT_LIMIT:
+        case -14:
+        case -128:
+        default: return -99;
+        }
+    }
+}
+
+/* TODO: [breakthrough] 96.67%; full-width checksum mask recovered; mask shift and SDK wrapper copies remain. */
 int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFlag,
                      const char* unusedStr, const char* fileName, void* buffer, int size,
                      unsigned int* freeBlocks,
@@ -885,19 +955,11 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
     int status;
     int result;
     int i;
-    int checksum;
     int checksumWord;
     unsigned int checksumLength;
-    unsigned int remaining;
-    unsigned int bit;
     unsigned int seekBlock;
-    unsigned char* walk;
     CARDFileInfo fileInfo;
-    int writeLen;
-    int bufSize;
-    void* srcBuf;
 
-    checksum = 0;
     sectorSize = 0;
     *freeBytes = 0;
     gc_seek_position = 0;
@@ -908,23 +970,11 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
         return 0;
     }
 
-    checksumLength = (unsigned int)size - 4;
+    checksumLength = (unsigned int)size - sizeof(checksumWord);
     if (skipChecksum != 0) {
         checksumWord = 0;
     } else {
-        walk = buffer;
-        bit = 0x80;
-        for (remaining = checksumLength; remaining > 0; remaining--) {
-            unsigned char data = *walk;
-            unsigned char oldBit = bit;
-            bit = (unsigned char)bit >> 1;
-            walk++;
-            checksum += (unsigned char)(data | oldBit);
-            if (bit == 0) {
-                bit = 0x80;
-            }
-        }
-        checksumWord = checksum;
+        checksumWord = calc_data_checksum(buffer, checksumLength);
     }
     *(int*)((unsigned char*)buffer + checksumLength) = checksumWord;
 
@@ -941,11 +991,11 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
         case -128:
         default: result = 4; break;
         }
-        return result;
+        goto done;
     }
     if (sectorSize != 0x2000) {
         result = 8;
-        return result;
+        goto done;
     }
 
     seekBlock = 0;
@@ -956,19 +1006,14 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
     status = gc_mount_checked(device);
     if (status != 0) {
         switch (status) {
-        case -10: result = 1; return result;
-        case -50: result = 10; return result;
+        case -10: result = 1; goto done;
+        case -50: result = 10; goto done;
         case -51: result = 11; break;
         case -52: result = 9; break;
         case -99:
-        default: result = 4; return result;
+        default: result = 4; goto done;
         }
-        if (device >= 0 && device < 2) {
-            do {
-                rc = CARDUnmount(device);
-            } while (rc == -1);
-        }
-        return result;
+        goto unmount_only;
     }
 
     *freeBlocks = 0;
@@ -983,206 +1028,147 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
         case -128:
         default: result = 4; break;
         }
-        gc_seek_position = 0;
-        do {
-            rc = CARDClose(&fileInfo);
-        } while (rc == -1);
-        if (device >= 0 && device < 2) {
-            do {
-                rc = CARDUnmount(device);
-            } while (rc == -1);
-        }
-        unload_memorycard_write_buffer();
-        return result;
+        goto close_file;
     }
     *freeBlocks = (*freeBlocks + 0x1FFF) >> 13;
 
-    /* Preparation failures share unmount and buffer release. */
-    do {
-        if (createFlag != 0) {
-            if (create_memorycard_write_buffer(buffer, size) == 0) {
-                result = 4;
-                break;
-            }
-            do {
-                rc = CARDCreate(device, fileName, 0x74000, &fileInfo);
-            } while (rc == -1);
-            if (rc != 0) {
-                switch (rc) {
-                case -3: result = 0; break;
-                case -8:
-                case -9: result = 5; break;
-                case -2: result = 7; break;
-                case -7: result = 6; break;
-                case -5:
-                case -12:
-                case -128:
-                default:
-                    if (device >= 0 && device < 2) {
-                        last_card_serial_no[device] = 0;
-                    }
-                    result = 4;
-                    break;
-                }
-                break;
-            }
-            do {
-                rc = CARDSetAttributes(fileInfo.chan, fileInfo.fileNo, 0xc);
-            } while (rc == -1);
-            if (rc != 0) {
-                switch (rc) {
-                case -4: result = 2; break;
-                case -3: result = 1; break;
-                case -5:
-                case -10:
-                case -128:
-                default: result = 4; break;
-                }
-                break;
-            }
-        } else {
-            if (create_memorycard_write_buffer(buffer, size) == 0) {
-                result = 4;
-                break;
-            }
-            if (device < 0 || device >= 2) {
-                status = -99;
-            } else {
-                do {
-                    rc = CARDOpen(device, fileName, &fileInfo);
-                } while (rc == -1);
-                switch (rc) {
-                case 0: status = 0; break;
-                case -3: status = -10; break;
-                case -4: status = -4; break;
-                case -5:
-                case -10:
-                case -128:
-                default: status = -99; break;
-                }
-            }
-            if (status != 0) {
-                switch (status) {
-                case -2: result = 7; break;
-                case -6: result = 5; break;
-                case -4: result = 2; break;
-                case -10: result = 1; break;
-                case -3:
-                case -99:
-                default: result = 4; break;
-                }
-                break;
-            }
+    if (createFlag != 0) {
+        if (create_memorycard_write_buffer(buffer, size) == 0) {
+            result = 4;
+            goto unmount_file;
         }
-
-        /* Write failures also close the file before that shared cleanup. */
         do {
-            bufSize = mc_data_buffer_size;
-            srcBuf = mc_data_buffer;
-            writeLen = ((bufSize + 0x1FFF) / 0x2000) * 0x2000;
-            if ((unsigned int)writeLen > sizeof(gc_memcard_io_buffer)) {
-                status = -99;
-            } else {
-                memcpy(gc_memcard_io_buffer, srcBuf, bufSize);
-                if (writeLen - bufSize > 0) {
-                    memset((unsigned char*)srcBuf + bufSize, 0, writeLen - bufSize);
+            rc = CARDCreate(device, fileName, 0x74000, &fileInfo);
+        } while (rc == -1);
+        if (rc != 0) {
+            switch (rc) {
+            case -3: result = 0; break;
+            case -8:
+            case -9: result = 5; break;
+            case -2: result = 7; break;
+            case -7: result = 6; break;
+            case -5:
+            case -12:
+            case -128:
+            default:
+                if (device >= 0 && device < 2) {
+                    last_card_serial_no[device] = 0;
                 }
-                do {
-                    rc = CARDWrite(&fileInfo, gc_memcard_io_buffer, writeLen, gc_seek_position << 13);
-                } while (rc == -1);
-                switch (rc) {
-                case 0: status = 0; break;
-                case -3: status = -10; break;
-                case -4: status = -4; break;
-                case -5:
-                case -8:
-                case -9:
-                case -14:
-                case -128:
-                default: status = -99; break;
-                }
-            }
-            if (status != 0) {
-                switch (status) {
-                case -10: result = 1; break;
-                case -4: result = 2; break;
-                case -99:
-                default: result = 4; break;
-                }
-                break;
-            }
-            if (update_memory_card_status(&fileInfo) == 0) {
                 result = 4;
                 break;
             }
-            *freeBlocks = 0;
-            do {
-                rc = CARDFreeBlocks(device, (s32*)freeBlocks, (s32*)freeBytes);
-            } while (rc == -1);
-            if (rc != 0) {
-                *freeBlocks = 0;
-                switch (rc) {
-                case -3: result = 1; break;
-                case -6: result = 11; break;
-                case -128:
-                default: result = 4; break;
-                }
-                break;
-            }
-            *freeBlocks = (*freeBlocks + 0x1FFF) >> 13;
-            gc_seek_position = 0;
-            do {
-                rc = CARDClose(&fileInfo);
-            } while (rc == -1);
-            switch (rc) {
-            case 0: status = 0; break;
-            case -3: status = -10; break;
-            case -128:
-            default: status = -99; break;
-            }
-            if (status != 0) {
-                switch (status) {
-                case -2: result = 7; break;
-                case -10: result = 1; break;
-                case -4: result = 2; break;
-                case -3:
-                case -9:
-                case -99:
-                default: result = 4; break;
-                }
-                if (device >= 0 && device < 2) {
-                    do {
-                        rc = CARDUnmount(device);
-                    } while (rc == -1);
-                }
-                unload_memorycard_write_buffer();
-                return result;
-            }
-            status = gc_unmount_checked(device);
-            if (status != 0) {
-                switch (status) {
-                case -10: result = 1; break;
-                case -99:
-                default: result = 4; break;
-                }
-                unload_memorycard_write_buffer();
-                return result;
-            }
-            unload_memorycard_write_buffer();
-            return status;
-        } while (0);
-
-        gc_seek_position = 0;
+            goto unmount_file;
+        }
         do {
-            rc = CARDClose(&fileInfo);
+            rc = CARDSetAttributes(fileInfo.chan, fileInfo.fileNo, 0xc);
         } while (rc == -1);
-    } while (0);
+        if (rc != 0) {
+            switch (rc) {
+            case -4: result = 2; break;
+            case -3: result = 1; break;
+            case -5:
+            case -10:
+            case -128:
+            default: result = 4; break;
+            }
+            goto unmount_file;
+        }
+    } else {
+        if (create_memorycard_write_buffer(buffer, size) == 0) {
+            result = 4;
+            goto unmount_file;
+        }
+        status = mem_card_open(device, fileName, &fileInfo);
+        if (status != 0) {
+            switch (status) {
+            case -2: result = 7; break;
+            case -6: result = 5; break;
+            case -4: result = 2; break;
+            case -10: result = 1; break;
+            case -3:
+            case -99:
+            default: result = 4; break;
+            }
+            goto unmount_file;
+        }
+    }
+
+    status = mem_card_write(&fileInfo, mc_data_buffer, mc_data_buffer_size);
+    if (status != 0) {
+        switch (status) {
+        case -10: result = 1; break;
+        case -4: result = 2; break;
+        case -99:
+        default: result = 4; break;
+        }
+        goto close_file;
+    }
+    if (update_memory_card_status(&fileInfo) == 0) {
+        result = 4;
+        goto close_file;
+    }
+    *freeBlocks = 0;
+    do {
+        rc = CARDFreeBlocks(device, (s32*)freeBlocks, (s32*)freeBytes);
+    } while (rc == -1);
+    if (rc != 0) {
+        *freeBlocks = 0;
+        switch (rc) {
+        case -3: result = 1; break;
+        case -6: result = 11; break;
+        case -128:
+        default: result = 4; break;
+        }
+        goto close_file;
+    }
+    *freeBlocks = (*freeBlocks + 0x1FFF) >> 13;
+    status = mem_card_close(&fileInfo);
+    if (status != 0) {
+        switch (status) {
+        case -2: result = 7; break;
+        case -10: result = 1; break;
+        case -4: result = 2; break;
+        case -3:
+        case -9:
+        case -99:
+        default: result = 4; break;
+        }
+        goto unmount_file;
+    }
+    status = gc_unmount_checked(device);
+    if (status != 0) {
+        switch (status) {
+        case -10: result = 1; break;
+        case -99:
+        default: result = 4; break;
+        }
+        goto unload_buffer;
+    }
+    unload_memorycard_write_buffer();
+    return status;
+
+unmount_only:
     if (device >= 0 && device < 2) {
         do {
             rc = CARDUnmount(device);
         } while (rc == -1);
     }
+    return result;
+
+close_file:
+    gc_seek_position = 0;
+    do {
+        rc = CARDClose(&fileInfo);
+    } while (rc == -1);
+unmount_file:
+    if (device >= 0 && device < 2) {
+        do {
+            rc = CARDUnmount(device);
+        } while (rc == -1);
+    }
+unload_buffer:
     unload_memorycard_write_buffer();
+done:
     return result;
 }
 
