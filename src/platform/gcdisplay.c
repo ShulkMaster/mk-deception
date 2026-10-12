@@ -227,7 +227,7 @@ static inline void romfont_load_sheet(void* sheet, void* previousSheet, GXTexObj
     }
 }
 
-/* TODO: [near miss] 99.80%; sheet comparison agrees; texture y register allocation remains. */
+/* TODO: [near miss] 99.80%; texture-y CSE temporary and upper bound swap r30/r26; stop at coloring. */
 int romfont_puts(int x, int y, char* text) {
     int charW;
     void* sheet;
@@ -274,7 +274,7 @@ int romfont_puts(int x, int y, char* text) {
         v0 = sheetY;
         y0 = (short)y - (FontData->ascent * FontSize) / cellW;
         y1 = (short)y + (FontData->descent * FontSize) / cellW;
-        v1 = sheetY + FontData->cellHeight;
+        v1 = v0 + FontData->cellHeight;
 
         GXBegin(0x80, 0, 4);
         u1 = u0 + cellW;

@@ -2006,7 +2006,8 @@ void set_camera_target_angle(CamVec3* angle) {
     camera_info.pdata->target_ang.z = angle->z;
 }
 
-/* TODO: [near miss] 99.33%; delta/square association and public null gate agree; store-phase FPR colors remain. */
+/* TODO: [near miss] 99.33%; nine store-phase FPR rows remain;
+ * local normalization improves this path but regresses the shared consumer. */
 void get_target_movement_vector(const Vec* current_position,
                                 const Vec* target_position, Vec* movement,
                                 float duration) {

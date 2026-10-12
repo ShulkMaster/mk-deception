@@ -91,15 +91,15 @@ static const MwsInitLiterals mwsfd_init_literals = {
     "ERR20010421A : mwPlyInitSfdFx"
 };
 
-int mwsfd_init_cnt;
-int mwsfd_init_flag;
-SfdHandle* mwsfd_err_sfdhn;
-void* mwsfd_err_mwsfdhn;
-static char mwg_sfd_errstr[0x100];
-static int mwg_sfd_errcnt;
-static int mwg_sfd_errcode[16];
-MwsLibraryWork mwsfd_libwork;
 static const char* cri_verstr_ptr;
+MwsLibraryWork mwsfd_libwork;
+static int mwg_sfd_errcode[16];
+static int mwg_sfd_errcnt;
+static char mwg_sfd_errstr[0x100];
+void* mwsfd_err_mwsfdhn;
+SfdHandle* mwsfd_err_sfdhn;
+int mwsfd_init_flag;
+int mwsfd_init_cnt;
 
 extern int mwg_vcnt;
 extern SfdHandle* mwPlyGetSfdHn(void* player);
@@ -135,58 +135,7 @@ extern void SJUNI_Init(void);
 extern void SJUNI_Finish(void);
 extern void MWSFD_SetCond(void* player, int condition, int value);
 
-/* TODO: [near miss] 99.87273%; body and decoded literals agree; retail BSS
- * order starts at init_cnt, while first-use emission starts at err_mwsfdhn. */
-void MWSFLIB_SfdErrFunc(SfdCallbackObject object, int error)
-{
-    void* player = object;
-    if (player != 0) {
-        SfdHandle* sfd = mwPlyGetSfdHn(player);
-        mwsfd_err_mwsfdhn = player;
-        mwsfd_err_sfdhn = sfd;
-    } else {
-        mwsfd_err_mwsfdhn = 0;
-        mwsfd_err_sfdhn = 0;
-    }
-    if (error != 0) {
-        mwg_sfd_errcode[mwg_sfd_errcnt] = error;
-        if (mwg_sfd_errcnt < 15) {
-            mwg_sfd_errcnt++;
-        }
-    }
-
-    switch (error) {
-    case 0xFFFFFFFD:
-    case 0xFFFFFFFE:
-        sprintf(mwg_sfd_errstr, data_error, error);
-        break;
-    case 0xFF000F17:
-    case 0xFF000F18:
-        sprintf(mwg_sfd_errstr, creation_small, error);
-        break;
-    case 0xFF000408:
-    case 0xFF00040C:
-    case 0xFF000F1C:
-        sprintf(mwg_sfd_errstr, read_buffer_small, error);
-        break;
-    case 0xFF000F15:
-        sprintf(mwg_sfd_errstr, frame_pool_invalid, error);
-        break;
-    case 0xFF000C04:
-        sprintf(mwg_sfd_errstr, adxt_handles_exceeded, error);
-        break;
-    default:
-        sprintf(mwg_sfd_errstr, generic_sfd_error, error);
-        break;
-    }
-    MWSFSVM_Error(mwg_sfd_errstr);
-}
-
-int MWSFLIB_SetErrCode(int error)
-{
-    mwsfd_libwork.error_code = error;
-    return error & ~-((error == 0) & 1);
-}
+void MWSFLIB_SfdErrFunc(SfdCallbackObject object, int error);
 
 static inline void mwsflib_SetLibPrm(MwsLibraryWork* work,
                                      const MwsInitParam* parameter)
@@ -204,51 +153,18 @@ static inline void mwsflib_SetLibPrm(MwsLibraryWork* work,
     }
 }
 
-void mwPlyFinishSfdFx(void)
+MwsLibraryWork* MWSFLIB_GetLibWorkPtr(void)
 {
-    MwsLibraryWork* work = &mwsfd_libwork;
-    int index;
-
-    mwsfd_init_cnt--;
-    if (mwsfd_init_cnt != 0) {
-        return;
-    }
-    index = 0;
-    do {
-        MwsPlayerSlot* player = &work->players[index];
-
-        if (player->active == 1) {
-            mwSfdDestroy(player);
-        }
-        index++;
-    } while (index < 8);
-    MWSFSVM_DeleteVfunc();
-    MWSFSVM_DeleteMainFunc();
-    MWSFSVM_DeleteIdleFunc();
-    MWSFSFX_Finish();
-    LSC_Finish();
-    SFD_Finish();
-    ADXT_Finish();
-    MWSTM_FinishStatic();
-    SJUNI_Finish();
-    SJMEM_Finish();
-    SJRBF_Finish();
-    MWSFSVM_Finish();
+    return &mwsfd_libwork;
 }
 
-int MWSFD_GetPauseBdr(void)
+static void mwsflib_LscErrFunc(void* object, const char* message)
 {
-    return mwsfd_libwork.pause_border;
+    MWSFSVM_Error(message);
 }
 
-int MWSFD_GetUsePicUsr(void)
-{
-    return mwsfd_libwork.use_picture_user_data;
-}
-
-static void mwsflib_LscErrFunc(void* object, const char* message);
-
-/* TODO: [breakthrough needed] 95.28%; literal/helper boundary and BSS placement remain unresolved. */
+/* TODO: [breakthrough needed] 95.32%; BSS owners agree;
+ * literal/helper boundary leaves 16 extra code bytes. */
 void mwPlyInitSfdFx(MwsInitParam* parameter)
 {
     MwsInitParam local;
@@ -329,12 +245,97 @@ void mwPlyInitSfdFx(MwsInitParam* parameter)
     mwsfd_init_cnt++;
 }
 
-static void mwsflib_LscErrFunc(void* object, const char* message)
+int MWSFD_GetUsePicUsr(void)
 {
-    MWSFSVM_Error(message);
+    return mwsfd_libwork.use_picture_user_data;
 }
 
-MwsLibraryWork* MWSFLIB_GetLibWorkPtr(void)
+int MWSFD_GetPauseBdr(void)
 {
-    return &mwsfd_libwork;
+    return mwsfd_libwork.pause_border;
 }
+
+void mwPlyFinishSfdFx(void)
+{
+    MwsLibraryWork* work = &mwsfd_libwork;
+    int index;
+
+    mwsfd_init_cnt--;
+    if (mwsfd_init_cnt != 0) {
+        return;
+    }
+    index = 0;
+    do {
+        MwsPlayerSlot* player = &work->players[index];
+
+        if (player->active == 1) {
+            mwSfdDestroy(player);
+        }
+        index++;
+    } while (index < 8);
+    MWSFSVM_DeleteVfunc();
+    MWSFSVM_DeleteMainFunc();
+    MWSFSVM_DeleteIdleFunc();
+    MWSFSFX_Finish();
+    LSC_Finish();
+    SFD_Finish();
+    ADXT_Finish();
+    MWSTM_FinishStatic();
+    SJUNI_Finish();
+    SJMEM_Finish();
+    SJRBF_Finish();
+    MWSFSVM_Finish();
+}
+
+int MWSFLIB_SetErrCode(int error)
+{
+    mwsfd_libwork.error_code = error;
+    return error & ~-((error == 0) & 1);
+}
+
+void MWSFLIB_SfdErrFunc(SfdCallbackObject object, int error)
+{
+    void* player = object;
+    if (player != 0) {
+        SfdHandle* sfd = mwPlyGetSfdHn(player);
+        mwsfd_err_mwsfdhn = player;
+        mwsfd_err_sfdhn = sfd;
+    } else {
+        mwsfd_err_mwsfdhn = 0;
+        mwsfd_err_sfdhn = 0;
+    }
+    if (error != 0) {
+        mwg_sfd_errcode[mwg_sfd_errcnt] = error;
+        if (mwg_sfd_errcnt < 15) {
+            mwg_sfd_errcnt++;
+        }
+    }
+
+    switch (error) {
+    case 0xFFFFFFFD:
+    case 0xFFFFFFFE:
+        sprintf(mwg_sfd_errstr, data_error, error);
+        break;
+    case 0xFF000F17:
+    case 0xFF000F18:
+        sprintf(mwg_sfd_errstr, creation_small, error);
+        break;
+    case 0xFF000408:
+    case 0xFF00040C:
+    case 0xFF000F1C:
+        sprintf(mwg_sfd_errstr, read_buffer_small, error);
+        break;
+    case 0xFF000F15:
+        sprintf(mwg_sfd_errstr, frame_pool_invalid, error);
+        break;
+    case 0xFF000C04:
+        sprintf(mwg_sfd_errstr, adxt_handles_exceeded, error);
+        break;
+    default:
+        sprintf(mwg_sfd_errstr, generic_sfd_error, error);
+        break;
+    }
+    MWSFSVM_Error(mwg_sfd_errstr);
+}
+
+static void mwsflib_LscErrFunc(void* object, const char* message);

@@ -471,8 +471,8 @@ static inline void initialize_fixed_pool_block(
     tail->next = block;
     head->prev = block;
     block->client_size = fix_pool_sizes[index];
-    stride = fix_pool_sizes[index] + 4;
-    count = (available - 0x14) / stride;
+    stride = fix_pool_sizes[index] + sizeof(FixBlock*);
+    count = (available - sizeof(FixBlock)) / stride;
     cursor = (unsigned char*)(block + 1);
     subblock = (FixSubBlock*)cursor;
     for (i = 0; i < count - 1; i++) {
@@ -488,8 +488,7 @@ static inline void initialize_fixed_pool_block(
     start->head = block;
 }
 
-/* TODO: [near miss] 93.32%; byte-stride cursor restores successor copies;
- * initialization homes and unrolled store scheduling remain. */
+/* TODO: [near miss] 93.32%; cursor-view CSE adds a copy; unrolled store scheduling remains. */
 void* allocate_from_fixed_pools(MemPoolObj* pool, unsigned long size) {
     unsigned long index = 0;
     unsigned long count;
@@ -507,26 +506,31 @@ void* allocate_from_fixed_pools(MemPoolObj* pool, unsigned long size) {
     start = &pool->fixed[index];
     block = start->head;
     if (block == NULL || block->free == NULL) {
-        count = 0xFEC / (fix_pool_sizes[index] + 4);
+        count = 0xFEC / (fix_pool_sizes[index] + sizeof(FixBlock*));
         if (count > 0x100) {
             count = 0x100;
         }
         maximum_count = count;
         while (count >= 10) {
             memory = soft_allocate_from_var_pools(
-                pool, count * (fix_pool_sizes[index] + 4) + 0x14, &largest);
+                pool, count * (fix_pool_sizes[index] + sizeof(FixBlock*)) +
+                          sizeof(FixBlock),
+                &largest);
             if (memory != NULL) {
                 break;
             }
-            if (largest > 0x14) {
-                count = (largest - 0x14) / (fix_pool_sizes[index] + 4);
+            if (largest > sizeof(FixBlock)) {
+                count = (largest - sizeof(FixBlock)) /
+                        (fix_pool_sizes[index] + sizeof(FixBlock*));
             } else {
                 count = 0;
             }
         }
         if (memory == NULL && count < maximum_count) {
             memory = allocate_from_var_pools(
-                pool, maximum_count * (fix_pool_sizes[index] + 4) + 0x14);
+                pool, maximum_count *
+                          (fix_pool_sizes[index] + sizeof(FixBlock*)) +
+                          sizeof(FixBlock));
             if (memory == NULL) {
                 return NULL;
             }
@@ -544,7 +548,7 @@ void* allocate_from_fixed_pools(MemPoolObj* pool, unsigned long size) {
         start->head = start->head->next;
         start->tail = start->tail->next;
     }
-    return (unsigned char*)subblock + 4;
+    return (unsigned char*)subblock + sizeof(FixBlock*);
 }
 
 static inline int block_is_empty(const Block* block) {

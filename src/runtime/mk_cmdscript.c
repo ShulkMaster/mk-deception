@@ -565,7 +565,8 @@ void cmdscript_execute(ScriptSlot* slot)
     execute_cmdscript(slot);
 }
 
-/* TODO: [near miss] 94.44%; indexed attrs addressing and name-pointer register/operand order remain. */
+/* TODO: [breakthrough needed] 94.44%; attrs index distribution exists in initial
+ * pcode; restore indexed load shape and name-add producer order. */
 void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index) {
     ScriptFuncDef* def;
     unsigned int attrs_id;
@@ -1495,7 +1496,8 @@ void _copy_column_address_to_register(void) {
     }
 }
 
-/* TODO: [near miss] 93.38%; input snapshots and slot addressing agree; stop at index/load coloring and commuted adds. */
+/* TODO: [near miss] 93.38%; traced slot-index scheduling and two add encodings differ;
+ * neutral combinations and permuter give no clean gain; TU controls regress exact siblings. */
 void _copy_column_to_register(void) {
     unsigned int* args;
     CmdScript* script;

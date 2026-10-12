@@ -306,14 +306,14 @@ struct ScriptPebbleVecArgs {
     unsigned int header;
     int player;
     int index;
-    const Vec* value;
+    Vec* value;
 };
 
 struct ScriptPebbleBounceArgs {
     unsigned int header;
     int player;
     int index;
-    const Vec* velocity;
+    Vec* velocity;
     int flags;
 };
 
@@ -505,8 +505,8 @@ struct ScriptAnimationArgs {
 struct ScriptThreeVecArgs {
     unsigned int header;
     Vec* out;
-    const Vec* first;
-    const Vec* second;
+    Vec* first;
+    Vec* second;
 };
 
 struct ScriptCircleArgs {
@@ -892,7 +892,6 @@ void fxsys_set(int parameter, float value);
 void fxsys_set_v3(int parameter, float x, float y, float z);
 void fx_bind_render_to_sobj(int effect, void* object);
 void fx_disable_ztest(int effect, int disable);
-void fx_set_render_priority(int effect, int priority);
 void fx_hide(int effect, int hide);
 void fx_get_v3(int effect, int parameter, void* value);
 void enable_profiling(int enable);
@@ -930,7 +929,6 @@ void initial_divert(int object, float x, float y);
 void initial_reflect(int object);
 void set_cycle_emission(int value);
 void set_cycle_length(float start, float end);
-void fx_pause_emit(int effect);
 void fx_resume_emit(unsigned int handle);
 void reset_effect(void);
 void spawn_color(int a, int b, int c, int d, int e);
@@ -1074,21 +1072,9 @@ void fix_axe_angle(void* value);
 void ft_mileena_start_veil_ripoff(void);
 void fat_goro_fold_arms(int a, int b, float c, int d);
 void* fatality_boraicho_get_jug(int a, int b);
-void* fatality_boraicho_light_fart_torch(int a);
 void* fatality_boraicho_get_torch(int a, int b);
 void show_baraka_one_blade_only(int a, int b);
 void* fatality_ashrah_get_doll(int a, int b, int c);
-typedef struct FatalityEmitterBind FatalityEmitterBind;
-void fire_multi_emitter_pfx_via_tbl(
-    const char* name, FatalityEmitterBind* table, MkObj* object, int* handles);
-unsigned int pfxhandle_spawn_at_bid_next_bind_render(
-    unsigned int effect, MkObj* object, int bone_id);
-unsigned int pfxhandle_bgnd_spawn_at_sobj_id(
-    const char* name, unsigned int sobj_id);
-unsigned int pfxhandle_spawn_at_bid(
-    const char* name, MkObj* object, int bone_id);
-unsigned int pfxhandle_spawn_at_bid_next(
-    unsigned int effect, MkObj* object, int bone_id);
 void pfx_spawn_at_bid(char* name, int a, int b);
 void* limb_sever_throw_away(int a, int b, int c);
 void auto_calc_limbobj_bone_world_pos(void* a, void* b);
@@ -1195,7 +1181,7 @@ int are_death_traps_on(void);
 char* get_string_by_id(unsigned int id);
 void ending_show_text(int script_index, int duration);
 void ending_show_image(int image);
-void midpoint_v3(Vec* out, const Vec* first, const Vec* second);
+void midpoint_v3(Vec* out, Vec* first, Vec* second);
 Vec* sobj_get_world_pos(struct SObj* object);
 void get_point_on_circle(float* center, float radius, float angle, float* out);
 MkHdr* cut_player_in_half(MkHdr* player);
@@ -1232,12 +1218,6 @@ void pebble_turn_culling_off(int player);
 void pebble_turn_culling_on(int player);
 void pebble_unhide_me(int player, int index);
 void pebble_hide_me(int player, int index);
-void pebble_setup_bounce_props(int player, int index, const Vec* velocity,
-                               int flags);
-void pebble_set_ang_vel(int player, int index, const Vec* velocity);
-void pebble_set_ang(int player, int index, const Vec* angles);
-void pebble_set_scale(int player, int index, const Vec* scale);
-void pebble_set_vel(int player, int index, const Vec* velocity);
 void destroy_mkobj(void* object);
 void obj_turn_gravity_off(void* object);
 void obj_set_gravity(void* object, float gravity);
@@ -1279,7 +1259,6 @@ void mks_start_fatality_iceball(int player);
 void mks_debug_display_cloth_ontop(int enabled);
 void start_bow(int player, float strength);
 void start_plyr_attack(float radius);
-void set_active_projectile_rx_info(int reaction, float rate, int strength);
 void run_reaction_cleanup_function(PlyrPdata* player);
 int reaction_xfer_him(int reaction, float rate, int strength);
 void mks_set_cb1_wind_normal(float x, float y, float z);
@@ -1425,7 +1404,7 @@ void idle_his_anim_proc(void);
 int if_collision_autoface_him(void);
 int if_collision_autoface_me(void);
 int init_3d_move(void);
-int init_3d_move_no_aniproc(void);
+void init_3d_move_no_aniproc(void);
 int init_3d_move_no_face(void);
 int init_air_move(void);
 int init_air_move_no_aniproc(void);
@@ -1433,7 +1412,6 @@ int init_ground_move_no_aniproc(void);
 int init_move(void);
 int init_scripted_camera(void);
 int init_still_move(void);
-int initialize_background_danger_zones(void);
 int initialize_clone_lights(int);
 int interior_exit_button_script(void);
 int jab_destroy_drink_obj_in_hand(void);
@@ -1601,7 +1579,6 @@ int set_attackers_attack_region(int);
 int set_block_requirement(int);
 int set_both_face_opponent_flags(void);
 int set_cliff_watcher_round(int);
-void set_current_time(void*);
 void set_hero_position_relative_to_chest(void);
 void set_interaction_camera_script(void*);
 int set_konquest_region_number(int);
@@ -1674,7 +1651,7 @@ int turn_me_pi(void);
 void turn_to_face_exterior_door(void);
 int turn_to_face_interior_door(void);
 int unfreeze_player(void);
-int update_my_last_switch(void);
+void update_my_last_switch(void);
 int wait_for_slot_load(int);
 int wait_to_land(void);
 int wall_eligible_off(void);
@@ -1791,7 +1768,6 @@ void bgnd_sobj_set_rel_pos(unsigned int, void *, float, float, float);
 void bgnd_start_preload_sobj_morph(int, int, unsigned int, unsigned int);
 void bgnd_start_preload_sobj_uv_scroll(
     int, int, float, float, float, float);
-void bgnd_start_script_in_proc(int process_id, unsigned int script_index);
 void bgnd_start_script_in_proc_bigstack(
     int process_id, unsigned int script_index);
 void bgnd_start_timer(unsigned int, int, int);
@@ -1906,7 +1882,6 @@ int mks_start_axis_indicator_p_axis_track_bone_world_mat(int, void *, float);
 void mks_victim_bleed(int, int);
 int move_player(int, int, int);
 int myvel_his_angle_y(void *, float, float, float);
-int myvel_his_angle_y_inout(void *, float, float, float);
 int myvel_my_angle_y(void *, float, float, float);
 void nb_npc_slave_plyr_process_collision(unsigned int);
 int nbc_script_debug_point(int, int, void *, float);
@@ -1949,7 +1924,6 @@ void npc_travel_path(int, int, int);
 int npc_travel_path_anim_override(int, int, int, int);
 int npc_travel_to_world_position(int, int);
 int obj_get_scale(int, int);
-int obj_scale_over_time(int, int, void *, float);
 void obj_set_flipped_bones(MkObj* object, struct MkFlippedBoneMap* bone_map);
 void obj_set_scale(MkObj*, void*);
 int obj_set_z_offsets(int, void *, float);
@@ -1983,7 +1957,6 @@ void restore_collision_volume_on_object_with_uid(int);
 void resume_effect_at_obj_bid(MkObj*, int, unsigned int, int, int);
 int run_camera_script(int, int, int);
 int save_hero_position_and_angle_prior_to_fight(void *, float);
-int set_active_projectile_velocity_to_hit_gnd(void *, float);
 int set_ani_speed_miss_hit(void *, float, float);
 int set_hero_punched_ground_collisions(int);
 int set_his_damage_multiplier(void *, float);
@@ -2140,7 +2113,6 @@ int random_snd_req(int);
 int random_voice(int);
 int refresh_rate(void);
 int restart_effect(void);
-int set_active_projectile_tracking_light(int);
 float sfrand(void *, float);
 int snd_req(int);
 float spad_xz_length_vector(int);
@@ -4699,8 +4671,8 @@ void _fatality_boraicho_get_jug(void) {
 }
 
 void _fatality_boraicho_light_fart_torch(void) {
-    ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
-        fatality_boraicho_light_fart_torch(((struct ScriptRawArgs*)current_args)->slots[0].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.u =
+        fatality_boraicho_light_fart_torch(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
 void _fatality_boraicho_get_torch(void) {
@@ -4730,28 +4702,28 @@ void _fire_multi_emitter_pfx_via_tbl(void) {
 }
 
 void _pfxhandle_spawn_at_bid_next_bind_render(void) {
-    ((struct ScriptRawResult*)active_cmdscript)->value.i =
-        pfxhandle_spawn_at_bid_next_bind_render(((struct ScriptRawArgs*)current_args)->slots[0].i,
+    ((struct ScriptRawResult*)active_cmdscript)->value.u =
+        pfxhandle_spawn_at_bid_next_bind_render(((struct ScriptRawArgs*)current_args)->slots[0].u,
                                                 ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                                                 ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
 void _pfxhandle_bgnd_spawn_at_sobj_id(void) {
-    ((struct ScriptRawResult*)active_cmdscript)->value.i =
+    ((struct ScriptRawResult*)active_cmdscript)->value.u =
         pfxhandle_bgnd_spawn_at_sobj_id(get_script_string_arg(1),
-                                        ((struct ScriptRawArgs*)current_args)->slots[1].i);
+                                        ((struct ScriptRawArgs*)current_args)->slots[1].u);
 }
 
 void _pfxhandle_spawn_at_bid(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
     char* name = get_script_string_arg(1);
-    ((struct ScriptRawResult*)active_cmdscript)->value.i =
+    ((struct ScriptRawResult*)active_cmdscript)->value.u =
         pfxhandle_spawn_at_bid(name, args->slots[1].pointer, args->slots[2].i);
 }
 
 void _pfxhandle_spawn_at_bid_next(void) {
-    ((struct ScriptRawResult*)active_cmdscript)->value.i =
-        pfxhandle_spawn_at_bid_next(((struct ScriptRawArgs*)current_args)->slots[0].i,
+    ((struct ScriptRawResult*)active_cmdscript)->value.u =
+        pfxhandle_spawn_at_bid_next(((struct ScriptRawArgs*)current_args)->slots[0].u,
                                     ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                                     ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
@@ -5765,7 +5737,7 @@ void _pebble_set_pos(void) {
 
     args = (struct ScriptPebbleVecArgs*)current_args;
     pebble_set_pos(args->player, args->index,
-                   (Vec*)args->value);
+                   args->value);
 }
 
 void _destroy_mkobj(void) {
@@ -6582,7 +6554,8 @@ void _set_active_projectile_tracking_light(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = set_active_projectile_tracking_light(args->slots[0].i);
+    ((struct ScriptMkObjResult*)active_cmdscript)->value =
+        set_active_projectile_tracking_light(args->slots[0].pointer);
 }
 
 void _set_active_projectile_continue_thru_hit(void) {
@@ -6601,7 +6574,7 @@ void _set_active_projectile_velocity_to_hit_gnd(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    set_active_projectile_velocity_to_hit_gnd(current_args, args->slots[0].f);
+    set_active_projectile_velocity_to_hit_gnd(args->slots[0].f);
 }
 
 void _get_projectile_script_velocity(void) {
@@ -10766,7 +10739,7 @@ void _obj_scale_over_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    obj_scale_over_time(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
+    obj_scale_over_time(args->slots[0].pointer, args->slots[1].pointer, args->slots[2].f);
 }
 
 void _jab_release_jade_boomerang(void) {
@@ -11905,7 +11878,7 @@ void _set_current_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    set_current_time((void*)args->slots[0].i);
+    set_current_time(args->slots[0].pointer);
 }
 
 void _npc_restart_his_normal_behavior(void) {
@@ -13024,7 +12997,7 @@ void _myvel_his_angle_y_inout(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    myvel_his_angle_y_inout(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
+    myvel_his_angle_y_inout(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
 void _wait_for_slot_load(void) {

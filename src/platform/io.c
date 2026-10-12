@@ -329,7 +329,8 @@ void init_switch_log(void) {
     }
 }
 
-/* TODO: [near miss] 94.22%; reset label/index GPR homes and setup scheduling remain. */
+/* TODO: [near miss] 94.22%; label and reduced loop-offset homes differ;
+ * separate indices and loop-local label regress; retain reset store order. */
 void turn_switch_log_on(void) {
     const char* label;
     int i;

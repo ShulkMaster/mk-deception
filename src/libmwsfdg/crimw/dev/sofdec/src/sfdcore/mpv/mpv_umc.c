@@ -183,23 +183,10 @@ static void mpvumc_OneReadMb(MPVContext* context, u8* destination,
     luma_function(mc);
 }
 
-static inline void mpvumc_SetOutputBlocks(MPVContext* context,
-                                          const MPVBlockOffsets* offsets)
-{
-    MPVOutputBlock* block = context->output_blocks.blocks;
-    block[0].destination = context->output.chroma0 + offsets->chroma;
-    block[1].destination = context->output.chroma1 + offsets->chroma;
-    block[2].destination = context->output.luma + offsets->luma;
-    block[3].destination = block[2].destination + 8;
-    block[4].destination =
-        block[2].destination + context->output.luma_stride * 8;
-    block[5].destination = block[4].destination + 8;
-}
-
-/* TODO: [near miss] 92.59%; frame-buffer owner recovered; two output-call setup instructions are scheduled differently. */
 void MPVUMC_BiDirect(MPVContext* context)
 {
     MPVBlockOffsets offsets;
+    MPVOutputBlocks* output;
     MPVFrameBuffers* frame_buffers = &context->frame_buffers;
     MPVMacroblockSources* sources = &context->sources;
     mpvumc_OneReadMb(context, context->sources.prediction0, &offsets,
@@ -208,8 +195,15 @@ void MPVUMC_BiDirect(MPVContext* context)
     mpvumc_OneReadMb(context, sources->prediction1, &offsets,
                      &frame_buffers->backward,
                      &context->backward_motion);
-    mpvumc_SetOutputBlocks(context, &offsets);
-    mpvumc_BiMakeMb(sources, &context->output_blocks, context->cbp_mask);
+    output = &context->output_blocks;
+    output->blocks[0].destination = context->output.chroma0 + offsets.chroma;
+    output->blocks[1].destination = context->output.chroma1 + offsets.chroma;
+    output->blocks[2].destination = context->output.luma + offsets.luma;
+    output->blocks[3].destination = output->blocks[2].destination + 8;
+    output->blocks[4].destination =
+        output->blocks[2].destination + context->output.luma_stride * 8;
+    output->blocks[5].destination = output->blocks[4].destination + 8;
+    mpvumc_BiMakeMb(sources, output, context->cbp_mask);
 }
 
 void MPVUMC_Backward(MPVContext* context)

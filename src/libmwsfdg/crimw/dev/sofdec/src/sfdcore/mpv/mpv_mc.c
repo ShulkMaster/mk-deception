@@ -154,7 +154,7 @@ void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
     }
 }
 
-/* TODO: [near miss] 92.94%; all alignment operations agree; stop at aligned average scheduling and case1/2 coloring. */
+/* TODO: [breakthrough] 95.34%; aligned average is exact; case1/2 packed-word coloring and cursor schedule remain. */
 void MPVMC08_OneRefV2_TuneC(MPVMCContext *context)
 {
     s32 row;
@@ -182,7 +182,7 @@ void MPVMC08_OneRefV2_TuneC(MPVMCContext *context)
             x0 = w0 ^ a0;
             x1 = w1 ^ a1;
             destination[0] = (w0 & a0) + ((x0 & m1) >> 1) + (x0 & m2);
-            destination[1] = (w1 & a1) + (((x1 & m1) >> 1) + (x1 & m2));
+            destination[1] = (w1 & a1) + ((x1 & m1) >> 1) + (x1 & m2);
             reference0 += stride;
             reference1 += stride;
             destination += 2;

@@ -247,15 +247,11 @@ void scale_xz(Vec* out, const Vec* v, float s) {
 }
 #pragma pop
 
-#pragma push
-#pragma scheduling off
-/* TODO: [near miss] 92.35294%; only half-factor load precedes the x input loads. */
-void midpoint_v3(Vec* out, const Vec* a, const Vec* b) {
+void midpoint_v3(Vec* out, Vec* a, Vec* b) {
     out->x = kHalf * (a->x + b->x);
     out->y = kHalf * (a->y + b->y);
     out->z = kHalf * (a->z + b->z);
 }
-#pragma pop
 
 float dist2_v3_to_v3(const Vec* a, const Vec* b) {
     float dx = b->x - a->x;

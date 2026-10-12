@@ -250,7 +250,8 @@ static inline void mslDSB_AllocPending(mslDSB_PendingAsyncRead*& request) {
     }
 }
 
-/* TODO: [near miss] 93.40385%; request/retry CFG restored; hoisted diagnostic address and allocation webs enlarge frame. */
+/* TODO: [breakthrough needed] 93.40%; diagnostic-pool ownership and
+ * free-head propagation enlarge the frame; recover the whole-TU mode. */
 extern "C" mslStreamFileRequest* mslStreamFile_QueueRequest(
     _mwFile* file, unsigned long offset, unsigned long size, int priority,
     mslStreamFileCallback callback, void* callback_data) {

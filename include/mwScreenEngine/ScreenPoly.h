@@ -84,6 +84,9 @@ struct ScreenPoly {
 }; /* 0x7C */
 
 /* Retail vert index remap used by CreatePoly. */
+struct ScreenPolyVTable;
+extern struct ScreenPolyVTable __vt__10ScreenPoly;
+
 extern int vert_map__10ScreenPoly[4];
 
 #endif

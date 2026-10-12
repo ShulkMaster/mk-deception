@@ -294,7 +294,7 @@ static inline void cftStorePixelQuad(
     second_output[0] = cftPackEvenPixels(second_luma, second_chroma);
 }
 
-/* TODO: [near miss] 99.89%; two commutative next-row additions remain; stop at operand encoding. */
+/* TODO: [near miss] 99.89%; two next-row ADD operands differ already in initial PCode; stop at encoding. */
 void CFT_Argb420ToArgb8(const void* source, void* destination,
                         s32 width, s32 height)
 {

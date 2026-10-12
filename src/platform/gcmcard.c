@@ -1335,7 +1335,7 @@ static int gc_get_memcard_serial_number(int device, u64* out) {
     return result;
 }
 
-/* TODO: [near miss] 93.95%; device/result registers and two post-callback load pairs differ. */
+/* TODO: [near miss] 93.95%; device/result homes and two callback load pairs remain; table-owner/RMW forms neutral. */
 int update_storage_status_for_one_device(int device) {
     int changed = 0;
 
@@ -1360,7 +1360,7 @@ int update_storage_status_for_one_device(int device) {
     return changed;
 }
 
-/* TODO: [near miss] 94.44%; inline device/mask allocation and post-callback load ordering remain. */
+/* TODO: [near miss] 94.44%; device/mask r29/r30 swap and two callback load pairs; owner/RMW forms neutral. */
 int update_storage_status(int flag) {
     int device;
     int any = 0;

@@ -144,7 +144,7 @@ public:
     int extraResId; /* +0x110 -- GetResourceID when hasExtraRes */
     int pad114; /* +0x114 */
     ScreenText** unk118; /* +0x118 -- cell nodes */
-    int unk11C; /* +0x11C -- init 0 */
+    char** strings;
 };
 
 /* 'SPSI' SpreadSheet_image -- sizeof 0x124. */

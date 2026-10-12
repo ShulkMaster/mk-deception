@@ -131,7 +131,8 @@ static inline void mslBankUnloadSounds(mslLoadedBank* bank)
     bank->system = 0;
 }
 
-/* TODO: [near miss] 99.73%; five unload-entry register rows remain; stop at coloring. */
+/* TODO: [near miss] 99.73%; unload iterator uses r27 instead of r29;
+ * loop-scope change regresses both helper consumers; retain phase boundaries. */
 extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
     if (bank == 0) {
         return 0;

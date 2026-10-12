@@ -65,7 +65,7 @@ static inline int sfh_is_valid(const SFHHandle* handle)
 
 static int sfh_is_free(SFHHandle* handle)
 {
-    return handle->state == 0;
+    return handle->state == 0 ? 1 : 0;
 }
 
 static inline int sfh_is_version_ok(const SFHHandle* handle)
@@ -408,7 +408,7 @@ int SFH_AnlyElemCodecVid(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [breakthrough] 92.93104%; word/endian decode agree; search GPRs and reverse-endian store fold remain. */
+/* TODO: [near miss] 94.66%; endian decode agrees; compiler folds the manual swap/store into stwbrx. */
 int SFH_AnlyElemSmpHz(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
@@ -470,14 +470,14 @@ int SFH_AnlyMaxFrmNum(SFHHandle* handle, int* result)
     return sfh_read_header_u32(handle, 0xC0, result);
 }
 
-/* TODO: [near miss] 91.410255%; aligned endian decode agrees; compiler repartitions the byte insertions. */
+/* TODO: [near miss] 95.51%; aligned endian decode agrees; shared decoder insertion partition remains. */
 int SFH_AnlyMaxPlyLenVid(SFHHandle* handle, int* result)
 {
     *result = 0;
     return sfh_read_header_u32(handle, 0xBC, result);
 }
 
-/* TODO: [near miss] 91.410255%; aligned endian decode agrees; compiler repartitions the byte insertions. */
+/* TODO: [near miss] 95.51%; aligned endian decode agrees; shared decoder byte-insertion folding remains. */
 int SFH_AnlyMaxPlyLenAud(SFHHandle* handle, int* result)
 {
     *result = 0;
@@ -515,7 +515,7 @@ int SFH_AnlyNumElemTot(SFHHandle* handle, int* result)
     return sfh_read_header_u8(handle, 0xB0, result);
 }
 
-/* TODO: [near miss] 91.410255%; aligned endian decode agrees; compiler repartitions the byte insertions. */
+/* TODO: [near miss] 95.51%; aligned endian decode agrees; shared decoder byte-insertion folding remains. */
 int SFH_AnlyPackSiz(SFHHandle* handle, int* result)
 {
     *result = 0;
@@ -534,7 +534,7 @@ int SFH_AnlyPackType(SFHHandle* handle, int* result)
     return sfh_read_header_u8(handle, 0x84, result);
 }
 
-/* TODO: [near miss] 91.410255%; aligned endian decode agrees; compiler repartitions the byte insertions. */
+/* TODO: [near miss] 95.51%; aligned endian decode agrees; shared decoder insertion partition remains. */
 int SFH_AnlyHdrSiz(SFHHandle* handle, int* result)
 {
     *result = 0;
@@ -719,8 +719,6 @@ int SFH_IsExistStmId(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 98.32258%; only free-state Boolean materialization differs;
- * propagation-off closes it but regresses nine siblings; retain the honest helper. */
 int SFH_IsSfdHeader(SFHHandle* handle, int* result)
 {
     static const char signature[] = "SofdecStream            ";

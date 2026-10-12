@@ -75,8 +75,7 @@ static inline SFXAObject* SFXA_FindFreeObject(void) {
     return 0;
 }
 
-/* TODO: [near miss] 84.64%; CFG/stores agree; initializer constants/address scheduling remains;
- * prior honest forms exhausted; verify object scheduling mode. */
+/* TODO: [near miss] 84.64%; initializer constant/address scheduling remains; scheduling-off regresses the TU. */
 SFXAObject* SFXA_Create(void) {
     SFXAObject* object = SFXA_FindFreeObject();
     if (object == 0) {
