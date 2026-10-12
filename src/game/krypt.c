@@ -325,7 +325,7 @@ static inline void opening_coffin_effects_impl(Vec* origin) {
 static inline void finish_coffin_opening_effects(Vec* origin) {
     Vec dust_offset = {0.0f, 0.25f, 2.0f};
     Vec effect_position = {0.0f, 0.0f, 0.0f};
-    unsigned int effect;
+    int effect;
     effect = fx_by_owner("coffin_dust_pfx", 4);
     fx_reset(effect);
     effect_position.x = origin->x + dust_offset.x;
@@ -1139,7 +1139,7 @@ static inline int coffin_uses_near_tombstone(int index) {
     return 0;
 }
 
-/* TODO: [near miss] 96.03825%; PFX field owners, inner-loop GPR/FPR coloring, and constant-pool order remain. */
+/* TODO: [near miss] 96.07%; PFX field owners, inner-loop GPR/FPR coloring, and constant-pool order remain. */
 static void set_letter_positions_and_values(PfxVm* pfx) {
     float z_far;
     int col;
@@ -1149,7 +1149,6 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
     int pos_stride;
     int view_row;
     int view_col;
-    int col_off;
     int row_off;
     Vec* pos;
     float base_z;
@@ -1168,6 +1167,7 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
     base_z = tombstone_row_z(view_row);
 
     for (row_off = 0; row_off < 4; row_off++) {
+        int col_off;
         row = view_row + row_off;
         z_near = s_tomb_z_near + base_z;
         z_far = s_tomb_z_far + base_z;
@@ -1759,8 +1759,35 @@ static inline unsigned int coffin_award_art_oid(CoffinEntry* entries, int index)
     return (art_oid + 0x3EA) << 16;
 }
 
-/* TODO: [near miss] 99.19%; award-art homes fixed; koin totals fold into
- * profile+k*4 instead of retail lwzx base; dust fx handle home and signedness remain. */
+static inline void award_koins(int amount, unsigned int koin_type) {
+    unsigned int* totals;
+    ProfileCommon* profile;
+    StringObj* wallet_text;
+    int old_total;
+
+    totals = krypt_pdata->profile_common->koin_totals;
+    profile = krypt_pdata->profile_common;
+    old_total = totals[koin_type];
+    totals[koin_type] += amount;
+    profile->koin_earned[koin_type] += amount;
+    if (save_profile(menu_player, 2) == 0) {
+        totals[koin_type] -= amount;
+        profile->koin_earned[koin_type] -= amount;
+        _mkproc_sleep_ticks = 1.0f;
+        mkproc_sleep();
+    } else {
+        _create_mkproc_generic_tinystack(
+            0x8246, 0x1F, p_counting_sound, 8, &empty_pdata);
+        wallet_text = MK_LIVE(krypt_pdata->wallet_text[koin_type].obj, krypt_pdata->wallet_text[koin_type].obj_instance);
+        display_numerical_change(
+            wallet_text, 0, old_total, amount, 1, 0x14);
+        destroy_mkprocs_pid(0x8246);
+        _mkproc_sleep_ticks = 30.0f;
+        mkproc_sleep();
+    }
+}
+
+/* TODO: [near miss] 99.82%; award/dust nonvolatile homes r24-r28 permuted, award entry r3/r4 swapped. */
 static float p_move_camera_and_open_coffin(void) {
     Vec coffin_position;
     Vec camera_angles = s_coffin_camera_angles;
@@ -1774,10 +1801,8 @@ static float p_move_camera_and_open_coffin(void) {
     ScreenObj* notice_left;
     ScreenObj* notice_right;
     ScreenObj* notice_bottom;
-    StringObj* wallet_text;
     unsigned int art_oid;
     int koin_type;
-    unsigned int old_total;
     int selected;
     int column;
     int row;
@@ -1964,33 +1989,14 @@ static float p_move_camera_and_open_coffin(void) {
     heads_up_display_visible(1);
 
     if (krypt_pdata->award_applied == 0) {
-        ProfileCommon* profile;
         int amount;
 
         entry = &coffin_data[
             krypt_pdata->current_column + krypt_pdata->current_row * 20];
         if ((unsigned int)entry->movie_kind >= 100U) {
-            profile = krypt_pdata->profile_common;
             amount = entry->unlock_or_movie;
             koin_type = entry->movie_kind - 100;
-            old_total = profile->koin_totals[koin_type];
-            profile->koin_totals[koin_type] += amount;
-            profile->koin_earned[koin_type] += amount;
-            if (save_profile(menu_player, 2) == 0) {
-                profile->koin_totals[koin_type] -= amount;
-                profile->koin_earned[koin_type] -= amount;
-                _mkproc_sleep_ticks = 1.0f;
-                mkproc_sleep();
-            } else {
-                _create_mkproc_generic_tinystack(
-                    0x8246, 0x1F, p_counting_sound, 8, &empty_pdata);
-                wallet_text = MK_LIVE(krypt_pdata->wallet_text[koin_type].obj, krypt_pdata->wallet_text[koin_type].obj_instance);
-                display_numerical_change(
-                    wallet_text, 0, old_total, amount, 1, 0x14);
-                destroy_mkprocs_pid(0x8246);
-                _mkproc_sleep_ticks = 30.0f;
-                mkproc_sleep();
-            }
+            award_koins(amount, koin_type);
         }
     }
     mkproc_jump_sleep(p_krypt_loop);
@@ -2522,9 +2528,8 @@ static float p_single_move_footstep_proc(void) {
     snd_req(0x3CC);
     return -1.0f;
 }
-/* TODO: [near miss] 96.64%; wallet latch now indexes krypt_pdata directly;
- * koin totals base/index lowering (retail lwzx on profile+0x38) remains. */
 static int deduct_koins(int amount, unsigned int koin_type) {
+    unsigned int* totals;
     ProfileCommon* profile;
     StringObj* wallet_text;
     int old_total;
@@ -2553,12 +2558,13 @@ static int deduct_koins(int amount, unsigned int koin_type) {
         return 1;
     }
 
+    totals = krypt_pdata->profile_common->koin_totals;
     profile = krypt_pdata->profile_common;
-    old_total = profile->koin_totals[koin_type];
-    profile->koin_totals[koin_type] = old_total - amount;
+    old_total = totals[koin_type];
+    totals[koin_type] = old_total - amount;
     profile->koin_spent[koin_type] += amount;
     if (save_profile(menu_player, 2) == 0) {
-        profile->koin_totals[koin_type] += amount;
+        totals[koin_type] += amount;
         profile->koin_spent[koin_type] -= amount;
         return 0;
     }

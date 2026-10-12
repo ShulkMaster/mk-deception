@@ -133,6 +133,7 @@ class reserve_priority_queue
     typedef std::priority_queue<T, std::vector<T, mwFileMemAllocator<T, 3> >, Compare> base;
 
 public:
+    /* TODO: [near miss] 99.95%; temporary-vector destructor flag is -1, retail passes 0. */
     reserve_priority_queue(const mwFileMemAllocator<T, 3>& a)
         : base(Compare(), std::vector<T, mwFileMemAllocator<T, 3> >(a))
     {

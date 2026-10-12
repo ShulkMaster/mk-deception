@@ -21,7 +21,7 @@ PfxBehavior* pfx_behavior(PfxVm* pfx, int index)
     return pfx->behavior_list[index];
 }
 
-/* TODO: [near miss] 99.09449%; two owner-forwarding rows and age-mask peephole fusion remain; TU mode parked. */
+#pragma peephole off
 void bind_behavior_to_effect(PfxBehavior* behavior, PfxVm* pfx)
 {
     int index;
@@ -109,8 +109,9 @@ void bind_behavior_to_effect(PfxBehavior* behavior, PfxVm* pfx)
     }
     behavior->effect = pfx;
 }
+#pragma peephole reset
 
-/* TODO: [breakthrough needed] 99.62%; three equivalent incoming-owner forwarding rows; TU peephole control is mixed. */
+#pragma peephole off
 void behavior_adjust_streams(PfxBehavior* source, PfxBehavior* destination)
 {
     unsigned char* stream;
@@ -135,8 +136,9 @@ void behavior_adjust_streams(PfxBehavior* source, PfxBehavior* destination)
     }
     destination->current_streams[1].data = stream;
 }
+#pragma peephole reset
 
-/* TODO: [near miss] 99.82%; peephole forwards initial count load through r3; TU flag recovery remains. */
+#pragma peephole off
 PfxKillInstruction* add_kill_insn(PfxBehavior* behavior, int opcode,
                                   unsigned int field)
 {
@@ -152,9 +154,9 @@ PfxKillInstruction* add_kill_insn(PfxBehavior* behavior, int opcode,
     behavior->kill_instruction_count++;
     return instruction;
 }
+#pragma peephole reset
 
-/* TODO: [near miss] 98.99%; frame loops/layout agree; peephole merges null compare;
- * whole-TU off closes body but regresses shared jump-table data. */
+#pragma peephole off
 void pfx_behaviors_frame_begin(PfxVm* pfx)
 {
     int index;
@@ -201,6 +203,7 @@ void pfx_behaviors_frame_begin(PfxVm* pfx)
         }
     }
 }
+#pragma peephole reset
 
 void pfx_behaviors_frame_end(PfxVm* pfx)
 {
@@ -259,8 +262,8 @@ PfxInitInstruction* add_init_insn(PfxBehavior* behavior, int opcode,
 /* TODO: [breakthrough] 96.00885%; signed storage tags recovered;
  * direct indexed members need pending whole-TU peephole mode integration. */
 void pfx_behavior_scan_fields(PfxBehavior* behavior,
-                              unsigned int* particle_fields,
-                              unsigned int* render_fields)
+                              PfxFieldSet* particle_fields,
+                              PfxFieldSet* render_fields)
 {
     int index;
 
@@ -336,7 +339,7 @@ void pfx_behavior_scan_fields(PfxBehavior* behavior,
     }
 }
 
-/* TODO: [breakthrough needed] 96.72%; body exact except mr./null compare; whole-TU peephole-off closes but regresses jump-table data. */
+#pragma peephole off
 void pfxvm_update_make_last_insn_first(PfxBehavior* behavior)
 {
     PfxUpdateInstruction instruction;
@@ -358,3 +361,4 @@ void pfxvm_update_make_last_insn_first(PfxBehavior* behavior)
     memcpy(&behavior->update_instructions[0], &instruction,
            sizeof(instruction));
 }
+#pragma peephole reset

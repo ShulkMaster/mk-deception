@@ -89,7 +89,7 @@ void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float 
 }
 #pragma pop
 
-/* TODO: [breakthrough] 74.06%; ordered sqrt guards and parallel early exit recovered; Newton/geometry scheduling and FPR frame remain. */
+/* TODO: [near miss] 92.64%; op order matches retail; one extra live FPR (f25-f27 vs f28-f31 frame 0x80 vs 0x70) in hit block. */
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, const Vec* cylAxis,
                          float radius, float* tNear, float* tFar) {
     float nx = dir->y * cylAxis->z - dir->z * cylAxis->y;
@@ -114,10 +114,14 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
     float lenO;
 
     if (invLen < kTiny) {
-        dist = -(ox * cylAxis->x + oy * cylAxis->y + oz * cylAxis->z);
-        ox = cylAxis->x * dist + ox;
-        oy = cylAxis->y * dist + oy;
-        oz = cylAxis->z * dist + oz;
+        dist = ox * cylAxis->x + oy * cylAxis->y + oz * cylAxis->z;
+        dist = -dist;
+        fy = cylAxis->y * dist;
+        fx = cylAxis->x * dist;
+        fz = cylAxis->z * dist;
+        oy = fy + oy;
+        ox = fx + ox;
+        oz = fz + oz;
         lenO = ox * ox + oy * oy + oz * oz;
         dist = gxMathFastSqrt(lenO);
         *tNear = kHugeNeg;
@@ -139,13 +143,13 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
         fy = nz * cylAxis->x - nx * cylAxis->z;
         fz = nx * cylAxis->y - ny * cylAxis->x;
         lenQ = fx * fx + fy * fy + fz * fz;
-        invQ = mk_inv_sqrt(lenQ);
         tMid = -((ox * cylAxis->y - oy * cylAxis->x) * nz + (oy * cylAxis->z - oz * cylAxis->y) * nx +
                  (oz * cylAxis->x - ox * cylAxis->z) * ny);
         tMid *= invLen;
+        invQ = mk_inv_sqrt(lenQ);
+        denom = dir->x * (fx * invQ) + dir->y * (fy * invQ) + dir->z * (fz * invQ);
         halfChord = radius * radius - dist * dist;
         halfChord = gxMathFastSqrt(halfChord);
-        denom = dir->x * (fx * invQ) + dir->y * (fy * invQ) + dir->z * (fz * invQ);
         chordOffset = halfChord / denom;
         if (chordOffset < kZero) {
             chordOffset = -chordOffset;
@@ -155,6 +159,7 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
     }
     return hit;
 }
+
 
 
 float dist2_xz_to_xz(const Vec* a, const Vec* b) {

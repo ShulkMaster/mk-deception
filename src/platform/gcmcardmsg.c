@@ -20,7 +20,6 @@
 
 extern int mcard_msg_active;
 extern int mcard_hault_msg_active;
-extern _mslSystem* msi;
 
 static const char stringBase0[] =
 #include "platform/gcmcardmsg_stringBase0.inc"

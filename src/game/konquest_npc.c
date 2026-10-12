@@ -377,11 +377,6 @@ struct BloodFallPdata {
     unsigned int emitters[3];
 };
 
-union KonquestSqrtBits {
-    float value;
-    unsigned int bits;
-};
-
 struct KonquestCameraPositionView {
     char pad00[0x40];
     float x;
@@ -452,11 +447,6 @@ union ObliqueMatrixCell {
     float value;
     unsigned int flags;
 };
-
-typedef union KonquestFloatBits {
-    float value;
-    unsigned int bits;
-} KonquestFloatBits;
 
 struct KonquestNpcShadows {
     char pad00[0x10];
@@ -1327,8 +1317,8 @@ void initialize_npc_data(void) {
     }
 }
 
-/* TODO: [near miss] 97.08%; direction-scale fmuls operand/FPR order and final
- * distance boolean lowering (retail beq/li vs mfcr) remain. */
+/* TODO: [near miss] 99.79%; direction-scale f5/f6 homes and final
+ * distance-comparison branch/boolean orientation remain. */
 static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
     struct KonquestTileOrigin* tile;
     KonquestNpcData* data;
@@ -1963,7 +1953,6 @@ void npc_make_invisible(KonquestNpc* npc) {
     }
 }
 
-/* TODO: [near miss] 99.30%; word clear and rollback CFG recovered; queued-frame argument scheduling and pooled zero-string offset remain. */
 static void load_model_for_npc(KonquestNpc* npc) {
     if (npc->animation != 0) {
         MkSobj* sobj;
@@ -2035,8 +2024,8 @@ static void load_model_for_npc(KonquestNpc* npc) {
                     get_animation(npc->data->idle_animation), 0);
             } else {
                 set_anim_script_frame(
-                    npc->queued_animation_frame, animation,
-                    npc->queued_animation, npc->animation_flags);
+                    animation, npc->queued_animation, npc->animation_flags,
+                    npc->queued_animation_frame);
                 if (npc->queued_animation_frame > animation->high_frame) {
                     npc->queued_animation_frame = animation->high_frame;
                 }
@@ -3185,11 +3174,10 @@ void npc_enable_event(int event_index, int enabled) {
     }
 }
 
-/* TODO: [near miss] 98.82%; latch CFG agrees; remaining owner/object register coloring. */
-static int plyr_near_check(float distance) {
+static inline int npc_player_within_distance(float distance) {
     struct KonquestNpcPdata* pdata = konquest_pdata;
     KonquestNpc* npc = g_active_npc;
-    MkObj* monk = MK_HDR_LIVE(pdata->monk, pdata->monk_instance);
+    MkObj* monk = konquest_npc_pdata_live_monk(pdata);
     int is_near;
 
     if (monk == 0) {
@@ -3200,25 +3188,15 @@ static int plyr_near_check(float distance) {
     } else {
         is_near = 0;
     }
-    return is_near != 0;
+    return is_near;
 }
 
-/* TODO: [near miss] 98.82%; latch CFG agrees; remaining owner/object register coloring. */
-static int plyr_leave_area_check(float distance) {
-    struct KonquestNpcPdata* pdata = konquest_pdata;
-    KonquestNpc* npc = g_active_npc;
-    MkObj* monk = MK_HDR_LIVE(pdata->monk, pdata->monk_instance);
-    int is_near;
+static int plyr_near_check(float distance) {
+    return npc_player_within_distance(distance) != 0;
+}
 
-    if (monk == 0) {
-        is_near = 0;
-    } else if (dist_xz_to_xz(
-                   &npc->data->position, &monk->pos.value) < distance) {
-        is_near = 1;
-    } else {
-        is_near = 0;
-    }
-    return is_near == 0;
+static int plyr_leave_area_check(float distance) {
+    return npc_player_within_distance(distance) == 0;
 }
 
 static void npc_plyr_violent_setup(KonquestNpc* npc) {
@@ -3474,7 +3452,6 @@ void start_running_npcs(void) {
     }
 }
 
-/* TODO: [near miss] 99.39%; only the "damashi_npc" @stringBase0+0x11f addend differs (TU string pool order). */
 void add_npc(KonquestNpcData* data) {
     int i;
     KonquestNpc* npc = (KonquestNpc*)get_mkhdr(
@@ -3553,7 +3530,7 @@ void add_npc(KonquestNpcData* data) {
             npc->events[i].enabled = 0;
         }
     }
-    if (strcmp(data->name, "damashi_npc") != 0) {
+    if (strcmp(data->name, "0") != 0) {
         unsigned int art_id = get_artid_of_named_item_in_slot(
             0x6002B, data->name, 1);
 
@@ -5039,9 +5016,8 @@ static inline int npc_reached_path_target(void) {
 }
 
 static inline int npc_monk_in_greeting_range(KonquestNpc* npc) {
-    MkObj* monk = konquest_pdata->monk;
-
-    monk = MK_HDR_LIVE(monk, konquest_pdata->monk_instance);
+    MkObj* monk = MK_HDR_LIVE(
+        konquest_pdata->monk, konquest_pdata->monk_instance);
     if (monk != 0 && npc->animation != 0 && npc->animation->object != 0) {
         float delta_x = monk->pos.value.x - npc->animation->object->pos.value.x;
         float delta_z = monk->pos.value.z - npc->animation->object->pos.value.z;
@@ -5057,7 +5033,8 @@ static inline int npc_monk_in_greeting_range(KonquestNpc* npc) {
     return 0;
 }
 
-/* TODO: [near miss] 99.75%; wait-helper, path and monk-owner GPR coloring remain; stop at coloring. */
+/* TODO: [near miss] 99.84%; direct monk latch aligns; script-wait and
+ * waypoint-owner GPR homes remain. */
 void npc_travel_path(
     int destination_type, int destination, int travel_mode) {
     if (g_active_npc == 0) {
@@ -6556,7 +6533,7 @@ void npc_set_random_dialog_and_anim_sequence(int dialog, int animation) {
     }
 }
 
-/* TODO: [near miss] 98.90%; selected animation load now matches; remaining
+/* TODO: [near miss] 99.10%; selected animation load now matches; remaining
  * differences are saved-register coloring and two texture-field load order. */
 void npc_play_random_dialog_sequence(void) {
     struct KonquestRandomDialogSequence* sequences =
@@ -6582,10 +6559,10 @@ void npc_play_random_dialog_sequence(void) {
             if (_create_mkproc_generic_nostack(
                     0x8232, 0x1F, p_do_lip_synch, sizeof(*lip),
                     (MkHdr**)&lip) != 0) {
-                AniTextureControl* texture;
+                unsigned int texture_instance;
                 struct KonquestNpcAnimState* animation;
                 KonquestLipSyncPdata* target;
-                unsigned int texture_instance;
+                AniTextureControl* texture;
 
                 zero_pdata_payload(sizeof(*lip), &lip->hdr);
                 lip->mode = 1;

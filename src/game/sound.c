@@ -1394,7 +1394,8 @@ int snd_calculate_volume(struct SoundRequest* request) {
     return result;
 }
 
-/* TODO: [near miss] 98.99%; inner sentinel adds li r30,0; retain scoped playback locals. */
+#pragma auto_inline off
+
 MslSoundHandle plyr_snd_req_no_plyr_proc(
     PlyrPdata* fighter, int sound_offset) {
     MslSoundHandle handle = 0;
@@ -1415,39 +1416,14 @@ MslSoundHandle plyr_snd_req_no_plyr_proc(
             }
         }
         if (player_bank >= 0 && player_bank < 0x19) {
-            int sound_id =
-                sound_offset + mk_plyr_sound_table[player_bank] + voice_offset;
-            MslSoundHandle play_handle;
-            if (sound_id == -1) {
-                play_handle = 0;
-            } else if (sound_id < 0 || sound_id >= 0x1C0C) {
-                play_handle = 0;
-            } else {
-                play_handle = 0;
-                if (sound_id == -1) {
-                    play_handle = 0;
-                } else {
-                    if (sound_id < 0 || sound_id >= 0x1C0C) {
-                        play_handle = 0;
-                    } else {
-                        struct SoundRequest request;
-                        request.sound_id = sound_id;
-                        request.volume = 1.0f;
-                        request.apply_group_volume = 1;
-                        if (snd_calculate_volume(&request)) {
-                            SoundEntry* entry = &mk_sound_table[sound_id];
-                            play_handle = mslBankPlayVol(
-                                request.bank, entry->bank, entry->sound,
-                                entry->field_0c, request.volume, entry->field_18);
-                        }
-                    }
-                }
-            }
-            handle = play_handle;
+            handle = play_sound(
+                sound_offset + mk_plyr_sound_table[player_bank] + voice_offset);
         }
     }
     return handle;
 }
+
+#pragma auto_inline reset
 
 MslSoundHandle plyr_snd_req(int sound_offset) {
     if (plyr_pdata != 0) {
@@ -1523,7 +1499,7 @@ void snd_death_voice(void) {
     random_voice(0xE);
 }
 
-/* TODO: [near miss] 97.15%; one extra saved GPR (stmw r27) and an extra li 0 in each -1 arm; branch-result coloring remains. */
+/* TODO: [near miss] 97.59%; one extra saved GPR (stmw r27) and an extra li 0 in each -1 arm; branch-result coloring remains. */
 MslSoundHandle pan_vol_pitch_random_snd_req(int group, float pan, float volume, float pitch) {
     struct SoundRequest single_request;
     struct SoundRequest alternate_request;
@@ -1646,7 +1622,7 @@ MslSoundHandle pan_vol_pitch_random_snd_req(int group, float pan, float volume, 
                     previous = 0;
                     random_sound_request[group].previous = 0;
                 }
-                choice = randu0(count - 1);
+                choice = randu0((unsigned short)(count - 1));
                 if (choice >= previous) {
                     choice++;
                 }

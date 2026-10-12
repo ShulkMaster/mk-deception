@@ -431,8 +431,7 @@ int get_offset_of_closest_fence_section(
     return closest;
 }
 
-/* TODO: [near miss] 97.29%; x/z/y copy preloads z; supported whole-TU scheduling controls regress. */
-void debug_create_axis_indicator(PlyrInfo* player, const Vec* position) {
+void debug_create_axis_indicator(PlyrInfo* player, Vec* position) {
     MkObj* object;
 
     if (player->controller_slot == 0) {

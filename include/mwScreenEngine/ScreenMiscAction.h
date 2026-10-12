@@ -40,6 +40,15 @@ enum {
 };
 
 /* Integer compare ops used by ScreenQuestionAction (param-driven). */
+enum ScreenCompareOp {
+    kCompareEqual = 0,
+    kCompareNotEqual = 1,
+    kCompareGreater = 2,
+    kCompareGreaterEqual = 3,
+    kCompareLess = 4,
+    kCompareLessEqual = 5,
+};
+
 unsigned int ScreenIntegerCompare(int lhs, int op, int rhs);
 
 class ScreenVisibleAction : public ScreenAction {

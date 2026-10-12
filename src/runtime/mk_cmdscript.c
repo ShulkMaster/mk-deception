@@ -565,7 +565,7 @@ void cmdscript_execute(ScriptSlot* slot)
     execute_cmdscript(slot);
 }
 
-/* TODO: [breakthrough] 93.06%; optional attrs and native string relocation agree; indexed attrs load and entry join remain. */
+/* TODO: [near miss] 94.44%; indexed attrs addressing and name-pointer register/operand order remain. */
 void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index) {
     ScriptFuncDef* def;
     unsigned int attrs_id;
@@ -576,25 +576,23 @@ void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index) {
         func_index == 0) {
         return;
     }
-    {
-        active_cmdscript->mko = slot;
-        active_cmdscript->stack_end = active_cmdscript->stack_sp + 1;
-        attrs_id = slot->func_defs[func_index - 1].attrs_id;
-        if (attrs_id != 0) {
-            attrs_table = resolve_table_row(slot, attrs_id);
-        } else {
-            attrs_table = 0;
-        }
-        active_cmdscript->attrs_table = attrs_table;
-        trial_register_script_function(func_index);
-        def = &slot->func_defs[func_index - 1];
-        function_name = (char*)slot->string_reloc;
-        function_name += def->name_offset;
-        active_cmdscript->func_name = function_name - 1;
-        active_cmdscript->continuation = 0;
-        active_cmdscript->pc = slot->bytecode + def->code_offset;
-        active_cmdscript->prev_pc = active_cmdscript->pc;
+    active_cmdscript->mko = slot;
+    active_cmdscript->stack_end = active_cmdscript->stack_sp + 1;
+    attrs_id = slot->func_defs[func_index - 1].attrs_id;
+    if (attrs_id != 0) {
+        attrs_table = resolve_table_row(slot, attrs_id);
+    } else {
+        attrs_table = 0;
     }
+    active_cmdscript->attrs_table = attrs_table;
+    trial_register_script_function(func_index);
+    def = &slot->func_defs[func_index - 1];
+    function_name = (char*)slot->string_reloc;
+    function_name += def->name_offset;
+    active_cmdscript->func_name = function_name - 1;
+    active_cmdscript->continuation = 0;
+    active_cmdscript->pc = slot->bytecode + def->code_offset;
+    active_cmdscript->prev_pc = active_cmdscript->pc;
 }
 
 void cmdscript_set_parameters(CmdScript* script, unsigned int count, ...) {

@@ -1640,7 +1640,8 @@ static float r_block_hit_projectile(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.97%; hit/world Vec stack slots swapped; both declaration orders regress. */
+/* TODO: [near miss] 99.97%; hit/world Vec stack homes are swapped;
+ * recover their declaration ownership before changing the scopes. */
 /* TODO: [Scope warn] hit_position and bone_offset/world_position/screen_position blocks: hoisting drops 99.97% -> 90.59%. */
 static float r_combo_broken_part2(void) {
     struct ReactionImageFaderPdata* fader;

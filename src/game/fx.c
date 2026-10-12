@@ -44,7 +44,7 @@ struct LensflarePdata {
     MkHdr hdr;
     const Vec* sun_position;
     const struct LensFlareDefinition* lens_data;
-    const struct FxRayPlane* obstructions;
+    struct FxRayPlane* obstructions;
     int obstruction_count;
 };
 
@@ -213,10 +213,8 @@ struct FxRayPlane courtyard_flare_obstructions[1] = {
 };
 
 #pragma dont_inline on
-/* TODO: [near miss] 97.97%; axis load/compare precede the zero-vector copy;
- * six setup-order rows remain; intersection body agrees. */
 static int rayintersection(
-    const Vec* origin, const Vec* direction, const struct FxRayPlane* plane) {
+    const Vec* origin, const Vec* direction, struct FxRayPlane* plane) {
     Vec intersection = { 0.0f, 0.0f, 0.0f };
     float distance;
 
@@ -278,10 +276,10 @@ static const char fx_string_base[228] =
     "TELE_ENERGY\0FX.C-created";
 
 static inline int lensflare_sun_blocked(
-    const struct FxRayPlane* const* planes, int count) {
+    struct FxRayPlane** planes, int count) {
     CameraObj* camera;
     Vec direction;
-    const struct FxRayPlane* plane;
+    struct FxRayPlane* plane;
     int blocked;
     int index;
 
@@ -303,7 +301,7 @@ static inline int lensflare_sun_blocked(
     return blocked;
 }
 
-/* TODO: [near miss] 97.99%; algorithm and CFG agree; GPR/FPR homes and independent fabs/fneg scheduling remain. */
+/* TODO: [near miss] 98.06%; algorithm and CFG agree; GPR/FPR homes and independent fabs/fneg scheduling remain. */
 static float lensflare_proc2(void) {
     struct LensflarePdata* pdata;
     CameraObj* camera;
@@ -316,7 +314,6 @@ static float lensflare_proc2(void) {
     double horizontal_abs;
     double vertical_abs;
     float alpha_value;
-    int screen_x;
     int screen_y;
     int index;
 
@@ -350,6 +347,7 @@ static float lensflare_proc2(void) {
         horizontal_abs = __fabs(horizontal);
         vertical_abs = __fabs(vertical);
         for (index = 0; index < flare_data.count; index++) {
+            int screen_x;
             flare = &flare_data.entries[index];
             screen_x =
                 ((float)(screen_width / 2) *

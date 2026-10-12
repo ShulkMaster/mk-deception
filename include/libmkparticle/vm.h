@@ -316,7 +316,7 @@ struct PfxVm {
     void (*transform_callback)(void); /* +0x214 -- MkPfx transform callback */
     PfxSpawnCallback spawn_callback;   /* +0x218 */
     char* name;                        /* +0x21C */
-    char pad220[4];
+    int effect_id;                     /* +0x220 */
     PfxMetrics* metrics;               /* +0x224 */
     float effect_scale;                /* +0x228 -- MkPfx scale at +0x268 */
     int field_0x22C;

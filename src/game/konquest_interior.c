@@ -277,148 +277,17 @@ float konquest_camera_loop(void);
 
 extern MkPtr* special_light_list;
 
-int is_pui_in_current_interior(const void* pui) {
-    const void** items;
-    unsigned int count;
-    unsigned int index;
-
-    if (!is_pui_an_interior_item(pui)) {
-        return 0;
-    }
-
-    items = konq_interior_save_data.current_interior->items;
-    if (items != 0 && items != 0) {
-        count = get_row_count_for_table_by_pointer(
-            konquest_pdata->script_owner, items);
-        for (index = 0; index < count; ++index) {
-            if (items[index] == pui) {
-                return 1;
-            }
-        }
-    }
-    return 0;
-}
-
-void turn_to_face_interior_door(void) {
-    Vec delta = {0.0f, 0.0f, 0.0f};
-    Vec direction;
-    Vec angles;
-    MkObj* hero;
-    struct KonquestTrigger* trigger;
-    float len_sq;
-    float x_squared;
-    float y_squared;
-    float normalization_factor;
-
-    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
-
-    trigger = find_trigger_by_id(0x1FE);
-    if (trigger == 0) {
-        return;
-    }
-
-    delta.x = trigger->data->position.x - hero->pos.value.x;
-    delta.z = trigger->data->position.z - hero->pos.value.z;
-    x_squared = delta.x * delta.x;
-    y_squared = delta.y * delta.y;
-    len_sq = delta.z * delta.z;
-    len_sq = len_sq + (x_squared + y_squared);
-
-    normalization_factor = gxMathFastInvSqrt(len_sq);
-
-    direction.x = delta.x * normalization_factor;
-    direction.y = delta.y * normalization_factor;
-    direction.z = delta.z * normalization_factor;
-    v3_to_xy_ang(&angles, &direction);
-    hero->ang.y = angles.y;
-    update_mkobj(hero != 0 ? as_mkhdr(&hero->hdr) : 0);
-}
-
-void close_exterior_doors(int building_id, int door_bits) {
-    int door_enum;
-    void* building;
-    struct KonquestChildObject* door;
-    struct KonquestChildObject* partner;
-
-    door_enum = get_door_enum_from_exterior_door_bits(door_bits);
-    konquest_transition_object_to_state(building_id, door_enum, 0);
-
-    building = find_konquest_object_struct_by_uid(building_id);
-    if (building == 0) {
-        return;
-    }
-    door = find_child_subobject_by_enumeration(building, door_enum);
-    if (door == 0 || door->definition == 0) {
-        return;
-    }
-    if (konquest_pdata->region_table
-            ->enumerations[door->definition->enumeration_index]
-            .partner_uid == -1) {
-        return;
-    }
-
-    partner = find_door_partner_sobj(door);
-    if (partner != 0 && partner->definition != 0) {
-        konquest_transition_object_to_state(
-            building_id,
-            konquest_pdata->region_table
-                ->enumerations[partner->definition->enumeration_index]
-                .enumeration,
-            0);
-    }
-}
-
-int get_primary_door_enum_for_exterior(void) {
-    return get_door_enum_from_exterior_door_bits(
-        konq_interior_save_data.exterior_door_bits);
-}
-
-static int get_door_enum_from_exterior_door_bits(int door_bits) {
-    int door = 1;
-
-    if (door_bits & 1) {
-        door = 1;
-    } else if (door_bits & 2) {
-        door = 2;
-    } else if (door_bits & 4) {
-        door = 3;
-    } else if (door_bits & 8) {
-        door = 4;
-    } else if (door_bits & 0x10) {
-        door = 5;
-    } else if (door_bits & 0x20) {
-        door = 6;
-    } else if (door_bits & 0x40) {
-        door = 7;
-    } else if (door_bits & 0x80) {
-        door = 8;
-    } else if (door_bits & 0x100) {
-        door = 9;
-    } else if (door_bits & 0x200) {
-        door = 10;
-    } else if (door_bits & 0x400) {
-        door = 11;
-    } else if (door_bits & 0x800) {
-        door = 12;
-    }
-    return door;
-}
-
-int get_doors_for_exterior(void) {
-    return konq_interior_save_data.exterior_door_bits;
-}
-
-int get_building_id_for_exterior(void) {
-    return konq_interior_save_data.building_id;
-}
+void set_interior_cam_pos_and_ang(void);
+void add_standard_ir_triggers(void);
 
 static inline void konq_interior_apply_fight_objects(
     MkObj* object, KonquestRoomObject* rec) {
+    MkSobj* sobj;
     KonquestRoomObjectTexture* tex;
 
     if (object != 0) {
         for (; rec->id != 0; rec++) {
-            MkSobj* sobj = obj_find_sobj_by_id(object, rec->id);
+            sobj = obj_find_sobj_by_id(object, rec->id);
 
             if (sobj == 0) {
                 continue;
@@ -464,90 +333,6 @@ static inline void konq_interior_hide_room_sobjs(MkObj* object) {
     }
 }
 
-/* TODO: [near miss] 99.83%; complete operation helpers agree;
- * hide owner uses r28 versus retail r29 in three rows. */
-void setup_interior_fighting_arena(void) {
-    KonquestRoomObject* rec;
-    MkObj* hide_object;
-
-    if (g_game_info.bgnd_obj == 0) {
-        return;
-    }
-    rec = get_data_table_by_name(global_fight_data_table_name);
-    if (rec == 0) {
-        return;
-    }
-    obj_create_sobjs(g_game_info.bgnd_obj);
-
-    hide_object = g_game_info.bgnd_obj;
-    konq_interior_hide_room_sobjs(hide_object);
-
-    konq_interior_apply_fight_objects(g_game_info.bgnd_obj, rec);
-}
-
-float get_ir_cam_ang_z(void) {
-    float angle = 0.0f;
-
-    if (get_game_state() == 0x14) {
-        angle = konq_interior_save_data.current_interior->camera_angle.z;
-    }
-    return angle;
-}
-
-float get_ir_cam_ang_y(void) {
-    float angle = 0.0f;
-
-    if (get_game_state() == 0x14) {
-        angle = konq_interior_save_data.current_interior->camera_angle.y;
-    }
-    return angle;
-}
-
-float get_ir_cam_ang_x(void) {
-    float angle = 0.0f;
-
-    if (get_game_state() == 0x14) {
-        angle = konq_interior_save_data.current_interior->camera_angle.x;
-    }
-    return angle;
-}
-
-float get_ir_cam_pos_z(int include_offset) {
-    float position = 0.0f;
-
-    if (get_game_state() == 0x14) {
-        position =
-            konq_interior_save_data.current_interior->camera_position.z;
-        if (include_offset != 0) {
-            position += konquest_pdata->fallback_tile_position.z;
-        }
-    }
-    return position;
-}
-
-float get_ir_cam_pos_y(void) {
-    float position = 0.0f;
-
-    if (get_game_state() == 0x14) {
-        position =
-            konq_interior_save_data.current_interior->camera_position.y;
-    }
-    return position;
-}
-
-float get_ir_cam_pos_x(int include_offset) {
-    float position = 0.0f;
-
-    if (get_game_state() == 0x14) {
-        position =
-            konq_interior_save_data.current_interior->camera_position.x;
-        if (include_offset != 0) {
-            position += konquest_pdata->fallback_tile_position.x;
-        }
-    }
-    return position;
-}
-
 static inline const char* room_sobj_name(unsigned int id) {
     struct KonquestRoomSobj* entry;
 
@@ -558,90 +343,7 @@ static inline const char* room_sobj_name(unsigned int id) {
     }
     return 0;
 }
-
-/* TODO: [near miss] 99.94%; all nine residues are TU initializer-pool offsets (0x48-0x68 versus 0x0c-0x2c); recover pool grouping. */
-/* TODO: [Scope warn] room-placement aggregate block: hoisting initialized Vec locals drops 99.94% -> 86.51%. */
-static void place_interior_room_objects(KonquestRoomObject* rec) {
-    MkObj* interior_object = konq_interior_save_data.interior_object;
-
-    if (interior_object != 0) {
-        interior_object =
-            (interior_object->hdr.instance ==
-             konq_interior_save_data.interior_object_instance)
-                ? interior_object
-                : 0;
-    } else {
-        interior_object = 0;
-    }
-
-    {
-        Vec base_angle = {0.0f, 0.0f, 0.0f};
-        Vec position = {0.0f, 0.0f, 0.0f};
-        Vec angle = {0.0f, 0.0f, 0.0f};
-        MkSobj* sobj;
-        KonquestRoomObjectTexture* tex;
-        const char* name;
-
-        if (interior_object != 0) {
-            if (rec != 0) {
-                for (; rec->id != 0; rec++) {
-                    unsigned int artid;
-
-                    sobj = obj_find_sobj_by_id(interior_object, rec->id);
-
-                    if (sobj == 0) {
-                        continue;
-                    }
-                    sobj_set_priority(sobj, rec->priority);
-                    tex = rec->textures;
-                    if (tex != 0) {
-                        for (; tex->material_id != 0; tex++) {
-                            RwTexture* texture =
-                                load_named_tga_from_slot(0xA002F, tex->name);
-
-                            if (texture != 0) {
-                                sobj_swap_material_texture(
-                                    sobj, tex->material_id, texture);
-                            }
-                        }
-                    }
-                    unhide_sobj(sobj);
-                    sobj->pos.x = rec->position.x;
-                    sobj->pos.y = rec->position.y;
-                    sobj->pos.z = rec->position.z;
-                    sobj->ang.z = 0.0f;
-                    sobj->ang.y = 0.0f;
-                    sobj->ang.x = 0.0f;
-                    sobj->ang.y = sobj->ang.y + rec->angle;
-                    sobj->flags_08_bits.bit7 = 1;
-                    sobj->flags_08_bits.bit4 = 1;
-                    position.x =
-                        konquest_pdata->fallback_tile_position.x + rec->position.x;
-                    position.y =
-                        konquest_pdata->fallback_tile_position.y + rec->position.y;
-                    position.z =
-                        konquest_pdata->fallback_tile_position.z + rec->position.z;
-                    angle.x = base_angle.x;
-                    angle.y = base_angle.y;
-                    angle.z = base_angle.z;
-                    angle.y = base_angle.y + rec->angle;
-                    rec->collision_list = 0;
-                    name = room_sobj_name(rec->id);
-                    if (name != 0) {
-                        artid = get_artid_of_named_item_in_slot(
-                            0xA002F, name, 1);
-                        generate_collision_objects(
-                            0xA002F, artid, &position, &angle,
-                            &rec->collision_list);
-                        set_flag_for_all_collisions(
-                            &rec->collision_list, 0x80000000);
-                    }
-                }
-            }
-        }
-    }
-    interior_object->flags_08_bits.bit7 = 1;
-}
+static void place_interior_room_objects(KonquestRoomObject* rec);
 
 static inline void clear_interior_collision_lists(KonquestRoomObject* rec) {
     if (rec != 0) {
@@ -661,29 +363,333 @@ static inline void clear_current_interior_collisions(void) {
     clear_interior_collision_lists(
         konq_interior_save_data.current_interior->script_objects);
 }
+static float p_konq_interior_loop(void);
+static float p_konq_interior_entry_point(void);
+static inline void load_interior_art(void);
 
-static void remove_interior_room_objects(void) {
-    MkObj* interior_object = MK_HDR_LIVE(
-        konq_interior_save_data.interior_object,
-        konq_interior_save_data.interior_object_instance);
+static inline int konq_interior_id_in_list(unsigned int* list, unsigned int id) {
+    if (list != 0) {
+        for (; *list != 0; list++) {
+            if (*list == id) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
 
-    clear_current_interior_collisions();
-
-    if (interior_object != 0) {
-        konq_interior_hide_room_sobjs(interior_object);
+static inline void konq_interior_apply_textures(
+    KonquestRoomObject* robj, KonquestRoomObjectTexture* table,
+    unsigned int* list) {
+    if (table != 0 && robj != 0) {
+        for (; robj->id != 0; robj++) {
+            if (konq_interior_id_in_list(list, robj->id) != 0) {
+                robj->textures = table;
+            }
+        }
     }
 }
 
-void interior_exit_button_script(void) {
+
+void initialize_konquest_interior(void) {
+    konq_interior_save_data.interior_object = 0;
+    konq_interior_save_data.interior_object_instance = 0;
+}
+
+void start_konquest_interior(
+    KonquestInteriorRoom* interior, KonquestRoomObject* script_objects,
+    const void** items, int* npc_data,
+    KonquestRoomObjectTexture* wall_textures,
+    KonquestRoomObjectTexture* floor_textures, int door_bits) {
+    MkObjLatch* pdata;
+    struct KonquestTrigger* trigger;
+    KonquestRoomObjectTexture* table;
     MkProc* proc;
 
-    if (get_konquest_game_mode() != 0) {
+    pdata = (MkObjLatch*)pdata_of_proc(aproc);
+    if (pdata == 0) {
         return;
     }
+    trigger = (struct KonquestTrigger*)pdata->obj;
+    trigger = MK_HDR_LIVE(trigger, pdata->obj_instance);
+    if (trigger == 0) {
+        return;
+    }
+
+    if (trigger->building != 0) {
+        konq_interior_save_data.building_id = trigger->building->uid;
+        konq_interior_save_data.exterior_door_bits = door_bits;
+    } else {
+        konq_interior_save_data.building_id = 0;
+        konq_interior_save_data.exterior_door_bits = 0;
+    }
+
+    konq_interior_save_data.enter_script_index = interior->field_50;
+    konq_interior_save_data.enter_done_script_index = interior->field_54;
+    konq_interior_save_data.exit_script_index = interior->exit_script_index;
+    konq_interior_save_data.entry_script_index =
+        interior->entry_script_index;
+    konq_interior_save_data.trigger_position.x =
+        trigger->data->position.x;
+    konq_interior_save_data.trigger_position.y =
+        trigger->data->position.y;
+    konq_interior_save_data.trigger_position.z =
+        trigger->data->position.z;
+    interior->script_objects = script_objects;
+    interior->items = items;
+    interior->npc_data = npc_data;
+    konq_interior_save_data.current_interior = interior;
+
+    table = wall_textures != 0
+                ? wall_textures
+                : get_data_table_by_name("default_walls");
+    if (table == 0) {
+        return;
+    }
+    konq_interior_apply_textures(interior->room_objects, table, wall_id_list);
+
+    table = floor_textures != 0
+                ? floor_textures
+                : get_data_table_by_name("default_floor");
+    if (table == 0) {
+        return;
+    }
+    konq_interior_apply_textures(interior->room_objects, table, floor_id_list);
+
     proc = find_mkproc_pid(0x2001);
     if (proc != 0) {
-        xfer_proc(proc, p_konq_interior_exit_point);
+        xfer_proc(proc, p_konq_interior_entry_point);
     }
+}
+
+static float p_konq_interior_entry_point(void) {
+    MkObj* hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
+
+    Vec monk_position = {0.0f, 0.0f, 0.0f};
+    Vec monk_angles = {0.0f, 0.0f, 0.0f};
+    Vec monk_angle_base = {0.0f, 0.0f, 0.0f};
+    MkObj* interior_object;
+    int* npc_data;
+    unsigned int npc_count;
+    unsigned int index;
+    struct KonquestTile* tile;
+    float trigger_x;
+    float trigger_y;
+    float trigger_z;
+    int function;
+
+    push_game_state(0x14);
+    turn_controllers_off();
+    konquest_pdata->npc_interaction_state = 0;
+    hero_stop_moving();
+    _mkproc_sleep_ticks = 10.0f;
+    aproc->vtbl->sleep();
+    stop_time_passing();
+    stop_hero_collisions();
+    suspend_hero_state_process();
+    xfer_camera(p_idle, 1);
+    _mkproc_sleep_ticks = 60.0f;
+    aproc->vtbl->sleep();
+
+    if (konq_interior_save_data.enter_script_index != 0) {
+        cmdscript_setup_execution(
+            konquest_pdata->script_owner,
+            konq_interior_save_data.enter_script_index);
+        cmdscript_execute(konquest_pdata->script_owner);
+    }
+    fade_to_black(4, 0);
+
+    if (konquest_pdata->region_table->interior_art_name != 0) {
+        load_interior_art();
+    }
+    pause_weather_effects();
+
+    if (hero != 0) {
+        konq_interior_save_data.hero_position.x =
+            konq_interior_save_data.trigger_position.x;
+        konq_interior_save_data.hero_position.y =
+            konq_interior_save_data.trigger_position.y;
+        konq_interior_save_data.hero_position.z =
+            konq_interior_save_data.trigger_position.z;
+        konq_interior_save_data.hero_position.y = hero->pos.value.y;
+        konq_interior_save_data.hero_angle.x = hero->ang.x;
+        konq_interior_save_data.hero_angle.y = hero->ang.y;
+        konq_interior_save_data.hero_angle.z = hero->ang.z;
+        konq_interior_save_data.hero_angle.y =
+            norm_angle(3.1415927f + hero->ang.y);
+        monk_position.x =
+            konquest_pdata->fallback_tile_position.x +
+            konq_interior_save_data.current_interior->monk_position.x;
+        monk_position.y =
+            konquest_pdata->fallback_tile_position.y +
+            konq_interior_save_data.current_interior->monk_position.y;
+        monk_position.z =
+            konquest_pdata->fallback_tile_position.z +
+            konq_interior_save_data.current_interior->monk_position.z;
+        monk_angles.x =
+            monk_angle_base.x +
+            konq_interior_save_data.current_interior->monk_angle.x;
+        monk_angles.y =
+            monk_angle_base.y +
+            konq_interior_save_data.current_interior->monk_angle.y;
+        monk_angles.z =
+            monk_angle_base.z +
+            konq_interior_save_data.current_interior->monk_angle.z;
+        set_monk_position(
+            monk_position.x, monk_position.y, monk_position.z, monk_angles.y);
+    }
+
+    get_camera_position(&konq_interior_save_data.exterior_camera_position);
+    get_camera_angle(&konq_interior_save_data.exterior_camera_angle);
+
+    set_interior_cam_pos_and_ang();
+
+    xfer_camera(p_konquest_interior_camera_proc, 1);
+    konq_interior_save_data.background_lights = bgnd_light_list;
+    konq_interior_save_data.special_lights = special_light_list;
+    bgnd_light_list = 0;
+    special_light_list = 0;
+    load_lights(
+        konq_interior_save_data.current_interior->light_defs,
+        &bgnd_light_list);
+
+    interior_object = MK_HDR_LIVE(konq_interior_save_data.interior_object, konq_interior_save_data.interior_object_instance);
+
+    if (interior_object != 0) {
+        insert_fgnd_mkobj(interior_object);
+        update_mkobj(
+            interior_object != 0 ? as_mkhdr(&interior_object->hdr) : 0);
+    }
+    konquest_hide_hud(1);
+    konq_interior_hide_room_sobjs(interior_object);
+    place_interior_room_objects(
+        konq_interior_save_data.current_interior->room_objects);
+    place_interior_room_objects(
+        konq_interior_save_data.current_interior->script_objects);
+
+    tile = get_nth_tile_struct(
+        konquest_pdata->tile_width * konquest_pdata->tile_height);
+    trigger_x =
+        konq_interior_save_data.current_interior->trigger_position.x +
+        tile->position.x;
+    trigger_y =
+        konq_interior_save_data.current_interior->trigger_position.y +
+        tile->position.y;
+    trigger_z =
+        konq_interior_save_data.current_interior->trigger_position.z +
+        tile->position.z;
+    function = get_script_function_by_name(
+        konquest_pdata->script_owner, "standard_ir_exit");
+
+    add_temporary_trigger(
+        0x1FE, 1, 1, 1, function, trigger_x, trigger_y, trigger_z,
+        1.0f);
+    update_tile_grid();
+
+    npc_data = konq_interior_save_data.current_interior->npc_data;
+    if (npc_data != 0) {
+        npc_count = get_row_count_for_table_by_pointer(
+            konquest_pdata->script_owner, npc_data);
+        for (index = 0; index < npc_count; index++, npc_data++) {
+            struct KonquestNpcRecord* npc;
+
+            add_npc(*npc_data);
+            npc = find_npc_by_data(*npc_data);
+            if (npc != 0) {
+                npc->flags_1D_bits.in_interior = 1;
+            }
+        }
+    }
+
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+    npc_update(1);
+    trigger_update(1);
+    transition_hero_to_anim_script(0x2BD, 0, 0.1f, 1.0f);
+    fade_from_black(4, 0);
+    if (konq_interior_save_data.enter_done_script_index != 0) {
+        cmdscript_setup_execution(
+            konquest_pdata->script_owner,
+            konq_interior_save_data.enter_done_script_index);
+        cmdscript_execute(konquest_pdata->script_owner);
+    }
+    start_hero_collisions();
+    resume_hero_state_process();
+    restore_hero_grounding();
+    turn_controllers_on();
+    aproc->vtbl
+        ->jump_sleep(p_konq_interior_loop, 0.0f);
+    return 0.0f;
+}
+
+static inline void load_interior_art(void) {
+    MkObj* interior_object;
+    MkObj* model;
+
+    wait_for_slot_load(0xA002F);
+    interior_object = MK_HDR_LIVE(konq_interior_save_data.interior_object, konq_interior_save_data.interior_object_instance);
+
+    if (interior_object == 0) {
+        model = load_named_model_from_slot(
+            0xA002F, "BACKGROUND", 0x301E, 0);
+        if (model != 0) {
+            konq_interior_save_data.interior_object = model;
+            konq_interior_save_data.interior_object_instance =
+                model->hdr.instance;
+            obj_create_sobjs(model);
+            model->pos.value.x = konquest_pdata->fallback_tile_position.x;
+            model->pos.value.y = konquest_pdata->fallback_tile_position.y;
+            model->pos.value.z = konquest_pdata->fallback_tile_position.z;
+            konq_interior_hide_room_sobjs(model);
+            model->light_flags = 1;
+        }
+    }
+}
+
+#pragma auto_inline on
+void set_interior_cam_pos_and_ang(void) {
+    Vec position = {0.0f, 0.0f, 0.0f};
+    Vec angle = {0.0f, 0.0f, 0.0f};
+    Vec angle_offset = {0.0f, 0.0f, 0.0f};
+    CameraObj* camera;
+
+    camera = camera_item.node;
+    camera = MK_HDR_LIVE(camera, camera_item.instance);
+
+    if (camera != 0) {
+        position.x = konquest_pdata->fallback_tile_position.x +
+                     konq_interior_save_data.current_interior
+                         ->camera_position.x;
+        position.y = konquest_pdata->fallback_tile_position.y +
+                     konq_interior_save_data.current_interior
+                         ->camera_position.y;
+        position.z = konquest_pdata->fallback_tile_position.z +
+                     konq_interior_save_data.current_interior
+                         ->camera_position.z;
+        angle.x = angle_offset.x +
+                  konq_interior_save_data.current_interior->camera_angle.x;
+        angle.y = angle_offset.y +
+                  konq_interior_save_data.current_interior->camera_angle.y;
+        angle.z = angle_offset.z +
+                  konq_interior_save_data.current_interior->camera_angle.z;
+        set_camera_position(&position);
+        set_camera_angle(&angle);
+        if (camera == 0) {
+            return;
+        }
+        update_mkobj(camera != 0 ? as_mkhdr(&camera->hdr) : 0);
+    }
+}
+#pragma auto_inline reset
+
+static float p_konq_interior_loop(void) {
+    if (get_konquest_game_mode() == 0) {
+        handle_controller_input();
+    }
+    trigger_update(0);
+    npc_update(0);
+    pui_update();
+    return 1.0f;
 }
 
 /* TODO: [borked] 98.68%; NPC removal lacks retail null guard; recover NPC loop and pool layout. */
@@ -815,206 +821,118 @@ static float p_konq_interior_exit_point(void) {
     return 0.0f;
 }
 
-static float p_konq_interior_loop(void) {
-    if (get_konquest_game_mode() == 0) {
-        handle_controller_input();
-    }
-    trigger_update(0);
-    npc_update(0);
-    pui_update();
-    return 1.0f;
-}
+void interior_exit_button_script(void) {
+    MkProc* proc;
 
-/* TODO: [near miss] 99.831320%; original latch retained; relocation offsets, branch lowering; one-trial ceiling. */
-void set_interior_cam_pos_and_ang(void) {
-    Vec position = {0.0f, 0.0f, 0.0f};
-    Vec angle = {0.0f, 0.0f, 0.0f};
-    Vec angle_offset = {0.0f, 0.0f, 0.0f};
-    CameraObj* camera;
-
-    camera = camera_item.node;
-    camera = MK_HDR_LIVE(camera, camera_item.instance);
-
-    if (camera != 0) {
-        position.x = konquest_pdata->fallback_tile_position.x +
-                     konq_interior_save_data.current_interior
-                         ->camera_position.x;
-        position.y = konquest_pdata->fallback_tile_position.y +
-                     konq_interior_save_data.current_interior
-                         ->camera_position.y;
-        position.z = konquest_pdata->fallback_tile_position.z +
-                     konq_interior_save_data.current_interior
-                         ->camera_position.z;
-        angle.x = angle_offset.x +
-                  konq_interior_save_data.current_interior->camera_angle.x;
-        angle.y = angle_offset.y +
-                  konq_interior_save_data.current_interior->camera_angle.y;
-        angle.z = angle_offset.z +
-                  konq_interior_save_data.current_interior->camera_angle.z;
-        set_camera_position(&position);
-        set_camera_angle(&angle);
-    }
-    if (camera == 0) {
+    if (get_konquest_game_mode() != 0) {
         return;
     }
-    update_mkobj(camera != 0 ? as_mkhdr(&camera->hdr) : 0);
+    proc = find_mkproc_pid(0x2001);
+    if (proc != 0) {
+        xfer_proc(proc, p_konq_interior_exit_point);
+    }
 }
 
-/* TODO: [near miss] 99.59%; TU rodata/string order (Vec initializers +0x54, BACKGROUND/standard_ir_exit) and model/entry r28/r29 swap remain. */
-/* TODO: [Scope warn] camera aggregate block: hoisting initialized Vec locals drops 99.59% -> 90.93%. */
-static float p_konq_interior_entry_point(void) {
-    MkObj* hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
+static void remove_interior_room_objects(void) {
+    MkObj* interior_object = MK_HDR_LIVE(
+        konq_interior_save_data.interior_object,
+        konq_interior_save_data.interior_object_instance);
 
-    Vec monk_position = {0.0f, 0.0f, 0.0f};
-    Vec monk_angles = {0.0f, 0.0f, 0.0f};
-    Vec monk_angle_base = {0.0f, 0.0f, 0.0f};
-    MkObj* interior_object;
-    MkObj* model;
-    int* npc_data;
-    unsigned int npc_count;
-    unsigned int index;
+    clear_current_interior_collisions();
+
+    if (interior_object != 0) {
+        konq_interior_hide_room_sobjs(interior_object);
+    }
+}
+
+static void place_interior_room_objects(KonquestRoomObject* rec) {
+    MkObj* interior_object = konq_interior_save_data.interior_object;
+
+    if (interior_object != 0) {
+        interior_object =
+            (interior_object->hdr.instance ==
+             konq_interior_save_data.interior_object_instance)
+                ? interior_object
+                : 0;
+    } else {
+        interior_object = 0;
+    }
+
+    {
+        Vec base_angle = {0.0f, 0.0f, 0.0f};
+        Vec position = {0.0f, 0.0f, 0.0f};
+        Vec angle = {0.0f, 0.0f, 0.0f};
+        MkSobj* sobj;
+        KonquestRoomObjectTexture* tex;
+        const char* name;
+
+        if (interior_object != 0) {
+            if (rec != 0) {
+                for (; rec->id != 0; rec++) {
+                    unsigned int artid;
+
+                    sobj = obj_find_sobj_by_id(interior_object, rec->id);
+
+                    if (sobj == 0) {
+                        continue;
+                    }
+                    sobj_set_priority(sobj, rec->priority);
+                    tex = rec->textures;
+                    if (tex != 0) {
+                        for (; tex->material_id != 0; tex++) {
+                            RwTexture* texture =
+                                load_named_tga_from_slot(0xA002F, tex->name);
+
+                            if (texture != 0) {
+                                sobj_swap_material_texture(
+                                    sobj, tex->material_id, texture);
+                            }
+                        }
+                    }
+                    unhide_sobj(sobj);
+                    sobj->pos.x = rec->position.x;
+                    sobj->pos.y = rec->position.y;
+                    sobj->pos.z = rec->position.z;
+                    sobj->ang.z = 0.0f;
+                    sobj->ang.y = 0.0f;
+                    sobj->ang.x = 0.0f;
+                    sobj->ang.y = sobj->ang.y + rec->angle;
+                    sobj->flags_08_bits.bit7 = 1;
+                    sobj->flags_08_bits.bit4 = 1;
+                    position.x =
+                        konquest_pdata->fallback_tile_position.x + rec->position.x;
+                    position.y =
+                        konquest_pdata->fallback_tile_position.y + rec->position.y;
+                    position.z =
+                        konquest_pdata->fallback_tile_position.z + rec->position.z;
+                    angle.x = base_angle.x;
+                    angle.y = base_angle.y;
+                    angle.z = base_angle.z;
+                    angle.y = base_angle.y + rec->angle;
+                    rec->collision_list = 0;
+                    name = room_sobj_name(rec->id);
+                    if (name != 0) {
+                        artid = get_artid_of_named_item_in_slot(
+                            0xA002F, name, 1);
+                        generate_collision_objects(
+                            0xA002F, artid, &position, &angle,
+                            &rec->collision_list);
+                        set_flag_for_all_collisions(
+                            &rec->collision_list, 0x80000000);
+                    }
+                }
+            }
+        }
+    }
+    interior_object->flags_08_bits.bit7 = 1;
+}
+
+void add_standard_ir_triggers(void) {
     struct KonquestTile* tile;
     float trigger_x;
     float trigger_y;
     float trigger_z;
     int function;
-
-    push_game_state(0x14);
-    turn_controllers_off();
-    konquest_pdata->npc_interaction_state = 0;
-    hero_stop_moving();
-    _mkproc_sleep_ticks = 10.0f;
-    aproc->vtbl->sleep();
-    stop_time_passing();
-    stop_hero_collisions();
-    suspend_hero_state_process();
-    xfer_camera(p_idle, 1);
-    _mkproc_sleep_ticks = 60.0f;
-    aproc->vtbl->sleep();
-
-    if (konq_interior_save_data.enter_script_index != 0) {
-        cmdscript_setup_execution(
-            konquest_pdata->script_owner,
-            konq_interior_save_data.enter_script_index);
-        cmdscript_execute(konquest_pdata->script_owner);
-    }
-    fade_to_black(4, 0);
-
-    if (konquest_pdata->region_table->interior_art_name != 0) {
-        wait_for_slot_load(0xA002F);
-        interior_object = MK_HDR_LIVE(konq_interior_save_data.interior_object, konq_interior_save_data.interior_object_instance);
-
-        if (interior_object == 0) {
-            model = load_named_model_from_slot(
-                0xA002F, "BACKGROUND", 0x301E, 0);
-            if (model != 0) {
-                konq_interior_save_data.interior_object = model;
-                konq_interior_save_data.interior_object_instance =
-                    model->hdr.instance;
-                obj_create_sobjs(model);
-                model->pos.value.x = konquest_pdata->fallback_tile_position.x;
-                model->pos.value.y = konquest_pdata->fallback_tile_position.y;
-                model->pos.value.z = konquest_pdata->fallback_tile_position.z;
-                konq_interior_hide_room_sobjs(model);
-                model->light_flags = 1;
-            }
-        }
-    }
-    pause_weather_effects();
-
-    if (hero != 0) {
-        konq_interior_save_data.hero_position.x =
-            konq_interior_save_data.trigger_position.x;
-        konq_interior_save_data.hero_position.y =
-            konq_interior_save_data.trigger_position.y;
-        konq_interior_save_data.hero_position.z =
-            konq_interior_save_data.trigger_position.z;
-        konq_interior_save_data.hero_position.y = hero->pos.value.y;
-        konq_interior_save_data.hero_angle.x = hero->ang.x;
-        konq_interior_save_data.hero_angle.y = hero->ang.y;
-        konq_interior_save_data.hero_angle.z = hero->ang.z;
-        konq_interior_save_data.hero_angle.y =
-            norm_angle(3.1415927f + hero->ang.y);
-        monk_position.x =
-            konquest_pdata->fallback_tile_position.x +
-            konq_interior_save_data.current_interior->monk_position.x;
-        monk_position.y =
-            konquest_pdata->fallback_tile_position.y +
-            konq_interior_save_data.current_interior->monk_position.y;
-        monk_position.z =
-            konquest_pdata->fallback_tile_position.z +
-            konq_interior_save_data.current_interior->monk_position.z;
-        monk_angles.x =
-            monk_angle_base.x +
-            konq_interior_save_data.current_interior->monk_angle.x;
-        monk_angles.y =
-            monk_angle_base.y +
-            konq_interior_save_data.current_interior->monk_angle.y;
-        monk_angles.z =
-            monk_angle_base.z +
-            konq_interior_save_data.current_interior->monk_angle.z;
-        set_monk_position(
-            monk_position.x, monk_position.y, monk_position.z, monk_angles.y);
-    }
-
-    get_camera_position(&konq_interior_save_data.exterior_camera_position);
-    get_camera_angle(&konq_interior_save_data.exterior_camera_angle);
-
-    {
-        Vec camera_angle_base = {0.0f, 0.0f, 0.0f};
-        Vec camera_angle = {0.0f, 0.0f, 0.0f};
-        Vec camera_position = {0.0f, 0.0f, 0.0f};
-        CameraObj* camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
-
-        if (camera != 0) {
-            camera_position.x =
-                konquest_pdata->fallback_tile_position.x +
-                konq_interior_save_data.current_interior->camera_position.x;
-            camera_position.y =
-                konquest_pdata->fallback_tile_position.y +
-                konq_interior_save_data.current_interior->camera_position.y;
-            camera_position.z =
-                konquest_pdata->fallback_tile_position.z +
-                konq_interior_save_data.current_interior->camera_position.z;
-            camera_angle.x =
-                camera_angle_base.x +
-                konq_interior_save_data.current_interior->camera_angle.x;
-            camera_angle.y =
-                camera_angle_base.y +
-                konq_interior_save_data.current_interior->camera_angle.y;
-            camera_angle.z =
-                camera_angle_base.z +
-                konq_interior_save_data.current_interior->camera_angle.z;
-            set_camera_position(&camera_position);
-            set_camera_angle(&camera_angle);
-            if (camera != 0) {
-                update_mkobj(camera != 0 ? as_mkhdr(&camera->hdr) : 0);
-            }
-        }
-    }
-
-    xfer_camera(p_konquest_interior_camera_proc, 1);
-    konq_interior_save_data.background_lights = bgnd_light_list;
-    konq_interior_save_data.special_lights = special_light_list;
-    bgnd_light_list = 0;
-    special_light_list = 0;
-    load_lights(
-        konq_interior_save_data.current_interior->light_defs,
-        &bgnd_light_list);
-
-    interior_object = MK_HDR_LIVE(konq_interior_save_data.interior_object, konq_interior_save_data.interior_object_instance);
-
-    if (interior_object != 0) {
-        insert_fgnd_mkobj(interior_object);
-        update_mkobj(
-            interior_object != 0 ? as_mkhdr(&interior_object->hdr) : 0);
-    }
-    konquest_hide_hud(1);
-    konq_interior_hide_room_sobjs(interior_object);
-    place_interior_room_objects(
-        konq_interior_save_data.current_interior->room_objects);
-    place_interior_room_objects(
-        konq_interior_save_data.current_interior->script_objects);
 
     tile = get_nth_tile_struct(
         konquest_pdata->tile_width * konquest_pdata->tile_height);
@@ -1033,134 +951,219 @@ static float p_konq_interior_entry_point(void) {
     add_temporary_trigger(
         0x1FE, 1, 1, 1, function, trigger_x, trigger_y, trigger_z,
         1.0f);
-    update_tile_grid();
-
-    npc_data = konq_interior_save_data.current_interior->npc_data;
-    if (npc_data != 0) {
-        npc_count = get_row_count_for_table_by_pointer(
-            konquest_pdata->script_owner, npc_data);
-        for (index = 0; index < npc_count; index++, npc_data++) {
-            struct KonquestNpcRecord* npc;
-
-            add_npc(*npc_data);
-            npc = find_npc_by_data(*npc_data);
-            if (npc != 0) {
-                npc->flags_1D_bits.in_interior = 1;
-            }
-        }
-    }
-
-    _mkproc_sleep_ticks = 1.0f;
-    aproc->vtbl->sleep();
-    npc_update(1);
-    trigger_update(1);
-    transition_hero_to_anim_script(0x2BD, 0, 0.1f, 1.0f);
-    fade_from_black(4, 0);
-    if (konq_interior_save_data.enter_done_script_index != 0) {
-        cmdscript_setup_execution(
-            konquest_pdata->script_owner,
-            konq_interior_save_data.enter_done_script_index);
-        cmdscript_execute(konquest_pdata->script_owner);
-    }
-    start_hero_collisions();
-    resume_hero_state_process();
-    restore_hero_grounding();
-    turn_controllers_on();
-    aproc->vtbl
-        ->jump_sleep(p_konq_interior_loop, 0.0f);
-    return 0.0f;
 }
 
-static inline int konq_interior_id_in_list(unsigned int* list, unsigned int id) {
-    if (list != 0) {
-        for (; *list != 0; list++) {
-            if (*list == id) {
+float get_ir_cam_pos_x(int include_offset) {
+    float position = 0.0f;
+
+    if (get_game_state() == 0x14) {
+        position =
+            konq_interior_save_data.current_interior->camera_position.x;
+        if (include_offset != 0) {
+            position += konquest_pdata->fallback_tile_position.x;
+        }
+    }
+    return position;
+}
+
+float get_ir_cam_pos_y(void) {
+    float position = 0.0f;
+
+    if (get_game_state() == 0x14) {
+        position =
+            konq_interior_save_data.current_interior->camera_position.y;
+    }
+    return position;
+}
+
+float get_ir_cam_pos_z(int include_offset) {
+    float position = 0.0f;
+
+    if (get_game_state() == 0x14) {
+        position =
+            konq_interior_save_data.current_interior->camera_position.z;
+        if (include_offset != 0) {
+            position += konquest_pdata->fallback_tile_position.z;
+        }
+    }
+    return position;
+}
+
+float get_ir_cam_ang_x(void) {
+    float angle = 0.0f;
+
+    if (get_game_state() == 0x14) {
+        angle = konq_interior_save_data.current_interior->camera_angle.x;
+    }
+    return angle;
+}
+
+float get_ir_cam_ang_y(void) {
+    float angle = 0.0f;
+
+    if (get_game_state() == 0x14) {
+        angle = konq_interior_save_data.current_interior->camera_angle.y;
+    }
+    return angle;
+}
+
+float get_ir_cam_ang_z(void) {
+    float angle = 0.0f;
+
+    if (get_game_state() == 0x14) {
+        angle = konq_interior_save_data.current_interior->camera_angle.z;
+    }
+    return angle;
+}
+
+void setup_interior_fighting_arena(void) {
+    KonquestRoomObject* rec;
+
+    if (g_game_info.bgnd_obj == 0) {
+        return;
+    }
+    rec = get_data_table_by_name(global_fight_data_table_name);
+    if (rec == 0) {
+        return;
+    }
+    obj_create_sobjs(g_game_info.bgnd_obj);
+
+    konq_interior_hide_room_sobjs(g_game_info.bgnd_obj);
+
+    konq_interior_apply_fight_objects(g_game_info.bgnd_obj, rec);
+}
+
+int get_building_id_for_exterior(void) {
+    return konq_interior_save_data.building_id;
+}
+
+int get_doors_for_exterior(void) {
+    return konq_interior_save_data.exterior_door_bits;
+}
+
+static int get_door_enum_from_exterior_door_bits(int door_bits) {
+    int door = 1;
+
+    if (door_bits & 1) {
+        door = 1;
+    } else if (door_bits & 2) {
+        door = 2;
+    } else if (door_bits & 4) {
+        door = 3;
+    } else if (door_bits & 8) {
+        door = 4;
+    } else if (door_bits & 0x10) {
+        door = 5;
+    } else if (door_bits & 0x20) {
+        door = 6;
+    } else if (door_bits & 0x40) {
+        door = 7;
+    } else if (door_bits & 0x80) {
+        door = 8;
+    } else if (door_bits & 0x100) {
+        door = 9;
+    } else if (door_bits & 0x200) {
+        door = 10;
+    } else if (door_bits & 0x400) {
+        door = 11;
+    } else if (door_bits & 0x800) {
+        door = 12;
+    }
+    return door;
+}
+
+int get_primary_door_enum_for_exterior(void) {
+    return get_door_enum_from_exterior_door_bits(
+        konq_interior_save_data.exterior_door_bits);
+}
+
+void close_exterior_doors(int building_id, int door_bits) {
+    int door_enum;
+    void* building;
+    struct KonquestChildObject* door;
+    struct KonquestChildObject* partner;
+
+    door_enum = get_door_enum_from_exterior_door_bits(door_bits);
+    konquest_transition_object_to_state(building_id, door_enum, 0);
+
+    building = find_konquest_object_struct_by_uid(building_id);
+    if (building == 0) {
+        return;
+    }
+    door = find_child_subobject_by_enumeration(building, door_enum);
+    if (door == 0 || door->definition == 0) {
+        return;
+    }
+    if (konquest_pdata->region_table
+            ->enumerations[door->definition->enumeration_index]
+            .partner_uid == -1) {
+        return;
+    }
+
+    partner = find_door_partner_sobj(door);
+    if (partner != 0 && partner->definition != 0) {
+        konquest_transition_object_to_state(
+            building_id,
+            konquest_pdata->region_table
+                ->enumerations[partner->definition->enumeration_index]
+                .enumeration,
+            0);
+    }
+}
+
+void turn_to_face_interior_door(void) {
+    Vec delta = {0.0f, 0.0f, 0.0f};
+    Vec direction;
+    Vec angles;
+    MkObj* hero;
+    struct KonquestTrigger* trigger;
+    float len_sq;
+    float x_squared;
+    float y_squared;
+    float normalization_factor;
+
+    hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
+
+    trigger = find_trigger_by_id(0x1FE);
+    if (trigger == 0) {
+        return;
+    }
+
+    delta.x = trigger->data->position.x - hero->pos.value.x;
+    delta.z = trigger->data->position.z - hero->pos.value.z;
+    x_squared = delta.x * delta.x;
+    y_squared = delta.y * delta.y;
+    len_sq = delta.z * delta.z;
+    len_sq = len_sq + (x_squared + y_squared);
+
+    normalization_factor = gxMathFastInvSqrt(len_sq);
+
+    direction.x = delta.x * normalization_factor;
+    direction.y = delta.y * normalization_factor;
+    direction.z = delta.z * normalization_factor;
+    v3_to_xy_ang(&angles, &direction);
+    hero->ang.y = angles.y;
+    update_mkobj(hero != 0 ? as_mkhdr(&hero->hdr) : 0);
+}
+
+int is_pui_in_current_interior(const void* pui) {
+    const void** items;
+    unsigned int count;
+    unsigned int index;
+
+    if (!is_pui_an_interior_item(pui)) {
+        return 0;
+    }
+
+    items = konq_interior_save_data.current_interior->items;
+    if (items != 0 && items != 0) {
+        count = get_row_count_for_table_by_pointer(
+            konquest_pdata->script_owner, items);
+        for (index = 0; index < count; ++index) {
+            if (items[index] == pui) {
                 return 1;
             }
         }
     }
     return 0;
-}
-
-static inline void konq_interior_apply_textures(
-    KonquestRoomObject* robj, KonquestRoomObjectTexture* table,
-    unsigned int* list) {
-    if (table != 0 && robj != 0) {
-        for (; robj->id != 0; robj++) {
-            if (konq_interior_id_in_list(list, robj->id) != 0) {
-                robj->textures = table;
-            }
-        }
-    }
-}
-
-void start_konquest_interior(
-    KonquestInteriorRoom* interior, KonquestRoomObject* script_objects,
-    const void** items, int* npc_data,
-    KonquestRoomObjectTexture* wall_textures,
-    KonquestRoomObjectTexture* floor_textures, int door_bits) {
-    MkObjLatch* pdata;
-    struct KonquestTrigger* trigger;
-    KonquestRoomObjectTexture* table;
-    MkProc* proc;
-
-    pdata = (MkObjLatch*)pdata_of_proc(aproc);
-    if (pdata == 0) {
-        return;
-    }
-    trigger = (struct KonquestTrigger*)pdata->obj;
-    trigger = MK_HDR_LIVE(trigger, pdata->obj_instance);
-    if (trigger == 0) {
-        return;
-    }
-
-    if (trigger->building != 0) {
-        konq_interior_save_data.building_id = trigger->building->uid;
-        konq_interior_save_data.exterior_door_bits = door_bits;
-    } else {
-        konq_interior_save_data.building_id = 0;
-        konq_interior_save_data.exterior_door_bits = 0;
-    }
-
-    konq_interior_save_data.enter_script_index = interior->field_50;
-    konq_interior_save_data.enter_done_script_index = interior->field_54;
-    konq_interior_save_data.exit_script_index = interior->exit_script_index;
-    konq_interior_save_data.entry_script_index =
-        interior->entry_script_index;
-    konq_interior_save_data.trigger_position.x =
-        trigger->data->position.x;
-    konq_interior_save_data.trigger_position.y =
-        trigger->data->position.y;
-    konq_interior_save_data.trigger_position.z =
-        trigger->data->position.z;
-    interior->script_objects = script_objects;
-    interior->items = items;
-    interior->npc_data = npc_data;
-    konq_interior_save_data.current_interior = interior;
-
-    table = wall_textures != 0
-                ? wall_textures
-                : get_data_table_by_name("default_walls");
-    if (table == 0) {
-        return;
-    }
-    konq_interior_apply_textures(interior->room_objects, table, wall_id_list);
-
-    table = floor_textures != 0
-                ? floor_textures
-                : get_data_table_by_name("default_floor");
-    if (table == 0) {
-        return;
-    }
-    konq_interior_apply_textures(interior->room_objects, table, floor_id_list);
-
-    proc = find_mkproc_pid(0x2001);
-    if (proc != 0) {
-        xfer_proc(proc, p_konq_interior_entry_point);
-    }
-}
-
-void initialize_konquest_interior(void) {
-    konq_interior_save_data.interior_object = 0;
-    konq_interior_save_data.interior_object_instance = 0;
 }

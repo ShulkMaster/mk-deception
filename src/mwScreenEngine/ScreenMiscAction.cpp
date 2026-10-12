@@ -36,14 +36,6 @@ enum {
 
 enum { kObjectFlagEnabled = 0x2 };
 
-enum ScreenCompareOp {
-    kCompareEqual = 0,
-    kCompareNotEqual = 1,
-    kCompareGreater = 2,
-    kCompareGreaterEqual = 3,
-    kCompareLess = 4,
-    kCompareLessEqual = 5,
-};
 
 int ScreenVisibleAction::Update(ScreenMgr*, ScreenActionStack&,
                                 int) {

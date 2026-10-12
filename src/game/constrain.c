@@ -56,7 +56,7 @@ static struct ObstacleInfo obstacle_info_table[8] = {
 
 struct ConstrainState constrain_state;
 Vec tightrope_perp_uv;
-Vec tightrope_uv;
+extern Vec tightrope_uv;
 static int tightrope_set_this_tick;
 static float tightrope_dist;
 ConstrainInfo constrain_info;
@@ -425,7 +425,8 @@ void uv_to_opponent(Vec* direction) {
     }
 }
 
-/* TODO: [near miss] 99.91%; flag-value ABI matches; five vector BSS +0x24/+0x30 offsets remain for layout steward. */
+Vec tightrope_uv;
+
 void start_constrain_proc(void) {
     MkProcInitFlags proc_flags;
 
@@ -762,8 +763,8 @@ static inline void update_tightrope_plane(MkObj* player_1, MkObj* player_2) {
         tightrope_uv.x = direction.x;
         tightrope_uv.y = direction.y;
         tightrope_uv.z = direction.z;
-        tightrope_perp_uv.x = direction.z;
-        tightrope_perp_uv.z = -direction.x;
+        tightrope_perp_uv.x = tightrope_uv.z;
+        tightrope_perp_uv.z = -tightrope_uv.x;
         if (!g_game_info.feature_flags.bits.high_bit) {
             tightrope_dist =
                 CONSTRAIN_P1_OBJECT->pos.value.x * tightrope_perp_uv.x +
@@ -803,8 +804,8 @@ static inline void apply_tightrope_to_players(MkObj* player_1) {
     }
 }
 
-/* TODO: [breakthrough] 98.65%; update/apply CFG and player reloads recovered;
- * vector publication FP/FRSP and second-player GPR remain. */
+/* TODO: [near miss] 99.86%; vector publication matches (perp derived from the stored uv);
+ * only the saved GPR of the reloaded second player differs (r30 vs retail r31). */
 static void keep_players_on_tightrope(void) {
     MkObj* player_2;
     MkObj* player_1;

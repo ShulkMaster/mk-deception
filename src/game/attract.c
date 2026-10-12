@@ -349,8 +349,7 @@ static inline int next_unlocked_bio(int* next_index, unsigned int hi,
     }
 }
 
-/* TODO: [near miss] 99.80%; twelve alternate-summary and screen/frame
- * register rows remain; stop at coloring until new lifetime evidence. */
+/* TODO: [near miss] 99.80%; alternate-summary and screen/frame register allocation differ; recover real owner lifetimes. */
 static void atm_bio_screen(void) {
     static int next_bio_screen = -1;
     int bio_index;
@@ -409,7 +408,7 @@ static void atm_bio_screen(void) {
     }
 
     load_ssf((MkFileEntry*)bio_text_file_table);
-    load_string_bank(0x20000U, (char*)&stringBase0[0]);
+    load_string_bank(0x20000U, &stringBase0[0]);
     load_ssf((MkFileEntry*)bios_file_table);
     load_art_section(0x90046, &sec_eu_biofont);
     load_font(0x10);

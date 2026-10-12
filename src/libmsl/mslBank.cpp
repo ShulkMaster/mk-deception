@@ -171,7 +171,8 @@ extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 87.34%; retained source offset restored; command-slot abstraction and stripped name-loop shell remain unresolved. */
+/* TODO: [breakthrough needed] 87.34%; recover original command-slot iterator
+ * and stripped sound-name producer; stack ownership differs before coloring. */
 extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
     mslBankSoundDefinition* definition;
     mslBankSoundEntry* sound_entry;

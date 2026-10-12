@@ -7,6 +7,7 @@
 #include "game/cloth.h"
 #include "game/moveset.h"
 #include "game/plyr.h"
+#include "game/pfxscript_api.h"
 #include "game/plyr_globals.h"
 #include "game/plyrprofile.h"
 #include "game/pselect.h"
@@ -95,7 +96,7 @@ static float p_baraka_jaw_controller(void);
 static inline int set_plyr_anim_script_frame(
     AnimPdata* animation, AniData* script,
     unsigned int flags, float frame) {
-    return set_anim_script_frame(frame, animation, script, flags);
+    return set_anim_script_frame(animation, script, flags, frame);
 }
 extern float p_baraka_blades_controller(void);
 extern int get_current_bgnd(void);
@@ -126,7 +127,6 @@ extern void limb_sever_hide_z_meat_chunks_all(MkObj* object);
 extern void plyr_obj_load_bld_data(
     FighterMirror* pdata, BloodModelData* blood_data, MkObj* object,
     const char* path_name);
-extern int load_effect_bank(char* name);
 extern void start_constrain_proc(void);
 extern void init_debug_variables(void);
 extern void pull_bone_hierarchy_mkobj(void* object);
@@ -1164,11 +1164,10 @@ void hide_player(PlyrPdata* player, int hide_weapons) {
     }
 }
 
-/* TODO: [near miss] 94.80%; position/angle float-copy load scheduling remains; helper and aggregate forms ruled out. */
 void move_player(
     MkObj* object,
-    const Vec* position,
-    const Vec* angles) {
+    Vec* position,
+    Vec* angles) {
     Vec translation;
 
     v3_sub_v3(&translation, position, &object->pos.value);
@@ -1511,10 +1510,10 @@ static inline void initialize_player_shadow(
     }
 }
 
-/* TODO: [near miss] 99.52%; runtime/shadow r29/r30 coloring swap remains. */
+/* TODO: [near miss] 99.84%; 13 rows: his_obj/his_pdata and plyr_obj saved-pointer r5/r6 homes after the sidekick block remain. */
 float p_plyr_start(void) {
-    FighterRuntimeData* runtime;
     MkObj* shadow = 0;
+    FighterRuntimeData* runtime;
     MkObj* sidekick;
     MkObj* saved_object;
     MkProc* proc;
@@ -2055,21 +2054,41 @@ static inline void create_player_attach_face_texture(PlyrInfo* player) {
     }
 }
 
-/* TODO: [near miss] 99.92481%; effect-bank loop GPR coloring remains (banks/index
- * land in r26/r28, retail r27/r26); declaration order and loop forms measured. */
+static inline void load_player_particle_banks(PlyrInfo* player) {
+    const char* const* effect_banks;
+    int index;
+    LoadBgndCtx effect_context;
+
+    effect_banks = player->flags_14_bits.alternate_costume
+        ? player->slot.pdata->runtime_data->alternate_effect_banks
+        : player->slot.pdata->runtime_data->effect_banks;
+    if (effect_banks != 0) {
+        effect_context.art_id =
+            player->field_04 == 0 ? 0x3000B : 0x4000B;
+        effect_context.bgnd_obj = player->slot.mirror_a;
+        effect_context.field_08 = player;
+        active_cmdscript->mko = player->slot.pdata->cmo;
+        active_cmdscript->mko->load_ctx = &effect_context;
+        index = 0;
+        while (effect_banks[index] != 0) {
+            load_effect_bank((char*)effect_banks[index]);
+            index++;
+        }
+        active_cmdscript->mko->load_ctx = 0;
+    }
+
+}
+
 void create_player(int player_index, PlyrInfo* player) {
 
     MkProc* player_proc;
     MkProc* aux_proc;
     PlyrPdata* pdata;
     MkObj* object;
-    int index;
-    const char* const* effect_banks;
     const char* script_name;
     int player_pid = 0;
     int aux_pid = 0;
     int loaded;
-    LoadBgndCtx effect_context;
 
     player->field_04 = player_index;
     if (player->player_index == 0x2C) {
@@ -2223,24 +2242,7 @@ void create_player(int player_index, PlyrInfo* player) {
     }
     player->slot.pdata->controller_port = player->pad_index;
 
-    effect_banks = player->flags_14_bits.alternate_costume
-        ? player->slot.pdata->runtime_data->alternate_effect_banks
-        : player->slot.pdata->runtime_data->effect_banks;
-    if (effect_banks != 0) {
-        effect_context.art_id =
-            player->field_04 == 0 ? 0x3000B : 0x4000B;
-        effect_context.bgnd_obj = player->slot.mirror_a;
-        effect_context.field_08 = player;
-        active_cmdscript->mko = player->slot.pdata->cmo;
-        active_cmdscript->mko->load_ctx = &effect_context;
-        index = 0;
-        while (effect_banks[index] != 0) {
-            load_effect_bank((char*)effect_banks[index]);
-            index++;
-        }
-        active_cmdscript->mko->load_ctx = 0;
-    }
-
+    load_player_particle_banks(player);
     create_sidekick(player_index, player);
     if (!g_game_info.pause_flag_bits.shared_hand_anims_loaded &&
         mode_of_play != 6) {
@@ -2873,21 +2875,16 @@ void vdestroy_mkpdata_plyr(PlyrPdata* pdata) {
 
 #define DESTROY_PLYR_REF(pointer_, instance_) \
     do { \
-        MkHdr* live_object = (MkHdr*)(pointer_); \
-        live_object = MK_LIVE(live_object, (instance_)); \
-        if (live_object != 0) {                                       \
-            MkHdr* owned_object = (MkHdr*)(pointer_);                  \
-            if (owned_object->instance != 0) {                        \
-                ((void (*)(MkHdr*))owned_object->vtbl->destroy)(      \
-                    owned_object);                                    \
-            }                                                         \
-            (pointer_) = 0;                                           \
-            (instance_) = 0;                                          \
-        }                                                             \
+        if (MK_HDR_LIVE((pointer_), (instance_)) != 0) { \
+            if ((pointer_)->hdr.instance != 0) { \
+                (pointer_)->hdr.typed_vtbl->destroy(&(pointer_)->hdr); \
+            } \
+            (pointer_) = 0; \
+            (instance_) = 0; \
+        } \
     } while (0)
 
-/* TODO: [breakthrough] 90.45683%; +0x48C is blood_model.surface.records;
- * existing latch validation/register residue remains. */
+#pragma opt_common_subs off
 void destroy_mkpdata_plyr(PlyrPdata* pdata) {
     DESTROY_PLYR_REF(pdata->tracked_obj, pdata->tracked_obj_instance);
     DESTROY_PLYR_REF(
@@ -2921,6 +2918,7 @@ void destroy_mkpdata_plyr(PlyrPdata* pdata) {
     pdata->instance = 0;
     free_mkpdata_plyrs = pdata;
 }
+#pragma opt_common_subs reset
 
 PlyrPdata* get_mkpdata_plyr(void) {
     PlyrPdata* pdata = free_mkpdata_plyrs;

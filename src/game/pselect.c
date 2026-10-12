@@ -1581,7 +1581,8 @@ void pselect_player_moved(int player) {
                                     char_id);
 }
 
-/* TODO: [breakthrough] 94.48454%; native records and callback stores agree; count-address form, selector-index CSE, and GPR homes remain. */
+/* TODO: [breakthrough] 94.48%; records and callback stores agree;
+ * count addressing, selector-index reuse and GPR homes remain. */
 void bg_pselect_player_canceled(int player) {
     struct BgPselectCancelPdata* pdata;
     int* entries;
@@ -1604,7 +1605,7 @@ void bg_pselect_player_canceled(int player) {
 
     if (count >= 1 && count <= 5) {
         entries[count] = 0x2C;
-        tex = load_named_tga_from_slot(PSELECT_SEC_SLOT, (char*)STR_HEAD_PROXY);
+        tex = load_named_tga_from_slot(PSELECT_SEC_SLOT, STR_HEAD_PROXY);
         pdata->teams[player].colors[count - 1] = tex;
     }
 
@@ -1688,7 +1689,8 @@ void resolve_alternate_palettes(PlyrInfo* plyr) {
     }
 }
 
-/* TODO: [breakthrough] 81.25%; shared focus bound recovered; palette/process inlining and callback ordering remain. */
+/* TODO: [near miss] 98.67%; retail calls, snapshots and output slots agree;
+ * equivalent validity join and local register/address lowering remain. */
 void pselect_player_selected(PlyrInfo* plyr) {
     PlyrInfo* other;
     int* sel_pos;
@@ -1696,9 +1698,7 @@ void pselect_player_selected(PlyrInfo* plyr) {
     int char_id;
     int pad;
     int locked;
-    int player;
     int focus;
-    MkHdr* pdata;
     PlyrInfoFlags14* flags;
     int flag_word;
 
@@ -1710,9 +1710,9 @@ void pselect_player_selected(PlyrInfo* plyr) {
         if (mode_of_play == 4) {
             if (plyr->field_04 == menu_player) {
                 set_player_state(plyr, 2);
-                other = &g_game_info.plyr0;
-                if (plyr == &g_game_info.plyr0) {
-                    other = &g_game_info.plyr1;
+                other = &g_game_info.players[0];
+                if (plyr == &g_game_info.players[0]) {
+                    other = &g_game_info.players[1];
                 }
                 set_player_state(other, 1);
             } else {
@@ -1733,13 +1733,13 @@ void pselect_player_selected(PlyrInfo* plyr) {
         return;
     }
 
-    char_id = pselect_char_at(*sel_pos)->char_id;
+    char_id = pselect_char_id_at(*sel_pos);
     plyr->player_index = char_id;
     flags = &plyr->flags_14_bits;
     flags->alternate_costume = 0;
 
     if (mode_of_play == 4) {
-        pad = (&g_game_info.plyr0)[menu_player].pad_index;
+        pad = g_game_info.players[menu_player].pad_index;
     } else {
         pad = plyr->pad_index;
     }
@@ -1749,13 +1749,16 @@ void pselect_player_selected(PlyrInfo* plyr) {
         if (locked == 0) {
             flags->alternate_costume = 1;
             if (pselect_mode == 0) {
+                MkHdr* pdata;
+                int player;
+                int proc_id;
+
                 player = plyr->field_04;
-                destroy_mkprocs_pid(player + 0x9035);
-                pdata = 0;
-                _create_mkproc_generic_bigstack(player + 0x9035, 0x1F,
-                                                p_load_alternate_body, 0xC,
-                                                &pdata);
-                if (pdata != 0) {
+                proc_id = player + 0x9035;
+                destroy_mkprocs_pid(proc_id);
+                if (_create_mkproc_generic_bigstack(proc_id, 0x1F,
+                                                    p_load_alternate_body, sizeof(struct AltBodyPdata),
+                                                    &pdata) != 0) {
                     ((struct AltBodyPdata*)pdata)->player = player;
                 }
             }
@@ -1770,41 +1773,44 @@ void pselect_player_selected(PlyrInfo* plyr) {
     }
 
     if (pselect_mode == 2) {
-        pdata = 0;
-        _create_mkproc_generic_nostack(0x9029, 0x1F, p_play_name_sound, 0x10,
-                                       &pdata);
-        if (pdata != 0) {
-            ((struct NameSoundPdata*)pdata)->sound_id =
-                pselect_char_at(*sel_pos)->name_sound;
+        MkHdr* pdata;
+        int sound_id = pselect_pz_char_tbl[*sel_pos].name_sound;
+
+        if (_create_mkproc_generic_nostack(0x9029, 0x1F, p_play_name_sound, sizeof(struct NameSoundPdata),
+                                           &pdata) != 0) {
+            ((struct NameSoundPdata*)pdata)->sound_id = sound_id;
             ((struct NameSoundPdata*)pdata)->countdown = 0xB4;
         }
     } else if (pselect_mode == 0) {
+        MkHdr* pdata;
+        int sound_id;
+
         vdebug_print_message(STR_SELECTING_FMT,
                              pselect_char_tbl[*sel_pos].head_name,
                              exec_tick_ctr);
-        pdata = 0;
-        _create_mkproc_generic_nostack(0x9029, 0x1F, p_play_name_sound, 0x10,
-                                       &pdata);
-        if (pdata != 0) {
-            ((struct NameSoundPdata*)pdata)->sound_id =
-                pselect_char_tbl[*sel_pos].name_sound;
+        sound_id = pselect_char_tbl[*sel_pos].name_sound;
+        if (_create_mkproc_generic_nostack(0x9029, 0x1F, p_play_name_sound, 0x10,
+                                           &pdata) != 0) {
+            ((struct NameSoundPdata*)pdata)->sound_id = sound_id;
             ((struct NameSoundPdata*)pdata)->countdown = 0xB4;
         }
     }
 
     if (pselect_mode == 1) {
-        char_id = pselect_char_tbl[*sel_pos].char_id;
+        char_id = pselect_char_id_at(*sel_pos);
         focus = bg_team_focus_of(get_screen_pdata(),
                                  plyr->field_04, char_id);
         if (focus >= 0) {
+            struct BgPselectPdata* preview = get_screen_pdata();
+
             fire_screen_studio_event(studio_ev, plyr->field_04);
-            bg_team_view(get_screen_pdata(), plyr->field_04)
-                ->focus = focus;
+            bg_team_view(preview, plyr->field_04)->focus = focus;
         }
     }
 }
 
-/* TODO: [near miss] 94.02%; player-slot staging matches; BODY_ALT address is retained across texture calls. */
+/* TODO: [near miss] 94.02%; player-slot homes agree;
+ * BODY_ALT address lifetime across texture calls differs. */
 static float p_load_alternate_body(void) {
     struct AltBodyPdata* pdata;
     int slot;
@@ -1831,10 +1837,10 @@ static float p_load_alternate_body(void) {
     add_art_section_by_name_async(slot, sec_name);
     wait_for_slot_load(slot);
 
-    tex = load_named_tga_from_slot(slot, (char*)STR_BODY_ALT);
+    tex = load_named_tga_from_slot(slot, STR_BODY_ALT);
     *color_out = tex;
     if (*color_out != 0) {
-        *alpha_out = load_named_alpha_texture_from_slot(slot, (char*)STR_BODY_ALT);
+        *alpha_out = load_named_alpha_texture_from_slot(slot, STR_BODY_ALT);
         refresh_active_screen();
     }
     return sleep_ticks_neg_one;

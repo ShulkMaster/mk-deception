@@ -617,8 +617,8 @@ static int adxb_get_key(AdxBasicDecoderExt* decoder,
     return 0;
 }
 
-/* TODO: [near miss] 99.84%; five key-selector status join rows remain;
- * recover the stripped SKG helper before changing the shared return shape. */
+/* TODO: [breakthrough needed] 99.84%; two selector returns miss retail's shared
+ * zero-status join; recover stripped SKG producer and return ownership. */
 int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
                          int length)
 {

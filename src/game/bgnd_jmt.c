@@ -661,7 +661,7 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
             if (update->group_id == group_id || group_id == -1) {
                 slot_index = update->active_slot;
                 command = (struct BgndUpdateCommandBlock*)((unsigned char*)update +
-                                                    slot_index * 0x50);
+                                                    slot_index * sizeof(struct BgndUpdateCommand));
                 command->slot.blend_numerator = blend_ticks;
                 command->slot.blend_divisor = blend_ticks;
                 command->delay = g_ticks_delay +
@@ -680,7 +680,7 @@ void mks_away_vel_update_by_group(int group_id, int blend_ticks,
                     previous_index = 1;
                 }
                 previous = (struct BgndUpdateCommandBlock*)((unsigned char*)update +
-                                                     previous_index * 0x50);
+                                                     previous_index * sizeof(struct BgndUpdateCommand));
                 varied_speed = speed +
                                (frand(random_range) - 0.5f * random_range);
                 previous->slot.speed = varied_speed;
@@ -1413,7 +1413,7 @@ static inline struct RopeSegment* rope_previous_segment(
     return &rope->segments[index];
 }
 
-/* TODO: [near miss] 99.05%; frame and operations agree; owner GPR coloring and zero-compare operand order remain. */
+/* TODO: [near miss] 99.13%; frame and operations agree; owner GPR coloring and zero-compare operand order remain. */
 static void rope_controller_update(MkHdr* pdata) {
     struct RopeControllerData* rope = (struct RopeControllerData*)pdata;
     MkObj* model = rope->model;
@@ -1533,9 +1533,9 @@ static void rope_controller_update(MkHdr* pdata) {
         }
 
         if (segment->mode == 3 && rope->attached_model != 0) {
-            MkBone* attached_bone;
             MkBone* parent;
             RwMatrix* attached_model_matrix;
+            MkBone* attached_bone;
 
             segment->velocity.x = 0.0f;
             segment->velocity.y = 0.0f;

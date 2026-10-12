@@ -844,14 +844,14 @@ static void GCSpecSkinMaterial(struct SpecMesh* mesh, int alpha_pass) {
     GXSetTevAlphaIn(2, 7, 7, 7, 6);
 }
 
-static inline void find_spec_lights(RwGlobals* engine) {
+static inline void FindGlobalLights(void) {
     struct SpecWorld* world;
     RwLLLink* link;
 
     pDirLight1 = 0;
     pDirLight2 = 0;
     pAmbLight = 0;
-    world = engine->curWorld;
+    world = RwEngineInstance->curWorld;
     if (world != 0) {
         for (link = world->directional_lights.next;
              link != &world->directional_lights;
@@ -879,10 +879,15 @@ static inline void find_spec_lights(RwGlobals* engine) {
             }
         }
     }
+}
+
+static inline void FindLocalLights(void) {
+    struct SpecWorld* world;
+    RwLLLink* link;
 
     pPointLight1 = 0;
     pPointLight2 = 0;
-    world = engine->curWorld;
+    world = RwEngineInstance->curWorld;
     if (world != 0) {
         for (link = world->point_lights.next;
              link != &world->point_lights;
@@ -912,6 +917,14 @@ static inline void find_spec_lights(RwGlobals* engine) {
     }
 }
 
+
+static inline void spec_point_metrics(
+    float* const squared_distance, float* const radius,
+    const Vec* delta, const struct SpecLight* light) {
+    *radius = light->radius;
+    *squared_distance = delta->x * delta->x + delta->y * delta->y +
+                        delta->z * delta->z;
+}
 
 static inline void upload_point_light(
     struct SpecLight* light,
@@ -990,8 +1003,7 @@ static inline void upload_directional_light(
     lighting->light_count++;
 }
 
-/* TODO: [breakthrough] 95.91%; light ownership and intensity order recovered;
- * recover point-metric stack storage and first-distance rounding. */
+/* TODO: [near miss] 99.62%; FP and stack layout agree; GPR homes in the inlined FindGlobalLights/FindLocalLights loops and the first point-light upload index/object pair remain. */
 static RpAtomic* GCSpecSkinLighting(
     RpAtomic* atomic, struct SpecLightingData* lighting) {
     RpMaterial* specular_material;
@@ -1005,17 +1017,20 @@ static RpAtomic* GCSpecSkinLighting(
     struct SpecLight* point2;
     Vec point1_delta;
     Vec point2_delta;
-    float point1_distance_sq;
-    float point2_distance_sq;
-    float point1_radius;
     float point2_radius;
-    float point1_intensity;
-    float point2_intensity;
+    float point1_radius;
+    float point2_distance_sq;
+    float point1_distance_sq;
     float point1_inverse_distance;
     float point2_inverse_distance;
     float strongest_point_intensity;
+    float point1_intensity;
+    float point2_intensity;
     float directional_intensity;
+    float point1_dist;
+    float point2_dist;
 
+    directional_intensity = 1.0f;
     lighting->light_mask = 0;
     lighting->ambient.red = 0.0f;
     lighting->ambient.green = 0.0f;
@@ -1028,7 +1043,8 @@ static RpAtomic* GCSpecSkinLighting(
         RwFrameGetLTM(atomic->object.parent));
     specular_material = atomic->geometry->matList.materials[0];
     if ((atomic->geometry->flags | 0x20U) != 0) {
-        find_spec_lights(RwEngineInstance);
+        FindGlobalLights();
+        FindLocalLights();
 
         if (pAmbLight != 0) {
             lighting->has_ambient = 1;
@@ -1038,7 +1054,6 @@ static RpAtomic* GCSpecSkinLighting(
         }
 
         strongest_point_intensity = 0.0f;
-        directional_intensity = 1.0f;
         if (pPointLight1 != 0) {
             atomic_ltm = RwFrameGetLTM(atomic->object.parent);
             light_ltm = RwFrameGetLTM(pPointLight1->frame);
@@ -1046,9 +1061,9 @@ static RpAtomic* GCSpecSkinLighting(
             point1_delta.x = light_ltm->pos.x - atomic_ltm->pos.x;
             point1_delta.y = light_ltm->pos.y - atomic_ltm->pos.y;
             point1_delta.z = light_ltm->pos.z - atomic_ltm->pos.z;
-            point1_radius = point1->radius;
-            point1_distance_sq =
-                point1_delta.x * point1_delta.x +
+            spec_point_metrics(
+                &point1_distance_sq, &point1_radius, &point1_delta, point1);
+            point1_dist = point1_delta.x * point1_delta.x +
                 point1_delta.y * point1_delta.y +
                 point1_delta.z * point1_delta.z;
             if (pPointLight2 != 0) {
@@ -1057,9 +1072,9 @@ static RpAtomic* GCSpecSkinLighting(
                 point2_delta.x = light_ltm->pos.x - atomic_ltm->pos.x;
                 point2_delta.y = light_ltm->pos.y - atomic_ltm->pos.y;
                 point2_delta.z = light_ltm->pos.z - atomic_ltm->pos.z;
-                point2_radius = point2->radius;
-                point2_distance_sq =
-                    point2_delta.x * point2_delta.x +
+                spec_point_metrics(
+                    &point2_distance_sq, &point2_radius, &point2_delta, point2);
+                point2_dist = point2_delta.x * point2_delta.x +
                     point2_delta.y * point2_delta.y +
                     point2_delta.z * point2_delta.z;
                 point1_intensity =
@@ -1076,13 +1091,13 @@ static RpAtomic* GCSpecSkinLighting(
                 strongest_point_intensity =
                     point1_intensity >= point2_intensity
                         ? point1_intensity : point2_intensity;
-                point2_inverse_distance = gxMathFastInvSqrt(point2_distance_sq);
+                point2_inverse_distance = gxMathFastInvSqrt(point2_dist);
                 upload_point_light(
                     point2, lighting, &point2_delta,
                     point2_inverse_distance, point2_intensity);
             } else {
                 point1_intensity =
-                    1.0f - gxMathFastSqrt(point1_distance_sq) /
+                    1.0f - gxMathFastSqrt(point1_dist) /
                         point1_radius;
                 if (point1_intensity < 0.0f) {
                     point1_intensity = 0.0f;
@@ -1094,7 +1109,7 @@ static RpAtomic* GCSpecSkinLighting(
                 0.5f >= 1.0f - strongest_point_intensity
                     ? 0.5f : 1.0f - strongest_point_intensity;
 
-            point1_inverse_distance = gxMathFastInvSqrt(point1_distance_sq);
+            point1_inverse_distance = gxMathFastInvSqrt(point1_dist);
             upload_point_light(
                 point1, lighting, &point1_delta,
                 point1_inverse_distance, point1_intensity);
@@ -1129,3 +1144,4 @@ static RpAtomic* GCSpecSkinLighting(
     }
     return atomic;
 }
+

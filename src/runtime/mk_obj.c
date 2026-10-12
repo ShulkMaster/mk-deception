@@ -331,11 +331,11 @@ void set_true_clip_flag_on_sobj_and_children(MkSobj* sobj, int flag) {
     }
 }
 
-/* TODO: [near miss] 99.75%; traversal agrees; callback next-link and saved sibling GPRs remain swapped. */
 static void rwframe_set_true_clip_flag_on_objects_and_children(
     RwFrame* frame, int flag) {
     RwLLLink* link;
     RwLLLink* next_link;
+    RwFrame* next_grandchild;
     RwFrame* grandchild;
     RwLLLink* end;
     RwLLLink* child_end;
@@ -345,7 +345,7 @@ static void rwframe_set_true_clip_flag_on_objects_and_children(
     RwLLLink* subtree_link;
     RwLLLink* grandchild_end;
     RwFrame* child;
-    RwFrame* next_grandchild;
+    RwLLLink* callback_next;
     RwFrame* descendant;
     RwFrame* next_child;
 
@@ -383,10 +383,10 @@ static void rwframe_set_true_clip_flag_on_objects_and_children(
             grandchild_end = &grandchild->objectList.link;
             subtree_link = grandchild->objectList.link.next;
             while (subtree_link != grandchild_end) {
-                next_link = subtree_link->next;
+                callback_next = subtree_link->next;
                 rwobject_set_true_clip_flag(RW_OBJECT_FROM_FRAME_LINK(subtree_link),
                                             flag);
-                subtree_link = next_link;
+                subtree_link = callback_next;
             }
             descendant = grandchild->child;
             while (descendant != 0) {
@@ -1777,6 +1777,14 @@ void get_bone_world_pos(MkObj* obj, int bone, Vec* out) {
         obj->field_24, &obj->pos.value);
 }
 
+static inline void mkobj_update_bone_subhierarchy(MkObj* object, MkBone* root) {
+    int saved_fallback = object->fallback_bone_index;
+
+    object->fallback_bone_index = root->bone_index;
+    update_bone_hierarchy(object != 0 ? as_mkhdr(&object->hdr) : 0);
+    object->fallback_bone_index = saved_fallback;
+}
+
 /* TODO: [near miss] 98.75940%; frame, queue and operations agree; redundant deferred/pose guard tests remain. */
 void update_bone_hierarchy(void* obj) {
     MkObj* mkobj;
@@ -2289,9 +2297,7 @@ void vdestroy_mksobj(MkSobj* sobj) {
     _mwMemFree(mksobj, 0, 0);
 }
 
-/* TODO: [near miss] 94.27778%; y preload and FP homes differ in the scalar copy;
- * supported owner/lifetime forms exhausted; scheduling-off regresses the unit. */
-void obj_set_sobj_pos(MkObj* obj, unsigned int id, const Vec* pos) {
+void obj_set_sobj_pos(MkObj* obj, unsigned int id, Vec* pos) {
     MkSobj* sobj;
 
     sobj = find_sobj_by_id_inline(obj, id);
@@ -3543,7 +3549,10 @@ void limb_sever_hide_z_meat_chunks_all(MkObj* obj) {
 static void _move_bones_from_obj_to_limbobj(
     MkObj* source_arg, MkObj* limb_arg, int bone_index, int include_children);
 
-/* TODO: [near miss] 99.93%; eight GPR-only rows remain; prior lifetime/helper forms exhausted, reopen with new structural evidence. */
+
+
+/* TODO: [near miss] 99.95%; six pivot/second-chain matrix register rows remain;
+ * hierarchy owner recovered; original pivot-helper shape still unresolved. */
 MkObj* obj_sever_limb(
     MkObj* obj, int limb, Vec* limb_velocities, int include_children) {
     MkObj* source;
@@ -3568,7 +3577,6 @@ MkObj* obj_sever_limb(
     RwMatrixPosition saved_pos;
     RwMatrixPosition transformed;
     int root_index;
-    int saved_fallback;
     int chain_count;
     unsigned int i;
 
@@ -3652,11 +3660,7 @@ MkObj* obj_sever_limb(
         root->translation.value.x = 0.0f;
         RtQuatConvertFromMatrix(&root->rotation, root->parent_matrix);
         update_mkobj(severed != 0 ? as_mkhdr(&severed->hdr) : 0);
-        saved_fallback = severed->fallback_bone_index;
-        severed->fallback_bone_index = root->bone_index;
-        update_bone_hierarchy(
-            severed != 0 ? as_mkhdr(&severed->hdr) : 0);
-        severed->fallback_bone_index = saved_fallback;
+        mkobj_update_bone_subhierarchy(severed, root);
     }
 
     if (limb_velocities != 0) {

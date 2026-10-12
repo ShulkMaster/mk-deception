@@ -1945,7 +1945,7 @@ int npc_set_wake_up_time(int, int);
 void npc_start_fx_at_his_position(void*, const char*, const Vec*);
 void npc_start_fx_at_position(const char*, const Vec*);
 int npc_take_control_of_him(int, int);
-int npc_travel_path(int, int, int);
+void npc_travel_path(int, int, int);
 int npc_travel_path_anim_override(int, int, int, int);
 int npc_travel_to_world_position(int, int);
 int obj_get_scale(int, int);
@@ -2263,7 +2263,7 @@ void start_gore2_pebbles(
     Vec* position_offset, float vertical_acceleration,
     float bounce_scale, int bounce_count);
 int transition_to_anim_script_frame(
-    float, float, AnimPdata*, AnimScript*, unsigned int);
+    AnimPdata*, AnimScript*, unsigned int, float, float);
 void trial_do_dialog(int, int, float, float, float, unsigned int, int);
 void trial_show_spoken_text_window(int, float, float, float, int, int, int, int, int);
 void trial_show_text_window(int, float, float, float, int, int);
@@ -2366,7 +2366,6 @@ void _xfer_proc(void) {
               (script_callable_function_table + args->slots[1].i)[-1]);
 }
 
-/* TODO: [near miss] 90.22727%; post-resolver flag/FP argument staging differs. */
 void _transition_to_anim_script_frame(void) {
     struct ScriptTransitionFrameArgs* args = (struct ScriptTransitionFrameArgs*)current_args;
     AnimPdata* animation = args->animation;
@@ -2375,8 +2374,8 @@ void _transition_to_anim_script_frame(void) {
     args = (struct ScriptTransitionFrameArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         transition_to_anim_script_frame(
-            args->transition_frames, args->frame,
-            animation, script, args->flags);
+            animation, script, args->flags, args->transition_frames,
+            args->frame);
 }
 
 void _two_player_animation_blend(void) {

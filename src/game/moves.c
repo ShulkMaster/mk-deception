@@ -37,11 +37,6 @@ struct MovesSidekickPdata {
     PlyrPdata* player;
 };
 
-union MovesSidekickPdataRef {
-    MkHdr* hdr;
-    struct MovesSidekickPdata* sidekick;
-};
-
 struct MovesWeaponWatchPdata {
     MkHdr hdr;
     MkProc* player_proc;
@@ -242,7 +237,7 @@ void stop_me(void);
 void player_feet_land_chores(void);
 void ani_to_frame_x(float frame);
 void ani_to_end(void);
-void ani_1_frame(void);
+void ani_1_frame();
 void got_hit_fx(int type, int sound_group, int blood, int arg3, int arg4, float rate, int arg5);
 int drone_ai_should_roll(int mode);
 void play_sound_1(int sound_id);
@@ -310,7 +305,7 @@ int does_he_have_life_left(void);
 void random_dk_foot(void);
 void set_ani_speed(float speed);
 int am_i_airborn(void);
-static void set_grab_anim_weighting(const Vec* offset, unsigned int grab_type);
+static void set_grab_anim_weighting(Vec* offset, unsigned int grab_type);
 void clear_both_face_opponent_flags(void);
 void plyr_weapon_hide(
     PlyrPdata* player, int show_aux, PlyrMirrorSlots* mirror_slots);
@@ -343,7 +338,7 @@ int plyr_start_script_in_plyr_pdata_proc(
 void obj_set_gravity(MkObj* object, float gravity);
 void shake_camera(int strength, float duration);
 void clear_my_face_opponent_flag(void);
-void move_player(MkObj* fighter, const Vec* position, const Vec* angle);
+void move_player(MkObj* fighter, Vec* position, Vec* angle);
 void random_foot(int type);
 void uv_to_opponent(Vec* direction);
 void wait_to_land(void);
@@ -2003,8 +1998,7 @@ static void do_pickup(struct MovesPickup* pickup, Vec* offset, int take) {
     }
 }
 
-/* TODO: [near miss] 95.80%; retail order restored; prologue guard-constant/offset-component scheduling remains. */
-static void set_grab_anim_weighting(const Vec* offset, unsigned int grab_type) {
+static void set_grab_anim_weighting(Vec* offset, unsigned int grab_type) {
     float length;
     float weight;
 
@@ -3617,23 +3611,23 @@ void advance_active_moveset(PlyrPdata* player) {
 
 void sidekick_intro_check(void) {
     MkProc* proc;
-    union MovesSidekickPdataRef pdata;
+    struct MovesSidekickPdata* pdata;
 
     if (g_game_info.plyr0.slot.pdata->sidekick_available != 0) {
         proc = _create_mkproc_generic_bigstack(
             0xC028, 8, p_plyr_sidekick_intro,
-            sizeof(struct MovesSidekickPdata), &pdata.hdr);
-        if (proc != 0 && pdata.hdr != 0) {
-            pdata.sidekick->player = g_game_info.plyr0.slot.pdata;
+            sizeof(struct MovesSidekickPdata), (MkHdr**)&pdata);
+        if (proc != 0 && pdata != 0) {
+            pdata->player = g_game_info.plyr0.slot.pdata;
         }
     }
 
     if (g_game_info.plyr1.slot.pdata->sidekick_available != 0) {
         proc = _create_mkproc_generic_bigstack(
             0xC029, 8, p_plyr_sidekick_intro,
-            sizeof(struct MovesSidekickPdata), &pdata.hdr);
-        if (proc != 0 && pdata.hdr != 0) {
-            pdata.sidekick->player = g_game_info.plyr1.slot.pdata;
+            sizeof(struct MovesSidekickPdata), (MkHdr**)&pdata);
+        if (proc != 0 && pdata != 0) {
+            pdata->player = g_game_info.plyr1.slot.pdata;
         }
     }
 }
@@ -3773,28 +3767,24 @@ static float p_plyr_sidekick_intro(void) {
 
 void noobsmoke_sidekick_projectile(void) {
     MkProc* proc;
-    union MovesSidekickPdataRef pdata;
+    struct MovesSidekickPdata* pdata;
 
     if (plyr_pdata->plyr_num == 0) {
         proc = _create_mkproc_generic_bigstack(
             0xC028, 8, p_plyr_sidekick_projectile,
-            sizeof(struct MovesSidekickPdata), &pdata.hdr);
+            sizeof(struct MovesSidekickPdata), (MkHdr**)&pdata);
     } else {
         proc = _create_mkproc_generic_bigstack(
             0xC029, 8, p_plyr_sidekick_projectile,
-            sizeof(struct MovesSidekickPdata), &pdata.hdr);
+            sizeof(struct MovesSidekickPdata), (MkHdr**)&pdata);
     }
-    if (proc != 0 && pdata.hdr != 0) {
-        pdata.sidekick->player = plyr_pdata;
+    if (proc != 0 && pdata != 0) {
+        pdata->player = plyr_pdata;
     }
 }
 
-/* TODO: [near miss] 99.75%; retail recomputes the placement vector after tag_team_activate_player; only volatile FPR coloring of the recomputed dx/dz remains. */
+/* TODO: [near miss] 99.75%; recomputed dx/dz FPR homes differ; stop at coloring. */
 static float p_plyr_sidekick_projectile(void) {
-    union {
-        float f;
-        unsigned int u;
-    } bits, guess, inverse_bits;
     struct MovesSidekickPdata* pdata;
     PlyrPdata* player;
     PlyrPdata* actions;
@@ -3953,19 +3943,19 @@ int noobsmoke_fire_projectile_request(void) {
 
 void smoke_victory_entrance(void) {
     MkProc* proc;
-    union MovesSidekickPdataRef pdata;
+    struct MovesSidekickPdata* pdata;
 
     if (plyr_pdata->plyr_num == 0) {
         proc = _create_mkproc_generic_bigstack(
             0xC028, 8, p_plyr_smoke_entrance,
-            sizeof(struct MovesSidekickPdata), &pdata.hdr);
+            sizeof(struct MovesSidekickPdata), (MkHdr**)&pdata);
     } else {
         proc = _create_mkproc_generic_bigstack(
             0xC029, 8, p_plyr_smoke_entrance,
-            sizeof(struct MovesSidekickPdata), &pdata.hdr);
+            sizeof(struct MovesSidekickPdata), (MkHdr**)&pdata);
     }
-    if (proc != 0 && pdata.hdr != 0) {
-        pdata.sidekick->player = plyr_pdata;
+    if (proc != 0 && pdata != 0) {
+        pdata->player = plyr_pdata;
     }
 }
 
@@ -4080,19 +4070,19 @@ static float p_plyr_smoke_entrance(void) {
 
 void noob_victory_entrance(void) {
     MkProc* proc;
-    union MovesSidekickPdataRef pdata;
+    struct MovesSidekickPdata* pdata;
 
     if (plyr_pdata->plyr_num == 0) {
         proc = _create_mkproc_generic_bigstack(
             0xC028, 8, p_plyr_noob_entrance,
-            sizeof(struct MovesSidekickPdata), &pdata.hdr);
+            sizeof(struct MovesSidekickPdata), (MkHdr**)&pdata);
     } else {
         proc = _create_mkproc_generic_bigstack(
             0xC029, 8, p_plyr_noob_entrance,
-            sizeof(struct MovesSidekickPdata), &pdata.hdr);
+            sizeof(struct MovesSidekickPdata), (MkHdr**)&pdata);
     }
-    if (proc != 0 && pdata.hdr != 0) {
-        pdata.sidekick->player = plyr_pdata;
+    if (proc != 0 && pdata != 0) {
+        pdata->player = plyr_pdata;
     }
 }
 
@@ -4205,29 +4195,25 @@ static float p_plyr_noob_entrance(void) {
 
 void noobsmoke_sidekick_double_charge(void) {
     MkProc* proc;
-    union MovesSidekickPdataRef pdata;
+    struct MovesSidekickPdata* pdata;
 
     if (plyr_pdata->plyr_num == 0) {
         proc = _create_mkproc_generic_bigstack(
             0xC028, 8, p_plyr_sidekick_charge,
-            sizeof(struct MovesSidekickPdata), &pdata.hdr);
+            sizeof(struct MovesSidekickPdata), (MkHdr**)&pdata);
     } else {
         proc = _create_mkproc_generic_bigstack(
             0xC029, 8, p_plyr_sidekick_charge,
-            sizeof(struct MovesSidekickPdata), &pdata.hdr);
+            sizeof(struct MovesSidekickPdata), (MkHdr**)&pdata);
     }
-    if (proc != 0 && pdata.hdr != 0) {
-        pdata.sidekick->player = plyr_pdata;
+    if (proc != 0 && pdata != 0) {
+        pdata->player = plyr_pdata;
     }
 }
 
-/* TODO: [near miss] 99.87%; position stored back through offset.x/z as retail; remaining rows are late constant-pool loads and FPR coloring of the wrapped angle. */
+/* TODO: [near miss] 99.90%; position stored back through offset.x/z as retail; remaining rows are late constant-pool loads and FPR coloring of the wrapped angle. */
 static float p_plyr_sidekick_charge(void) {
-    union {
-        float f;
-        unsigned int u;
-    } inverse_bits;
-    struct MovesSidekickPdata* pdata;
+    float position_y;
     MkObj* sidekick;
     PlyrInfo* info;
     PlyrPdata* player;
@@ -4249,7 +4235,7 @@ static float p_plyr_sidekick_charge(void) {
     float sine;
     float cosine;
     float position_x;
-    float position_y;
+    struct MovesSidekickPdata* pdata;
     float position_z;
     float angle_x;
     float angle_y;
@@ -4516,28 +4502,28 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
 
 void advance_sidekick_with_moveset(PlyrPdata* player) {
     MkProc* proc;
-    union MovesSidekickPdataRef pdata;
+    struct MovesSidekickPdata* pdata;
 
     if (player->plyr_num == 0) {
         proc = _create_mkproc_generic_bigstack(
             0xC028, 8, p_plyr_sidekick_switch,
-            sizeof(struct MovesSidekickPdata), &pdata.hdr);
+            sizeof(struct MovesSidekickPdata), (MkHdr**)&pdata);
     } else {
         proc = _create_mkproc_generic_bigstack(
             0xC029, 8, p_plyr_sidekick_switch,
-            sizeof(struct MovesSidekickPdata), &pdata.hdr);
+            sizeof(struct MovesSidekickPdata), (MkHdr**)&pdata);
     }
-    if (proc != 0 && pdata.hdr != 0) {
-        pdata.sidekick->player = player;
+    if (proc != 0 && pdata != 0) {
+        pdata->player = player;
     }
 }
 
-/* TODO: [near miss] 99.14%; CFG and math agree; equivalent frame slots and GPR coloring remain; stop at coloring. */
+/* TODO: [near miss] 99.27%; CFG and math agree; equivalent frame slots and GPR coloring remain; stop at coloring. */
 static float p_plyr_sidekick_switch(void) {
     PlyrPdata* player;
     PlyrInfo* plyr_info;
-    MkObj* opponent;
     MkObj* main_object;
+    MkObj* opponent;
     MkObj* sidekick;
     AnimPdata* sidekick_anim;
     MkProc* player_proc;
@@ -4690,7 +4676,7 @@ int is_weapon_style(PlyrFighterDefinition* style) {
 
 float switch_proc_advance_moveset(void) {
     PlyrPdata* player_data;
-    union MovesSidekickPdataRef pdata;
+    struct MovesSidekickPdata* pdata;
     int player_num;
     int fighter_state;
     MkProc* proc;
@@ -4740,14 +4726,14 @@ float switch_proc_advance_moveset(void) {
                     if (player_data->plyr_num == 0) {
                         proc = _create_mkproc_generic_bigstack(
                             0xC028, 8, p_plyr_sidekick_switch,
-                            sizeof(struct MovesSidekickPdata), &pdata.hdr);
+                            sizeof(struct MovesSidekickPdata), (MkHdr**)&pdata);
                     } else {
                         proc = _create_mkproc_generic_bigstack(
                             0xC029, 8, p_plyr_sidekick_switch,
-                            sizeof(struct MovesSidekickPdata), &pdata.hdr);
+                            sizeof(struct MovesSidekickPdata), (MkHdr**)&pdata);
                     }
-                    if (proc != 0 && pdata.hdr != 0) {
-                        pdata.sidekick->player = player_data;
+                    if (proc != 0 && pdata != 0) {
+                        pdata->player = player_data;
                     }
                 }
             }
@@ -5781,8 +5767,6 @@ float fall_dead(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.06%; function order restored; four retail ani_1_frame
- * calls set r3=1 despite the void prototype; verify the callee ABI. */
 float big_boss_end_of_round(void) {
     int ticks;
 
@@ -5793,7 +5777,7 @@ float big_boss_end_of_round(void) {
             ticks = 30;
             while (--ticks > 0) {
                 force_midpoint_calculation_update = 1;
-                ani_1_frame();
+                ani_1_frame(1);
                 moves_sleep(1.0f);
             }
             blend_to_ani(plyr_pdata->turn_to_screen_animation, 3, 0.1f);
@@ -5801,7 +5785,7 @@ float big_boss_end_of_round(void) {
             ticks = 30;
             while (--ticks > 0) {
                 force_midpoint_calculation_update = 1;
-                ani_1_frame();
+                ani_1_frame(1);
                 moves_sleep(1.0f);
             }
             ani_to_blend_frame(40.0f);
@@ -5814,7 +5798,7 @@ float big_boss_end_of_round(void) {
         ticks = 30;
         while (--ticks > 0) {
             force_midpoint_calculation_update = 1;
-            ani_1_frame();
+            ani_1_frame(1);
             moves_sleep(1.0f);
         }
         camera_idle();
@@ -5833,7 +5817,7 @@ float big_boss_end_of_round(void) {
             ticks = 30;
             while (--ticks > 0) {
                 force_midpoint_calculation_update = 1;
-                ani_1_frame();
+                ani_1_frame(1);
                 moves_sleep(1.0f);
             }
             ani_to_blend_frame(40.0f);

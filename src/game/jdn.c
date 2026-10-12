@@ -114,7 +114,8 @@ MkPfx* start_pfx_glass_shards(
     return glass;
 }
 
-/* TODO: [near miss] 98.81%; spill set/slots and saved-GPR homes match; entry-block volatile colouring of hoisted &g_game_info and last remains; stop at coloring. */
+/* TODO: [near miss] 98.82%; last-particle expiry exits the loop as retail;
+ * entry GameInfo/last/cursor coloring and scheduling remain. */
 static float pfx_glass_break_run(void) {
     float moving_damping;
     float resting_damping;
@@ -183,23 +184,24 @@ static float pfx_glass_break_run(void) {
     while (index < vm->particle_cursor) {
         if (*src_life >= (float)(apfx->field_28C - 1)) {
             vm->particle_cursor--;
-            if (index != vm->particle_cursor) {
-                memcpy(src_pos, last_pos, fstride);
-                memcpy(dst_vel, last_vel, vstride);
-                index--;
-                last_pos = PFX_FIELD_AT(last_pos, -fstride);
-                last_vel = PFX_FIELD_AT(last_vel, -vstride);
-                *src_time = *last_time;
-                last_time = PFX_FIELD_AT(last_time, -vstride);
-                *src_scale = *last_scale;
-                last_scale = PFX_FIELD_AT(last_scale, -fstride);
-                *src_angle = *last_angle;
-                last_angle = PFX_FIELD_AT(last_angle, -fstride);
-                *src_state = *last_state;
-                last_state = PFX_FIELD_AT(last_state, -vstride);
-                *src_life = *last_life;
-                last_life = PFX_FIELD_AT(last_life, -vstride);
+            if (index == vm->particle_cursor) {
+                break;
             }
+            memcpy(src_pos, last_pos, fstride);
+            memcpy(dst_vel, last_vel, vstride);
+            index--;
+            last_pos = PFX_FIELD_AT(last_pos, -fstride);
+            last_vel = PFX_FIELD_AT(last_vel, -vstride);
+            *src_time = *last_time;
+            last_time = PFX_FIELD_AT(last_time, -vstride);
+            *src_scale = *last_scale;
+            last_scale = PFX_FIELD_AT(last_scale, -fstride);
+            *src_angle = *last_angle;
+            last_angle = PFX_FIELD_AT(last_angle, -fstride);
+            *src_state = *last_state;
+            last_state = PFX_FIELD_AT(last_state, -vstride);
+            *src_life = *last_life;
+            last_life = PFX_FIELD_AT(last_life, -vstride);
         } else {
             Vec displacement;
             dst_vel->x = src_vel->x;
@@ -342,6 +344,7 @@ static float pfx_glass_break_run(void) {
     }
     return 1.0f;
 }
+
 
 static void mkpfx_spawnupdate_glass_break(PfxVm* vm) {
     int index;

@@ -74,9 +74,7 @@ static Block* link_new_block(MemPoolObj* pool, unsigned long size);
 static SubBlock* Block_subBlock(Block* block, unsigned long size);
 static void Block_construct(Block* block, unsigned long size);
 
-static inline unsigned long subblock_size(const SubBlock* block) {
-    return block->size & ~7UL;
-}
+#define subblock_size(block) ((block)->size & ~7UL)
 
 static inline unsigned long allocation_size(void* ptr) {
     unsigned long tag = *(unsigned long*)((unsigned char*)ptr - 4);
@@ -106,9 +104,7 @@ static inline Block* unlink_block(MemPoolObj* pool, Block* block) {
     return next;
 }
 
-static inline unsigned long block_size(const Block* block) {
-    return block->size & ~7UL;
-}
+#define block_size(block) ((block)->size & ~7UL)
 
 static inline SubBlock** block_start(Block* block) {
     return (SubBlock**)((unsigned char*)block + block_size(block) - 4);
@@ -156,9 +152,8 @@ static inline void merge_next(SubBlock* subblock, SubBlock** start) {
     unsigned long size;
 
     if (!(next_tag & 2)) {
-        next_tag &= ~7UL;
         subblock->size = tag & 7;
-        size = (tag & ~7UL) + next_tag;
+        size = (tag & ~7UL) + (next_tag & ~7UL);
         subblock->size |= size & ~7UL;
         if (!(subblock->size & 2)) {
             *(unsigned long*)((unsigned char*)subblock + size - 4) = size;
@@ -242,13 +237,14 @@ static inline void unlink_subblock(Block* block, SubBlock* subblock) {
 
 #define LINK_FREE_SUBBLOCK(block_, subblock_)                                  \
     do {                                                                       \
-        SubBlock** link_start = block_start(block_);                           \
+        SubBlock** link_start;                           \
         unsigned long link_size = subblock_size(subblock_);                    \
                                                                                \
         (subblock_)->size &= ~2UL;                                             \
         *(unsigned long*)((unsigned char*)(subblock_) + link_size) &= ~4UL;    \
         *(unsigned long*)((unsigned char*)(subblock_) + link_size - 4) =       \
             link_size;                                                         \
+        link_start = block_start(block_);                                      \
         if (*link_start != NULL) {                                             \
             (subblock_)->prev = (*link_start)->prev;                           \
             (subblock_)->prev->next = (subblock_);                             \
@@ -305,7 +301,15 @@ void* __pool_alloc_clear(__mem_pool* pool, unsigned long size) {
     return ptr;
 }
 
-/* TODO: [breakthrough] 90.47%; growth owner reload recovered; raw-tag split snapshot now matches Block_subBlock, linking schedule remains. */
+static inline unsigned long variable_allocation_size(unsigned long size) {
+    size = (size + 15) & ~7UL;
+    if (size < 0x50) {
+        size = 0x50;
+    }
+    return size;
+}
+
+/* TODO: [near miss] 96.16%; coalescing and split-helper register associations remain; stop at coloring. */
 void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size) {
     unsigned long old_size;
     unsigned long needed;
@@ -331,10 +335,7 @@ void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size) {
             if (size > ~0UL - 48) {
                 return NULL;
             }
-            needed = (size + 15) & ~7UL;
-            if (needed < 0x50) {
-                needed = 0x50;
-            }
+            needed = variable_allocation_size(size);
             subblock = (SubBlock*)((unsigned char*)ptr - 8);
             block = (Block*)((unsigned long)subblock->block & ~1UL);
             start = block_start(block);
@@ -358,14 +359,14 @@ void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size) {
     }
 
     if (is_variable) {
-        needed = (size + 15) & ~7UL;
-        if (needed < 0x50) {
-            needed = 0x50;
+        size = (size + 15) & ~7UL;
+        if (size < 0x50) {
+            size = 0x50;
         }
         subblock = (SubBlock*)((unsigned char*)ptr - 8);
-        block = (Block*)((unsigned long)subblock->block & ~1UL);
-        if (subblock_size(subblock) - needed >= 0x50) {
-            remainder = split_subblock(subblock, needed);
+        if (subblock_size(subblock) - size >= 0x50) {
+            remainder = split_subblock(subblock, size);
+            block = (Block*)((unsigned long)subblock->block & ~1UL);
             LINK_FREE_SUBBLOCK(block, remainder);
         }
     }
@@ -556,7 +557,7 @@ static inline int block_is_empty(const Block* block) {
     return empty;
 }
 
-/* TODO: [near miss] 98.84%; tag snapshots and whole-block-free predicate agree; volatile register homes remain. */
+/* TODO: [near miss] 99.05%; size macro removes redundant reloads; volatile register homes remain. */
 static void deallocate_from_var_pools(MemPoolObj* pool, void* ptr) {
     SubBlock* subblock = (SubBlock*)((unsigned char*)ptr - 8);
     unsigned long tag = subblock->size;
@@ -721,7 +722,7 @@ static SubBlock* Block_subBlock(Block* block, unsigned long size) {
     return subblock;
 }
 
-/* TODO: [near miss] 99.26%; operations and tags agree; constructor, merge and max-size volatile homes remain. */
+/* TODO: [near miss] 99.86%; canonical size macros recover field reads; localized constructor register homes remain. */
 static void Block_construct(Block* block, unsigned long size) {
     SubBlock* subblock = (SubBlock*)(block + 1);
     SubBlock** start;

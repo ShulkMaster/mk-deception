@@ -107,7 +107,7 @@ extern void ADXCRS_Lock(void);
 extern void ADXCRS_Unlock(void);
 
 static s32 AdxGainDataMax = 0x1000;
-static const char* cri_str = "(c)CRI";
+static char* cri_str = "(c)CRI";
 
 static s32 skg_init_count = 0;
 static void (*skg_err_func)(void*) = 0;
@@ -130,7 +130,7 @@ s32 adxsje_encode_data(AdxSjeHandle* encoder);
 s32 adxsje_output_sdata(AdxSjeHandle* encoder);
 void adxsje_set_rsig(AdxSjeHandle* encoder, s32 channel);
 s32 adxsje_calc_rsig(AdxSjeHandle* encoder, s32 channel);
-s32 adxsje_write68(const void* source, s32 element_size, s32 count, SJ* output);
+s32 adxsje_write68(void* source, s32 element_size, s32 count, SJ* output);
 
 static inline s32 adxsje_clamp_s16_range(s32 value)
 {
@@ -961,8 +961,7 @@ s32 adxsje_calc_rsig(AdxSjeHandle* encoder, s32 channel)
     return 0;
 }
 
-/* TODO: [near miss] 96.47%; unrolled word and halfword copy load/store staging differs. */
-s32 adxsje_write68(const void* source, s32 element_size, s32 count, SJ* output)
+s32 adxsje_write68(void* source, s32 element_size, s32 count, SJ* output)
 {
     s32 index;
     s32 byte_count;

@@ -17,12 +17,8 @@
 #include "rw/rwframe.h"
 #include "rw/rpworld_types.h"
 
-typedef float (*PuzzleFatalityPreroundFn)(void);
-typedef float (*PuzzleFatalityActiveFn)(int active);
-typedef void (*PuzzleFatalityStartFn)(int attacker, int victim);
-
-typedef struct AniScript AniScript;
-typedef struct MkFlippedBoneMap MkFlippedBoneMap;
+struct AniScript;
+struct MkFlippedBoneMap;
 struct PuzzleObjectFlags {
     unsigned char bit7 : 1;
     unsigned char airborne : 1;
@@ -59,40 +55,40 @@ struct PuzzleProcess {
 
 struct PuzzleSharedAnimations {
     char pad00[0x1C];
-    AniScript* solid_kick;
+    struct AniScript* solid_kick;
     char pad20[0x30];
-    AniScript* push_into_grinder;
+    struct AniScript* push_into_grinder;
     char pad54[0x3C];
-    AniScript* snake_eaten_start;
+    struct AniScript* snake_eaten_start;
     char pad94[0x0C];
-    AniScript* snake_idle;
-    AniScript* snake_lunge;
-    AniScript* snake_bite;
-    AniScript* snake_attacker;
-    AniScript* snake_victim;
-    AniScript* burn_hurt;
-    AniScript* burn_loop;
-    AniScript* burn_recover;
-    AniScript* burn_summon;
-    AniScript* burn_idle;
+    struct AniScript* snake_idle;
+    struct AniScript* snake_lunge;
+    struct AniScript* snake_bite;
+    struct AniScript* snake_attacker;
+    struct AniScript* snake_victim;
+    struct AniScript* burn_hurt;
+    struct AniScript* burn_loop;
+    struct AniScript* burn_recover;
+    struct AniScript* burn_summon;
+    struct AniScript* burn_idle;
     char padC8[0x40];
-    AniScript* snake_eaten_end;
+    struct AniScript* snake_eaten_end;
     char pad10C[0x60];
-    AniScript* head_poked;
+    struct AniScript* head_poked;
     char pad170[0x28];
-    AniScript* burn_attacker_start;
-    AniScript* burn_attacker_end;
+    struct AniScript* burn_attacker_start;
+    struct AniScript* burn_attacker_end;
     char pad1A0[0x7C];
-    AniScript* objects_falling_crushed;
+    struct AniScript* objects_falling_crushed;
 };
 
 struct PuzzleBaseAnimations {
     char pad00[4];
-    AniScript* walk_forward;
+    struct AniScript* walk_forward;
     char pad08[0x1BC];
-    AniScript* fatality_bounce;
+    struct AniScript* fatality_bounce;
     char pad1C8[0x15C];
-    AniScript* lightning_electrocution;
+    struct AniScript* lightning_electrocution;
 };
 
 struct PuzzleAnimPdata {
@@ -351,7 +347,7 @@ extern struct PuzzleFighterRenderObject* plyr_obj;
 unsigned int randu0(unsigned int max);
 int pz_fighter_close_enough_to_super_move(unsigned int player);
 float pz_fighter_attempt_push_into_grinder(void);
-void pz_fighter_attack(AniScript* animation, PuzzleAttackParameters* attack,
+void pz_fighter_attack(struct AniScript* animation, PuzzleAttackParameters* attack,
                        int move);
 void ani_to_end(void);
 float pz_fighter_long_exit(void);
@@ -383,10 +379,10 @@ void stop_me(void);
 void init_air_move(void);
 void init_ground_move(void);
 void init_ground_move_no_aniproc(void);
-void blend_to_ani(AniScript* animation, int frames, float blend);
+void blend_to_ani(struct AniScript* animation, int frames, float blend);
 void blend_to_ani_frame(
-    AniScript* animation, int frames, float blend, float frame);
-void glitch_to_ani(AniScript* animation, int flags);
+    struct AniScript* animation, int frames, float blend, float frame);
+void glitch_to_ani(struct AniScript* animation, int flags);
 void set_ani_speed(float speed);
 void ani_to_frame_x(float frame);
 void ani_to_blend_frame(float frame);
@@ -483,8 +479,8 @@ void pz_fighter_anim_object_to(
     int bounce, void (*arrival)(int x, int y));
 void unhide_sobj(struct PuzzleFatalityHazardObject* object);
 int transition_to_anim_script_frame(
-    float transition_frames, float frame, struct PuzzleAnimPdata* pdata,
-    AniScript* animation, unsigned int flags);
+    struct PuzzleAnimPdata* pdata, struct AniScript* animation,
+    unsigned int flags, float transition_frames, float frame);
 void set_pdata_anim_step(struct PuzzleAnimPdata* pdata, float step);
 void pz_fighter_clear_out_all_external_forces(void* fighter);
 static float p_grinder_meat_throw_controller(void);
@@ -534,8 +530,8 @@ void obj_change_to_skinned_obj_light_list(
 void obj_add_to_skinned_obj_light_list_with_ambient(
     struct PuzzleFighterRenderObject* object, void* ambient_definition);
 struct PuzzleAnimPdata* animate_obj(
-    struct PuzzleFighterRenderObject* object, AniScript* animation,
-    const int* bone_tags, MkFlippedBoneMap* flipped_bones,
+    struct PuzzleFighterRenderObject* object, struct AniScript* animation,
+    const int* bone_tags, struct MkFlippedBoneMap* flipped_bones,
     void* ground_collisions, float playback_rate, int active);
 struct PuzzleFatalityHazardObject* obj_first_sobj(
     struct PuzzleFighterRenderObject* object);
@@ -683,9 +679,8 @@ static inline void pz_snake_bite(unsigned int snake) {
     }
     fx_pause_emit(saliva);
     transition_to_anim_script_frame(
-        0.1f, 0.0f,
         g_pz_fighter_fatality_engine.controller->fighter_pdata[snake],
-        pz_shared_ani.snake_bite, 0x23);
+        pz_shared_ani.snake_bite, 0x23, 0.1f, 0.0f);
     set_pdata_anim_step(
         g_pz_fighter_fatality_engine.controller->fighter_pdata[snake], 1.0f);
     _mkproc_sleep_ticks = 3.0f;
@@ -698,10 +693,9 @@ static inline void pz_snake_bite(unsigned int snake) {
         if (g_pz_fighters_engine.fatality_abort != 1) {
             fx_resume_emit(saliva);
             transition_to_anim_script_frame(
-                0.15f, 0.0f,
                 g_pz_fighter_fatality_engine.controller
                     ->fighter_pdata[snake],
-                pz_shared_ani.snake_idle, 0);
+                pz_shared_ani.snake_idle, 0, 0.15f, 0.0f);
             set_pdata_anim_step(
                 g_pz_fighter_fatality_engine.controller
                     ->fighter_pdata[snake],
@@ -718,9 +712,8 @@ static inline void pz_snake_lunge(unsigned int snake) {
     pan_snd_req(0x1AC3, snake == 0 ? -0.7f : 0.7f);
     fx_pause_emit(saliva);
     transition_to_anim_script_frame(
-        0.05f, 0.0f,
         g_pz_fighter_fatality_engine.controller->fighter_pdata[snake],
-        pz_shared_ani.snake_lunge, 0x23);
+        pz_shared_ani.snake_lunge, 0x23, 0.05f, 0.0f);
     set_pdata_anim_step(
         g_pz_fighter_fatality_engine.controller->fighter_pdata[snake], 1.0f);
     _mkproc_sleep_ticks = 15.0f;
@@ -740,10 +733,9 @@ static inline void pz_snake_lunge(unsigned int snake) {
                 fx_pause_emit(saliva);
             } else {
                 transition_to_anim_script_frame(
-                    0.1f, 0.0f,
                     g_pz_fighter_fatality_engine.controller
                         ->fighter_pdata[snake],
-                    pz_shared_ani.snake_idle, 0);
+                    pz_shared_ani.snake_idle, 0, 0.1f, 0.0f);
                 set_pdata_anim_step(
                     g_pz_fighter_fatality_engine.controller
                         ->fighter_pdata[snake],
@@ -755,9 +747,8 @@ static inline void pz_snake_lunge(unsigned int snake) {
 
 static inline void pz_lightning_bolt(Vec* position, int pan_side) {
     struct PuzzleFighterRenderObject* bolt;
-    struct PuzzleParticleEffect* lightning_smoke;
+    struct PuzzleParticleEffect* smoke_effects[2];
     struct PuzzleParticleEffect* spark;
-    struct PuzzleParticleEffect* burning_smoke;
     AniTextureControl* texture;
     unsigned int bolt_instance;
 
@@ -785,9 +776,9 @@ static inline void pz_lightning_bolt(Vec* position, int pan_side) {
         }
     }
 
-    lightning_smoke = fx_by_owner("pz_lightningsmoke", 4);
+    smoke_effects[0] = fx_by_owner("pz_lightningsmoke", 4);
     spark = fx_by_owner("pz_spark", 4);
-    burning_smoke = fx_by_owner("pz_burningsmoke", 4);
+    smoke_effects[1] = fx_by_owner("pz_burningsmoke", 4);
     _mkproc_sleep_ticks = 3.0f;
     aproc->vtbl->sleep(aproc->vtbl);
     if (g_pz_fighter_fatality_engine.controller->preround_active != 0 ||
@@ -796,21 +787,21 @@ static inline void pz_lightning_bolt(Vec* position, int pan_side) {
         fx_set_param_v3(
             spark, 0x202, position->x, position->y, position->z);
         fx_resume_emit(spark);
-        fx_reset(burning_smoke);
+        fx_reset(smoke_effects[1]);
         fx_set_param_v3(
-            burning_smoke, 0x202, position->x, position->y + 0.3f,
+            smoke_effects[1], 0x202, position->x, position->y + 0.3f,
             position->z);
-        fx_resume_emit(burning_smoke);
-        fx_reset(lightning_smoke);
+        fx_resume_emit(smoke_effects[1]);
+        fx_reset(smoke_effects[0]);
         fx_set_param_v3(
-            lightning_smoke, 0x202, position->x, position->y, position->z);
-        fx_resume_emit(lightning_smoke);
+            smoke_effects[0], 0x202, position->x, position->y, position->z);
+        fx_resume_emit(smoke_effects[0]);
         _mkproc_sleep_ticks = 20.0f;
         aproc->vtbl->sleep(aproc->vtbl);
         if (g_pz_fighter_fatality_engine.controller->preround_active != 0 ||
             g_pz_fighter_fatality_engine.controller->phase != 0) {
-            fx_pause_emit(burning_smoke);
-            fx_pause_emit(lightning_smoke);
+            fx_pause_emit(smoke_effects[1]);
+            fx_pause_emit(smoke_effects[0]);
         }
     }
 
@@ -4050,8 +4041,8 @@ static float pz_fighters_lightning_preround(void) {
     return pz_fatality_start_preround();
 }
 
-/* TODO: [near miss] 99.46%; bolt/effect ownership and stale-instance checks agree;
- * inlined helper GPR coloring remains; stop at this soft ceiling. */
+/* TODO: [breakthrough] 99.67%; smoke pair fixes bolt homes;
+ * instance/smoke, first spark/burn, and later texture coloring remain. */
 static float p_lightning_controller(void) {
     Vec position = {0.0f, 0.0f, 0.0f};
 
@@ -4564,8 +4555,7 @@ static float r_pz_fighter_eaten(void) {
     }
 }
 
-/* TODO: [breakthrough] 94.19%; bite lookup order recovered; base/call scheduling and normal-return
- * joins differ. */
+/* TODO: [near miss] 98.40%; base/call scheduling and normal-return joins differ. */
 static float p_snake_controller(void) {
     unsigned short event;
 
@@ -4613,17 +4603,15 @@ static inline void pz_snake_start_victim_anim(void) {
     animation_flags |= 8;
   }
   transition_to_anim_script_frame(
-      0.05f, 0.0f,
       g_pz_fighter_fatality_engine.controller
           ->fighter_pdata[g_pz_fighters_engine.fatality_victim],
-      pz_shared_ani.snake_victim, animation_flags);
+      pz_shared_ani.snake_victim, animation_flags, 0.05f, 0.0f);
   set_pdata_anim_step(
       g_pz_fighter_fatality_engine.controller
           ->fighter_pdata[g_pz_fighters_engine.fatality_victim],
       1.0f);
 }
 
-/* TODO: [near miss] 97.97%; entry global-base order agrees; transition_to_anim_script_frame argument registers and load schedule remain. */
 static float pz_fighters_snake_fatality_prep(void) {
     static int attack_begun;
     static int loser_anim;
@@ -4702,10 +4690,9 @@ static float pz_fighters_snake_fatality_prep(void) {
             animation_flags |= 8;
         }
         transition_to_anim_script_frame(
-                0.05f, 0.0f,
                 g_pz_fighter_fatality_engine.controller
                         ->fighter_pdata[g_pz_fighters_engine.fatality_attacker],
-                pz_shared_ani.snake_attacker, animation_flags);
+                pz_shared_ani.snake_attacker, animation_flags, 0.05f, 0.0f);
         set_pdata_anim_step(
                 g_pz_fighter_fatality_engine.controller
                         ->fighter_pdata[g_pz_fighters_engine.fatality_attacker],
@@ -5223,7 +5210,7 @@ static void pz_fighter_burn_entering_fatality(
 }
 
 void pz_fighters_fatality_start(int attacker, int victim) {
-    PuzzleFatalityStartFn functions[10] = {
+    void (*functions[10])(int attacker, int victim) = {
         pz_fighter_grinder_entering_fatality,
         pz_fighter_chomper_entering_fatality,
         pz_fighter_chomper2_entering_fatality,
@@ -5253,7 +5240,7 @@ void pz_fighters_fatality_unload(void) {
 }
 
 void pz_fighters_fatality_normal_fighting(int enabled) {
-    PuzzleFatalityActiveFn functions[10] = {
+    float (*functions[10])(int active) = {
         pz_fighter_grinder_actively_fighting,
         pz_fighter_chomper_actively_fighting,
         pz_fighter_chomper2_actively_fighting,
@@ -5319,7 +5306,7 @@ void pz_fighters_fatality_prep_chores(void) {
 }
 
 void pz_fighters_fatality_preround_event(void) {
-    PuzzleFatalityPreroundFn functions[10] = {
+    float (*functions[10])(void) = {
         pz_fighters_grinder_fatality_preround,
         pz_fighters_chomper_preround,
         pz_fighters_chomper2_preround,

@@ -149,41 +149,82 @@ static inline void mpvvlc_fill_u32(unsigned int** output, unsigned int value,
         (output) += 8;                                                    \
     } while (0)
 
-#define mpvvlc_emit_mbai_b_8(output, base)                                \
-    do {                                                                  \
-        mpvvlc_fill_s16((output), 2,                                      \
-                         mpvvlc_pack_mbai_base((base), 0x0000, 8));       \
-        (output) += 2;                                                    \
-        *(output)++ = mpvvlc_pack_mbai_base((base), 0x9000, 11);          \
-        *(output)++ = mpvvlc_pack_mbai_base((base), 0x9800, 11);          \
-        mpvvlc_fill_s16((output), 2,                                      \
-                         mpvvlc_pack_mbai_base((base), 0xB000, 10));      \
-        (output) += 2;                                                    \
-        mpvvlc_fill_s16((output), 2,                                      \
-                         mpvvlc_pack_mbai_base((base), 0xB800, 10));      \
-        (output) += 2;                                                    \
+#define mpvvlc_emit_mbai_b_medium_range(output, first, last, length) \
+    do { \
+        long increment; \
+        long repeat; \
+        for (increment = (first); increment >= (last); --increment) { \
+            for (repeat = 0; repeat < 2; ++repeat) { \
+                *(output)++ = mpvvlc_pack_mbai(increment, 0x0000, (length)); \
+            } \
+            *(output)++ = mpvvlc_pack_mbai(increment, 0x9000, (length) + 3); \
+            *(output)++ = mpvvlc_pack_mbai(increment, 0x9800, (length) + 3); \
+            for (repeat = 0; repeat < 2; ++repeat) { \
+                *(output)++ = mpvvlc_pack_mbai(increment, 0xB000, (length) + 2); \
+            } \
+            for (repeat = 0; repeat < 2; ++repeat) { \
+                *(output)++ = mpvvlc_pack_mbai(increment, 0xB800, (length) + 2); \
+            } \
+        } \
     } while (0)
 
-#define mpvvlc_emit_mbai_b_16(output, base)                               \
-    do {                                                                  \
-        mpvvlc_fill_s16((output), 2,                                      \
-                         mpvvlc_pack_mbai_base((base), 0x0000, 7));       \
-        (output) += 2;                                                    \
-        *(output)++ = mpvvlc_pack_mbai_base((base), 0xA000, 11);          \
-        *(output)++ = mpvvlc_pack_mbai_base((base), 0xA800, 11);          \
-        mpvvlc_fill_s16((output), 2,                                      \
-                         mpvvlc_pack_mbai_base((base), 0x9000, 10));      \
-        (output) += 2;                                                    \
-        mpvvlc_fill_s16((output), 2,                                      \
-                         mpvvlc_pack_mbai_base((base), 0x9800, 10));      \
-        (output) += 2;                                                    \
-        mpvvlc_fill_s16((output), 4,                                      \
-                         mpvvlc_pack_mbai_base((base), 0xB000, 9));       \
-        (output) += 4;                                                    \
-        mpvvlc_fill_s16((output), 4,                                      \
-                         mpvvlc_pack_mbai_base((base), 0xB800, 9));       \
-        (output) += 4;                                                    \
+#define mpvvlc_emit_mbai_b_range(output, first, last, length) \
+    do { \
+        long increment; \
+        long repeat; \
+        for (increment = (first); increment >= (last); --increment) { \
+            for (repeat = 0; repeat < 2; ++repeat) { \
+                *(output)++ = mpvvlc_pack_mbai(increment, 0x0000, (length)); \
+            } \
+            *(output)++ = mpvvlc_pack_mbai(increment, 0xA000, (length) + 4); \
+            *(output)++ = mpvvlc_pack_mbai(increment, 0xA800, (length) + 4); \
+            for (repeat = 0; repeat < 2; ++repeat) { \
+                *(output)++ = mpvvlc_pack_mbai(increment, 0x9000, (length) + 3); \
+            } \
+            for (repeat = 0; repeat < 2; ++repeat) { \
+                *(output)++ = mpvvlc_pack_mbai(increment, 0x9800, (length) + 3); \
+            } \
+            for (repeat = 0; repeat < 4; ++repeat) { \
+                *(output)++ = mpvvlc_pack_mbai(increment, 0xB000, (length) + 2); \
+            } \
+            for (repeat = 0; repeat < 4; ++repeat) { \
+                *(output)++ = mpvvlc_pack_mbai(increment, 0xB800, (length) + 2); \
+            } \
+        } \
     } while (0)
+
+#define mpvvlc_emit_mbai_b_pair_range(output, first, last, length) \
+    do { \
+        long increment; \
+        long repeat; \
+        for (increment = (first); increment >= (last); --increment) { \
+            for (repeat = 0; repeat < 2; ++repeat) { \
+                *(output)++ = mpvvlc_pack_mbai(increment, 0, (length)); \
+            } \
+        } \
+    } while (0)
+
+#define mpvvlc_emit_mbai_b_single_range(output, first, last, length) \
+    do { \
+        long increment; \
+        for (increment = (first); increment >= (last); --increment) { \
+            *(output)++ = mpvvlc_pack_mbai(increment, 0, (length)); \
+        } \
+    } while (0)
+
+#define mpvvlc_emit_mbai_b_short_range(output, first, last, length) \
+    do { \
+        long increment; \
+        long repeat; \
+        for (increment = (first); increment >= (last); --increment) { \
+            for (repeat = 0; repeat < 2; ++repeat) { \
+                *(output)++ = mpvvlc_pack_mbai(increment, 0, (length)); \
+            } \
+            *(output)++ = mpvvlc_pack_mbai(increment, 0xB000, (length) + 2); \
+            *(output)++ = mpvvlc_pack_mbai(increment, 0xB800, (length) + 2); \
+        } \
+    } while (0)
+
 
 /* TODO: [near miss] 98.57865%; fill cursor restores all store bases;
  * first counter shares table zero, omitting retail r19 save. */
@@ -466,12 +507,12 @@ static void mpvvlc_InitMbTypePpic(void) {
     for (i = 0; i < entry_count; i++) *output++ = 0x0A01;
 }
 
-/* TODO: [breakthrough] 82.69%; table ranges recovered; packed-base scheduling and saved homes differ. */
+/* TODO: [breakthrough] 92.88%; code-range grammar and all 160 values agree;
+ * early B1 pointer lifetime remains; recover its original first-use owner. */
 static void mpvvlc_InitMbaiBpic(void)
 {
     signed short* output1 = mpvvlt_mbai_b_1;
     signed short* output = mpvvlt_mbai_b_0;
-    int base;
 
     mpvvlc_fill_s16(output, 8, mpvvlc_pack_mbai_base(0x240, 0, 0));
     output += 8;
@@ -482,48 +523,20 @@ static void mpvvlc_InitMbaiBpic(void)
     mpvvlc_fill_s16(output, 8, mpvvlc_pack_mbai_base(0x240, 0, 0));
     output += 8;
 
-    for (base = 0x210; base >= 0x160; base -= 0x10) {
-        *output++ = mpvvlc_pack_mbai_base(base, 0, 11);
-    }
-    for (base = 0x150; base >= 0x100; base -= 0x10) {
-        mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(base, 0, 10));
-        output += 2;
-    }
-    for (base = 0x0F0; base >= 0x0A0; base -= 0x10) {
-        mpvvlc_emit_mbai_b_8(output, base);
-    }
-    mpvvlc_emit_mbai_b_16(output, base);
-    base -= 0x10;
-    mpvvlc_emit_mbai_b_16(output, base);
+    mpvvlc_emit_mbai_b_single_range(output, 33, 22, 11);
+    mpvvlc_emit_mbai_b_pair_range(output, 21, 16, 10);
+    mpvvlc_emit_mbai_b_medium_range(output, 15, 10, 8);
+    mpvvlc_emit_mbai_b_range(output, 9, 8, 7);
 
     output = output1;
     mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(0x240, 0, 0));
     output += 2;
-    for (base = 0x070; base >= 0x060; base -= 0x10) {
-        *output++ = mpvvlc_pack_mbai_base(base, 0, 5);
-    }
-    for (base = 0x050; base >= 0x040; base -= 0x10) {
-        mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(base, 0, 4));
-        output += 2;
-    }
-    for (base = 0x030; base >= 0x020; base -= 0x10) {
-        mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(base, 0, 3));
-        output += 2;
-        *output++ = mpvvlc_pack_mbai_base(base, 0xB000, 5);
-        *output++ = mpvvlc_pack_mbai_base(base, 0xB800, 5);
-    }
-    mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(base, 0, 1));
-    output += 2;
-    *output++ = mpvvlc_pack_mbai_base(base, 0xA000, 5);
-    *output++ = mpvvlc_pack_mbai_base(base, 0xA800, 5);
-    mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(base, 0x9000, 4));
-    output += 2;
-    mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(base, 0x9800, 4));
-    output += 2;
-    mpvvlc_fill_s16(output, 4, mpvvlc_pack_mbai_base(base, 0xB000, 3));
-    output += 4;
-    mpvvlc_fill_s16(output, 4, mpvvlc_pack_mbai_base(base, 0xB800, 3));
+    mpvvlc_emit_mbai_b_single_range(output, 7, 6, 5);
+    mpvvlc_emit_mbai_b_pair_range(output, 5, 4, 4);
+    mpvvlc_emit_mbai_b_short_range(output, 3, 2, 3);
+    mpvvlc_emit_mbai_b_range(output, 1, 1, 1);
 }
+
 
 /* TODO: [near miss] 93.39%; saved homes and final packed-index scheduling differ. */
 static void mpvvlc_InitMbaiPpic(void)

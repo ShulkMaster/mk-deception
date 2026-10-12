@@ -365,7 +365,7 @@ void mwFileServerQueued::test()
     initialize(10);
     for (i = 0; i < 10; i++) {
         commands[i] = new (MW_TARGET_MEM_ALIGN_32, "TestCommand") mwFileFailCommand<0, 0>(0, 0, 0);
-        addCommand(commands[i], (unsigned char)i);
+        addCommand(commands[i], i);
     }
     while (queryActive()) {
         service();
@@ -633,7 +633,7 @@ mwFileServerManagerMultiThreaded::mwFileServerManagerMultiThreaded()
 {
 }
 
-/* TODO: [breakthrough needed] 70.52%; std::remove stays out of line inside the inlined erase wrapper, retail inlines it and calls __vector_pod::erase directly. */
+/* TODO: [breakthrough needed] 70.62%; std::remove stays out of line inside the inlined erase wrapper, retail inlines it and calls __vector_pod::erase directly. */
 void mwFileServerManagerBase::removeServer(mwFileServer* server)
 {
     mwFileMutexLock lock(mutex);

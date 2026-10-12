@@ -157,7 +157,7 @@ void attack_to_frame_x(
     float frame4, unsigned int field0C, unsigned int field10, int field14);
 void force_forward(float velocity, int duration, float damping, int interval);
 void force_away(float velocity, int duration, float damping, int interval);
-void move_player(MkObj* fighter, const Vec* position, const Vec* angle);
+void move_player(MkObj* fighter, Vec* position, Vec* angle);
 void puzzle_fighter_get_num_blocks_on_screen(
     unsigned int* player1_blocks, unsigned int* player2_blocks);
 int puzzle_fighter_plyr_winning_big_based_on_points(void);
@@ -1191,6 +1191,13 @@ void pz_fighter_classify_move_8012260C(
     }
 }
 
+static inline int pz_super_bar_above(unsigned int player, float level) {
+    if (puzzle_fighter_get_super_bar_level(player) > level) {
+        return 1;
+    }
+    return 0;
+}
+
 static inline int pz_fighter_has_pending_event_one(void) {
     unsigned int index;
 
@@ -1202,7 +1209,6 @@ static inline int pz_fighter_has_pending_event_one(void) {
     return 0;
 }
 
-/* TODO: [near miss] 99.98%; p_puzzle_fighter_master retail threads the first super-ready branch past the second bar-level test. */
 static inline int pz_fighter_state_pair_invalid(int first, int second) {
     switch (first) {
     case 0:
@@ -1227,7 +1233,6 @@ static float p_puzzle_fighter_master(void) {
     int state2;
     int pending_active;
     int invalid_state;
-    int super_ready;
     unsigned int balance_timer;
     unsigned int i;
 
@@ -1338,19 +1343,8 @@ static float p_puzzle_fighter_master(void) {
     g_pz_fighters_engine.balance_out_of_range = 0;
     g_pz_fighters_engine.fighter_move.policy_word = 0;
 
-    if (puzzle_fighter_get_super_bar_level(0) > 0.95f) {
-        super_ready = 1;
-    } else {
-        super_ready = 0;
-    }
-    if (super_ready != 1) {
-        if (puzzle_fighter_get_super_bar_level(1) > 0.95f) {
-            super_ready = 1;
-        } else {
-            super_ready = 0;
-        }
-    }
-    if (super_ready == 1 &&
+    if ((pz_super_bar_above(0, 0.95f) == 1 ||
+         pz_super_bar_above(1, 0.95f) == 1) &&
         g_pz_fighters_engine.super_move_active == 0) {
         pz_fighters_inside_super_move_scenerio();
     } else if (g_pz_fighters_engine.pending_move_count != 0) {
@@ -1695,13 +1689,6 @@ static int pz_fighters_idle_process(void) {
         return 1;
     }
     return 1;
-}
-
-static inline int pz_super_bar_above(unsigned int player, float level) {
-    if (puzzle_fighter_get_super_bar_level(player) > level) {
-        return 1;
-    }
-    return 0;
 }
 
 static int pz_fighters_inside_super_move_scenerio(void) {

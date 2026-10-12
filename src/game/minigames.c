@@ -1,7 +1,7 @@
 /* BUILD: -inline noauto,deferred requires reverse retail function order;
  * -O4,s, -use_lmw_stmw on and pooled readonly strings retain the retail codegen. */
-/* TODO: [review] puzzle_switch_select_player retains a nested-entry backward goto;
- * structured forms regress seven exact wrappers (note 4697). */
+/* TODO: [review] nine backward joins remain across seat selection, mode clear, rotation,
+ * AI bonus/fallback and drop repeat; structured forms regress (notes 6573/6574). */
 #include "game/attract.h"
 #include "game/switch.h"
 #include "game/plyr_globals.h"
@@ -1560,12 +1560,12 @@ static void render_UI(struct PuzzlePlayerState* player) {
     pfx2d_end_render();
 }
 
-/* TODO: [near miss] 99.63856%; hoisted placement field addresses take r30/r29
- * above board_moving/match_active (retail r28/r27); coloring only. */
 static void render_wiffs(struct PuzzlePlayerState* player) {
     int board_moving = 1;
     int match_active;
     int placement;
+    int* placement_x;
+    int* placement_y;
     int row;
     int column;
     int shake_x;
@@ -1589,6 +1589,8 @@ static void render_wiffs(struct PuzzlePlayerState* player) {
     }
 
     placement = player->event_player + 1;
+    placement_x = &art_puzzle_fighter_static_tbl.placements[placement].x;
+    placement_y = &art_puzzle_fighter_static_tbl.placements[placement].y;
     for (row = 0; row < 14; row++) {
         for (column = 0; column < 8; column++) {
             struct PuzzleBoardCell* cell = &player->board[row * 8 + column];
@@ -1611,11 +1613,9 @@ static void render_wiffs(struct PuzzlePlayerState* player) {
                         ScreenObj* object = puzzle_ctrl->breaker_objects[color];
 
                         object->pfx2d->x =
-                            art_puzzle_fighter_static_tbl.placements[placement].x +
-                            column * 25 + 4 + shake_x;
+                            *placement_x + column * 25 + 4 + shake_x;
                         object->pfx2d->y =
-                            art_puzzle_fighter_static_tbl.placements[placement].y +
-                            row * 25 + 5 + shake_y;
+                            *placement_y + row * 25 + 5 + shake_y;
                         object->pfx2d->x -= 16;
                         object->pfx2d->y -= 16;
                         object->pfx2d->texture = get_ani_texture_rwtexture(
@@ -5071,7 +5071,7 @@ static int pzsm_rain_dance(struct PuzzlePlayerState* player,
             pfx_get_emitter((PfxVm*)storm->matrix, 0)
                 ->flags.bits.cycle_paused = 0;
             pfx_get_emitter((PfxVm*)storm->matrix, 0)
-                ->pfx_transform->elements[12] = 1.55f * opponent->sound_pan;
+                ->pfx_transform->elements[3][0] = 1.55f * opponent->sound_pan;
         }
     }
 
@@ -5492,42 +5492,35 @@ static void pzsm_ai_get_data(struct PuzzleAiData* data) {
     }
 }
 
-static inline void puzzle_ai_sort_color_counts(struct PuzzleAiColorCount colors[4]) {
-    int color_index;
+static inline void puzzle_ai_sink_color_count(struct PuzzleAiColorCount colors[4], int start) {
     unsigned int swap_color;
     int swap_count;
     int index;
 
-    for (color_index = 1; color_index < 4; color_index++) {
-        index = color_index;
-        for (;;) {
-            if (colors[index - 1].count >= colors[index].count) {
-                break;
-            }
-            swap_color = colors[index - 1].color;
-            swap_count = colors[index - 1].count;
-            colors[index - 1].color = colors[index].color;
-            colors[index - 1].count = colors[index].count;
-            colors[index].color = swap_color;
-            colors[index].count = swap_count;
-            if (index <= 1) {
-                break;
-            }
-            index--;
+    index = start;
+    for (;;) {
+        if (colors[index - 1].count >= colors[index].count) {
+            break;
         }
+        swap_color = colors[index - 1].color;
+        swap_count = colors[index - 1].count;
+        colors[index - 1].color = colors[index].color;
+        colors[index - 1].count = colors[index].count;
+        colors[index].color = swap_color;
+        colors[index].count = swap_count;
+        if (index <= 1) {
+            break;
+        }
+        index--;
     }
 }
 
-/* TODO: [near miss] 99.37%; insertion-sort color index, element pointer and count rotate
- * (r6/r7/r8 vs retail r8/r6/r7); search CFG exact; stop at coloring. */
 static int pz_ai_decide_superbomb(struct PuzzlePlayerState* player) {
     struct PuzzleAiColorCount colors[4];
     struct PuzzleBoardCell* cell;
     unsigned int type;
-    unsigned int swap_color;
     int superbomb_piece;
     int rotation;
-    int swap_count;
     int row;
     int column;
     int color_index;
@@ -5579,7 +5572,9 @@ static int pz_ai_decide_superbomb(struct PuzzlePlayerState* player) {
         }
     }
 
-    puzzle_ai_sort_color_counts(colors);
+    for (color_index = 1; color_index < 4; color_index++) {
+        puzzle_ai_sink_color_count(colors, color_index);
+    }
 
     for (color_index = 0; color_index < 4; color_index++) {
         for (row = 1; row < 12; row++) {
@@ -6087,8 +6082,17 @@ static inline unsigned int puzzle_piece_color(unsigned int type) {
     return color;
 }
 
-/* TODO: [near miss] 99.75%; CFG exact; residue: fallback rotation zero copied from the column register
- * (mr vs li), tail column-offset/board colours, bonus scan add operand order. */
+static inline void puzzle_scan_occupied_row(struct PuzzlePlayerState* player,
+                                           int column, int neighbor, int* row) {
+    for (; *row >= 0; (*row)--) {
+        if (puzzle_board_cell(player, *row, column)[neighbor].type != 0) {
+            break;
+        }
+    }
+}
+
+/* TODO: [near miss] 99.78142%; board/column homes, bonus-add operands and
+ * fallback zero provenance remain; need new owner evidence. */
 static void pz_ai_decide_match(struct PuzzlePlayerState* player) {
     struct PuzzleAiPlacement placements[2][8];
     int best[2];
@@ -6377,11 +6381,8 @@ static void pz_ai_decide_match(struct PuzzlePlayerState* player) {
         } else if (selected_piece != 0) {
             column = player->ai_target_column;
             if (column < 7) {
-                for (row = player->active_row; row >= 0; row--) {
-                    if (player->board_rows[row][column + 1].type != 0) {
-                        break;
-                    }
-                }
+                row = player->active_row;
+                puzzle_scan_occupied_row(player, column, 1, &row);
                 if (row < 11) {
                     player->ai_target_column++;
                     player->ai_target_rotation = 3;
@@ -6398,11 +6399,8 @@ static void pz_ai_decide_match(struct PuzzlePlayerState* player) {
                 }
             } else if (column > 0) {
             check_left:
-                for (row = player->active_row; row >= 0; row--) {
-                    if (player->board_rows[row][column - 1].type != 0) {
-                        break;
-                    }
-                }
+                row = player->active_row;
+                puzzle_scan_occupied_row(player, column, -1, &row);
                 if (row < 11) {
                     player->ai_target_column--;
                     player->ai_target_rotation = 1;
@@ -6418,11 +6416,8 @@ static void pz_ai_decide_match(struct PuzzlePlayerState* player) {
         } else {
             column = player->ai_target_column;
             if (column > 0) {
-                for (row = player->active_row; row >= 0; row--) {
-                    if (player->board_rows[row][column - 1].type != 0) {
-                        break;
-                    }
-                }
+                row = player->active_row;
+                puzzle_scan_occupied_row(player, column, -1, &row);
                 if (row < 11) {
                     player->ai_target_rotation = 3;
                 } else if (piece0_type != 0 || landing_breaker != 0) {
@@ -6438,11 +6433,8 @@ static void pz_ai_decide_match(struct PuzzlePlayerState* player) {
                 }
             } else if (column < 7) {
             check_right:
-                for (row = player->active_row; row >= 0; row--) {
-                    if (player->board_rows[row][column + 1].type != 0) {
-                        break;
-                    }
-                }
+                row = player->active_row;
+                puzzle_scan_occupied_row(player, column, 1, &row);
                 if (row < 11) {
                     player->ai_target_rotation = 1;
                 } else if (piece0_type != 0 || landing_breaker != 0) {

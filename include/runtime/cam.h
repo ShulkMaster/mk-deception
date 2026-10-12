@@ -43,12 +43,14 @@ typedef struct CameraObjFlags {
     unsigned char bit04 : 1;
     unsigned char pad1 : 1;
     unsigned char pad0 : 1;
+    unsigned char flags_09;
+    unsigned char hide_flags;
+    unsigned char flags_0B;
 } CameraObjFlags;
 
 typedef struct CameraObj {
     MkHdr hdr;
     CameraObjFlags flags; /* +0x08 */
-    unsigned char pad09[3];
     char pad0C[0x14];
     RwFrame* frame; /* +0x20 */
     RwMatrix* field_24; /* +0x24 - active camera transform */

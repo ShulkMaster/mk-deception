@@ -75,58 +75,44 @@ typedef union FatalityDistancePdataRef {
     FatalityProjectilePdata* projectile;
 } FatalityDistancePdataRef;
 
-typedef float (*FatalityJumpSleepFn)(MkProcEntryFn entry, float ticks);
-
-typedef struct FatalityProcVtable {
-    void* reserved[6];
-    void (*sleep)(void);
-    void* reserved1C[2];
-    FatalityJumpSleepFn jump_sleep;
-} FatalityProcVtable;
-
-typedef union FatalityProcVtableRef {
-    MkVtableMkproc* base;
-    FatalityProcVtable* fatality;
-} FatalityProcVtableRef;
-
 typedef struct FatalityFakeBoneMatcher FatalityFakeBoneMatcher;
 
 typedef struct RaidenLightningBoltPdata {
     MkHdr hdr;
-    PlyrPdata* owner; /* +0x08 */
-    MkObj* bolt;      /* +0x0C */
-    unsigned int bolt_instance; /* +0x10 */
-    int frame;        /* +0x14 */
-    int bone_id;      /* +0x18 */
-    int orientation;  /* +0x1C */
-    unsigned int alpha; /* +0x20 */
-    unsigned int fade_step; /* +0x24 */
+    PlyrPdata* owner;
+    MkObj* bolt;
+    unsigned int bolt_instance;
+    int frame;
+    int bone_id;
+    int orientation;
+    unsigned int alpha;
+    unsigned int fade_step;
 } RaidenLightningBoltPdata;
 
 typedef struct FatalityState {
-    PlyrInfo* context; /* +0x00 */
-    MkObj* attacker_object; /* +0x04 */
-    MkProc* process; /* +0x08 */
-    MkProc* animation_process; /* +0x0C */
-    AnimPdata* animation_pdata; /* +0x10 */
-    PlyrPdata* player; /* +0x14 */
-    PlyrInfo* player_info; /* +0x18 */
-    MkObj* victim_object; /* +0x1C */
-    MkProc* victim_proc; /* +0x20 */
-    MkProc* attacker_proc; /* +0x24 */
-    struct FatalityAnimationView* animation; /* +0x28 */
-    PlyrPdata* opponent; /* +0x2C */
-    int mirror_camera; /* +0x30 */
+    PlyrInfo* context;
+    MkObj* attacker_object;
+    MkProc* process;
+    MkProc* animation_process;
+    AnimPdata* animation_pdata;
+    PlyrPdata* player;
+    PlyrInfo* player_info;
+    MkObj* victim_object;
+    MkProc* victim_proc;
+    MkProc* attacker_proc;
+    struct FatalityAnimationView* animation;
+    PlyrPdata* opponent;
+    int mirror_camera;
     union {
         struct {
             char pad34[4];
-            MkHdr* bone_matcher; /* +0x38 */
+            MkHdr* bone_matcher;
             char pad3C[2];
         } fields34;
         unsigned char reset34[10];
     } range34;
     char pad40[0x1C];
-    FatalityFakeBoneMatcher* fake_bone_matcher; /* +0x5C */
+    FatalityFakeBoneMatcher* fake_bone_matcher;
     char pad60[0x24];
     unsigned char reset84[10];
     char pad8E[0x1E];
@@ -141,7 +127,7 @@ typedef struct FatalityAnimationView {
 
 typedef struct FatalityObjectLatch {
     char pad00[8];
-    int active; /* +0x08 */
+    int active;
     char pad0C[8];
     MkHdr* object;
     unsigned int object_instance;
@@ -206,10 +192,10 @@ typedef struct FatalityObjectScalarPdata {
     union {
         unsigned char flags;
         struct {
-            signed char stop_when_complete : 1; /* bit7 */
-            signed char multiply : 1;           /* bit6 */
-            signed char ping_pong : 1;          /* bit5 */
-            signed char swap_limits : 1;        /* bit4 */
+            signed char stop_when_complete : 1;
+            signed char multiply : 1;
+            signed char ping_pong : 1;
+            signed char swap_limits : 1;
             signed char pad_low : 4;
         } flag_bits;
     };
@@ -226,9 +212,9 @@ typedef struct FatalityFacingController {
     struct {
         unsigned char bit7 : 1;
         unsigned char reserved : 7;
-    } flags_bits; /* +0x20 */
+    } flags_bits;
     char pad21[7];
-    Vec angles; /* +0x28 */
+    Vec angles;
 } FatalityFacingController;
 
 typedef struct FatalityFaceObjectPdata {
@@ -578,7 +564,7 @@ extern void resume_effect(const char* name);
 #define FATALITY_SLEEP(ticks)                                                \
     do {                                                                     \
         _mkproc_sleep_ticks = (ticks);                                       \
-        ((FatalityProcVtable*)aproc->vtbl)->sleep();                          \
+        aproc->vtbl->sleep();                          \
     } while (0)
 
 static inline void fatality_fade_and_cleanup(void) {
@@ -1126,14 +1112,14 @@ float subzero_freeze_victim(void) {
     }
     xfer_proc(fatality_state.victim_proc, subzero_rx_freeze);
     data->max_ticks = 13.0f;
-    ((FatalityProcVtable*)aproc->vtbl)
+    aproc->vtbl
         ->jump_sleep(p_3d_distance_handler, 0.0f);
     return 0.0f;
 }
 
 float sz_kill_myself(void) {
     FatalityDistancePdataRef data;
-    FatalityProcVtableRef vtable;
+    MkVtableMkproc* vtable;
 
     data.hdr = apdata;
     if (data.hdr == 0) {
@@ -1141,8 +1127,8 @@ float sz_kill_myself(void) {
     }
 
     data.projectile->max_ticks = 13.0f;
-    vtable.base = aproc->vtbl;
-    vtable.fatality->jump_sleep(p_3d_distance_handler, 0.0f);
+    vtable = aproc->vtbl;
+    vtable->jump_sleep(p_3d_distance_handler, 0.0f);
     return 0.0f;
 }
 
@@ -1187,12 +1173,12 @@ float subzero_his_tinkle_snd(void) {
 }
 
 float subzero_rx_freeze(void) {
-    FatalityProcVtableRef vtable;
+    MkVtableMkproc* vtable;
 
     freeze_player();
     snd_req(0x348);
-    vtable.base = aproc->vtbl;
-    vtable.fatality->jump_sleep(player_sleep_forever, 0.0f);
+    vtable = aproc->vtbl;
+    vtable->jump_sleep(player_sleep_forever, 0.0f);
     return 0.0f;
 }
 
@@ -1358,10 +1344,8 @@ static void sindel_load_projectile_obj_for_sonic_waves(
     }
 }
 
-/* TODO: [near miss] 74.15%; behavior fully recovered; residue is register allocation and scheduling. */
 static float p_sd_sonic_waves(void) {
     FatalitySonicWavePdata* data;
-    PebbleData* pebble;
     MkObj* projectile;
     MkObj* owner;
     MkObj* wave;
@@ -1371,41 +1355,29 @@ static float p_sd_sonic_waves(void) {
     float growth;
     float distance;
     float scale_step;
-    int alive;
     int started;
     int index;
+    int alive;
 
-    alive = 0;
     started = 0;
+    alive = 0;
     data = (FatalitySonicWavePdata*)apdata;
-    if (data == 0) {
-        return -1.0f;
-    }
-    projectile = data->projectile;
-    if (projectile != 0 &&
-        projectile->hdr.instance != data->projectile_instance) {
-        projectile = 0;
-    }
+    projectile = MK_HDR_LIVE(data->projectile, data->projectile_instance);
     if (projectile != 0 && data->finished == 0) {
-        owner = data->owner;
-        if (owner != 0 && owner->hdr.instance != data->owner_instance) {
-            owner = 0;
+        if (data == 0) {
+            return -1.0f;
         }
+        owner = MK_HDR_LIVE(data->owner, data->owner_instance);
         if (owner == 0) {
-            owner_bone.x = 0.0f;
-            owner_bone.y = 0.0f;
             owner_bone.z = 0.0f;
+            owner_bone.y = 0.0f;
+            owner_bone.x = 0.0f;
         } else {
             get_bone_world_pos(owner, 0xD, &owner_bone);
         }
-        pebble = data->pebble;
 
         for (index = 0; index < 5; index++) {
-            wave = data->waves[index].obj;
-            if (wave != 0 &&
-                wave->hdr.instance != data->waves[index].instance) {
-                wave = 0;
-            }
+            wave = MK_HDR_LIVE(data->waves[index].obj, data->waves[index].instance);
             if (wave == 0) {
                 continue;
             }
@@ -1424,7 +1396,9 @@ static float p_sd_sonic_waves(void) {
                 data->wave_offsets[index].x = 0.01f;
                 data->wave_offsets[index].y = 0.01f;
                 data->wave_offsets[index].z = 0.01f;
-                data->wave_positions[index] = owner_bone;
+                data->wave_positions[index].x = owner_bone.x;
+                data->wave_positions[index].y = owner_bone.y;
+                data->wave_positions[index].z = owner_bone.z;
                 data->field_F0 = SD_SONIC_WAVES_TBS;
                 if (f_fatality_was_done != 0) {
                     data->field_F0 *= 0.5f;
@@ -1434,7 +1408,7 @@ static float p_sd_sonic_waves(void) {
             data->wave_progress[index] += game_speed;
             if (data->wave_progress[index] >= 20.0f) {
                 data->wave_progress[index] = 0.0f;
-                pebble->pebbles[index].matrix.pos.y = -10000.0f;
+                data->pebble->pebbles[index].matrix.pos.y = -10000.0f;
                 wave->pos.value.y = -10000.0f;
                 continue;
             }
@@ -1444,15 +1418,12 @@ static float p_sd_sonic_waves(void) {
                 data->wave_offsets[index].x += scale_step;
                 data->wave_offsets[index].y += scale_step;
                 data->wave_offsets[index].z += scale_step;
-                distance = game_speed *
-                    (data->wave_offsets[index].x *
-                     SD_SONIC_WAVE_DIST_SCALE);
                 data->wave_positions[index].x +=
-                    data->velocity.x * distance;
+                    data->velocity.x * (game_speed * (data->wave_offsets[index].x * SD_SONIC_WAVE_DIST_SCALE));
                 data->wave_positions[index].y +=
-                    data->velocity.y * distance;
+                    data->velocity.y * (game_speed * (data->wave_offsets[index].x * SD_SONIC_WAVE_DIST_SCALE));
                 data->wave_positions[index].z +=
-                    data->velocity.z * distance;
+                    data->velocity.z * (game_speed * (data->wave_offsets[index].x * SD_SONIC_WAVE_DIST_SCALE));
                 wave->pos.value.x = data->origin.x +
                     data->wave_positions[index].x;
                 wave->pos.value.y = data->origin.y +
@@ -1460,6 +1431,9 @@ static float p_sd_sonic_waves(void) {
                 wave->pos.value.z = data->origin.z +
                     data->wave_positions[index].z;
                 data->wave_offsets[index].z += 3.0f * scale_step;
+                wave->scale.x = data->wave_offsets[index].x;
+                wave->scale.y = data->wave_offsets[index].y;
+                wave->scale.z = data->wave_offsets[index].z;
             } else {
                 if (game_speed < 1.0f) {
                     growth = 1.0f +
@@ -1470,15 +1444,15 @@ static float p_sd_sonic_waves(void) {
                 data->wave_offsets[index].x *= growth;
                 data->wave_offsets[index].y *= growth;
                 data->wave_offsets[index].z *= growth;
-                distance = game_speed *
-                    (data->wave_offsets[index].z *
-                     SD_SONIC_WAVE_DIST_SCALE);
+                wave->scale.x = data->wave_offsets[index].x;
+                wave->scale.y = data->wave_offsets[index].y;
+                wave->scale.z = data->wave_offsets[index].z;
                 data->wave_positions[index].x +=
-                    data->velocity.x * distance;
+                    data->velocity.x * (game_speed * (data->wave_offsets[index].z * SD_SONIC_WAVE_DIST_SCALE));
                 data->wave_positions[index].y +=
-                    data->velocity.y * distance;
+                    data->velocity.y * (game_speed * (data->wave_offsets[index].z * SD_SONIC_WAVE_DIST_SCALE));
                 data->wave_positions[index].z +=
-                    data->velocity.z * distance;
+                    data->velocity.z * (game_speed * (data->wave_offsets[index].z * SD_SONIC_WAVE_DIST_SCALE));
                 wave->pos.value.x = data->origin.x +
                     data->wave_positions[index].x;
                 wave->pos.value.y = data->origin.y +
@@ -1486,33 +1460,32 @@ static float p_sd_sonic_waves(void) {
                 wave->pos.value.z = data->origin.z +
                     data->wave_positions[index].z;
             }
-            wave->scale = data->wave_offsets[index];
 
             fade = 1.0f - data->wave_progress[index] / 20.0f;
             obj_for_all_atomics_set_material_alpha(
                 wave, 185.0f * fade + 70.0f);
-            MKMatrixSetIdentity(&pebble->pebbles[index].matrix);
-            y_angle_to_MKMATRIX(&pebble->pebbles[index].matrix, owner->ang.y);
-            if (data->wave_offsets[index].x < 1.0f) {
-                matrix_scale.x =
-                    scale_proj.x * data->wave_offsets[index].x;
-                matrix_scale.y =
-                    scale_proj.y * data->wave_offsets[index].x;
-                matrix_scale.z =
-                    scale_proj.z * data->wave_offsets[index].x;
+            MKMatrixSetIdentity(&data->pebble->pebbles[index].matrix);
+            y_angle_to_MKMATRIX(&data->pebble->pebbles[index].matrix, owner->ang.y);
+            scale_step = data->wave_offsets[index].x;
+            if (scale_step < 1.0f) {
+                matrix_scale.x = scale_proj.x * scale_step;
+                matrix_scale.y = scale_proj.y * scale_step;
+                matrix_scale.z = scale_proj.z * scale_step;
             } else {
-                matrix_scale = scale_proj;
+                matrix_scale.x = scale_proj.x;
+                matrix_scale.y = scale_proj.y;
+                matrix_scale.z = scale_proj.z;
             }
             mat_scaled_by_v3(
-                &pebble->pebbles[index].matrix, &pebble->pebbles[index].matrix,
+                &data->pebble->pebbles[index].matrix, &data->pebble->pebbles[index].matrix,
                 &matrix_scale);
-            pebble->pebbles[index].matrix.pos.x = wave->pos.value.x;
-            pebble->pebbles[index].matrix.pos.y = wave->pos.value.y;
-            pebble->pebbles[index].matrix.pos.z = wave->pos.value.z;
+            data->pebble->pebbles[index].matrix.pos.x = wave->pos.value.x;
+            data->pebble->pebbles[index].matrix.pos.y = wave->pos.value.y;
+            data->pebble->pebbles[index].matrix.pos.z = wave->pos.value.z;
             if ((index & 1) != 0) {
-                pebble->pebbles[index].matrix.pos.y += 0.1f * index;
+                data->pebble->pebbles[index].matrix.pos.y += 0.1f * index;
             } else {
-                pebble->pebbles[index].matrix.pos.y -= 0.1f * index;
+                data->pebble->pebbles[index].matrix.pos.y -= 0.1f * index;
             }
             alive++;
         }
@@ -1523,8 +1496,7 @@ static float p_sd_sonic_waves(void) {
             }
         }
         if (alive != 0) {
-            data->duration -= game_speed;
-            return 1.0f;
+            goto live_exit;
         }
     }
 
@@ -1536,11 +1508,7 @@ static float p_sd_sonic_waves(void) {
     }
     data->pebble = 0;
     for (index = 0; index < 5; index++) {
-        wave = data->waves[index].obj;
-        if (wave != 0 &&
-            wave->hdr.instance != data->waves[index].instance) {
-            wave = 0;
-        }
+        wave = MK_HDR_LIVE(data->waves[index].obj, data->waves[index].instance);
         if (wave != 0 && wave->hdr.instance != 0) {
             wave->hdr.typed_vtbl->destroy(&wave->hdr);
         }
@@ -1554,6 +1522,10 @@ static float p_sd_sonic_waves(void) {
         }
     }
     return -1.0f;
+
+live_exit:
+    data->duration -= game_speed;
+    return 1.0f;
 }
 
 void start_raiden_lightning_scroll(
@@ -1914,10 +1886,9 @@ void fat_goro_fold_arms(
     }
 }
 
-/* TODO: [near miss] 99.99%; instruction body agrees; CANTEEN string-pool offset remains. */
 MkObj* fatality_boraicho_get_jug(Vec* angles, Vec* offset) {
-    int canteen_bone_tag[1] = {0x13};
-    int gourd_bone_tag[1] = {0x2D};
+    int gourd_bone_tag[1] = {0x13};
+    int canteen_bone_tag[1] = {0x2D};
     const int* bone_tags;
     MkObj* jug;
     RpMaterial* material;
@@ -1932,8 +1903,8 @@ MkObj* fatality_boraicho_get_jug(Vec* angles, Vec* offset) {
             hide_material(material);
         }
         player = fatality_state.player->plyr_num;
-        jug = load_named_model_for_player("GOURD", player, player, 0);
-        bone_tags = gourd_bone_tag;
+        jug = load_named_model_for_player("CANTEEN", player, player, 0);
+        bone_tags = canteen_bone_tag;
         obj_create_sobjs(jug);
         material = obj_find_material_by_id(jug, 0x9A);
         if (material != 0) {
@@ -1955,8 +1926,8 @@ MkObj* fatality_boraicho_get_jug(Vec* angles, Vec* offset) {
             hide_material(material);
         }
         player = fatality_state.player->plyr_num;
-        jug = load_named_model_for_player("CANTEEN", player, player, 0);
-        bone_tags = canteen_bone_tag;
+        jug = load_named_model_for_player("GOURD", player, player, 0);
+        bone_tags = gourd_bone_tag;
         if (fatality_state.mirror_camera != 0) {
             obj_set_bone_collapse_flag(
                 fatality_state.attacker_object, 0x2E);
@@ -2461,7 +2432,7 @@ float p_fatality_cam(void) {
         camera_set_animation_mirror_plane(2);
     }
     camera_run_animation(0);
-    ((FatalityProcVtable*)aproc->vtbl)
+    aproc->vtbl
         ->jump_sleep(player_sleep_forever, 0.0f);
     return 0.0f;
 }
@@ -3627,7 +3598,7 @@ static int init_fatality_world(void) {
     return 0;
 }
 
-/* TODO: [near miss] 97.45%; callbacks, sentinel and palette index agree; initial scene setup scheduling remains. */
+/* TODO: [near miss] 97.45%; initial fog/world address formation and Camera-load scheduling remain. */
 float start_suicide(void) {
     FatalityBgndScriptView* section_script;
     unsigned int camera_script;
@@ -3705,7 +3676,7 @@ float start_suicide(void) {
             }
         }
     }
-    ((FatalityProcVtable*)aproc->vtbl)->jump_sleep(
+    aproc->vtbl->jump_sleep(
         end_of_fatality, 0.0f);
     return 0.0f;
 }
@@ -3733,7 +3704,7 @@ float start_2nd_fatality(void) {
                 definition->secondary_victim_script);
         }
     }
-    ((FatalityProcVtable*)aproc->vtbl)->jump_sleep(
+    aproc->vtbl->jump_sleep(
         end_of_fatality, 0.0f);
     return 0.0f;
 }
@@ -3760,7 +3731,7 @@ float start_fatality(void) {
                 definition->primary_victim_script);
         }
     }
-    ((FatalityProcVtable*)aproc->vtbl)->jump_sleep(
+    aproc->vtbl->jump_sleep(
         end_of_fatality, 0.0f);
     return 0.0f;
 }

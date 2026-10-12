@@ -138,7 +138,7 @@ void mwPlyInitSfdFx(MwsInitParam*);
 void mwPlyFinishSfdFx(void);
 void mwPlySetMallocFn(void* (*malloc_fn)(void*, unsigned int),
                       void (*free_fn)(void*, void*), void* object);
-MwsPlayer* mwPlyCreateSofdec(const MwsCreateParams*);
+MwsPlayer* mwPlyCreateSofdec(MwsCreateParams*);
 void mwPlySetAudioCh(MwsPlayer*, int);
 void mwPlySetSubtitleCh(MwsPlayer*, int);
 void mwPlySetSyncMode(MwsPlayer*, int);

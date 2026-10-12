@@ -203,8 +203,44 @@ static void do_copy_from_table_float(int count, PfxSpawnTable* table,
     }
 }
 
-/* TODO: [breakthrough needed] 89.66%; recover center stack publication and the writable stream alias boundary. */
-static void do_wrapbox(int count, const unsigned char* source,
+static inline void pfx_wrapbox_point(PfxVec3* const output,
+                                     PfxVec3* const input,
+                                     const PfxVec3* minimum,
+                                     const PfxVec3* size,
+                                     const PfxVec3* inverse_size)
+{
+    float x = minimum->x - input->x;
+    float y = minimum->y - input->y;
+    float z = minimum->z - input->z;
+    x *= inverse_size->x;
+    y *= inverse_size->y;
+    z *= inverse_size->z;
+    x = ceil(x);
+    y = ceil(y);
+    z = ceil(z);
+    x *= size->x;
+    y *= size->y;
+    z *= size->z;
+    output->x = x + input->x;
+    output->y = y + input->y;
+    output->z = z + input->z;
+}
+
+static inline void pfx_wrapbox_center(PfxVec3* const output,
+                                      const PfxMatrix* const matrix,
+                                      const PfxUpdateArguments* const arguments)
+{
+    output->x = matrix->elements[2][0] * arguments->vector.scale;
+    output->y = matrix->elements[2][1] * arguments->vector.scale;
+    output->z = matrix->elements[2][2] * arguments->vector.scale;
+    output->x += matrix->elements[3][0];
+    output->y += matrix->elements[3][1];
+    output->z += matrix->elements[3][2];
+}
+
+/* TODO: [near miss] 99.59%; all operations and frame match; rounded-coordinate
+ * and rescale FPR homes remain after graph review and bounded permutation. */
+static void do_wrapbox(int count, unsigned char* source,
                        unsigned char* destination, int stride,
                        PfxUpdateArguments* arguments)
 {
@@ -215,12 +251,7 @@ static void do_wrapbox(int count, const unsigned char* source,
     PfxVec3 size;
     PfxVec3 inverse_size;
     int index;
-    center.x = matrix->elements[8] * arguments->vector.scale;
-    center.y = matrix->elements[9] * arguments->vector.scale;
-    center.z = matrix->elements[10] * arguments->vector.scale;
-    center.x += matrix->elements[12];
-    center.y += matrix->elements[13];
-    center.z += matrix->elements[14];
+    pfx_wrapbox_center(&center, matrix, arguments);
     maximum.x = center.x + arguments->vector.x;
     maximum.y = center.y + arguments->vector.y;
     maximum.z = center.z + arguments->vector.z;
@@ -234,23 +265,12 @@ static void do_wrapbox(int count, const unsigned char* source,
     inverse_size.y = 1.0f / size.y;
     inverse_size.z = 1.0f / size.z;
     for (index = 0; index < count; index++) {
-        const PfxVec3* input = (const PfxVec3*)source;
+        PfxVec3* input = (PfxVec3*)source;
         PfxVec3* output = (PfxVec3*)destination;
         if (input->x < minimum.x || input->y < minimum.y ||
             input->z < minimum.z || input->x > maximum.x ||
             input->y > maximum.y || input->z > maximum.z) {
-            float wrap_x = (minimum.x - input->x) * inverse_size.x;
-            float wrap_y = (minimum.y - input->y) * inverse_size.y;
-            float wrap_z = (minimum.z - input->z) * inverse_size.z;
-            float step_x = ceil(wrap_x);
-            float step_y = ceil(wrap_y);
-            float step_z = ceil(wrap_z);
-            float offset_x = step_x * size.x;
-            float offset_y = step_y * size.y;
-            float offset_z = step_z * size.z;
-            output->x = offset_x + input->x;
-            output->y = offset_y + input->y;
-            output->z = offset_z + input->z;
+            pfx_wrapbox_point(output, input, &minimum, &size, &inverse_size);
         } else {
             output->x = input->x;
             output->y = input->y;

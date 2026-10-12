@@ -304,7 +304,7 @@ public:
     {
     }
 
-    virtual ~mwFileCommandPlugin() {}
+    virtual ~mwFileCommandPlugin();
     virtual int service();
 
     int serviceState(int state)
@@ -319,6 +319,11 @@ protected:
     bool hasReferences() const { return reference_count > 0 ? true : false; }
 };
 
+template <class T>
+mwFileCommandPlugin<T>::~mwFileCommandPlugin()
+{
+}
+
 template <class T, class H>
 class mwFileXPCommand : public mwFileCommandPlugin<T> {
 public:
@@ -328,8 +333,13 @@ public:
     {
     }
 
-    virtual ~mwFileXPCommand() {}
+    virtual ~mwFileXPCommand();
 };
+
+template <class T, class H>
+mwFileXPCommand<T, H>::~mwFileXPCommand()
+{
+}
 
 class mwFileServer {
 public:
@@ -899,7 +909,7 @@ public:
     void queryErrorState();
 };
 
-class gcnDriver : public mwFileGCServer {
+class gcnDriver {
 public:
     gcnDriver() : service_stack(0), wakeup_stack(0), initialized(false) {}
     ~gcnDriver();
@@ -912,6 +922,7 @@ public:
     void shutdown();
     void queryErrorState();
 
+    mwFileGCServer server;
     OSThread service_thread;
     unsigned char* service_stack;
     OSThread wakeup_thread;
@@ -1191,12 +1202,20 @@ gcnHostCloseCommand::~gcnHostCloseCommand()
     file = 0;
 }
 
+gcnHostFlushCommand::~gcnHostFlushCommand()
+{
+}
+
 mwFileAsyncResult gcnHostFlushCommand::getResult() const
 {
     mwFileAsyncResult result;
     result.error = error;
     result.value.bytes = error;
     return result;
+}
+
+gcnHostWriteCommand::~gcnHostWriteCommand()
+{
 }
 
 mwFileAsyncResult gcnHostWriteCommand::getResult() const
@@ -1329,9 +1348,9 @@ void gcnDriver::shutdown()
         OSJoinThread(&service_thread, 0);
         unlockAndUnmount(&stringBase0[HOST_MOUNT_NAME]);
         unlockAndUnmount(&stringBase0[CDROM_MOUNT_NAME]);
-        mwFileUnregisterFileServer(*this);
-        if (isInitialized()) {
-            mwFileServerQueued::shutdown();
+        mwFileUnregisterFileServer(server);
+        if (server.isInitialized()) {
+            server.shutdown();
         }
         OSJamMessage(&wakeup_queue, 0, 1);
         OSJoinThread(&wakeup_thread, 0);
@@ -1375,19 +1394,19 @@ int gcnDriver::initialize(_mwFileInitParam* param)
     }
     OSResumeThread(&service_thread);
 
-    if (!isInitialized()) {
-        int error = mwFileServerQueued::initialize(param->max_commands);
+    if (!server.isInitialized()) {
+        int error = server.initialize(param->max_commands);
         if (error != 0) {
             return error;
         }
-        error = mwFileRegisterFileServer(*this);
+        error = mwFileRegisterFileServer(server);
         if (error != 0) {
             return error;
         }
     }
 
     gcnCDMountPoint* cd_mount = new (MW_TARGET_MEM_ALIGN_32, &stringBase0[CD_MOUNT_POINT_NAME])
-        gcnCDMountPoint(&stringBase0[CDROM_MOUNT_NAME], *this);
+        gcnCDMountPoint(&stringBase0[CDROM_MOUNT_NAME], server);
     if (cd_mount == 0) {
         return -10;
     }
@@ -1400,7 +1419,7 @@ int gcnDriver::initialize(_mwFileInitParam* param)
 
     gcnHostMountPoint* host_mount =
         new (MW_TARGET_MEM_ALIGN_32, &stringBase0[HOST_MOUNT_POINT_NAME])
-            gcnHostMountPoint(&stringBase0[HOST_MOUNT_NAME], *this);
+            gcnHostMountPoint(&stringBase0[HOST_MOUNT_NAME], server);
     if (host_mount == 0) {
         return -10;
     }
@@ -1605,7 +1624,7 @@ mwFileMutex::mwFileMutex()
 int _mwFilePlatformInit(_mwFileInitParam* param)
 {
     mwFileXPHandle<mwFileGCHandle>::setBufferSize(param->file_handle_tracking_size);
-    if (!gcnGetDriver().isInitialized()) {
+    if (!gcnGetDriver().server.isInitialized()) {
         int error = gcnGetDriver().initialize(param);
         if (error != 0) {
             return error;
@@ -2214,8 +2233,7 @@ int mwFileXPReadUnbufferedCommand<T, H>::handleSignalState()
     return mwFileCommandPluginBase::handleSignalState();
 }
 
-/* TODO: [breakthrough needed] 96.53%; retail inlines nativeProgress here but calls it from getProgressBytes;
- * marking it inline inlines both (getProgressBytes 100 -> 72). */
+/* TODO: [breakthrough needed] 96.63%; recover nativeProgress inlining here while retaining the getProgressBytes call boundary. */
 template <class T, class H>
 int mwFileXPReadUnbufferedCommand<T, H>::handleReadingState()
 {
@@ -2473,7 +2491,7 @@ mwFileGCIOMixIn<Command>::mwFileGCIOMixIn()
 {
 }
 
-/* TODO: [near miss] 99.32%; file_info/device r30/r31 swap only, stop at coloring. */
+/* TODO: [near miss] 99.51%; file_info/device r30/r31 swap only, stop at coloring. */
 template <class Command>
 void mwFileGCIOMixIn<Command>::queryErrorState()
 {
@@ -2537,7 +2555,6 @@ int mwFileGCIOMixIn<Command>::nativeReadAsync(void* destination, unsigned long l
     return result;
 }
 
-/* TODO: [near miss] 99.90%; only jump-table label naming differs (@NNNN numbering). */
 template <class Command>
 bool mwFileGCIOMixIn<Command>::nativeContinueRead(mwFileError& result)
 {
@@ -2610,7 +2627,6 @@ bool mwFileGCIOMixIn<Command>::nativeContinueWrite(mwFileError&)
     return false;
 }
 
-/* TODO: [near miss] 99.83%; stringBase0 array stand-in vs retail @stringBase0 pool and jump-table label naming. */
 template <class Command>
 void mwFileGCIOMixIn<Command>::gcCallbackThunk(long result, DVDFileInfo* info)
 {
@@ -2715,7 +2731,7 @@ template class mwFileFailCommand<0, -13>;
 
 void gcnDriver::queryErrorState()
 {
-    mwFileGCServer::queryErrorState();
+    server.queryErrorState();
 }
 
 template <class T>

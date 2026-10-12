@@ -191,10 +191,7 @@ void ck_rumble_controller(int player, int strength, int ticks) {
     pdata->ticks = ticks;
 }
 
-/* TODO: [near miss] 99.92%; unpause CFG and signed display checks agree;
- * eight pdata/pad register substitutions remain. */
 static float p_do_controller_removed(void) {
-    struct ControllerRemovedPdata* pdata;
     PlyrInfo* player;
     ScreenObj* fadebox;
     int port;
@@ -203,6 +200,7 @@ static float p_do_controller_removed(void) {
     int player_x;
     int screen_oid;
     int other_proc_pid;
+    struct ControllerRemovedPdata* pdata;
     int controllers_locked;
     int can_unpause;
     char initial_text[0x50];

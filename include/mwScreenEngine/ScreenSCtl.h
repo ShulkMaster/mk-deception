@@ -2,6 +2,7 @@
 #define MWSCREENENGINE_SCREEN_SCTL_H
 
 #include "mwScreenEngine/TextureCollection.h"
+#include "mwScreenEngine/ScreenControl.h"
 
 typedef struct AniTextureControl AniTextureControl;
 typedef struct ScreenNode ScreenNode;
@@ -14,7 +15,7 @@ typedef struct ScreenText ScreenText;
  * stores + ProcessParams / Update* field use. ScreenControl ends at 0xA4;
  * subclass sizes match __nw__ sizes in CreateInstance.
  *
- * Not full C++ class layouts -- Glue CreateInstance / CreateElement only.
+ * SpreadSheet types use the recovered C++ hierarchy.
  */
 
 /* ScreenObject base fields after the vtable (+0x04 .. +0x8F). */
@@ -91,14 +92,21 @@ typedef struct KeyPad {
  * ProcessParams: dims at +0xE0..+0xEC, collection/option ids, bind flags
  * +0xF4/+0xF8/+0xFC, optional color @ +0xA4, nodes at +0xB0/+0xB4.
  */
-typedef struct SpreadSheet {
-    void* vtbl; /* +0x00 */
-    ScreenObjectHead head; /* +0x04 .. +0x8F */
-    int collectionId; /* +0x90 */
-    int gvContext; /* +0x94 */
-    int optionId; /* +0x98 */
-    int pad9C; /* +0x9C */
-    int unkA0; /* +0xA0 */
+class SpreadSheet : public ScreenControl {
+public:
+    virtual ~SpreadSheet();
+    virtual void Init();
+    virtual void Dispose() = 0;
+    virtual int HandleAction(ScreenMgr* mgr, const ScreenAction* action);
+    virtual void HandleEvent(ScreenMgr* mgr, int event, int arg);
+    virtual void ProcessParams(ScreenParams* params);
+    virtual void Update() = 0;
+    virtual void RefreshCollection();
+    virtual void RefreshOption();
+    virtual void AllocateCollection() = 0;
+    virtual void FinishSetup(ScreenParams* params, int nodeIndex) = 0;
+    virtual void ClearContents() = 0;
+
     unsigned char color[4]; /* +0xA4 -- GetColor when useColor */
     unsigned char* cellColors; /* +0xA8 -- text cell RGBA table */
     int padAC; /* +0xAC */
@@ -121,28 +129,40 @@ typedef struct SpreadSheet {
     int cellArray; /* +0x100 -- init 0; set 1 when GameVariables present */
     int flag104; /* +0x104 -- (unkE8 != 0) via neg/andc/srwi */
     int flag108; /* +0x108 -- (unkEC != 0) */
-} SpreadSheet; /* through +0x10C; subclasses grow */
+};
 
 /* 'SPSH' SpreadSheet_text -- sizeof 0x120. */
-typedef struct SpreadSheet_text {
-    SpreadSheet sheet;
+class SpreadSheet_text : public SpreadSheet {
+public:
+    virtual ~SpreadSheet_text();
+    virtual void Dispose();
+    virtual void Update();
+    virtual void AllocateCollection();
+    virtual void FinishSetup(ScreenParams* params, int nodeIndex);
+    virtual void ClearContents();
     int hasExtraRes; /* +0x10C -- GetBoolean(9) */
     int extraResId; /* +0x110 -- GetResourceID when hasExtraRes */
     int pad114; /* +0x114 */
     ScreenText** unk118; /* +0x118 -- cell nodes */
     int unk11C; /* +0x11C -- init 0 */
-} SpreadSheet_text; /* 0x120 */
+};
 
 /* 'SPSI' SpreadSheet_image -- sizeof 0x124. */
-typedef struct SpreadSheet_image {
-    SpreadSheet sheet;
+class SpreadSheet_image : public SpreadSheet {
+public:
+    virtual ~SpreadSheet_image();
+    virtual void Dispose();
+    virtual void Update();
+    virtual void AllocateCollection();
+    virtual void FinishSetup(ScreenParams* params, int nodeIndex);
+    virtual void ClearContents();
     int hasExtraRes; /* +0x10C -- GetBoolean(9) */
     int extraResId; /* +0x110 -- GetResourceID when hasExtraRes */
     int pad114; /* +0x114 */
     ScreenPoly** unk118; /* +0x118 -- cell nodes */
     int unk11C; /* +0x11C -- init 0 */
     int unk120; /* +0x120 -- init 0 */
-} SpreadSheet_image; /* 0x124 */
+};
 
 /*
  * 'IMLI' ImageList -- image option strip.
