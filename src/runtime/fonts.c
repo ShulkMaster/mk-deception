@@ -588,16 +588,16 @@ StringObj* string_left_xy(int oid, int font, const char* text, int x, int y, int
     return obj;
 }
 
-/* TODO: [near miss] 98.389832%; indexed slot rematerialization recovered;
+/* TODO: [near miss] 98.98%; indexed slot rematerialization recovered;
  * search and load-path register allocation remains. */
 PfxFontSlot* load_named_font(const char* name) {
-    int i;
     int offset;
     FontTableEntry* walk;
     FontFace* face;
     int binary_id;
     int tga_arg;
     int handle;
+    int i;
     FontFace* tga;
     FontMetrics* bin;
     int flag;

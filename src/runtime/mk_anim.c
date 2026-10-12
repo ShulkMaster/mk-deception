@@ -181,7 +181,7 @@ static void apply_anim_offset(
 static unsigned short* find_frame(unsigned short* current);
 static int _set_old_frameno(AnimPdata* anim);
 static int _set_frameno(AnimPdata* anim);
-static void process_obj_bones(MkObj* obj, const int* tags);
+static void process_obj_bones(MkObj* obj, int* tags);
 static RpAtomic* atomic_set_HAnimHierarchy(
     RpAtomic* atomic, void* hierarchy);
 static RwFrame* get_child_frame_hierarchy(
@@ -1024,11 +1024,12 @@ static float p_pose_handanim(void) {
 transition_hand:
                 hand_script = anim_pdata->hand_anim_script;
                 transition_to_anim_script_frame(
-                    anim_pdata->hand_transition_frames, 0.0f,
-                    anim_pdata, hand_script, anim_pdata->hand_flags | 0x80);
+                    anim_pdata, hand_script, anim_pdata->hand_flags | 0x80,
+                    anim_pdata->hand_transition_frames, 0.0f);
             } else {
                 set_anim_script_frame(
-                    0.0f, anim_pdata, hand_script, anim_pdata->hand_flags | 0x80);
+                    anim_pdata, hand_script, anim_pdata->hand_flags | 0x80,
+                    0.0f);
             }
         } else if (anim_pdata->script != 0) {
             anim_pdata->transition_weight =
@@ -1164,7 +1165,7 @@ static inline void anim_run_tag_frames(
         return;
     }
     first = anim_script_data(script, script->tag_data_offset);
-    end = (struct AnimTagFrame*)anim_script_data(
+    end = anim_script_data(
         script, script->tag_end_offset);
     frame = (anim->previous_frame + 0.5f);
     if (!(anim->step < 0.0f)) {
@@ -2659,11 +2660,11 @@ static int _set_frameno(AnimPdata* anim) {
 }
 
 int transition_to_anim_script_frame(
-    float transition_frames,
-    float frame,
     AnimPdata* anim,
     AnimScript* script,
-    unsigned int flags) {
+    unsigned int flags,
+    float transition_frames,
+    float frame) {
     MkObj* obj;
     MkPtr* child_link;
     unsigned int i;
@@ -2677,7 +2678,7 @@ int transition_to_anim_script_frame(
         return 0;
     }
     if (anim->script == 0) {
-        return set_anim_script_frame(0.0f, anim, script, flags);
+        return set_anim_script_frame(anim, script, flags, 0.0f);
     }
 
     anim->old_script = anim->script;
@@ -2890,16 +2891,16 @@ void transition_to_anim_script(
     AnimScript* script,
     unsigned int flags) {
     transition_to_anim_script_frame(
-        transition_frames, 0.0f, anim, script, flags);
+        anim, script, flags, transition_frames, 0.0f);
 }
 
 
 /* TODO: [near miss] 99.41%; frame span matches; first live obj/root bone/rotation take r26/r27/r29 (retail r31/r26/r27). */
 int set_anim_script_frame(
-    float frame,
     AnimPdata* anim,
     AnimScript* script,
-    unsigned int flags) {
+    unsigned int flags,
+    float frame) {
     MkObj* obj;
     int same_script = 1;
 
@@ -3014,7 +3015,7 @@ void set_anim_script(
     AnimPdata* anim,
     AnimScript* script,
     unsigned int flags) {
-    set_anim_script_frame(0.0f, anim, script, flags);
+    set_anim_script_frame(anim, script, flags, 0.0f);
 }
 
 void toggle_obj_and_ani_flips(AnimPdata* anim) {
@@ -3255,7 +3256,7 @@ int build_bones_tbl(MkObj* obj, const int* tags) {
         return 0;
     }
     obj->bone_count = bone_count;
-    process_obj_bones(obj, tags);
+    process_obj_bones(obj, (int*)tags);
     insert_bone_hierarchy_mkobj(obj);
     update_bone_hierarchy(obj != 0 ? as_mkhdr(&obj->hdr) : 0);
     return 1;
@@ -3321,8 +3322,8 @@ MkBone* alloc_bone(void) {
     return bone;
 }
 
-/* TODO: [breakthrough] 94.55%; bone-loop register lifetimes (bone/next_unmapped/index colors) remain. */
-static void process_obj_bones(MkObj* obj, const int* tags) {
+/* TODO: [breakthrough] 96.25%; typed bone-slot traversal restores indexed publication; extra cursor operations, owner reload and GPR homes remain. */
+static void process_obj_bones(MkObj* obj, int* tags) {
     RpClump* clump = obj->clump;
     RpHAnimHierarchy* found_hierarchy = 0;
     RpHAnimHierarchy* hierarchy;
@@ -3330,11 +3331,11 @@ static void process_obj_bones(MkObj* obj, const int* tags) {
     int bone_indices[256];
     MkBone* linked_bones[256];
     MkBone* parent;
+    int next_unmapped;
     RwMatrix* matrix;
     int bone_count;
     int hierarchy_count;
     int first_root;
-    int next_unmapped;
     int stack_index;
     int i;
 
@@ -3408,7 +3409,7 @@ static void process_obj_bones(MkObj* obj, const int* tags) {
     }
 
     next_unmapped = 0;
-    for (i = 0; i < hierarchy_count; i++, matrix++) {
+    for (i = 0; i < hierarchy_count; matrix++, i++) {
         RpHAnimNodeInfo* node = &hierarchy->pNodeInfo[i];
         MkBone* bone;
         struct BoneScanContext context;
@@ -3417,8 +3418,11 @@ static void process_obj_bones(MkObj* obj, const int* tags) {
         if (bone_indices[i] > -1) {
             bone = obj->bones[bone_indices[i]];
         } else {
-            while (obj->bones[next_unmapped]->tag != -2) {
+            MkBone** slot = &obj->bones[next_unmapped];
+
+            while ((*slot)->tag != -2) {
                 next_unmapped++;
+                slot++;
             }
             bone = obj->bones[next_unmapped];
             bone->tag = node->nodeID & 0xFFF0FFFF;
