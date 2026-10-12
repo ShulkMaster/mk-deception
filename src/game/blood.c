@@ -2551,24 +2551,22 @@ static float p_bleed(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 97.87%; shared path/removal effects agree; register webs and load
- * scheduling remain. */
+/* TODO: [near miss] 99.15%; point increment and bone-transfer register/load scheduling remain. */
 static void do_pfx_bleed(MkHdr* hdr) {
-    struct BloodParticlePosition* destination;
-    struct BloodParticlePosition* source;
-    struct BloodVelocityState* state;
     PfxVm* vm;
-    MkPfx* pfx;
-    int position_stride;
-    int state_stride;
-    int index;
 
     apdata = hdr;
     pfx_pre_wake();
-    pfx = apfx;
-    if (pfx != 0) {
+    if (apfx != 0) {
+        MkPfx* pfx = apfx;
         vm = (PfxVm*)pfx->matrix;
         if (!apfx_render_obj->hide_flag_bits.hidden && vm->particle_cursor != 0) {
+            struct BloodParticlePosition* source;
+            struct BloodParticlePosition* destination;
+            struct BloodVelocityState* state;
+            int position_stride;
+            int state_stride;
+            int index;
             int removed_count;
             position_stride = vm->transforms[0].particle_field_stride;
             destination = pfx_get_field(vm, -2, 0x100);
@@ -2604,14 +2602,14 @@ static void do_pfx_bleed(MkHdr* hdr) {
                 state->travel_ticks -= game_speed;
 
                 if (!(state->travel_ticks >= 0.0f)) {
-                    BloodSurfaceRecord* record;
-                    BloodSurfaceRecord* next_record;
+                    int point_index;
+                    BloodPath* path;
                     BloodSurface* surface;
                     const int* record_indices;
                     const int* next_index;
+                    BloodSurfaceRecord* record;
+                    BloodSurfaceRecord* next_record;
                     struct BloodSurfaceEdge* edge;
-                    int point_index;
-                    BloodPath* path;
                     PlyrPdata* owner;
                     MkProc* foot_proc;
                     MkBone* old_bone;

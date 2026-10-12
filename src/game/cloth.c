@@ -1038,8 +1038,7 @@ static void do_cloth_colls(MkHdr* collision) {
     }
 }
 
-/* TODO: [breakthrough] 99.46703%; scratch globals restored;
- * first-use BSS order and localized instruction differences remain. */
+/* TODO: [breakthrough needed] 99.47%; .bss placement and saved-register homes remain; need genuine first-use evidence. */
 static void cloth_coll_point_cyl_inside(void) {
     Vec* force_position;
     MKVECTOR world_point;
@@ -1674,7 +1673,7 @@ static void calc_cloth_dwp(ClothBone* bone) {
     ClothBone* parent_cloth;
     ClothBone* grandparent_cloth;
     const RwMatrix* target_matrix;
-    const Vec* target_origin;
+    Vec* target_origin;
     MKVECTOR velocity;
     MKVECTOR adjustment;
     MKVECTOR transformed_normal;
@@ -1725,7 +1724,7 @@ static void calc_cloth_dwp(ClothBone* bone) {
         }
         gxMatV3MatAddV3(
             &bone->world_target, &bone->local_cloth_position,
-            (Mat33*)target_matrix, (Vec*)target_origin);
+            (Mat33*)target_matrix, target_origin);
         PSVECSubtract(
             &bone->world_target, &render_bone->matrix.pos_vec,
             &adjustment);

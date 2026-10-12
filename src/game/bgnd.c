@@ -1804,26 +1804,6 @@ static inline void bgnd_destroy_collision_to_script_lists(void) {
     g_active_bgnd_col_item = 0;
 }
 
-static inline void bgnd_destroy_object_latch(
-    MkObj** object_ptr, unsigned int* instance) {
-    MkObj* object = *object_ptr;
-
-    if (object != 0) {
-        if (object->hdr.instance != *instance) {
-            object = 0;
-        }
-    } else {
-        object = 0;
-    }
-    if (object != 0) {
-        object = *object_ptr;
-        if (object->hdr.instance != 0) {
-            object->hdr.typed_vtbl->destroy(&object->hdr);
-        }
-        *object_ptr = 0;
-        *instance = 0;
-    }
-}
 static void add_mkx_light_obj_to_bgnd_cleanup_list(MkHdr* header);
 void init_bgnd_info_struct(void);
 
@@ -2051,23 +2031,35 @@ static void add_mkx_light_obj_to_bgnd_cleanup_list(MkHdr* header) {
     }
 }
 
-/* TODO: [breakthrough needed] 84.45%; collision-list teardown helper inlined;
- * shared storage owner and weapon-loop staging remain. */
+/* TODO: [breakthrough] 90.13%; signed weapon loop and direct latch macros recovered;
+ * shared BSS owner, camera latch merge and loop staging remain. */
 void destroy_background_extras(void) {
     unsigned int index;
+    int weapon_index;
     MkProc* process;
 
     unload_script(0xC);
     unload_script(0xD);
     bgnd_destroy_collision_to_script_lists();
 
-    for (index = 6; index < 8; index++) {
-        bgnd_destroy_object_latch(
-            &global_movesets[index].primary_weapon,
-            &global_movesets[index].primary_weapon_instance);
-        bgnd_destroy_object_latch(
-            &global_movesets[index].secondary_weapon,
-            &global_movesets[index].secondary_weapon_instance);
+    for (weapon_index = 0; weapon_index < 2; weapon_index++) {
+        GlobalMoveset* moveset = &global_movesets[weapon_index + 6];
+        MkObj* object = MK_HDR_LIVE(moveset->primary_weapon, moveset->primary_weapon_instance);
+        if (object != 0) {
+            if (moveset->primary_weapon->hdr.instance != 0) {
+                moveset->primary_weapon->hdr.typed_vtbl->destroy(&moveset->primary_weapon->hdr);
+            }
+            moveset->primary_weapon = 0;
+            moveset->primary_weapon_instance = 0;
+        }
+        object = MK_HDR_LIVE(moveset->secondary_weapon, moveset->secondary_weapon_instance);
+        if (object != 0) {
+            if (moveset->secondary_weapon->hdr.instance != 0) {
+                moveset->secondary_weapon->hdr.typed_vtbl->destroy(&moveset->secondary_weapon->hdr);
+            }
+            moveset->secondary_weapon = 0;
+            moveset->secondary_weapon_instance = 0;
+        }
     }
     if (g_game_info.field_64 != 0) {
         destroy_list(&g_game_info.field_64);
@@ -3740,11 +3732,10 @@ float bgnd_current_rx_get_info(int info_id) {
     }
 }
 /* TODO: [breakthrough needed] 98.93%; case-7 event flag initialization
- * contract is unresolved; remaining instructions differ in base/Vec coloring. */
+ * contract is unresolved; base/Vec coloring remains; retail leaves event flags unwritten. */
 void bgnd_current_rx_set_info(int info_id, void* script_args, float value) {
     PlyrPdata* player;
 
-    (void)script_args;
     switch (info_id) {
     case 4:
         player = g_current_reaction_info.player_info->slot.pdata;
@@ -6712,11 +6703,12 @@ void bgnd_create_pebbles(
     }
     bgnd_create_pebbles_with_sobj(object, player, mode, count);
 }
-/* TODO: [near miss] 98.90%; frame agrees; collection reloaded before the mode switch via accessor; remaining rows are saved-register coloring (count/offset r29/r30, process shares loop-2 index r24). */
 static inline BgndPebbleCollection* bgnd_pebble_collection_of(unsigned int player) {
     return g_pebbles[player];
 }
 
+/* TODO: [near miss] 99.07%; count/array-offset homes swap r29/r30;
+ * zero staging before the process switch also differs. */
 BgndPebbleControl* bgnd_create_pebbles_with_sobj(
     MkSobj* object, unsigned int player, int mode, unsigned int count) {
     unsigned int index;
@@ -7891,7 +7883,7 @@ static float bgnd_npc_play_ani(void) {
         command->npc->animation, bgnd_animation_table[command->animation_id],
         command->flags, command->transition_frames);
     command->npc->animation->step = command->speed;
-    ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(bgnd_npc_idle, 0.0f);
+    aproc->vtbl->jump_sleep(bgnd_npc_idle, 0.0f);
     return 0.0f;
 }
 
@@ -9217,7 +9209,7 @@ static float victim_fall_down_a_level(void) {
         }
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
-        ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(j_getup_back_6, 0.0f);
+        aproc->vtbl->jump_sleep(j_getup_back_6, 0.0f);
         return 0.0f;
     } else {
         plyr_pdata->death_type = 1;
@@ -9246,7 +9238,7 @@ static float victim_fall_down_a_level(void) {
         xfer_proc(plyr_anim_proc, p_animate);
         turn_controllers_on();
         plyr_anim_pdata->step = 1.2f;
-        ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(
+        aproc->vtbl->jump_sleep(
             p_blend_to_stance_in_10, 0.0f);
         return 0.0f;
     }
@@ -9329,7 +9321,7 @@ static float winner_watching_him_fall(void) {
     set_ani_speed(0.5f);
     ani_to_frame_x(50.0f);
     blend_to_stance(0.2f);
-    ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(j_exit, 0.0f);
+    aproc->vtbl->jump_sleep(j_exit, 0.0f);
     return 0.0f;
 }
 
@@ -9574,7 +9566,7 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     xfer_proc(get_player_proc(opponent_object), winner_watching_him_fall);
     _mkproc_sleep_ticks = 75.0f;
     aproc->vtbl->sleep();
-    ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(
+    aproc->vtbl->jump_sleep(
         p_beetle_lair_watch_remaining_fall_scene, 0.0f);
     return 0.0f;
 }
@@ -9731,7 +9723,7 @@ float r_beetle_lair_transition(void) {
         }
     }
     ani_loop_more_frames(1000.0f);
-    ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(j_exit, 0.0f);
+    aproc->vtbl->jump_sleep(j_exit, 0.0f);
     return 0.0f;
 }
 
@@ -10619,7 +10611,7 @@ static void bl_process_beetle_transition_personality(
         }
     }
 }
-/* TODO: [near miss] 97.72358%; coordinate FPR coloring and shared 4.0f load scheduling remain. */
+/* TODO: [near miss] 99.63%; threshold scheduling agrees; eight coordinate FPR coloring rows remain. */
 static void bl_process_beetle_runaway_personality(
     BlBeetleControl* beetle) {
     float x;
@@ -10627,8 +10619,8 @@ static void bl_process_beetle_runaway_personality(
     float z;
     float distance_sq;
 
-    y = g_game_info.plyr0.slot.mirror_a->pos.value.y - beetle->position.y;
     x = g_game_info.plyr0.slot.mirror_a->pos.value.x - beetle->position.x;
+    y = g_game_info.plyr0.slot.mirror_a->pos.value.y - beetle->position.y;
     z = g_game_info.plyr0.slot.mirror_a->pos.value.z - beetle->position.z;
     distance_sq = z * z + (x * x + y * y);
     if (distance_sq < 4.0f) {
@@ -11767,7 +11759,7 @@ static float p_sh_throw_plyr_in_grinder(void) {
     g_game_info.plyr0.slot.pdata->collision_disabled = 0;
     g_game_info.plyr1.slot.pdata->collision_disabled = 0;
     drone_ai_ok_to_think();
-    ((MkProcEntryVtable*)aproc->vtbl)->jump_sleep(j_exit, 0.0f);
+    aproc->vtbl->jump_sleep(j_exit, 0.0f);
     return 0.0f;
 }
 

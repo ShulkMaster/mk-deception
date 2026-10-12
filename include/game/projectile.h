@@ -48,10 +48,10 @@ void set_active_projectile_2d_track(void);
 void set_active_projectile_not_duckable(void);
 MkObj* start_projectile_from_sidekick_bone(
     int bone_id, MkObj* existing_object, const char* model_name,
-    float speed, float tolerance, const Vec* bone_offset);
+    float speed, float tolerance, Vec* bone_offset);
 MkObj* start_projectile_from_plyr_bone(
     int bone_id, MkObj* existing_object, const char* model_name,
-    float speed, float tolerance, const Vec* bone_offset);
+    float speed, float tolerance, Vec* bone_offset);
 int check_for_throw(PlyrPdata* player);
 float p_projectile_die(void);
 void get_projectile_script_velocity(Vec* velocity);

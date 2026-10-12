@@ -384,7 +384,7 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     bgnd_collision_if_enable_col(5, npc_id + 0x12C);
 }
 
-/* TODO: [near miss] 97.41%; momentum blend FPR scheduling and collision_id/player_index r29/r30 coloring differ. */
+/* TODO: [near miss] 97.73%; momentum blend FPR scheduling and collision_id/player_index r29/r30 coloring differ. */
 static void nb_npc_slave_hit_by_plyr(int npc_id) {
     struct NbNpcState* npc;
     Vec target = nb_hit_zero;
@@ -407,8 +407,6 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     float correction;
     int collision_id;
     int hit_id;
-    int player_index;
-    int power;
 
     npc = bgnd_fetch_npc(npc_id);
     collision_id = npc_id + 0x12C;
@@ -424,6 +422,9 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     spad_set_vector(0, 0x1B);
     hit_id = spad_get_pos(0, 0);
     if ((float)hit_id != previous_hit) {
+        int player_index;
+        int power;
+
         if (player_side == 0.0f) {
             npc->last_hit_id[0] = hit_id;
         } else {
@@ -463,21 +464,27 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
         correction_weight = 0.9f;
         weighted_old = old_x * npc->acceleration_divisor;
         weighted_target = target.x * target_weight;
-        correction = (target.x - old_x) * correction_weight;
-        new_x = (weighted_old + weighted_target + correction) * inverse_mass;
+        correction = target.x - old_x;
+        correction *= correction_weight;
+        new_x = weighted_old + weighted_target + correction;
         weighted_old = old_y * npc->acceleration_divisor;
         weighted_target = target.y * target_weight;
-        correction = (target.y - old_y) * correction_weight;
-        new_y = (weighted_old + weighted_target + correction) * inverse_mass;
+        correction = target.y - old_y;
+        correction *= correction_weight;
+        new_y = weighted_old + weighted_target + correction;
         weighted_old = old_z * npc->acceleration_divisor;
         weighted_target = target.z * target_weight;
-        correction = (target.z - old_z) * correction_weight;
-        new_z = (weighted_old + weighted_target + correction) * inverse_mass;
+        correction = target.z - old_z;
+        correction *= correction_weight;
+        new_z = weighted_old + weighted_target + correction;
+        new_x *= inverse_mass;
+        new_y *= inverse_mass;
+        new_z *= inverse_mass;
 
         if ((reaction_fetch_current_flags(player_index) & 0x80) != 0) {
-            new_x *= 0.205f;
+            new_x = 0.205f * new_x;
             new_y = 0.2f;
-            new_z *= 0.205f;
+            new_z = 0.205f * new_z;
             npc->active |= 1;
             npc->swing_angle = 0.02f + frand(0.02f);
         } else if (npc->swing_angle != 0.0f || (unsigned short)randu0(100) < 80) {
