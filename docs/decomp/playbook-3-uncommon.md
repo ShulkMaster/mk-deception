@@ -285,6 +285,11 @@ width.
   at offset 0 in a register across a join while others reload. Copy, pun,
   index, plain pointer local put the local in memory but miss that CSE
   (`rnd_vector_from_point`, `rnd_point_in_disc`, `rnd_point_in_cylinder`).
+  Apply the immutable pointer at the actual complete operation boundary:
+  `npc_repel_against_global_collision_list` retains its target Vec through
+  the required-center cylinder initializer; `reset_player_collision` needs
+  that initial constructor, not a later sphere helper that adds reloads
+  after a call. `const T*` alone does not make the pointer immutable.
 
 ## M08
 
@@ -345,6 +350,13 @@ public APIs keep their documented `const`.
 
 - Coordinate loads moved before intervening stores: compare input qualifier
   with mutable caller objects (Krypt position inputs, Puzzle flesh path).
+- Aggregate initialization has the wrong copy schedule or saved-GPR range:
+  REQUIRE mutable caller objects and the same real initializer payload.
+  TRY dropping an unsupported root-input pointee `const` before judging
+  declaration-owned initialization neutral; remeasure the initializer form
+  after fixing that alias fact (`is_shape_in_frustum`: shape-type load across
+  six initialized vectors). Check all consumers and data sections; recovered
+  copy scheduling does not prove pooled initializer offsets.
 - Tables/counts reloaded after global stores: drop unsupported pointee
   `const` per input, update decls + callers (`SFD_SetMpvParaTbl`).
 - Read-only slot table at private helper: donor mutable-slot signature at that
@@ -458,6 +470,12 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   TRY moving that definition before functions, preserving every initializer
   (`p_credits_screen`, `ending_data_table`). Compare the full pool and table;
   this can remove an unsupported shared-base hoist and close other consumers.
+- Named stand-in pool with a real literal-pointer table: REQUIRE every
+  table target, first-use order, full pool bytes and consumer values.
+  TRY original individual table strings and formatter literals with the
+  measured object pooling policy (`gc_boot_space_check`, NBC table).
+  Preserve duplicates through normal compiler reuse; a giant indexed
+  literal macro does not recover individual producer ownership.
 - Unused inline body can still emit initializer data.
 - Terminal `gap_*`: check linker alignment first. `jmt`: retail split `gap_*`
   = final 4 bytes of `.data` + `.sdata2`; built sections stop at those
@@ -599,6 +617,13 @@ hierarchy, weak owner, sizes, order. Fix decls, zero slots, inline-visible
 dtors; verify weak emission with linked SHA. Don't duplicate deleting call's
 null guard.
 
+- Vtable address emits `li ...@sda21` where retail uses `lis`/`addi`: REQUIRE
+  ELF OBJECT binding, section and full table extent. A scalar pointer extern
+  misdescribes the table as a small object. TRY an array declaration with the
+  proven pointer-slot count, correcting duplicate declarations too
+  (`ScreenParticle::~ScreenParticle`, `mkScreenEngineClient::CreateInstance`).
+  Check every constructor/destructor and data section; do not guess a table
+  size or change the TU SDA threshold to compensate.
 - `extern "C" T f() {...}` needing implicit inline (struct copy assign,
   template instance) is deferred to end of `.text`; declare prototypes in
   `extern "C" { }` block, plain defs (`mwFileAsync`).

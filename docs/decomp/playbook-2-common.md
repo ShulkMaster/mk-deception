@@ -652,11 +652,15 @@ Loops. REQUIRE zero-trip behavior + test/update order.
   them -> degree levers only, never kind/decl order (`scan_switches`).
 - Retail `addi rB,h,i*size` once + member at big displacement (`lwz
   0x1318(rB)`), ours folds array offset into index (`(h+0x1308)+i*0x74`):
-  honest `&h->arr[i].f` / element pointer always folds the embedded-array
-  offset into the index. Retail form needs pointer value `h+i*size` with the
-  offset inside the pointee type (padded view cast). Hard stop unless the
-  original macro/view type is evidenced (`sfmps_DecodeOneUnit`,
-  `sfmps_ProcPrep`; RE4 used a cast macro). FE expression shape, not BE SR.
+  a named `&h->arr[i]` element view can fold the embedded-array offset into
+  the index. REQUIRE the canonical owner, actual field offsets and the full
+  load/store phase. TRY direct `h->arr[i].member` expressions across that
+  phase before declaring a missing padded view (`save_konq_memory_to_krd_
+  buffer`: NPC, PUI and event stores; `update_player_collision_nodes`).
+  If canonical direct indexing still cannot recover the retail owner, an
+  original macro/view type is missing evidence (`sfmps_DecodeOneUnit`,
+  `sfmps_ProcPrep`; RE4 used a cast macro); do not invent a padded view.
+  FE expression shape, not BE SR.
 
 ## H10
 
@@ -1279,6 +1283,14 @@ in one local (`margin = width; margin = (640 - margin) & ~1;`). mk-da: `bytes
 capacity becomes byte count then `&= ~127`; next-page ptr set from allocation
 then advanced. Never a second meaning or a copy of an in-scope value.
 
+- State getter/add/set, only ADD operands commute: REQUIRE retail keeps the
+  loaded state as accumulator and getter order is preserved. TRY
+  `state = GetState(...); state += delta; SetState(..., state);`, rather than
+  overwriting the delta with the sum (`SpreadSheet::HandleAction`, GC/2.7).
+  Removing an earlier single-use staging local can change later web order;
+  remeasure previously neutral accumulator forms after that supported owner
+  correction (N13). Do not introduce an extra copy or reorder getter calls.
+
 ## H27
 
 Statement order follows retail schedule `[da]`. IF loads, stores, or pointer
@@ -1294,6 +1306,13 @@ storing, advance cursors after stores, load node output ptr before size store
   revisions don't reproduce it (`mwMemHeapGetInfo`, `mwMemHeapGetParams`,
   `mwMemSystemSetParams`; mk-da `mwMemSystemSetParams` same const form).
 - Mechanism of the const form: M12 (alias fact, root pointer qualifier).
+- Invariant palette homes differ after explicit pre-loop byte snapshots:
+  REQUIRE a read-only palette, retail byte-store widths and a real existing
+  vertex-write site. TRY reading the palette at that site and let MWCC hoist
+  the loads; unsigned character access may express packed color object
+  representation without changing shared channel types. Early snapshots can
+  create different emission webs (`render_konquest_collision_obj`). Verify
+  every helper consumer; do not add aliases or change qualifiers to force it.
 - Loads hoisted in an order != store order, ordering/const forms neutral:
   scheduler priority = deadline, uncovering, height, pre-RA class (`mr` <
   store < ALU/`stwu` < load < `li`/`lis`), source order. Retail order from

@@ -8628,7 +8628,7 @@ static int mk_chess_handle_turn_timeout_scenerios(unsigned int side) {
     return 0;
 }
 
-/* TODO: [near miss] 99.91%; first two scale expansions swap width/center GPRs; stop at measured coloring ceiling. */
+/* TODO: [near miss] 99.911819%; two width/center-Y GPR pairs remain; measured owner alternatives leave coloring. */
 void mk_chess_timeout_msg(unsigned int message, unsigned int side)
 {
     char names[6][15] = {
@@ -11661,8 +11661,8 @@ void mk_chess_in_fight_setup(void) {
     g_game_info.plyr1.field_0C = 1.0f;
 }
 
-/* TODO: [near miss] 99.65%; first bonus-row expansion still rotates image/y/target
- * homes, plus FPR duration/delay load order; later expansions agree. */
+/* TODO: [near miss] 99.65%; bonus-row and fight geometry GPR homes plus delay
+ * conversion FPR homes differ; operations, calls and layouts agree. */
 void mk_chess_advantage_hud(void)
 {
     int count = 1;
@@ -16084,11 +16084,11 @@ void update_x_cursor_position(
     }
 }
 
-static inline float chess_dot_v2(const RwV2d* a, const RwV2d* b) {
+static inline float chess_dot_v2(const RwV2d* const a, const RwV2d* const b) {
     return a->x * b->x + a->y * b->y;
 }
 
-/* TODO: [breakthrough] 68.03%; planar dot products and abs ABI recovered; eight vector stores/frame and four rounding rows remain. */
+/* TODO: [near miss] 96.53%; vector storage, operations and CFG agree; stop at FPR coloring. */
 void mk_chess_set_viewing_quadrant(CameraObj* camera) {
     RwV2d facing;
     RwV2d direction;
@@ -16096,14 +16096,14 @@ void mk_chess_set_viewing_quadrant(CameraObj* camera) {
     RwV2d left;
     float left_dot;
 
+    direction.x = camera->frame->modelling.at.x;
+    facing.x = -camera->frame->modelling.right.x;
+    facing.y = -camera->frame->modelling.right.z;
+    direction.y = camera->frame->modelling.at.z;
     right.x = 1.0f;
     right.y = 0.0f;
     left.x = 0.0f;
     left.y = -1.0f;
-    direction.x = camera->frame->modelling.at.x;
-    direction.y = camera->frame->modelling.at.z;
-    facing.x = -camera->frame->modelling.right.x;
-    facing.y = -camera->frame->modelling.right.z;
     left_dot = chess_dot_v2(&direction, &left);
     if (left_dot > 0.0f) {
         if (left_dot > chess_dot_v2(&direction, &right)) {
