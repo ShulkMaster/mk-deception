@@ -1022,7 +1022,7 @@ static inline void ladder_create_player_with_slow_camera(PlyrInfo* opponent) {
     camera->speed = speed;
 }
 
-/* TODO: [near miss] 98.75%; shared arena-name latch improves CFG; table addressing and register homes remain. */
+/* TODO: [near miss] 98.77%; script-save homes agree; table addressing, arena-name latch temp and early store order remain. */
 float p_ladder_select(void) {
     int i;
     PlyrInfo* player;
@@ -1235,11 +1235,17 @@ float p_ladder_select(void) {
             else
                 script = opponent->slot.pdata->runtime_data->primary_script_24;
             if (script != 0) {
-                PlyrPdata* previous_player = plyr_pdata;
-                CmdScript* previous_script = active_cmdscript;
-                PlyrPdata* previous_opponent = his_pdata;
-                MkObj* previous_object = plyr_obj;
-                MkObj* previous_other_object = his_obj;
+                CmdScript* previous_script;
+                PlyrPdata* previous_player;
+                PlyrPdata* previous_opponent;
+                MkObj* previous_object;
+                MkObj* previous_other_object;
+
+                previous_player = plyr_pdata;
+                previous_script = active_cmdscript;
+                previous_opponent = his_pdata;
+                previous_object = plyr_obj;
+                previous_other_object = his_obj;
                 plyr_pdata = opponent->slot.pdata;
                 his_pdata = 0;
                 plyr_obj = opponent->slot.mirror_a;

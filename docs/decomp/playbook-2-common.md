@@ -1390,6 +1390,22 @@ top-level expansion. Lift a nested call to top level for the reverse.
 - Exemplar: `p_move_camera_and_open_coffin` (wrapper `show_coffin_award`,
   nested `place_visible_coffin_rows_from`, `award_koins(void)` owning entry;
   25 rows -> exact; 24 attempts and 3000+ permuter candidates missed it).
+- Lift for address-taken locals: IF two expansions of one helper show swapped
+  stack slots for an address-taken local (InvSqrt union scratch, GXColor),
+  REQUIRE retail's slot order = expansion creation order. TRY write the body
+  out at the call site (depth 1) instead of through the helper. Nesting moves
+  these locals to the LOWEST slots (GCSpecSkin GXColor 0x38 -> 0x14 regressed):
+  if retail pins them, rule nesting out. Exemplar:
+  `sh_update_blood_fall_pebbles` (both normalizes open-coded, inverse-first
+  products, `floor_y` local; 48 rows -> exact). Nest never helped when the
+  swapped values were call results, loop/emission temps, or inside one helper.
+- First expansion shows raw order: the first expansion of a repeated helper
+  takes fresh saved registers in pop order (exposes the helper's internal
+  numbering); later expansions reuse the lowest free register. IF only the
+  first call site rotates after the others match, a helper declaration swap
+  just moves the error to another expansion; TRY treating the first call site
+  as structurally different in retail (`mk_chess` schedule_bonus_row,
+  `GCSpecSkinLighting` upload_point_light).
 
 ## Traps
 

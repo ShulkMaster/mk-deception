@@ -2506,9 +2506,9 @@ static inline void mk_chess_schedule_bonus_row(char* name, int side,
     ChessSlideMessagePdata* slide;
     ScreenObj* image;
     int start_x = left_start;
-    int target_x;
     int y;
     int duration;
+    int target_x;
 
     image = load_named_2d_pfxobj(0xE003E, 0xC020, name, 0, 23);
     if (side == 1) {
@@ -11661,8 +11661,8 @@ void mk_chess_in_fight_setup(void) {
     g_game_info.plyr1.field_0C = 1.0f;
 }
 
-/* TODO: [near miss] 99.48%; retail CFG, calls, sizes and row types agree;
- * local GPR/FPR homes and multiplication operand lowering remain. */
+/* TODO: [near miss] 99.65%; first bonus-row expansion still rotates image/y/target
+ * homes, plus FPR duration/delay load order; later expansions agree. */
 void mk_chess_advantage_hud(void)
 {
     int count = 1;

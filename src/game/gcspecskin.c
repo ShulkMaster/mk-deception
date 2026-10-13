@@ -837,15 +837,16 @@ static void GCSpecSkinMaterial(struct SpecMesh* mesh, int alpha_pass) {
 static inline void FindGlobalLights(void) {
     struct SpecWorld* world;
     RwLLLink* link;
+    RwLLLink* end;
 
     pDirLight1 = 0;
     pDirLight2 = 0;
     pAmbLight = 0;
     world = RwEngineInstance->curWorld;
     if (world != 0) {
-        for (link = world->directional_lights.next;
-             link != &world->directional_lights;
-             link = link->next) {
+        link = world->directional_lights.next;
+        end = &world->directional_lights;
+        for (; link != end; link = link->next) {
             struct SpecLight* light = RW_CONTAINER_OF(link, struct SpecLight, in_world);
 
             if (light == 0) {
@@ -874,14 +875,15 @@ static inline void FindGlobalLights(void) {
 static inline void FindLocalLights(void) {
     struct SpecWorld* world;
     RwLLLink* link;
+    RwLLLink* end;
 
     pPointLight1 = 0;
     pPointLight2 = 0;
     world = RwEngineInstance->curWorld;
     if (world != 0) {
-        for (link = world->point_lights.next;
-             link != &world->point_lights;
-             link = link->next) {
+        link = world->point_lights.next;
+        end = &world->point_lights;
+        for (; link != end; link = link->next) {
             struct SpecLight* light = RW_CONTAINER_OF(link, struct SpecLight, in_world);
 
             if (light == 0) {
@@ -993,7 +995,7 @@ static inline void upload_directional_light(
     lighting->light_count++;
 }
 
-/* TODO: [near miss] 99.69%; FP and stack layout agree; GPR homes in the inlined FindGlobalLights/FindLocalLights loops and the first point-light upload index/object pair remain. */
+/* TODO: [near miss] 99.94%; only the point2 upload light_index/light_object homes swap (r25/r26); helper decl order flips it to the point1 upload. */
 static RpAtomic* GCSpecSkinLighting(
     RpAtomic* atomic, struct SpecLightingData* lighting) {
     RpMaterial* specular_material;

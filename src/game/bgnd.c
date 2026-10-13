@@ -11439,8 +11439,6 @@ static void sh_init_bottom_floor_blood_fall_pebbles(
         }
     }
 }
-/* TODO: [near miss] 99.59264%; loop owners and countdown agree; two sqrt
- * scratch homes and localized FPR/operand coloring remain; H15 stop. */
 static void sh_update_blood_fall_pebbles(
     PebbleData* pebble_data, int* active_splats, Vec* origin,
     float gravity) {
@@ -11468,12 +11466,20 @@ static void sh_update_blood_fall_pebbles(
                 unsigned short roll = randu0(100);
 
                 if (roll < 50) {
+                    float inverse_length;
+
                     control->state = 1;
                     control->position.y = origin->y - 9.5f - frand(1.0f);
                     control->velocity.y = 0.0f;
                     control->velocity.x = control->position.x - origin->x;
                     control->velocity.z = control->position.z - origin->z;
-                    sh_normalize_fatality_velocity(&control->velocity);
+                    inverse_length = gxMathFastInvSqrt(
+                        control->velocity.z * control->velocity.z +
+                        (control->velocity.x * control->velocity.x +
+                         control->velocity.y * control->velocity.y));
+                    control->velocity.x = inverse_length * control->velocity.x;
+                    control->velocity.y = inverse_length * control->velocity.y;
+                    control->velocity.z = inverse_length * control->velocity.z;
                     control->velocity.z = -(control->velocity.z >= 0.0f ?
                         control->velocity.z : -control->velocity.z);
                     control->velocity.x = 0.1f * control->velocity.x;
@@ -11486,6 +11492,8 @@ static void sh_update_blood_fall_pebbles(
                     control->angles.z = sfrand(1.0f);
                     control->angle_degrees = frand(360.0f);
                 } else if (roll == 99 && *active_splats < 3) {
+                    float inverse_length;
+
                     control->state = 2;
                     (*active_splats)++;
                     sh_place_blood_pebble(control, origin);
@@ -11494,7 +11502,13 @@ static void sh_update_blood_fall_pebbles(
                     control->velocity.x = -control->position.x;
                     control->velocity.z = 1.0f;
                     control->velocity.y = 0.0f;
-                    sh_normalize_fatality_velocity(&control->velocity);
+                    inverse_length = gxMathFastInvSqrt(
+                        control->velocity.z * control->velocity.z +
+                        (control->velocity.x * control->velocity.x +
+                         control->velocity.y * control->velocity.y));
+                    control->velocity.x = inverse_length * control->velocity.x;
+                    control->velocity.y = inverse_length * control->velocity.y;
+                    control->velocity.z = inverse_length * control->velocity.z;
                     control->velocity.x = 0.06f * control->velocity.x;
                     control->velocity.z = 0.06f * control->velocity.z;
                     control->velocity.y = -frand(0.05f) - 0.05f;
@@ -11516,6 +11530,8 @@ static void sh_update_blood_fall_pebbles(
                 &pebble_data->pebbles[index].matrix, &control->angles,
                 control->angle_degrees, &control->scale, &control->position);
         } else if (control->state == 1) {
+            float floor_y;
+
             control->velocity.x *= 0.97f;
             if ((control->lifetime -= 1.0f) <= 0.0f) {
                 control->state = 0;
@@ -11525,11 +11541,12 @@ static void sh_update_blood_fall_pebbles(
                 control->angle_degrees = frand(360.0f);
                 control->angle_step = 3.0f + frand(5.0f);
             }
-            if (control->position.y < origin->y - 9.1f) {
+            floor_y = origin->y;
+            if (control->position.y < floor_y - 9.1f) {
                 if (control->velocity.y < 0.0f) {
                     control->velocity.y *= -0.4f;
                 }
-            } else if (control->position.y > origin->y - 8.9f) {
+            } else if (control->position.y > floor_y - 8.9f) {
                 if (control->velocity.y > 0.0f) {
                     control->velocity.y *= -0.4f;
                 }

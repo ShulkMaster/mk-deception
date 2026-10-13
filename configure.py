@@ -781,7 +781,7 @@ config.libs = [
                 source="runtime/qsort.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/printf.o",
                 source="runtime/printf.c",
             ),
@@ -856,7 +856,7 @@ config.libs = [
                 source="runtime/locale.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/string.o",
                 source="runtime/string.c",
             ),
@@ -957,10 +957,10 @@ config.libs = [
             Object(Matching, "debug_file.o", source="runtime/debug_file.c"),
             Object(NonMatching, "mk_cmdscript.o", source="runtime/mk_cmdscript.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-str reuse,pool,readonly"]),
-            Object(NonMatching, "script_functions.o", source="runtime/script_functions.c",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
+            Object(Matching, "script_functions.o", source="runtime/script_functions.c",
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly"]),
             Object(NonMatching, "mk_hwfile.o", source="runtime/mk_hwfile.c",
-                   extra_cflags=["-inline off,deferred", "-use_lmw_stmw on", "-O4,s"]),
+                   extra_cflags=["-inline on,noauto,deferred", "-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "mk_fileinfo.o", source="runtime/mk_fileinfo.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-str reuse,pool,readonly"]),
             Object(Matching, "pakfile.o", source="runtime/pakfile.c"),
@@ -994,7 +994,7 @@ config.libs = [
                    extra_cflags=["-use_lmw_stmw on"]),
             Object(Matching, "joy.o", source="platform/joy.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(Matching, "MovieConfig.o", source="movie/MovieConfig.cpp"),
-            Object(NonMatching, "MovieManager.o", source="movie/MovieManager.cpp",
+            Object(Matching, "MovieManager.o", source="movie/MovieManager.cpp",
                    extra_cflags=["-use_lmw_stmw on", "-inline noauto,deferred", "-O4,s"]),
             Object(NonMatching, "MovieManagerGC_Disp.o", source="movie/MovieManagerGC_Disp.cpp", extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline noauto,deferred"]),
             Object(NonMatching, "MkMovies.o", source="movie/MkMovies.cpp",
@@ -1073,7 +1073,7 @@ config.libs = [
             Object(NonMatching, "hashtable.o", source="runtime/hashtable.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "section_config.o", source="runtime/section_config.c"),
-            Object(NonMatching, "section_slot_file.o", source="runtime/section_slot_file.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s", "-inline noauto"]),
+            Object(Matching, "section_slot_file.o", source="runtime/section_slot_file.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s", "-inline noauto"]),
             Object(NonMatching, "section.o", source="runtime/section.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s"]),
             Object(NonMatching, "asset.o", source="runtime/asset.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
@@ -1197,10 +1197,10 @@ config.libs = [
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
             Object(NonMatching, "gcmcardmsg.o", source="platform/gcmcardmsg.c",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-opt nocse"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-opt nocse", "-inline noauto,deferred"]),
             Object(NonMatching, "gcio.o", source="platform/gcio.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
-            Object(NonMatching, "disc_error.o", source="platform/disc_error.c",
+            Object(Matching, "disc_error.o", source="platform/disc_error.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-str", "reuse,pool,readonly"]),
             Object(NonMatching, "gcutils.o", source="platform/gcutils.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-common off",
@@ -1214,7 +1214,7 @@ config.libs = [
             Object(NonMatching, "pselect.o", source="game/pselect.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "cloth.o", source="game/cloth.c",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline noauto,deferred"]),
             Object(NonMatching, "weapon.o", source="game/weapon.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
@@ -1235,7 +1235,7 @@ config.libs = [
             Object(NonMatching, "konquest_nav.o", source="game/konquest_nav.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(Matching, "display.o", source="platform/display.c", extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "jdn.o", source="game/jdn.c", extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
-            Object(NonMatching, "mk_render.o", source="runtime/mk_render.c",
+            Object(Matching, "mk_render.o", source="runtime/mk_render.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "konquest_save.o", source="game/konquest_save.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
@@ -1757,10 +1757,7 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdlib.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdlib.c",
-                extra_cflags=[
-                    "-sdata", "0", "-sdata2", "0",
-                    "-str", "reuse,readonly", "-use_lmw_stmw", "on",
-                ],
+                extra_cflags=["-sdata", "0", "-sdata2", "0", "-str", "reuse,readonly", "-use_lmw_stmw", "on", "-inline", "noauto,deferred"],
             ),
             Object(
                 NonMatching,
@@ -1838,12 +1835,7 @@ config.libs = [
                 NonMatching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_vlc.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_vlc.c",
-                extra_cflags=[
-                    "-sdata 0",
-                    "-inline noauto",
-                    "-use_lmw_stmw on",
-                    '-pragma "force_active on"',
-                ],
+                extra_cflags=["-sdata 0", "-inline noauto,deferred", "-use_lmw_stmw on", "-pragma \"force_active on\""],
             ),
             Object(
                 Matching,
@@ -1874,7 +1866,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_dec.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_dec.c",
                 extra_cflags=[
@@ -2109,7 +2101,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on", "-sdata 0"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_mpvf.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_mpvf.c",
             ),
@@ -2268,7 +2260,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on", "-O4,s"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileXPHandle.o",
                 source="mw/mwFileXPHandle.cpp",
                 extra_cflags=["-use_lmw_stmw on", "-O4,s"],
@@ -2586,7 +2578,7 @@ config.libs = [
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/pfx_memory.o",
                 source="libmkparticle/pfx_memory.c",
-                extra_cflags=["-schedule off", "-inline noauto", "-opt nopeephole"],
+                extra_cflags=["-schedule off", "-inline noauto", "-opt nopeephole", "-pragma \"opt_propagation off\"", "-pragma \"optimize_for_size on\""],
             ),
             Object(
                 Matching,
@@ -2684,7 +2676,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-schedule off", "-opt nopeephole"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/vm_initialize.o",
                 source="libmkparticle/vm_initialize.c",
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
@@ -2696,10 +2688,10 @@ config.libs = [
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/behavior.o",
                 source="libmkparticle/behavior.c",
-                extra_cflags=["-O4,s", "-inline off", "-schedule off"],
+                extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
             ),
             Object(
                 NonMatching,
@@ -2735,7 +2727,7 @@ config.libs = [
                 NonMatching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/gc_2d.o",
                 source="libmkparticle/gc_2d.c",
-                extra_cflags=["-use_lmw_stmw on", "-schedule off", "-fp_contract off"],
+                extra_cflags=["-use_lmw_stmw on", "-schedule off", "-fp_contract off", "-pragma \"optimize_for_size on\""],
             ),
             Object(
                 Matching,
@@ -3015,7 +3007,7 @@ config.libs = [
     DolphinLib(
         "vm",
         [
-            Object(NonMatching, "vm.a/VM.o", source="libmkparticle/VM.c"),
+            Object(Matching, "vm.a/VM.o", source="libmkparticle/VM.c"),
             Object(
                 Matching,
                 "vm.a/VMPageReplacement.o",

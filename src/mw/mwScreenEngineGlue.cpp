@@ -3833,7 +3833,7 @@ void HandleEvent__11SpreadSheetFP9ScreenMgrii(SpreadSheet* self, void* mgr, int 
     }
 }
 
-/* TODO: [near miss] 99.84%; 25 rows of row-index/visible-count coloring and add operand order remain; stop at coloring. */
+/* TODO: [near miss] 99.86%; row-state cases keep the row index in r26 (retail r27) and four adds commute; capture graph next. */
 int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, ScreenMgr* mgr,
                                                             const ScreenAction* action) {
     ScreenParams* params;
@@ -3846,7 +3846,6 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, S
     int columnIndex;
     int state;
     int lhs;
-    int vis;
     void* node;
 
     arg = action->m_arg;
@@ -3936,13 +3935,13 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, S
         SpreadSheetCompareSubActions(self, action, state, p1, p2);
         break;
     case 0x53500008:
-        vis = self->unkEC - self->unkD4;
-        if (self->cols < vis) {
-            vis = self->cols;
+        rowIndex = self->unkEC - self->unkD4;
+        if (self->cols < rowIndex) {
+            rowIndex = self->cols;
         }
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, action, vis, p0, p1);
+        SpreadSheetCompareSubActions(self, action, rowIndex, p0, p1);
         break;
     case 0x53500009:
         rowIndex = self->unkDC - self->unkD4;
@@ -4035,13 +4034,13 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, S
         SpreadSheetCompareSubActions(self, action, state, p1, p2);
         break;
     case 0x53500038:
-        vis = self->unkE8 - self->scrollX;
-        if (self->rows < vis) {
-            vis = self->rows;
+        rowIndex = self->unkE8 - self->scrollX;
+        if (self->rows < rowIndex) {
+            rowIndex = self->rows;
         }
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, action, vis, p0, p1);
+        SpreadSheetCompareSubActions(self, action, rowIndex, p0, p1);
         break;
     case 0x5350003A:
         columnIndex = self->scrollY;
@@ -6936,8 +6935,6 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
     int resource;
     unsigned char* colorBytes;
     float colorScale[4];
-    unsigned int textColor;
-    unsigned int savedTextColor;
 
     params = action->m_params;
     if (params == 0) {
@@ -6988,6 +6985,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         {
             ScreenText* text;
             StringObj* live;
+            unsigned int textColor;
 
             text = (ScreenText*)GetScreenObject__12ScreenParamsFUi(params, 0);
             ScreenColor colorValue = params->GetColor(1);
@@ -7047,6 +7045,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
             char* name;
             char* string;
             int activeIndex;
+            unsigned int savedTextColor;
 
             text = (ScreenText*)GetScreenObject__12ScreenParamsFUi(params, 0);
             name = GetName__12ScreenParamsFUi(params, 1);

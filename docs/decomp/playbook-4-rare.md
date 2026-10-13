@@ -212,7 +212,11 @@ After the applicable honest source check, stop at:
     locals/results (reverse source; NESTED inline expansions number below all
     top-level ones, H30) < plain emission temps (forward). A named
     local assigned once from a `?:` or an inline result is propagated away and
-    lives on as that temp. Multi-def local: 2nd webs from in-place copy
+    lives on as that temp.
+    Levers measured: a named terminator local for list walks (`link = l.next;
+    end = &l; for (; link != end; ...)`) replaces the loop-invariant compare
+    temp (`GCSpecSkinLighting` 39 -> 8 rows); inline-helper locals number
+    forward in declaration order (`mk_chess` schedule_bonus_row, -27 rows). Multi-def local: 2nd webs from in-place copy
     (`x = src; x = c(x) ? x : 0`) number forward; direct `x = c ? src : 0`
     webs number in reverse source order (`p_fish_attack`). Coalesced
     temp-temp copy (helper `c = type` with a temp argument) = never-pushed
