@@ -265,15 +265,19 @@ def emit_gcmcardmsg(elf: Elf32) -> dict[str, str]:
     ) + "\n"
     relocs = elf.relocations(".data")
     lines = ["/* Generated gc_mc_msg_text: 145 entries, five languages each. */"]
+    literal_lines = lines.copy()
     for offset in range(table.value, table.value + table.size, 4):
         reloc = relocs.get(offset)
         if (reloc is None or reloc.type != R_PPC_ADDR32 or reloc.symbol.name != pool.name
                 or not 0 <= reloc.addend < pool.size or b"\0" not in data[reloc.addend:]):
             raise ValueError(f"gcmcardmsg.o: invalid text relocation at 0x{offset:X}")
         lines.append(f"    &stringBase0[0x{reloc.addend:X}],")
+        end = data.index(b"\0", reloc.addend)
+        literal_lines.append(f"    {c_string(data[reloc.addend:end])},")
     return {
         "platform/gcmcardmsg_stringBase0.inc": pool_text,
         "platform/gcmcardmsg_text.inc": "\n".join(lines) + "\n",
+        "platform/gcmcardmsg_text_literals.inc": "\n".join(literal_lines) + "\n",
     }
 
 
@@ -633,8 +637,8 @@ def generate(object_root: Path) -> dict[str, str]:
             if relative in outputs:
                 raise ValueError(f"duplicate generated path: {relative}")
             outputs[relative] = contents
-    if len(outputs) != 14:
-        raise AssertionError(f"expected 14 generated includes, got {len(outputs)}")
+    if len(outputs) != 15:
+        raise AssertionError(f"expected 15 generated includes, got {len(outputs)}")
     return outputs
 
 

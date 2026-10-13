@@ -126,7 +126,9 @@ allocation or compiler layout.
   manager +0xD8). No padded view or magic-offset owner cast.
 - Wrong owner even at unchanged score: sparse overlay with padding standing in
   for pointers, sibling-type view, pointer in 32-bit int. Breaks wide-pointer
-  builds. Use canonical typed slot/owner.
+  builds. Use canonical typed slot/owner. Two padded views of one timer can
+  also change member-load scheduling; use the shared timer's existing fields
+  after checking every offset (`sfmpv_IsSkip`).
 - Aggregate extent (+H14): address-taken aggregate, prefix right, retail frame
   bigger -> REQUIRE donor type or callee ABI + exact stack extent. Tail goes in
   the type with size assert, never padding local (`CFT_YCC420PLN` in
@@ -185,6 +187,34 @@ allocation or compiler layout.
 
 Signedness, narrowing. REQUIRE loads, callers, arithmetic range.
 
+- Signed word clamp emits a select where retail keeps two arms/reloads:
+  REQUIRE canonical field and local types, including integer rank, plus the
+  bound's type. TRY restoring CRI `Sint32` as signed `long` and the original
+  `int` bound in `len < 3 ? len : 3` (`sfmpv_GetActiveSize`,
+  `sfmpv_NeedSafeDlmRefresh`). Equal-width `int` and `long` are not interchangeable
+  to MWCC. For array bounds, `(int)sizeof(array)` preserves the signed int
+  constant without a magic extent (`adxsjd_decode_prep`). Recheck every header
+  consumer; a long-cast bound or cached clamp can change the CFG again.
+- CRI validation keeps a field live where retail reloads it after buffer
+  checks: REQUIRE donor `Sint32` rank and the same field offsets, loop and
+  guards. TRY canonical signed `long` parameter fields plus validation
+  result/index and unsigned `long` pointer-word checks (`sfmpv_InitInf`).
+  The missing load can already be absent in initial pcode; recheck every
+  header consumer instead of adding volatile or synthetic aliasing effects.
+- CRI source agrees with a donor but a pooled-string base trades registers
+  with a size field: REQUIRE the donor's actual `Sint32` definition and
+  matching field widths/offsets. TRY restoring signed `long` across the
+  private record, primitive parameters and arithmetic locals
+  (`sjrbf_GetChunk`). Restore sibling locals too: mixed `long` fields and
+  `int` intermediates can regress otherwise exact consumers. Check all
+  consumers and literal bytes before blaming string-pool spelling.
+- CRI padding size trades registers with its sample count: REQUIRE the donor's
+  callback typedef and both provider signatures, not just local widths. TRY
+  restoring `GetChunk` channel/length to signed `long` with the signed byte
+  accumulator (`ADXSJD_ExecHndl`). Check all header consumers: restore the
+  minimum's byte-count field and callback-length locals to their canonical
+  rank; retain a donor call-site expression instead of a separate size local
+  when that is the original ownership. Reject any collateral regression.
 - Transition mask: outer + repeat-loop copies coalesce, retail keeps both.
   REQUIRE local is bits, every value to signed callee fits. TRY unsigned mask
   local, keep canonical prototype + nonempty guard (`pz_fighter_laugh`, mask
@@ -253,9 +283,16 @@ Bits. REQUIRE storage width, bit position, every use.
   (`flags_bits.konquest_mode = 1`); live r3 const = insert input, not arg.
   `li 0` + `rlwimi` at distinct positions = separate field clears; keep store
   order + reloads.
+- `stb; extrwi` from the just-written byte, then a second byte RMW: REQUIRE
+  the second field consumes the first assignment's value. TRY the genuine
+  chain `dst_bit = src_bit = value`; GC2.7 extracts a consumed bitfield
+  assignment result, whereas separate store/reread can fold into a bit copy
+  (`start_protect_effect`). Preserve right-to-left store order.
 - `lwz` + `clrlwi 24` = low numeric byte, not byte at address.
 - `extrwi.` of one flag, or extract + Boolean normalize: existing bitfield
-  keeps normalization raw mask erases.
+  or `(flags >> bit) & 1` keeps normalization a raw mask erases
+  (`ScreenActionCheckOnline::Update`). Preserve scalar storage and lazy reads
+  guarded by the flag.
 - Mask-then-shift: assign whole expression to decoded value.
 - Keep packed sign/flag bits to last consumer; mask only the address.
 - Index masks vs allocation extent (VM dirty-page LUT = 13-bit index); per
@@ -292,9 +329,22 @@ boundary.
   verify writable caller inputs + related setter signatures; bogus pointee
   const hoists all source loads before dest stores
   (`camera_set_center_of_rotation`). Keep genuine const (M12).
+- Caller guard reuses a field as an inlined helper's first call argument,
+  but candidate reloads it: REQUIRE no intervening store/call, mutable caller
+  records and independent evidence for the helper's mutable pointer API.
+  TRY removing unsupported pointee const consistently through private helper
+  declarations and forwarding callers (`sfmpv_GetActiveSize`, `sfmpv_GoDdelim`).
+  Top-level pointer const is a different change; do not apply it as a substitute.
 - Pre-call snapshots: loads right before call -> typed locals at that
   boundary, one at a time (`sfmpv_DecodePicAtr`). Distinct reads across
   intervening calls, not one long alias.
+- Asynchronous counter reload: REQUIRE a registered interrupt/thread writer
+  chain and repeated retail reads of the same field. TRY `volatile` on the
+  canonical member, checking every includer; keep a separate genuine snapshot
+  when retail captures it across conversion (`SFTIM_IsGetFrmTimeTunit`:
+  registered VSync thread reaches `sftim_VbInHn`, which updates the frame
+  clock). A matching reload alone is insufficient evidence; never qualify
+  only an access cast or unrelated timer fields.
 - CRI frame slot reloaded after publication + after conversion call: access
   slot directly; frame local only across conversion (`sfmpv_CalcRepeatField`).
 - Independent field reads between two inlined switches: typed copies at that
@@ -344,6 +394,12 @@ boundary.
 Retained value or address. REQUIRE shared uses + unchanged ownership
 interval. Reject redundant aliases, identity wrappers, permuter residue.
 
+- Table base is copied or rebuilt between an inlined busy scan and service
+  loop: REQUIRE the same actual table and vendor evidence for both helper
+  boundaries. TRY indexing `table[i]` in both helpers and passing the same
+  owner expression (`gcCiReqRd`). An advancing scan cursor can prevent the
+  shared base from surviving into the service loop. Keep the service index
+  in its real helper; check the separate public server and all consumers.
 - Trailing buffered overlap computes byte difference before adding dest:
   REQUIRE bounds proving offset + same copy length. TRY `destination +
   (length - overlap)`; left-assoc pointer math can shift adjacent 64-bit temp
@@ -468,11 +524,22 @@ settings. Verify emitted calls, helper symbols, every consumer.
 - Moving a body: canonical decls must precede it (no implicit int). One fixed
   edge can expose another auto-inline; nested helpers -> final caller before
   callee when retail needs the call.
+- Visible template body under `-inline noauto`, retail expands its complete
+  operation but source still calls it: REQUIRE the same base operation,
+  standalone body and derived consumers. TRY explicit `inline` on that
+  existing definition (`mwFileXPReadBufferedCommand::isA`); check every
+  instantiation, emission order, named BSS owners and vtable relocations.
 - No-setting control proves a pragma is needed.
 - Donor/private helper may exist only as inlined island; extract when retail
   groups a whole loop + publications (`sfmps_UpdateStreamBounds`). Unrolled
   clear + folded status tail = status-returning helper (`MPS_Init`); stop if
   every honest form erases dead retail branches.
+- Scalar and record-based timer entries: REQUIRE the donor's complete shared
+  timing operation, identical policy/call order, and the record entry's actual
+  value/scale ownership. TRY the full private timing helper plus a complete
+  record-taking entry helper (`SFTIM_IsGetFrmTime`); retain proven asynchronous
+  reads (H05), verify both entries and all consumers. Do not extract a single
+  reload, invent an alias, or add a lifetime solely to change register homes.
 - Wrapper loads endpoint, compares with itself before shared inlined loop:
   REQUIRE same clamp in sibling wrappers + same loop. TRY endpoint through
   existing inline clamp before loop (`ani_to_end`, `animpdata_ani_to_end`).
@@ -484,6 +551,12 @@ settings. Verify emitted calls, helper symbols, every consumer.
   isolated diagnostic; proves expansion, not retail pragma values. Typed
   inline helper over macro when macro changes ref ownership or stack. TU
   limit = M13.
+- GC2.7 bottom-up cost reports `too_big` at configured maximum + 1:
+  REQUIRE checking nested inline depth and eligibility before treating that
+  number as measured body size. A nested eligible call with no remaining
+  depth can return this sentinel (`basic_string::append(const char*)`).
+  Inspect the complete producer and existing definition placement first;
+  raising the size limit does not resolve a depth rejection.
 - Predicate/selection helpers (+H11):
   - Retail keeps classified values across lazy queries, reloads at admission,
     queue mutation, breakout: REQUIRE full policy decisions/effects, same
@@ -556,8 +629,15 @@ settings. Verify emitted calls, helper symbols, every consumer.
 - Retained object + returned effect handle swap saved regs: REQUIRE same
   effect selection, position query, publication in sibling consumers. TRY
   typed inline owning whole operation, passing real object snapshot
-  (`flash_hit_at_bid_with_y`). Wrapper around snapshot load only != proven
-  boundary.
+  (`flash_hit_at_bid_with_y`). If an existing helper already owns selection,
+  allocation, nested effect setup and publication, expose its unchanged body
+  before the consumer and reuse the complete operation
+  (`mk_chess_cell_hide`, `mk_chess_start_special_cell`). Check its standalone
+  body and every consumer. Wrapper around snapshot load only != proven boundary.
+  Reuse it at EVERY phase doing the operation; one-phase reuse leaves
+  allocation residue. Pass a real field address (`&p->hit_script_index`) so the
+  read defers into the validated arm (`p_projectile_downward`: one snapshot
+  helper at ground + hit -> exact).
 
 ## H08
 
@@ -583,7 +663,8 @@ Latch diamond. REQUIRE null-before-instance reads, no call between.
 - Repeated object slots: reuse accessors, reload owner after each effectful
   call.
 - Source merges null arms, retail separate: `return object;` on valid,
-  `return 0;` in each failure arm (`reaction_xfer_him`, `get_mission_state`).
+  `return 0;` in each failure arm (`reaction_xfer_him`, `get_mission_state`,
+  `ScreenModel::Render`).
   Measure per owner.
 - Retail folds member offsets into loads where source forms `&array[i]`:
   inline helper taking owner + index (`fighter_severed_limb_live_object`).
@@ -673,6 +754,9 @@ Switch. REQUIRE full finite case/default/fallthrough set + text order.
   tree (`mem_card_read`: CARD_RESULT_NOPERM, CARD_RESULT_LIMIT).
 - Recover case order, shared tails, nested switches, where each default is
   emitted.
+- Sparse action dispatch with a shared result: REQUIRE retail result def/use
+  and all case targets. TRY one result initialized before the switch, changed
+  by the default, and returned after the join (`ImageList::HandleAction`).
 - Small ordered hardware-ID sequence can be `if`/`else if` chain
   (`InitMetroTRKCommTable`); two adjacent priority cases can need real
   `switch` (`ARQPostRequest`).
@@ -697,6 +781,12 @@ Switch. REQUIRE full finite case/default/fallthrough set + text order.
   shared-exit branch: REQUIRE real zero sentinel, kept lookup/null order. TRY
   two-arm `switch`, attachment in `default`, direct `case 0` failure return
   (`replace_sobj_texture_with_named_wiff`); no extra cases, no dead return.
+- One-bit visibility dispatch has `beq` into the complete visible operation
+  and a separate branch to the hidden exit, while an early-return guard or
+  positive `if` loses that exit before allocation: REQUIRE the proven bitfield
+  and unchanged operation/effects. TRY a singleton `switch` with `case 0`
+  owning the complete visible operation; the implicit default renders nothing
+  (`ScreenText::Render`). No extra cases, empty arms, or artificial state.
 - Jump-table layout: edit raising `.text` but lowering `.data` moved case
   addresses; reject (`mk_chess_set_game_mode`).
 - Float const loaded once at join: one return after chain, early returns
@@ -816,6 +906,11 @@ successor, keep save-next, clear-header, destroy order.
 Stack slots + store order. REQUIRE real address-taken locals, offsets,
 lifetimes.
 
+- Mutex pointer remains in a GPR, retail stores it in a stack owner across
+  lock, protected call and unlock: REQUIRE an existing guard with the same
+  constructor/destructor calls and lifetime. TRY that real RAII guard around
+  the complete operation (`mwFileMultithreadedMemTraits::allocate`); check
+  every return and sibling. Do not create an address escape or dummy slot.
 - -O4: address-taken locals slotted in reverse decl order. Reverse decls when
   retail runs other way; size real buffer from frame gap once max write fits
   (`p_setup_konquest_map`).
@@ -1046,6 +1141,11 @@ guard: REQUIRE canonical predicate body, same call order. TRY `== 0` instead
 of `!`; MWCC can keep inline Boolean boundary
 (`pselect_update_profile_settings`).
 
+Retail normalizes a canonical `bool` argument before an `int` callback:
+REQUIRE the mangled input ABI, callback type, and configured TU size mode.
+TRY explicit `flag ? 1 : 0` at that boundary; direct forwarding can omit
+`subic`/`subfe` (`_mwFileTickEx`). Check every sibling; see M01 for mode evidence.
+
 Inverse: retail branches directly from lazy call tests into the consumer,
 but an inline predicate adds `li 1/0; cmpwi`. REQUIRE identical call order
 and effects; TRY expanding the short-circuit condition only at that consumer,
@@ -1087,6 +1187,12 @@ Helper locals and web kind.
   phase repeated by other callers. TRY typed inline owning zeroing + sentinel
   init incl index (`bleed_init`). Naming only element/base may not reproduce
   helper-local allocation. Keep every store; check consumers when sharing.
+- Visible-slot search preheader schedules manager load before index zero:
+  REQUIRE an existing helper owns the same first-hit removal, counters and
+  visibility flag. TRY reuse that whole operation (`npc_make_invisible`).
+  Trace the index: named caller ownership can produce two pre-schedule LIs;
+  inline ownership permits LI/MR and later coalescing. Preserve manager
+  reloads after stores and the helper's other consumers.
 - Guarded player/start owners swap volatile regs: REQUIRE same canonical
   background fields, angle-copy slots, player reload after position store. TRY
   real per-player round-start helper owning angle `Vec` + background
@@ -1097,6 +1203,12 @@ Helper locals and web kind.
   runtime owner, single-use index passed directly (`fx_restart_emit`). Both as
   expressions folds runtime offset into later loads; both named restores
   wrong pair.
+- Cursor/owner volatile homes swap: REQUIRE trace preserves both operations
+  from `initial` to `presched`, cursor is a named caller local below the
+  common-owner temporary, and one complete selection/publication phase owns
+  it. TRY typed inline helper owning that phase and its cursor; preserve the
+  lazy manager selection, indexed cell address and publication before calls
+  (`mk_chess_show_spell_hud`). Do not add aliases or extract only a load.
 - Operation's retained owner loads via temp before moving to saved reg:
   REQUIRE operation snapshots real owner handle once, keeps it across
   callbacks. TRY owner's address to typed inline owning whole operation,
@@ -1107,6 +1219,12 @@ Helper locals and web kind.
   invariant, no calls/stores in search. TRY reading owner's bound directly in
   indexed loop, no named count (`cloth_bones_init_by_tbl`). Changes bound's
   web kind, keeps CTR loop; check shared helper consumers.
+- Repeated state tests swap a named state snapshot with a shared owner GPR:
+  REQUIRE trace shows the named snapshot below the owner temporary, and no
+  calls or aliasing stores between the early tests. TRY direct canonical
+  field reads for those tests; retain the separate snapshot taken after
+  callbacks (`ani_to_frame_x_col`). Confirm the compiler still emits one
+  early field load and preserves every later reload.
 - Inlined helper loop's fresh locals color above loop temps, retail reuses
   dead outer regs: open-code + reuse existing locals; MWCC colors reused
   local's 2nd web after loop temps (`AddRequestingCS_ByThread`).
@@ -1124,6 +1242,19 @@ Helper locals and web kind.
   (`save_konq_common_data_to_buffer`). Verify one owner/object load, null
   guard before instance read, snapshot placement across earlier calls, shared
   consumers. No getter, no mode change to keep aliases.
+- Two auxiliary-object latches share an owner across the first hide store:
+  REQUIRE retail keeps that owner, while direct global expressions add a
+  reload and a named local swaps owner/result homes. TRY one typed inline
+  owning both validations and hide stores, with the owner passed once
+  (`init_fatality_world`). Trace named owner vs ternary-result web kinds;
+  preserve each lazy instance check and store, not just the pointer loads.
+- An array's secondary object alone takes the wrong saved home after a load
+  loop: REQUIRE both objects are published, then passed to creation calls in
+  fixed order, and trace identifies the secondary as a CSE owner. TRY one
+  typed inline owning both publications and both calls, passing the two
+  objects directly (`pz_fighter_load_and_place_initial_burn`). Follow the
+  unit's existing registration helpers; preserve both snapshots across calls.
+  An array-index getter alone does not express this operation.
 - One re-resolved 2nd web of a multi-def object local takes the next-lower
   saved reg (retail reuses the reg of its other webs): REQUIRE same latch ops,
   capture shows that web numbered above the sibling webs. TRY direct
@@ -1179,6 +1310,13 @@ Helper locals and web kind.
   inline owning the plane-heading conversion, then subtract current heading
   in the caller (`bl_process_beetle_climb_a_wall`). Caller angle locals may
   retain the swap; do not replace division with a precomputed scale.
+- Inverse-square-root input/result FPRs swap in a heading calculation:
+  REQUIRE an existing typed squared-length helper implements the identical
+  component expression and another matched caller already uses it. TRY that
+  helper as the inverse-square-root argument (`retarget_projectile`). Trace
+  the input and result webs separately; preserve fused arithmetic, zero/NaN
+  handling and all velocity stores. Naming a scalar sum or extracting the
+  whole heading phase may leave the wrong input web unchanged.
 - Nav-hint sign-bit temporary swaps with owner pointer: REQUIRE unsigned
   sign-mask expression and no changed owner reloads. TRY removing the helper's
   named unsigned alias, computing directly from its parameter
@@ -1194,6 +1332,12 @@ Helper locals and web kind.
   TRY typed inline traversal helper saving and returning next after destruction
   (`hide_tile_objects`). This changes the saved pointer's helper-local web.
   Measure each consumer; the same return-next boundary regresses `unhide_tile`.
+- Owner snapshot alone miscolored in a duplicated named-effect spawn: REQUIRE
+  an existing API with the same lookup/bind/reset/resume sequence and owner
+  read before lookup. TRY one complete inline implementation shared by that
+  API and the caller (`fatality_explode_victim`, `pfx_spawn_at_bid`). The inline
+  object parameter changes the owner web. Preserve public definition order;
+  a forward call may not inline. Check the public wrapper and all consumers.
 
 - Repeated record-rebasing phase swaps index/base regs: REQUIRE same record
   count, serialized-offset fields, global reloads and field-store order. TRY
@@ -1282,6 +1426,12 @@ in one local (`margin = width; margin = (640 - margin) & ~1;`). mk-da: `bytes
 = samples * 2; bytes *= track; code += bytes;` keeps shift/mul operand order;
 capacity becomes byte count then `&= ~127`; next-page ptr set from allocation
 then advanced. Never a second meaning or a copy of an in-scope value.
+
+- Increment published to state and reused after a call: REQUIRE retail keeps
+  the advanced local in place and all uses denote the same index. TRY
+  `state->index = ++index`; a separate unused post-increment followed by the
+  store can propagate an add temp and recompute it after the call
+  (`do_pfx_bleed`, GC/2.7). Keep the update, store and validation order.
 
 - State getter/add/set, only ADD operands commute: REQUIRE retail keeps the
   loaded state as accumulator and getter order is preserved. TRY
@@ -1376,6 +1526,19 @@ add a dummy zero local.
 - CSE never shares across a call (`bl` kills the chain) and never involves
   registers made by strength reduction / CTR conversion (above the window):
   `li; li` beside `mtctr` after SR is normal.
+- Reset index and pointer clears need one zero: REQUIRE trace shows a named
+  index LI outside the coalesce window and separate pointer-zero LIs inside.
+  TRY one inline owning the complete arena reset, including traversal and
+  counters (`hdrlessHeapResetHeap`). Its real index can supply the clears
+  after value numbering; never cast the index to a null pointer in source.
+  Inline locals number opposite named locals: trace before adjusting their
+  declaration order, and check nested alignment operands and all consumers.
+- Both zeros belong to one pointer/instance latch: TRY the existing canonical
+  `MkHdrLatch`, reset its fields together before creation, capture `&proc->hdr`
+  and its instance, and validate with `MK_LIVE`. Scalar-replaced fields become
+  `@` owners inside the window: confirm two LIs in `initial` become LI/MR in
+  `presched` (`konquest_hero_portal_in`). Keep actual null-check and call/store
+  order; do not invent a record for unrelated constants or add a zero helper.
 - Exemplar: `p_create_profile` (PIN-entry loop open-coded at both sites,
   block-scoped `int i` per cancel branch; `scan_profile_code` declares
   `cursor` before `i`; dead helper deleted). Same lever: `cftyp422_ppc`
@@ -1425,6 +1588,12 @@ top-level expansion. Lift a nested call to top level for the reverse.
   just moves the error to another expansion; TRY treating the first call site
   as structurally different in retail (`mk_chess` schedule_bonus_row,
   `GCSpecSkinLighting` upload_point_light).
+- Unload cursor alone takes a dead sound-pointer home: REQUIRE trace shows
+  sibling stop/unload expansions and retail preserves the same effects. TRY
+  one complete stop-and-unload helper owning the unload loop, with the
+  active-sound walk nested (`mslBankUnLoad`). A wrapper delegating both loops
+  may be neutral. Keep a callback's separate phases when combining them
+  rotates its longer-lived bank/response owners; check both entry points.
 
 ## Traps
 

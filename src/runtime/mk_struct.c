@@ -262,7 +262,8 @@ void discard_mkptrs(MkPtr* head) {
     }
 }
 
-/* TODO: [near miss] 99.19%; structure matches via the UNLINK/DESTROY/RECYCLE macros; only the next/prev volatile register choice is swapped. */
+/* TODO: [near miss] 99.19%; successor CSE precedes named unlink locals;
+ * eight next/prev register rows remain; stop without new ownership evidence. */
 void destroy_mkptrs(MkPtr* head) {
     MkPtr* next;
 

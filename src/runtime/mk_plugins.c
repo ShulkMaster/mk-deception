@@ -15,6 +15,8 @@ int MksobjLocalOffset = -1;
 int MkmaterialGlobalOffset = -1;
 int MkmaterialLocalOffset = -1;
 int ColorSetGeometryOffset = -1;
+int last_pipeline_used;
+int curr_pipeline_used;
 int ColorSetInstances;
 
 static void* ColorSetGeometryCopy(void* destination, const void* source, int offset, int size);

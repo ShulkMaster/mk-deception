@@ -1029,7 +1029,8 @@ ScreenObj* insert_2d_obj(ScreenObj* obj) {
     return obj;
 }
 
-/* TODO: [near miss] 99.07%; retail keeps bne+b at the last engine-vtable check where this source folds to one beq. */
+/* TODO: [breakthrough needed] 99.07%; engine-selection diamond folds before allocation;
+ * recover the dynamic-cast boundary that retains bne+b without a pointer copy. */
 ScreenObj* insert_string_obj(ScreenObj* obj) {
     MkPtr* ptr;
     MkPtr* next;
