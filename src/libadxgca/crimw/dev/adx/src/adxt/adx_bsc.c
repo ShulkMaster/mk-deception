@@ -211,7 +211,7 @@ void ADXB_ExecHndl(AdxBasicDecoderExt* decoder)
     }
 }
 
-/* TODO: [near miss] 99.80%; RE4 byte-offset PL2 loop matches; round-up sum and trailing count swap r23/r26. */
+/* TODO: [near miss] 99.80%; shared round-up numerator and trailing count swap r23/r26; stop at coloring. */
 void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
 {
     AdxBasicDecoder* base = &decoder->base;

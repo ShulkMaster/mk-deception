@@ -9,7 +9,6 @@
 #include "runtime/mk_obj_bone.h"
 #include "runtime/mk_struct.h"
 #include "runtime/mk_obj_lists.h"
-#include "runtime/mk_obj_bone.h"
 #include "game/weapon_types.h"
 
 typedef struct  {
@@ -495,6 +494,7 @@ void atomic_set_transl_flag(RpAtomic* atomic);
 void obj_set_rw_lights(MkObj* obj);
 void force_rw_lights(void);
 struct PlyrPdata;
+struct MkProc* create_mkproc_headtracking(int pid, MkObj* object, struct PlyrPdata* target);
 void mirror_guy(MkObj* source, MkObj* mirror, struct PlyrPdata* pdata);
 void render_fgnd_mkobjs(void);
 extern unsigned int uploaded_light_state;

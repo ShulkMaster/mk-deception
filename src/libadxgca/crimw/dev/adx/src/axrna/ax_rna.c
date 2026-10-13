@@ -101,7 +101,7 @@ static inline int axrna_get_play_switch(const AXRNAHandle* handle)
     return (handle->switches >> 1) & 1;
 }
 
-static inline int axrna_get_transfer_switch(const AXRNAHandle* handle)
+static inline int axrna_get_transfer_switch(AXRNAHandle* handle)
 {
     if (handle == 0) {
         return -1;
@@ -168,21 +168,22 @@ void AXRNA_SetBitPerSmpl(AXRNAHandle* handle, int bits)
     }
 }
 
-void AXRNA_SetOutPan(AXRNAHandle* handle, int channel, int pan)
+void AXRNA_SetOutPan(AXRNAHandle* handle, long channel, long pan)
 {
     AXVPB* voice;
+    long clamped_pan;
 
     if (handle != 0) {
         if (channel < handle->allocated_channels) {
-            pan = pan < 15 ? pan : 15;
-            pan = pan > -15 ? pan : -15;
-            if (pan != handle->output_pan[channel]) {
-                handle->output_pan[channel] = pan;
+            clamped_pan = pan < 15 ? pan : 15;
+            clamped_pan = clamped_pan > -15 ? clamped_pan : -15;
+            if (clamped_pan != handle->output_pan[channel]) {
+                handle->output_pan[channel] = clamped_pan;
                 GCRNA_LockCs();
                 voice = handle->voices[channel];
                 if (voice != 0) {
                     MIXSetPan(
-                        voice, axrna_pan_tbl[pan + 15]);
+                        voice, axrna_pan_tbl[clamped_pan + 15]);
                 }
                 GCRNA_UnlockCs();
             }
@@ -551,58 +552,60 @@ void AXRNA_SetPlaySw(AXRNAHandle* handle, int enabled)
     GCRNA_UnlockCs();
 }
 
-/* TODO: [breakthrough] 86.71%; positive outer guard recovered; inline wait prechecks and retry-loop lowering differ. */
+/* TODO: [near miss] 95.16%; counted retry loops recovered; delay prechecks fold away. */
 void AXRNA_SetTransSw(AXRNAHandle* handle, int enabled)
 {
     int channel;
     int retry;
 
     if (handle != 0 && enabled != axrna_get_transfer_switch(handle)) {
-    if (enabled == 1) {
-        GCRNA_LockCs();
-        for (channel = 0; channel < handle->num_channels; channel++) {
-            handle->buffers[channel]->interface->reset(handle->buffers[channel]);
-            memset(&handle->input_chunks[channel], 0, sizeof(SJCK));
-            memset(&handle->buffer_chunks[channel], 0, sizeof(SJCK));
-            memset(&handle->requests[channel], 0, sizeof(ARQRequest));
-            handle->transfer_pending[channel] = 0;
+        if (enabled == 1) {
+            GCRNA_LockCs();
+            for (channel = 0; channel < handle->num_channels; channel++) {
+                handle->buffers[channel]->interface->reset(handle->buffers[channel]);
+                memset(&handle->input_chunks[channel], 0, sizeof(SJCK));
+                memset(&handle->buffer_chunks[channel], 0, sizeof(SJCK));
+                memset(&handle->requests[channel], 0, sizeof(ARQRequest));
+                handle->transfer_pending[channel] = 0;
+            }
+            handle->transfer_samples = 0;
+            handle->transfer_position = 0;
+            handle->flash_samples = 0;
+            handle->flash_position = 0;
+            handle->play_position = -1;
+            handle->switches |= 1;
+            GCRNA_UnlockCs();
+            return;
         }
-        handle->transfer_samples = 0;
-        handle->transfer_position = 0;
-        handle->flash_samples = 0;
-        handle->flash_position = 0;
-        handle->play_position = -1;
-        handle->switches |= 1;
-        GCRNA_UnlockCs();
-        return;
-    }
-    if (enabled == 0) {
-        for (channel = 0; channel < handle->num_channels; channel++) {
-            retry = 0;
-            while (handle->transfer_pending[channel] != 0 && retry < 200) {
-                axrna_wait(100000);
-                retry++;
+        if (enabled == 0) {
+            for (channel = 0; channel < handle->num_channels; channel++) {
+                for (retry = 0; retry < 200; retry++) {
+                    if (handle->transfer_pending[channel] == 0) {
+                        break;
+                    }
+                    axrna_wait(100000);
+                }
+                if (retry == 200) {
+                    RNAERR_CallErrFunc(
+                        "E2071701:DMA transfer(data) to A-RAM did not finish.\n");
+                    return;
+                }
+                for (retry = 0; retry < 200; retry++) {
+                    if (handle->flash_pending[channel] == 0) {
+                        break;
+                    }
+                    axrna_wait(100000);
+                }
+                if (retry == 200) {
+                    RNAERR_CallErrFunc(
+                        "E2071701:DMA transfer(flash) to A-RAM did not finish.\n");
+                    return;
+                }
             }
-            if (retry == 200) {
-                RNAERR_CallErrFunc(
-                    "E2071701:DMA transfer(data) to A-RAM did not finish.\n");
-                return;
-            }
-            retry = 0;
-            while (handle->flash_pending[channel] != 0 && retry < 200) {
-                axrna_wait(100000);
-                retry++;
-            }
-            if (retry == 200) {
-                RNAERR_CallErrFunc(
-                    "E2071701:DMA transfer(flash) to A-RAM did not finish.\n");
-                return;
-            }
+            handle->switches &= 2;
+        } else {
+            RNAERR_CallErrFunc("E1070308:Illigal parameter(sw).\n");
         }
-        handle->switches &= 2;
-    } else {
-        RNAERR_CallErrFunc("E1070308:Illigal parameter(sw).\n");
-    }
     }
 }
 
@@ -632,9 +635,7 @@ void AXRNA_Destroy(AXRNAHandle* handle)
     memset(handle, 0, sizeof(AXRNAHandle));
 }
 
-/* TODO: [breakthrough] 94.352142%; unsigned loops and allocator-result flow recovered;
- * inline pan clamps still fold farther than retail. */
-AXRNAHandle* AXRNA_Create(SJ** inputs, int max_channels)
+AXRNAHandle* AXRNA_Create(SJ** inputs, long max_channels)
 {
     AXRNAHandle* handle;
     unsigned int handle_index;

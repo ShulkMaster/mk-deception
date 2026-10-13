@@ -19,6 +19,7 @@ extern "C" {
 #include "movie/MkMovies.h"
 #include "mwScreenEngine/GameVariables.h"
 #include "mwScreenEngine/ScreenMgr.h"
+#include "mwScreenEngine/ScreenSet.h"
 #include "mwScreenEngine/ScreenAction.h"
 #include "mwScreenEngine/ScreenMiscAction.h"
 #include "mwScreenEngine/ScreenParams.h"
@@ -58,6 +59,7 @@ extern "C" {
 #include "game/pfxscript.h"
 #include "rw/rwframe.h"
 #include "runtime/mk_mem.h"
+#include "math/mk_math.h"
 
 #pragma use_lmw_stmw on
 
@@ -66,7 +68,6 @@ void Free__10ScreenUtilFPv(void* p);
 void __ct__17ScreenMatrixStackFv(void* self);
 void __dt__17ScreenMatrixStackFv(void* self, short del);
 void __dl__FPv(void* p);
-void MKMatrixTranslate(void* matrix, float* delta, int combine);
 int is_controller_removed(void);
 
 int ReadHexInt__10ScreenUtilFPc(char* s);
@@ -592,10 +593,10 @@ static int screen_engine_is_deferred(void) {
 }
 
 static void drain_paused_studio_events(void) {
-    int i;
+    int* flags_ptr;
     PausedStudioEvent* base;
     PausedStudioEvent* entry;
-    int* flags_ptr;
+    int i;
     int flags;
 
     i = 0;
@@ -806,14 +807,13 @@ static const char* const s_stringLangFolders[6] = {
     stringBase0 + 0x0,
 };
 
-extern void* __vt__10ScreenPoly;
 void ReadStringData__20mkScreenEngineClientFP9ScreenSetPvUi(void* this_unused,
                                                               void* set,
                                                               char* data,
                                                               unsigned int size);
 
 int LoadScreenSet__20mkScreenEngineClientFP9ScreenSet(ScreenEngineClient* client,
-                                                     void* set);
+                                                     ScreenSet* set);
 
 static void ApplyPolyTextureFilter(RwTexture* tex, unsigned int useLinear) {
     RwTextureFilterView* view;
@@ -1587,7 +1587,7 @@ int HandleAction__9ImageListFP9ScreenMgrPC12ScreenAction(ImageList* self,
                                                          void* mgr,
                                                          const void* actionIn);
 
-void ProcessParams__9ImageListFP12ScreenParams(ImageList* self, void* params);
+void ProcessParams__9ImageListFP12ScreenParams(ImageList* self, ScreenParams* params);
 
 extern void* __vt__8KeyEntry;
 extern void __dt__13ScreenControlFv(void* self, short del);
@@ -1705,10 +1705,10 @@ void screen_engine_process_events(void) {
     Idle__9ScreenMgrFi(screen_manager, 0);
 }
 
-/* TODO: [breakthrough needed] 85.28%; drain-loop initialization and generic deferred flag packing codegen differ. */
+/* TODO: [breakthrough needed] 86.34%; drain-loop initialization and generic deferred flag packing codegen differ. */
 int broadcast_screen_studio_event(int event, int flag) {
     int deferred;
-    int i;
+    int i = 0;
     PausedStudioEvent* base;
     PausedStudioEvent* entry;
     int* flags_ptr;
@@ -1722,7 +1722,7 @@ int broadcast_screen_studio_event(int event, int flag) {
 
     if (deferred == 0) {
         base = paused_event_queue;
-        for (i = 0; i < 12;) {
+        for (; i < 12;) {
             entry = &base[i];
             if (entry->event == 0) {
                 break;
@@ -1754,7 +1754,7 @@ int broadcast_screen_studio_event(int event, int flag) {
     return 1;
 }
 
-/* TODO: [near miss] 94.04%; retail keeps &entry->flags in a saved register (r24) across the event calls; ours stores via entry+4. */
+/* TODO: [breakthrough] 94.64%; flags-field reference matches retail; flush index/offset zero sharing and preheader schedule remain. */
 void fire_screen_studio_event(int event, int flag) {
     int deferred;
     int i;
@@ -1772,16 +1772,17 @@ void fire_screen_studio_event(int event, int flag) {
             if (entry->event == 0) {
                 break;
             }
-            if (entry->flags < 0) {
+            int& entry_flags = entry->flags;
+            if (entry_flags < 0) {
                 BroadcastEvent__9ScreenMgrFiii(screen_manager, entry->event,
-                                               entry->flags == -1, 0);
+                                               entry_flags == -1, 0);
             } else {
                 FireEvent__9ScreenMgrFiiUi(screen_manager, entry->event,
-                                           entry->flags & 0xFF,
-                                           (entry->flags >> 8) & 0xFF);
+                                           entry_flags & 0xFF,
+                                           (entry_flags >> 8) & 0xFF);
             }
             entry->event = 0;
-            entry->flags = 0;
+            entry_flags = 0;
         }
     }
 
@@ -1813,14 +1814,12 @@ void vdestroy_screen_engine(MkHdr* hdr) {
     mkhdr_memfree(hdr);
 }
 
+/* TODO: [near miss] 99.35%; shared suppression return recovered; pad base and flag byte use swapped GPR homes. */
 float p_handle_screen_engine_controller__Fv(void) {
     ScreenCtrlPdata* ctrl;
-    GameInfo* gi;
-    char* pad_base;
     PlyrInfo* player;
     int plyr_idx;
     int port;
-    int pad_off;
     unsigned char flags;
     unsigned int edge;
 
@@ -1833,22 +1832,18 @@ float p_handle_screen_engine_controller__Fv(void) {
         return kSleepOne;
     }
 
-    gi = &g_game_info;
-    if (((gi->pause_flags >> 1) & 1) == 0) {
-        port = ctrl->port;
-        pad_off = port * GC_PAD_SLOT_STRIDE;
-        pad_base = (char*)gi + pad_off;
-        flags = *(unsigned char*)(pad_base + GC_PAD_SLOTS_OFF);
-        if (((flags >> 7) & 1) == 0) {
-            if (((flags >> 6) & 1) != 0) {
-                player = *(PlyrInfo**)(pad_base + 0x184);
-                if (player != 0) {
-                    plyr_idx = player->controller_slot;
-                }
-                edge = *(unsigned int*)((char*)&g_game_info + pad_off + 0x190);
-                screen_engine_fire_switches(port, edge, plyr_idx);
-            }
+    if (((g_game_info.pause_flags >> 1) & 1) != 0 ||
+        (port = ctrl->port,
+         (((flags = *(unsigned char*)&g_game_info.pads[port]) >> 7) & 1) != 0)) {
+        return kSleepOne;
+    }
+    if (((flags >> 6) & 1) != 0) {
+        player = g_game_info.pads[port].player;
+        if (player != 0) {
+            plyr_idx = player->controller_slot;
         }
+        edge = g_game_info.pads[port].edge;
+        screen_engine_fire_switches(port, edge, plyr_idx);
     }
     return kSleepOne;
 }
@@ -2291,14 +2286,15 @@ void pause_screen_engine(int paused) {
     pause_screen_engine_proc = paused;
 }
 
+/* TODO: [near miss] 99.30%; event-drain counter, entry and flags-pointer homes differ. */
 float p_screen_engine_tick__Fv(void) {
     ScreenMgr* mgr;
     int dt;
     int deferred;
-    int rr;
+    float rr;
 
     rr = refresh_rate();
-    dt = kMsPerSec / (float)rr;
+    dt = kMsPerSec / rr;
 
     mgr = (ScreenMgr*)screen_manager;
     if (mgr->m_activeCount < 0) {
@@ -3350,7 +3346,8 @@ void Update__17SpreadSheet_imageFv(SpreadSheet_image* self) {
     FireEvent__12ScreenObjectFP9ScreenMgriiUi(self, screen_manager, 0x53500002, 0, 0);
 }
 
-/* TODO: [breakthrough] 75.91%; font linkage/lifetime corrected; recover remaining control flow and calls. */
+/* TODO: [breakthrough] 75.30%; string-matrix owner and null compare agree;
+ * recover remaining callback reloads and control flow. */
 void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
     int x;
     int y;
@@ -3376,7 +3373,7 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
             ((void (*)(void*, int))((void**)text->vtbl)[7])(text, 0);
         }
     }
-    if (self->unk11C == 0) {
+    if (self->strings == 0) {
         return;
     }
     visibleRows = self->unkE8;
@@ -3407,7 +3404,7 @@ void Update__16SpreadSheet_textFv(SpreadSheet_text* self) {
                     color[2] = live->pfx.instance0.rgba[2];
                     color[3] = live->pfx.instance0.rgba[3];
                     update_string_obj_pfx(
-                        live, text->font, ((char**)self->unk11C)[source]);
+                        live, text->font, self->strings[source]);
                     pfxfont_set_string_color(&live->pfx,
                                              (unsigned int*)color);
                 }
@@ -3535,9 +3532,8 @@ void ClearContents__17SpreadSheet_imageFv(SpreadSheet_image* self) {
     }
 }
 
-/* TODO: [breakthrough] 82.5088%; font linkage/lifetime corrected; recover remaining control flow and calls. */
+/* TODO: [near miss] 99.98%; empty-string pool offset remains (0x123 versus retail 0x1C8). */
 void ClearContents__16SpreadSheet_textFv(SpreadSheet_text* self) {
-    int i;
     int count;
     ScreenText* text;
     StringObj* live;
@@ -3547,28 +3543,19 @@ void ClearContents__16SpreadSheet_textFv(SpreadSheet_text* self) {
     if (self->unk118 == 0) {
         return;
     }
-    i = 0;
-    while (i < count) {
+    for (int i = 0; i < count; i++) {
         text = self->unk118[i];
         if (text != 0) {
-            live = text->stringObj;
-            if (live != 0) {
-                if (live->instance != (unsigned int)text->stringObjInstance) {
-                    live = 0;
-                }
-            } else {
-                live = 0;
-            }
+            live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
             if (live != 0) {
                 color[0] = live->pfx.instance0.rgba[0];
                 color[1] = live->pfx.instance0.rgba[1];
                 color[2] = live->pfx.instance0.rgba[2];
                 color[3] = live->pfx.instance0.rgba[3];
-                update_string_obj_pfx(live, text->font, stringBase0 + 0x1C8);
+                update_string_obj_pfx(live, text->font, "");
                 pfxfont_set_string_color(&live->pfx, (unsigned int*)color);
             }
         }
-        i++;
     }
 }
 
@@ -3593,15 +3580,15 @@ void AllocateCollection__17SpreadSheet_imageFv(SpreadSheet_image* self) {
 void AllocateCollection__16SpreadSheet_textFv(SpreadSheet_text* self) {
     FreeStringCollection__22GameVariableDispatcherFUiUiPPcUi(
         m_pGameVariables__13ScreenControl, self->m_pad9C,
-        self->m_collectionId, (char**)self->unk11C,
+        self->m_collectionId, self->strings,
         self->unkE8 * self->unkEC);
-    self->unk11C = 0;
+    self->strings = 0;
     self->unkEC =
         GetStringMatrixCollection__22GameVariableDispatcherFUiUiPPPcRi(
             m_pGameVariables__13ScreenControl,
             self->m_pad9C,
             self->m_collectionId,
-            (char***)&self->unk11C, &self->unkE8);
+            &self->strings, &self->unkE8);
 }
 
 void RefreshCollection__11SpreadSheetFv(SpreadSheet* self) {
@@ -3741,14 +3728,10 @@ void ScrollLeft__11SpreadSheetFi(SpreadSheet* self, int delta) {
     ((ScreenControl*)self)->Update();
 }
 
-/* TODO: [near miss] 99.00%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
 void ScrollUp__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int rem;
 
-    if (self->cellArray == 0) {
-        return;
-    }
-    if (self->unkEC < 1) {
+    if (self->cellArray == 0 || self->unkEC < 1) {
         return;
     }
     if (delta >= self->unkEC) {
@@ -3785,14 +3768,12 @@ void ScrollUp__11SpreadSheetFi(SpreadSheet* self, int delta) {
     ((ScreenControl*)self)->Update();
 }
 
-/* TODO: [near miss] 94.26%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
+/* TODO: [near miss] 95.41%; empty-sheet guard matches; window-position calculation staging remains. */
 void ScrollDown__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int winMax;
+    int position_in_window;
 
-    if (self->cellArray == 0) {
-        return;
-    }
-    if (self->unkEC < 1) {
+    if (self->cellArray == 0 || self->unkEC < 1) {
         return;
     }
     winMax = self->cols - 1;
@@ -3800,8 +3781,9 @@ void ScrollDown__11SpreadSheetFi(SpreadSheet* self, int delta) {
         delta = delta % self->unkEC;
     }
     self->unkDC += delta;
+    position_in_window = self->unkDC - self->unkD4;
     if (self->unkDC < self->unkEC) {
-        if (self->unkDC - self->unkD4 >= self->cols) {
+        if (position_in_window >= self->cols) {
             self->unkD4 = self->unkDC - winMax;
         }
     } else if (self->flagF0 != 0) {
@@ -3851,7 +3833,7 @@ void HandleEvent__11SpreadSheetFP9ScreenMgrii(SpreadSheet* self, void* mgr, int 
     }
 }
 
-/* TODO: [near miss] 99.84%; 25 rows of row-index/visible-count coloring and add operand order remain; stop at coloring. */
+/* TODO: [near miss] 99.86%; row-state cases keep the row index in r26 (retail r27) and four adds commute; capture graph next. */
 int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, ScreenMgr* mgr,
                                                             const ScreenAction* action) {
     ScreenParams* params;
@@ -3864,7 +3846,6 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, S
     int columnIndex;
     int state;
     int lhs;
-    int vis;
     void* node;
 
     arg = action->m_arg;
@@ -3954,13 +3935,13 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, S
         SpreadSheetCompareSubActions(self, action, state, p1, p2);
         break;
     case 0x53500008:
-        vis = self->unkEC - self->unkD4;
-        if (self->cols < vis) {
-            vis = self->cols;
+        rowIndex = self->unkEC - self->unkD4;
+        if (self->cols < rowIndex) {
+            rowIndex = self->cols;
         }
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, action, vis, p0, p1);
+        SpreadSheetCompareSubActions(self, action, rowIndex, p0, p1);
         break;
     case 0x53500009:
         rowIndex = self->unkDC - self->unkD4;
@@ -4053,13 +4034,13 @@ int HandleAction__11SpreadSheetFP9ScreenMgrPC12ScreenAction(SpreadSheet* self, S
         SpreadSheetCompareSubActions(self, action, state, p1, p2);
         break;
     case 0x53500038:
-        vis = self->unkE8 - self->scrollX;
-        if (self->rows < vis) {
-            vis = self->rows;
+        rowIndex = self->unkE8 - self->scrollX;
+        if (self->rows < rowIndex) {
+            rowIndex = self->rows;
         }
         p0 = GetInt__12ScreenParamsFUi(params, 0);
         p1 = GetInt__12ScreenParamsFUi(params, 1);
-        SpreadSheetCompareSubActions(self, action, vis, p0, p1);
+        SpreadSheetCompareSubActions(self, action, rowIndex, p0, p1);
         break;
     case 0x5350003A:
         columnIndex = self->scrollY;
@@ -4147,6 +4128,7 @@ void FinishSetup__17SpreadSheet_imageFP12ScreenParamsi(
     }
 }
 
+/* TODO: [breakthrough needed] 67.16%; latch joins and setup load/store scheduling remain. */
 void FinishSetup__16SpreadSheet_textFP12ScreenParamsi(
     SpreadSheet_text* self, void* params, int nodeIndex) {
     int i;
@@ -4170,14 +4152,7 @@ void FinishSetup__16SpreadSheet_textFP12ScreenParamsi(
         text = (ScreenText*)GetScreenNode__12ScreenParamsFUi(
             params, nodeIndex);
         self->unk118[i] = text;
-        live = text->stringObj;
-        if (live != 0) {
-            if (live->instance != (unsigned int)text->stringObjInstance) {
-                live = 0;
-            }
-        } else {
-            live = 0;
-        }
+        live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
         if (live == 0) {
             self->cellColors[i * 4 + 0] = text->seData->color[0];
             self->cellColors[i * 4 + 1] = text->seData->color[1];
@@ -4286,14 +4261,12 @@ void ProcessParams__11SpreadSheetFP12ScreenParams(SpreadSheet* self, ScreenParam
 }
 
 void Dispose__17SpreadSheet_imageFv(SpreadSheet_image* self) {
-    typedef void (*ClearContents)(void*);
-
     if (self->unk118 != 0) {
         Free__10ScreenUtilFPv(self->unk118);
         self->unk118 = 0;
     }
     if (self->unk120 != 0) {
-        (*(ClearContents**)self)[0x58 / 4](self);
+        self->ClearContents();
         FreeTextureCollection__22GameVariableDispatcherFUiiP15GMTextureInfo_t(
             m_pGameVariables__13ScreenControl,
             self->m_gvContext, self->m_collectionId,
@@ -4305,8 +4278,6 @@ void Dispose__17SpreadSheet_imageFv(SpreadSheet_image* self) {
 }
 
 void Dispose__16SpreadSheet_textFv(SpreadSheet_text* self) {
-    typedef void (*ClearContents)(void*);
-
     if (self->unk118 != 0) {
         Free__10ScreenUtilFPv(self->unk118);
         self->unk118 = 0;
@@ -4315,15 +4286,15 @@ void Dispose__16SpreadSheet_textFv(SpreadSheet_text* self) {
         Free__10ScreenUtilFPv(self->cellColors);
         self->cellColors = 0;
     }
-    if (self->unk11C != 0) {
-        (*(ClearContents**)self)[0x58 / 4](self);
+    if (self->strings != 0) {
+        self->ClearContents();
         FreeStringCollection__22GameVariableDispatcherFUiUiPPcUi(
             m_pGameVariables__13ScreenControl,
             self->m_gvContext,
             self->m_collectionId,
-            (char**)self->unk11C,
-            self->rows * self->cols);
-        self->unk11C = 0;
+            self->strings,
+            self->unkE8 * self->unkEC);
+        self->strings = 0;
     }
     Dispose__13ScreenControlFv(self);
 }
@@ -4867,6 +4838,7 @@ void Init__8TextItemFv(TextItem* self) {
 
 DEFINE_SCREEN_CONTROL_DTOR(__dt__8TextItemFv, __vt__8TextItem)
 
+/* TODO: [near miss] 96.33%; event-guard branch joins remain after canonical object latch. */
 void HandleEvent__8WifImageFP9ScreenMgrii(WifImage* self, void* mgr, int event,
                                           int arg) {
     ScreenPoly* poly;
@@ -4878,14 +4850,7 @@ void HandleEvent__8WifImageFP9ScreenMgrii(WifImage* self, void* mgr, int event,
         return;
     }
     poly = self->statusNode;
-    live = poly->screenObj;
-    if (live != 0) {
-        if (live->instance != poly->screenObjInstance) {
-            live = 0;
-        }
-    } else {
-        live = 0;
-    }
+    live = MK_LIVE(poly->screenObj, poly->screenObjInstance);
     if (live == 0) {
         return;
     }
@@ -4937,17 +4902,26 @@ void Init__8WifImageFv(WifImage* self) {}
 
 DEFINE_SCREEN_CONTROL_DTOR(__dt__8WifImageFv, __vt__8WifImage)
 
-/* TODO: [breakthrough needed] 63.93%; typed row indexing and font linkage in place; linked-poly lowering remains. */
+static inline void text_list_format_option(char* destination, int value) {
+    char scratch[10];
+    int i;
+
+    for (i = 0; i < sizeof(scratch); i++) {
+        scratch[i] = 0x20;
+    }
+    sprintf(scratch, stringBase0 + 0x1e5, value, 0);
+    for (i = 0; i < sizeof(scratch); i++) {
+        destination[i] = scratch[i];
+    }
+}
+
+/* TODO: [breakthrough] 67.23%; shared option formatter recovered; linked-poly lowering and row traversal remain. */
 void Update__8TextListFv(TextList* self) {
     int atEnd;
     int found;
     int i;
     int idx;
     int strIdx;
-    char* dst;
-    char scratch[10];
-    char* p;
-    int n;
     ScreenText* text;
     StringObj* live;
     ScreenPoly* link;
@@ -4963,19 +4937,19 @@ void Update__8TextListFv(TextList* self) {
         return;
     }
     if (self->strings == 0 &&
-        !(self->collectionId == -1 && self->optionId == -1)) {
+        !(self->m_collectionId == -1 && self->m_optionId == -1)) {
         RefreshCollection__8TextListFi(self, 0);
         if (m_pGameVariables__13ScreenControl != 0) {
             self->focusMax = GetInt__22GameVariableDispatcherFUiUi(
-                m_pGameVariables__13ScreenControl, self->pad9C,
-                self->optionId);
+                m_pGameVariables__13ScreenControl, self->m_pad9C,
+                self->m_optionId);
             for (;;) {
                 if (IsValidInt__22GameVariableDispatcherFUiUiUiUii(
                         m_pGameVariables__13ScreenControl,
-                        self->gvContext,
-                        self->collectionId,
-                        self->pad9C,
-                        self->optionId, self->focusMax) != 0) {
+                        self->m_gvContext,
+                        self->m_collectionId,
+                        self->m_pad9C,
+                        self->m_optionId, self->focusMax) != 0) {
                     break;
                 }
                 atEnd = 1;
@@ -4990,25 +4964,9 @@ void Update__8TextListFv(TextList* self) {
                     break;
                 }
             }
-            if (self->collectionId == -1 && self->optionId != -1) {
+            if (self->m_collectionId == -1 && self->m_optionId != -1) {
                 if (self->strings != 0) {
-                    dst = self->strings[0];
-                    p = scratch;
-                    n = 0xa;
-                    do {
-                        *p = 0x20;
-                        p += 1;
-                        n -= 1;
-                    } while (n != 0);
-                    sprintf(scratch, stringBase0 + 0x1e5, self->focusMax);
-                    p = scratch;
-                    n = 0xa;
-                    do {
-                        *dst = *p;
-                        p += 1;
-                        dst += 1;
-                        n -= 1;
-                    } while (n != 0);
+                    text_list_format_option(self->strings[0], self->focusMax);
                 }
                 self->focusMax = 0;
                 self->stringCount = 1;
@@ -5112,7 +5070,7 @@ void Update__8TextListFv(TextList* self) {
     }
 }
 
-/* TODO: [near miss] 98.29269%; Update is a real virtual call; Free/Get and window-scan scheduling remain. */
+/* TODO: [near miss] 98.78%; Update is a real virtual call; window-scan counter/stringCount GPR homes remain. */
 void RefreshCollection__8TextListFi(TextList* self, int doUpdate) {
     char** oldStrings;
     unsigned int oldCount;
@@ -5124,19 +5082,19 @@ void RefreshCollection__8TextListFi(TextList* self, int doUpdate) {
     if (m_pGameVariables__13ScreenControl == 0) {
         return;
     }
-    if (self->collectionId == -1) {
+    if (self->m_collectionId == -1) {
         return;
     }
     ClearStrings__8TextListFv(self);
     oldStrings = self->strings;
     oldCount = self->stringCount;
     FreeStringCollection__22GameVariableDispatcherFUiUiPPcUi(
-        m_pGameVariables__13ScreenControl, self->gvContext,
-        self->collectionId, oldStrings, oldCount);
+        m_pGameVariables__13ScreenControl, self->m_gvContext,
+        self->m_collectionId, oldStrings, oldCount);
     self->strings = 0;
     count = GetStringCollection__22GameVariableDispatcherFUiUiPPPc(
-        m_pGameVariables__13ScreenControl, self->gvContext,
-        self->collectionId, &self->strings);
+        m_pGameVariables__13ScreenControl, self->m_gvContext,
+        self->m_collectionId, &self->strings);
     self->stringCount = count & 0xffff;
     if (self->stringCount >= 0) {
         if (self->focusMax < 0) {
@@ -5146,11 +5104,10 @@ void RefreshCollection__8TextListFi(TextList* self, int doUpdate) {
             self->focusMax = self->stringCount - 1;
         }
         if (self->stringCount != 0) {
-            found = 0;
-            i = 0;
+            found = i = 0;
             while (i < self->itemCount) {
                 idx = self->focusIndex + i;
-                idx = idx - (idx / self->stringCount) * self->stringCount;
+                idx -= (self->focusIndex + i) / self->stringCount * self->stringCount;
                 if (idx == self->focusMax) {
                     found = 1;
                     break;
@@ -5171,28 +5128,24 @@ void RefreshCollection__8TextListFv(TextList* self) {
     RefreshCollection__8TextListFi(self, 1);
 }
 
-/* TODO: [near miss] 73.03%; IsValidInt advance loop and "%d" single-string copy agree; clamp/window-scan scheduling remains. */
+/* TODO: [breakthrough] 82.13%; shared option formatter recovered; focus clamps and row traversal remain. */
 void RefreshOption__8TextListFv(TextList* self) {
     int atEnd;
     int found;
     int i;
     int idx;
-    char* dst;
-    char scratch[10];
-    char* p;
-    int n;
 
     if (m_pGameVariables__13ScreenControl == 0) {
         return;
     }
     self->focusMax = GetInt__22GameVariableDispatcherFUiUi(
-        m_pGameVariables__13ScreenControl, self->pad9C,
-        self->optionId);
+        m_pGameVariables__13ScreenControl, self->m_pad9C,
+        self->m_optionId);
     for (;;) {
         if (IsValidInt__22GameVariableDispatcherFUiUiUiUii(
-                m_pGameVariables__13ScreenControl, self->gvContext,
-                self->collectionId, self->pad9C,
-                self->optionId, self->focusMax) != 0) {
+                m_pGameVariables__13ScreenControl, self->m_gvContext,
+                self->m_collectionId, self->m_pad9C,
+                self->m_optionId, self->focusMax) != 0) {
             break;
         }
         atEnd = 1;
@@ -5207,25 +5160,9 @@ void RefreshOption__8TextListFv(TextList* self) {
             break;
         }
     }
-    if (self->collectionId == -1 && self->optionId != -1) {
+    if (self->m_collectionId == -1 && self->m_optionId != -1) {
         if (self->strings != 0) {
-            dst = self->strings[0];
-            p = scratch;
-            n = 0xa;
-            do {
-                *p = 0x20;
-                p += 1;
-                n -= 1;
-            } while (n != 0);
-            sprintf(scratch, stringBase0 + 0x1e5, self->focusMax);
-            p = scratch;
-            n = 0xa;
-            do {
-                *dst = *p;
-                p += 1;
-                dst += 1;
-                n -= 1;
-            } while (n != 0);
+            text_list_format_option(self->strings[0], self->focusMax);
         }
         self->focusMax = 0;
         self->stringCount = 1;
@@ -5255,25 +5192,23 @@ void RefreshOption__8TextListFv(TextList* self) {
         }
     }
     if (self->unkD4 != 0) {
-        (*(void (**)(TextList*))(*(unsigned char**)self + 0x44))(self);
+        self->Update();
     }
 }
 
 void ScrollDec__8TextListFi(TextList* self, int delta) {
     if (self->unkD4 != 0) {
-        (*(void (**)(TextList*, int))(*(unsigned char**)self + 0x50))(
-            self, self->itemCount - delta);
+        self->Move(self->itemCount - delta);
     }
 }
 
 void ScrollInc__8TextListFi(TextList* self, int delta) {
     if (self->unkD4 != 0) {
-        (*(void (**)(TextList*, int))(*(unsigned char**)self + 0x50))(
-            self, self->itemCount + delta);
+        self->Move(self->itemCount + delta);
     }
 }
 
-/* TODO: [breakthrough needed] 64.40%; boundary/wrap test and IsValidInt scan CFG differ from retail. */
+/* TODO: [breakthrough] 65.29%; canonical dispatch recovered; wrap/focus control flow and homes remain. */
 void Move__8TextListFi(TextList* self, int delta) {
     int oldFocus;
     int hitBoundary;
@@ -5302,7 +5237,7 @@ void Move__8TextListFi(TextList* self, int delta) {
         return;
     }
     self->focusMax = oldFocus + delta;
-    if ((self->collectionId != -1 || self->optionId == -1) &&
+    if ((self->m_collectionId != -1 || self->m_optionId == -1) &&
         self->stringCount > 0) {
         self->focusMax = self->focusMax -
                          (self->focusMax / self->stringCount) * self->stringCount;
@@ -5313,10 +5248,10 @@ void Move__8TextListFi(TextList* self, int delta) {
         for (;;) {
             if (IsValidInt__22GameVariableDispatcherFUiUiUiUii(
                     m_pGameVariables__13ScreenControl,
-                    self->gvContext,
-                    self->collectionId,
-                    self->pad9C,
-                    self->optionId, self->focusMax) != 0) {
+                    self->m_gvContext,
+                    self->m_collectionId,
+                    self->m_pad9C,
+                    self->m_optionId, self->focusMax) != 0) {
                 ok = 1;
                 break;
             }
@@ -5370,10 +5305,10 @@ void Move__8TextListFi(TextList* self, int delta) {
                     for (;;) {
                         if (IsValidInt__22GameVariableDispatcherFUiUiUiUii(
                                 m_pGameVariables__13ScreenControl,
-                                self->gvContext,
-                                self->collectionId,
-                                self->pad9C,
-                                self->optionId,
+                                self->m_gvContext,
+                                self->m_collectionId,
+                                self->m_pad9C,
+                                self->m_optionId,
                                 self->focusIndex) != 0) {
                             break;
                         }
@@ -5409,27 +5344,27 @@ void Move__8TextListFi(TextList* self, int delta) {
             }
         }
     }
-    if (self->optionId >= 0 && m_pGameVariables__13ScreenControl != 0) {
+    if (self->m_optionId >= 0 && m_pGameVariables__13ScreenControl != 0) {
         SetInt__22GameVariableDispatcherFUiUii(
-            m_pGameVariables__13ScreenControl, self->pad9C,
-            self->optionId, self->focusMax);
+            m_pGameVariables__13ScreenControl, self->m_pad9C,
+            self->m_optionId, self->focusMax);
     }
-    if (self->collectionId == -1) {
+    if (self->m_collectionId == -1) {
         self->focusMax = GetInt__22GameVariableDispatcherFUiUi(
-            m_pGameVariables__13ScreenControl, self->pad9C,
-            self->optionId);
+            m_pGameVariables__13ScreenControl, self->m_pad9C,
+            self->m_optionId);
     }
-    (*(void (**)(TextList*))(*(unsigned char**)self + 0x44))(self);
+    self->Update();
 }
 
-/* TODO: [near miss] 90.12%; pointer-sized string slot; event dispatch lowering remains. */
+/* TODO: [breakthrough] 92.65%; canonical dispatch recovered; event compare order and owner homes remain. */
 void HandleEvent__8TextListFP9ScreenMgrii(TextList* self, void* mgr, int event,
                                           int arg) {
     char** table;
     char* buf;
 
     if (event == 0x407) {
-        if (self->collectionId == -1 && self->optionId != -1 &&
+        if (self->m_collectionId == -1 && self->m_optionId != -1 &&
             self->strings == 0) {
             table = (char**)Malloc__10ScreenUtilFUliPc(
                 sizeof(*self->strings), kMallocTagInit, (char*)(stringBase0 + 0x2c6));
@@ -5439,9 +5374,9 @@ void HandleEvent__8TextListFP9ScreenMgrii(TextList* self, void* mgr, int event,
             self->strings[0] = buf;
         }
         RefreshCollection__8TextListFi(self, 0);
-        (*(void (**)(TextList*))(*(unsigned char**)self + 0x4c))(self);
+        self->RefreshOption();
     } else if (event == 0x3eb) {
-        if (self->collectionId == -1 && self->optionId != -1) {
+        if (self->m_collectionId == -1 && self->m_optionId != -1) {
             if (self->strings != 0) {
                 Free__10ScreenUtilFPv(self->strings[0]);
                 self->strings[0] = 0;
@@ -5453,15 +5388,15 @@ void HandleEvent__8TextListFP9ScreenMgrii(TextList* self, void* mgr, int event,
                    self->strings != 0) {
             FreeStringCollection__22GameVariableDispatcherFUiUiPPcUi(
                 m_pGameVariables__13ScreenControl,
-                self->gvContext,
-                self->collectionId, self->strings,
+                self->m_gvContext,
+                self->m_collectionId, self->strings,
                 self->stringCount);
             self->strings = 0;
         }
     }
 }
 
-/* TODO: [breakthrough needed] 60.43%; action compare tree order and vtable call lowering differ. */
+/* TODO: [breakthrough] 61.12%; canonical dispatch recovered; retail action compare tree remains. */
 int HandleAction__8TextListFP9ScreenMgrPC12ScreenAction(TextList* self, void* mgr,
                                                         const void* actionIn) {
     const ScreenAction* action;
@@ -5484,10 +5419,10 @@ int HandleAction__8TextListFP9ScreenMgrPC12ScreenAction(TextList* self, void* mg
     if (arg == 0x7e2) {
         node = GetScreenNode__12ScreenParamsFUi(params, 0);
         if (node == (void*)self) {
-            if (self->optionId >= 0 && m_pGameVariables__13ScreenControl != 0) {
+            if (self->m_optionId >= 0 && m_pGameVariables__13ScreenControl != 0) {
                 SetInt__22GameVariableDispatcherFUiUii(
-                    m_pGameVariables__13ScreenControl, self->pad9C,
-                    self->optionId, self->focusMax);
+                    m_pGameVariables__13ScreenControl, self->m_pad9C,
+                    self->m_optionId, self->focusMax);
             }
         } else if (node != 0) {
             nodeHandle =
@@ -5547,27 +5482,24 @@ int HandleAction__8TextListFP9ScreenMgrPC12ScreenAction(TextList* self, void* mg
                 }
             }
         } else if (arg == 0x100001) {
-            (*(void (**)(TextList*, int))(*(unsigned char**)self + 0x50))(self, 1);
+            self->Move(1);
         } else if (arg >= 0x100001) {
-            (*(void (**)(TextList*, int))(*(unsigned char**)self + 0x50))(self,
-                                                                          -1);
+            self->Move(-1);
         } else {
             result = HandleAction__13ScreenControlFP9ScreenMgrPC12ScreenAction(
                 self, mgr, actionIn);
         }
     } else if (arg == 0x7d3) {
-        (*(void (**)(TextList*, int))(*(unsigned char**)self + 0x58))(self, 1);
+        self->ScrollDec(1);
     } else if (arg >= 0x7d3) {
         if (arg == 0x7db) {
             node = GetScreenNode__12ScreenParamsFUi(params, 0);
             if (node == (void*)self) {
                 a = GetInt__12ScreenParamsFUi(params, 1);
                 if (a == 0) {
-                    (*(void (**)(TextList*))(*(unsigned char**)self + 0x48))(
-                        self);
+                    self->RefreshCollection();
                 } else if (a == 1) {
-                    (*(void (**)(TextList*))(*(unsigned char**)self + 0x4c))(
-                        self);
+                    self->RefreshOption();
                 }
             } else if (node != 0) {
                 nodeHandle =
@@ -5580,11 +5512,11 @@ int HandleAction__8TextListFP9ScreenMgrPC12ScreenAction(TextList* self, void* mg
                 self, mgr, actionIn);
         }
     } else if (arg == 0x7d1) {
-        (*(void (**)(TextList*, int))(*(unsigned char**)self + 0x50))(self, -1);
+        self->Move(-1);
     } else if (arg >= 0x7d1) {
-        (*(void (**)(TextList*, int))(*(unsigned char**)self + 0x54))(self, 1);
+        self->ScrollInc(1);
     } else if (arg >= 0x7d0) {
-        (*(void (**)(TextList*, int))(*(unsigned char**)self + 0x50))(self, 1);
+        self->Move(1);
     } else {
         result = HandleAction__13ScreenControlFP9ScreenMgrPC12ScreenAction(
             self, mgr, actionIn);
@@ -5593,7 +5525,6 @@ int HandleAction__8TextListFP9ScreenMgrPC12ScreenAction(TextList* self, void* mg
 }
 
 #pragma dont_inline on
-/* TODO: [near miss] 96.19%; native pointer indexing retained; color/latch schedule and relocation differences remain. */
 void ClearStrings__8TextListFv(TextList* self) {
     int i;
     ScreenText* text;
@@ -5604,14 +5535,7 @@ void ClearStrings__8TextListFv(TextList* self) {
     while (i < self->itemCount) {
         text = (ScreenText*)self->itemNodes[i];
         if (text != 0) {
-            live = text->stringObj;
-            if (live != 0) {
-                if (live->instance != (unsigned int)text->stringObjInstance) {
-                    live = 0;
-                }
-            } else {
-                live = 0;
-            }
+            live = MK_LIVE(text->stringObj, text->stringObjInstance);
             if (live != 0) {
                 color[0] = live->pfx.instance0.rgba[0];
                 color[1] = live->pfx.instance0.rgba[1];
@@ -5626,22 +5550,17 @@ void ClearStrings__8TextListFv(TextList* self) {
 }
 #pragma dont_inline off
 
-/* TODO: [near miss] 93.93%; pointer-sized row storage retained; allocation schedule remains. */
+/* TODO: [near miss] 99.41%; option formatter matches retail; latch GPRs and node-loop increment schedule remain. */
 void ProcessParams__8TextListFP12ScreenParams(TextList* self, void* params) {
     int nodeIndex;
     int i;
     void* node;
     ScreenText* text;
-    StringObj* live;
-    char* buf;
-    char scratch[10];
-    char* p;
-    int n;
 
     nodeIndex = 6;
     self->itemCount = GetInt__12ScreenParamsFUi(params, 0);
-    self->collectionId = GetResourceID__12ScreenParamsFUi(params, 1);
-    self->optionId = GetResourceID__12ScreenParamsFUi(params, 2);
+    self->m_collectionId = GetResourceID__12ScreenParamsFUi(params, 1);
+    self->m_optionId = GetResourceID__12ScreenParamsFUi(params, 2);
     self->wrap = GetBoolean__12ScreenParamsFUi(params, 3);
     self->hasLinkedNode = GetBoolean__12ScreenParamsFUi(params, 5);
     self->hasParamB0 = GetBoolean__12ScreenParamsFUi(params, 4);
@@ -5661,15 +5580,10 @@ void ProcessParams__8TextListFP12ScreenParams(TextList* self, void* params) {
         self->itemNodes[i] = (ScreenNode*)node;
     }
     if (self->itemCount > 0) {
+        StringObj* live;
+
         text = (ScreenText*)self->itemNodes[self->focusMax - self->focusIndex];
-        live = text->stringObj;
-        if (live != 0) {
-            if (live->instance != (unsigned int)text->stringObjInstance) {
-                live = 0;
-            }
-        } else {
-            live = 0;
-        }
+        live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
         if (live == 0) {
             self->color[0] = text->seData->color[0];
             self->color[1] = text->seData->color[1];
@@ -5684,28 +5598,12 @@ void ProcessParams__8TextListFP12ScreenParams(TextList* self, void* params) {
     }
     if (m_pGameVariables__13ScreenControl != 0) {
         self->unkD4 = 1;
-        if (self->collectionId == -1 && self->optionId != -1) {
+        if (self->m_collectionId == -1 && self->m_optionId != -1) {
             self->strings = (char**)Malloc__10ScreenUtilFUliPc(
                 sizeof(*self->strings), kMallocTagInit, (char*)(stringBase0 + 0x2ed));
-            buf = (char*)Malloc__10ScreenUtilFUliPc(
+            *self->strings = (char*)Malloc__10ScreenUtilFUliPc(
                 0xb, kMallocTagInit, (char*)(stringBase0 + 0x2fa));
-            *self->strings = buf;
-            p = scratch;
-            n = 0xa;
-            do {
-                *p = 0x20;
-                p += 1;
-                n -= 1;
-            } while (n != 0);
-            sprintf(scratch, stringBase0 + 0x1e5, self->focusMax);
-            p = scratch;
-            n = 0xa;
-            do {
-                *buf = *p;
-                p += 1;
-                buf += 1;
-                n -= 1;
-            } while (n != 0);
+            text_list_format_option(*self->strings, self->focusMax);
             self->stringCount = 1;
             self->focusMax = 0;
         }
@@ -5716,7 +5614,7 @@ void ProcessParams__8TextListFP12ScreenParams(TextList* self, void* params) {
 }
 
 void Dispose__8TextListFv(TextList* self) {
-    if (self->collectionId == -1 && self->optionId != -1) {
+    if (self->m_collectionId == -1 && self->m_optionId != -1) {
         if (self->strings != 0) {
             Free__10ScreenUtilFPv(self->strings[0]);
             self->strings[0] = 0;
@@ -5725,8 +5623,8 @@ void Dispose__8TextListFv(TextList* self) {
         }
     } else if (m_pGameVariables__13ScreenControl != 0) {
         FreeStringCollection__22GameVariableDispatcherFUiUiPPcUi(
-            m_pGameVariables__13ScreenControl, self->gvContext,
-            self->collectionId, self->strings,
+            m_pGameVariables__13ScreenControl, self->m_gvContext,
+            self->m_collectionId, self->strings,
             self->stringCount);
     }
     self->strings = 0;
@@ -5743,7 +5641,7 @@ void Init__8TextListFv(TextList* self) {
 
 DEFINE_SCREEN_CONTROL_DTOR(__dt__8TextListFv, __vt__8TextList)
 
-/* TODO: [near miss] 74.20%; texture/filter/live-object schedule remains. */
+/* TODO: [near miss] 75.07%; texture/filter scheduling and register homes remain. */
 void Update__9ImageListFv(ImageList* self) {
     int i;
     int off;
@@ -5808,14 +5706,7 @@ void Update__9ImageListFv(ImageList* self) {
             }
             view->filterFlags = (view->filterFlags & 0xffffff00) | 1;
         }
-        obj = poly->screenObj;
-        if (obj != 0) {
-            if (obj->instance != (unsigned int)poly->screenObjInstance) {
-                obj = 0;
-            }
-        } else {
-            obj = 0;
-        }
+        obj = MK_LIVE(poly->screenObj, (unsigned int)poly->screenObjInstance);
         if (obj != 0) {
             if (color != 0) {
                 obj->texture = ((RwTextureFilterView*)color)->raster;
@@ -5835,14 +5726,7 @@ void Update__9ImageListFv(ImageList* self) {
             }
             view->filterFlags = (view->filterFlags & 0xffffff00) | 1;
         }
-        obj = poly->screenObj;
-        if (obj != 0) {
-            if (obj->instance != (unsigned int)poly->screenObjInstance) {
-                obj = 0;
-            }
-        } else {
-            obj = 0;
-        }
+        obj = MK_LIVE(poly->screenObj, (unsigned int)poly->screenObjInstance);
         if (obj != 0) {
             obj->pfx2d->alpha_texture = alpha;
         }
@@ -5881,16 +5765,16 @@ void RefreshCollection__9ImageListFv(ImageList* self) {
     if (m_pGameVariables__13ScreenControl == 0) {
         return;
     }
-    if (self->collectionId == -1) {
+    if (self->m_collectionId == -1) {
         return;
     }
     countScratch = 1;
     FreeTextureCollection__22GameVariableDispatcherFUiiP15GMTextureInfo_t(
-        m_pGameVariables__13ScreenControl, self->gvContext,
-        self->collectionId, &self->textureInfo);
+        m_pGameVariables__13ScreenControl, self->m_gvContext,
+        self->m_collectionId, &self->textureInfo);
     GetTextureCollection__22GameVariableDispatcherFUiiP15GMTextureInfo_tRUi(
-        m_pGameVariables__13ScreenControl, self->gvContext,
-        self->collectionId, &self->textureInfo, &countScratch);
+        m_pGameVariables__13ScreenControl, self->m_gvContext,
+        self->m_collectionId, &self->textureInfo, &countScratch);
     col = self->textureInfo.data;
     if (col != 0) {
         accept = 0;
@@ -5913,7 +5797,6 @@ void RefreshCollection__9ImageListFv(ImageList* self) {
     ((ScreenControl*)self)->Update();
 }
 
-/* TODO: [near miss] 98.25%; focus clamp and scrollBase sync agree; a short scheduling residue remains. */
 void RefreshOption__9ImageListFv(ImageList* self) {
     int count;
 
@@ -5925,8 +5808,8 @@ void RefreshOption__9ImageListFv(ImageList* self) {
     }
     count = self->textureInfo.data->count;
     self->focusIndex = GetInt__22GameVariableDispatcherFUiUi(
-        m_pGameVariables__13ScreenControl, self->pad9C,
-        self->optionId);
+        m_pGameVariables__13ScreenControl, self->m_pad9C,
+        self->m_optionId);
     if (self->focusIndex > count) {
         self->focusIndex = count - 1;
     }
@@ -5934,24 +5817,22 @@ void RefreshOption__9ImageListFv(ImageList* self) {
         self->focusIndex = 0;
     }
     self->scrollBase = self->focusIndex;
-    (*(void (**)(ImageList*))(*(unsigned char**)self + 0x44))(self);
+    self->Update();
 }
 
 void ScrollDec__9ImageListFi(ImageList* self, int delta) {
     if (self->textureInfo.ready != 0) {
-        (*(void (**)(ImageList*, int))(*(unsigned char**)self + 0x54))(self,
-                                                                       delta);
+        self->Decrement(delta);
     }
 }
 
 void ScrollInc__9ImageListFi(ImageList* self, int delta) {
     if (self->textureInfo.ready != 0) {
-        (*(void (**)(ImageList*, int))(*(unsigned char**)self + 0x50))(self,
-                                                                       delta);
+        self->Increment(delta);
     }
 }
 
-/* TODO: [near miss] 87.94%; focus/scroll wrap arithmetic agrees; register and branch scheduling remain. */
+/* TODO: [breakthrough] 92.77%; canonical Update dispatch recovered; focus/wrap branch scheduling remains. */
 void Decrement__9ImageListFi(ImageList* self, int delta) {
     int count;
 
@@ -5973,18 +5854,18 @@ void Decrement__9ImageListFi(ImageList* self, int delta) {
     if (self->focusIndex < 0) {
         self->focusIndex = self->focusIndex + count;
     }
-    if (self->optionId >= 0 && m_pGameVariables__13ScreenControl != 0) {
+    if (self->m_optionId >= 0 && m_pGameVariables__13ScreenControl != 0) {
         SetInt__22GameVariableDispatcherFUiUii(
-            m_pGameVariables__13ScreenControl, self->pad9C,
-            self->optionId, self->focusIndex);
+            m_pGameVariables__13ScreenControl, self->m_pad9C,
+            self->m_optionId, self->focusIndex);
     }
-    (*(void (**)(ImageList*))(*(unsigned char**)self + 0x44))(self);
+    self->Update();
 }
 
-/* TODO: [near miss] 93.93%; window-end modulo and wrap agree; register and branch scheduling remain. */
+/* TODO: [near miss] 99.26%; staged window quotient retained; window register homes remain. */
 void Increment__9ImageListFi(ImageList* self, int delta) {
-    int count;
     int winEnd;
+    int count;
 
     if (self->textureInfo.ready == 0) {
         return;
@@ -5994,8 +5875,7 @@ void Increment__9ImageListFi(ImageList* self, int delta) {
         return;
     }
     winEnd = self->scrollBase + self->itemCount - 1;
-    winEnd = winEnd - (winEnd / count) * count;
-    if (self->focusIndex == winEnd) {
+    if (self->focusIndex == winEnd - (winEnd / count) * count) {
         self->scrollBase = self->scrollBase + delta;
         if (self->scrollBase >= count) {
             self->scrollBase = self->scrollBase - count;
@@ -6005,15 +5885,15 @@ void Increment__9ImageListFi(ImageList* self, int delta) {
     if (self->focusIndex >= count) {
         self->focusIndex = self->focusIndex - count;
     }
-    if (self->optionId >= 0 && m_pGameVariables__13ScreenControl != 0) {
+    if (self->m_optionId >= 0 && m_pGameVariables__13ScreenControl != 0) {
         SetInt__22GameVariableDispatcherFUiUii(
-            m_pGameVariables__13ScreenControl, self->pad9C,
-            self->optionId, self->focusIndex);
+            m_pGameVariables__13ScreenControl, self->m_pad9C,
+            self->m_optionId, self->focusIndex);
     }
-    (*(void (**)(ImageList*))(*(unsigned char**)self + 0x44))(self);
+    self->Update();
 }
 
-/* TODO: [breakthrough needed] 67.59%; event compare cascade and GetTextureCollection call schedule differ. */
+/* TODO: [breakthrough] 74.94%; canonical dispatch recovered; event compares and collection-call schedule remain. */
 void HandleEvent__9ImageListFP9ScreenMgrii(ImageList* self, void* mgr, int event,
                                            int arg) {
     unsigned int countScratch;
@@ -6021,29 +5901,27 @@ void HandleEvent__9ImageListFP9ScreenMgrii(ImageList* self, void* mgr, int event
     int accept;
 
     if (event == 0x407) {
-        (*(void (**)(ImageList*))(*(unsigned char**)self + 0x4c))(self);
+        self->RefreshOption();
         if (m_pGameVariables__13ScreenControl != 0 &&
-            self->collectionId != -1) {
+            self->m_collectionId != -1) {
             countScratch = 0;
             GetTextureCollection__22GameVariableDispatcherFiP15GMTextureInfo_tRUi(
-                m_pGameVariables__13ScreenControl, self->collectionId,
+                m_pGameVariables__13ScreenControl, self->m_collectionId,
                 &self->textureInfo, &countScratch);
-            (*(void (**)(ImageList*, void*, int, int))(*(unsigned char**)self +
-                                                       0x3c))(self, mgr, 0x405,
-                                                              arg);
+            self->HandleEvent((ScreenMgr*)mgr, 0x405, arg);
         }
     } else if (event == 0x408) {
         if (m_pGameVariables__13ScreenControl != 0 &&
-            self->collectionId != -1) {
+            self->m_collectionId != -1) {
             FreeTextureCollection__22GameVariableDispatcherFiP15GMTextureInfo_t(
-                m_pGameVariables__13ScreenControl, self->collectionId,
+                m_pGameVariables__13ScreenControl, self->m_collectionId,
                 &self->textureInfo);
         }
     } else if (event == 0x405) {
         col = self->textureInfo.data;
         if (col != 0) {
             if (col->reloadFlag == 1) {
-                (*(void (**)(ImageList*))(*(unsigned char**)self + 0x48))(self);
+                self->RefreshCollection();
             }
             accept = 0;
             if (self->textureInfo.ready == 0 && col->colors != 0) {
@@ -6059,14 +5937,14 @@ void HandleEvent__9ImageListFP9ScreenMgrii(ImageList* self, void* mgr, int event
                 } else if (self->focusIndex < 0) {
                     self->focusIndex = 0;
                 }
-                (*(void (**)(ImageList*))(*(unsigned char**)self + 0x4c))(self);
-                (*(void (**)(ImageList*))(*(unsigned char**)self + 0x44))(self);
+                self->RefreshOption();
+                self->Update();
             }
         }
     }
 }
 
-/* TODO: [breakthrough needed] 34.58%; retail binary compare tree differs from the source's if-chain. */
+/* TODO: [breakthrough] 39.52%; canonical dispatch recovered; retail action compare tree remains. */
 int HandleAction__9ImageListFP9ScreenMgrPC12ScreenAction(ImageList* self,
                                                          void* mgr,
                                                          const void* actionIn) {
@@ -6084,18 +5962,16 @@ int HandleAction__9ImageListFP9ScreenMgrPC12ScreenAction(ImageList* self,
     result = 1;
 
     if (arg == 0x7d3) {
-        (*(void (**)(ImageList*, int))(*(unsigned char**)self + 0x5c))(self, 1);
+        self->ScrollDec(1);
     } else if (arg >= 0x7d3) {
         if (arg == 0x7db) {
             node = GetScreenNode__12ScreenParamsFUi(params, 0);
             if (node == (void*)self) {
                 a = GetInt__12ScreenParamsFUi(params, 1);
                 if (a == 0) {
-                    (*(void (**)(ImageList*))(*(unsigned char**)self + 0x48))(
-                        self);
+                    self->RefreshCollection();
                 } else if (a == 1) {
-                    (*(void (**)(ImageList*))(*(unsigned char**)self + 0x4c))(
-                        self);
+                    self->RefreshOption();
                 }
             } else if (node != 0) {
                 nodeHandle =
@@ -6107,52 +5983,43 @@ int HandleAction__9ImageListFP9ScreenMgrPC12ScreenAction(ImageList* self,
             result = 0;
         }
     } else if (arg == 0x7d1) {
-        (*(void (**)(ImageList*, int))(*(unsigned char**)self + 0x54))(self, 1);
+        self->Decrement(1);
     } else if (arg >= 0x7d1) {
-        (*(void (**)(ImageList*, int))(*(unsigned char**)self + 0x58))(self, 1);
+        self->ScrollInc(1);
     } else if (arg >= 0x7d0) {
-        (*(void (**)(ImageList*, int))(*(unsigned char**)self + 0x50))(self, 1);
+        self->Increment(1);
     } else {
         result = 0;
     }
     return result;
 }
 
-/* TODO: [near miss] 94.94%; FPR/vtable call scheduling and nonvolatile coloring remain. */
-void ProcessParams__9ImageListFP12ScreenParams(ImageList* self, void* params) {
-    typedef struct ScreenPolyIndexedVertView {
-        unsigned char pad00[0x18];
-        float x;
-        float y;
-    } ScreenPolyIndexedVertView;
-
-    int i;
+/* TODO: [breakthrough needed] 97.50%; canonical node/vertex types and loop scope agree;
+ * recover layout-origin subtraction that current constant folding removes. */
+void ProcessParams__9ImageListFP12ScreenParams(ImageList* self, ScreenParams* params) {
     int nodeIndex;
     ScreenNode* link;
     ScreenPoly* poly;
-    ScreenPolyIndexedVertView* vert;
-    void (*setVisible)(void* node, int visible);
+    int vertIndex;
 
-    self->itemCount = GetInt__12ScreenParamsFUi(params, 0);
-    self->collectionId = GetResourceID__12ScreenParamsFUi(params, 1);
-    self->optionId = GetResourceID__12ScreenParamsFUi(params, 2);
-    self->wrap = GetBoolean__12ScreenParamsFUi(params, 3);
-    self->hasLinkNode = GetBoolean__12ScreenParamsFUi(params, 4);
+    self->itemCount = params->GetInt(0);
+    self->m_collectionId = params->GetResourceID(1);
+    self->m_optionId = params->GetResourceID(2);
+    self->wrap = params->GetBoolean(3);
+    self->hasLinkNode = params->GetBoolean(4);
     link = 0;
     nodeIndex = 5;
     if (self->hasLinkNode != 0) {
-        link = GetScreenNode__12ScreenParamsFUi(params, 5);
+        link = params->GetScreenNode(5);
         nodeIndex = 6;
     }
     self->itemNodes = (ScreenNode**)Malloc__10ScreenUtilFUliPc(
         (unsigned long)self->itemCount * sizeof(ScreenNode*), kMallocTagInit,
         (char*)(stringBase0 + 0x307));
-    for (i = 0; i < self->itemCount; i++) {
+    for (int i = 0; i < self->itemCount; i++) {
         self->itemNodes[i] =
-            GetScreenNode__12ScreenParamsFUi(params, i + nodeIndex);
-        setVisible =
-            *(void (**)(void*, int))(*(unsigned char**)self->itemNodes[i] + 0x1c);
-        setVisible(self->itemNodes[i], 0);
+            params->GetScreenNode(i + nodeIndex);
+        self->itemNodes[i]->SetVisible(0);
     }
     if (self->hasLinkNode != 0) {
         self->linkNode = link;
@@ -6161,17 +6028,15 @@ void ProcessParams__9ImageListFP12ScreenParams(ImageList* self, void* params) {
             float y;
             float x;
 
-            vert = (ScreenPolyIndexedVertView*)((unsigned char*)poly +
-                                                vert_map__10ScreenPoly[0] * 0x14);
-            y = vert->y;
-            x = vert->x;
+            vertIndex = vert_map__10ScreenPoly[0];
+            y = poly->verts[vertIndex].y;
+            x = poly->verts[vertIndex].x;
             self->layoutX = x - kGvFloatZero;
             self->layoutY = (480.0f - y) - kGvFloatZero;
             self->layoutZ = kGvFloatZero;
         }
         if (link != 0) {
-            setVisible = *(void (**)(void*, int))(*(unsigned char**)link + 0x1c);
-            setVisible(link, 0);
+            link->SetVisible(0);
         }
     }
 }
@@ -6179,8 +6044,8 @@ void ProcessParams__9ImageListFP12ScreenParams(ImageList* self, void* params) {
 void Dispose__9ImageListFv(ImageList* self) {
     if (m_pGameVariables__13ScreenControl != 0) {
         FreeTextureCollection__22GameVariableDispatcherFUiiP15GMTextureInfo_t(
-            m_pGameVariables__13ScreenControl, self->gvContext,
-            self->collectionId, &self->textureInfo);
+            m_pGameVariables__13ScreenControl, self->m_gvContext,
+            self->m_collectionId, &self->textureInfo);
     }
     if (self->itemNodes != 0) {
         Free__10ScreenUtilFPv(self->itemNodes);
@@ -6378,34 +6243,28 @@ void SetComponent__10ScreenPolyFP17ScreenAnimControlPfi(ScreenPoly* poly,
     poly->flags = 1;
 }
 
+/* TODO: [breakthrough needed] 94.47%; aligned indexed transform recovered; identify byte-conversion stack boundary and color-null CFG. */
 void Render__10ScreenPolyFP16ScreenRenderInfo(ScreenPoly* poly,
                                               ScreenRenderInfoC* info) {
     ScreenMatrixStackC* stack;
-    float* ltm;
+    RwMatrix* ltm;
     ScreenObj* obj;
     ScreenObj* live;
     Pfx2dObj* pfx;
     RwTexture* color;
     RwTexture* alpha;
-    RwTextureFilterView* view;
-    float local[4];
-    float world[4];
+    SEVec4_t local __attribute__((aligned(16)));
+    SEVec4_t world __attribute__((aligned(16)));
     int i;
-    ScreenPolyVert* src;
-    Pfx2dVert* dst;
 
     stack = info->matrixStack;
-    ltm = (float*)RwFrameGetLTM(stack->frame);
+    ltm = RwFrameGetLTM(stack->frame);
 
-    if ((signed char)poly->filterFlags >= 0 && poly->colorTex != 0) {
-        obj = poly->screenObj;
-        if (obj != 0) {
-            if (obj->instance != poly->screenObjInstance) {
-                obj = 0;
-            }
-        } else {
-            obj = 0;
+    if (((ScreenPolyFilterBits*)&poly->filterFlags)->hidden == 0) {
+        if (poly->colorTex == 0) {
+            return;
         }
+        obj = MK_LIVE(poly->screenObj, poly->screenObjInstance);
 
         if (obj == 0) {
             color = poly->colorTex;
@@ -6419,49 +6278,29 @@ void Render__10ScreenPolyFP16ScreenRenderInfo(ScreenPoly* poly,
 
             color = poly->colorTex;
             if (color != 0) {
-                view = (RwTextureFilterView*)color;
-                if ((poly->filterFlags & 0x40) != 0) {
-                    view->filterFlags = (view->filterFlags & 0xffff00ff) | 0x1100;
+                if (((ScreenPolyFilterBits*)&poly->filterFlags)->linear != 0) {
+                    color->filter_flags = (color->filter_flags & 0xffff00ff) | 0x1100;
                 } else {
-                    view->filterFlags = (view->filterFlags & 0xffff00ff) | 0x3300;
+                    color->filter_flags = (color->filter_flags & 0xffff00ff) | 0x3300;
                 }
-                view->filterFlags = (view->filterFlags & 0xffffff00) | 1;
+                color->filter_flags = (color->filter_flags & 0xffffff00) | 1;
             }
-            live = poly->screenObj;
+            live = MK_LIVE(poly->screenObj, poly->screenObjInstance);
             if (live != 0) {
-                if (live->instance != poly->screenObjInstance) {
-                    live = 0;
-                }
-            } else {
-                live = 0;
-            }
-            if (live != 0) {
-                if (color != 0) {
-                    live->texture = ((RwTextureFilterView*)color)->raster;
-                } else {
-                    live->texture = 0;
-                }
+                live->texture = color != 0 ? color->raster : 0;
                 live->pfx2d->texture = color;
             }
 
             alpha = poly->alphaTex;
             if (alpha != 0) {
-                view = (RwTextureFilterView*)alpha;
-                if ((poly->filterFlags & 0x40) != 0) {
-                    view->filterFlags = (view->filterFlags & 0xffff00ff) | 0x1100;
+                if (((ScreenPolyFilterBits*)&poly->filterFlags)->linear != 0) {
+                    alpha->filter_flags = (alpha->filter_flags & 0xffff00ff) | 0x1100;
                 } else {
-                    view->filterFlags = (view->filterFlags & 0xffff00ff) | 0x3300;
+                    alpha->filter_flags = (alpha->filter_flags & 0xffff00ff) | 0x3300;
                 }
-                view->filterFlags = (view->filterFlags & 0xffffff00) | 1;
+                alpha->filter_flags = (alpha->filter_flags & 0xffffff00) | 1;
             }
-            live = poly->screenObj;
-            if (live != 0) {
-                if (live->instance != poly->screenObjInstance) {
-                    live = 0;
-                }
-            } else {
-                live = 0;
-            }
+            live = MK_LIVE(poly->screenObj, poly->screenObjInstance);
             if (live != 0) {
                 live->pfx2d->alpha_texture = alpha;
             }
@@ -6479,60 +6318,45 @@ void Render__10ScreenPolyFP16ScreenRenderInfo(ScreenPoly* poly,
         }
         current_render_state = 1;
 
-        memcpy(pfx->verts, poly->verts, 0x50);
+        memcpy(pfx->verts, poly->verts, sizeof(poly->verts));
 
-        i = 0;
-        src = poly->verts;
-        dst = pfx->verts;
-        do {
-            local[0] = src->x + poly->offsetX;
-            local[2] = 0.0f;
-            local[1] = (480.0f - src->y) + poly->offsetY;
-            local[3] = 0.0f;
-            gxMatV3MatAddV3((Vec*)world, (Vec*)local, (Mat33*)ltm, (Vec*)(ltm + 12));
+        for (i = 0; i < 4; i++) {
+            Pfx2dVert* dst = &pfx->verts[i];
+            local.x = poly->verts[i].x + poly->offsetX;
+            local.y = (480.0f - poly->verts[i].y) + poly->offsetY;
+            local.z = 0.0f;
+            local.w = 0.0f;
+            gxMatV3MatAddV3((Vec*)&world, (Vec*)&local, (Mat33*)ltm, &ltm->pos_row.value);
 
             if (is_widescreen_mode() != 0) {
-                dst->x = world[0] + 40.0f;
+                dst->x = world.x + 40.0f;
             } else {
-                dst->x = world[0];
+                dst->x = world.x;
             }
-            i += 1;
-            dst->y = 480.0f - world[1];
+            dst->y = 480.0f - world.y;
 
-            dst->r = (int)(info->colorScale[0] *
-                (255.0f * info->colorTranslation[0] +
-                 (float)(unsigned int)src->rgba[0]));
-            dst->g = (int)(info->colorScale[1] *
-                (255.0f * info->colorTranslation[1] +
-                 (float)(unsigned int)src->rgba[1]));
-            dst->b = (int)(info->colorScale[2] *
-                (255.0f * info->colorTranslation[2] +
-                 (float)(unsigned int)src->rgba[2]));
-            dst->a = (int)(info->colorScale[3] *
-                (255.0f * info->colorTranslation[3] +
-                 (float)(unsigned int)src->rgba[3]));
+            dst->r = ScreenPolyModulateChannel(poly->verts[i].rgba[0],
+                info->colorTranslation[0], info->colorScale[0]);
+            dst->g = ScreenPolyModulateChannel(poly->verts[i].rgba[1],
+                info->colorTranslation[1], info->colorScale[1]);
+            dst->b = ScreenPolyModulateChannel(poly->verts[i].rgba[2],
+                info->colorTranslation[2], info->colorScale[2]);
+            dst->a = ScreenPolyModulateChannel(poly->verts[i].rgba[3],
+                info->colorTranslation[3], info->colorScale[3]);
 
-            src += 1;
-            dst += 1;
-        } while (i < 4);
+        }
 
         pfx2d_render(pfx);
     }
 }
 
+/* TODO: [near miss] 92.94%; latch result register and owner-pointer reload differ. */
 void Close__10ScreenPolyFv(ScreenPoly* poly) {
     ScreenObj* obj;
     typedef int (*DestroyFn)(ScreenObj*);
     DestroyFn* vtbl;
 
-    obj = poly->screenObj;
-    if (obj != 0) {
-        if (obj->instance != (unsigned int)poly->screenObjInstance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = MK_LIVE(poly->screenObj, (unsigned int)poly->screenObjInstance);
     if (obj != 0) {
         obj = poly->screenObj;
         if (obj->instance != 0) {
@@ -6544,17 +6368,13 @@ void Close__10ScreenPolyFv(ScreenPoly* poly) {
     }
 }
 
-/* TODO: [near miss] 84.89%; screenObj latch reload and destroy-call scheduling remain. */
+/* TODO: [near miss] 94.89%; vtable addressing agrees; latch result register and owner reload remain. */
 void* __dt__10ScreenPolyFv(ScreenPoly* self, short del) {
     ScreenObj* live;
 
     if (self != 0) {
         self->vtbl = &__vt__10ScreenPoly;
-        live = self->screenObj;
-        if (live != 0 &&
-            live->instance != (unsigned int)self->screenObjInstance) {
-            live = 0;
-        }
+        live = MK_LIVE(self->screenObj, (unsigned int)self->screenObjInstance);
         if (live != 0) {
             if (self->screenObj->instance != 0) {
                 ((void (*)(void*))(*(void***)self->screenObj)[4])(
@@ -6587,6 +6407,7 @@ void SetVisible__10ScreenTextFUi(ScreenText* text, unsigned int visible) {
     obj->visibility.hidden = (visible == 0);
 }
 
+/* TODO: [near miss] 82.66%; wrap-width conversion placement and nonvolatile register homes remain. */
 int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount) {
     int lineCount;
     int remain;
@@ -6637,14 +6458,7 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
                 width += glyph->advance + metrics->letter_spacing;
             }
 
-            live = text->stringObj;
-            if (live != 0) {
-                if (live->instance != (unsigned int)text->stringObjInstance) {
-                    live = 0;
-                }
-            } else {
-                live = 0;
-            }
+            live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
             if (live != 0) {
                 wrapInt = live->wrap_w;
             } else {
@@ -6652,14 +6466,7 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
             }
             wrapW = wrapInt;
             if (wrapW > 0.0f) {
-                live = text->stringObj;
-                if (live != 0) {
-                    if (live->instance != (unsigned int)text->stringObjInstance) {
-                        live = 0;
-                    }
-                } else {
-                    live = 0;
-                }
+                live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
                 if (live != 0) {
                     wrapInt = live->wrap_w;
                 } else {
@@ -6710,14 +6517,7 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
                 width += glyph->advance + metrics->letter_spacing;
             }
 
-            live = text->stringObj;
-            if (live != 0) {
-                if (live->instance != (unsigned int)text->stringObjInstance) {
-                    live = 0;
-                }
-            } else {
-                live = 0;
-            }
+            live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
             if (live != 0) {
                 wrapInt = live->wrap_w;
             } else {
@@ -6725,14 +6525,7 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
             }
             wrapW = wrapInt;
             if (wrapW > 0.0f) {
-                live = text->stringObj;
-                if (live != 0) {
-                    if (live->instance != (unsigned int)text->stringObjInstance) {
-                        live = 0;
-                    }
-                } else {
-                    live = 0;
-                }
+                live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
                 if (live != 0) {
                     wrapInt = live->wrap_w;
                 } else {
@@ -6804,25 +6597,15 @@ void SetComponent__10ScreenTextFP17ScreenAnimControlPfi(ScreenText* text,
     }
 }
 
-/* TODO: [near miss] 93.91%; lifetime/linkage corrected; remaining scheduling and relocation differences. */
-void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfoC* info) {
-    ScreenMatrixStackC* stack;
-    float* ltm;
-    StringObj* obj;
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
+static inline void ScreenTextRenderString(StringObj* obj, ScreenRenderInfoC* info,
+                                          RwMatrix* ltm) {
     unsigned char a;
+    unsigned char b;
+    unsigned char g;
+    unsigned char r;
     unsigned char color[4];
-    float delta[3];
+    Vec delta;
 
-    stack = info->matrixStack;
-    ltm = (float*)RwFrameGetLTM(stack->frame);
-
-    obj = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
-    if (obj == 0) {
-        return;
-    }
     if (obj->visibility.hidden != 0) {
         return;
     }
@@ -6848,10 +6631,10 @@ void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfo
     pfxfont_set_string_color(&obj->pfx, (unsigned int*)color);
     pfxfont_set_transform(&obj->pfx, ltm);
 
-    delta[0] = obj->render_x - obj->x;
-    delta[2] = 0.0f;
-    delta[1] = obj->y - obj->render_y;
-    MKMatrixTranslate(obj->pfx.transform, delta, 1);
+    delta.x = obj->render_x - obj->x;
+    delta.y = obj->y - obj->render_y;
+    delta.z = 0.0f;
+    MKMatrixTranslate((MKMATRIX*)obj->pfx.transform, &delta, 1);
 
     if (is_widescreen_mode() != 0) {
         pfxfont_string_render(&obj->pfx, (float)obj->x + 40.0f, obj->y);
@@ -6863,6 +6646,22 @@ void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfo
     obj->pfx.instance0.rgba[1] = g;
     obj->pfx.instance0.rgba[2] = b;
     obj->pfx.instance0.rgba[3] = a;
+}
+
+/* TODO: [breakthrough] 99.37%; typed render operation and register homes agree;
+ * hidden-return branch-only exit remains absent. */
+void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfoC* info) {
+    ScreenMatrixStackC* stack;
+    RwMatrix* ltm;
+    StringObj* obj;
+
+    stack = info->matrixStack;
+    ltm = RwFrameGetLTM(stack->frame);
+
+    obj = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
+    if (obj != 0) {
+        ScreenTextRenderString(obj, info, ltm);
+    }
 }
 
 void ProcessEngineEvent__10ScreenTextFP9ScreenMgri(ScreenText* text, void* mgr,
@@ -6961,19 +6760,13 @@ int GetStringLen__10ScreenTextFv(ScreenText* text) {
     return len;
 }
 
+/* TODO: [near miss] 92.94%; latch value register and owner-pointer reload differ. */
 void Close__10ScreenTextFv(ScreenText* text) {
     StringObj* obj;
     typedef int (*DestroyFn)(StringObj*);
     DestroyFn* vtbl;
 
-    obj = text->stringObj;
-    if (obj != 0) {
-        if (obj->instance != (unsigned int)text->stringObjInstance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
     if (obj != 0) {
         obj = text->stringObj;
         if (obj->instance != 0) {
@@ -6985,17 +6778,13 @@ void Close__10ScreenTextFv(ScreenText* text) {
     }
 }
 
-/* TODO: [near miss] 84.89%; stringObj latch reload and destroy-call scheduling remain. */
+/* TODO: [near miss] 91.49%; vtable addressing, latch result register and owner reload differ. */
 void* __dt__10ScreenTextFv(ScreenText* self, short del) {
     StringObj* live;
 
     if (self != 0) {
         self->vtbl = &__vt__10ScreenText;
-        live = self->stringObj;
-        if (live != 0 &&
-            live->instance != (unsigned int)self->stringObjInstance) {
-            live = 0;
-        }
+        live = MK_LIVE(self->stringObj, (unsigned int)self->stringObjInstance);
         if (live != 0) {
             if (self->stringObj->instance != 0) {
                 ((void (*)(void*))(*(void***)self->stringObj)[4])(
@@ -7146,8 +6935,6 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
     int resource;
     unsigned char* colorBytes;
     float colorScale[4];
-    unsigned int textColor;
-    unsigned int savedTextColor;
 
     params = action->m_params;
     if (params == 0) {
@@ -7198,6 +6985,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         {
             ScreenText* text;
             StringObj* live;
+            unsigned int textColor;
 
             text = (ScreenText*)GetScreenObject__12ScreenParamsFUi(params, 0);
             ScreenColor colorValue = params->GetColor(1);
@@ -7257,6 +7045,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
             char* name;
             char* string;
             int activeIndex;
+            unsigned int savedTextColor;
 
             text = (ScreenText*)GetScreenObject__12ScreenParamsFUi(params, 0);
             name = GetName__12ScreenParamsFUi(params, 1);
@@ -7680,6 +7469,7 @@ void SetCurrent__20mkScreenEngineClientFP9ScreenSet(ScreenEngineClient* self,
                                                      void* set) {
 }
 
+/* TODO: [breakthrough] 93.06%; vtable, filter bits and CTR agree; vertex address ownership remains. */
 void* CreatePoly__20mkScreenEngineClientFP8SEPoly_t(ScreenEngineClient* client,
                                                    SEPoly_t* se) {
     ScreenPoly* poly;
@@ -7689,12 +7479,10 @@ void* CreatePoly__20mkScreenEngineClientFP8SEPoly_t(ScreenEngineClient* client,
     RwTextureFilterView* view;
     ScreenObj* obj;
     RwRaster* raster;
-    ScreenPolyVert* dst;
-    int* map;
     int n;
     int vi;
 
-    poly = (ScreenPoly*)__nw__10ScreenNodeFUl(0x7c);
+    poly = (ScreenPoly*)__nw__10ScreenNodeFUl(sizeof(ScreenPoly));
     if (poly != 0) {
         __ct__10ScreenNodeFv(poly);
         poly->vtbl = &__vt__10ScreenPoly;
@@ -7727,22 +7515,14 @@ void* CreatePoly__20mkScreenEngineClientFP8SEPoly_t(ScreenEngineClient* client,
     poly->colorTex = color;
     if (color != 0) {
         view = (RwTextureFilterView*)color;
-        if ((poly->filterFlags & 0x40) != 0) {
+        if (((ScreenPolyFilterBits*)&poly->filterFlags)->linear) {
             view->filterFlags = (view->filterFlags & 0xffff00ff) | 0x1100;
         } else {
             view->filterFlags = (view->filterFlags & 0xffff00ff) | 0x3300;
         }
         view->filterFlags = (view->filterFlags & 0xffffff00) | 1;
     }
-    obj = poly->screenObj;
-    if (obj != 0) {
-        if (obj->instance !=
-            (unsigned int)poly->screenObjInstance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = MK_LIVE(poly->screenObj, (unsigned int)poly->screenObjInstance);
     if (obj != 0) {
         if (color != 0) {
             raster = ((RwTextureFilterView*)color)->raster;
@@ -7757,43 +7537,29 @@ void* CreatePoly__20mkScreenEngineClientFP8SEPoly_t(ScreenEngineClient* client,
     poly->alphaTex = alpha;
     if (alpha != 0) {
         view = (RwTextureFilterView*)alpha;
-        if ((poly->filterFlags & 0x40) != 0) {
+        if (((ScreenPolyFilterBits*)&poly->filterFlags)->linear) {
             view->filterFlags = (view->filterFlags & 0xffff00ff) | 0x1100;
         } else {
             view->filterFlags = (view->filterFlags & 0xffff00ff) | 0x3300;
         }
         view->filterFlags = (view->filterFlags & 0xffffff00) | 1;
     }
-    obj = poly->screenObj;
-    if (obj != 0) {
-        if (obj->instance !=
-            (unsigned int)poly->screenObjInstance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = MK_LIVE(poly->screenObj, (unsigned int)poly->screenObjInstance);
     if (obj != 0) {
         obj->pfx2d->alpha_texture = alpha;
     }
 
-    map = vert_map__10ScreenPoly;
-    dst = poly->verts;
-    n = 4;
-    do {
-        vi = *map;
-        dst->x = se->positions[vi].x;
-        dst->y = 480.0f - se->positions[vi].y;
-        dst->u = se->uvs[vi][0];
-        dst->v = 1.0f - se->uvs[vi][1];
-        dst->rgba[0] = se->colors[vi][0];
-        dst->rgba[1] = se->colors[vi][1];
-        dst->rgba[2] = se->colors[vi][2];
-        dst->rgba[3] = se->colors[vi][3];
-        map += 1;
-        dst += 1;
-        n -= 1;
-    } while (n != 0);
+    for (n = 0; n < 4; n++) {
+        vi = vert_map__10ScreenPoly[n];
+        poly->verts[n].x = se->positions[vi].x;
+        poly->verts[n].y = 480.0f - se->positions[vi].y;
+        poly->verts[n].u = se->uvs[vi][0];
+        poly->verts[n].v = 1.0f - se->uvs[vi][1];
+        poly->verts[n].rgba[0] = se->colors[vi][0];
+        poly->verts[n].rgba[1] = se->colors[vi][1];
+        poly->verts[n].rgba[2] = se->colors[vi][2];
+        poly->verts[n].rgba[3] = se->colors[vi][3];
+    }
 
     return poly;
 }
@@ -8030,10 +7796,10 @@ void* CreateAction__20mkScreenEngineClientFi(ScreenEngineClient* self,
     return action;
 }
 
+/* TODO: [near miss] 95.88%; cache comparison agrees; duplicate zero initialization and loop GPR homes remain. */
 void UnloadScreenSet__20mkScreenEngineClientFi(ScreenEngineClient* self,
                                                 int unloadId) {
     int count;
-    int i;
 
     do {
         count = get_slot_file_count(self->slot);
@@ -8043,8 +7809,8 @@ void UnloadScreenSet__20mkScreenEngineClientFi(ScreenEngineClient* self,
         }
     } while (count > 0);
 
-    for (i = 0; i < 7; i++) {
-        if (unloadId <= self->fontCache[i].unloadId) {
+    for (int i = 0; i < 7; i++) {
+        if (self->fontCache[i].unloadId >= unloadId) {
             self->fontCache[i].name = 0;
             self->fontCache[i].unloadId = 0;
         }
@@ -8158,28 +7924,25 @@ int LoadScreen__20mkScreenEngineClientFP9ScreenSetP6ScreenUi(void* client,
     return 1;
 }
 
+/* TODO: [near miss] 99.30%; eight set/file-index register-home rows remain;
+ * canonical ScreenSet typing and branch-local file index are neutral. */
 int LoadScreenSet__20mkScreenEngineClientFP9ScreenSet(ScreenEngineClient* client,
-                                                     void* set) {
-    char path[0x88];
+                                                     ScreenSet* set) {
+    char path[128];
     MkFileInfo* sec;
-    int fileIndex;
     int size;
     void* block;
     char* name;
-    ScreenSetView* setView;
-    int ok;
 
     size = 0;
-    setView = (ScreenSetView*)set;
     load_ssf(screen_engine_file_table);
     name = GetName__9ScreenSetFv(set);
     sprintf(path, stringBase0 + 0x1C9, name);
     sec = find_section_by_name(path);
-    ok = 0;
     if (sec != 0) {
-        fileIndex = add_art_section_async(client->slot, sec);
+        int fileIndex = add_art_section_async(client->slot, sec);
         wait_for_slot_load(client->slot);
-        setView->unloadId = fileIndex;
+        set->m_unloadId = fileIndex;
 
         block = load_named_binary_block_from_file(
             client->slot, fileIndex, (char*)(stringBase0 + 0x373), &size);
@@ -8190,9 +7953,9 @@ int LoadScreenSet__20mkScreenEngineClientFP9ScreenSet(ScreenEngineClient* client
             client->slot, fileIndex, (char*)(stringBase0 + 0x37B), &size);
         LoadSetData__15ScreenInstancerFP9ScreenSetPvUiPv(set, block,
                                                          size, 0);
-        ok = 1;
+        return 1;
     }
-    return ok;
+    return 0;
 }
 
 void PostRender__20mkScreenEngineClientFv(void* client) {}
@@ -8255,7 +8018,7 @@ void* CreateInstance__20mkScreenEngineClientFP9ScreenMgriP12ScreenParams(
             ssText->nodeB0 = 0;
             ssText->nodeB4 = 0;
             ((ScreenControlView*)ssText)->vtbl = &__vt__16SpreadSheet_text;
-            ssText->unk11C = 0;
+            ssText->strings = 0;
             ssText->unk118 = 0;
         }
         return ssText;
@@ -8288,7 +8051,7 @@ void* CreateInstance__20mkScreenEngineClientFP9ScreenMgriP12ScreenParams(
         imageList = (ImageList*)__nw__13ScreenControlFUl(0x114);
         if (imageList != 0) {
             __ct__13ScreenControlFv(imageList);
-            imageList->vtbl = &__vt__9ImageList;
+            ((ScreenControlView*)imageList)->vtbl = &__vt__9ImageList;
             imageList->itemNodes = 0;
             imageList->linkNode = 0;
             imageList->scrollBase = 0;
@@ -8314,7 +8077,7 @@ void* CreateInstance__20mkScreenEngineClientFP9ScreenMgriP12ScreenParams(
         textList = (TextList*)__nw__13ScreenControlFUl(0xd8);
         if (textList != 0) {
             __ct__13ScreenControlFv(textList);
-            textList->vtbl = &__vt__8TextList;
+            ((ScreenControlView*)textList)->vtbl = &__vt__8TextList;
             textList->itemNodes = 0;
             textList->linkedNode = 0;
             textList->strings = 0;
@@ -8407,14 +8170,7 @@ void SetScreenPolyTexture__FPvP9RwTexture(ScreenPoly* poly, RwTexture* tex) {
         view->filterFlags = (view->filterFlags & 0xffffff00) | 1;
     }
 
-    obj = poly->screenObj;
-    if (obj != 0) {
-        if (obj->instance != (unsigned int)poly->screenObjInstance) {
-            obj = 0;
-        }
-    } else {
-        obj = 0;
-    }
+    obj = MK_LIVE(poly->screenObj, (unsigned int)poly->screenObjInstance);
     if (obj == 0) {
         return;
     }

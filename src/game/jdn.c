@@ -1,6 +1,7 @@
 #include "game/game_info.h"
 #include "fdlibm.h"
 #include "game/jdn.h"
+#include "game/fx.h"
 #include "libmkparticle/color.h"
 #include "libmkparticle/emitter.h"
 #include "libmkparticle/fields.h"
@@ -16,22 +17,20 @@
 #include "runtime/cstring.h"
 
 static float pfx_glass_break_run(void);
-static void mkpfx_spawnupdate_glass_break(PfxVm* vm);
+static void mkpfx_spawnupdate_glass_break(void* vm);
 
-const unsigned int noch_pfx_table[] = {
-    5, 0x272, 3, 0, 0xBB03126F, 0, 0x3E4CCCCD, 0x42F00000,
-    0x42F00000, 0x42C80000, 0x437F0000, 0x96, 0x64, 0, 0, 0x100,
-    0x40, 0x55, 0xC, 0x40000000, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    (unsigned int)mkpfx_spawnupdate_glass_break,
+const struct FxPfxDefinition noch_pfx_table = {
+    5, 0x272, 3, { 0.0f, -0.002f, 0.0f }, 0.2f,
+    120.0f, 120.0f, 100.0f, 255.0f,
+    0x96, 0x64, 0, 0, 0x100, 0x40, 0x55, 0xC, 2.0f, 1,
+    0, 0, 0, 0.0f, 0.0f, 0.0f, 0, 0, 0,
+    mkpfx_spawnupdate_glass_break,
 };
 static const char stringBase0[] = "C - glass shards\0C.glass_shard";
 
 static PfxColor glass_fragment_alphas[0xB5];
 float soul_sine[0x400];
 unsigned int g_kill_shard_fx;
-
-MkPfx* create_pfx(int, int, float (*)(void), MkPfx**,
-                  const unsigned int*, const char*);
 
 MkPfx* start_pfx_glass_shards(
     int art_id, Vec* position, Vec* center, int bounce_limit,
@@ -42,7 +41,7 @@ MkPfx* start_pfx_glass_shards(
     unsigned int index;
 
     pfx = create_pfx(0x8023, 0x8023, pfx_glass_break_run, &glass,
-                     noch_pfx_table, stringBase0);
+                     &noch_pfx_table, stringBase0);
     if (pfx != 0 && glass != 0) {
         emitter_object = (MkObj*)pfx_get_emitter_obj(glass, 0);
         if (emitter_object == 0) {
@@ -346,7 +345,7 @@ static float pfx_glass_break_run(void) {
 }
 
 
-static void mkpfx_spawnupdate_glass_break(PfxVm* vm) {
+static void mkpfx_spawnupdate_glass_break(void* vm) {
     int index;
     for (index = 0; index <= (int)(sizeof(glass_fragment_alphas) / sizeof(glass_fragment_alphas[0])) - 1; index++) {
         pfx_native_set_rgba(&glass_fragment_alphas[index], 128.0f, 128.0f,

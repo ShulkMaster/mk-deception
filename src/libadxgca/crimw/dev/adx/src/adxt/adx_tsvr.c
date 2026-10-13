@@ -347,7 +347,8 @@ void adxt_stat_decinfo(ADXTHandle* handle)
     handle->status = ADXT_STATUS_BUFFERING;
 }
 
-/* TODO: [near miss] 99.95%; second split length is retained across stream callbacks; first scan-length temporary uses r0 instead of r4. */
+/* TODO: [near miss] 99.95%; split-count snapshots agree;
+ * only first scanned-length volatile GPR differs; stop at coloring. */
 void adxt_nlp_trap_entry(void* object)
 {
     ADXTHandle* handle = object;

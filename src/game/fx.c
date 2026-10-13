@@ -42,7 +42,7 @@ struct FxRayPlane;
 
 struct LensflarePdata {
     MkHdr hdr;
-    const Vec* sun_position;
+    Vec* sun_position;
     const struct LensFlareDefinition* lens_data;
     struct FxRayPlane* obstructions;
     int obstruction_count;
@@ -119,38 +119,6 @@ struct FightingStyleSignPdata {
     int player;
 };
 
-struct FxPfxDefinition {
-    unsigned int flags;
-    int field_04;
-    int field_08;
-    Vec origin;
-    float particle_size;
-    float red;
-    float green;
-    float blue;
-    float alpha;
-    int emitter_lifetime;
-    int field_90;
-    int emitter_field_40;
-    void* texture;
-    int animate_texture;
-    int texture_width;
-    int texture_height;
-    int texture_frame_width;
-    float texture_speed;
-    int texture_enabled;
-    int kill_plane_x;
-    int kill_plane_y;
-    int kill_plane_z;
-    float plane_x;
-    float plane_y;
-    float plane_z;
-    int lifetime_mode;
-    int lifetime_minimum;
-    int lifetime_maximum;
-    PfxInitCb initialize;
-};
-
 ScreenObj* player_fstyle_sign[2] = { 0, 0 };
 static struct LensFlareData flare_data;
 PlyrMirrorObjLatch p1_freeze_light_item;
@@ -212,9 +180,8 @@ struct FxRayPlane courtyard_flare_obstructions[1] = {
       { 8.16f, 9.55f, 22.25f } },
 };
 
-#pragma dont_inline on
 static int rayintersection(
-    const Vec* origin, const Vec* direction, struct FxRayPlane* plane) {
+    Vec* origin, Vec* direction, struct FxRayPlane* plane) {
     Vec intersection = { 0.0f, 0.0f, 0.0f };
     float distance;
 
@@ -265,7 +232,6 @@ static int rayintersection(
         return 0;
     }
 }
-#pragma dont_inline reset
 
 static const char fx_string_base[228] =
     "YY_FLARES3\0YY_FLARES2\0YY_FLARES1\0YY_FLAREDOT\0"
@@ -301,8 +267,9 @@ static inline int lensflare_sun_blocked(
     return blocked;
 }
 
-/* TODO: [near miss] 98.06%; algorithm and CFG agree; GPR/FPR homes and independent fabs/fneg scheduling remain. */
+/* TODO: [near miss] 98.24%; algorithm and CFG agree; GPR/FPR homes and independent fabs/fneg scheduling remain. */
 static float lensflare_proc2(void) {
+    int index;
     struct LensflarePdata* pdata;
     CameraObj* camera;
     struct LensFlareEntry* flare;
@@ -315,7 +282,6 @@ static float lensflare_proc2(void) {
     double vertical_abs;
     float alpha_value;
     int screen_y;
-    int index;
 
     pdata = (struct LensflarePdata*)apdata;
     camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
@@ -1281,7 +1247,7 @@ MkPfx* create_pfx(
     }
     build.emitter_count = 1;
     effect = new_pfx_create_raw_userdata(
-        &build, 0, definition->field_90,
+        &build, 0, definition->particle_capacity,
         definition->field_04, definition->field_08,
         definition->initialize, process_id, entry,
         (void**)effect_out);
@@ -1314,23 +1280,23 @@ MkPfx* create_pfx(
         &vm->color1B4, definition->red, definition->green,
         definition->blue, definition->alpha);
 
-    pfx_get_emitter(vm, 0)->birth_rate = definition->emitter_lifetime;
-    vm->particle_capacity = definition->field_90;
+    pfx_get_emitter(vm, 0)->birth_rate = definition->birth_rate;
+    vm->particle_capacity = definition->particle_capacity;
     pfx_get_emitter(vm, 0)->field_40 = definition->emitter_field_40;
 
     if ((definition->flags & 4) == 0) {
-        if (definition->texture != 0) {
+        if (definition->texture_handle != 0) {
             set_pfx_texture(vm, 0x10005,
-                            (unsigned int)definition->texture);
+                            definition->texture_handle);
         }
-        if (definition->animate_texture != 0) {
+        if (definition->texture_width != 0) {
             pfx_texture_animate(
-                vm, definition->animate_texture,
-                definition->texture_width,
-                definition->texture_height,
-                definition->texture_frame_width,
-                definition->texture_speed);
-            vm->texture_mode = definition->texture_enabled;
+                vm, definition->texture_width,
+                definition->frame_width,
+                definition->frame_height,
+                definition->frame_count,
+                definition->frame_time);
+            vm->texture_mode = definition->texture_mode;
         }
     }
 
@@ -1349,8 +1315,8 @@ MkPfx* create_pfx(
 
     if (definition->lifetime_mode != 0) {
         if (definition->lifetime_mode == -1) {
-            lifetime = (definition->texture_frame_width *
-                        definition->texture_speed) - 1.0f;
+            lifetime = (definition->frame_count *
+                        definition->frame_time) - 1.0f;
         } else {
             lifetime = definition->lifetime_mode;
         }

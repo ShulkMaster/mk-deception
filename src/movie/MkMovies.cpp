@@ -22,9 +22,9 @@ static const char stringBase0[] = "MFS:%08x.%08x\0%s";
 
 static MkMovieTexPlayer _mmp_data[2] = {0};
 
-static inline void* mmp_screen_poly_at(const MkMovieTexPlayer* player, int screen_offset) {
+static inline void* mmp_screen_poly_at(MkMovieTexPlayer* player, int screen_offset) {
     screen_offset += RW_OFFSET_OF(MkMovieTexPlayer, screen_poly);
-    return *(void* const*)((const char*)player + screen_offset);
+    return *(void**)((char*)player + screen_offset);
 }
 
 static inline RwTexture* mmp_saved_texture_at(MkMovieTexPlayer* player, int screen_offset) {
@@ -32,10 +32,9 @@ static inline RwTexture* mmp_saved_texture_at(MkMovieTexPlayer* player, int scre
     return *(RwTexture**)((char*)player + screen_offset);
 }
 
-/* TODO: [near miss] 99.17%; playing flag and scan index differ only in register coloring; stop. */
 void mkMovieTexPlayerIdleUpdate(void) {
-    unsigned char anyPlaying;
     int index;
+    unsigned char anyPlaying;
 
     anyPlaying = 0;
     for (index = 0; index < 2; index++) {
@@ -52,22 +51,19 @@ void mkMovieTexPlayerIdleUpdate(void) {
     }
 }
 
-/* TODO: [near miss] 96.83%; screen-loop player-base rematerialization and GPR allocation differ. */
+/* TODO: [near miss] 96.83%; loop-local GPR homes and screen-offset zero initialization differ. */
 void movie_player_reset(void) {
     int playerIndex;
-    MkMovieTexPlayer* player;
-    int screenCount;
-    int screenIndex;
-    int screenOffset;
-    void* screenPoly;
-    RwTexture* savedTex;
-    RwTexture* tex;
 
     playerIndex = 0;
     do {
         if (playerIndex < 2) {
-            player = &_mmp_data[playerIndex];
+            MkMovieTexPlayer* player = &_mmp_data[playerIndex];
             if (player->movie != 0) {
+                int screenCount;
+                int screenIndex;
+                int screenOffset;
+
                 MovieDelete(player->movie);
                 screenCount = player->screen_count;
                 if (screenCount < 1) {
@@ -75,9 +71,9 @@ void movie_player_reset(void) {
                 }
                 for (screenIndex = 0, screenOffset = 0; screenIndex < screenCount;
                      screenIndex++, screenOffset += sizeof(void*)) {
-                    screenPoly = mmp_screen_poly_at(player, screenOffset);
-                    savedTex = mmp_saved_texture_at(player, screenOffset);
-                    tex = GetScreenPolyTexture__FPv(screenPoly);
+                    void* screenPoly = mmp_screen_poly_at(player, screenOffset);
+                    RwTexture* savedTex = mmp_saved_texture_at(player, screenOffset);
+                    RwTexture* tex = GetScreenPolyTexture__FPv(screenPoly);
                     if (tex != savedTex) {
                         SetScreenPolyTexture__FPvP9RwTexture(screenPoly, savedTex);
                     }
@@ -121,12 +117,10 @@ static inline MkMovieTexPlayer* mmp_prepare_movie_path(
     return player;
 }
 
-/* TODO: [near miss] 98.17%; screen-slot indexed/displacement addressing and screen/offset register allocation differ. */
 void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int unused3, int use_mfs) {
     int screenCount;
-    void* screenPoly;
     int screenIndex;
-    int screenOffset;
+    void* screenPoly;
     MkMovieTexPlayer* player;
     RwTexture* tex;
     RwTexture* texture;
@@ -140,9 +134,8 @@ void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int u
                 screenCount = 1;
             }
             screenIndex = 0;
-            screenOffset = 0;
             while (screenIndex < screenCount) {
-                screenPoly = mmp_screen_poly_at(player, screenOffset);
+                screenPoly = (&player->screen_poly)[screenIndex];
                 if (screenPoly != 0) {
                     texture = player->texture;
                     tex = GetScreenPolyTexture__FPv(screenPoly);
@@ -151,7 +144,6 @@ void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int u
                     }
                 }
                 screenIndex++;
-                screenOffset += sizeof(void*);
             }
             setMovieHeap(movie_heap);
             playable = mmp_prepare_movie_path(player, name, use_mfs);

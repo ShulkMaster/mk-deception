@@ -47,6 +47,8 @@ extern "C" {
 
 void bgnd_pfx_resume_effect(const char* name);
 void bgnd_pfx_reset_effect(const char* name);
+MkSobj* bgnd_fetch_sobj(int model_index, unsigned int object_id);
+void bgnd_start_script_in_proc(int process_id, unsigned int script_index);
 void bgnd_anim_camera_ended(void);
 void bgnd_anim_camera_setup(void);
 void bgnd_clear_danger_zone_callback(PlyrPdata* pdata);
@@ -56,6 +58,11 @@ float bgnd_current_rx_get_info(int info_id);
 void bgnd_current_rx_set_info(int info_id, void* script_args, float value);
 void pebble_get_pos(int player, int index, Vec* position);
 void pebble_set_pos(int player, int index, Vec* position);
+void pebble_set_vel(int player, int index, Vec* velocity);
+void pebble_set_scale(int player, int index, Vec* scale);
+void pebble_set_ang(int player, int index, Vec* angles);
+void pebble_set_ang_vel(int player, int index, Vec* velocity);
+void pebble_setup_bounce_props(int player, int index, Vec* velocity, int flags);
 MkHdr* get_sobj_pebble_obj(MkSobj* object);
 void bgnd_start_sobj_uv_scroll(int object_id,
                                float u1, float v1, float u2, float v2,

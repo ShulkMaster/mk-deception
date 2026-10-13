@@ -51,13 +51,10 @@ static inline MkObj* as_mkobj(MkHdr* hdr) {
 }
 
 static inline MkSobj* vtbl_call_get_sobj(MkHdr* hdr) {
-    MkVtable5* vtbl;
-
-    if (hdr == 0) {
-        return 0;
+    if (hdr != 0) {
+        return (MkSobj*)hdr->vtbl->fn2(hdr);
     }
-    vtbl = hdr->vtbl;
-    return (MkSobj*)vtbl->fn2(hdr);
+    return 0;
 }
 
 static inline void vtbl_call_destroy(MkHdr* hdr) {
@@ -877,8 +874,6 @@ void pfx_post_sleep(void) {
     apfx_emitter_sobj = 0;
 }
 
-/* TODO: [breakthrough] 87.92%; global call-boundary reloads, binding gate
- * and checked casts recovered; latch and virtual-wrapper CFG remain. */
 void pfx_pre_wake(void) {
     MkHdr* render_hdr;
     PfxSlot* emitter_slot;
@@ -896,9 +891,8 @@ void pfx_pre_wake(void) {
     apfx_render_obj = 0;
     apfx_render_sobj = 0;
 
-    render_hdr = pfx->bind_hdr;
-    if (render_hdr != 0) {
-        render_hdr = MK_LIVE(render_hdr, pfx->bind_inst);
+    if (pfx->bind_hdr != 0) {
+        render_hdr = MK_LIVE(pfx->bind_hdr, pfx->bind_inst);
         if (render_hdr == 0) {
             mkproc_die();
         }
@@ -922,10 +916,10 @@ void pfx_pre_wake(void) {
         pfx_frame_end(pfx_vm(apfx));
         proc_hdr = MK_LIVE(apfx->proc, apfx->proc_inst);
         if (apfx->hdr.instance != 0) {
-            vtbl_call_destroy(&apfx->hdr);
+            apfx->hdr.typed_vtbl->destroy(&apfx->hdr);
         }
-        if (proc_hdr != 0) {
-            vtbl_call_destroy(proc_hdr);
+        if (proc_hdr != 0 && proc_hdr->instance != 0) {
+            proc_hdr->typed_vtbl->destroy(proc_hdr);
         }
         apfx = 0;
         apdata = 0;

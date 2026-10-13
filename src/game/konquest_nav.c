@@ -86,7 +86,8 @@ static inline struct NavArea* nav_get_area(struct KonquestNavData* nav, int area
 static inline struct NavPortalList* nav_get_portals(struct NavArea* area) {
     struct NavBoundary* boundaries = area->boundaries;
     int boundaryCount = area->boundaryCount;
-    return (struct NavPortalList*)(boundaries + boundaryCount);
+    boundaries += boundaryCount;
+    return (struct NavPortalList*)boundaries;
 }
 
 
@@ -155,8 +156,8 @@ static inline int nav_find_area_in_tile(const Vec* position) {
     return -1;
 }
 
-/* TODO: [near miss] 96.14286%; boundary owner/cursor and geometry loads agree;
- * list preheader association and FP homes remain. */
+/* TODO: [near miss] 97.64%; portal-entry advance scheduling and delta-X
+ * FPR home remain; stop at localized codegen. */
 void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int portalId) {
     struct KonquestPdata* pdata = konquest_pdata;
     struct KonquestNavData* nav = pdata->navData;
@@ -199,8 +200,8 @@ void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int po
             normalX = portal->normalX;
             dz = normalZ * halfLength + dz;
             dx = normalX * halfLength + dx;
-            dz -= pos->z;
             dx -= pos->x;
+            dz -= pos->z;
             side = normalX * dx + normalZ * dz;
 
             if (side >= quarterLength || side <= -0.25f * length) {
@@ -220,7 +221,7 @@ void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int po
     }
 }
 
-/* TODO: [near miss] 97.14050%; typed boundary-array owner improves portal-tail setup;
+/* TODO: [near miss] 98.18%; in-place boundary cursor restores portal-tail base;
  * remaining BFS register/address lowering differs. */
 int nav_which_area_is_next(int fromArea, int toArea) {
     int areaCount;
@@ -436,7 +437,7 @@ static struct NavArea* unit_vector_to_area(struct NavArea* area, Vec* nearestNor
     return (struct NavArea*)boundary;
 }
 
-/* TODO: [near miss] 97.07229%; typed boundary-array owner improves portal-tail setup;
+/* TODO: [near miss] 97.68%; in-place boundary cursor restores portal-tail base;
  * area-count reload, boundary-test FP homes and portal induction remain. */
 int nav_what_area_is_point_in(Vec* pos, int hintArea) {
     struct KonquestNavData* nav;

@@ -18,10 +18,8 @@
 typedef struct ImpaleSecondaryObject {
     MkHdr hdr;
     char pad08[0x40];
-    float strength; /* +0x48 */
+    float strength;
 } ImpaleSecondaryObject;
-
-typedef BoneMatcherState WeaponBoneMatcherState;
 
 typedef struct WeaponCollisionDef {
     float radius;
@@ -620,7 +618,7 @@ static int plyr_obj_item_grab(PlyrPdata* player,
     MkObj* current_item;
     RwMatrix* bone_matrix;
     MkBone* bone;
-    WeaponBoneMatcherState* matcher;
+    BoneMatcherState* matcher;
     MkHdr* item_hdr;
 
     matcher = 0;
@@ -661,7 +659,7 @@ static int plyr_obj_item_grab(PlyrPdata* player,
     }
 
     if (secondary_latch != 0) {
-        matcher = MK_HDR_LIVE((WeaponBoneMatcherState*) secondary_latch->obj, secondary_latch->instance);
+        matcher = MK_HDR_LIVE((BoneMatcherState*) secondary_latch->obj, secondary_latch->instance);
     }
     if (matcher == 0) {
         matcher = start_bone_matcher(
@@ -716,7 +714,7 @@ static inline MkHdr* find_item_bone_matcher(MkPtr** list, MkObj* item) {
                 cursor = next;
             } else {
                 if (hdr != 0) {
-                    WeaponBoneMatcherState* matcher = (WeaponBoneMatcherState*)hdr;
+                    BoneMatcherState* matcher = (BoneMatcherState*)hdr;
                     if (MK_HDR_LIVE(matcher->child_obj, matcher->child_instance) == item) {
                         return hdr;
                     }
@@ -943,9 +941,11 @@ void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     }
 }
 
-/* TODO: [near miss] 98.58%; unsigned chain terminator agrees; stop at nonvolatile owner/map-index register coloring (r29/r31). */
-void mkobj_update_weapon_trail(MkObj* trail_model) {
+/* TODO: [near miss] 99.14%; callback/map/position homes agree;
+ * bone/cache r25-r27 rotation remains; stop at coloring. */
+void mkobj_update_weapon_trail(MkHdr* hdr) {
     MkObj* weapon;
+    int* chain_root;
     WeaponDefinition* definition;
     RwMatrix* weapon_matrix;
     RwMatrix* trail_matrix;
@@ -953,7 +953,7 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
     MkBone* child_bone;
     MkBone* parent_bone;
     MkBone* trail_bone;
-    int* chain_root;
+    MkObj* trail_model = (MkObj*)hdr;
     RwMatrix* trail_cache;
     Vec* trail_position;
     Vec displacement;
@@ -995,7 +995,9 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
         v3_sub_v3(&trail_bone->parent_matrix->pos_vec,
                   &trail_bone->parent_matrix->pos_vec,
                   trail_position);
-        memcpy(trail_bone->parent_matrix, &parent_bone->matrix, 0x30);
+        memcpy(trail_bone->parent_matrix, &parent_bone->matrix,
+               sizeof(*trail_bone->parent_matrix) -
+                   sizeof(trail_bone->parent_matrix->pos_row));
     }
     chain_root = definition->trail_chain_roots;
     if (chain_root != 0) {
@@ -1045,7 +1047,7 @@ void mkobj_update_weapon_trail(MkObj* trail_model) {
         return;
     }
 
-invalid_trail:
+    invalid_trail:
     if (trail_model->hdr.instance != 0) {
         trail_model->hdr.typed_vtbl->destroy((MkHdr*)trail_model);
     }

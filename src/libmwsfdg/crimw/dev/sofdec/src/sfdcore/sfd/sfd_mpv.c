@@ -1040,8 +1040,8 @@ static inline int sfmpv_IsPrepared(SfdHandle* handle)
 
 static inline void sfmpv_ChkPrep(SfdHandle* handle)
 {
-    SfdMpvRepeatTimer* repeat_timer =
-        (SfdMpvRepeatTimer*)&handle->timer_state;
+    SfdMpvDecodeTimer* timer =
+        (SfdMpvDecodeTimer*)&handle->timer_state;
     int output_buffer = handle->transports[2].parameter_14;
     int input_buffer = handle->transports[2].parameter_10;
 
@@ -1049,9 +1049,8 @@ static inline void sfmpv_ChkPrep(SfdHandle* handle)
         SFBUF_GetPrepFlg(handle, input_buffer) == 1) {
         if (sfmpv_IsPrepared(handle) != 0) {
             SFBUF_SetPrepFlg(handle, output_buffer, 1);
-            if (repeat_timer->reference_time_origin != 0x7FFFFFFF) {
-                ((SfdMpvDecodeTimer*)&handle->timer_state)
-                    ->output_start.valid = 1;
+            if (timer->output_start.value != 0x7FFFFFFF) {
+                timer->output_start.valid = 1;
             }
         }
     }
@@ -1227,7 +1226,7 @@ static int SFMPV_ExecServer(SfdHandle* handle)
     return sfmpv_ExecServerSub(handle);
 }
 
-/* TODO: [near miss] 98.60%; typed header owner improved; handle, result and remaining inline owners still use rotated GPRs. */
+/* TODO: [near miss] 98.60%; handle/result and inline phase owners retain saved-register rotation; stop at coloring. */
 static int sfmpv_ExecServerSub(SfdHandle* handle)
 {
     int result;
@@ -1388,7 +1387,7 @@ static int sfmpv_GetActiveSize(SfdHandle* handle, int* active_size,
     return 0;
 }
 
-/* TODO: [near miss] 94.67%; shared fallback-search cap and metadata lifetimes differ. */
+/* TODO: [breakthrough needed] 94.67%; shared fallback cap branches and length reloads are missing; compiler lowering needs evidence. */
 static int sfmpv_NeedSafeDlmRefresh(const SfdBufferTransfer* transfer,
                                     int current_type,
                                     const unsigned char* delimiter)

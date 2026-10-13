@@ -185,7 +185,7 @@ static inline int mwsffrm_IsPicUsrDat(MwsPlayer* player)
     return player->picture_user_data != 0 ? 1 : 0;
 }
 
-/* TODO: [near miss] 97.67%; player/header r31/r30 coloring remains; stop at coloring. */
+/* TODO: [near miss] 97.67%; player/header r31/r30 swap remains; binding subsets neutral, stop at coloring. */
 static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
                                       const void* data, unsigned int size)
 {

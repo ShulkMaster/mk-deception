@@ -220,7 +220,8 @@ void ADXM_SetCbErr(SVMErrorFunction function, void* object)
     SVM_SetCbErr(function, object);
 }
 
-/* TODO: [near miss] 99.91045%; parameter copy restored; only li1/li0 activation scheduling remains. */
+/* TODO: [near miss] 99.91%; li1/li0 swap arises between presched and precolor;
+ * parameter copy and all activation stores agree. */
 void ADXM_SetupThrd(ADXMThreadParams* params)
 {
     const char* build = adxgc_build;

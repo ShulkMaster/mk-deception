@@ -648,16 +648,13 @@ static void npc_check_next_event(KonquestNpc* npc);
 static void npc_setup_path_for_event(
     KonquestNpc* npc, KonquestTimedEvent* event, int preserve_path);
 static inline int npc_animation_is_active(struct KonquestNpcAnimState* state) {
-    int active;
-
     if (state == 0) {
-        active = 0;
-    } else if (state->object == 0) {
-        active = 0;
-    } else {
-        active = state->proc != 0;
+        return 0;
     }
-    return active;
+    if (state->object == 0) {
+        return 0;
+    }
+    return state->proc != 0;
 }
 
 static inline int npc_event_has_active_animation(KonquestNpc* npc) {
@@ -949,7 +946,6 @@ static inline int npc_get_navigation_direction(
 }
 
 static inline void npc_suspend_animation_wait(void) {
-    CmdScript* script;
     CmdScript* saved_script;
     KonquestNpc* npc = g_active_npc;
 
@@ -961,8 +957,7 @@ static inline void npc_suspend_animation_wait(void) {
         g_active_npc->wait_ticks = 0.0f;
         return;
     }
-    script = active_cmdscript;
-    script->state = 2;
+    active_cmdscript->state = 2;
     saved_script = active_cmdscript;
     npc = g_active_npc;
     cmdscript_step_backward();
@@ -1351,7 +1346,6 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
     }
 
     tile = get_nth_tile_struct(npc->tile_index);
-    inverse_length = 0.0f;
 
     if (tile == 0 || tile->loaded == 0) {
         return 0;
@@ -2078,9 +2072,9 @@ static inline int npc_nearest_waypoint(KonquestNpc* npc, KonquestWaypoint* waypo
     count = get_row_count_for_table_by_pointer(
         konquest_pdata->waypoint_script, waypoints);
     for (index = 0; index < count; index++) {
-        KonquestNpcData* data = npc->data;
-        float delta_x = data->position.x - waypoints[index].position.x;
-        float delta_z = data->position.z - waypoints[index].position.z;
+        KonquestWaypoint* waypoint = &waypoints[index];
+        float delta_x = npc->data->position.x - waypoint->position.x;
+        float delta_z = npc->data->position.z - waypoint->position.z;
         float distance = delta_x * delta_x + delta_z * delta_z;
 
         if (distance < nearest_distance) {
@@ -2092,7 +2086,7 @@ static inline int npc_nearest_waypoint(KonquestNpc* npc, KonquestWaypoint* waypo
     return nearest;
 }
 
-/* TODO: [near miss] 99.50%; nearest/current waypoint, script offset and delta GPR/FPR coloring remain; stop at coloring. */
+/* TODO: [near miss] 99.62%; nearest/current waypoint, script offset and delta GPR/FPR coloring remain; stop at coloring. */
 static void npc_set_path(
     KonquestNpc* npc, KonquestWaypoint* waypoints, int table_index,
     int row_count, int waypoint, int travel_mode) {
@@ -2247,11 +2241,10 @@ void npc_assign_door_path(int door_id, int travel_mode) {
     }
 }
 
-/* TODO: [breakthrough] 99.43%; canonical two-argument bone call removes r5 staging;
- * model-name pool addend and SObj register coloring remain. */
 void npc_shadow_init(void) {
-    const char* shadow_model_name = "NPC_SHADOW";
+    MkSobj* sobj;
     int index;
+    const char* shadow_model_name = "NPC_SHADOW";
 
     if (npc_shadows.initialized != 0) {
         return;
@@ -2260,8 +2253,6 @@ void npc_shadow_init(void) {
     load_ssf(konquest_common_file_table);
     load_art_section_language(0x60030, &sec_konquest_common_art);
     for (index = 0; index < 15; index++) {
-        MkSobj* sobj;
-
         npc_shadows.objects[index] = load_named_model_from_slot(
             0x60030, shadow_model_name, 0x7F00, 0);
         if (npc_shadows.objects[index] == 0) {
@@ -2696,7 +2687,7 @@ static int is_this_a_current_event_for_today(
  * scheduling differs at entry; stop at scheduling. */
 static void npc_setup_path_for_event(
     KonquestNpc* npc, KonquestTimedEvent* event, int preserve_path) {
-    void* path;
+    KonquestWaypoint* path;
     int table_index = 0;
     int row_count = 0;
 
@@ -2854,7 +2845,17 @@ void npc_force_state_for_npc(KonquestNpc* npc, int next_state) {
     }
 }
 
-/* TODO: [near miss] 99.92%; only next_timed_event local coloring (retail r31, here r30) remains. */
+static inline void npc_activate_timed_event(
+    KonquestNpc* npc, KonquestTimedEvent* event, int initialize) {
+    if (npc->animation_override == 0) {
+        npc_set_event_script(npc, 0, event->script_function);
+        if (event->event_slot_3_script != 0) {
+            npc_set_event_script(npc, 3, event->event_slot_3_script);
+        }
+        npc_setup_path_for_event(npc, event, initialize);
+    }
+}
+
 static void npc_check_next_event(KonquestNpc* npc) {
     if (npc->animation_override == 0 &&
         is_time_a_greater_than_time_b(
@@ -2871,17 +2872,7 @@ static void npc_check_next_event(KonquestNpc* npc) {
         }
         if (npc->flags_1D_field_bit0 == 0 &&
             npc->flags_1C_field_bit1 == 0) {
-            KonquestTimedEvent* event = npc->next_timed_event;
-
-            if (npc->animation_override == 0) {
-                npc_set_event_script(
-                    npc, 0, event->script_function);
-                if (event->event_slot_3_script != 0) {
-                    npc_set_event_script(
-                        npc, 3, event->event_slot_3_script);
-                }
-                npc_setup_path_for_event(npc, event, 0);
-            }
+            npc_activate_timed_event(npc, npc->next_timed_event, 0);
             npc_force_state_for_npc(npc, 0);
             npc_find_next_timed_event(npc);
         }
@@ -2894,15 +2885,7 @@ static void setup_current_and_next_events(
 
     current_event = npc_find_current_timed_event(npc);
     if (current_event != 0) {
-        if (npc->animation_override == 0) {
-            npc_set_event_script(
-                npc, 0, current_event->script_function);
-            if (current_event->event_slot_3_script != 0) {
-                npc_set_event_script(
-                    npc, 3, current_event->event_slot_3_script);
-            }
-            npc_setup_path_for_event(npc, current_event, initialize);
-        }
+        npc_activate_timed_event(npc, current_event, initialize);
     } else {
         npc->events[0].script_function = 0;
     }
@@ -3042,7 +3025,8 @@ void npc_update(int update_all) {
     }
 }
 
-/* TODO: [near miss] 99.87%; script-name add dest/operand coloring (r4,r0,r5 vs r5,r5,r0) remains; add-then-subi order matches. */
+/* TODO: [near miss] 99.87%; script-name add/subi survive initial and presched;
+ * full-width pointer sum still uses r5 instead of retail r4. */
 static void npc_invisible_update(KonquestNpc* npc) {
     if (konquest_editor_mode_on == 0) {
         int previous_state;
@@ -3054,7 +3038,6 @@ static void npc_invisible_update(KonquestNpc* npc) {
             if (npc->events[previous_state].script_function != 0) {
                 ScriptSlot* slot;
                 unsigned int script_function;
-                unsigned int function_index;
 
                 if (npc->wait_ticks == 0.0f) {
                     int active;
@@ -3093,6 +3076,7 @@ static void npc_invisible_update(KonquestNpc* npc) {
                         g_active_npc->wait_ticks = 0.0f;
                     }
                     if (g_active_npc->wait_ticks > 0.0f) {
+                        unsigned int function_index;
                         char* function_name;
 
                         memcpy(
@@ -3306,13 +3290,15 @@ void add_npc_list_to_world(int* npc_ids) {
     }
 }
 
-/* TODO: [near miss] 99.61%; next-cursor coloring, name add operand/dest coloring, and +2 string-pool addends (TU "0" literal order) remain. */
+/* TODO: [near miss] 99.69%; loop zero initialization and script-name add register coloring remain. */
 void start_running_npcs(void) {
     struct NpcManagerPdata* manager;
     MkProc* manager_proc;
     MkPtr* link;
+    MkPtr* startup_next;
     MkPtr* visible_link;
     KonquestNpc* visible_npc;
+    MkPtr* visible_next;
     int index;
 
     _create_mkproc_generic_nostack(0xA01C, 0x1F, p_update_npc_shadows, 0, 0);
@@ -3367,9 +3353,9 @@ void start_running_npcs(void) {
         while (link != 0) {
             KonquestNpc* npc = (KonquestNpc*)link->hdr;
             if (link->instance != npc->hdr.instance) {
-                MkPtr* next = link->next;
+                startup_next = link->next;
                 discard_stale_mkptr(link);
-                link = next;
+                link = startup_next;
             } else {
                 if (npc->data->events[7].startup_script != 0) {
                     ScriptSlot* slot;
@@ -3425,9 +3411,9 @@ void start_running_npcs(void) {
         while (visible_link != 0) {
             visible_npc = (KonquestNpc*)visible_link->hdr;
             if (visible_link->instance != visible_npc->hdr.instance) {
-                MkPtr* next = visible_link->next;
+                visible_next = visible_link->next;
                 discard_stale_mkptr(visible_link);
-                visible_link = next;
+                visible_link = visible_next;
             } else {
                 struct KonquestTileOrigin* tile =
                     get_nth_tile_struct(visible_npc->tile_index);
@@ -4631,7 +4617,8 @@ void npc_set_ani_frame(float frame) {
     }
 }
 
-/* TODO: [near miss] 99.85%; only first npc_suspend_animation_wait script/npc r27/r28 coloring remains. */
+/* TODO: [near miss] 99.85%; first wait snapshot webs color script/NPC r29/r28;
+ * retail uses r28/r27; operations and second expansion agree. */
 void npc_blend_to_ani_string(int* animation_ids) {
     unsigned int count = get_row_count_for_table_by_pointer(
         konquest_pdata->waypoint_script, animation_ids);
@@ -6533,8 +6520,7 @@ void npc_set_random_dialog_and_anim_sequence(int dialog, int animation) {
     }
 }
 
-/* TODO: [near miss] 99.10%; selected animation load now matches; remaining
- * differences are saved-register coloring and two texture-field load order. */
+/* TODO: [near miss] 99.34%; saved-register coloring (sequences/choice/keyframes/sound homes) and two texture-field load order remain. */
 void npc_play_random_dialog_sequence(void) {
     struct KonquestRandomDialogSequence* sequences =
         konquest_pdata->random_dialog_sequences;
@@ -6542,13 +6528,13 @@ void npc_play_random_dialog_sequence(void) {
 
     if (konquest_pdata->load_config->dialog_definitions != 0 &&
         npc_dialog_wait_for_widescreen_bars() != 0) {
+        int sound_id;
+        int dialog_animation;
+        LipSyncKeyframe* keyframes;
         unsigned short choice = randu0((unsigned short)count);
         struct KonquestDialogDefinition* dialog =
             &konquest_pdata->load_config->dialog_definitions[
                 sequences[choice].dialog];
-        int sound_id;
-        int dialog_animation;
-        LipSyncKeyframe* keyframes;
 
         dialog_text = get_string_by_id(dialog->string_id | 0x20000);
         keyframes = dialog->keyframes;

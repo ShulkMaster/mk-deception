@@ -25,6 +25,7 @@ float j_exit(void);
 float j_exit_6(void);
 float j_exit_blend_stance(void);
 float j_exit_react(void);
+void myvel_his_angle_y_inout(float angle_offset, float x_velocity, float z_velocity);
 void rotate_towards_him(float max_step);
 void rotate_towards_position(Vec* target, float max_step);
 void set_my_state(int state);

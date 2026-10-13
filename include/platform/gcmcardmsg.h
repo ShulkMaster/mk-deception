@@ -1,12 +1,6 @@
 #ifndef PLATFORM_GCMCARDMSG_H
 #define PLATFORM_GCMCARDMSG_H
 
-/*
- * gcmcardmsg.o - Midway GC memcard message bodies (B20 + B21 boot popups).
- * Campaign history: docs/campaigns/index.md (B20-B22)
- * Nintendo card.a Matching is out of campaign.
- */
-
 int is_this_a_hault_message(void);
 void mcard_msg_end(void);
 int gc_no_space_routine(const char* nameOrNull, int device);
@@ -16,9 +10,9 @@ void mcard_msg_card_changed_at_format(int device);
 void mcard_msg_card_inaccessable_in_konq(void);
 void mcard_msg_auto_save(int device);
 void mcard_msg_save_failed(int device);
-void mcard_msg_create_failed(int device);
-void mcard_msg_create_successful(int device);
-void mcard_msg_save_successful(int device);
+void mcard_msg_create_failed(void);
+void mcard_msg_create_successful(void);
+void mcard_msg_save_successful(void);
 void mcard_msg_confirm_erase(void);
 void mcard_msg_load_no_card_konq_region_hault(const char* profileName, int unused, int device);
 void mcard_msg_profile_damaged_in_konquest(void);
@@ -53,12 +47,6 @@ void mcard_msg_deleting_data(int device);
 void mcard_msg_create(int device);
 void mcard_msg_save(int device);
 
-/*
- * NBC text ids for Slot A / Slot B (also used by gcmcard). Unsized on purpose:
- * retail gcmcard.o reaches this .sdata array via far lis/addi/lwzx, which MWCC
- * only emits for an incomplete extern array; a sized [2] decl lowers to @sda21.
- * The defining TU (gcmcardmsg.c) completes the type and keeps its own @sda21.
- */
 extern int gc_mc_default_name[];
 extern int msg_format_confirmation_answer;
 extern int msg_format_failed_answer;

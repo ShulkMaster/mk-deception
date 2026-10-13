@@ -1099,19 +1099,13 @@ static float p_sc_spear4(void) {
     return 1.0f;
 }
 
-static inline float ncs_xz_distance_squared(const Vec* a, const Vec* b) {
-    float dx = a->x - b->x;
-    float dz = a->z - b->z;
-
-    return dx * dx + dz * dz;
-}
-
-
-/* TODO: [near miss] 99.45%; helper structure and stack slots match; spear pointer r5/r6 and first-distance FPR coloring remain. */
 static float p_sc_spear4_victory(void) {
     MkObj* target_object;
+    MkObj* spear;
     Vec target;
     float distance;
+    float dx;
+    float dz;
     float speed;
     float direction_squared;
     float inverse_length;
@@ -1124,7 +1118,10 @@ static float p_sc_spear4_victory(void) {
     }
     get_bone_world_pos(
         target_object, get_bid_with_flip(target_object, 0x19), &target);
-    distance = gxMathFastSqrt(ncs_xz_distance_squared(&target, &sc_spear_obj->pos.value));
+    spear = sc_spear_obj;
+    dx = target.x - spear->pos.value.x;
+    dz = target.z - spear->pos.value.z;
+    distance = gxMathFastSqrt(dx * dx + dz * dz);
     if (distance < 0.5f) {
         (aproc->vtbl)->jump_sleep(
             p_sc_spear_kill, 0.0f);
@@ -1132,9 +1129,9 @@ static float p_sc_spear4_victory(void) {
     }
 
     speed = gxMathFastSqrt(
-        sc_spear_obj->pos_vel.x * sc_spear_obj->pos_vel.x +
-        sc_spear_obj->pos_vel.y * sc_spear_obj->pos_vel.y +
-        sc_spear_obj->pos_vel.z * sc_spear_obj->pos_vel.z);
+        spear->pos_vel.x * spear->pos_vel.x +
+        spear->pos_vel.y * spear->pos_vel.y +
+        spear->pos_vel.z * spear->pos_vel.z);
 
     sc_spear_obj->pos_vel.x = target.x - sc_spear_obj->pos.value.x;
     sc_spear_obj->pos_vel.y = target.y - sc_spear_obj->pos.value.y;
@@ -1230,7 +1227,8 @@ float p_sc_spear_kill(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 98.80%; FPR homes agree; spear_pdata/emitter r30/r31 swap and stride load scheduling remain. */
+/* TODO: [near miss] 98.80%; spear/emitter saved homes, stride scheduling
+ * and one FP operand swap remain; stop at lifetime ceiling. */
 static float p_pfx_sc_spear(void) {
     struct SpearProcPdata* spear_pdata;
     MkObj* emitter_object;
@@ -1501,19 +1499,6 @@ void done_prison_grab_proc(struct PrisonGrabPdata* pdata) {
     pdata->done = 1;
 }
 
-static inline MkObj* prison_grab_object(struct PrisonGrabPdata* pdata)
-{
-    MkObj* object = pdata->object;
-
-    if (object != 0) {
-        if (object->hdr.instance == pdata->object_instance) {
-            return object;
-        }
-        return 0;
-    }
-    return 0;
-}
-
 static float p_prison_grab(void) {
     struct PrisonGrabPdata* pdata;
     MkObj* object;
@@ -1525,7 +1510,8 @@ static float p_prison_grab(void) {
     if (pdata == 0) {
         return -1.0f;
     }
-    object = prison_grab_object(pdata);
+    object = pdata->object;
+    object = MK_HDR_LIVE(object, pdata->object_instance);
     if (object == 0) {
         return -1.0f;
     }
@@ -1682,8 +1668,7 @@ void ncs_camera_wall_show_hide_alpha(
     ((struct NcsCameraWallPdata*)pdata)->special_alpha_initialized = 0;
 }
 
-/* TODO: [breakthrough] 96.65%; search reloads pdata->regions; defined initial alpha store kept (retail lacks it);
- * camera FPR homes and character index (id-0xB) folding remain. */
+/* TODO: [near miss] 99.72%; camera position/boundary-test FPR homes remain (retail has no initial white.alpha store). */
 static float p_camera_wall_show_hide_alpha(void) {
     struct NcsCameraWallPdata* pdata;
     NcsCameraWallRegion* region;
@@ -1703,7 +1688,6 @@ static float p_camera_wall_show_hide_alpha(void) {
     white.red = 0xFF;
     white.green = 0xFF;
     white.blue = 0xFF;
-    white.alpha = 0xFF;
     for (region_index = 0; pdata->regions[region_index].type < 3; region_index++) {
         region = &pdata->regions[region_index];
         if (region->type == 0) {
@@ -1757,10 +1741,14 @@ static float p_camera_wall_show_hide_alpha(void) {
                     sobj_set_color_for_all_materials(sobj, &white);
                     sobj->flags09_bits.bit7 = 0;
                 }
-                if (id >= 0x0B && id <= 0x12 &&
-                    pdata->characters[id - 0x0B] != 0) {
-                    obj_for_all_atomics_set_material_alpha(
-                        pdata->characters[id - 0x0B], white.alpha);
+                if (id >= 0x0B && id <= 0x12) {
+                    int character = id - 0x0B;
+                    int alpha = white.alpha;
+
+                    if (pdata->characters[character] != 0) {
+                        obj_for_all_atomics_set_material_alpha(
+                            pdata->characters[character], alpha);
+                    }
                 }
             }
         }
@@ -1797,10 +1785,14 @@ static float p_camera_wall_show_hide_alpha(void) {
                     sobj_set_color_for_all_materials(sobj, &white);
                     sobj->flags09_bits.bit7 = 1;
                 }
-                if (id >= 0x0B && id <= 0x12 &&
-                    pdata->characters[id - 0x0B] != 0) {
-                    obj_for_all_atomics_set_material_alpha(
-                        pdata->characters[id - 0x0B], white.alpha);
+                if (id >= 0x0B && id <= 0x12) {
+                    int character = id - 0x0B;
+                    int alpha = white.alpha;
+
+                    if (pdata->characters[character] != 0) {
+                        obj_for_all_atomics_set_material_alpha(
+                            pdata->characters[character], alpha);
+                    }
                 }
             }
         }
@@ -1910,7 +1902,6 @@ int attach_gore2_obj(
     return result;
 }
 
-/* TODO: [near miss] 98.91%; bone index home fixed; pool r29/particle r28 swap vs retail remains; stop at coloring. */
 void start_gore2_pebbles(
     unsigned int object_id, int bone, MkObj* source,
     FighterMirror* decal_owner, Vec* velocity,
@@ -1918,6 +1909,7 @@ void start_gore2_pebbles(
     Vec* position_offset, float vertical_acceleration,
     float bounce_scale, int bounce_count) {
     int type;
+    struct Gore2Particle* particle;
 
     for (type = 0; type < 10; type++) {
         if (pbl_gore2_obj_list[type].object_id == object_id) {
@@ -1928,7 +1920,6 @@ void start_gore2_pebbles(
         MkBone* source_bone = source->bones[bone];
 
         if (source_bone != 0) {
-            struct Gore2Particle* particle;
             PebbleData* pool;
             int particle_index;
 

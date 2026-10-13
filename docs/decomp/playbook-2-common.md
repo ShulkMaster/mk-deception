@@ -50,6 +50,19 @@ ABI: wrong arg/return regs. REQUIRE all callers + callee ABI.
   reg. REQUIRE callee ASM never reads param + independent signature source.
   TRY removing from decl, def, callers (`SFHDS_InitFhd`; `sfply_InitHn`
   closed with one H15 decl-order check).
+- Invented formals/results in script- or event-facing wrappers and private
+  externs: REQUIRE retail callers stage no such register and the callee def
+  ignores it. TRY removing it from owner header, definition, wrapper and every
+  caller in one draft (`dizzy_kill_pfx` four formals; `myvel_his_angle_y_inout`
+  extra `current_args` + `int` return -> `void(float,float,float)`;
+  `init_3d_move_no_aniproc` `int(void)` vs `void(void)`; `mcard_msg_*` unused
+  `int device`; `obj_scale_over_time` `int(int,int,void*,float)` extern ->
+  `void(MkObj*,Vec*,float)`). A false local decl can be what makes a sibling
+  match (`attach_pfx_to_object` needs `fx_resume_emit(int)`): measure every
+  consumer before correcting.
+- Handle types: canonical unsigned at the public boundary (`fx_by_owner`,
+  `fx_resume_emit`); blanket unsigned locals flip `cmpwi` -> `cmplwi` in exact
+  callers, so keep signed private snapshots where retail compares signed.
 - Reverse: trace regs consumed before overwrite back to caller. m2c can drop
   an arg computed before a branch with its "dead" computation. Wrapper leaving
   r3 untouched before `pdata_of_proc`/`xfer_proc` may forward explicit process
@@ -847,6 +860,13 @@ lifetimes.
   decl order inside a bucket, ascending offsets; then codegen temps; then
   spill slots (ascending vreg, tier 4 Hard stops). Retype before reordering.
 
+- Initialized aggregate whose scope hoist moves the copy: IF hoisting the
+  declaration to function scope changes copy timing, REQUIRE same real
+  object/initializer + the retail copy. TRY flat declarations in stack-owner
+  order plus `object = (Type){...};` at the original initialization
+  statement (MWCC supports the compound literal). No fake scope or static
+  (`r_combo_broken_part2`: late `bone_offset = (Vec){0,0,0};`).
+
 ## H15
 
 Coloring, identical ops. Association + staging first; then max one honest
@@ -949,6 +969,17 @@ branch-only alias = dishonest even at 100.
   previously rejected latch/helper forms after (`pebble_render_callback`:
   MAP `cull_pebbles`, then `MK_HDR_LIVE` latch closed last rows).
 
+- Declaration grouping in actual initialization order closed
+  `pfx_parametric_spawn` (emitter, old_count, particle, capacity, cursor ->
+  r26..r30). Explicit `if/else` for a ground value instead of a ternary
+  initializer closed `do_bounce` (f3/f2). Named vs inline owner of a
+  constant: H29.
+- FP temp: IF same ops but a staged common float divisor changes entry FPRs,
+  REQUIRE no intervening side effects and same float precision, TRY the
+  direct repeated divisor expression (`(ticks * game_speed)` in each use);
+  MWCC CSE still shares the product while the expression-temporary numbering
+  differs (`obj_scale_over_time`: removing the `scaled_ticks` local closed it).
+
 ## H16
 
 Nest single-use result; keep original callback owner at untyped boundary.
@@ -972,6 +1003,9 @@ Nest single-use result; keep original callback owner at untyped boundary.
 - 0/1 from a call shifted via different reg (`cntlzw`; `srwi` into r0 then
   `mr` vs straight to saved reg) `[da]`: other spelling; `!f()` and `f() == 0`
   materialize differently (`RwStreamClose`). See H19.
+
+- Nested single-use handle: `emitter = fx_next_emitter(fx_by_owner(...))`
+  closed `start_hero_transform_effect` (intermediate handle lifetime).
 
 ## H17
 
@@ -1017,6 +1051,14 @@ side-effect-free repeated arguments and whole-TU non-regression. TRY a shared
 logical-OR macro used directly as the guard; `if (macro != 0)` can still
 materialize a saved Boolean (`mcard_msg_confirm_erase_rtn`). Preserve the
 individual consumers' independent versus mutually exclusive action checks.
+
+Ordered-sign diamond: retail `bne ... fneg; b join` = abs macro over the
+WHOLE expression, `#define X_ABS(v) ((v) >= 0.0f ? (v) : -(v))` (same shape as
+`CAMERA_ABS`; `r_sidehead3_spin`). Retail `cntlzw; srwi 5; cmpwi 1` Boolean =
+static predicate returning `cond ? 1 : 0` with caller `== 1`; the front end
+keeps the 0/1 so the later compare is not folded (`SFH_IsSfdHeader`). Apply
+only where retail shows that sequence: normalized-ternary controls on
+`pselect_character_id_valid` regressed its consumers.
 
 ## H20
 
@@ -1160,6 +1202,13 @@ Helper locals and web kind.
   with typed outputs and coordinate derivation in place (H26). Do not extract
   a getter solely to create a lifetime or move initialization across calls.
 
+- Web numbering (R3): inline-expansion locals AND params are `@`-renamed and
+  numbered per expansion in reverse declaration order, after all real named
+  locals. Helper decl order only sets the relative pop order of its own
+  locals. If reversing fixes one expansion and breaks another, the
+  helper/caller boundary is wrong (open-code or move it), not the order
+  (`p_create_profile`).
+
 ## H22
 
 One-row operand/constant/copy residue. One at a time:
@@ -1253,6 +1302,12 @@ storing, advance cursors after stores, load node output ptr before size store
   no fake volatile). Check destination decls before statement order
   (`gc_native_display_pass_to_RW`: ISR-written RW XFB pointers `volatile`).
 
+- Independent stores in swapped order flipped functions exact:
+  `atm_demo_fight` (store before timer-off zero),
+  `gc_mem_card_status_changes_for_one_device` (compound assigns + publication
+  store order), `SpreadSheet::ScrollDown` (`position_in_window = unkDC - unkD4`
+  before the total-row test). Try early, before coloring work.
+
 ## H28
 
 Single-use local folded into its use `[da]`.
@@ -1278,8 +1333,84 @@ Single-use local folded into its use `[da]`.
 - Find the web by gdb interference-graph capture (tier 4 hard stops), not by
   sweeps.
 
+## H29
+
+Constant owner kind: named local vs inline/temp. IF retail has two
+independent `li rA,imm; li rB,imm` (same immediate) in one block and ours has
+`li; mr` (or reverse), REQUIRE mwcc_trace `initial` shows two separate LIs and
+`presched` shows the MR, no call between them in the extended block. TRY make
+the earlier constant's owner a real function-level named local at its FIRST
+text-order use: open-code the inline helper that owns it, or give each reset
+index a distinct block-scoped name. To get sharing instead (`li; mr`), make
+the owner an inline-helper local or a later use of the same variable. Never
+add a dummy zero local.
+
+- Mechanism (GC2.7): CSE-mode value numbering (`ValueNumbering.c`, PC_LI /
+  PC_LIS) records and matches an `li` only when its dest vreg lies in
+  `[gGPRCoalesceFirst, gGPRCoalesceLast]`. `CodeGen.c` numbers real named
+  locals first, opens the coalesce window, then numbers every `@`/`$` object
+  (CInline renames all inline locals/params to `@N`; IRO CSE temps too), then
+  expression temps; window closes at codegen end. A named local is below the
+  window only at its FIRST text-order use (later uses become IRO `@` temps).
+  Hoisted zero + inline-local index both in the window and in one extended
+  block -> `mr`.
+- CSE never shares across a call (`bl` kills the chain) and never involves
+  registers made by strength reduction / CTR conversion (above the window):
+  `li; li` beside `mtctr` after SR is normal.
+- Exemplar: `p_create_profile` (PIN-entry loop open-coded at both sites,
+  block-scoped `int i` per cancel branch; `scan_profile_code` declares
+  `cursor` before `i`; dead helper deleted). Same lever: `cftyp422_ppc`
+  chroma loops (named `cb`/`cr` row owners, `luminance_sample` declared after
+  its row).
+- Classify first with tier 4 Trace procedure: if the `li` exists in `initial`
+  as two LIs, this rule applies; permuter/decl sweeps cannot change value
+  numbering.
+
+## H30
+
+Inline nesting depth. IF several saved homes rotate and a gdb capture with
+object names shows a top-level inline helper's `@` local/param popping before
+(numbered above) a value retail colours later, or an inline param claiming a
+colour the target needs (sweep-2 pop order), REQUIRE both objects are `@`
+inline objects of statement-level expansions. TRY move the earlier-expanded
+helper call inside a wrapper inline: nested expansions run in a later
+`inline_statement_list` iteration, so their `@` objects number BELOW every
+top-level expansion. Lift a nested call to top level for the reverse.
+
+- Numbering law: vreg order = reverse object-creation order. BE web splits <
+  IRO CSE temps < `?:` temps < nested-inline objects < top-level inline
+  objects (reverse call-site; params reversed, locals forward) < pool base <
+  codegen temps. Definition order and static-vs-inline do not change it.
+- Handle typing: an int handle passed to an unsigned API makes IRO CSE the
+  int->unsigned conversion into a CSE temp (changes web kind); match the
+  handle type to the API (`unsigned int dust; int fountain;`, H21).
+- Why decl/helper-spelling sweeps miss it: they only move objects inside one
+  kind group; the fix moves OTHER helpers' objects (display_prize `entries`,
+  rebuild col/row) below the award/dust objects.
+- Exemplar: `p_move_camera_and_open_coffin` (wrapper `show_coffin_award`,
+  nested `place_visible_coffin_rows_from`, `award_koins(void)` owning entry;
+  25 rows -> exact; 24 attempts and 3000+ permuter candidates missed it).
+- Lift for address-taken locals: IF two expansions of one helper show swapped
+  stack slots for an address-taken local (InvSqrt union scratch, GXColor),
+  REQUIRE retail's slot order = expansion creation order. TRY write the body
+  out at the call site (depth 1) instead of through the helper. Nesting moves
+  these locals to the LOWEST slots (GCSpecSkin GXColor 0x38 -> 0x14 regressed):
+  if retail pins them, rule nesting out. Exemplar:
+  `sh_update_blood_fall_pebbles` (both normalizes open-coded, inverse-first
+  products, `floor_y` local; 48 rows -> exact). Nest never helped when the
+  swapped values were call results, loop/emission temps, or inside one helper.
+- First expansion shows raw order: the first expansion of a repeated helper
+  takes fresh saved registers in pop order (exposes the helper's internal
+  numbering); later expansions reuse the lowest free register. IF only the
+  first call site rotates after the others match, a helper declaration swap
+  just moves the error to another expansion; TRY treating the first call site
+  as structurally different in retail (`mk_chess` schedule_bonus_row,
+  `GCSpecSkinLighting` upload_point_light).
+
 ## Traps
 
+- `#pragma optimization_level N` == `-opt level=N` (frontend + backend),
+  never an IRO-only knob; function-level pragma changes the whole pass set.
 - ELF `NOBITS` = zero storage; never read `sh_offset` as initializer before
   "fixing" data-value mismatch.
 - Auto extraction must parse C identifiers (`0.0f * body` is not a pointer

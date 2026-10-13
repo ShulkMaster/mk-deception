@@ -298,8 +298,8 @@ struct PfxResolvedHandle {
 
 struct PfxBank {
     MkHdr hdr;
-    unsigned int handle_bank;
-    unsigned int handle_generation;
+    int handle_bank;
+    int handle_generation;
     char* name;
     int owner_flags;
     int effect_count;
@@ -399,7 +399,7 @@ static inline void bank_record_effect(struct PfxScriptEffect* effect) {
 }
 
 static struct PfxBankLatch banks[15];
-static unsigned int cached_handle;
+static int cached_handle;
 static void bank_run_fx(struct PfxBank* bank);
 
 static unsigned int banks_find_owned_fx(
@@ -410,7 +410,7 @@ static void build_parametric_effect_from_table(
     ScriptSlot* script, struct PfxParametricEffectDescription* description, int update);
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context);
 static void resolve_pfx_handle(
-    unsigned int handle, struct PfxResolvedHandle* resolved);
+    int handle, struct PfxResolvedHandle* resolved);
 static void initialize_effect(struct PfxScriptVm* effect);
 void texture_animation(float horizontal_scale, int vertical_frames, float speed);
 static inline void bank_destroy(MkHdr* bank);
@@ -1790,20 +1790,17 @@ static inline int pfxscript_add_table(int type, PfxSpawnTable* table,
     int index;
 
     for (index = 0; index < 2; index++) {
-        struct PfxSpawnTableSlot* slot = &slots[index];
-
-        if (slot->type == 0) {
-            slot->type = type;
-            slot->table = table;
-            slot->row_count = row_count;
+        if (slots[index].type == 0) {
+            slots[index].type = type;
+            slots[index].table = table;
+            slots[index].row_count = row_count;
             return index;
         }
     }
     return 2;
 }
 
-/* TODO: [near miss] 99.56%; MAP registry CFG agrees; stop at array/slot GPR coloring. */
-void spawn_random_size(const float* table) {
+void spawn_random_size(float* table) {
     struct PfxScriptEnvironment* environment;
     PfxVmEmitter* emitter;
     PfxSpawnTable* copied_table;
@@ -2157,7 +2154,7 @@ void emit_roundrobin_mechanism(int field, int source) {
     }
 }
 
-/* TODO: [near miss] 99.58%; two supported OIDs lower as a range instead of retail equality pairs. */
+/* TODO: [near miss] 99.57%; two OIDs lower as a range; equality forms fold retail branch pair, stop at CFG ceiling. */
 void bind_to_bone(int bone_index) {
     struct PfxScriptEnvironment* environment;
     MkPfx* effect;
@@ -2849,8 +2846,8 @@ void pfxscript_initialize(void) {
                   p_update_effects, 0);
 }
 
-/* TODO: [near miss] 93.93939%; loop-zero sharing differs (mr versus li);
- * pointer/instance latch and bank calls agree. */
+/* TODO: [near miss] 93.93939%; strength reduction adds an independent offset-zero load;
+ * retail shares the index zero; trace excludes register-coloring diagnosis. */
 static float p_update_effects(void) {
     int index;
 
@@ -3001,14 +2998,14 @@ static void vdestroy_effectbank(struct PfxBank* bank) {
     mkhdr_memfree(&bank->hdr);
 }
 
-/* TODO: [near miss] 86.00%; retail invalid-handle early return kept; residue not yet classified. */
+/* TODO: [near miss] 98.80%; retail retains a duplicate post-latch exit; preserve the single honest predicate. */
 static void resolve_pfx_handle(
-    unsigned int handle, struct PfxResolvedHandle* resolved) {
+    int handle, struct PfxResolvedHandle* resolved) {
     struct PfxBankLatch* bank_latch;
-    struct PfxEffectLatch* effect_latch;
     struct PfxBank* bank;
     struct PfxScriptEffect* effect;
     int bank_index;
+    int generation;
     int effect_index;
     int handle_type;
 
@@ -3018,6 +3015,7 @@ static void resolve_pfx_handle(
     }
 
     bank_index = handle & 0xF;
+    generation = (unsigned int)handle >> 24;
     effect_index = (handle >> 4) & 0x3FF;
     handle_type = (handle >> 14) & 3;
     if (handle_type != 1 || bank_index < 1 || bank_index > 15 ||
@@ -3025,21 +3023,21 @@ static void resolve_pfx_handle(
         return;
     }
 
-    bank_latch = &banks[bank_index - 1];
-    bank = MK_HDR_LIVE(bank_latch->bank, bank_latch->bank_instance);
-    if (bank == 0 || bank->handle_bank != (unsigned int)bank_index ||
-        (handle >> 24) != bank->handle_generation ||
-        effect_index >= bank->effect_capacity) {
+    bank_latch = &banks[bank_index];
+    bank = MK_HDR_LIVE(bank_latch[-1].bank, bank_latch[-1].bank_instance);
+    if (bank == 0 || bank->handle_bank != bank_index ||
+        generation != bank->handle_generation) {
         return;
     }
-
-    effect_latch = &bank->effects[effect_index];
-    effect = MK_HDR_LIVE(effect_latch->effect, effect_latch->effect_instance);
-    if (effect != 0) {
-        cached_handle = handle;
-        cached_info.bank = bank;
-        cached_info.effect_index = effect_index;
-        cached_info.effect = effect;
-        memcpy(resolved, &cached_info, sizeof(cached_info));
+    if (effect_index < bank->effect_capacity) {
+        effect = MK_HDR_LIVE(bank->effects[effect_index].effect,
+                             bank->effects[effect_index].effect_instance);
+        if (effect != 0) {
+            cached_handle = handle;
+            cached_info.bank = bank;
+            cached_info.effect_index = effect_index;
+            cached_info.effect = effect;
+            memcpy(resolved, &cached_info, sizeof(cached_info));
+        }
     }
 }

@@ -21,9 +21,6 @@
     "Read-only file system\0Signal error\0Illegal seek\0No such process\0"  \
     "Unknown error\0Cross-device link\0Unknown Error (%d)"
 
-static char* n = "\0" ERROR_STRINGS;
-static char* s = "\0" ERROR_STRINGS;
-
 char* strstr(const char* string, const char* substring)
 {
     const unsigned char* current = (const unsigned char*)string - 1;
@@ -50,19 +47,19 @@ char* strstr(const char* string, const char* substring)
     return 0;
 }
 
-/* TODO: [near miss] 99.30%; byte promotion and TU order fixed; token-scan cursor coloring remains. */
 char* strtok(char* string, const char* delimiters)
 {
+    static char* n = "\0" ERROR_STRINGS;
+    static char* s = "\0" ERROR_STRINGS;
     unsigned char delimiter_map[32] = {0};
-    const unsigned char* delimiter;
     unsigned char* current;
     unsigned char* token;
     int value;
 
     if (string != 0)
         s = string;
-    delimiter = (const unsigned char*)delimiters - 1;
-    while ((value = *++delimiter) != 0) {
+    current = (unsigned char*)delimiters - 1;
+    while ((value = *++current) != 0) {
         delimiter_map[((unsigned int)value >> 3) & 0x1FU] |= 1U << (value & 7);
     }
     current = (unsigned char*)s - 1;

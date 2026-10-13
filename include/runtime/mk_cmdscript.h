@@ -41,7 +41,7 @@ typedef struct ScriptSlot {
     int data_words;               /* +0x64 */
     ScriptTableDef* table_defs;   /* +0x68 */
     unsigned int* table_data;     /* +0x6c */
-    unsigned int tables_fixed_up; /* +0x70 */
+    int tables_fixed_up;          /* +0x70 */
     ScriptFuncDef* func_defs;     /* +0x74 */
     int string_reloc;             /* +0x78 */
     unsigned int string_base;     /* +0x7c */

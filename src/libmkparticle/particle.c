@@ -26,10 +26,7 @@ static int cullmode;
 static int max_global_particle_count;
 static int current_particle_count;
 static int global_particle_count;
-static union {
-    signed char* pointer;
-    int integer;
-} null_value;
+static signed char* null_value;
 
 struct PfxDiagnosticStrings {
     char invalid_struct_field[37];
@@ -388,16 +385,16 @@ int pfx_get_struct_size(PfxVm* pfx, int field) {
     }
 }
 
-/* TODO: [breakthrough needed] 96.03%; second fatal null-word reload is reused;
- * pointer/static-scope cleanup needs nonregressing section evidence. */
+/* TODO: [breakthrough needed] 96.03%; second fatal null-pointer reload is reused;
+ * need alias-boundary evidence for the post-crash_integer-store read. */
 void pfx_halt(const char* message) {
     if (_pfx_config.halt != 0) {
         _pfx_config.halt(message);
     } else {
         printf(diagnostic_strings.halt_format, message);
     }
-    crash_integer = *null_value.pointer;
-    crash_pointer = 1 / null_value.integer;
+    crash_integer = *null_value;
+    crash_pointer = 1 / (int)null_value;
 }
 
 void pfx_count_begin(void) {
@@ -421,15 +418,14 @@ static void v3_x_mat_4(PfxVec3* out, PfxVec3* v, float (*m)[4]) {
     out->z = m[3][2] + (v->z * m[2][2] + (v->x * m[0][2] + v->y * m[1][2]));
 }
 
-/* TODO: [breakthrough] 95.82%; owner reloads and retail copy boundary recovered; ring address association and saved GPR coloring remain. */
 void pfx_parametric_spawn(PfxVm* pfx, float frame_time) {
     PfxParametricState* state;
-    PfxParametricParticle* particle;
-    PfxVmEmitter* emitter;
-    PfxVec3 transformed;
-    int old_count;
     int cursor;
     int capacity;
+    PfxParametricParticle* particle;
+    int old_count;
+    PfxVmEmitter* emitter;
+    PfxVec3 transformed;
     int emitter_index;
     int birth_count;
     int birth;
@@ -438,7 +434,7 @@ void pfx_parametric_spawn(PfxVm* pfx, float frame_time) {
     state = pfx->parametric;
     cursor = state->particle_cursor;
     capacity = state->particle_capacity;
-    particle = &((PfxParametricParticle*)(state + 1))[cursor];
+    particle = &state->particles[cursor];
     old_count = pfx->particle_cursor;
 
     for (emitter_index = 0; emitter_index < pfx->emitter_count;
@@ -462,7 +458,7 @@ void pfx_parametric_spawn(PfxVm* pfx, float frame_time) {
                 cursor++;
                 if (cursor >= capacity) {
                     cursor = 0;
-                    particle = (PfxParametricParticle*)(pfx->parametric + 1);
+                    particle = pfx->parametric->particles;
                 }
                 pfx->particle_cursor = cursor;
             }
@@ -474,14 +470,9 @@ void pfx_parametric_spawn(PfxVm* pfx, float frame_time) {
     pfxmetrics_event(pfx->metrics, 0x2001);
 }
 
-/* TODO: [near miss] 97.86%; canonical storage and effects agree; remaining GPR/FP lifetime coloring. */
+/* TODO: [near miss] 99.24%; color and output-field lifetimes recovered; state, flags, and loop GPR coloring remains. */
 void pfx_parametric_update(PfxVm* pfx, float frame_time) {
     PfxParametricState* state;
-    PfxVec3* position;
-    float* texture;
-    float* size;
-    PfxColor* color;
-    PfxTextureFrame* uv;
     float damping;
     float inverse_lifetime;
     float age;
@@ -504,6 +495,11 @@ void pfx_parametric_update(PfxVm* pfx, float frame_time) {
     int index;
     int curve_index;
     int stride;
+    PfxVec3* position;
+    float* texture;
+    float* size;
+    PfxColor* color;
+    PfxTextureFrame* uv;
 
     damping = 1.0f;
     state = pfx->parametric;
@@ -587,26 +583,28 @@ void pfx_parametric_update(PfxVm* pfx, float frame_time) {
                         *size = age * state->particles[index].size;
                     }
                     if (color_curve != 0) {
+                        float color_fraction;
+                        int color_index;
                         curve_position = normalized_age *
                                          (float)(state->color_curve_count - 1);
-                        curve_index = curve_position;
-                        if (curve_index >= state->color_curve_count) {
-                            curve_index = state->color_curve_count - 1;
+                        color_index = curve_position;
+                        if (color_index >= state->color_curve_count) {
+                            color_index = state->color_curve_count - 1;
                         }
-                        fraction = curve_position - (float)curve_index;
-                        pfx_native_get_rgba(&state->color_curve[curve_index],
+                        color_fraction = curve_position - (float)color_index;
+                        pfx_native_get_rgba(&state->color_curve[color_index],
                                             &red[0], &green[0], &blue[0], &alpha[0]);
-                        pfx_native_get_rgba(&state->color_curve[curve_index + 1],
+                        pfx_native_get_rgba(&state->color_curve[color_index + 1],
                                             &red[1], &green[1], &blue[1], &alpha[1]);
-                        inverse_fraction = 1.0f - fraction;
+                        inverse_fraction = 1.0f - color_fraction;
                         blended_color.r = inverse_fraction * red[0] +
-                                          fraction * red[1];
+                                          color_fraction * red[1];
                         blended_color.g = inverse_fraction * green[0] +
-                                          fraction * green[1];
+                                          color_fraction * green[1];
                         blended_color.b = inverse_fraction * blue[0] +
-                                          fraction * blue[1];
+                                          color_fraction * blue[1];
                         blended_color.a = inverse_fraction * alpha[0] +
-                                          fraction * alpha[1];
+                                          color_fraction * alpha[1];
                         *color = blended_color;
                     }
                     if (texture_frames != 0) {

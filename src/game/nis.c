@@ -309,7 +309,8 @@ void nis_end(void) {
     destroy_mkprocs_pid(0x900C);
 }
 
-/* TODO: [near miss] 94.00%; bitset operations agree; residue is GPR coloring only (rlwinm/clrlwi/li homes). */
+/* TODO: [near miss] 94.00%; traced bitset arithmetic and accesses agree; eight GPR homes differ.
+ * Combined mask/RMW forms are neutral; shared wait helper regresses an exact consumer. */
 void nis_signal_event(int event) {
     nis_event_list[(unsigned int)event >> 5] |= 1U << (event & 0x1F);
 }

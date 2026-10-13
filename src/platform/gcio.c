@@ -32,7 +32,7 @@ int get_num_controllers(void) {
 }
 
 /* TODO: [near miss] 98.70%; pad/member indexing and CFG agree;
- * channel/stride nonvolatile coloring remains; prior ownership and scope forms exhausted. */
+ * channel/stride nonvolatile coloring remains; stop at coloring; retail back-end loop counters dominate channel. */
 void scan_switches(void) {
     PADStatus statuses[4];
     int channel;

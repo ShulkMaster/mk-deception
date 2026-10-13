@@ -242,6 +242,13 @@ struct BackgroundDangerZone {
     char padA4[0x0C];
 };
 
+struct DangerZoneScratch {
+    float field_00;
+    float radius_squared;
+    float distance_squared;
+    float push_height;
+};
+
 struct InteractionCameraData {
     MkObj* hero;
     unsigned int hero_instance;
@@ -569,7 +576,6 @@ static int is_shape_in_frustum(const Vec* position, const CollisionShape* shape)
 void toggle_danger_zone(int index);
 int keep_camera_out_of_danger_zones(Vec* position);
 void render_background_danger_areas(void);
-void initialize_background_danger_zones(void);
 static float konquest_interior_camera_loop(void);
 float p_konquest_interior_camera_proc(void);
 
@@ -743,7 +749,6 @@ void set_camera_focal_length(float focal_length);
 
 static float p_shake_camera_y(void);
 void shake_camera_y(int count, float strength);
-void shake_camera(int count, void* script_args, float strength);
 
 static inline float camera_clamp(float value, float min, float max) {
     value = value >= min ? value : min;
@@ -908,7 +913,6 @@ int init_camera(void) {
     return 1;
 }
 
-/* TODO: [near miss] 99.26%; process/camera_info base r29/r30 swapped; "Cannot create camera." pool offset (+9 after CAM_BONE) is TU string order. */
 static RwCamera* CameraCreate(int width, int height) {
     RwCamera* camera;
     RwFrame* frame;
@@ -1039,33 +1043,36 @@ void cam_set_ground_plane(float ground_plane) {
     }
 }
 
-/* TODO: [near miss] 90.29%; shared square root retained; midpoint/camera-distance FPR layout remains. */
+/* TODO: [near miss] 98.52%; clamp selects and separate products recovered;
+ * player separation, distance, and scaled-output FPR homes remain. */
 void get_play_camera_position(Vec* position) {
     CameraObj* camera;
     Vec camera_direction = {0.0f, 0.0f, 0.0f};
+    Vec separation;
     float midpoint_x;
     float midpoint_y;
     float midpoint_z;
-    float dx;
-    float dy;
-    float dz;
     float distance_squared;
     float player_distance;
     float half_span;
     float inverse_distance;
+    float field_of_view_scale;
     float camera_distance;
     float height_scale;
+    float scaled_x;
+    float scaled_y;
+    float scaled_z;
 
-    RESOLVE_CAMERA_OBJ(camera);
-    dy = g_game_info.plyr0.slot.mirror_a->pos.value.y -
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
+    separation.y = g_game_info.plyr0.slot.mirror_a->pos.value.y -
          g_game_info.plyr1.slot.mirror_a->pos.value.y;
-    dx = g_game_info.plyr0.slot.mirror_a->pos.value.x -
+    separation.x = g_game_info.plyr0.slot.mirror_a->pos.value.x -
          g_game_info.plyr1.slot.mirror_a->pos.value.x;
-    dz = g_game_info.plyr0.slot.mirror_a->pos.value.z -
+    separation.z = g_game_info.plyr0.slot.mirror_a->pos.value.z -
          g_game_info.plyr1.slot.mirror_a->pos.value.z;
-    distance_squared = dx * dx + dy * dy + dz * dz;
+    distance_squared = separation.x * separation.x + separation.y * separation.y + separation.z * separation.z;
     player_distance = gxMathFastSqrt(distance_squared);
-    half_span = player_distance * 0.5f;
+    half_span = 0.5f * player_distance;
     half_span += g_game_info.plyr0.slot.pdata->global_moveset->definition
                      ->camera_distance_offset;
     half_span += g_game_info.plyr1.slot.pdata->global_moveset->definition
@@ -1085,20 +1092,20 @@ void get_play_camera_position(Vec* position) {
     }
 
     inverse_distance = gxMathFastInvSqrt(distance_squared);
-    camera_direction.x = dz * inverse_distance;
-    camera_direction.z = -(dx * inverse_distance);
+    camera_direction.x = separation.z * inverse_distance;
+    camera_direction.z = -(separation.x * inverse_distance);
+    field_of_view_scale = field_of_view_ratio;
     camera_distance =
-        1.03f * (0.75f + half_span) * field_of_view_ratio;
-    if (!(camera_distance >= 2.6f)) {
-        camera_distance = 2.6f;
-    }
-    if (!(camera_distance <= 7.5f)) {
-        camera_distance = 7.5f;
-    }
+        field_of_view_scale * (1.03f * (0.75f + half_span));
+    camera_distance = camera_distance >= 2.6f ? camera_distance : 2.6f;
+    camera_distance = camera_distance <= 7.5f ? camera_distance : 7.5f;
 
-    position->x = midpoint_x + camera_direction.x * camera_distance;
-    position->y = midpoint_y + camera_direction.y * camera_distance;
-    position->z = midpoint_z + camera_direction.z * camera_distance;
+    scaled_x = camera_direction.x * camera_distance;
+    scaled_y = camera_direction.y * camera_distance;
+    scaled_z = camera_direction.z * camera_distance;
+    position->x = midpoint_x + scaled_x;
+    position->y = midpoint_y + scaled_y;
+    position->z = midpoint_z + scaled_z;
     if (camera_distance < 3.9f) {
         position->y = 1.55f + camera->ground_plane;
     } else {
@@ -1999,7 +2006,8 @@ void set_camera_target_angle(CamVec3* angle) {
     camera_info.pdata->target_ang.z = angle->z;
 }
 
-/* TODO: [near miss] 99.33%; delta/square association and public null gate agree; store-phase FPR colors remain. */
+/* TODO: [near miss] 99.33%; nine store-phase FPR rows remain;
+ * local normalization improves this path but regresses the shared consumer. */
 void get_target_movement_vector(const Vec* current_position,
                                 const Vec* target_position, Vec* movement,
                                 float duration) {
@@ -3963,7 +3971,7 @@ static void look_at_interaction_target(Vec* target, int snap_angles) {
     }
 }
 
-/* TODO: [breakthrough] 89.63%; private midpoint data owner recovered;
+/* TODO: [breakthrough] 89.64%; private midpoint data owner recovered;
  * canonical data order and angle/orbit helper ownership remain. */
 static float p_interaction_cam(void) {
     CameraObj* entry_camera;
@@ -4456,28 +4464,28 @@ float p_krypt_camera_proc(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.65%; sqrt via gxMathFastSqrt; saved-register ranking remains (pdata r30 vs r25, 68 rows). */
+/* TODO: [near miss] 99.13%; sqrt via gxMathFastSqrt; saved-register ranking remains (pdata r30 vs r25, 50 rows). */
 float p_krypt_camera_loop(void) {
     static const union CameraVecBits kDefaultPos = {{-28.5f, 4.4f, 55.0f}};
     static const union CameraVecBits kDefaultAng =
         {{0.42f, 3.1415927410125732f, 0.0f}};
     CameraPdata* pdata;
-    CameraObj* cam;
+    int pos_done;
     union CameraVecBits default_pos;
     union CameraVecBits default_ang;
     float speed_scale;
     float dx;
     float dy;
-    float dz;
+    float d_ang_x;
+    float d_ang_y;
     float dist_sq;
     float dist;
     float target_pitch;
     float old_pitch;
-    float d_ang_x;
-    float d_ang_y;
+    float dz;
     float roll_delta;
     float ang_err_sq;
-    int pos_done;
+    CameraObj* cam;
 
     pdata = camera_info.pdata;
     default_pos.words[0] = kDefaultPos.words[0];
@@ -4615,8 +4623,8 @@ void render_background_danger_areas(void) {
 
 void set_danger_zone_properties(BackgroundDangerZone* zone, float scale,
                                 float y_offset) {
-    zone->shape.sphere_radius *= scale;
-    zone->shape.sphere_center.y += y_offset;
+    zone->shape.sphere.radius *= scale;
+    zone->shape.sphere.center.y += y_offset;
 }
 
 void turn_off_sobj_if_camera_is_in_cylinder(MkSobj* object, const Vec* center,
@@ -4675,10 +4683,10 @@ BackgroundDangerZone* add_background_danger_zone(RpAtomic* atomic, int type,
 
     if (atomic != 0) {
         sphere = RpAtomicGetWorldBoundingSphere(atomic);
-        zone->shape.sphere_center.x = sphere->center.x;
-        zone->shape.sphere_center.y = sphere->center.y;
-        zone->shape.sphere_center.z = sphere->center.z;
-        zone->shape.sphere_radius = sphere->radius;
+        zone->shape.sphere.center.x = sphere->center.x;
+        zone->shape.sphere.center.y = sphere->center.y;
+        zone->shape.sphere.center.z = sphere->center.z;
+        zone->shape.sphere.radius = sphere->radius;
         zone->shape.type = 1;
         if (type == 1) {
             if (atomic->geometry != 0) {
@@ -4694,13 +4702,6 @@ BackgroundDangerZone* add_background_danger_zone(RpAtomic* atomic, int type,
 
 /* TODO: [near miss] 99.52%; sphere-type guard signed compare recovered; retail branches bne+b over the body, here beq over it. */
 int keep_camera_out_of_danger_zones(Vec* position) {
-    typedef struct DangerZoneScratch {
-        float field_00;
-        float radius_squared;
-        float distance_squared;
-        float push_height;
-    } DangerZoneScratch;
-
     int index;
     BackgroundDangerZone* zone;
     int adjusted = 0;
@@ -4708,7 +4709,7 @@ int keep_camera_out_of_danger_zones(Vec* position) {
     MkSobj* linked_sobj = 0;
     float radius_squared;
     float distance_squared;
-    DangerZoneScratch scratch;
+    struct DangerZoneScratch scratch;
     int shape_type;
 
     memset(&scratch, 0, sizeof(scratch));
@@ -4748,10 +4749,10 @@ int keep_camera_out_of_danger_zones(Vec* position) {
         case 1:
             inside = 0;
             if (shape_type != 0) {
-                radius_squared = zone->shape.sphere_radius *
-                                 zone->shape.sphere_radius;
+                radius_squared = zone->shape.sphere.radius *
+                                 zone->shape.sphere.radius;
                 distance_squared =
-                    dist2_v3_to_v3(position, &zone->shape.sphere_center);
+                    dist2_v3_to_v3(position, &zone->shape.sphere.center);
                 if (distance_squared < radius_squared) {
                     inside = 1;
                 }
@@ -4762,7 +4763,7 @@ int keep_camera_out_of_danger_zones(Vec* position) {
                 inside = is_shape_in_frustum(position, &zone->shape);
             }
             if (inside && zone->action == 0) {
-                scratch.push_height = zone->shape.sphere_center.y +
+                scratch.push_height = zone->shape.sphere.center.y +
                     gxMathFastSqrt(scratch.radius_squared -
                                 scratch.distance_squared);
             }
@@ -4860,14 +4861,14 @@ static int is_shape_in_frustum(const Vec* position,
     case 3:
         return 0;
     case 1:
-        center.x = shape->sphere_center.x;
-        center.y = shape->sphere_center.y;
-        center.z = shape->sphere_center.z;
+        center.x = shape->sphere.center.x;
+        center.y = shape->sphere.center.y;
+        center.z = shape->sphere.center.z;
         break;
     case 2:
-        center.x = shape->cylinder_center.x;
-        center.y = shape->cylinder_center.y;
-        center.z = shape->cylinder_center.z;
+        center.x = shape->cylinder.center.value.x;
+        center.y = shape->cylinder.center.value.y;
+        center.z = shape->cylinder.center.value.z;
         break;
     default:
         break;
@@ -5778,8 +5779,6 @@ float p_mk_chess_cam_bezier_controller(void) {
     }
 }
 
-/* TODO: [breakthrough] 95.85473%; unit-Z templates and phase helpers recovered;
- * Vec homes, movement rounding and initializer pool placement remain. */
 static inline void camera_halt_movement(void) {
     Vec endpoint = {0.0f, 0.0f, 0.0f};
     float initial_speed = 0.0f;
@@ -5799,6 +5798,8 @@ static inline void camera_make_rotated_offset(Vec* const offset, float radius,
     rotate_xz(offset, offset, angle);
 }
 
+/* TODO: [breakthrough] 95.85473%; unit-Z templates and phase helpers recovered;
+ * Vec homes, movement rounding and initializer pool placement remain. */
 static float generic_victory_camera(void) {
     MkProc* camera_proc = camera_info.proc;
     CameraPdata* pdata = camera_info.pdata;

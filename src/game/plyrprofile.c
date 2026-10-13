@@ -521,7 +521,7 @@ char* ppv_get_current_profile_name(void) {
     return (char*)nbc_find_text(NBC_EMPTY_PROFILE_NAME, 1);
 }
 
-/* TODO: [breakthrough needed] 84.93%; extra cycle test/owner webs remain; single-latch recovery regresses exact inlined p_view_profile. */
+/* TODO: [breakthrough needed] 84.93%; recover iterator boundary without inlining into exact p_view_profile; extra cycle test remains. */
 static void pv_recalculate_profiles_and_position(int* outDevice, int* outSlot,
                                                  int* outCount, int* outPosition) {
     int count;
@@ -556,7 +556,7 @@ static void pv_recalculate_profiles_and_position(int* outDevice, int* outSlot,
                     if (device < 1) {
                         nextDevice = device + 1;
                     } else {
-                        nextDevice = nextSlot;
+                        nextDevice = 0;
                     }
                 }
             }
@@ -575,7 +575,7 @@ static void pv_recalculate_profiles_and_position(int* outDevice, int* outSlot,
                         if (nextDevice < 1) {
                             nextDevice++;
                         } else {
-                            nextDevice = nextSlot;
+                            nextDevice = 0;
                         }
                     }
                 }
@@ -991,9 +991,9 @@ static inline void initialize_profile_code(unsigned char code[6], int* digit) {
 
 static inline int scan_profile_code(unsigned char code[6], int* digit,
     int scan_pad, int scan_player) {
+    unsigned char* cursor;
     int i;
     int position;
-    unsigned char* cursor;
 
     cursor = code;
     if (*digit < 6) {
@@ -1011,28 +1011,6 @@ static inline int scan_profile_code(unsigned char code[6], int* digit,
         }
     }
     return *digit != 6;
-}
-
-static inline void enter_profile_code(unsigned char code[6], int* digit) {
-    int i;
-
-    while (scan_profile_code(code, digit, pprofile_pad, pprofile_player)) {
-        create_profile_sleep(kOne);
-        if (check_switch_edge(pprofile_pad, 0xB)) {
-            for (i = 0; i < 6; i++) {
-                code[i] = 0;
-            }
-            *digit = 0;
-            if (pprofile_player == 0) {
-                fire_screen_studio_event(0x1FC4, pprofile_player + 1);
-            } else {
-                fire_screen_studio_event(0x1FC5,
-                                         pprofile_player + 1);
-            }
-            fire_screen_studio_event(0x1FAA, pprofile_player + 1);
-        }
-    }
-    create_profile_sleep(kOne);
 }
 
 static inline int profile_codes_equal(
@@ -1070,8 +1048,6 @@ static inline int find_free_profile_slot(StorageDevice* storage) {
     return slot;
 }
 
-/* TODO: [near miss] 99.70935%; pre-RA reset-zero sharing and confirmation/slot
- * homes remain; recover zero provenance without losing indexed induction. */
 float p_create_profile(void) {
     int answered;
     int code_confirmed;
@@ -1189,7 +1165,24 @@ float p_create_profile(void) {
                 ppc_set_stage_value(3);
                 fire_screen_studio_event(PROFILE_CREATE_EVENT_STAGE, 0);
                 initialize_profile_code(player_kode, &player_kode_current_digit);
-                enter_profile_code(player_kode, &player_kode_current_digit);
+                while (scan_profile_code(player_kode, &player_kode_current_digit,
+                                         pprofile_pad, pprofile_player)) {
+                    create_profile_sleep(kOne);
+                    if (check_switch_edge(pprofile_pad, 0xB)) {
+                        int i;
+                        for (i = 0; i < 6; i++) {
+                            player_kode[i] = 0;
+                        }
+                        player_kode_current_digit = 0;
+                        if (pprofile_player == 0) {
+                            fire_screen_studio_event(0x1FC4, pprofile_player + 1);
+                        } else {
+                            fire_screen_studio_event(0x1FC5, pprofile_player + 1);
+                        }
+                        fire_screen_studio_event(0x1FAA, pprofile_player + 1);
+                    }
+                }
+                create_profile_sleep(kOne);
 
                 attempts = 3;
                 code_confirmed = 0;
@@ -1199,8 +1192,25 @@ float p_create_profile(void) {
                     attempts--;
                     initialize_profile_code(player_confirm_kode,
                                             &player_confirm_kode_current_digit);
-                    enter_profile_code(player_confirm_kode,
-                                       &player_confirm_kode_current_digit);
+                    while (scan_profile_code(player_confirm_kode,
+                                             &player_confirm_kode_current_digit,
+                                             pprofile_pad, pprofile_player)) {
+                        create_profile_sleep(kOne);
+                        if (check_switch_edge(pprofile_pad, 0xB)) {
+                            int i;
+                            for (i = 0; i < 6; i++) {
+                                player_confirm_kode[i] = 0;
+                            }
+                            player_confirm_kode_current_digit = 0;
+                            if (pprofile_player == 0) {
+                                fire_screen_studio_event(0x1FC4, pprofile_player + 1);
+                            } else {
+                                fire_screen_studio_event(0x1FC5, pprofile_player + 1);
+                            }
+                            fire_screen_studio_event(0x1FAA, pprofile_player + 1);
+                        }
+                    }
+                    create_profile_sleep(kOne);
                     code_confirmed = profile_codes_equal(
                         player_confirm_kode, player_kode);
                 }

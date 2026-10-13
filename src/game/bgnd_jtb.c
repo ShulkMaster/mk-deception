@@ -198,7 +198,7 @@ static const Vec nb_world_up = {0.0f, 1.0f, 0.0f};
 static const Vec nb_hit_zero = {0.0f, 0.0f, 0.0f};
 static const Vec nb_collision_zero = {0.0f, 0.0f, 0.0f};
 
-/* TODO: [breakthrough needed] 93.90%; final basis needs retail fused dot-product staging and full-vector publication (including Y); rebound factor/copy order unresolved. */
+/* TODO: [breakthrough needed] 94.21%; final basis needs retail fused dot-product staging and full-vector publication (including Y); rebound factor/copy order unresolved. */
 void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     static unsigned int last_sound_time;
     struct NbNpcState* npc;
@@ -214,6 +214,7 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     float alignment;
     float old_x;
     float old_z;
+    float old_y;
     float momentum_x;
     float momentum_y;
     float momentum_z;
@@ -374,6 +375,7 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     local_x = nb_collision_x_axis;
 
     local_z = nb_collision_z_axis;
+    old_y = npc->momentum.y;
 
     npc->momentum.x =
         old_x * (local_x.x * facing.x + local_x.z * facing.z) +
@@ -381,10 +383,11 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     npc->momentum.z =
         old_x * (local_z.x * facing.x + local_z.z * facing.z) +
         old_z * (local_z.x * side.x + local_z.z * side.z);
+    npc->momentum.y = old_y;
     bgnd_collision_if_enable_col(5, npc_id + 0x12C);
 }
 
-/* TODO: [near miss] 97.41%; momentum blend FPR scheduling and collision_id/player_index r29/r30 coloring differ. */
+/* TODO: [near miss] 97.73%; momentum blend FPR scheduling and collision_id/player_index r29/r30 coloring differ. */
 static void nb_npc_slave_hit_by_plyr(int npc_id) {
     struct NbNpcState* npc;
     Vec target = nb_hit_zero;
@@ -407,8 +410,6 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     float correction;
     int collision_id;
     int hit_id;
-    int player_index;
-    int power;
 
     npc = bgnd_fetch_npc(npc_id);
     collision_id = npc_id + 0x12C;
@@ -424,6 +425,9 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     spad_set_vector(0, 0x1B);
     hit_id = spad_get_pos(0, 0);
     if ((float)hit_id != previous_hit) {
+        int player_index;
+        int power;
+
         if (player_side == 0.0f) {
             npc->last_hit_id[0] = hit_id;
         } else {
@@ -463,21 +467,27 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
         correction_weight = 0.9f;
         weighted_old = old_x * npc->acceleration_divisor;
         weighted_target = target.x * target_weight;
-        correction = (target.x - old_x) * correction_weight;
-        new_x = (weighted_old + weighted_target + correction) * inverse_mass;
+        correction = target.x - old_x;
+        correction *= correction_weight;
+        new_x = weighted_old + weighted_target + correction;
         weighted_old = old_y * npc->acceleration_divisor;
         weighted_target = target.y * target_weight;
-        correction = (target.y - old_y) * correction_weight;
-        new_y = (weighted_old + weighted_target + correction) * inverse_mass;
+        correction = target.y - old_y;
+        correction *= correction_weight;
+        new_y = weighted_old + weighted_target + correction;
         weighted_old = old_z * npc->acceleration_divisor;
         weighted_target = target.z * target_weight;
-        correction = (target.z - old_z) * correction_weight;
-        new_z = (weighted_old + weighted_target + correction) * inverse_mass;
+        correction = target.z - old_z;
+        correction *= correction_weight;
+        new_z = weighted_old + weighted_target + correction;
+        new_x *= inverse_mass;
+        new_y *= inverse_mass;
+        new_z *= inverse_mass;
 
         if ((reaction_fetch_current_flags(player_index) & 0x80) != 0) {
-            new_x *= 0.205f;
+            new_x = 0.205f * new_x;
             new_y = 0.2f;
-            new_z *= 0.205f;
+            new_z = 0.205f * new_z;
             npc->active |= 1;
             npc->swing_angle = 0.02f + frand(0.02f);
         } else if (npc->swing_angle != 0.0f || (unsigned short)randu0(100) < 80) {
@@ -497,7 +507,7 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     bgnd_collision_if_enable_col(5, collision_id);
 }
 
-/* TODO: [near miss] 98.79%; transfer ABI corrected; direction x/z FPR
+/* TODO: [near miss] 98.93%; transfer ABI corrected; direction x/z FPR
  * and camera/npc register roles remain after measured lifetime trials. */
 static int nb_npc_hurt_player(
     struct NbNpcState* hit, unsigned int player_index, float impact) {
@@ -523,8 +533,8 @@ static int nb_npc_hurt_player(
     random_hit(0xD);
     uv_from_angle_y(&facing, player_object->ang.y);
     hit_length_inverse = gxMathFastInvSqrt(
-        hit->momentum.x * hit->momentum.x +
-        hit->momentum.z * hit->momentum.z);
+        hit->momentum.z * hit->momentum.z +
+        hit->momentum.x * hit->momentum.x);
     direction_x = hit->momentum.x * hit_length_inverse;
     direction_z = hit->momentum.z * hit_length_inverse;
     facing_length_inverse = gxMathFastInvSqrt(
@@ -794,18 +804,14 @@ static float p_npc_on_pendulum_rope(void) {
         rotate_xz(&angle_vector, &angle_vector, -1.0f * npc->object->ang.y);
 
         if (angle_vector.x < 0.0f && npc->object->ang.x > 3.1415927f) {
-            angle_vector.x =
-                0.000005992112f *
-                (float)((int)(166886.1f * angle_vector.x) & 0xFFFFF);
+            angle_vector.x = norm_angle_inline(angle_vector.x);
         }
         if (angle_vector.x >= 0.0f && angle_vector.x < 3.1415927f &&
             npc->object->ang.x > 3.1415927f) {
             npc->object->ang.x -= 6.2831855f;
         }
         if (angle_vector.z < 0.0f && npc->object->ang.z > 3.1415927f) {
-            angle_vector.z =
-                0.000005992112f *
-                (float)((int)(166886.1f * angle_vector.z) & 0xFFFFF);
+            angle_vector.z = norm_angle_inline(angle_vector.z);
         }
         if (angle_vector.z >= 0.0f && angle_vector.z < 3.1415927f &&
             npc->object->ang.z > 3.1415927f) {

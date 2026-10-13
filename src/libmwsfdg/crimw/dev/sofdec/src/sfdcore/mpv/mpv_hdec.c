@@ -526,8 +526,7 @@ static inline u32 mpvhdec_AlignSequenceWindow(u32 bits, int bit_offset)
     return bits;
 }
 
-/* TODO: [near miss] 99.28%; motion-table BSS order corrected; initial window copy,
- * 3-bit value registers and table-address scheduling remain. */
+/* TODO: [near miss] 99.60%; f_code/table indices agree; initial alignment misses word copy, honest helper forms exhausted. */
 static int mpvhdec_DecPscSj(MPVContext* context, SJ* stream)
 {
     SJCK remainder;
@@ -562,22 +561,20 @@ static int mpvhdec_DecPscSj(MPVContext* context, SJ* stream)
     if (picture_type == 2 || picture_type == 3) {
         MPVHDEC_READ_FLAG(context->forward_motion.full_pel);
         MPVHDEC_READ_BITS(f_code, 3);
-        f_code--;
-        context->forward_motion.r_size = f_code;
+        context->forward_motion.r_size = --f_code;
         context->forward_motion.shift = 27 - f_code;
         context->forward_motion.limit = 1 << f_code;
     }
     if (picture_type == 3) {
         MPVHDEC_READ_FLAG(context->backward_motion.full_pel);
         MPVHDEC_READ_BITS(f_code, 3);
-        f_code--;
-        context->backward_motion.r_size = f_code;
+        context->backward_motion.r_size = --f_code;
         context->backward_motion.shift = 27 - f_code;
         context->backward_motion.limit = 1 << f_code;
     }
 
     motion_mode = context->condition_state.conditions[4];
-    condition_index = context->condition_state.conditions[6] != 3;
+    condition_index = context->condition_state.conditions[6] == 3 ? 0 : 1;
     context->decode_intra_blocks = MPVCDEC_IntraBlocks;
     context->decode_nonintra_blocks = MPVCDEC_NintraBlocks;
     context->decode_macroblock = dec_mbs_func[picture_type];

@@ -565,7 +565,8 @@ void cmdscript_execute(ScriptSlot* slot)
     execute_cmdscript(slot);
 }
 
-/* TODO: [near miss] 94.44%; indexed attrs addressing and name-pointer register/operand order remain. */
+/* TODO: [breakthrough needed] 94.44%; attrs index distribution exists in initial
+ * pcode; restore indexed load shape and name-add producer order. */
 void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index) {
     ScriptFuncDef* def;
     unsigned int attrs_id;
@@ -926,8 +927,10 @@ CmdScript* alloc_cmdscript(void) {
     return cs;
 }
 
-/* TODO: [breakthrough] 88.58%; callable array corrected; external-table lookup join and row-loop shape remain. */
+/* TODO: [near miss] 99.53%; shared lookup, signed flag, countdown, and rebasing restored;
+ * lookup cursor coloring and one string-add operand order remain. */
 void fixup_data_tables(ScriptSlot* slot) {
+    ScriptTableDef* def;
     unsigned int table_index;
 
     if (slot->tables_fixed_up != 0) {
@@ -935,58 +938,30 @@ void fixup_data_tables(ScriptSlot* slot) {
     }
 
     for (table_index = 0; table_index < slot->max_table; table_index++) {
-        ScriptTableDef* def = &slot->table_defs[table_index];
+        def = &slot->table_defs[table_index];
 
         if (def->is_internal == 0) {
-            const char* name = def->name + slot->string_reloc - 1;
-            void* table = hashtable_get(&c_table_list, name);
+            char* name = script_string(slot, (int)def->name);
+            void* table = get_data_table_by_name(name);
 
-            if (table == 0) {
-                unsigned int slot_index;
-
-                for (slot_index = 0; slot_index < SCRIPT_SLOT_COUNT; slot_index++) {
-                    ScriptSlotEntry* candidate_entry = slot_entry_at(slot_index);
-                    ScriptSlot* candidate;
-                    unsigned int candidate_index;
-
-                    if (candidate_entry->state != 2) {
-                        continue;
-                    }
-                    candidate = &candidate_entry->body;
-                    for (candidate_index = 0;
-                         candidate_index < candidate->max_table;
-                         candidate_index++) {
-                        ScriptTableDef* candidate_def =
-                            &candidate->table_defs[candidate_index];
-
-                        if (candidate_def->is_internal != 0 &&
-                            strcmp(name, candidate_def->name +
-                                             candidate->string_reloc - 1) == 0) {
-                            table = candidate->table_data + candidate_def->data_index;
-                            break;
-                        }
-                    }
-                    if (table != 0) {
-                        break;
-                    }
-                }
-            }
             def->data_index = (int)table;
         }
     }
 
     for (table_index = 0; table_index < slot->max_table; table_index++) {
-        ScriptTableDef* def = &slot->table_defs[table_index];
+        def = &slot->table_defs[table_index];
 
         if (def->is_internal != 0) {
-            const unsigned char* schema =
-                (const unsigned char*)(slot->table_schema_base + def->is_internal);
+            unsigned int* value;
+            unsigned char* schema =
+                (unsigned char*)(def->is_internal + slot->table_schema_base);
             unsigned int column_count = schema[3];
-            unsigned int* value = slot->table_data + def->data_index;
             unsigned int row;
 
-            for (row = 0; row < def->row_count; row++) {
-                const unsigned char* column_type = schema + 4;
+            value = slot->table_data + def->data_index;
+
+            for (row = def->row_count; row != 0; row--) {
+                unsigned char* column_type = schema + 4;
                 unsigned int column;
 
                 for (column = 0; column < column_count; column++) {
@@ -1493,10 +1468,7 @@ void _copy_register_to_address(void) {
     memcpy((void*)*cmdscript_register_slot(script, destination_index), &value, size);
 }
 
-/* TODO: [near miss] 98.18%; indexed slots and load order agree;
- * local index/add coloring remains; stop without a new owner-lifetime hypothesis. */
 void _copy_column_address_to_register(void) {
-    unsigned int* args;
     CmdScript* script;
     unsigned int* table_slot;
     unsigned int* row_slot;
@@ -1506,22 +1478,26 @@ void _copy_column_address_to_register(void) {
     unsigned int stride;
     unsigned int row;
 
-    args = current_args;
     script = active_cmdscript;
-    table_slot = &script->regs[args[2]];
-    row_slot = &script->regs[args[3]];
-    destination = args[1];
-    table = *table_slot;
-    offset = args[4];
-    stride = args[5];
+
+    destination = current_args[1];
+    table_slot = &script->regs[current_args[2]];
+
+    offset = current_args[4];
+    row_slot = &script->regs[current_args[3]];
+
+    stride = current_args[5];
     row = *row_slot;
+    table = *table_slot;
+
     if (table != 0) {
         unsigned int* destination_slot = &script->regs[destination];
-        *destination_slot = table + row * stride + offset;
+        *destination_slot = row * stride + offset + table;
     }
 }
 
-/* TODO: [near miss] 93.38%; input snapshots and slot addressing agree; stop at index/load coloring and commuted adds. */
+/* TODO: [near miss] 93.38%; traced slot-index scheduling and two add encodings differ;
+ * neutral combinations and permuter give no clean gain; TU controls regress exact siblings. */
 void _copy_column_to_register(void) {
     unsigned int* args;
     CmdScript* script;

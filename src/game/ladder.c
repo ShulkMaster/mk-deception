@@ -31,7 +31,7 @@
 
 struct LadderCoinType {
     int type;
-    const char* name;
+    char* name;
 };
 
 struct LadderEntry {
@@ -43,7 +43,7 @@ struct LadderEntry {
 
 struct LadderModelEntry {
     int character_id;
-    const char* model_name;
+    char* model_name;
 };
 
 struct LadderPlacement {
@@ -58,9 +58,9 @@ struct LadderBgndAnimations {
     AnimScript* pieces_one_three_five;
     AnimScript* defeated_piece;
     AnimScript* piece_two;
-    AniData* other_paths[25];
-    AniData* intro_camera;
-    AniData* travel_camera;
+    AnimScript* other_paths[25];
+    AnimScript* intro_camera;
+    AnimScript* travel_camera;
 };
 
 struct LadderStringRef {
@@ -89,6 +89,7 @@ struct LadderCoinType coin_offset_tbl[6] = {
     {4, "LAD_WALLETKOIN_RUBY"},
     {5, "LAD_WALLETKOIN_GOLD"},
 };
+enum { LADDER_COIN_TYPE_COUNT = sizeof(coin_offset_tbl) / sizeof(coin_offset_tbl[0]) };
 const char* ladder_koins[4] = {
     "LAD_WALLETKOIN_SAPPHIRE",
     "LAD_WALLETKOIN_JADE",
@@ -543,7 +544,7 @@ static struct LadderEntry* current_ladder_tbl;
 const char* ladder_koin_type_to_string(int type) {
     int i;
 
-    for (i = 0; i < 6; i++) {
+    for (i = 0; i < LADDER_COIN_TYPE_COUNT; i++) {
         if (coin_offset_tbl[i].type == type) {
             return coin_offset_tbl[i].name;
         }
@@ -554,7 +555,7 @@ const char* ladder_koin_type_to_string(int type) {
 static inline int ladder_str_to_koin_type(const char* name) {
     int i;
 
-    for (i = 0; i < 6; i++) {
+    for (i = 0; i < LADDER_COIN_TYPE_COUNT; i++) {
         if (strcmp(coin_offset_tbl[i].name, name) == 0) {
             return coin_offset_tbl[i].type;
         }
@@ -725,6 +726,7 @@ static inline int get_curr_difficulty(void) {
         80.0f, 100.0f,
     };
     int display_difficulty;
+    float step;
 
     display_difficulty = mode_of_play == 6
         ? game_settings.rounds_to_win
@@ -734,11 +736,10 @@ static inline int get_curr_difficulty(void) {
     } else if (display_difficulty < 0) {
         display_difficulty = 0;
     }
-    return 0.5f +
-        (((difficulty_ranges[display_difficulty * 2 + 1] -
-           difficulty_ranges[display_difficulty * 2]) / 7.0f) *
-             (float)curr_ladder_pos +
-         difficulty_ranges[display_difficulty * 2]);
+    step = (difficulty_ranges[display_difficulty * 2 + 1] -
+            difficulty_ranges[display_difficulty * 2]) / 7.0f;
+    return 0.5f + (step * (float)curr_ladder_pos +
+        difficulty_ranges[display_difficulty * 2]);
 }
 
 static inline int get_ladder_coin_award(int position) {
@@ -761,8 +762,6 @@ static inline int get_ladder_coin_award(int position) {
     return award;
 }
 
-/* TODO: [near miss] 99.85%; operations, CFG, frame and integer registers agree;
- * six FP register-coloring rows remain; stop at coloring. */
 static void build_ladder_hud_data(void) {
     char text_buffer[120];
     StringObj* arena_name;
@@ -861,7 +860,7 @@ static void build_ladder_hud_data(void) {
     }
 }
 
-static inline const char* fetch_plyr_ladder_model_name(
+static inline char* fetch_plyr_ladder_model_name(
     struct LadderModelEntry* models, int character_id, int alternate_model)
 {
     int index;
@@ -876,13 +875,12 @@ static inline const char* fetch_plyr_ladder_model_name(
     return 0;
 }
 
-/* TODO: [breakthrough] 94.90%; retail table definitions restore shared bases;
- * remaining register homes and scheduling need comparison. */
+/* TODO: [breakthrough] 94.90%; genuine table ownership recovered; indexed placement loads and signed position compare remain. */
 static void place_plyr_on_ladder(int position, int alternate_model) {
     struct LadderPlacement* defeated_placement;
     struct LadderPlacement* placement;
     struct LadderPlacement* small_positions;
-    const char* model_name;
+    char* model_name;
     AnimScript* piece_animation;
     AnimPdata* animation;
     MkObj* object;
@@ -1010,7 +1008,6 @@ float p_animated_intro_done(void);
 int move_to_end_point(const Vec* endpoint, float* initial_speed,
                      float* final_speed, int mode, float rate);
 void tag_team_activate_player(MkObj* object, int player);
-MkProc* create_mkproc_headtracking(int pid, MkObj* object, PlyrPdata* pdata);
 
 static inline void ladder_sleep(float ticks) {
     _mkproc_sleep_ticks = ticks;
@@ -1020,13 +1017,12 @@ static inline void ladder_sleep(float ticks) {
 static inline void ladder_create_player_with_slow_camera(PlyrInfo* opponent) {
     CameraPdata* camera = get_pdata_of_camera();
     float speed = camera->speed;
-    camera->speed = speed * 1e-9f;
+    camera->speed *= 1e-9f;
     create_player(opponent->field_04, opponent);
     camera->speed = speed;
 }
 
-/* TODO: [near miss] 98.07%; retail table bases and addressed stack slots agree;
- * opponent/addressed-base saved-register homes (r25/r27) and loop latch homes remain. */
+/* TODO: [near miss] 98.77%; script-save homes agree; table addressing, arena-name latch temp and early store order remain. */
 float p_ladder_select(void) {
     int i;
     PlyrInfo* player;
@@ -1107,10 +1103,9 @@ float p_ladder_select(void) {
     } else {
         for (i = 0; i < 8; i++) {
             int background;
-            if (is_bgnd_locked(current_ladder_tbl[i].background_id))
-                background = current_ladder_tbl[i].locked_background_id;
-            else
-                background = current_ladder_tbl[i].background_id;
+            background = is_bgnd_locked(current_ladder_tbl[i].background_id) ?
+                current_ladder_tbl[i].locked_background_id :
+                current_ladder_tbl[i].background_id;
             bgnd_append_texture_to_material(18-i, 8-i,
                 ladder_data_table[background].texture_name, 0);
             bgnd_swap_textures(18-i, 8-i, 1);
@@ -1165,7 +1160,8 @@ float p_ladder_select(void) {
                 ladder_frame_tbl[curr_ladder_pos][1], 0, 1);
         }
     }
-    get_pdata_of_camera()->speed = 1e-10f;
+    camera = get_pdata_of_camera();
+    camera->speed = 1e-10f;
     turn_camera_on();
     fade_from_black(20, 0);
     camera = get_pdata_of_camera();
@@ -1239,11 +1235,17 @@ float p_ladder_select(void) {
             else
                 script = opponent->slot.pdata->runtime_data->primary_script_24;
             if (script != 0) {
-                CmdScript* previous_script = active_cmdscript;
-                PlyrPdata* previous_player = plyr_pdata;
-                PlyrPdata* previous_opponent = his_pdata;
-                MkObj* previous_object = plyr_obj;
-                MkObj* previous_other_object = his_obj;
+                CmdScript* previous_script;
+                PlyrPdata* previous_player;
+                PlyrPdata* previous_opponent;
+                MkObj* previous_object;
+                MkObj* previous_other_object;
+
+                previous_player = plyr_pdata;
+                previous_script = active_cmdscript;
+                previous_opponent = his_pdata;
+                previous_object = plyr_obj;
+                previous_other_object = his_obj;
                 plyr_pdata = opponent->slot.pdata;
                 his_pdata = 0;
                 plyr_obj = opponent->slot.mirror_a;

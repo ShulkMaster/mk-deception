@@ -173,8 +173,6 @@ static void* __FileWrite(void* pFile, const char* pBuffer, size_t char_num)
 	return (fwrite(pBuffer, 1, char_num, (FILE*)pFile) == char_num ? pFile : 0);
 }
 
-/* TODO: [breakthrough needed] 94.30399%; conversion-failure flag expands the shared
- * failure CFG; recover canonical vendor failure-exit structure. */
 static int __pformatter(void* (*WriteProc)(void*, const char*, size_t), void* WriteProcArg, const char* format_str, va_list arg)
 {
 	int num_chars, chars_written, field_width;
@@ -188,7 +186,6 @@ static int __pformatter(void* (*WriteProc)(void*, const char*, size_t), void* Wr
 	char* buff_ptr;
 	char* string_end;
 	char fill_char = ' ';
-	int conversion_failed;
 
 	format_ptr    = format_str;
 	chars_written = 0;
@@ -214,7 +211,6 @@ static int __pformatter(void* (*WriteProc)(void*, const char*, size_t), void* Wr
 
 		format_ptr = curr_format;
 		format_ptr = parse_format(format_ptr, (va_list*)arg, &format);
-		conversion_failed = 0;
 
 		switch (format.conversion_char) {
 		case 'd':
@@ -237,13 +233,11 @@ static int __pformatter(void* (*WriteProc)(void*, const char*, size_t), void* Wr
 
 			if ((format.argument_options == long_long_argument)) {
 				if (!(buff_ptr = longlong2str(long_long_num, buff + 512, format))) {
-					conversion_failed = 1;
-					break;
+					goto conversion_error;
 				}
 			} else {
 				if (!(buff_ptr = long2str(long_num, buff + 512, format))) {
-					conversion_failed = 1;
-					break;
+					goto conversion_error;
 				}
 			}
 
@@ -272,13 +266,11 @@ static int __pformatter(void* (*WriteProc)(void*, const char*, size_t), void* Wr
 
 			if ((format.argument_options == long_long_argument)) {
 				if (!(buff_ptr = longlong2str(long_long_num, buff + 512, format))) {
-					conversion_failed = 1;
-					break;
+					goto conversion_error;
 				}
 			} else {
 				if (!(buff_ptr = long2str(long_num, buff + 512, format))) {
-					conversion_failed = 1;
-					break;
+					goto conversion_error;
 				}
 			}
 
@@ -298,8 +290,7 @@ static int __pformatter(void* (*WriteProc)(void*, const char*, size_t), void* Wr
 			}
 
 			if (!(buff_ptr = float2str(long_double_num, buff + 512, format))) {
-				conversion_failed = 1;
-				break;
+				goto conversion_error;
 			}
 
 			num_chars = buff + 512 - 1 - buff_ptr;
@@ -314,8 +305,7 @@ static int __pformatter(void* (*WriteProc)(void*, const char*, size_t), void* Wr
 			}
 
 			if (!(buff_ptr = double2hex(long_double_num, buff + 512, format))) {
-				conversion_failed = 1;
-				break;
+				goto conversion_error;
 			}
 
 			num_chars = buff + 512 - 1 - buff_ptr;
@@ -330,8 +320,7 @@ static int __pformatter(void* (*WriteProc)(void*, const char*, size_t), void* Wr
 				}
 
 				if ((num_chars = wcstombs(buff, wcs_ptr, sizeof(buff))) < 0) {
-					conversion_failed = 1;
-					break;
+					goto conversion_error;
 				}
 
 				buff_ptr = &buff[0];
@@ -395,11 +384,7 @@ static int __pformatter(void* (*WriteProc)(void*, const char*, size_t), void* Wr
 
 		case 0xFF:
 		default:
-			conversion_failed = 1;
-			break;
-		}
-
-		if (conversion_failed) {
+		conversion_error:
 			num_chars = strlen(curr_format);
 			chars_written += num_chars;
 
@@ -408,6 +393,7 @@ static int __pformatter(void* (*WriteProc)(void*, const char*, size_t), void* Wr
 			}
 
 			return chars_written;
+			break;
 		}
 
 		field_width = num_chars;

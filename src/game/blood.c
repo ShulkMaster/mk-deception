@@ -1256,23 +1256,30 @@ static float p_bleed(void);
 static float p_pfx_bleed(void);
 static void do_pfx_bleed(MkHdr* hdr);
 static int obj_set_bld_vel(
-    MkObj* object, const Vec* position, struct BloodVelocityState* state);
+    MkObj* object, Vec* position, struct BloodVelocityState* state);
 static void obj_bld_surface_build_polys(
     MkObj* object, BloodSurface* output, const BloodSurface* source);
 static void bloodfx_init(void* userdata);
 
+static inline Vec* blood_surface_point(BloodSurfaceRecord* record, int corner) {
+    return (Vec*)((unsigned char*)record +
+        (int)&((BloodSurfaceRecord*)0)->points + corner * (int)sizeof(Vec));
+}
+
 static inline void blood_interpolate_direction(
-    Vec* direction, const Vec* current, const Vec* next,
-    float current_weight, float next_weight, const Vec* position) {
-    direction->x =
-        current->x * current_weight + next->x * next_weight;
-    direction->y =
-        current->y * current_weight + next->y * next_weight;
-    direction->z =
-        current->z * current_weight + next->z * next_weight;
-    direction->x -= position->x;
-    direction->y -= position->y;
-    direction->z -= position->z;
+    Vec* direction, Vec* current, Vec* next,
+    float current_weight, float next_weight, Vec* position) {
+    Vec weighted_current;
+
+    weighted_current.x = (float)(current->x * current_weight);
+    weighted_current.y = (float)(current->y * current_weight);
+    weighted_current.z = (float)(current->z * current_weight);
+    direction->x = next->x * next_weight;
+    direction->y = next->y * next_weight;
+    direction->z = next->z * next_weight;
+    direction->x = weighted_current.x + direction->x - position->x;
+    direction->y = weighted_current.y + direction->y - position->y;
+    direction->z = weighted_current.z + direction->z - position->z;
 }
 
 static inline void queue_blood_spawn(
@@ -2538,7 +2545,7 @@ static float p_bleed(void) {
         item = *list;
         while (item != 0) {
             hdr = item->hdr;
-            if (item->instance != hdr->instance) {
+            if (hdr->instance != item->instance) {
                 next = item->next;
                 discard_stale_mkptr(item);
                 item = next;
@@ -2551,24 +2558,22 @@ static float p_bleed(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 97.87%; shared path/removal effects agree; register webs and load
- * scheduling remain. */
+/* TODO: [near miss] 99.15%; point increment and bone-transfer register/load scheduling remain. */
 static void do_pfx_bleed(MkHdr* hdr) {
-    struct BloodParticlePosition* destination;
-    struct BloodParticlePosition* source;
-    struct BloodVelocityState* state;
     PfxVm* vm;
-    MkPfx* pfx;
-    int position_stride;
-    int state_stride;
-    int index;
 
     apdata = hdr;
     pfx_pre_wake();
-    pfx = apfx;
-    if (pfx != 0) {
+    if (apfx != 0) {
+        MkPfx* pfx = apfx;
         vm = (PfxVm*)pfx->matrix;
         if (!apfx_render_obj->hide_flag_bits.hidden && vm->particle_cursor != 0) {
+            struct BloodParticlePosition* source;
+            struct BloodParticlePosition* destination;
+            struct BloodVelocityState* state;
+            int position_stride;
+            int state_stride;
+            int index;
             int removed_count;
             position_stride = vm->transforms[0].particle_field_stride;
             destination = pfx_get_field(vm, -2, 0x100);
@@ -2604,14 +2609,14 @@ static void do_pfx_bleed(MkHdr* hdr) {
                 state->travel_ticks -= game_speed;
 
                 if (!(state->travel_ticks >= 0.0f)) {
-                    BloodSurfaceRecord* record;
-                    BloodSurfaceRecord* next_record;
+                    int point_index;
+                    BloodPath* path;
                     BloodSurface* surface;
                     const int* record_indices;
                     const int* next_index;
+                    BloodSurfaceRecord* record;
+                    BloodSurfaceRecord* next_record;
                     struct BloodSurfaceEdge* edge;
-                    int point_index;
-                    BloodPath* path;
                     PlyrPdata* owner;
                     MkProc* foot_proc;
                     MkBone* old_bone;
@@ -3007,13 +3012,11 @@ int obj_spawn_bld(
     return spawned;
 }
 
-/* TODO: [borked] 93.21%; matrix projection and final publication agree;
- * rounded weighted-vector interpolation still differs. */
 static int obj_set_bld_vel(
-    MkObj* object, const Vec* position, struct BloodVelocityState* state) {
+    MkObj* object, Vec* position, struct BloodVelocityState* state) {
     BloodSurfaceRecord* record;
-    const Vec* current;
-    const Vec* next;
+    Vec* current;
+    Vec* next;
     RwMatrix* matrix;
     int result;
     BloodPath* path;
@@ -3035,21 +3038,24 @@ static int obj_set_bld_vel(
         state->velocity.y = 0.0f;
         state->velocity.x = 0.0f;
     } else {
+        float weight_scale;
+
         record = &path->surface->records[
             path->record_indices[state->point_index]];
         corner = path->corner_indices[state->point_index];
-        current = &record->points[corner];
+        current = blood_surface_point(record, corner);
         corner++;
         if (corner >= 3) {
             corner = 0;
         }
-        next = &record->points[corner];
+        next = blood_surface_point(record, corner);
 
         current_weight = state->weight_0 + path->interpolation_bias;
         next_weight = state->weight_1 + path->interpolation_bias;
-        inverse_distance = 1.0f / (current_weight + next_weight);
-        current_weight *= inverse_distance;
-        next_weight *= inverse_distance;
+        weight_scale = current_weight + next_weight;
+        weight_scale = 1.0f / weight_scale;
+        current_weight *= weight_scale;
+        next_weight *= weight_scale;
         blood_interpolate_direction(
             &direction, current, next, current_weight, next_weight,
             position);

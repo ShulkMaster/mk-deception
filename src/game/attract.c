@@ -611,7 +611,6 @@ static void atm_demo_chess(void) {
     gamelogic_jump(5, p_mk_chess);
 }
 
-/* TODO: [near miss] 99.53%; demo byte/true/timer-zero operations agree; stop at volatile-register coloring. */
 static void atm_demo_fight(void) {
     int bgnd;
 
@@ -620,8 +619,8 @@ static void atm_demo_fight(void) {
     rnd_plyrs();
     bgnd = get_next_bgnd();
     g_game_info.bgnd_id = bgnd;
-    b_game_timer_off = 0;
     g_game_info.feature_flags.bits.powerbars_locked = 1;
+    b_game_timer_off = 0;
     set_mode_of_play(0);
     gamelogic_jump(2, p_gamelogic);
 }

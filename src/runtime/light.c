@@ -473,7 +473,7 @@ static inline RpLight* create_type5_spot(MkObj* parent, LightDef* def) {
     return light;
 }
 
-/* TODO: [near miss] 99.57%; linked-object latch homes and owner-load folding remain. */
+/* TODO: [near miss] 99.57%; nine linked-owner latch/reload rows remain; factory output type corrected, stop at boundary. */
 MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
     RpLight* light;
     RwFrame* frame;
@@ -482,7 +482,7 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
     MkPtr* node;
     MkxRpLight* headMkx;
     MkObj* linked;
-    LightPdata* lp;
+    MkHdr* lp;
     MkProc* mkproc;
     int count;
     int procId;
@@ -638,9 +638,9 @@ created:
     clear_light_low_flags(light);
     if (def->procFn != 0) {
         mkproc = _create_mkproc_generic_tinystack(
-            0x5009, 0x28, def->procFn, sizeof(LightPdata), (MkHdr**)&lp);
+            0x5009, 0x28, def->procFn, sizeof(LightPdata), &lp);
         if (mkproc != 0) {
-            lp->light = light;
+            ((LightPdata*)lp)->light = light;
             mkproc->pre_destroy = pre_light;
             mkproc->destroy_cb = post_light;
             if (mkobj == 0) {
@@ -648,11 +648,11 @@ created:
                 if (mkobj == 0) {
                     goto failed;
                 }
-                lp->obj = 0;
-                lp->obj_instance = 0;
+                ((LightPdata*)lp)->obj = 0;
+                ((LightPdata*)lp)->obj_instance = 0;
             }
-            lp->obj = mkobj;
-            lp->obj_instance = mkobj->hdr.instance;
+            ((LightPdata*)lp)->obj = mkobj;
+            ((LightPdata*)lp)->obj_instance = mkobj->hdr.instance;
         }
     }
 

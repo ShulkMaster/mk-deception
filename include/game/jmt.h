@@ -22,8 +22,7 @@ void flying_collision(
     float reaction_rate, float exit_height,
     float collision_height, float max_frame, float max_ticks);
 void kill_ermac_eyes(void);
-void dizzy_kill_pfx(
-    MkObj* opponent, int unused, PlyrPdata* player, int enabled);
+void dizzy_kill_pfx(void);
 void jmt_debug_script(int command, int value, const void* args, float scalar);
 float animpdata_get_anim_hiframe(const AnimPdata* pdata);
 MkHdr* mks_start_gusher(

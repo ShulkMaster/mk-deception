@@ -106,6 +106,29 @@ across TU, REQUIRE sibling evidence + all-function and section baselines.
   `stfd`+`psq_st` pairs at every n; else `_savefpr_N` iff n>3 or (`,s` and
   n>2). `stw` x2..4 with lmw on proves `,p`. Old SDK compiler (GX) never
   `psq_st`. Exceptions = scoped `optimize_for_size` pragma.
+- Object flag instead of scoped pragma (via coordinator, whole-unit table):
+  REQUIRE a measure-only table with every function + section, no exact
+  function down, and retail evidence for the mode (sibling objects, MAP
+  order). Landed: `behavior.o` `-opt nopeephole` replaces five scoped
+  `peephole off/reset` pairs (all 12 functions + `.data` exact; flag first,
+  then the clean source); `mk_hwfile.o` `-inline on,noauto,deferred`
+  (`noauto` alone leaves the inherited `off` bit, must use `on` or replace
+  the option); `mpv_vlc.o` `-inline noauto,deferred` + reversed definitions +
+  reversed statics block = all 38 `.bss` offsets/sizes/bindings retail
+  (neither half alone: both regress sibling order). Measured negative at unit
+  level, do not repeat: `opt_propagation off` on `cftfx`, `mk_obj`, `SFH`,
+  `gcmcard`, Glue, `gcmcardmsg`, `mk_cmdscript`, `moves`, `pselect`,
+  `collision`, `konquest(_npc)`, `mslStreamFile`, `mslBank`, `adx_tsvr`,
+  `adx_bsc`, `listpool`, `libmkparticle` (all but `pfx_memory`);
+  `nopeephole` on `mk_math`, `gcmcard`, `SFH`; CSE off on `SFH`.
+  Winner: `pfx_memory.o` `-pragma "opt_propagation off"` keeps the existing
+  `-schedule off -inline noauto -opt nopeephole`: with propagation on, GC 2.7
+  moves a NEG into the rounding expression so initial PCode has ADD after NEG;
+  off keeps the named mask first and closes `pfx_effect_memory_alloc` (+136B)
+  at the price of `pfx_set_memory` by-value aggregate copy growth (97.40%, not
+  exact before). Lead: initial PCode ADD/NEG order wrong + 1-4 rows.
+  `set_object_flags` applies as soon as link + SHA-1 pass, regardless of
+  regressions: check the table first, revert at once if anything drops.
 
 ## M02
 
@@ -333,6 +356,17 @@ public APIs keep their documented `const`.
   `dist_xz_to_xz`, `length_v3`, `uv_v3_to_v3_dist`). Per-function drop, not
   TU-wide (`YXZ_angles_to_quat` keeps const). C rejects `const T*` to `T*`
   param: drop the caller's const too, recheck caller objects byte-identical.
+- Private mutable current/time input: dropping `const` on the private
+  `KonquestTime* current` (local prototype synced, caller already passes a
+  mutable object) and reading `current->hour/minute` restores retail frame
+  and late load order (`find_next_day_of_week_and_month_in_a_year`,
+  `find_next_day_of_month_and_month_in_a_year`, `find_next_day_of_week_and_
+  day_of_month_in_a_year`); canonical mutable event input + removed
+  const-removal cast closed `set_current_time`. Also `interp_quat` (both root
+  inputs + header), `convert_cdf_quad_to_collision_box` (source + position),
+  `xz_unit_vector_to_shape` (70.8 -> 93.9). Not a TU rule: the same drop was
+  byte-neutral on the other `konquest_time` helpers and was reverted (no
+  churn).
 - Separately cached dest owner = H05.
 
 ## M13

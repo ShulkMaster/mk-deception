@@ -465,9 +465,7 @@ void start_constrain_proc(void) {
 }
 
 
-/* TODO: [near miss] 81.942856%; coordinate load/store scheduling differs;
- * scheduling-off shifts residue; retain source pending alias-boundary evidence. */
-void set_constrain_last_pos(int player, const Vec* position) {
+void set_constrain_last_pos(int player, Vec* position) {
     if (find_mkproc_pid(0x1003) != 0) {
         tightrope_set = 0;
         if (player == 0) {

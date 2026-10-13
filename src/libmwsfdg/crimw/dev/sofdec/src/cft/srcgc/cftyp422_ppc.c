@@ -19,34 +19,31 @@ static inline float clamp_table_value(float value)
     return value < 0.0f ? 0.0f : (value > 255.0f ? 255.0f : value);
 }
 
-static inline void make_chroma_tables(CFTArgbTable table)
-{
-    s32 i;
-
-    for (i = 0; i < 256; i++) {
-        table[1][i][3] = 2.017f * (float)(i - 128) + 0.5f;
-        table[1][i][2] = -0.392f * (float)(i - 128) + 0.5f;
-        table[1][i][1] = 0.0f;
-        table[1][i][0] = 0.0f;
-        table[2][i][3] = 0.0f;
-        table[2][i][2] = -0.813f * (float)(i - 128) + 0.5f;
-        table[2][i][1] = 1.596f * (float)(i - 128) + 0.5f;
-        table[2][i][0] = 0.0f;
-    }
-}
-
-/* TODO: [breakthrough] 97.22%; paired ramps recover conversion slots and homes;
- * separate chroma owners and middle-ramp alpha scheduling remain. */
+/* TODO: [near miss] 97.48%; all loop bodies and homes agree; six chroma setup rows and two alpha schedule rows remain. */
 void CFT_MakeArgb8888Alp3211Tbl(
     CFTArgbTable table, u8 alpha0, u8 alpha1, u8 alpha2)
 {
     s32 i;
+    float (*cb)[4];
+    float (*cr)[4];
     float (*y_table)[4];
     s32 luminance_sample;
     s32 middle_pairs;
     s32 high_pairs;
 
-    make_chroma_tables(table);
+    cb = table[1];
+    cr = table[2];
+    for (i = 0; i < 256; i++) {
+        cb[i][3] = 2.017f * (float)(i - 128) + 0.5f;
+        cb[i][2] = -0.392f * (float)(i - 128) + 0.5f;
+        cb[i][1] = 0.0f;
+        cb[i][0] = 0.0f;
+        cr[i][3] = 0.0f;
+        cr[i][2] = -0.813f * (float)(i - 128) + 0.5f;
+        cr[i][1] = 1.596f * (float)(i - 128) + 0.5f;
+        cr[i][0] = 0.0f;
+    }
+
     for (i = 0; i < 48; i++) {
         table[0][i][3] = -16.0f * (255.0f / 219.0f) + 0.5f;
         table[0][i][2] = -16.0f * (255.0f / 219.0f) + 0.5f;
@@ -89,16 +86,29 @@ void CFT_MakeArgb8888Alp3211Tbl(
     }
 }
 
-/* TODO: [breakthrough] 96.65%; paired high ramp recovers conversion slots;
- * separate chroma owners and luminance cursor/counter homes remain. */
+/* TODO: [near miss] 97.65%; all loop bodies and register homes agree; six chroma preheader schedule rows remain. */
 void CFT_MakeArgb8888Alp3110Tbl(
     CFTArgbTable table, u8 alpha0, u8 alpha1, u8 alpha2)
 {
     s32 i;
-    s32 high_pairs;
+    float (*cb)[4];
+    float (*cr)[4];
     float (*y_table)[4];
+    s32 luminance_sample;
+    s32 high_pairs;
 
-    make_chroma_tables(table);
+    cb = table[1];
+    cr = table[2];
+    for (i = 0; i < 256; i++) {
+        cb[i][3] = 2.017f * (float)(i - 128) + 0.5f;
+        cb[i][2] = -0.392f * (float)(i - 128) + 0.5f;
+        cb[i][1] = 0.0f;
+        cb[i][0] = 0.0f;
+        cr[i][3] = 0.0f;
+        cr[i][2] = -0.813f * (float)(i - 128) + 0.5f;
+        cr[i][1] = 1.596f * (float)(i - 128) + 0.5f;
+        cr[i][0] = 0.0f;
+    }
     for (i = 0; i < 9; i++) {
         table[0][i][3] = 0.0f;
         table[0][i][2] = 0.0f;
@@ -106,10 +116,10 @@ void CFT_MakeArgb8888Alp3110Tbl(
         table[0][i][0] = alpha0;
     }
     y_table = &table[0][9];
-    i = 9;
-    for (; i < 134; i++) {
+    luminance_sample = 9;
+    for (; luminance_sample < 134; luminance_sample++) {
         float luminance =
-            (255.0f / 110.0f) * clamp_table_value((float)i - 16.0f) + 0.5f;
+            (255.0f / 110.0f) * clamp_table_value((float)luminance_sample - 16.0f) + 0.5f;
 
         (*y_table)[3] = luminance;
         (*y_table)[2] = luminance;
@@ -118,19 +128,19 @@ void CFT_MakeArgb8888Alp3110Tbl(
         y_table++;
     }
     y_table = &table[0][134];
-    i = 134;
+    luminance_sample = 134;
     for (high_pairs = 0; high_pairs < 61; high_pairs++) {
         s32 sample;
 
         for (sample = 0; sample < 2; sample++) {
             float luminance = (255.0f / 110.0f) *
-                clamp_table_value(251.0f - (float)i) + 0.5f;
+                clamp_table_value(251.0f - (float)luminance_sample) + 0.5f;
 
             (*y_table)[3] = luminance;
             (*y_table)[2] = luminance;
             (*y_table)[1] = luminance;
             (*y_table)[0] = alpha2;
-            i++;
+            luminance_sample++;
             y_table++;
         }
     }
@@ -317,8 +327,7 @@ void CFT_Ycc420plnToArgb8888(
     }
 }
 
-/* TODO: [near miss] 99.64%; table setup follows retail .bss order (cr_r..y__r, needed by the asm
- * converters); retail emits the five table addi in y__r-first order. */
+/* TODO: [near miss] 99.64%; cursor setup scheduling remains; stop to preserve verified .bss table layout. */
 void CFT_Ycc420plnToArgb8888Init(void)
 {
     s32 i;

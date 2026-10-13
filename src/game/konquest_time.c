@@ -33,14 +33,14 @@ static int find_next_day_of_month_in_a_year(
 static int find_month_in_a_year(
     int month, int year, const KonquestTime* current, KonquestTime* result);
 static int find_next_day_of_week_and_month_in_a_year(
-    int day_of_week, int month, int year, const KonquestTime* current,
+    int day_of_week, int month, int year, KonquestTime* current,
     KonquestTime* result);
 static int find_next_day_of_month_and_month_in_a_year(
-    int day_of_month, int month, int year, const KonquestTime* current,
+    int day_of_month, int month, int year, KonquestTime* current,
     KonquestTime* result);
 static int find_next_day_of_week_and_day_of_month_in_a_year(
     int day_of_week, int day_of_month, int year,
-    const KonquestTime* current, KonquestTime* result);
+    KonquestTime* current, KonquestTime* result);
 
 KonquestTimedEvent* npc_which_event_is_more_recent(
     const KonquestTime* current, KonquestTimedEvent* event_a,
@@ -527,10 +527,9 @@ static int find_month_in_a_year(
     return 1;
 }
 
-/* TODO: [near miss] 95.66%; first-day record: retail loads current->hour/minute after the other stores and needs no saved GPRs (frame 0x20 vs 0x30). */
 static int find_next_day_of_week_and_month_in_a_year(
     int day_of_week, int month, int year,
-    const KonquestTime* current, KonquestTime* result) {
+    KonquestTime* current, KonquestTime* result) {
     int amount;
     int days_to_add;
 
@@ -590,10 +589,9 @@ static int find_next_day_of_week_and_month_in_a_year(
     return 1;
 }
 
-/* TODO: [near miss] 99.56%; retail reads current->hour/minute (r6) after the first-day stores; reading current hoists the loads, result-> keeps order but frees r6. */
 static int find_next_day_of_month_and_month_in_a_year(
     int day_of_month, int month, int year,
-    const KonquestTime* current, KonquestTime* result) {
+    KonquestTime* current, KonquestTime* result) {
     int amount;
 
     *result = *current;
@@ -629,8 +627,8 @@ static int find_next_day_of_month_and_month_in_a_year(
         first_day.month = 0;
         first_day.day_of_month = 0;
         first_day.day_of_week = year * 3 % 7;
-        first_day.hour = result->hour;
-        first_day.minute = result->minute;
+        first_day.hour = current->hour;
+        first_day.minute = current->minute;
 
         *result = first_day;
 
@@ -654,10 +652,9 @@ static int find_next_day_of_month_and_month_in_a_year(
     return 1;
 }
 
-/* TODO: [near miss] 99.59%; retail reads current->hour/minute (r6) after the first-day stores; reading them from current hoists the loads, result-> keeps order but frees r6. */
 static int find_next_day_of_week_and_day_of_month_in_a_year(
     int day_of_week, int day_of_month, int year,
-    const KonquestTime* current, KonquestTime* result) {
+    KonquestTime* current, KonquestTime* result) {
     int amount;
     int months_to_add;
 
@@ -695,13 +692,14 @@ static int find_next_day_of_week_and_day_of_month_in_a_year(
         }
     } else {
         KonquestTime first_day;
+        int first_day_weekday_offset = year * 3;
 
         first_day.year = year;
         first_day.month = 0;
         first_day.day_of_month = 0;
-        first_day.day_of_week = year * 3 % 7;
-        first_day.hour = result->hour;
-        first_day.minute = result->minute;
+        first_day.day_of_week = first_day_weekday_offset % 7;
+        first_day.hour = current->hour;
+        first_day.minute = current->minute;
 
         *result = first_day;
 

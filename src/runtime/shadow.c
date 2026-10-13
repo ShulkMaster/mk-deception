@@ -137,7 +137,7 @@ void init_shadow(ShadowObject* shadow, MkObj* object) {
     }
 }
 
-/* TODO: [near miss] 96.59%; AA/projection input scheduling and GPR coloring remain. */
+/* TODO: [near miss] 96.62%; mirror-slot lights/validated GPR homes, AA/projection input scheduling and coloring remain. */
 void UpdateShadow(MkObj* fighter_object, PlyrPdata* owner, MkObj* object) {
     MkObj* fighter;
     RwCamera* camera;
@@ -199,8 +199,7 @@ void UpdateShadow(MkObj* fighter_object, PlyrPdata* owner, MkObj* object) {
     frame->modelling.at = dir_matrix->at;
     RwMatrixUpdate(&frame->modelling);
     RwFrameUpdateObjects(frame);
-    camera = ShadowCamera;
-    RwCameraSetFarClipPlane(camera, kFarClipMul * shadow_scale);
+    RwCameraSetFarClipPlane(camera = ShadowCamera, kFarClipMul * shadow_scale);
     RwCameraSetNearClipPlane(camera, kNearClipMul * shadow_scale);
     view_window.x = shadow_scale;
     view_window.y = shadow_scale;

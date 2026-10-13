@@ -11,7 +11,6 @@ extern void SFXA_MakeAlpLumiTbl(SFXAObject* object, void* source,
                                 void* table);
 extern void SFXZ_MakeCnvZTbl(SFXZObject* object, void* source,
                              void* table);
-extern void CFT_MakeArgb8888ColAdjTbl(void* table);
 
 static void sfxcnv_MakeLumiTbl(u8* table)
 {

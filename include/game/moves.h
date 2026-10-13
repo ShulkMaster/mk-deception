@@ -15,6 +15,7 @@ int check_for_dead_movement(void);
 float do_my_fatality(void);
 float do_my_2nd_fatality(void);
 void pre_attack_chores(void);
+void update_my_last_switch(void);
 void share_my_attack_info(float duration, float divisor);
 int get_fatality_available_flag(void);
 float j_duck_block_loop(void);

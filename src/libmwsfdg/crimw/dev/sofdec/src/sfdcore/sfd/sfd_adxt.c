@@ -486,14 +486,13 @@ static inline ADXTHandle* sfadxt_CreateAdxt(SfdAdxtWork* work)
 
 static inline int sfadxt_CreateSub(SfdHandle* handle)
 {
-    SfdAdxtWork* work;
+    SfdAdxtWork* const work = sfadxt_GetWorkStorage(handle);
     ADXTHandle* decoder;
     SJ* stream_joint;
     SfdAudioOutputCallbacks* callbacks;
     int result;
     AXRNAHandle* output_context;
 
-    work = sfadxt_GetWorkStorage(handle);
     handle->transports[3].context = work;
     result = sfadxt_InitInf(handle, work);
     if (result != 0) {
@@ -527,7 +526,6 @@ static inline int sfadxt_CreateSub(SfdHandle* handle)
     return 0;
 }
 
-/* TODO: [breakthrough] 99.05%; canonical start-SJ ABI and output context fixed; work/decoder GPR pair remains swapped. */
 static int SFADXT_Create(SfdHandle* handle)
 {
     if (SFSET_GetCond(handle, 6) == 0) {
@@ -573,9 +571,9 @@ static void sfadxt_ExcludeSilence(SfdHandle* handle,
 static inline int sfadxt_SearchFrmTop(SfdHandle* handle,
                                       const unsigned char* data, int size)
 {
+    const unsigned char* end;
     const unsigned char* offset;
     const unsigned char* position;
-    const unsigned char* end;
     unsigned long latest_end_address;
     const unsigned char* latest_offset;
     const unsigned char* limit;
@@ -620,7 +618,7 @@ static inline int sfadxt_SearchFrmTop(SfdHandle* handle,
     return offset - data;
 }
 
-/* TODO: [near miss] 97.31%; frame scan CFG agrees; caller and scan owner registers differ. */
+/* TODO: [near miss] 97.53%; frame scan CFG agrees; caller and scan owner registers differ. */
 static void sfadxt_ExcludeHdr(SfdHandle* handle, const unsigned char* data,
                               int size, int* consumed)
 {

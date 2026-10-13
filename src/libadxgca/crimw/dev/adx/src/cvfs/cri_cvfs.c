@@ -377,7 +377,7 @@ static inline CvFsInterface* resolveDevice(char* device, char* file,
     CvFsInterface* interface;
     CvFsDevice* table;
     const char* lookup_name;
-    int length;
+    long length;
 
     if (device[0] == '\0') {
         getDefaultDevice(device);
@@ -465,7 +465,7 @@ void cvFsEntryErrFunc(CvFsErrorCallback callback, void* object)
     cvfs_errobj = object;
 }
 
-/* TODO: [near miss] 99.75%; device_name r27 vs retail r28 and device-table r28 vs r27 swap remain; stack-array order is the only decl lever. */
+/* TODO: [near miss] 99.75%; device/table register swap remains; shared resolver must preserve cvFsOpen. */
 int cvFsGetFileSize(const char* filename)
 {
     CvFsInterface* interface;

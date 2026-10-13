@@ -20,9 +20,9 @@ static void sec_slot_file_queue_open_callback(void* user,
                                                int success);
 
 static SsfReq ssf_req_Pool[40];
-static struct SsfReqQueue ssf_req_Queue;
-static SsfReq* ssf_req_FreeList;
 static SsfReq* ssf_req_CurrentItem;
+static SsfReq* ssf_req_FreeList;
+static struct SsfReqQueue ssf_req_Queue;
 
 static inline void wait_for_async_work(void) {
     if (aproc != 0 && aproc->stack_top != 0) {

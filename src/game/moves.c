@@ -2790,7 +2790,8 @@ void advance_my_current_switch(void) {
     p2_current_switch_time = p2_switch_log[p2_current_log_index].tick;
 }
 
-/* TODO: [near miss] 89.69%; retail order restored; shared i*20 indexed base/base+4 loads still differ. */
+/* TODO: [breakthrough needed] 89.69%; frontend uses an element-based tick load;
+ * retail requires independently indexed field bases. */
 void update_my_last_switch(void) {
     unsigned int index;
     int switch_id;
@@ -3056,7 +3057,7 @@ float j_flying_kick(void) {
 }
 
 /* TODO: [near miss] 98.43%; real log-base/index staging restored; retail field-base
- * indexed loads differ from folded entry loads; stop without alias/layout evidence. */
+ * indexed loads differ from folded entry loads; typed slot/helper forms regress; stop without new alias/layout evidence. */
 static float j_flying_punch_early(void) {
     MkHdr* object;
     struct SwitchLogEntry* entry;
@@ -3783,7 +3784,6 @@ void noobsmoke_sidekick_projectile(void) {
     }
 }
 
-/* TODO: [near miss] 99.75%; recomputed dx/dz FPR homes differ; stop at coloring. */
 static float p_plyr_sidekick_projectile(void) {
     struct MovesSidekickPdata* pdata;
     PlyrPdata* player;
@@ -3800,10 +3800,10 @@ static float p_plyr_sidekick_projectile(void) {
     float length_sq;
     float distance;
     float inverse_length;
-    float estimate_product;
-    float correction;
     float offset_x;
     float offset_z;
+    float origin_x;
+    float origin_z;
     float wrapped_angle;
     float position_x;
     float position_y;
@@ -3849,26 +3849,27 @@ static float p_plyr_sidekick_projectile(void) {
         sidekick, info->slot.pdata->sidekick_active);
 
     angle_object = info->slot.mirror_a;
-    direction.x = main_object->pos.value.x - opponent_object->pos.value.x;
-    direction.z = main_object->pos.value.z - opponent_object->pos.value.z;
+    origin_x = main_object->pos.value.x;
+    offset_x = origin_x - opponent_object->pos.value.x;
+    origin_z = main_object->pos.value.z;
+    offset_z = origin_z - opponent_object->pos.value.z;
     angle_x = angle_object->ang.x;
     angle_y = angle_object->ang.y;
     angle_z = angle_object->ang.z;
-    length_sq =
-        direction.x * direction.x + direction.z * direction.z;
+    length_sq = offset_x * offset_x + offset_z * offset_z;
     inverse_length = gxMathFastInvSqrt(length_sq);
-    direction.x *= inverse_length;
-    direction.z *= inverse_length;
+    offset_x *= inverse_length;
+    offset_z *= inverse_length;
     if (distance < 3.2f) {
-        position_x = 1.2f * direction.x;
-        position_z = 1.2f * direction.z;
+        position_x = 1.2f * offset_x;
+        position_z = 1.2f * offset_z;
     } else {
-        position_x = 1.5f * direction.x;
-        position_z = 1.5f * direction.z;
+        position_x = 1.5f * offset_x;
+        position_z = 1.5f * offset_z;
     }
-    position_x += main_object->pos.value.x;
+    position_x += origin_x;
     position_y = g_game_info.field_34;
-    position_z += main_object->pos.value.z;
+    position_z += origin_z;
     sidekick->ground_colls_y = main_object->ground_colls_y;
     set_root_and_obj_movement_weights(anim, 0.0f, object_weight);
     sidekick->pos.value.x = position_x;
@@ -4211,8 +4212,9 @@ void noobsmoke_sidekick_double_charge(void) {
     }
 }
 
-/* TODO: [near miss] 99.90%; position stored back through offset.x/z as retail; remaining rows are late constant-pool loads and FPR coloring of the wrapped angle. */
+/* TODO: [near miss] 99.96%; wrapped angle f27 versus retail f26; honest helper/lifetime forms exhausted, stop at coloring. */
 static float p_plyr_sidekick_charge(void) {
+    float wrapped_angle;
     float position_y;
     MkObj* sidekick;
     PlyrInfo* info;
@@ -4228,10 +4230,6 @@ static float p_plyr_sidekick_charge(void) {
     Vec offset;
     float length_sq;
     float inverse_length;
-    float estimate_product;
-    float correction;
-    float facing_yaw;
-    float wrapped_angle;
     float sine;
     float cosine;
     float position_x;
@@ -4313,10 +4311,10 @@ static float p_plyr_sidekick_charge(void) {
     moves_sleep(1.0f);
     unhide_obj(sidekick);
     anim->step = 1.0f;
-    facing_yaw = player->plyr_info->slot.mirror_a->ang.y;
+    wrapped_angle = player->plyr_info->slot.mirror_a->ang.y;
     wrapped_angle =
         0.000005992112f *
-        (float)(((int)(166886.1f * facing_yaw)) & 0xFFFFF);
+        (float)(((int)(166886.1f * wrapped_angle)) & 0xFFFFF);
     sine = gxMathSin(wrapped_angle);
     cosine = gxMathCos(wrapped_angle);
     while (anim->frame < 5.0f) {
@@ -4771,7 +4769,8 @@ float x_advance_moveset(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.78%; retail order restored; r3/r4 coloring around animation field stores remains. */
+/* TODO: [near miss] 99.78%; r3/r4 homes for conversion base and animation
+ * reloads differ in seven rows; preserve direct stores and unsigned tick subtraction. */
 void attack_to_frame_x(AniData* animation, float frame, float blend_rate,
                        float step, float weight, unsigned int voice_event,
                        unsigned int whoosh_event, int transition) {
@@ -5575,7 +5574,6 @@ int get_victory_flip_flags(void) {
     return victory_proper_flip_flags;
 }
 
-/* TODO: [near miss] 98.59%; retail order restored; shared bitfield/call 0/1 register coloring remains. */
 float dizzy(void) {
     struct SwitchLogEntry* entry;
     PlyrPdata* player;
@@ -5606,7 +5604,7 @@ float dizzy(void) {
     g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
     opponent = g_game_info.plyr1.slot.mirror_a;
     opponent->flags_09_bits.tightrope_restricted = 0;
-    dizzy_kill_pfx(opponent, 0, player, 1);
+    dizzy_kill_pfx();
     if (plyr_pdata->character_id == 0x1E) {
         blend_to_ani(plyr_pdata->dizzy_animation, 0, 0.1f);
     } else {

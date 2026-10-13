@@ -329,7 +329,8 @@ void init_switch_log(void) {
     }
 }
 
-/* TODO: [near miss] 94.22%; reset label/index GPR homes and setup scheduling remain. */
+/* TODO: [near miss] 94.22%; label and reduced loop-offset homes differ;
+ * separate indices and loop-local label regress; retain reset store order. */
 void turn_switch_log_on(void) {
     const char* label;
     int i;
@@ -420,24 +421,25 @@ void log_switch(int player, int switch_index, int tick,
     if (sw_log_on != 0) show_sw_log();
 }
 
-/* TODO: [breakthrough] 86.73953%; retail table layout recovered;
- * remaining function-local code generation needs inspection. */
+/* TODO: [near miss] 98.93%; CFG, size and clamp shape agree; loop counter/offset/old_proc
+ * saved-register homes rotate by one in the practice and pad-log blocks. */
 void show_sw_log(void) {
     int index;
     int y;
-    int count;
-    MkProc* old_proc;
     if (mode_of_play == 4) {
+        MkProc* old_proc;
+        int count;
         del_string_obj_by_id(0x2083);
         index = practice_p1_index;
         y = 0x4B;
+        count = 0;
         old_proc = find_mkproc_pid(0x206C);
         if (old_proc != 0) {
             pfx_2d_obj_set_alpha_by_id(0x2083, 0xFF);
             if (old_proc->instance != 0) old_proc->vtbl->destroy(old_proc);
         }
         proc_create(p_switch_log_fadeoff, 0x206C);
-        for (count = 0; count < 5 && practice_p1_list[index] != -1; count++) {
+        for (; count < 5 && practice_p1_list[index] != -1; count++) {
             const char* text = practice_font_offset_tbl[practice_p1_list[index]];
             if (*text != ' ') string_left_xy(0x2083, 7, text, 0x32, y, 0x1F);
             if (--index < 0) index = 4;
@@ -445,22 +447,25 @@ void show_sw_log(void) {
         }
         index = practice_p2_index;
         y = 0x4B;
+        count = 0;
         old_proc = find_mkproc_pid(0x206C);
         if (old_proc != 0) {
             pfx_2d_obj_set_alpha_by_id(0x2083, 0xFF);
             if (old_proc->instance != 0) old_proc->vtbl->destroy(old_proc);
         }
         proc_create(p_switch_log_fadeoff, 0x206C);
-        for (count = 0; count < 5 && practice_p2_list[index] != -1; count++) {
+        for (; count < 5 && practice_p2_list[index] != -1; count++) {
             const char* text = practice_font_offset_tbl[practice_p2_list[index]];
             if (*text != ' ') string_left_xy(0x2083, 7, text, 0x235, y, 0x1F);
             if (--index < 0) index = 4;
             y += 0x1E;
         }
     } else {
+        int count;
         del_string_obj_by_id(0x2012);
-        index = p1_pad_log_index < 0 ? 0 : p1_pad_log_index;
+        index = p1_pad_log_index;
         y = 0x1E;
+        if (index < 0) index = 0;
         for (count = 0; count < 4; count++) {
             if (p1_pad_switch_log[index].label != 0) {
                 string_left_xy(0x2012, 0, p1_pad_switch_log[index].label,
@@ -469,8 +474,9 @@ void show_sw_log(void) {
             }
             if (--index < 0) index = 29;
         }
-        index = p1_log_index < 0 ? 0 : p1_log_index;
+        index = p1_log_index;
         y = 0x1E;
+        if (index < 0) index = 0;
         for (count = 0; count < 4; count++) {
             if (p1_switch_log[index].label != 0) {
                 string_left_xy(0x2012, 0, p1_switch_log[index].label,
@@ -479,8 +485,9 @@ void show_sw_log(void) {
             }
             if (--index < 0) index = 29;
         }
-        index = p2_pad_log_index < 0 ? 0 : p2_pad_log_index;
+        index = p2_pad_log_index;
         y = 0x1E;
+        if (index < 0) index = 0;
         for (count = 0; count < 4; count++) {
             if (p2_pad_switch_log[index].label != 0) {
                 string_left_xy(0x2012, 0, p2_pad_switch_log[index].label,
@@ -489,8 +496,9 @@ void show_sw_log(void) {
             }
             if (--index < 0) index = 29;
         }
-        index = p2_log_index < 0 ? 0 : p2_log_index;
+        index = p2_log_index;
         y = 0x1E;
+        if (index < 0) index = 0;
         for (count = 0; count < 4; count++) {
             if (p2_switch_log[index].label != 0) {
                 string_left_xy(0x2012, 0, p2_switch_log[index].label,

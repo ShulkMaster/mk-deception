@@ -108,7 +108,7 @@ static void trackhead_prewake(void);
 void mks_start_goro_xtra_weapons(void);
 void limb_sever_show_z_meat_chunks_all(MkObj* obj);
 void limb_sever_hide_z_meat_chunks_all(MkObj* obj);
-int get_player_number(void* obj);
+int get_player_number(MkObj* obj);
 
 RpAtomic* set_atomic_material_alpha(RpAtomic* atomic, unsigned int alpha);
 RpAtomic* force_atomic_material_alpha(RpAtomic* atomic, void* alpha);
@@ -267,8 +267,6 @@ MkSobj* obj_find_child_sobj_by_id(MkObj* obj, unsigned int id, int depth) {
 }
 
 #pragma inline_depth(2)
-/* TODO: [near miss] 99.42%; traversal and frame agree; recursive ID,
- * saved-next and depth register homes remain. */
 static MkSobj* rwframe_find_child_sobj_by_id(RwFrame* frame, unsigned int id,
                                              int depth) {
     RwLLLink* link;
@@ -294,14 +292,12 @@ static MkSobj* rwframe_find_child_sobj_by_id(RwFrame* frame, unsigned int id,
         }
         link = next_link;
     }
-    if (depth - 1 != 0) {
+    depth--;
+    if (depth != 0) {
         child = frame->child;
         while (child != 0) {
-            int child_depth;
-
             next = child->next;
-            child_depth = depth - 1;
-            sobj = rwframe_find_child_sobj_by_id(child, id, child_depth);
+            sobj = rwframe_find_child_sobj_by_id(child, id, depth);
             if (sobj != 0) {
                 return sobj;
             }
@@ -1785,7 +1781,6 @@ static inline void mkobj_update_bone_subhierarchy(MkObj* object, MkBone* root) {
     object->fallback_bone_index = saved_fallback;
 }
 
-/* TODO: [near miss] 98.75940%; frame, queue and operations agree; redundant deferred/pose guard tests remain. */
 void update_bone_hierarchy(void* obj) {
     MkObj* mkobj;
     MkBone* queue[152];
@@ -1863,58 +1858,60 @@ void update_bone_hierarchy(void* obj) {
             bone->flags_55_bits.collision_deferred =
                 bone->flags_55_bits.collision_disabled;
         }
-        if (bone->flags_55_bits.collision_deferred == 0 &&
-            bone->flags_54_bits.hierarchy_driven != 0) {
-            continue;
-        }
-        if (bone->flags_55_bits.collision_deferred != 0 ||
-            bone->flags_54_bits.pose_matrix_applied == 0) {
-            rotation = &bone->rotation_90;
-            if (parent != 0) {
-                if (bone->flags_55_bits.collision_deferred != 0) {
-                    gxQuatSetZero(rotation);
-                    rotation->w = 0.0f;
-                    bone->parent_matrix->pos_row = parent->parent_matrix->pos_row;
-                } else {
-                    gxQuatMul(rotation, &parent->rotation_90,
-                              &bone->rotation);
-                    gxMatV3MatAddV3(
-                        &bone->parent_matrix->pos_row.value, &bone->translation.value,
-                        (Mat33*)parent->parent_matrix,
-                        &parent->parent_matrix->pos_row.value);
-                }
-            } else {
-                gxQuatCopy(rotation, &bone->rotation);
-                bone->parent_matrix->pos_row = bone->translation;
+        if (bone->flags_55_bits.collision_deferred == 0) {
+            if (bone->flags_54_bits.hierarchy_driven != 0) {
+                continue;
             }
-
+            if (bone->flags_54_bits.pose_matrix_applied != 0) {
+                goto update_matrix;
+            }
+        }
+        rotation = &bone->rotation_90;
+        if (parent != 0) {
             if (bone->flags_55_bits.collision_deferred != 0) {
-                matrix = bone->parent_matrix;
-                matrix->at.z = 0.0f;
-                matrix->at.y = 0.0f;
-                matrix->at.x = 0.0f;
-                matrix->up.z = 0.0f;
-                matrix->up.y = 0.0f;
-                matrix->up.x = 0.0f;
-                matrix->right.z = 0.0f;
-                matrix->right.y = 0.0f;
-                matrix->right.x = 0.0f;
-                matrix->flags = 0;
+                gxQuatSetZero(rotation);
+                rotation->w = 0.0f;
+                bone->parent_matrix->pos_row = parent->parent_matrix->pos_row;
             } else {
-                matrix = bone->parent_matrix;
-                if (rotation->x == rotation->y &&
-                    rotation->y == rotation->z &&
-                    rotation->z == rotation->w) {
-                    rotation->w = 1.0f;
-                }
-                gxQuatQuatToMat((Mat33*)matrix, rotation);
-                if (bone->flags_55_bits.scale_controlled != 0) {
-                    mat_scaled_by_v3(
-                        matrix, matrix, &bone->scale);
-                }
+                gxQuatMul(rotation, &parent->rotation_90,
+                          &bone->rotation);
+                gxMatV3MatAddV3(
+                    &bone->parent_matrix->pos_row.value, &bone->translation.value,
+                    (Mat33*)parent->parent_matrix,
+                    &parent->parent_matrix->pos_row.value);
+            }
+        } else {
+            gxQuatCopy(rotation, &bone->rotation);
+            bone->parent_matrix->pos_row = bone->translation;
+        }
+
+        if (bone->flags_55_bits.collision_deferred != 0) {
+            matrix = bone->parent_matrix;
+            matrix->at.z = 0.0f;
+            matrix->at.y = 0.0f;
+            matrix->at.x = 0.0f;
+            matrix->up.z = 0.0f;
+            matrix->up.y = 0.0f;
+            matrix->up.x = 0.0f;
+            matrix->right.z = 0.0f;
+            matrix->right.y = 0.0f;
+            matrix->right.x = 0.0f;
+            matrix->flags = 0;
+        } else {
+            matrix = bone->parent_matrix;
+            if (rotation->x == rotation->y &&
+                rotation->y == rotation->z &&
+                rotation->z == rotation->w) {
+                rotation->w = 1.0f;
+            }
+            gxQuatQuatToMat((Mat33*)matrix, rotation);
+            if (bone->flags_55_bits.scale_controlled != 0) {
+                mat_scaled_by_v3(
+                    matrix, matrix, &bone->scale);
             }
         }
 
+update_matrix:
         if (bone->flags_54_bits.calculation_locked != 0) {
             matrix = mkobj->field_24;
             gxMat33x33(
@@ -3448,8 +3445,7 @@ static inline RpMaterial* limb_find_object_material(MkObj* obj, unsigned int id)
     return material;
 }
 
-/* TODO: [near miss] 99.01%; complete material-search CFG agrees;
- * five saved owner homes remain; clean argument folding regresses. */
+/* TODO: [near miss] 99.01%; five saved owner homes differ; stop at clean-C coloring ceiling. */
 void limb_sever_show_z_meat_chunks_all(MkObj* obj) {
     unsigned int material_id_base;
     unsigned int material_id;
@@ -3471,7 +3467,23 @@ void limb_sever_show_z_meat_chunks_all(MkObj* obj) {
     }
 }
 
-/* TODO: [near miss] 98.12500%; bank base/material result coloring and helper-result move remain. */
+static inline void limb_find_geometry_material(
+    RpGeometry* geometry, unsigned int id, RpMaterial** result) {
+    unsigned int count = geometry->matList.numMaterials;
+    unsigned int i;
+    unsigned int material_id;
+
+    for (i = 0; i < count; i++) {
+        *result = geometry->matList.materials[i];
+        material_id = MK_MATERIAL_PLUGIN(*result)->flags & 0xFFF;
+        if (material_id == id) {
+            return;
+        }
+    }
+    *result = 0;
+}
+
+/* TODO: [near miss] 98.25%; result owner recovered; bank coloring and helper-exit branch remain. */
 void limb_sever_show_z_meat_chunks(
     MkObj* obj, int limb, int include_children) {
     MkPtr* ptr;
@@ -3490,8 +3502,8 @@ void limb_sever_show_z_meat_chunks(
         material = 0;
         ptr = first_mkptr(&obj->sobj_list);
         while (ptr != 0) {
-            material = find_geometry_material_by_id(
-                ((MkSobj*)ptr->hdr)->atomic->geometry, material_id);
+            limb_find_geometry_material(
+                ((MkSobj*)ptr->hdr)->atomic->geometry, material_id, &material);
             if (material != 0) {
                 break;
             }
@@ -4219,32 +4231,15 @@ void sobj_set_priority(void* sobj_arg, int priority) {
 }
 #pragma dont_inline reset
 
-/* TODO: [near miss] 94.88095%; callback and loop homes agree;
- * five initial shared-zero/copy rows remain; supported forms exhausted. */
 void obj_set_sobj_priority(MkObj* obj, int id, int priority) {
-    MkObj* mkobj;
-    struct SobjCreateData data;
-    int i;
+    MkSobj* sobj;
 
     if (obj == 0) {
         return;
     }
-    mkobj = obj;
-    i = 0;
-    data.result = 0;
-    data.obj = mkobj;
-    data.id = id;
-    data.mask = 0xFFF;
-    data.priority = 0x10;
-    data.set_priority = 0;
-    for (; i < mkobj->clump_count; i++) {
-        if (mkobj->clumps[i] != 0) {
-            RpClumpForAllAtomics(
-                mkobj->clumps[i], atomic_create_sobj_callback, &data);
-        }
-    }
-    if (data.result != 0) {
-        sobj_set_priority(data.result, priority);
+    sobj = obj_create_sobjs_by_id(obj, id);
+    if (sobj != 0) {
+        sobj_set_priority(sobj, priority);
     }
 }
 

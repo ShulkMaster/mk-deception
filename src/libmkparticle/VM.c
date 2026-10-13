@@ -6,13 +6,13 @@
 #include "dolphin/vm.h"
 
 static u32 g_vmBaseVMARAM = 0x4000;
-static u32 g_vmSizeVMMainMemory;
-static char* g_vmBaseVMMainMemory;
-static u32 g_vmSizeVMARAM;
-static u32 g_vmNumPagesInMRAM;
+static int g_vmInitialized;
 static void (*g_cbLogStats)(u32 virtual_address, void* physical_address,
                             u32 physical_page, u32 elapsed, int wrote_page);
-static int g_vmInitialized;
+static u32 g_vmNumPagesInMRAM;
+static u32 g_vmSizeVMARAM;
+static char* g_vmBaseVMMainMemory;
+static u32 g_vmSizeVMMainMemory;
 
 void __VMSwapPageIn(u32 virtual_address);
 

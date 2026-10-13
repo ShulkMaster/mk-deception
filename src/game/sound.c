@@ -11,6 +11,7 @@
 #include "runtime/mk_proc.h"
 #include "runtime/utils.h"
 #include "msl/mslcore.h"
+#include "msl/mslBankLoadAsyncQueue.h"
 #include "runtime/cstring.h"
 #include "platform/io.h"
 #include "platform/main.h"
@@ -28,25 +29,23 @@ typedef struct SoundCallTable {
     int count;
 } SoundCallTable;
 
+struct SoundBankCallback {
+    _mslAsyncResponse response;
+    int* bank_index;
+};
+
 typedef struct SoundBankData {
     mslLoadedBank* handle;
     int async_state;
     unsigned char active;
     char pad09[3];
     char* name;
-    void (*callback)(void*);
-    int callback_state;
-    int callback_field_18;
-    int* callback_bank;
+    struct SoundBankCallback callback;
     int bank_index;
 } SoundBankData;
 
-struct SoundBankCallback {
-    int field_00;
-    int status;
-    mslLoadedBank* handle;
-    int* bank_index;
-};
+typedef char SoundBankCallbackSizeCheck[sizeof(struct SoundBankCallback) == 0x10 ? 1 : -1];
+typedef char SoundBankDataSizeCheck[sizeof(SoundBankData) == 0x24 ? 1 : -1];
 
 typedef struct LoadedSoundBank {
     int bank_index;
@@ -92,6 +91,8 @@ extern SoundCallTable pf_hit_call_table[];
 #include "src/game/sound_call_tables.inc"
 #include "src/game/sound_bank_data.inc"
 
+enum { SOUND_BANK_COUNT = sizeof(sbank_data) / sizeof(sbank_data[0]) };
+
 int can_big_boss_make_special_vo_call(unsigned int cooldown_ticks);
 int snd_calculate_volume(struct SoundRequest* request);
 
@@ -129,16 +130,14 @@ int get_indirect_bank(unsigned int bank);
 void unload_banks_not_on_list(int mode);
 void load_banks_on_list_async(int mode);
 void unload_slots_not_on_list(int slot_list);
-int mslBankLoadAsyncCancelNamed(char* name);
 void mslBankUnLoad(mslLoadedBank* bank);
 float mslGetVol(_mslSystem* system);
 void mslSetVol(_mslSystem* system, float volume);
 _mslSystem* mslInit(struct MslInitParam* init, struct MslSystemInit* system_init);
 int mslSetWavePath(_mslSystem* system, const char* path);
-void mslBankLoadAsync(void* system, int flags, char* name, void* callback);
 void check_and_load_sound_bank_async(int bank, int slot);
 void* get_konquest_region_table(void);
-static void lsba_callbank(void* userdata);
+static void lsba_callbank(_mslAsyncResponse* response);
 
 void dk_voice_call(int voice_group, unsigned int cooldown_ticks) {
     int group0[3] = {0x1C4, 0x1C4, 0x1C5};
@@ -635,7 +634,7 @@ static inline int sound_bank_use_count(int bank)
 static inline void unload_sound_bank(int bank) {
     char filename[0x98];
 
-    if (bank != -1 && bank >= 0 && bank < 0x88) {
+    if (bank != -1 && bank >= 0 && bank < SOUND_BANK_COUNT) {
         filename[0] = '\0';
         strcat(filename, sbank_data[bank].name);
         strcat(filename, ".msb");
@@ -744,11 +743,11 @@ static inline void load_sound_bank_and_slot_async(int bank, unsigned int slot) {
             if (bank_data->handle == 0 && sbank_data[bank].async_state == 0) {
                 bank_data->handle = 0;
                 sbank_data[bank].async_state = 1;
-                bank_data->callback = lsba_callbank;
-                bank_data->callback_field_18 = 0;
-                bank_data->callback_bank = &bank_data->bank_index;
-                bank_data->callback_state = 0;
-                mslBankLoadAsync(msi, 0, filename, &bank_data->callback);
+                bank_data->callback.response.callback = lsba_callbank;
+                bank_data->callback.response.result = 0;
+                bank_data->callback.bank_index = &bank_data->bank_index;
+                bank_data->callback.response.status = 0;
+                mslBankLoadAsync(msi, 0, filename, &bank_data->callback.response);
             }
         }
         loaded_sbank_data[slot].bank_index = bank;
@@ -806,7 +805,7 @@ static inline int is_bank_on_list(int bank, int mode) {
 void unload_banks_not_on_list(int mode) {
     int bank;
 
-    for (bank = 0; bank < 0x88; bank++) {
+    for (bank = 0; bank < SOUND_BANK_COUNT; bank++) {
         SoundBankData* bank_data = &sbank_data[bank];
 
         if (bank_data->handle != 0 || bank_data->async_state == 1) {
@@ -875,7 +874,7 @@ static inline int is_sound_bank_ready(int bank) {
     if (bank == -1) {
         return 1;
     }
-    if (bank < 0 || bank >= 0x88) {
+    if (bank < 0 || bank >= SOUND_BANK_COUNT) {
         return 0;
     }
     if (sbank_data[bank].async_state == 1) {
@@ -896,7 +895,7 @@ void wait_for_a_sound_bank_to_load(int bank) {
 static inline int are_sound_banks_loaded(void) {
     int bank;
 
-    for (bank = 0; bank < 0x88; bank++) {
+    for (bank = 0; bank < SOUND_BANK_COUNT; bank++) {
         if (sbank_data[bank].async_state == 1) {
             return 0;
         }
@@ -992,15 +991,15 @@ int get_indirect_bank(unsigned int indirect_bank) {
         break;
     }
 
-    if ((bank < 0 || bank >= 0x88) && bank != -1) {
+    if ((bank < 0 || bank >= SOUND_BANK_COUNT) && bank != -1) {
         bank = -1;
     }
     return bank;
 }
 
-/* TODO: [near miss] 99.13%; word status fixed; bank/handle r4/r5 coloring swap remains. */
-static void lsba_callbank(void* userdata) {
-    struct SoundBankCallback* callback = userdata;
+/* TODO: [near miss] 99.13%; canonical response layout verified; bank/handle r4/r5 coloring remains. */
+static void lsba_callbank(_mslAsyncResponse* response) {
+    struct SoundBankCallback* callback = (struct SoundBankCallback*)response;
     int bank;
     mslLoadedBank* handle;
 
@@ -1012,8 +1011,8 @@ static void lsba_callbank(void* userdata) {
     }
 
     bank = *callback->bank_index;
-    handle = callback->handle;
-    switch (callback->status) {
+    handle = callback->response.result;
+    switch (callback->response.status) {
     case 0:
         sbank_data[bank].handle = handle;
         sbank_data[bank].async_state = 0;
@@ -1021,22 +1020,22 @@ static void lsba_callbank(void* userdata) {
     case 1:
         sbank_data[bank].handle = 0;
         sbank_data[bank].async_state = 0;
-        sbank_data[bank].callback_state = 0;
+        sbank_data[bank].callback.response.status = 0;
         break;
     case 2:
         sbank_data[bank].handle = 0;
         sbank_data[bank].async_state = 0;
-        sbank_data[bank].callback_state = 0;
+        sbank_data[bank].callback.response.status = 0;
         break;
     case 3:
         sbank_data[bank].handle = 0;
         sbank_data[bank].async_state = 0;
-        sbank_data[bank].callback_state = 0;
+        sbank_data[bank].callback.response.status = 0;
         break;
     case 4:
         sbank_data[bank].handle = 0;
         sbank_data[bank].async_state = 0;
-        sbank_data[bank].callback_state = 0;
+        sbank_data[bank].callback.response.status = 0;
         break;
     }
 }
@@ -1048,7 +1047,7 @@ void check_and_load_sound_bank_async(int bank, int slot) {
     if (bank == -1) {
         return;
     }
-    if (bank < 0 || bank >= 0x88) {
+    if (bank < 0 || bank >= SOUND_BANK_COUNT) {
         return;
     }
     if (slot < 0 || slot >= 0x1D) {
@@ -1058,7 +1057,7 @@ void check_and_load_sound_bank_async(int bank, int slot) {
     if (loaded_sbank_data[slot].bank_index != -1 && slot >= 0 && slot < 0x1D) {
         int old_bank = loaded_sbank_data[slot].bank_index;
         int use_count = sound_bank_use_count(old_bank);
-        if (use_count == 1 && old_bank != -1 && old_bank >= 0 && old_bank < 0x88) {
+        if (use_count == 1 && old_bank != -1 && old_bank >= 0 && old_bank < SOUND_BANK_COUNT) {
             unload_filename[0] = '\0';
             strcat(unload_filename, sbank_data[old_bank].name);
             strcat(unload_filename, ".msb");
@@ -1096,11 +1095,11 @@ void check_and_load_sound_bank_async(int bank, int slot) {
             if (bank_data->handle == 0 && sbank_data[bank].async_state == 0) {
                 bank_data->handle = 0;
                 sbank_data[bank].async_state = 1;
-                sbank_data[bank].callback = lsba_callbank;
-                sbank_data[bank].callback_field_18 = 0;
-                sbank_data[bank].callback_bank = &bank_data->bank_index;
-                sbank_data[bank].callback_state = 0;
-                mslBankLoadAsync(msi, 0, load_filename, &bank_data->callback);
+                sbank_data[bank].callback.response.callback = lsba_callbank;
+                sbank_data[bank].callback.response.result = 0;
+                sbank_data[bank].callback.bank_index = &bank_data->bank_index;
+                sbank_data[bank].callback.response.status = 0;
+                mslBankLoadAsync(msi, 0, load_filename, &bank_data->callback.response);
             }
         }
         loaded_sbank_data[slot].bank_index = bank;
@@ -1341,8 +1340,6 @@ MslSoundHandle snd_req(int sound_id) {
     return play_sound_vol(sound_id, 1.0f);
 }
 
-/* TODO: [near miss] 99.38%; result, sound entry/table base and subgroup index
- * register coloring remain; scope check neutral, stop at coloring. */
 int snd_calculate_volume(struct SoundRequest* request) {
     int result = 0;
     int sound_id;
@@ -1366,14 +1363,14 @@ int snd_calculate_volume(struct SoundRequest* request) {
         }
         request->bank = bank;
         if (request->bank != 0) {
-            SoundEntry* entry = &mk_sound_table[request->sound_id];
-            subgroup_index = entry->subgroup;
+            subgroup_index = mk_sound_table[request->sound_id].subgroup;
             if (subgroup_index < 12) {
                 setting_index = subgroup_volume[subgroup_index].setting_index;
                 if (setting_index < 6) {
                     request->volume =
                         game_settings.volume[setting_index] *
-                        (request->volume * entry->base_volume *
+                        (request->volume *
+                         mk_sound_table[request->sound_id].base_volume *
                          subgroup_volume[subgroup_index].volume);
                     bank_index = mk_sound_table[request->sound_id].bank_index;
                     if (request->apply_group_volume != 0 && mode_of_play == 6 &&
@@ -1772,7 +1769,8 @@ MslSoundHandle pan_vol_pitch_random_hit(
     return result;
 }
 
-/* TODO: [near miss] 92.57%; existing O1 scope duplicates table index; sentinel exit and constant load schedule differ. */
+/* TODO: [breakthrough needed] 92.57%; existing O1 scope retains two index shifts;
+ * need compiler-stable table lookup and sentinel exit evidence. */
 MslSoundHandle random_hit(int group) {
     struct SoundRequest request;
     int* sounds;

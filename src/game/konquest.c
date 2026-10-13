@@ -10,6 +10,7 @@
 #include "game/game.h"
 #include "runtime/anim_api.h"
 #include "game/pfxscript.h"
+#include "game/fatality.h"
 #include "runtime/anim_api_ext.h"
 #include "game/pfxscript_api.h"
 #include "runtime/plyr_pdata.h"
@@ -851,7 +852,6 @@ struct KonquestCollisionOwner {
     struct KonquestCollisionVolume* collision_volume;
 };
 
-typedef KonquestChildObject KonquestDoorObject;
 
 struct KonquestRemoveCollisionPdata {
     MkHdr hdr;
@@ -1291,7 +1291,7 @@ void obj_apply_to_sobj_with_id(
 static void initialize_tile_patch_sobj(MkSobj* object);
 static void generate_door_paths(void);
 static void generate_door_trigger(
-    KonquestDoorObject* door, const Vec* position, float radius);
+    KonquestChildObject* door, const Vec* position, float radius);
 int mslSoundIsValid(MslSoundHandle handle);
 void sobj_use_material_color(MkSobj* object);
 void npc_shadow_set_alpha(int alpha);
@@ -1466,8 +1466,6 @@ void update_tile_grid(void);
 static float p_collide_monk(void);
 int collide_segment_against_global_collision_list_quads(
     Vec* start, Vec* end, Vec* hit_point);
-int repel_against_global_collision_list(
-    const Vec* position, Vec* movement, Vec* collision_position);
 static MkProc* konquest_display_award_tga(
     KonquestPuiDefinition* item, int value, int mode);
 static float p_display_award_image(void);
@@ -1565,10 +1563,7 @@ static void object_transition_to_state(
     KonquestChildObject* object, int state, int play_sound);
 static void object_set_state(KonquestChildObject* record, int state);
 void remove_fgnd_mkobj(MkObj* object);
-void fx_pause_emit(unsigned int effect);
 void fx_resume_emit(int effect);
-unsigned int pfxhandle_spawn_at_bid_next(
-    unsigned int effect, MkObj* object, int bone);
 void obj_set_all_sobjs_priority(MkObj* object, int priority);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
 void shake_camera(int ticks, float magnitude);
@@ -2631,6 +2626,10 @@ static inline void execute_trigger_inline(struct KonquestTriggerStruct* trigger)
     }
 }
 void fire_trigger(struct KonquestTriggerDefinition* definition);
+static inline int konquest_sphere_visible(const RwSphere* sphere) {
+    return RwCameraFrustumTestSphere(Camera, sphere) == 0 ? 0 : 1;
+}
+
 static inline void play_pui_effect_now(
     KonquestPuiRuntime* pui, unsigned int handle) {
     struct KonquestChestOwner* owner;
@@ -2644,11 +2643,12 @@ static inline void play_pui_effect_now(
     object = MK_HDR_LIVE(pui->render_object, pui->render_object_instance);
     owner = konquest_pui_runtime_live_owner(pui);
     if (object != 0 && owner != 0) {
+        float radius = owner->interaction->radius;
         sphere.center.x = object->pos.value.x;
         sphere.center.y = object->pos.value.y;
         sphere.center.z = object->pos.value.z;
-        sphere.radius = owner->interaction->radius;
-        if (RwCameraFrustumTestSphere(Camera, &sphere) != 0) {
+        sphere.radius = radius;
+        if (konquest_sphere_visible(&sphere)) {
             effect = pfx_from_handle(handle);
             emitter = fx_next_emitter(handle);
             if (emitter != 0) {
@@ -2680,11 +2680,12 @@ static inline void play_pui_effect_sequence_now(
     object = konquest_pui_runtime_live_render_object(pui);
     owner = konquest_pui_runtime_live_owner(pui);
     if (object != 0 && owner != 0) {
+        float radius = owner->interaction->radius;
         sphere.center.x = object->pos.value.x;
         sphere.center.y = object->pos.value.y;
         sphere.center.z = object->pos.value.z;
-        sphere.radius = owner->interaction->radius;
-        if (RwCameraFrustumTestSphere(Camera, &sphere) != 0 &&
+        sphere.radius = radius;
+        if (konquest_sphere_visible(&sphere) &&
             _create_mkproc_generic_nostack(
                 0xA01D, 0x1F, p_pui_pfx_sequence,
                 sizeof(*pdata), (void**)&pdata) != 0) {
@@ -2893,7 +2894,6 @@ void set_tile_grid_size(int width, int height);
 void start_time_passing(void);
 void stop_time_passing(void);
 void get_current_time(void* time);
-void set_current_time(const KonquestTime* time);
 
 static float p_adjust_objective_arrow_and_beam(void);
 
@@ -4986,15 +4986,14 @@ static void update_time_screen_objs(int update_all) {
     }
 }
 
-/* TODO: [near miss] 95.74%; initial year load/compare are scheduled before the prologue; check float relocations. */
-void set_current_time(const KonquestTime* time) {
+void set_current_time(KonquestTime* time) {
     KonquestTime occurrence;
     float hour;
 
     if (time->year == -1 || time->month == -1 ||
         time->day_of_month == -1 || time->day_of_week == -1) {
         calc_next_occurrence_of_event(
-            &occurrence, (KonquestTime*)time,
+            &occurrence, time,
             &konquest_pdata->current_time);
         set_current_time(&occurrence);
     } else {
@@ -5575,7 +5574,7 @@ static inline struct KonquestTriggerStruct* find_trigger_by_owned_id(int id) {
 }
 
 static void generate_door_trigger(
-    KonquestDoorObject* door, const Vec* position, float radius) {
+    KonquestChildObject* door, const Vec* position, float radius) {
     unsigned int door_uid;
     unsigned int enumeration;
     struct KonquestUidObject* owner;
@@ -5646,16 +5645,46 @@ static void generate_door_trigger(
     }
 }
 
-/* TODO: [breakthrough needed] 91.97%; model-latch branches and center/partner stores differ; script-string pool addends remain. */
+static inline float find_door_normal_vector_and_angle(KonquestChildObject* door, Vec* normal) {
+    Vec rotated = {0.0f, 0.0f, 0.0f};
+    float angle;
+
+    if (door == 0) {
+        return 0.0f;
+    }
+    angle = norm_angle_inline(door->base_angles.y +
+        konquest_pdata->region_table->enumerations[door->info->enumeration_index].angle);
+    rotate_xz(&rotated, normal, angle);
+    normal->x = rotated.x;
+    normal->y = rotated.y;
+    normal->z = rotated.z;
+    return angle;
+}
+
+static inline void get_door_position(KonquestChildObject* door, Vec* position) {
+    MkSobj* model = MK_HDR_LIVE(door->info->object, door->info->object_instance);
+    Vec rotated;
+
+    if (model != 0) {
+        rotate_xz(&rotated, (const Vec*)&RpAtomicGetWorldBoundingSphere(model->atomic)->center,
+            door->base_angles.y);
+        position->x = door->base_position.x + rotated.x;
+        position->z = door->base_position.z + rotated.z;
+        position->y = 0.0f;
+    } else {
+        position->x = position->y = position->z = 0.0f;
+    }
+}
+
+/* TODO: [near miss] 98.20%; recovered door helpers; angle branch and nonvolatile homes remain. */
 static void generate_door_paths(void) {
-    KonquestWaypoint* waypoints;
-    MkPtr* link;
     int waypoint_index;
-    int waypoint_offset;
     int generated_count;
+    MkPtr* link;
+    KonquestChildObject* door;
+    KonquestWaypoint* waypoints;
 
     waypoint_index = 0;
-    waypoint_offset = 0;
     generated_count = 0;
     if (konquest_pdata->door_overflow_count <= 0) {
         return;
@@ -5666,21 +5695,16 @@ static void generate_door_paths(void) {
     if (konquest_has_list(&konquest_pdata->door_objects)) {
         link = konquest_pdata->door_objects;
         while (link != 0) {
-            KonquestDoorObject* partner;
+            KonquestChildObject* partner;
             struct KonquestSobjInfo* info;
             KonquestWaypoint* path;
-            MkSobj* model;
             Vec forward;
             Vec center;
-            Vec rotated_center;
             Vec partner_center;
-            Vec direction;
             float angle;
             int enumeration_index;
-            KonquestDoorObject* door;
 
-            door = (KonquestDoorObject*)link->hdr;
-            if (link->instance != door->hdr.instance) {
+            if (link->instance != link->hdr->instance) {
                 MkPtr* next;
 
                 next = link->next;
@@ -5689,79 +5713,33 @@ static void generate_door_paths(void) {
                 continue;
             }
 
+            door = (KonquestChildObject*)link->hdr;
             forward = (Vec){0.0f, 0.0f, 1.0f};
 
             partner = 0;
             info = door->info;
             enumeration_index = info->enumeration_index;
             if (enumeration_index >= 0 && door->path_waypoints == 0) {
-                model = MK_HDR_LIVE(info->object, info->object_instance);
-                if (model != 0) {
-                    rotate_xz(
-                        &rotated_center,
-                        (const Vec*)&RpAtomicGetWorldBoundingSphere(
-                            model->atomic)->center,
-                        door->base_angles.y);
-                    center.x = door->base_position.x + rotated_center.x;
-                    center.y = 0.0f;
-                    center.z = door->base_position.z + rotated_center.z;
-                } else {
-                    center.x = 0.0f;
-                    center.y = 0.0f;
-                    center.z = 0.0f;
-                }
+                get_door_position(door, &center);
 
                 if (konquest_pdata->region_table
                         ->enumerations[enumeration_index]
                         .partner_uid != -1) {
-                    partner = (KonquestDoorObject*)find_door_partner_inline(door);
+                    partner = (KonquestChildObject*)find_door_partner_inline(door);
                     if (partner != 0) {
-                        MkSobj* partner_model;
-                        float partner_x;
-                        float partner_z;
-
-                        partner_model = MK_HDR_LIVE(partner->info->object, partner->info->object_instance);
-                        if (partner_model != 0) {
-                            rotate_xz(
-                                &partner_center,
-                                (const Vec*)&RpAtomicGetWorldBoundingSphere(
-                                    partner_model->atomic)->center,
-                                partner->base_angles.y);
-                            partner_x =
-                                partner->base_position.x + partner_center.x;
-                            partner_z =
-                                partner->base_position.z + partner_center.z;
-                        } else {
-                            partner_x = 0.0f;
-                            partner_z = 0.0f;
-                        }
-                        center.x = 0.5f * (center.x + partner_x);
-                        center.z = 0.5f * (center.z + partner_z);
+                        get_door_position(partner, &partner_center);
+                        center.x += partner_center.x;
+                        center.z += partner_center.z;
+                        center.x = 0.5f * center.x;
+                        center.z = 0.5f * center.z;
                     }
                 }
 
-                direction = (Vec){0.0f, 0.0f, 0.0f};
-                if (door != 0) {
-                    angle = 0.000005992112f *
-                        ((int)(166886.1f *
-                               (door->base_angles.y +
-                                konquest_pdata->region_table
-                                    ->enumerations[enumeration_index]
-                                    .angle)) &
-                         0xFFFFF);
-                    rotate_xz(&direction, &forward, angle);
-                    forward.x = direction.x;
-                    forward.y = direction.y;
-                    forward.z = direction.z;
-                } else {
-                    angle = 0.0f;
-                }
-
-                path = (KonquestWaypoint*)((char*)waypoints + waypoint_offset);
+                angle = find_door_normal_vector_and_angle(door, &forward);
+                path = &waypoints[waypoint_index];
                 v3_add_v3_scaled(&path[0].position, &center, &forward, 3.0f);
                 path[0].angle = 3.1415927f + angle;
-                path[0].angle = 0.000005992112f *
-                    ((int)(166886.1f * path[0].angle) & 0xFFFFF);
+                path[0].angle = norm_angle_inline(path[0].angle);
                 path[0].flags = 0;
                 path[0].script_function = get_script_function_by_name(
                     konquest_pdata->script_owner, "open_door_and_enter");
@@ -5805,7 +5783,6 @@ static void generate_door_paths(void) {
                         .trigger_radius);
                 generated_count++;
                 waypoint_index += 4;
-                waypoint_offset += 4 * sizeof(*path);
             }
             link = link->next;
         }
@@ -5826,9 +5803,9 @@ KonquestWaypoint* get_door_path(int door_id) {
     if (konquest_has_list(&konquest_pdata->door_objects)) {
         link = konquest_pdata->door_objects;
         while (link != 0) {
-            KonquestDoorObject* door;
+            KonquestChildObject* door;
 
-            door = (KonquestDoorObject*)link->hdr;
+            door = (KonquestChildObject*)link->hdr;
             if (link->instance != door->hdr.instance) {
                 next = link->next;
                 discard_stale_mkptr(link);
@@ -6246,7 +6223,7 @@ static float p_pui_pfx_sequence(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough] 92.64%; single-case switch restores type-guard CFG; frustum-result materialization and validated-owner register lifetimes remain. */
+/* TODO: [near miss] 98.76%; visibility and sphere order agree; trigger/PUI/attachment saved registers differ, stop at coloring. */
 static void handle_trigger_preprocess(struct KonquestTriggerStruct* trigger) {
     struct KonquestTriggerDefinition* definition;
     KonquestPuiRuntime* pui;
@@ -6259,86 +6236,87 @@ static void handle_trigger_preprocess(struct KonquestTriggerStruct* trigger) {
     definition = trigger->owned_data;
     switch (definition->type) {
     case 2:
-    pui = definition->pui;
-    if (pui->flag_bits.bit6) {
-        return;
-    }
-
-    object = konquest_pui_runtime_live_render_object(pui);
-
-    attachment = obj_find_sobj_by_id(object, 1);
-    child = obj_find_sobj_by_id(object, 2);
-    if (child != 0) {
-        child->flags_08_bits.bit6 = 1;
-        child->flags_08_bits.bit5 = 0;
-        sobj_set_priority(child, 0x13);
-    }
-    child = obj_find_sobj_by_id(object, 3);
-    if (child != 0) {
-        child->flags09_bits.bit5 = 1;
-    }
-
-    if ((int)pui->effect_60 != 0) {
-        if (pui->flag_bits.bit0) {
-            pfx_bind_render_to_sobj(
-                pfx_from_handle(pui->effect_60), attachment, 0);
-            fx_resume_emit(pui->effect_60);
-        } else if (pui->effect_clone == 0) {
-            MkObj* clone_object;
-            pui->effect_clone =
-                pfx_create_clone(pfx_from_handle(pui->effect_60));
-            clone_object = pfx_clone_bind_render_to_new_obj(
-                pui->effect_clone, 0xA00E);
-            clone_object->flags_08_bits.airborne = 1;
-            clone_object->pos.value.x =
-                object->pos.value.x + attachment->pos.x;
-            clone_object->pos.value.y =
-                object->pos.value.y + attachment->pos.y;
-            clone_object->pos.value.z =
-                object->pos.value.z + attachment->pos.z;
+        pui = definition->pui;
+        if (pui->flag_bits.bit6) {
+            return;
         }
-    }
-    if ((int)pui->effect_64 != 0) {
-        pfx_bind_render_to_sobj(
-            pfx_from_handle(pui->effect_64), attachment, 0);
-        fx_resume_emit(pui->effect_64);
-    }
 
-    if (pui->flag_bits.bit3 && !pui->flag_bits.bit2) {
-        RwSphere sphere;
-        sphere.center.x = object->pos.value.x;
-        sphere.center.y = object->pos.value.y;
-        sphere.center.z = object->pos.value.z;
-        sphere.radius = trigger->owned_data->radius;
-        if (RwCameraFrustumTestSphere(Camera, &sphere) != 0) {
-            if (pui->flag_bits.bit4) {
-                play_pui_effect_now(pui, pui->attached_effect);
-            } else {
-                play_pui_effect_sequence_now(pui, pui->effect_sequence);
+        object = konquest_pui_runtime_live_render_object(pui);
+
+        attachment = obj_find_sobj_by_id(object, 1);
+        child = obj_find_sobj_by_id(object, 2);
+        if (child != 0) {
+            child->flags_08_bits.bit6 = 1;
+            child->flags_08_bits.bit5 = 0;
+            sobj_set_priority(child, 0x13);
+        }
+        child = obj_find_sobj_by_id(object, 3);
+        if (child != 0) {
+            child->flags09_bits.bit5 = 1;
+        }
+
+        if ((int)pui->effect_60 != 0) {
+            if (pui->flag_bits.bit0) {
+                pfx_bind_render_to_sobj(
+                    pfx_from_handle(pui->effect_60), attachment, 0);
+                fx_resume_emit(pui->effect_60);
+            } else if (pui->effect_clone == 0) {
+                MkObj* clone_object;
+                pui->effect_clone =
+                    pfx_create_clone(pfx_from_handle(pui->effect_60));
+                clone_object = pfx_clone_bind_render_to_new_obj(
+                    pui->effect_clone, 0xA00E);
+                clone_object->flags_08_bits.airborne = 1;
+                clone_object->pos.value.x =
+                    object->pos.value.x + attachment->pos.x;
+                clone_object->pos.value.y =
+                    object->pos.value.y + attachment->pos.y;
+                clone_object->pos.value.z =
+                    object->pos.value.z + attachment->pos.z;
             }
         }
-    }
-    if (pui->flag_bits.bit5 && !pui->flag_bits.bit2) {
-        hide_obj(object);
-        pui->fade_delay = pui->spawn_delay;
-    }
-    pui->flag_bits.bit6 = 1;
-    if (pui->flag_bits.bit2) {
-        pui->alpha = 0xFF;
-    }
-    obj_for_all_atomics_set_material_alpha(object, pui->alpha);
+        if ((int)pui->effect_64 != 0) {
+            pfx_bind_render_to_sobj(
+                pfx_from_handle(pui->effect_64), attachment, 0);
+            fx_resume_emit(pui->effect_64);
+        }
 
-    if (pui->item->type == 0 && pui->collision_object == 0) {
-        center.x = object->pos.value.x;
-        center.y = object->pos.value.y;
-        center.z = object->pos.value.z;
-        center.y = 0.0f;
-        build_col_shape_vertical_cylinder(&shape, &center, 1.0f, 3.0f);
-        pui->collision_object = add_shape_to_global_collision_list(
-            &shape, 0x80010000);
-    }
-    insert_fgnd_mkobj(object);
-    break;
+        if (pui->flag_bits.bit3 && !pui->flag_bits.bit2) {
+            RwSphere sphere;
+            float radius = trigger->owned_data->radius;
+            sphere.center.x = object->pos.value.x;
+            sphere.center.y = object->pos.value.y;
+            sphere.center.z = object->pos.value.z;
+            sphere.radius = radius;
+            if (konquest_sphere_visible(&sphere)) {
+                if (pui->flag_bits.bit4) {
+                    play_pui_effect_now(pui, pui->attached_effect);
+                } else {
+                    play_pui_effect_sequence_now(pui, pui->effect_sequence);
+                }
+            }
+        }
+        if (pui->flag_bits.bit5 && !pui->flag_bits.bit2) {
+            hide_obj(object);
+            pui->fade_delay = pui->spawn_delay;
+        }
+        pui->flag_bits.bit6 = 1;
+        if (pui->flag_bits.bit2) {
+            pui->alpha = 0xFF;
+        }
+        obj_for_all_atomics_set_material_alpha(object, pui->alpha);
+
+        if (pui->item->type == 0 && pui->collision_object == 0) {
+            center.x = object->pos.value.x;
+            center.y = object->pos.value.y;
+            center.z = object->pos.value.z;
+            center.y = 0.0f;
+            build_col_shape_vertical_cylinder(&shape, &center, 1.0f, 3.0f);
+            pui->collision_object = add_shape_to_global_collision_list(
+                &shape, 0x80010000);
+        }
+        insert_fgnd_mkobj(object);
+        break;
     }
 }
 
@@ -8044,28 +8022,19 @@ static float p_control_konquest_monk(void) {
     return 0.0f;
 }
 
-/* TODO: [borked] 94.97%; dust offset y is zero vs retail -0.05 (mixed correction awaits approval);
- * table-base loop join and handle lifetimes also remain. */
+/* TODO: [breakthrough needed] 94.97%; dust offset corrected to retail -0.05;
+ * recover the table-base loop-entry join and bone/effect handle lifetimes. */
 static float p_monk_move(void) {
     MkObj* hero;
-    MkObj* effect_hero;
     struct MonkStateData* state;
-    Vec bone_offset;
-    Vec effect_position;
-    unsigned int effect;
     float frame_delta;
     int initial_state;
     int current_state;
-    int bone;
     int animation_complete;
 
     hero = konquest_pdata->hero_object;
     initial_state = konquest_pdata->hero_state;
-    hero = (hero != 0)
-               ? ((hero->hdr.instance == konquest_pdata->hero_instance)
-                      ? konquest_pdata->hero_object
-                      : 0)
-               : 0;
+    hero = MK_HDR_LIVE(hero, konquest_pdata->hero_instance);
     if (hero == 0) {
         return -1.0f;
     }
@@ -8100,9 +8069,15 @@ static float p_monk_move(void) {
                     random_snd_req(0x85);
                     if (get_game_state() == 0x13 &&
                         konquest_pdata->region_table->effect_bank_name != 0) {
+                        MkObj* effect_hero;
+                        Vec bone_offset;
+                        Vec effect_position;
+                        unsigned int effect;
+                        int bone;
+
                         effect_hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
-                        bone_offset = (Vec){0.0f, 0.0f, 0.0f};
+                        bone_offset = (Vec){0.0f, -0.05f, 0.0f};
 
                         bone = monk_state_data
                             [konquest_pdata->hero_state]
@@ -12306,13 +12281,14 @@ static void update_pui_actions(
                 }
             } else {
                 int active;
+                int item_inventory_index;
 
-                inventory_index = find_pui_inventory_index(item);
-                if (inventory_index >= 0) {
+                item_inventory_index = find_pui_inventory_index(item);
+                if (item_inventory_index >= 0) {
                     active = get_u8_bit(
                         konquest_pdata->pui_inventory_bits,
                         pui_bit_count(konquest_pdata),
-                        inventory_index);
+                        item_inventory_index);
                 } else {
                     active = 0;
                 }
@@ -12328,12 +12304,12 @@ static void update_pui_actions(
                     }
                 } else if (
                     item->clear_inventory_for_unique_event != 0) {
-                    inventory_index = find_pui_inventory_index(item);
-                    if (inventory_index >= 0) {
+                    item_inventory_index = find_pui_inventory_index(item);
+                    if (item_inventory_index >= 0) {
                         set_u8_bit(
                             &p1_profile_konquest->raw[0x291],
                             pui_bit_count(konquest_pdata),
-                            inventory_index, 0);
+                            item_inventory_index, 0);
                     }
                 }
             }
@@ -13165,8 +13141,7 @@ void pui_set_kill_time(
     }
 }
 
-/* TODO: [near miss] 99.09%; radius and shared frustum Boolean wrapper match;
- * mode-4 effect/emitter return values still take extra pointer copies. */
+/* TODO: [near miss] 99.09%; mode-4 effect/emitter return copies remain; stop at clean-C lifetime ceiling. */
 void pui_play_pfx(
     KonquestPuiDefinition* item, int mode, const char* effect_name) {
     unsigned int emitter;
@@ -13271,10 +13246,6 @@ void pui_play_pfx(
         pui->effect_64 = handle;
         break;
     }
-}
-
-static inline int konquest_sphere_visible(const RwSphere* sphere) {
-    return RwCameraFrustumTestSphere(Camera, sphere) == 0 ? 0 : 1;
 }
 
 void pui_play_pfx_sequence(
@@ -14011,7 +13982,8 @@ int is_character_unlocked_in_profile(
     return 0;
 }
 
-/* TODO: [near miss] 99.81557%; uppercase loop is instruction-equivalent except read-cursor/character GPR coloring; stop at coloring. */
+/* TODO: [near miss] 99.82%; uppercase read cursor/byte latch register swap remains;
+ * complete-pass helper regresses; retain direct loop. */
 static void load_art_for_inventory_award(struct KonquestAwardArtPdata* pdata) {
     KonquestPuiDefinition* item;
     ScreenObj* object;

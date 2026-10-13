@@ -4,6 +4,7 @@
 #include "math/gxVect.h"
 #include "math/mk_math.h"
 #include "game/pz_fatality.h"
+#include "game/pfxscript.h"
 #include "game/game_info.h"
 #include "runtime/cam_api.h"
 #include "platform/display_metrics.h"
@@ -44,7 +45,7 @@ struct PuzzleSobjMaterialData {
 
 struct PuzzleProcessVtable {
     char pad00[0x18];
-    void (*sleep)(struct PuzzleProcessVtable* vtable);
+    void (*sleep)();
     char pad1C[8];
     MkProcJumpFn transfer;
 };
@@ -354,8 +355,6 @@ float pz_fighter_long_exit(void);
 void unload_pz_fighter_fatality_banks(void);
 void snd_req_delay(int sound, int delay);
 void snd_stop(int handle);
-void* fx_by_owner(const char* name, int owner);
-void fx_pause_emit(void* effect);
 struct PuzzleFighterRenderObject* pz_fighter_get_player_obj(int player);
 struct PuzzleProcess* pz_fighter_get_player_proc(int player);
 struct PuzzleFighterMove* pz_get_fighter_move(void);
@@ -405,7 +404,7 @@ void random_voice(int group);
 void bgnd_launch_fx_at_bid_of_mkobj(
     const char* effect, struct PuzzleFighterRenderObject* object, int bone);
 void resume_effect_at_obj_bid(
-    struct PuzzleFighterRenderObject* object, int bone, void* effect, int active,
+    struct PuzzleFighterRenderObject* object, int bone, unsigned int effect, int active,
     int flags);
 void pz_fighter_walk_FB_true(
     int (*continue_test)(void), unsigned int duration, int forward);
@@ -425,14 +424,14 @@ static struct PuzzleFleshchunkPdata* ft_create_flesh_path(
     Vec* initial_velocity, int mode, Vec* terminal_velocity,
     int (*completion_callback)(void), float gravity, float bounce,
     float scale);
-struct PuzzleFaceBleedProcess* _create_mkproc_generic_nostack(
+MkProc* _create_mkproc_generic_nostack(
     int pid, int priority, PuzzleFatalityProcessFn entry, int pdata_size,
-    struct PuzzleFleshchunkPdata** process_data);
-void zero_pdata_payload(int size, void* process_data);
+    MkHdr** process_data);
+void zero_pdata_payload(int size, MkHdr* process_data);
 float sfrand_ab(float minimum, float maximum);
-struct PuzzleFaceBleedProcess* _create_mkproc_generic_bigstack(
+MkProc* _create_mkproc_generic_bigstack(
     int pid, int priority, PuzzleFatalityProcessFn entry, int pdata_size,
-    struct PuzzleFaceBleedPdata** process_data);
+    MkHdr** process_data);
 static float p_face_bleeding(void);
 static void pw_face_bleeding(void);
 static void ps_face_bleeding(void);
@@ -493,9 +492,6 @@ void load_effect_bank_with_context(
 AniTextureControl* replace_sobj_texture_with_named_wiff(
     struct PuzzleFatalityHazardObject* object, int handle, const char* texture,
     const char* wiff);
-void fx_set_param_v3(
-    void* effect, int parameter, float x, float y, float z);
-void fx_set_render_priority(void* effect, int priority);
 MKMATRIX* force_calc_bone_world_mat(
     struct PuzzleFighterRenderObject* object, int bone);
 static RpMaterial* material_set_texture(
@@ -536,8 +532,7 @@ struct PuzzleAnimPdata* animate_obj(
 struct PuzzleFatalityHazardObject* obj_first_sobj(
     struct PuzzleFighterRenderObject* object);
 void sobj_set_priority(struct PuzzleFatalityHazardObject* object, int priority);
-void fx_reset(void* effect);
-void fx_resume_emit(void* effect);
+void fx_resume_emit(unsigned int effect);
 struct PuzzleParticleEffect* find_pfx_by_name(const char* name);
 void restart_effect_ppfx(struct PuzzleParticleEffect* effect);
 void pfx_bind_emitter_to_obj_bone(
@@ -666,8 +661,8 @@ void pz_fighters_fatality_start(int attacker, int victim);
     } while (0)
 
 static inline void pz_snake_bite(unsigned int snake) {
-    struct PuzzleParticleEffect* burst;
-    struct PuzzleParticleEffect* saliva;
+    unsigned int saliva;
+    unsigned int burst;
 
     pan_snd_req(0x1AC2, snake == 0 ? -0.7f : 0.7f);
     if (snake == 0) {
@@ -684,12 +679,12 @@ static inline void pz_snake_bite(unsigned int snake) {
     set_pdata_anim_step(
         g_pz_fighter_fatality_engine.controller->fighter_pdata[snake], 1.0f);
     _mkproc_sleep_ticks = 3.0f;
-    aproc->vtbl->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
     if (g_pz_fighters_engine.fatality_abort != 1) {
         fx_reset(burst);
         fx_resume_emit(burst);
         _mkproc_sleep_ticks = 45.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         if (g_pz_fighters_engine.fatality_abort != 1) {
             fx_resume_emit(saliva);
             transition_to_anim_script_frame(
@@ -705,7 +700,7 @@ static inline void pz_snake_bite(unsigned int snake) {
 }
 
 static inline void pz_snake_lunge(unsigned int snake) {
-    struct PuzzleParticleEffect* saliva;
+    unsigned int saliva;
 
     saliva = fx_by_owner(
         snake == 0 ? "saliva1" : "saliva2", 4);
@@ -717,17 +712,17 @@ static inline void pz_snake_lunge(unsigned int snake) {
     set_pdata_anim_step(
         g_pz_fighter_fatality_engine.controller->fighter_pdata[snake], 1.0f);
     _mkproc_sleep_ticks = 15.0f;
-    aproc->vtbl->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
     fx_resume_emit(saliva);
     if (g_pz_fighters_engine.fatality_abort == 1) {
         fx_pause_emit(saliva);
     } else {
         _mkproc_sleep_ticks = 15.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         fx_pause_emit(saliva);
         if (g_pz_fighters_engine.fatality_abort != 1) {
             _mkproc_sleep_ticks = 20.0f;
-            aproc->vtbl->sleep(aproc->vtbl);
+            aproc->vtbl->sleep();
             fx_resume_emit(saliva);
             if (g_pz_fighters_engine.fatality_abort == 1) {
                 fx_pause_emit(saliva);
@@ -747,8 +742,8 @@ static inline void pz_snake_lunge(unsigned int snake) {
 
 static inline void pz_lightning_bolt(Vec* position, int pan_side) {
     struct PuzzleFighterRenderObject* bolt;
-    struct PuzzleParticleEffect* smoke_effects[2];
-    struct PuzzleParticleEffect* spark;
+    unsigned int smoke_effects[2];
+    unsigned int spark;
     AniTextureControl* texture;
     unsigned int bolt_instance;
 
@@ -780,7 +775,7 @@ static inline void pz_lightning_bolt(Vec* position, int pan_side) {
     spark = fx_by_owner("pz_spark", 4);
     smoke_effects[1] = fx_by_owner("pz_burningsmoke", 4);
     _mkproc_sleep_ticks = 3.0f;
-    aproc->vtbl->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
     if (g_pz_fighter_fatality_engine.controller->preround_active != 0 ||
         g_pz_fighter_fatality_engine.controller->phase != 0) {
         fx_reset(spark);
@@ -797,7 +792,7 @@ static inline void pz_lightning_bolt(Vec* position, int pan_side) {
             smoke_effects[0], 0x202, position->x, position->y, position->z);
         fx_resume_emit(smoke_effects[0]);
         _mkproc_sleep_ticks = 20.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         if (g_pz_fighter_fatality_engine.controller->preround_active != 0 ||
             g_pz_fighter_fatality_engine.controller->phase != 0) {
             fx_pause_emit(smoke_effects[1]);
@@ -1032,13 +1027,13 @@ static struct PuzzleFleshchunkPdata* ft_create_flesh_path(
     struct PuzzleFaceBleedProcess* process;
     struct PuzzleFleshchunkPdata* pdata;
 
-    process = _create_mkproc_generic_nostack(
+    process = (struct PuzzleFaceBleedProcess*)_create_mkproc_generic_nostack(
         0xC00F, 0x1F, p_ft_bounce_path, sizeof(struct PuzzleFleshchunkPdata),
-        &pdata);
+        (MkHdr**)&pdata);
     if (process == 0) {
         return 0;
     }
-    zero_pdata_payload(sizeof(struct PuzzleFleshchunkPdata), pdata);
+    zero_pdata_payload(sizeof(struct PuzzleFleshchunkPdata), &pdata->hdr);
     pdata->bounce_count = 0;
     pdata->bounce_decay = bounce;
     pdata->floor_height = scale;
@@ -1676,7 +1671,7 @@ float r_pz_fighter_grinding(void) {
 
     if (_create_mkproc_generic_bigstack(
             0x2001, 0x1F, p_grinder_noise, sizeof(struct PuzzleGrinderNoisePdata),
-            (struct PuzzleFaceBleedPdata**)&noise) != 0 &&
+            (MkHdr**)&noise) != 0 &&
         noise != 0) {
         noise->duration = 150;
         noise->timer = 0;
@@ -1882,8 +1877,8 @@ static float pz_fighters_grinder_fatality_in_progress(void) {
     return pz_fatality_finish_timed_fatality();
 }
 
-/* TODO: [near miss] 99.90385%; secondary grinder r29/r30 coloring remains;
- * direct snapshot regresses bytes and two ng runs yield no honest closure. */
+/* TODO: [near miss] 99.90%; operations and callback lifetimes agree;
+ * only secondary grinder r29/r30 homes remain; stop at coloring. */
 static float pz_fighter_load_and_place_initial_grinders(void) {
     struct PuzzleEffectBankContext effect_context;
     struct PuzzleFighterRenderObject* grinders[2];
@@ -2431,9 +2426,9 @@ static float pz_fighters_chomper_fatality_in_progress(void) {
         saved_pdata = plyr_pdata;
         saved_object = plyr_obj;
 
-        bleed_process = _create_mkproc_generic_bigstack(
+        bleed_process = (struct PuzzleFaceBleedProcess*)_create_mkproc_generic_bigstack(
             0x2001, 0x1F, p_face_bleeding, sizeof(struct PuzzleFaceBleedPdata),
-            &bleed_data);
+            (MkHdr**)&bleed_data);
         if (bleed_process != 0 && bleed_data != 0) {
             bleed_data->duration = 200;
             bleed_data->interval = 20;
@@ -2882,7 +2877,7 @@ static float p_chomper2_controller(void) {
                 return 1.0f;
             }
             _mkproc_sleep_ticks = 20.0f;
-            aproc->vtbl->sleep(aproc->vtbl);
+            aproc->vtbl->sleep();
             g_pz_fighter_fatality_engine.controller->preround_sound_started++;
             return 1.0f;
         case 4:
@@ -3395,12 +3390,10 @@ static float pz_fighter_chomper2_unload(void) {
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 95.625%; scalar reset zero shares the hazard-stride register;
- * motion-row address home remains different; structured alternatives exhausted. */
+/* TODO: [near miss] 95.63%; reset and stride zeros coalesce; motion-row address uses r3 instead of r0. */
 static void pz_fighter_chomper2_entering_fatality(
     int attacker, int victim) {
-    int i;
-    float (*motion)[2];
+    unsigned int i;
 
     i = 0;
     g_pz_fighter_fatality_engine.active_effect = 0;
@@ -3412,6 +3405,8 @@ static void pz_fighter_chomper2_entering_fatality(
     g_pz_fighter_fatality_engine.controller->phase = 0;
 
     for (; i < 2; i++) {
+        float (*motion)[2];
+
         g_pz_fighter_fatality_engine.hazard_groups[i].objects[0]->motion =
             0.0f;
         motion = g_pz_fighter_fatality_engine.controller->hazard_motion;
@@ -3533,7 +3528,7 @@ static float p_objects_falling_controller2(void) {
                     (*third)->x *= -1.0f;
                 }
                 _mkproc_sleep_ticks = 1.0f;
-                aproc->vtbl->sleep(aproc->vtbl);
+                aproc->vtbl->sleep();
                 unhide_sobj((*first));
                 unhide_sobj((*second));
                 unhide_sobj((*third));
@@ -3756,7 +3751,7 @@ static void pz_fighter_fatality_launch_eyes(void) {
     right_eye->external_force.y += 0.0013f;
 
     _mkproc_sleep_ticks = 2.0f;
-    aproc->vtbl->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
     unhide_obj(left_eye);
     unhide_obj(right_eye);
 }
@@ -3796,8 +3791,8 @@ static float pz_fighter_objects_falling_actively_fighting(int active) {
     return pz_fatality_set_random_hazard_phase(active);
 }
 
-/* TODO: [near miss] 99.83796%; post-offset helper matches without bare
- * scope; five victim-x/delta-x FPR rows remain. */
+/* TODO: [near miss] 99.84%; five victim-x/delta-x FPR rows remain;
+ * late aggregate flattening is code-neutral and regresses pool layout. */
 static float pz_fighters_objects_falling_fatality_prep(void) {
     static int one_last_hit = 1;
     static int start_pointing = 1;
@@ -3901,7 +3896,7 @@ static float pz_fighters_objects_falling_fatality_prep(void) {
             falling_object->scale.y = 0.5f;
             falling_object->scale.z = 0.5f;
             _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep(aproc->vtbl);
+            aproc->vtbl->sleep();
             unhide_sobj(falling_object);
             g_pz_fighters_engine.fatality_active = 1;
             g_pz_fighters_engine.fatality_timer = 150;
@@ -4052,11 +4047,11 @@ static float p_lightning_controller(void) {
 
     if (g_pz_fighter_fatality_engine.controller->preround_active == 1) {
         _mkproc_sleep_ticks = 60.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         position.x = screen_width > 650 ? -2.2f : -1.9f;
         pz_lightning_bolt(&position, -1);
         _mkproc_sleep_ticks = 60.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         position.x = screen_width > 650 ? 2.2f : 1.9f;
         pz_lightning_bolt(&position, 1);
         g_pz_fighter_fatality_engine.controller->preround_active = 0;
@@ -4068,7 +4063,7 @@ static float p_lightning_controller(void) {
         }
         pz_lightning_bolt(&position, 0);
         _mkproc_sleep_ticks = 5.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
     }
     return 1.0f;
 }
@@ -4101,8 +4096,8 @@ static float pz_fighters_lightning_fatality_prep(void) {
     static int one_last_hit = 1;
     static int start_pointing = 1;
     int victim;
-    void *lightning_smoke;
-    void *burning_smoke;
+    unsigned int lightning_smoke;
+    unsigned int burning_smoke;
     float player_distance;
     float target_x;
     float target_z;
@@ -4202,12 +4197,12 @@ static float pz_fighter_lightning_strike_victim_1(void) {
     unsigned int cycle;
     unsigned int frame;
     unsigned int shock_frame = 0;
-    void* spark = fx_by_owner("pz_spark", 4);
-    void* head_zap = fx_by_owner("pz_headzap", 4);
-    void* burning_smoke = fx_by_owner("pz_burningsmoke", 4);
-    void* burning_after = fx_by_owner("pz_burningsmoke_after", 4);
-    void* blood_burst = fx_by_owner("pz_blood_burst", 4);
-    void* chunk = fx_by_owner("pz_chunk", 4);
+    unsigned int spark = fx_by_owner("pz_spark", 4);
+    unsigned int head_zap = fx_by_owner("pz_headzap", 4);
+    unsigned int burning_smoke = fx_by_owner("pz_burningsmoke", 4);
+    unsigned int burning_after = fx_by_owner("pz_burningsmoke_after", 4);
+    unsigned int blood_burst = fx_by_owner("pz_blood_burst", 4);
+    unsigned int chunk = fx_by_owner("pz_chunk", 4);
     int frozen = 0;
     struct PuzzleFighterRenderObject* bolt;
     int voice_sound;
@@ -4332,7 +4327,7 @@ static float pz_fighter_lightning_strike_victim_1(void) {
 
     for (; cycle < 100; cycle++) {
         _mkproc_sleep_ticks = (float)(randu0(30) & 0xFFFF) + 60.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         frame = (randu0(3) & 0xFFFF) + 0x1ABE;
         volume = 0.5f + frand(0.5f);
         if ((randu0(100) & 0xFFFF) < 50) {
@@ -4419,8 +4414,8 @@ static float pz_fighter_lightning_unload(void) {
 
 static void pz_fighter_lightning_entering_fatality(
     int attacker, int victim) {
-    void* lightning_smoke;
-    void* burning_smoke;
+    unsigned int lightning_smoke;
+    unsigned int burning_smoke;
 
     lightning_smoke = fx_by_owner("pz_lightningsmoke", 4);
     burning_smoke = fx_by_owner("pz_burningsmoke", 4);
@@ -4437,12 +4432,14 @@ static void pz_fighter_lightning_entering_fatality(
 }
 
 static float r_pz_fighter_eaten(void) {
+    unsigned int blood_burst_handle;
     struct PuzzleParticleEffect* blood_burst;
+    unsigned int neck_blood_handle;
     struct PuzzleParticleEffect* neck_blood;
-    void* mouth_blood;
-    void* mouth_chunks;
-    void* saliva;
-    void* neck_effect;
+    unsigned int mouth_blood;
+    unsigned int mouth_chunks;
+    unsigned int saliva;
+    unsigned int neck_effect;
     unsigned int i;
 
     if (plyr_pdata->plyr_num == 0) {
@@ -4474,10 +4471,9 @@ static float r_pz_fighter_eaten(void) {
     pz_fighter_shake_camera(3, 0.03f);
     snd_req(0x1AC4);
 
-    blood_burst =
-        fx_by_owner("pz_blood_burst", 4);
-    fx_reset(blood_burst);
-    fx_resume_emit(blood_burst);
+    blood_burst_handle = fx_by_owner("pz_blood_burst", 4);
+    fx_reset(blood_burst_handle);
+    fx_resume_emit(blood_burst_handle);
     blood_burst = find_pfx_by_name("pz_blood_burst");
     restart_effect_ppfx(blood_burst);
     pfx_bind_emitter_to_obj_bone(blood_burst, plyr_obj, 9);
@@ -4505,9 +4501,9 @@ static float r_pz_fighter_eaten(void) {
     random_hit(11);
     snd_req(0x1AC6);
 
-    neck_blood = fx_by_owner("neck_blood", 4);
-    fx_reset(neck_blood);
-    fx_resume_emit(neck_blood);
+    neck_blood_handle = fx_by_owner("neck_blood", 4);
+    fx_reset(neck_blood_handle);
+    fx_resume_emit(neck_blood_handle);
     neck_blood = find_pfx_by_name("neck_blood");
     restart_effect_ppfx(neck_blood);
     pfx_bind_emitter_to_obj_bone(neck_blood, plyr_obj, 13);
@@ -4531,31 +4527,30 @@ static float r_pz_fighter_eaten(void) {
     neck_effect = fx_by_owner("neck_blood", 4);
     fx_pause_emit(neck_effect);
     _mkproc_sleep_ticks = 40.0f;
-    aproc->vtbl->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
     random_hit(11);
     fx_resume_emit(neck_effect);
     fx_pause_emit(mouth_chunks);
     _mkproc_sleep_ticks = 10.0f;
-    aproc->vtbl->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
     snd_req(0x1AEF);
     random_hit(11);
     fx_pause_emit(neck_effect);
     _mkproc_sleep_ticks = 20.0f;
-    aproc->vtbl->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
     random_hit(11);
     fx_resume_emit(neck_effect);
     fx_pause_emit(mouth_blood);
     _mkproc_sleep_ticks = 10.0f;
-    aproc->vtbl->sleep(aproc->vtbl);
+    aproc->vtbl->sleep();
     fx_pause_emit(neck_effect);
 
     for (;;) {
         _mkproc_sleep_ticks = 60.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
     }
 }
 
-/* TODO: [near miss] 98.40%; base/call scheduling and normal-return joins differ. */
 static float p_snake_controller(void) {
     unsigned short event;
 
@@ -4566,15 +4561,12 @@ static float p_snake_controller(void) {
     if (g_pz_fighter_fatality_engine.controller->preround_active == 1) {
         pz_snake_lunge(0);
         _mkproc_sleep_ticks = 20.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         pz_snake_lunge(1);
         _mkproc_sleep_ticks = 10.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         g_pz_fighter_fatality_engine.controller->preround_active = 0;
-    } else {
-        if (g_pz_fighter_fatality_engine.controller->phase != 1) {
-            return 1.0f;
-        }
+    } else if (g_pz_fighter_fatality_engine.controller->phase == 1) {
         event = randu0(1000);
         if (event < 1) {
             pz_snake_lunge(0);
@@ -4584,8 +4576,6 @@ static float p_snake_controller(void) {
             pz_snake_bite(0);
         } else if (event < 6) {
             pz_snake_bite(1);
-        } else {
-            return 1.0f;
         }
     }
     return 1.0f;
@@ -4763,7 +4753,7 @@ static float pz_fighter_load_and_place_initial_snake(void) {
     unsigned int i;
     struct PuzzleFatalityController* controller;
     struct PuzzleParticleEffect* particle_effect;
-    void* effect;
+    unsigned int effect;
     struct PuzzleFighterRenderObject* secondary_snake;
 
     load_art_section(0x70036, &sec_pz_danger_snake);
@@ -4879,7 +4869,7 @@ static float p_burn_controller(void) {
 
     if (g_pz_fighter_fatality_engine.controller->preround_active == 1) {
         _mkproc_sleep_ticks = 60.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         pan_snd_req(0x1AB6, -0.7f);
         x = (screen_width > 650 ? -2.3f : -1.8f) - 0.15f;
         bgnd_launch_fx_at_position("roar_flames1", x, 0.0f, 0.0f);
@@ -4891,7 +4881,7 @@ static float p_burn_controller(void) {
         g_pz_fighter_fatality_engine.controller
             ->hazard_initialized[1] = 120;
         _mkproc_sleep_ticks = 10.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
         g_pz_fighter_fatality_engine.controller->preround_active = 0;
     } else if (g_pz_fighter_fatality_engine.controller->phase == 1) {
         event = randu0(1000);
@@ -4972,7 +4962,7 @@ static float r_pz_fighter_burn(void) {
 
     for (;;) {
         _mkproc_sleep_ticks = 60.0f;
-        aproc->vtbl->sleep(aproc->vtbl);
+        aproc->vtbl->sleep();
     }
 }
 

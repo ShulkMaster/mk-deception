@@ -262,7 +262,7 @@ typedef struct ChessSideState {
     };
     unsigned int field_144;
     char pad148[0x1C];
-    unsigned int field_164;
+    int field_164;
     char pad168[0x0C];
     unsigned int desired_x; /* +0x174 */
     unsigned int desired_y; /* +0x178 */
