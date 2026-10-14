@@ -566,7 +566,6 @@ void mwFileServerManagerMultiThreaded::notifyServerActivityChange(bool active)
     }
 }
 
-/* TODO: [near miss] 91.69%; sHackServerArray address is materialized before the end/begin calls (scheduling). */
 void mwFileServerManagerMultiThreaded::serviceCommands()
 {
     static mwFileServer* sHackServerArray[10];
@@ -574,7 +573,9 @@ void mwFileServerManagerMultiThreaded::serviceCommands()
 
     {
         mwFileMutexLock lock(mutex);
-        last = std::copy(servers.begin(), servers.end(), sHackServerArray);
+        mwFileServer** source_end = servers.end();
+        mwFileServer** source_begin = servers.begin();
+        last = std::copy(source_begin, source_end, sHackServerArray);
     }
     for (mwFileServer** it = sHackServerArray; it != last; ++it) {
         if ((*it)->queryActive()) {
@@ -633,12 +634,14 @@ mwFileServerManagerMultiThreaded::mwFileServerManagerMultiThreaded()
 {
 }
 
-/* TODO: [breakthrough needed] 70.62%; std::remove stays out of line inside the inlined erase wrapper, retail inlines it and calls __vector_pod::erase directly. */
+/* TODO: [near miss] 97.81%; call order recovered; stop at extra endpoint-result temporary. */
 void mwFileServerManagerBase::removeServer(mwFileServer* server)
 {
     mwFileMutexLock lock(mutex);
     server->manager = 0;
-    servers.erase(std::remove(servers.begin(), servers.end(), server), servers.end());
+    mwFileServer** erase_end = servers.end();
+    mwFileServer** new_end = std::remove(servers.begin(), servers.end(), server);
+    servers.erase(new_end, erase_end);
 }
 
 void mwFileServerManagerBase::addServer(mwFileServer* server)

@@ -1,4 +1,3 @@
-
 #include "msl/mslStreamFile.h"
 #include "msl/mslStreamFile_internal.h"
 #include "dolphin/os.h"
@@ -28,19 +27,6 @@ static inline void* mslDSB_HandleToOpaque(
     return (void*)(unsigned long)handle;
 }
 
-static const char stringBase0[] =
-    "MSL ERROR: Unable to free Dynamic Stream Buffer\n\0"
-    "Ran out of mslDSB_PendingAsyncRead structures.  Increase MSL_STREAM_MAXPENDINGREADS\0"
-    "MSL ERROR: Out of DSB Pending Reads - Increase MSL_STREAM_MAXPENDINGREADS\n\0"
-    "     - in progress: %d\n\0"
-    "          - abort: 0x%08x\n\0"
-    "     - in queue!\n\0"
-    "          - callback: 0x%08x\n\0"
-    "DSB Request resources not properly freed\0"
-    "DSB Can not free Request while on queue\0"
-    "DSB Invalid Request to free";
-
-#define STREAM_STRING(offset) (&stringBase0[(offset)])
 
 struct mslDSB_PendingAsyncRead;
 
@@ -108,7 +94,7 @@ static inline int mslDSB_ReturnBuffer(void* buffer) {
         result = 1;
         g_DSB_BufferFree[index] = 1;
     } else {
-        mslDebugPrintf(STREAM_STRING(0));
+        mslDebugPrintf("MSL ERROR: Unable to free Dynamic Stream Buffer\n");
         result = 0;
     }
     return result;
@@ -231,27 +217,8 @@ extern "C" int mslStreamFile_ReturnBuffer(void* buffer) {
     return result;
 }
 
-static inline void mslDSB_AllocPending(mslDSB_PendingAsyncRead*& request) {
-    unsigned long enabled = OSDisableInterrupts();
-    request = DSB_PAR_FreeList;
-
-    if (request != 0) {
-        unsigned int handle;
-        DSB_PAR_FreeList = request->next;
-        handle = request->handle.value;
-        memset(request, 0, sizeof(*request));
-        request->handle.value = handle;
-        request->handle.parts.generation++;
-        request->in_use = 1;
-    }
-    OSRestoreInterrupts(enabled);
-    if (request == 0) {
-        mslDebugPrintf(STREAM_STRING(0x31));
-    }
-}
-
-/* TODO: [breakthrough needed] 93.40%; diagnostic-pool ownership and
- * free-head propagation enlarge the frame; recover the whole-TU mode. */
+/* TODO: [near miss] 99.81%; pooled literals and allocation ownership recovered;
+ * only the queue-tail pointer and zero register homes differ. */
 extern "C" mslStreamFileRequest* mslStreamFile_QueueRequest(
     _mwFile* file, unsigned long offset, unsigned long size, int priority,
     mslStreamFileCallback callback, void* callback_data) {
@@ -260,14 +227,42 @@ extern "C" mslStreamFileRequest* mslStreamFile_QueueRequest(
     if (size == 0) {
         request = 0;
     } else {
-        const char* retry_strings;
         unsigned long enabled;
 
-        mslDSB_AllocPending(request);
-        retry_strings = stringBase0;
+        unsigned long first_enabled = OSDisableInterrupts();
+        request = DSB_PAR_FreeList;
+
+        if (request != 0) {
+            unsigned int handle;
+            DSB_PAR_FreeList = request->next;
+            handle = request->handle.value;
+            memset(request, 0, sizeof(*request));
+            request->handle.value = handle;
+            request->handle.parts.generation++;
+            request->in_use = 1;
+        }
+        OSRestoreInterrupts(first_enabled);
+        if (request == 0) {
+            mslDebugPrintf("Ran out of mslDSB_PendingAsyncRead structures.  Increase MSL_STREAM_MAXPENDINGREADS");
+        }
         while (request == 0) {
-            mslDebugPrintf(&retry_strings[0x85]);
-            mslDSB_AllocPending(request);
+            mslDebugPrintf("MSL ERROR: Out of DSB Pending Reads - Increase MSL_STREAM_MAXPENDINGREADS\n");
+            unsigned long retry_enabled = OSDisableInterrupts();
+            request = DSB_PAR_FreeList;
+
+            if (request != 0) {
+                unsigned int handle;
+                DSB_PAR_FreeList = request->next;
+                handle = request->handle.value;
+                memset(request, 0, sizeof(*request));
+                request->handle.value = handle;
+                request->handle.parts.generation++;
+                request->in_use = 1;
+            }
+            OSRestoreInterrupts(retry_enabled);
+            if (request == 0) {
+                mslDebugPrintf("Ran out of mslDSB_PendingAsyncRead structures.  Increase MSL_STREAM_MAXPENDINGREADS");
+            }
         }
         enabled = OSDisableInterrupts();
 
@@ -335,7 +330,6 @@ static inline void mslDSB_FreePending(mslDSB_PendingAsyncRead* request) {
     OSRestoreInterrupts(enabled);
 }
 
-/* TODO: [near miss] 97.04546%; cancellation and queue reloads agree; invariant buffer-base/format hoist remains. */
 static void mslDSB_CancelRead(
     mslDSB_PendingAsyncRead* request, int invoke_callback) {
     if (request != 0) {
@@ -347,20 +341,28 @@ static void mslDSB_CancelRead(
             void* callback_data;
 
             mslDebugPrintf(
-                STREAM_STRING(0xD0), request->active_reads);
+                "     - in progress: %d\n", request->active_reads);
             if (request->active_reads != 0) {
+                unsigned char* buffers = &g_DSB_Buffers[0][0];
                 read = request->last_read;
                 while (read != 0) {
                     mslDSB_UnlinkFileRead(request, read);
                     if (read->command != 0) {
                         mslDebugPrintf(
-                            STREAM_STRING(0xE8), read->command);
+                            "          - abort: 0x%08x\n", read->command);
                         mwFileAbortCommand(read->command);
                         mwFileFreeCommand(read->command);
                         read->command = 0;
                     }
                     if (read->buffer != 0) {
-                        mslDSB_ReturnBuffer(read->buffer);
+                        int difference = (unsigned char*)read->buffer - buffers;
+                        int index;
+                        if (difference >= 0 &&
+                            (index = difference / (int)sizeof(g_DSB_Buffers[0])) < 5) {
+                            g_DSB_BufferFree[index] = 1;
+                        } else {
+                            mslDebugPrintf("MSL ERROR: Unable to free Dynamic Stream Buffer\n");
+                        }
                         read->buffer = 0;
                     }
                     mslDSB_FreeFileRead(read);
@@ -373,7 +375,7 @@ static void mslDSB_CancelRead(
                 unsigned long queue_enabled;
                 mslDSB_PendingAsyncRead** link;
                 mslDSB_PendingAsyncRead* queued;
-                mslDebugPrintf(STREAM_STRING(0x103));
+                mslDebugPrintf("     - in queue!\n");
                 queue_enabled = OSDisableInterrupts();
                 queued = DSB_PAR_Queue.first;
                 link = &DSB_PAR_Queue.first;
@@ -398,18 +400,18 @@ static void mslDSB_CancelRead(
             request->callback = 0;
             callback_data = request->callback_data;
             request->callback_data = 0;
-            mslDebugPrintf(STREAM_STRING(0x115), callback);
+            mslDebugPrintf("          - callback: 0x%08x\n", callback);
             if (invoke_callback && callback != 0) {
                 callback(0, -1, 0, 0x44DEAD0F, 1, callback_data);
             }
             if (request->active_reads != 0) {
-                mslDebugPrintf(STREAM_STRING(0x133));
+                mslDebugPrintf("DSB Request resources not properly freed");
             }
             if (request->queued) {
-                mslDebugPrintf(STREAM_STRING(0x15C));
+                mslDebugPrintf("DSB Can not free Request while on queue");
             }
             if (!request->in_use) {
-                mslDebugPrintf(STREAM_STRING(0x184));
+                mslDebugPrintf("DSB Invalid Request to free");
             }
             mslDSB_FreePending(request);
         }
@@ -525,16 +527,22 @@ void mslDSB_ServiceNextRead(void) {
     }
 }
 
-/* TODO: [near miss] 98.757065%; unlink and relative-offset staging recovered;
- * saved-register allocation and string-symbol references remain. */
 static void mslDSB_FileReadCompletionCallback(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
 
     mslDSB_PendingAsyncRead* request;
+    mslDSB_FileRead* read;
     mslStreamFileCallback callback;
     void* data;
+    int requeue;
+    int final;
+    int error;
+    unsigned int offset;
+    unsigned int size;
     int enabled;
-    mslDSB_FileRead* read = (mslDSB_FileRead*)callback_data;
+    void* buffer;
+
+    read = (mslDSB_FileRead*)callback_data;
 
     if (read->command != command) {
         mwFileFreeCommand(command);
@@ -542,10 +550,6 @@ static void mslDSB_FileReadCompletionCallback(
     }
     request = read->owner;
     enabled = OSDisableInterrupts();
-    int final;
-    int requeue;
-    int error;
-    void* buffer;
 
     mslDSB_UnlinkFileRead(request, read);
     final = 0;
@@ -561,8 +565,8 @@ static void mslDSB_FileReadCompletionCallback(
     }
 
     if (callback != 0) {
-        unsigned int offset = read->callback_offset;
-        unsigned int size = read->callback_size;
+        offset = read->callback_offset;
+        size = read->callback_size;
         offset -= request->request_offset;
 
         if (error == 0) {

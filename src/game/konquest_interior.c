@@ -692,15 +692,14 @@ static float p_konq_interior_loop(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough] 98.70%; NPC removal null guard restored; indexed traversal retains extra offset and saved register. */
 static float p_konq_interior_exit_point(void) {
     MkObj* hero;
     MkObj* interior_object;
     CameraPdata* camera;
+    int door_enum;
+    unsigned int index;
     int* npc_data;
     unsigned int npc_count;
-    unsigned int index;
-    int door_enum;
     void* building;
     struct KonquestChildObject* door;
     struct KonquestChildObject* partner;
@@ -716,10 +715,9 @@ static float p_konq_interior_exit_point(void) {
     suspend_hero_state_process();
     stop_hero_collisions();
 
-    if (konq_interior_save_data.exit_script_index != 0) {
-        cmdscript_setup_execution(
-            konquest_pdata->script_owner,
-            konq_interior_save_data.exit_script_index);
+    index = konq_interior_save_data.exit_script_index;
+    if (index != 0) {
+        cmdscript_setup_execution(konquest_pdata->script_owner, index);
         cmdscript_execute(konquest_pdata->script_owner);
     }
     fade_to_black(4, 0);
@@ -758,12 +756,12 @@ static float p_konq_interior_exit_point(void) {
     if (npc_data != 0) {
         npc_count = get_row_count_for_table_by_pointer(
             konquest_pdata->script_owner, npc_data);
-        for (index = 0; index < npc_count; ++index) {
-            struct KonquestNpcRecord* npc = find_npc_by_data(npc_data[index]);
+        for (index = 0; index < npc_count; index++, npc_data++) {
+            struct KonquestNpcRecord* npc = find_npc_by_data(*npc_data);
 
             if (npc != 0) {
                 npc->flags_bits.in_interior = 0;
-                remove_npc(npc_data[index]);
+                remove_npc(*npc_data);
             }
         }
     }
@@ -803,10 +801,9 @@ static float p_konq_interior_exit_point(void) {
     konquest_show_hud();
     restore_hero_grounding();
     fade_from_black(4, 0);
-    if (konq_interior_save_data.entry_script_index != 0) {
-        cmdscript_setup_execution(
-            konquest_pdata->script_owner,
-            konq_interior_save_data.entry_script_index);
+    index = konq_interior_save_data.entry_script_index;
+    if (index != 0) {
+        cmdscript_setup_execution(konquest_pdata->script_owner, index);
         cmdscript_execute(konquest_pdata->script_owner);
     }
     start_hero_collisions();

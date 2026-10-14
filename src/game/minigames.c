@@ -2504,8 +2504,8 @@ static void pzpfx_copy_puzzleblocks(struct PuzzlePlayerState* player) {
     }
 }
 
-/* TODO: [near miss] 99.87%; six placement-index register rows remain;
- * stop at coloring until new index-lifetime evidence appears. */
+/* TODO: [near miss] 99.87%; six placement-index GPR rows remain;
+ * needs new index-owner/interference evidence; coloring stop. */
 static void pzpfx_copy_playpieces(struct PuzzlePlayerState* player) {
     const struct PuzzleArtPlacement* preview_placement;
     const struct PuzzleArtPlacement* board_placement;
@@ -3729,8 +3729,8 @@ static void puzzle_fighter_display_chain_msg(struct PuzzlePlayerState* player) {
     pan_snd_req(chain_sound_burst_table[sound_index], player->sound_pan);
 }
 
-/* TODO: [near miss] 99.39%; retail (and PS2) test the old proc twice; proc copy sits between the
- * two branches while pdata_of_proc gets the loaded temp; nested-if forms reach 98.78 at best. */
+/* TODO: [near miss] 99.39%; retail's second old-proc branch is absent from
+ * initial pcode; recover the original cleanup macro and caller pdata ownership. */
 static void puzzle_fighter_display_block_count_msg(
     struct PuzzlePlayerState* player) {
     struct PuzzleMessagePdata* pdata;
@@ -5005,8 +5005,8 @@ static void pzsm_rain_dance_cleanup(void) {
     pzsm_release_rain_dance_resources();
 }
 
-/* TODO: [near miss] 99.19%; storm owner branch/literal timing remains;
- * stop without new owner-selection evidence. */
+/* TODO: [breakthrough needed] 99.18843%; owner branch/string timing remains;
+ * lookup/publication boundaries regress; recover original selector provenance. */
 static int pzsm_rain_dance(struct PuzzlePlayerState* player,
                            struct PuzzlePlayerState* opponent) {
     struct PuzzleBoardCell* drop_row;
@@ -6092,8 +6092,8 @@ static inline void puzzle_scan_occupied_row(struct PuzzlePlayerState* player,
     }
 }
 
-/* TODO: [near miss] 99.78142%; board/column homes, bonus-add operands and
- * fallback zero provenance remain; need new owner evidence. */
+/* TODO: [near miss] 99.78142%; fallback zero, board/column homes and bonus-add
+ * order remain; inline ownership trades zero sharing for extra coloring. */
 static void pz_ai_decide_match(struct PuzzlePlayerState* player) {
     struct PuzzleAiPlacement placements[2][8];
     int best[2];
@@ -7159,8 +7159,8 @@ puzzle_fighter_mode_play__counter_drops(struct PuzzlePlayerState* player,
     return 1;
 }
 
-/* TODO: [near miss] 99.34%; product FPR and inlined invisibility loop seed differ;
- * stop at coloring without a new structural hypothesis. */
+/* TODO: [near miss] 99.34%; product FPR and inline-owned zero sharing remain;
+ * preserve structured clear paths. */
 static int puzzle_fighter_mode_play__new_piece(struct PuzzlePlayerState* player,
                                                struct PuzzlePlayerState* opponent) {
     struct PuzzlePlayerState* other_player;

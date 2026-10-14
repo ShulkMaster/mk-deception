@@ -508,13 +508,15 @@ int load_konq_memory_from_krd_buffer(void) {
     return 1;
 }
 
-/* TODO: [near miss] 99.55%; retail operations and record addressing agree;
- * PUI traversal and stale-NPC next-pointer homes remain; stop at coloring. */
+/* TODO: [near miss] 99.68326%; PUI count/snapshot and stale-next homes remain;
+ * independent list cursors preserve retail operations and record layout. */
 int save_konq_memory_to_krd_buffer(int region) {
     KonquestRegionBuffer* buffer;
     MkPtr** trigger_list;
     MkPtr** pui_list;
     MkPtr* node;
+    MkPtr* pui_node;
+    MkPtr* npc_node;
     MkPtr* next;
     KonquestTrigger* trigger;
     const struct KonquestPuiRuntime* pui;
@@ -559,15 +561,15 @@ int save_konq_memory_to_krd_buffer(int region) {
     pui_list = &konquest_pdata->pui_list;
     pui_count = 0;
     if (is_mkptr_list_valid(pui_list)) {
-        node = *pui_list;
-        while (node != 0) {
-            if (node->instance != node->hdr->instance) {
-                next = node->next;
-                discard_stale_mkptr(node);
-                node = next;
+        pui_node = *pui_list;
+        while (pui_node != 0) {
+            if (pui_node->instance != pui_node->hdr->instance) {
+                next = pui_node->next;
+                discard_stale_mkptr(pui_node);
+                pui_node = next;
                 continue;
             }
-            pui = (const struct KonquestPuiRuntime*)node->hdr;
+            pui = (const struct KonquestPuiRuntime*)pui_node->hdr;
             if (should_this_pui_be_saved(pui) != 0) {
                 if (pui_count >= 0x19) {
                     break;
@@ -581,24 +583,24 @@ int save_konq_memory_to_krd_buffer(int region) {
                 buffer->pui_entries[pui_count].pos_z = pui_position.z;
                 pui_count++;
             }
-            node = node->next;
+            pui_node = pui_node->next;
         }
     }
     buffer->pui_count = pui_count;
     npc_count = 0;
     trigger_list = &konquest_pdata->npcs;
     if (is_mkptr_list_valid(trigger_list)) {
-        node = *trigger_list;
-        while (node != 0) {
+        npc_node = *trigger_list;
+        while (npc_node != 0) {
             unsigned int* packed_flags;
             int flag_index;
             KonquestNpc* npc;
 
-            npc = (KonquestNpc*)node->hdr;
-            if (node->instance != npc->hdr.instance) {
-                next = node->next;
-                discard_stale_mkptr(node);
-                node = next;
+            npc = (KonquestNpc*)npc_node->hdr;
+            if (npc_node->instance != npc->hdr.instance) {
+                next = npc_node->next;
+                discard_stale_mkptr(npc_node);
+                npc_node = next;
                 continue;
             }
             if (npc_count < 0x96 && npc != 0) {
@@ -633,7 +635,7 @@ int save_konq_memory_to_krd_buffer(int region) {
                     }
                 }
             }
-            node = node->next;
+            npc_node = npc_node->next;
             npc_count++;
         }
     }

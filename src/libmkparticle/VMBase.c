@@ -241,7 +241,8 @@ void __VMBASEInvalidatePageTable(void)
     OSRestoreInterrupts(interrupts);
 }
 
-/* TODO: [breakthrough needed] 42.41%; byte extent/reloads agree; original grouped-address lowering remains unresolved. */
+/* TODO: [breakthrough needed] 42.41%; initial pcode already uses indexed stores;
+ * recover original grouped-address lowering/compiler context. */
 void __VMBASEInvalidateLockedPageTable(void)
 {
     u32 i;

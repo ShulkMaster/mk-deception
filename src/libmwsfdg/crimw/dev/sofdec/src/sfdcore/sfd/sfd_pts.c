@@ -30,8 +30,8 @@ int SFPTS_IsPtsQueFull(SfdHandle* handle, int buffer_index)
            handle->buffers[buffer_index].work.ring.pts_queue.capacity;
 }
 
-/* TODO: [near miss] 98.49397%; RE4-backed goto-found/-1 exit restores the CFG;
- * retail keeps each found arm as `bge next; b found` (codeless arm), ours `blt found`. */
+/* TODO: [near miss] 98.49397%; found-arm branch polarity remains;
+ * honest range predicate regresses; need a real producer boundary. */
 int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
                      unsigned int position, SfdPtsEntry* output)
 {

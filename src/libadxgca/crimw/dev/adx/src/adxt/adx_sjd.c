@@ -107,8 +107,8 @@ AdxSjdSetFrequency pl2setsfreqfunc = 0;
 void ADXSJD_ExecHndl(AdxSjdHandle* handle);
 void adxsjd_decexec_start(AdxSjdHandle* handle);
 short* adxsjd_get_wr(
-    void* object, int* write_position, int* writable_samples,
-    int* limit_samples);
+    void* object, long* write_position, long* writable_samples,
+    long* limit_samples);
 void adxsjd_decode_prep(AdxSjdHandle* handle);
 
 void ADXSJD_RestoreSnapshot(AdxSjdHandle* handle)
@@ -257,7 +257,6 @@ static inline void adxsjd_pad_out(AdxSjdHandle* handle)
     s32 bytes;
     s32 samples;
     s32 chunk_bytes;
-    u32 pad_bytes;
 
     if (handle->pending_leading_samples <= 0) {
         return;
@@ -276,12 +275,12 @@ static inline void adxsjd_pad_out(AdxSjdHandle* handle)
             handle->output[channel], 0, &chunk);
     }
     samples = bytes / 2;
-    pad_bytes = (bytes / 2) * 2;
-    if ((s32)pad_bytes > 0) {
+    bytes = samples * 2;
+    if (bytes > 0) {
         for (channel = 0; channel < handle->channel_count; channel++) {
             handle->output[channel]->interface->get_chunk(
-                handle->output[channel], 0, pad_bytes, &chunk);
-            memset(chunk.data, 0, pad_bytes);
+                handle->output[channel], 0, bytes, &chunk);
+            memset(chunk.data, 0, bytes);
             handle->output[channel]->interface->put_chunk(
                 handle->output[channel], 1, &chunk);
         }
@@ -420,8 +419,6 @@ static inline void adxsjd_skip_out(AdxSjdHandle* handle)
     ADXCRS_Unlock();
 }
 
-/* TODO: [near miss] 99.90%; pad/decode/skip CFG agrees; pad_out size is an unsigned local (retail converts
- * the signed size once); only the pad size/sample count swap (r23/r27) remains. */
 void ADXSJD_ExecHndl(AdxSjdHandle* handle)
 {
     adxsjd_pad_out(handle);
@@ -429,7 +426,8 @@ void ADXSJD_ExecHndl(AdxSjdHandle* handle)
     adxsjd_skip_out(handle);
 }
 
-/* TODO: [near miss] 99.85%; linked-loop limit/length r31/r28 coloring remains. */
+/* TODO: [near miss] 99.8485%; linked-loop limit/length homes swap r31/r28;
+ * donor requires a dead guard; honest scanner and lifetime controls exhausted. */
 void adxsjd_decexec_start(AdxSjdHandle* handle)
 {
     AdxBasicDecoderExt* decoder = handle->decoder;
@@ -521,8 +519,8 @@ void adxsjd_decexec_start(AdxSjdHandle* handle)
 }
 
 short* adxsjd_get_wr(
-    void* object, int* write_position, int* writable_samples,
-    int* limit_samples)
+    void* object, long* write_position, long* writable_samples,
+    long* limit_samples)
 {
     AdxSjdHandle* handle = object;
     SJ* first_output = handle->output[0];
@@ -561,7 +559,6 @@ void adxsjd_decode_prep(AdxSjdHandle* handle)
     s32 skip;
     s32 remaining;
     s32 header_length;
-    s32 copy_length;
 
     input->interface->get_chunk(input, 1, ADXSJD_MAX_HEADER_SIZE, &chunk);
     skip = 0;
@@ -606,10 +603,9 @@ void adxsjd_decode_prep(AdxSjdHandle* handle)
         handle->wait_for_input = 1;
     }
     if (ADXB_GetFormat(decoder) == 2) {
-        copy_length = chunk.len < (s32)sizeof(handle->spsd_info)
-                          ? chunk.len
-                          : sizeof(handle->spsd_info);
-        memcpy(handle->spsd_info, chunk.data, copy_length);
+        memcpy(handle->spsd_info, chunk.data,
+               chunk.len < (int)sizeof(handle->spsd_info)
+                   ? chunk.len : (int)sizeof(handle->spsd_info));
     }
 
     {

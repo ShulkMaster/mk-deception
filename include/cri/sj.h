@@ -3,7 +3,7 @@
 
 typedef struct SJCK {
     unsigned char* data;
-    int len;
+    long len;
 } SJCK;
 
 void SJRBF_Init(void);
@@ -18,7 +18,7 @@ struct SJInterface {
     void (*destroy)(SJ* sj);
     const void* (*get_uuid)(SJ* sj);
     void (*reset)(SJ* sj);
-    void (*get_chunk)(SJ* sj, int channel, int max_size, SJCK* chunk);
+    void (*get_chunk)(SJ* sj, long channel, long max_size, SJCK* chunk);
     void (*unget_chunk)(SJ* sj, int channel, SJCK* chunk);
     void (*put_chunk)(SJ* sj, int channel, SJCK* chunk);
     int (*get_num_data)(SJ* sj, int channel);

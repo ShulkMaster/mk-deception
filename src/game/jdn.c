@@ -113,8 +113,8 @@ MkPfx* start_pfx_glass_shards(
     return glass;
 }
 
-/* TODO: [near miss] 98.82%; last-particle expiry exits the loop as retail;
- * entry GameInfo/last/cursor coloring and scheduling remain. */
+/* TODO: [near miss] 98.81536%; setup address schedules before vector offset;
+ * small setup block rules out block splitting; need real scheduling evidence. */
 static float pfx_glass_break_run(void) {
     float moving_damping;
     float resting_damping;

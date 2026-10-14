@@ -65,21 +65,26 @@ void SFSET_SetCond(SfdHandle* handle, int condition,
     }
 }
 
-/* TODO: [near miss] 99.710750%; only hoisted condition<<2 temp (r30) vs i (r28) coloring remains;
- * explicit ofs local in any declaration order colors first (<=99.50%); permuter found nothing. */
+static inline void sfset_SetCondAll(int condition, SfdConditionValue value)
+{
+    SfdHandle** p;
+    int i;
+    SfdHandle* hn;
+
+    p = SFLIB_libwork.handles;
+    for (i = 0; i < 8; i++, p++) {
+        hn = *p;
+        if (hn != 0) {
+            SFSET_SetCond(hn, condition, value);
+        }
+    }
+    SFLIB_libwork.default_conditions[condition] = value;
+}
+
 int SFD_SetCond(SfdHandle* handle, int condition, SfdConditionValue value)
 {
-    SfdHandle** slot;
-    int i;
-
     if (handle == 0) {
-        slot = SFLIB_libwork.handles;
-        for (i = 0; i < 8; i++, slot++) {
-            if (*slot != 0) {
-                SFSET_SetCond(*slot, condition, value);
-            }
-        }
-        SFLIB_libwork.default_conditions[condition] = value;
+        sfset_SetCondAll(condition, value);
     } else {
         if (SFLIB_CheckHn(handle) != 0) {
             return SFLIB_SetErr(0, 0xFF000112);

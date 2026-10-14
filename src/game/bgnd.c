@@ -6700,18 +6700,52 @@ void bgnd_create_pebbles(
     }
     bgnd_create_pebbles_with_sobj(object, player, mode, count);
 }
-static inline BgndPebbleCollection* bgnd_pebble_collection_of(unsigned int player) {
-    return g_pebbles[player];
-}
-
-/* TODO: [near miss] 99.07%; count/array-offset homes swap r29/r30;
- * zero staging before the process switch also differs. */
-BgndPebbleControl* bgnd_create_pebbles_with_sobj(
+static inline BgndPebblePlayerData* bgnd_create_pebble_process(
     MkSobj* object, unsigned int player, int mode, unsigned int count) {
-    unsigned int index;
     MkProc* process;
     BgndPebbleCollection* collection;
     BgndPebblePlayerData* player_data;
+    BgndPebblePlayerData* result;
+
+    process = 0;
+    player_data = 0;
+    collection = g_pebbles[player];
+    switch (mode) {
+    case 0:
+        process = _create_mkproc_generic_tinystack(
+            0xC014, 0x2E, p_pebble_path_monitor,
+            sizeof(BgndPebblePlayerData), (MkHdr**)&player_data);
+        break;
+    case 1:
+        process = _create_mkproc_generic_tinystack(
+            0xC014, 0x2E, p_pebble_burst_monitor,
+            sizeof(BgndPebblePlayerData), (MkHdr**)&player_data);
+        break;
+    case 2:
+        process = _create_mkproc_generic_tinystack(
+            0xC014, 0x2E, p_pebble_manual_monitor,
+            sizeof(BgndPebblePlayerData), (MkHdr**)&player_data);
+        break;
+    }
+    if (process == 0) {
+        result = 0;
+    } else {
+        player_data->sobj = object;
+        player_data->count = count;
+        player_data->mode = mode;
+        player_data->collection = collection;
+        set_process_as_scriptable(process);
+        mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
+        result = player_data;
+    }
+    return result;
+}
+
+/* TODO: [near miss] 99.45%; count/array-offset and process homes differ;
+ * operations agree with retail; stop at register coloring. */
+BgndPebbleControl* bgnd_create_pebbles_with_sobj(
+    MkSobj* object, unsigned int player, int mode, unsigned int count) {
+    unsigned int index;
     BgndPebblePlayerData* result;
     BgndPebbleControl* pebble;
 
@@ -6760,37 +6794,7 @@ BgndPebbleControl* bgnd_create_pebbles_with_sobj(
             &pebble->scale, &pebble->position);
     }
 
-    process = 0;
-    player_data = 0;
-    collection = bgnd_pebble_collection_of(player);
-    switch (mode) {
-    case 0:
-        process = _create_mkproc_generic_tinystack(
-            0xC014, 0x2E, p_pebble_path_monitor,
-            sizeof(BgndPebblePlayerData), (MkHdr**)&player_data);
-        break;
-    case 1:
-        process = _create_mkproc_generic_tinystack(
-            0xC014, 0x2E, p_pebble_burst_monitor,
-            sizeof(BgndPebblePlayerData), (MkHdr**)&player_data);
-        break;
-    case 2:
-        process = _create_mkproc_generic_tinystack(
-            0xC014, 0x2E, p_pebble_manual_monitor,
-            sizeof(BgndPebblePlayerData), (MkHdr**)&player_data);
-        break;
-    }
-    if (process == 0) {
-        result = 0;
-    } else {
-        player_data->sobj = object;
-        player_data->count = count;
-        player_data->mode = mode;
-        player_data->collection = collection;
-        set_process_as_scriptable(process);
-        mk_insert(&process->hdr, &g_game_info.bgnd_obj->child_list);
-        result = player_data;
-    }
+    result = bgnd_create_pebble_process(object, player, mode, count);
     g_pebbles_pdata[player] = result;
     return result->collection->pebbles;
 }
@@ -9599,6 +9603,8 @@ static int beetle_lair_react_to_wall_danger_zone_cb(PlyrPdata* player) {
     return 0;
 }
 
+static const Vec bl_stripped_axis_x = {1.0f, 0.0f, 0.0f};
+
 float r_beetle_lair_transition(void) {
     union {
         float f;
@@ -9905,8 +9911,8 @@ static inline void bl_init_beetle(
                                  beetle->heading_degrees, &scale,
                                  &beetle->position);
 }
-/* TODO: [near miss] 98.87%; shared pebble pointer improves GPR homes;
- * owner/axis bases and per-range register coloring remain. */
+/* TODO: [near miss] 98.86548%; axis/tick/control GPR homes remain;
+ * late scale/position FPR pair also swaps; need real ownership evidence. */
 static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
     BlBeetleControl* beetles;
     BlBeetleControl* beetle;
@@ -9990,8 +9996,8 @@ static inline float bl_jittered_scale(float base, float jitter) {
     return base + frand(jitter);
 }
 
-/* TODO: [near miss] 99.76%; second-loop pointer/ticks homes and loops 1-3,5-7
- * FP scale-vs-position homes remain; GDB capture confirms vreg-order coloring. */
+/* TODO: [near miss] 99.76471%; loop-2 GPR and scale/position FPR homes remain;
+ * current capture confirms webs; complete ground-cluster boundary regresses. */
 static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     BlBeetleControl* beetle;
     BlBeetleControl* beetles;
@@ -10849,7 +10855,6 @@ static int beetle_squashed(
     return 0;
 }
 
-/* TODO: [near miss] 99.97%; only nine Vec initializer .rodata load offsets differ; TU data layout remains. */
 static float p_bl_beetle_brains(void) {
     BlBeetlePdata* pdata;
     BlBeetleControl* beetle;
@@ -11925,8 +11930,6 @@ static void sh_update_fatality_body_part(MkObj* object) {
     }
 }
 
-/* TODO: [breakthrough needed] 93.64%; retail loop homes and unfused XZ products recovered;
- * addressed movement Vec ownership remains unresolved. */
 static float p_sh_fatality_body_parts(void) {
     ShFatalityBodyPartsProcessData* data;
     PebbleData* pebble_data;
@@ -11934,6 +11937,7 @@ static float p_sh_fatality_body_parts(void) {
     ShBloodPebbleControl* controls;
     MkObj* object;
     int index;
+    Vec geometry;
 
     data = (ShFatalityBodyPartsProcessData*)pdata_of_proc(aproc);
     if (data == 0) {
@@ -11967,14 +11971,13 @@ static float p_sh_fatality_body_parts(void) {
             if (control->lifetime <= 0.0f) {
                 control->lifetime = 0.0f;
                 if (control->state == 0) {
-                    Vec step;
 
-                    step.x = game_speed * control->velocity.x;
-                    step.y = game_speed * control->velocity.y;
-                    step.z = game_speed * control->velocity.z;
-                    control->position.x = step.x + control->position.x;
-                    control->position.y = step.y + control->position.y;
-                    control->position.z = step.z + control->position.z;
+                    geometry.x = game_speed * control->velocity.x;
+                    geometry.y = game_speed * control->velocity.y;
+                    geometry.z = game_speed * control->velocity.z;
+                    control->position.x = geometry.x + control->position.x;
+                    control->position.y = geometry.y + control->position.y;
+                    control->position.z = geometry.z + control->position.z;
                     control->velocity.y -= 0.004f;
                     control->angle_degrees += control->angle_step;
                     if (control->angle_degrees > 360.0f) {
@@ -11985,12 +11988,11 @@ static float p_sh_fatality_body_parts(void) {
                         control->velocity.x *= 0.2f;
                         control->velocity.z *= -0.2f;
                         if ((unsigned short)randu0(10) <= 2) {
-                            Vec splat_position;
 
-                            gxVectCopy(&splat_position, &control->position);
-                            splat_position.z = 21.65f;
+                            gxVectCopy(&geometry, &control->position);
+                            geometry.z = 21.65f;
                             spawn_bld_splat(
-                                "sh_bloodsplat", 0, &splat_position);
+                                "sh_bloodsplat", 0, &geometry);
                             control->state = 2;
                             control->position.z = 21.6f;
                             control->velocity.z = 0.0f;
@@ -12036,12 +12038,11 @@ static float p_sh_fatality_body_parts(void) {
                     control->position.y += game_speed * control->velocity.y;
                     control->angle_step -= 1.0f;
                     if (control->angle_step <= 0.0f) {
-                        Vec splat_position;
 
                         control->angle_step = 90.0f;
-                        gxVectCopy(&splat_position, &control->position);
-                        splat_position.z = 21.65f;
-                        spawn_bld_splat("sh_bloodsplat", 0, &splat_position);
+                        gxVectCopy(&geometry, &control->position);
+                        geometry.z = 21.65f;
+                        spawn_bld_splat("sh_bloodsplat", 0, &geometry);
                     }
                     if (control->velocity.y > -0.003f) {
                         control->velocity.y -= 0.0001f;
@@ -12065,16 +12066,15 @@ static float p_sh_fatality_body_parts(void) {
 
         control->lifetime -= game_speed;
         if (control->lifetime <= 0.0f) {
-            Vec step;
 
             control->lifetime = 0.0f;
             if (control->state == 0) {
-                step.x = control->velocity.x * game_speed;
-                step.y = control->velocity.y * game_speed;
-                step.z = control->velocity.z * game_speed;
-                control->position.x += step.x;
-                control->position.y += step.y;
-                control->position.z += step.z;
+                geometry.x = control->velocity.x * game_speed;
+                geometry.y = control->velocity.y * game_speed;
+                geometry.z = control->velocity.z * game_speed;
+                control->position.x += geometry.x;
+                control->position.y += geometry.y;
+                control->position.z += geometry.z;
                 control->velocity.y -= 0.004f;
                 control->angle_degrees += control->angle_step;
                 if (control->angle_degrees > 360.0f) {
@@ -12091,12 +12091,12 @@ static float p_sh_fatality_body_parts(void) {
                     control->state = 1;
                 }
             } else {
-                step.x = control->velocity.x * game_speed;
-                step.y = control->velocity.y * game_speed;
-                step.z = control->velocity.z * game_speed;
-                control->position.x += step.x;
-                control->position.y += step.y;
-                control->position.z += step.z;
+                geometry.x = control->velocity.x * game_speed;
+                geometry.y = control->velocity.y * game_speed;
+                geometry.z = control->velocity.z * game_speed;
+                control->position.x += geometry.x;
+                control->position.y += geometry.y;
+                control->position.z += geometry.z;
                 control->velocity.y -= 0.001f;
                 control->angle_degrees += control->angle_step;
                 if (control->angle_degrees > 360.0f) {

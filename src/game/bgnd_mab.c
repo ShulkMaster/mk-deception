@@ -1005,9 +1005,8 @@ void obj_setup_for_animation(
     object->ground_colls = ground_colls;
 }
 
-/* TODO: [near miss] 99.63%; initializer pool base/frame pointer swap r10/r11; the @511 pool object vs ...rodata.0 naming is TU data layout. */
 void yinyang_make_fish_jump(struct YinyangFishPair* fish, int count) {
-    RwFrame* camera_frame = Camera->object.object.parent;
+    Vec* camera_at = (Vec*)&((RwFrame*)Camera->object.object.parent)->modelling.at;
     Vec cylinder_position = {0.0f, 0.0f, 0.0f};
     Vec cylinder_axis = {0.0f, 1.0f, 0.0f};
     Vec camera_direction;
@@ -1021,9 +1020,9 @@ void yinyang_make_fish_jump(struct YinyangFishPair* fish, int count) {
     struct YinyangFishPair* current;
     int index;
 
-    camera_direction.x = camera_frame->modelling.at.x;
+    camera_direction.x = camera_at->x;
     camera_direction.y = 0.0f;
-    camera_direction.z = camera_frame->modelling.at.z;
+    camera_direction.z = camera_at->z;
     ray_cyl_intersection(
         &camera_obj->pos, &camera_direction,
         &cylinder_position, &cylinder_axis,

@@ -55,10 +55,9 @@ static const SfdTransportRegistry mwsfd_trentry = {{
     &SFD_tr_ad_adxt, &SFD_tr_ao_auto_p, &SFD_tr_uo,
     0, 0, 0, 0, 0, 0, 0, 0
 }};
-static const struct {
-    const SfdTransportRegistry* transports;
-    int timer_source;
-} mwsfd_initsfdpara = {&mwsfd_trentry, 0xEA24};
+static const SfdLibraryConfig mwsfd_initsfdpara = {
+    (SfdTransportRegistry*)&mwsfd_trentry, 0xEA24
+};
 const int mwsfd_siz_mwplyhn = sizeof(MwsPlayerSlot);
 
 static const char data_error[] = "DATA ERROR(%08X)";
@@ -74,23 +73,6 @@ static const char generic_sfd_error[] = "SFD ERROR(%08X)";
 static const char compatible_version[] = "1.940";
 static const char incompatible_version[] =
     "E011081 mwPlySfdInit: Not compatible SFD Version.";
-typedef struct MwsInitLiterals {
-    float default_frame_rate;
-    char null_parameter[0x28];
-    char init_gsc_failed[0x28];
-    float rounding_half;
-    float rate_scale;
-    char init_failed[0x20];
-} MwsInitLiterals;
-static const MwsInitLiterals mwsfd_init_literals = {
-    59.94f,
-    "E1122611 mwPlyInitSfdFx: iprm is NULL.",
-    "E2005 mwPlyInitSfdFx: can't init GSC",
-    0.5f,
-    1000.0f,
-    "ERR20010421A : mwPlyInitSfdFx"
-};
-
 static const char* cri_verstr_ptr;
 MwsLibraryWork mwsfd_libwork;
 static int mwg_sfd_errcode[16];
@@ -137,21 +119,11 @@ extern void MWSFD_SetCond(void* player, int condition, int value);
 
 void MWSFLIB_SfdErrFunc(SfdCallbackObject object, int error);
 
-static inline void mwsflib_SetLibPrm(MwsLibraryWork* work,
-                                     const MwsInitParam* parameter)
-{
-    if (parameter != 0) {
-        work->frame_rate = parameter->frame_rate;
-        work->max_width = parameter->max_width;
-        work->decoder_count = parameter->decoder_count;
-        work->field_10 = parameter->field_0C;
-    } else {
-        work->frame_rate = mwsfd_init_literals.default_frame_rate;
-        work->max_width = 1;
-        work->decoder_count = 1;
-        work->field_10 = 0;
-    }
-}
+int MWSFLIB_SetErrCode(int error);
+
+static int mwPlySfdInit(int timer_source);
+static void mwsflib_InitLibWork(MwsInitParam* parameter);
+static inline void mwsflib_SetLibPrm(MwsLibraryWork* work, MwsInitParam* parameter);
 
 MwsLibraryWork* MWSFLIB_GetLibWorkPtr(void)
 {
@@ -163,18 +135,15 @@ static void mwsflib_LscErrFunc(void* object, const char* message)
     MWSFSVM_Error(message);
 }
 
-/* TODO: [breakthrough needed] 95.32%; BSS owners agree;
- * literal/helper boundary leaves 16 extra code bytes. */
+/* TODO: [breakthrough] 99.2513%; retail initializer/literal owners restored;
+ * nested parameter-copy ownership still lacks the retail destination copy. */
 void mwPlyInitSfdFx(MwsInitParam* parameter)
 {
     MwsInitParam local;
     MwsInitParam* sfd_parameter;
-    MwsLibraryWork* work;
-    SfdLibraryConfig sfd_parameters;
-    int result;
 
     if (parameter == 0) {
-        MWSFSVM_Error(mwsfd_init_literals.null_parameter);
+        MWSFSVM_Error("E1122611 mwPlyInitSfdFx: iprm is NULL.");
         return;
     }
     memset(&local, 0, sizeof(local));
@@ -200,37 +169,13 @@ void mwPlyInitSfdFx(MwsInitParam* parameter)
         SJMEM_Init();
         SJUNI_Init();
         if (MWSTM_InitStatic() != 0) {
-            mwsfd_libwork.error_code = -0x65;
-            MWSFSVM_Error(mwsfd_init_literals.init_gsc_failed);
+            MWSFLIB_SetErrCode(-0x65);
+            MWSFSVM_Error("E2005 mwPlyInitSfdFx: can't init GSC");
         }
-        memset(work = &mwsfd_libwork, 0, sizeof(mwsfd_libwork));
-        MWSFSVR_SetMwsfdSvrFlg(0);
-        work->field_5C = 0;
-        mwsflib_SetLibPrm(work, sfd_parameter);
-        work->use_picture_user_data = 1;
-        work->pause_border = 1;
+        mwsflib_InitLibWork(sfd_parameter);
         mwg_vcnt = 0;
-        sfd_parameters.transport_registry =
-            (SfdTransportRegistry*)mwsfd_initsfdpara.transports;
-        sfd_parameters.timer_source = mwsfd_initsfdpara.timer_source;
-        sfd_parameters.timer_source =
-            (mwsfd_init_literals.rate_scale * local.frame_rate) +
-                  mwsfd_init_literals.rounding_half;
-
-        if (SFD_IsVersionCompatible(compatible_version, 0x3598) != 1) {
-            MWSFSVM_Error(incompatible_version);
-            result = -1;
-        } else if (SFD_Init(&sfd_parameters) != 0) {
-            result = -0x12D;
-            work->error_code = result;
-        } else if (SFD_SetErrFn(0, MWSFLIB_SfdErrFunc, 0) != 0) {
-            result = -0x12F;
-            work->error_code = result;
-        } else {
-            result = 0;
-        }
-        if (result != 0) {
-            MWSFSVM_Error(mwsfd_init_literals.init_failed);
+        if (mwPlySfdInit((int)(0.5f + local.frame_rate * 1000.0f)) != 0) {
+            MWSFSVM_Error("ERR20010421A : mwPlyInitSfdFx");
         }
         mwsfd_init_flag = 1;
         MWSFD_SetCond(0, 0x1B, local.frame_rate);
@@ -243,6 +188,54 @@ void mwPlyInitSfdFx(MwsInitParam* parameter)
         MWSFSVM_EntryIdleFunc(MWSFSVR_IdleThrdProc, 0);
     }
     mwsfd_init_cnt++;
+}
+
+static void mwsflib_InitLibWork(MwsInitParam* parameter)
+{
+    MwsLibraryWork* work;
+
+    memset(work = &mwsfd_libwork, 0, sizeof(mwsfd_libwork));
+    MWSFSVR_SetMwsfdSvrFlg(0);
+    work->field_5C = 0;
+    mwsflib_SetLibPrm(work, parameter);
+    work->use_picture_user_data = 1;
+    work->pause_border = 1;
+}
+
+static inline void mwsflib_SetLibPrm(MwsLibraryWork* work,
+                                     MwsInitParam* parameter)
+{
+    if (parameter != 0) {
+        work->frame_rate = parameter->frame_rate;
+        work->max_width = parameter->max_width;
+        work->decoder_count = parameter->decoder_count;
+        work->field_10 = parameter->field_0C;
+    } else {
+        work->frame_rate = 59.94f;
+        work->max_width = 1;
+        work->decoder_count = 1;
+        work->field_10 = 0;
+    }
+}
+
+static int mwPlySfdInit(int timer_source)
+{
+    SfdLibraryConfig sfd_parameters;
+    int result;
+
+    sfd_parameters = mwsfd_initsfdpara;
+    sfd_parameters.timer_source = timer_source;
+    if (SFD_IsVersionCompatible(compatible_version, 0x3598) != 1) {
+        MWSFSVM_Error(incompatible_version);
+        result = -1;
+    } else if (SFD_Init(&sfd_parameters) != 0) {
+        result = MWSFLIB_SetErrCode(-0x12D);
+    } else if (SFD_SetErrFn(0, MWSFLIB_SfdErrFunc, 0) != 0) {
+        result = MWSFLIB_SetErrCode(-0x12F);
+    } else {
+        result = 0;
+    }
+    return result;
 }
 
 int MWSFD_GetUsePicUsr(void)
@@ -290,7 +283,10 @@ void mwPlyFinishSfdFx(void)
 int MWSFLIB_SetErrCode(int error)
 {
     mwsfd_libwork.error_code = error;
-    return error & ~-((error == 0) & 1);
+    if (error == 0) {
+        return 0;
+    }
+    return error;
 }
 
 void MWSFLIB_SfdErrFunc(SfdCallbackObject object, int error)

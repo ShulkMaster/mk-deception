@@ -43,49 +43,50 @@ typedef struct KeyEntry {
     ScreenControlView ctrl;
 } KeyEntry; /* 0xA4 */
 
-/*
- * 'TEXT' TextItem -- editable / scrollable label bound to a ScreenText node.
- * ProcessParams: +0xA4 = GetScreenNode(1), +0x98 = GetResourceID(0).
- */
-typedef struct TextItem {
-    void* vtbl; /* +0x00 */
-    ScreenObjectHead head; /* +0x04 .. +0x8F */
-    int collectionId; /* +0x90 */
-    int gvContext; /* +0x94 */
-    int optionId; /* +0x98 -- CreateInstance zeros (overrides ctor -1) */
-    int pad9C; /* +0x9C */
-    int unkA0; /* +0xA0 */
-    ScreenNode* textNode; /* +0xA4 -- ScreenText node */
-    char* editBuf; /* +0xA8 -- scroll copy; Malloc when scrollLimit > 1 */
-    char* gvString; /* +0xAC -- GameVariables GetString latch */
-    signed char curChar; /* +0xB0 -- init -1; NUL hole restore */
-    unsigned char padB1[3];
-    int cursorPos; /* +0xB4 -- init -1; index of NUL hole */
-    int scrollPos; /* +0xB8 -- init 0; wrap-line window origin */
-    int scrollLimit; /* +0xBC -- init -1; GetStartArray line count */
-    int* indexTable; /* +0xC0 -- GetStartArray wrap starts */
-} TextItem; /* 0xC4 */
+class TextItem : public ScreenControl {
+public:
+    virtual ~TextItem();
+    virtual void Init();
+    virtual void Dispose();
+    virtual int HandleAction(ScreenMgr* mgr, const ScreenAction* action);
+    virtual void HandleEvent(ScreenMgr* mgr, int event, int arg);
+    virtual void ProcessParams(ScreenParams* params);
+    virtual void RefreshOption();
 
-/* 'KPAD' KeyPad -- soft keyboard.
- * ProcessParams: pageResIds[4] @ +0xC8, maxLen @ +0xD8, pageCount @ +0xE0.
- * SetKey: editBuf[i] @ +0xA4+i, editLen @ +0xC4 (was misnamed keyString).
- */
-typedef struct KeyPad {
-    void* vtbl; /* +0x00 */
-    ScreenObjectHead head; /* +0x04 .. +0x8F */
-    int collectionId; /* +0x90 */
-    int gvContext; /* +0x94 */
-    int optionId; /* +0x98 */
-    int pad9C; /* +0x9C */
-    int unkA0; /* +0xA0 */
-    char editBuf[0x20]; /* +0xA4 -- NUL-terminated input chars */
-    int editLen; /* +0xC4 -- current length / cursor */
-    int pageResIds[4]; /* +0xC8 -- GameVariables option ids per page */
-    int maxLen; /* +0xD8 -- GetInt(4) */
-    int pageIndex; /* +0xDC -- active page; ProcessParams clears */
-    int pageCount; /* +0xE0 -- GetInt(5) */
-    int active; /* +0xE4 -- case/active latch; ChangeCase writes */
-} KeyPad; /* 0xE8 */
+    void UpdateString();
+    void ScrollText(int dir, int amount);
+
+    ScreenNode* textNode;
+    char* editBuf;
+    char* gvString;
+    signed char curChar;
+    int cursorPos;
+    int scrollPos;
+    int scrollLimit;
+    int* indexTable;
+};
+
+class KeyPad : public ScreenControl {
+public:
+    virtual ~KeyPad();
+    virtual void Init();
+    virtual void Dispose();
+    virtual int HandleAction(ScreenMgr* mgr, const ScreenAction* action);
+    virtual void HandleEvent(ScreenMgr* mgr, int event, int arg);
+    virtual void ProcessParams(ScreenParams* params);
+    virtual void RefreshOption();
+
+    void ChangeCase(unsigned int toUpper);
+    void SetKey(ScreenMgr* mgr, const ScreenAction* action, char* key);
+
+    char editBuf[0x20];
+    int editLen;
+    int pageResIds[4];
+    int maxLen;
+    int pageIndex;
+    int pageCount;
+    int active;
+};
 
 /*
  * 'SPSH' / 'SPSI' SpreadSheet base fields (CreateInstance shared block).
@@ -160,8 +161,7 @@ public:
     int extraResId; /* +0x110 -- GetResourceID when hasExtraRes */
     int pad114; /* +0x114 */
     ScreenPoly** unk118; /* +0x118 -- cell nodes */
-    int unk11C; /* +0x11C -- init 0 */
-    int unk120; /* +0x120 -- init 0 */
+    GMTextureInfo_t textures;
 };
 
 /*
@@ -228,6 +228,8 @@ typedef char check_ImageList_layout[
  * then loads TGA names into images[0..count) @ +0xB4.
  */
 typedef struct WifImage {
+    void Close();
+
     void* vtbl; /* +0x00 */
     ScreenObjectHead head; /* +0x04 .. +0x8F */
     int collectionId; /* +0x90 */

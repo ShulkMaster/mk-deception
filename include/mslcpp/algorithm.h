@@ -181,7 +181,6 @@ void pop_heap(RandomAccessIterator first, RandomAccessIterator last, Compare com
     }
 }
 
-/* TODO: [near miss] 97.5%; first child-selection block layout and register order differ. */
 template <class RandomAccessIterator, class Compare>
 void make_heap(RandomAccessIterator first, RandomAccessIterator last, Compare comp)
 {
@@ -192,12 +191,12 @@ void make_heap(RandomAccessIterator first, RandomAccessIterator last, Compare co
         return;
     }
     difference_type parent = (len - 2) / 2;
-    difference_type child = 2 * (parent + 1);
-    difference_type c = child;
-    RandomAccessIterator child_p = first + child;
     RandomAccessIterator parent_p = first + parent;
-    RandomAccessIterator cp = child_p;
+    difference_type child = 2 * (parent + 1);
+    RandomAccessIterator child_p = first + child;
     RandomAccessIterator left_p = child_p - 1;
+    difference_type c = child;
+    RandomAccessIterator cp = child_p;
     if (child == len || comp(*child_p, *left_p)) {
         cp = left_p;
         --c;

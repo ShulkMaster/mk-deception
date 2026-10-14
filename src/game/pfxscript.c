@@ -371,18 +371,26 @@ static ScriptSlot* g_pfx_cmo;
 static const struct PfxParametricEffectDescription* g_effect_description;
 static struct PfxBank* current_effect_bank;
 
-static inline void scan_effect_emitter_fields(struct PfxScriptEffect* effect) {
+static inline void scan_effect_emitter_fields(struct PfxScriptEffect** effect) {
     PfxFieldSet scan_fields = { 0, 0 };
 
     pfx_emitter_scan_for_fields(
-        pfx_get_emitter((PfxVm*)effect->emitter_storage.emitters, 0),
+        pfx_get_emitter((PfxVm*)(*effect)->emitter_storage.emitters, 0),
         &scan_fields);
     if ((scan_fields.render_flags & 0x40) != 0) {
-        effect->parametric_flags.scan_flag_40 = 1;
+        (*effect)->parametric_flags.scan_flag_40 = 1;
     }
     if ((scan_fields.render_flags & 0x20) != 0) {
-        effect->parametric_flags.scan_flag_20 = 1;
+        (*effect)->parametric_flags.scan_flag_20 = 1;
     }
+}
+
+static inline char* parametric_effect_name(
+    struct PfxParametricEffectDescription* description) {
+    char* name;
+
+    name = description->effect_name;
+    return name;
 }
 
 static inline void bank_record_effect(struct PfxScriptEffect* effect) {
@@ -2363,8 +2371,8 @@ static inline unsigned int pfx_alloc_bank(char* name, int effect_count) {
     return pfx_bank_latch_handle(bank_index);
 }
 
-/* TODO: [breakthrough needed] 98.42%; unexplained zero store at stack 0xC beside the
- * callback count shifts the load latch to 0x10; bank-size add order and handle rlwimi remain. */
+/* TODO: [breakthrough needed] 98.42%; recover owner of retail row-loop zero at stack+0xC;
+ * both effect-build callbacks only read/decrement the count at +0x8. */
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     struct PfxLoadScriptLatch load;
     struct PfxBankLoadRow* rows;
@@ -2495,17 +2503,14 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
 
         current_effect_bank = 0;
         free_mem(behavior_buffer);
-    pfx_cleanup_load_script(&load);
+        pfx_cleanup_load_script(&load);
     }
 }
 
-/* TODO: [near miss] 97.90%; create/loop register homes and scan-site effect
- * reloads remain. */
 static void build_parametric_effect_from_table(
     ScriptSlot* script, struct PfxParametricEffectDescription* description, int update) {
     struct PfxParametricEmitterDescription* emitter_description;
     struct PfxScriptEnvironment* environment;
-    int* remaining_effects;
     char* effect_name;
     struct PfxScriptVm* script_runtime;
     PfxVm* runtime;
@@ -2514,7 +2519,8 @@ static void build_parametric_effect_from_table(
     struct PfxScriptColorRow* color_table;
     float* table_a;
     float* table_b;
-    unsigned int create_flags;
+    unsigned int create_flags = 2;
+    int* remaining_effects;
     int row;
     int emitter_index;
     int matrix_row;
@@ -2535,7 +2541,7 @@ static void build_parametric_effect_from_table(
     clear_spawn_table_slots(table_slots);
     environment = active_pfx_environment();
     environment->spawn_tables = table_slots;
-    effect_name = description->effect_name;
+    effect_name = parametric_effect_name(description);
     memset(&build, 0, sizeof(build));
     build.name = active_pfx_environment()->effect_name_override;
     if (build.name == 0) {
@@ -2546,7 +2552,6 @@ static void build_parametric_effect_from_table(
     }
 
     environment->effect = 0;
-    create_flags = 2;
     if (description->color_table != 0 &&
         get_row_count_for_table_by_pointer(
             script, description->color_table) > 1U) {
@@ -2614,7 +2619,7 @@ static void build_parametric_effect_from_table(
     g_effect_description = 0;
     g_pfx_cmo = 0;
 
-    scan_effect_emitter_fields(effect);
+    scan_effect_emitter_fields(&effect);
     pfxvm_compile((PfxVm*)effect->emitter_storage.emitters);
 
     first_emitter = pfx_get_emitter(

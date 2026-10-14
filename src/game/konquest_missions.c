@@ -462,7 +462,7 @@ static inline void destroy_screen_latch(struct KonquestScreenLatch* latch) {
 
     if (object != 0) {
         if (object->instance != 0) {
-            ((void (*)(ScreenObj*))object->vtbl->destroy)(object);
+            object->typed_vtbl->destroy(object);
         }
         latch->object = 0;
         latch->instance = 0;
@@ -935,7 +935,8 @@ void play_background_music(int sound) {
     }
 }
 
-/* TODO: [near miss] 99.90%; vector initializer loads use rodata offsets 12 bytes before retail; remaining difference is constant-block layout in this TU. */
+static const Vec trial_stripped_vector = {0.3f, 1.32f, 7.32f};
+
 void trial_setup_nis_scene(int setup) {
     Vec monk_position = {1.0f, 0.0f, 6.0f};
     Vec monk_angle = {0.0f, 3.1415927f, 0.0f};
@@ -1125,11 +1126,10 @@ void load_window_frame(void) {
         frame_flags = 0;
         ((ScreenObjFlags*)&frame_flags)->hidden = 1;
         for (index = 0; index < 9; index++) {
+            unsigned int art_id = get_artid_of_named_item_in_slot(
+                pdata->art_slot, "JNY_WINDOW01", 1);
             ScreenObj* object = load_2d_pfxobj(
-                pdata->art_slot, 0x9004,
-                (unsigned long)(
-                    get_artid_of_named_item_in_slot(
-                        pdata->art_slot, "JNY_WINDOW01", 1) + index),
+                pdata->art_slot, 0x9004, art_id + index,
                 frame_flags, pdata->priority);
 
             pdata->frame[index].object = object;
@@ -1337,10 +1337,10 @@ static void text_window_fade_out(unsigned char ticks) {
 void text_window_fade_in(unsigned char ticks) {
     struct KonquestTrialWindowPdata* pdata =
         (struct KonquestTrialWindowPdata*)apdata;
-    unsigned char alpha = 0;
+    int alpha = 0;
 
     if (pdata != 0) {
-        unsigned char target = pdata->color;
+        int target = (unsigned char)pdata->color;
         unsigned char step = target / ticks;
 
         do {
@@ -1348,14 +1348,14 @@ void text_window_fade_in(unsigned char ticks) {
             if (pdata->prompt_flags & 0x10) {
                 pfx_2d_obj_set_alpha_by_id(0x9004, alpha);
             }
-            if (target - step < alpha) {
+            if (target - step < (unsigned char)alpha) {
                 alpha = target;
             } else {
-                alpha += step;
+                alpha = (unsigned char)((unsigned char)alpha + step);
             }
             _mkproc_sleep_ticks = 1.0f;
             aproc->vtbl->sleep();
-        } while (alpha < target);
+        } while ((unsigned char)alpha < (unsigned char)target);
         pfx_2d_obj_set_alpha_by_id(0x9002, target);
         if (pdata->prompt_flags & 0x10) {
             pfx_2d_obj_set_alpha_by_id(0x9004, target);
@@ -1363,8 +1363,7 @@ void text_window_fade_in(unsigned char ticks) {
     }
 }
 
-/* TODO: [near miss] 95.18%; inlined frame/alpha GPR homes and destroy_screen_latch
- * result homes/reloads differ; preserve typed helper boundaries. */
+/* TODO: [breakthrough needed] 97.03%; fade byte boundaries restored; original latch reload producer and helper homes remain. */
 float p_show_text_window(void) {
     struct KonquestTrialWindowPdata* window =
         (struct KonquestTrialWindowPdata*)apdata;
@@ -2810,7 +2809,6 @@ void trial_start_new_round(void) {
 
 #pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
-/* TODO: [near miss] 99.43%; loader staging and medal-reset GPR homes remain; preserve retail table order. */
 int trial_end_round(void) {
     struct KonquestMissionState* state;
     struct KonquestRequiredSequenceList* sequences;
@@ -2899,7 +2897,7 @@ int trial_end_round(void) {
         if (player_won_round != 0 &&
             player_rounds < mission_state->num_rounds) {
             if (!(mission_state->display_flags & 1)) {
-                unsigned short sign_index;
+                unsigned int sign_index;
                 ScreenObj* sign;
 
                 _mkproc_sleep_ticks = 15.0f;
@@ -2908,7 +2906,7 @@ int trial_end_round(void) {
                 sign_index = randu0(3);
                 sign = load_2d_pfxobj_xy(
                     0x2001E, 0x9009,
-                    get_trial_sign_list()[sign_index], 0,
+                    get_trial_sign_list()[sign_index & 0xFFFF], 0,
                     ((screen_width - 0x280) / 2) + 0xC0,
                     0x138, 0x24);
                 if (sign != 0) {
@@ -3003,9 +3001,9 @@ int trial_end_round(void) {
         }
         if (text_window_state == 1) {
             if (mission_state->display_flags & 1) {
-                g_game_info.pselect.field_1f4 = 1;
                 g_game_info.plyr1.field_40 = 0;
                 g_game_info.plyr0.field_40 = 0;
+                g_game_info.pselect.field_1f4 = 1;
                 g_game_info.flag_bits.level_fatality_done = 1;
                 update_plyr_medals();
             } else {

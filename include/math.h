@@ -7,13 +7,15 @@
 
 extern inline float sqrtf(float x)
 {
+    static const double _half = 0.5;
+    static const double _three = 3.0;
     volatile float result;
 
     if (x > 0.0f) {
         double guess = __frsqrte((double)x);
-        guess = 0.5 * guess * (3.0 - guess * guess * x);
-        guess = 0.5 * guess * (3.0 - guess * guess * x);
-        guess = 0.5 * guess * (3.0 - guess * guess * x);
+        guess = _half * guess * (_three - guess * guess * x);
+        guess = _half * guess * (_three - guess * guess * x);
+        guess = _half * guess * (_three - guess * guess * x);
         result = (float)(x * guess);
         return result;
     }

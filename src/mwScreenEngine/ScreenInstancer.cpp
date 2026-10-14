@@ -298,15 +298,15 @@ void PatchAttribue(SEBaseAttribute_t* attr, unsigned char* base,
 }
 
 
-/* TODO: [near miss] 92.0%; indexed member accesses differ; combined loop-mode control regresses siblings. */
 void PatchAttribueList(SEAttributes_t* list, unsigned char* base,
                        SEStringTable_t* strings) {
     for (unsigned int i = 0; i < list->count; ++i) {
-        SEBaseAttribute_t*& attribute = list->attributes[i];
-        if (attribute != 0) {
-            attribute = (SEBaseAttribute_t*)((unsigned char*)attribute + (unsigned int)base);
+        SEBaseAttribute_t** slot = &list->attributes[i];
+        SEBaseAttribute_t* value = list->attributes[i];
+        if (value != 0) {
+            *slot = (SEBaseAttribute_t*)((unsigned char*)value + (unsigned int)base);
         }
-        PatchAttribue(attribute, base, strings);
+        PatchAttribue(*slot, base, strings);
     }
 }
 
@@ -589,16 +589,17 @@ void ProcessScreenData(Screen*, void* data, unsigned int,
                       SeStringsOf(se));
 }
 
-/* TODO: [near miss] 97.98%; saved-register rotation and name relocation address form remain. */
+/* TODO: [near miss] 98.55%; equivalent name-slot address folding remains; recover relocation accessor. */
 int ScreenInstancer::LoadSetData(ScreenSet* set, void* data, unsigned int,
                                  void*) {
     SEScreenSet_t* blob;
     unsigned int base;
+    int i;
     unsigned char needReloc = 1;
     Screen templateScreen;
     int ok;
     unsigned int magic;
-    unsigned int nameOff;
+    char* name;
     unsigned int screenOff;
     Screen* screen;
 
@@ -629,14 +630,14 @@ int ScreenInstancer::LoadSetData(ScreenSet* set, void* data, unsigned int,
                 (unsigned int*)((unsigned int)blob->screenOffs + base);
         }
 
-        for (int i = 0; i < numScreens; i++) {
+        for (i = 0; i < numScreens; i++) {
             if (needReloc != 0) {
-                nameOff = blob->nameOffs[i];
-                RelocateScreenOffset(blob->nameOffs[i], nameOff, nameOff + base);
+                name = blob->names[i];
+                RelocateScreenOffset(blob->names[i], name, (char*)((unsigned int)name + base));
             }
 
             screen = &set->m_screens[i];
-            screen->SetName((char*)blob->nameOffs[i]);
+            screen->SetName(blob->names[i]);
             screen->m_set = set;
 
             if (blob->screenOffs != 0) {

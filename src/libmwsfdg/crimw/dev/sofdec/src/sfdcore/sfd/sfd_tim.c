@@ -5,6 +5,33 @@ const int SFTIM_prate[9] = {
     1, 23976, 24000, 25000, 29970, 30000, 50000, 59940, 60000,
 };
 
+static void sftim_Tc2Time59D(int rate, SfdTimeCode* timecode,
+                             int* value, int* scale);
+static void sftim_Tc2Time29D(int rate, SfdTimeCode* timecode,
+                             int* value, int* scale);
+static void sftim_Tc2Time23D(int rate, SfdTimeCode* timecode,
+                             int* value, int* scale);
+static void sftim_Tc2Time59N(int rate, SfdTimeCode* timecode,
+                             int* value, int* scale);
+static void sftim_Tc2Time29N(int rate, SfdTimeCode* timecode,
+                             int* value, int* scale);
+static void sftim_Tc2Time23N(int rate, SfdTimeCode* timecode,
+                             int* value, int* scale);
+static void sftim_Tc2TimeN(int rate, SfdTimeCode* timecode,
+                             int* value, int* scale);
+
+static const SfdTimeCodeConvertFn sftim_tc2time[9][2] = {
+    {0, 0},
+    {sftim_Tc2Time23N, sftim_Tc2Time23D},
+    {sftim_Tc2TimeN, sftim_Tc2TimeN},
+    {sftim_Tc2TimeN, sftim_Tc2TimeN},
+    {sftim_Tc2Time29N, sftim_Tc2Time29D},
+    {sftim_Tc2TimeN, sftim_Tc2TimeN},
+    {sftim_Tc2TimeN, sftim_Tc2TimeN},
+    {sftim_Tc2Time59N, sftim_Tc2Time59D},
+    {sftim_Tc2TimeN, sftim_Tc2TimeN},
+};
+
 int sftim_v_sample = 0;
 int sftim_v_time = 0;
 unsigned int sftim_a_sample = 0;
@@ -37,27 +64,25 @@ int SFTIM_IsVideoTerm(SfdHandle* handle)
                        handle->timer_state.current_time_scale) != 0;
 }
 
-/* TODO: [near miss] 91.35%; clock and repeat snapshots agree; constant addressing and conversion scheduling remain. */
-int SFTIM_IsGetFrmTimeTunit(SfdHandle* handle, int value, int scale)
+static inline int sftim_IsGetFrmTime(SfdHandle* handle, int value, int scale)
 {
-    int ready;
-    int special_timing;
-    int repeat_count;
-    int clock_scale;
-    int clock_value;
-    int adjustment;
-    SfdTimerLibraryWork* timer_library;
     SfdTimerState* timer;
+    SfdTimerLibraryWork* timer_library;
+    int clock_value;
+    int clock_scale;
+    int adjustment;
+    int clock_rate;
+    int frame_clock;
+    int repeat_count;
+    int special_timing;
+    float tolerance;
     float current_time;
     float target_time;
-    float tolerance;
+    int ready;
 
-    if (handle->conditions_primary[14] != 0) {
-        return 1;
-    }
     timer = &handle->timer_state;
-    clock_scale = timer->current_time_scale;
     timer_library = &SFLIB_libwork.timer_work;
+    clock_scale = timer->current_time_scale;
     adjustment = handle->conditions_primary[44];
     clock_value = timer->current_time_value;
     if (clock_scale == 1) {
@@ -66,16 +91,20 @@ int SFTIM_IsGetFrmTimeTunit(SfdHandle* handle, int value, int scale)
         } else if (timer->field_02CC < 0) {
             timer->field_02CC = 0;
             ready = 1;
-        } else if (UTY_CmpTime(value, scale,
-                               timer->field_02CC,
-                               timer_library->source) != 0) {
-            ready = 1;
         } else {
-            ready = 0;
+            frame_clock = timer->field_02CC;
+            if (UTY_CmpTime(value, scale, frame_clock,
+                           timer_library->source) != 0) {
+                ready = 1;
+            } else {
+                ready = 0;
+            }
         }
     } else {
-        target_time = (10000.0f * (float)value) / (float)scale;
-        clock_value += (clock_scale * adjustment) / timer_library->source;
+        clock_rate = timer_library->source;
+        clock_value += (clock_scale * adjustment) / clock_rate;
+        target_time = (float)value;
+        target_time = (10000.0f * target_time) / (float)scale;
         current_time =
             (10000.0f * (float)clock_value) /
             (float)clock_scale;
@@ -93,7 +122,7 @@ int SFTIM_IsGetFrmTimeTunit(SfdHandle* handle, int value, int scale)
             } else {
                 repeat_count = timer->frame_time_repeat_count;
                 special_timing = 0;
-                if (timer_library->source == 59940 &&
+                if (clock_rate == 59940 &&
                     handle->playback_settings.frame_rate_code <= 2 &&
                     timer->speed == 1000) {
                     special_timing = 1;
@@ -118,91 +147,107 @@ int SFTIM_IsGetFrmTimeTunit(SfdHandle* handle, int value, int scale)
     return ready;
 }
 
-/* TODO: [breakthrough needed] 88.40%; retail non-SDA constants and clock
- * reloads remain; verify compiler mode before register tuning. */
-int SFTIM_IsGetFrmTime(SfdHandle* handle, const SfdFrameTime* frame_time)
+int SFTIM_IsGetFrmTimeTunit(SfdHandle* handle, int value, int scale)
 {
-    int ready;
-    int special_timing;
-    int scale;
-    int value;
-    int clock_scale;
-    int clock_value;
-    int adjustment;
-    int repeat_count;
+    if (handle->conditions_primary[14] != 0) {
+        return 1;
+    }
+    return sftim_IsGetFrmTime(handle, value, scale);
+}
+
+static inline int sftim_IsGetFrameTime(SfdHandle* handle, const SfdFrameTime* frame_time)
+{
     SfdTimerState* timer;
     SfdTimerLibraryWork* timer_library;
+    int clock_value;
+    int clock_scale;
+    int scale;
+    int adjustment;
+    int clock_rate;
+    int repeat_count;
+    int special_timing;
+    float tolerance;
     float current_time;
     float target_time;
-    float tolerance;
+    int ready;
+    int value;
 
-    if (frame_time == 0) {
-        return 0;
-    }
     scale = frame_time->scale;
     value = frame_time->value;
     if (handle->conditions_primary[14] != 0) {
-        ready = 1;
-    } else {
-        timer = &handle->timer_state;
-        timer_library = &SFLIB_libwork.timer_work;
-        clock_scale = timer->current_time_scale;
-        adjustment = handle->conditions_primary[44];
-        clock_value = timer->current_time_value;
-        if (clock_scale == 1) {
-            if (clock_value == -2) {
-                ready = 1;
-            } else if (timer->field_02CC < 0) {
-                timer->field_02CC = 0;
-                ready = 1;
-            } else if (UTY_CmpTime(value, scale, timer->field_02CC,
-                                   timer_library->source) != 0) {
-                ready = 1;
-            } else {
-                ready = 0;
-            }
+        return 1;
+    }
+    timer = &handle->timer_state;
+    timer_library = &SFLIB_libwork.timer_work;
+    clock_scale = timer->current_time_scale;
+    adjustment = handle->conditions_primary[44];
+    clock_value = timer->current_time_value;
+    if (clock_scale == 1) {
+        if (clock_value == -2) {
+            ready = 1;
+        } else if (timer->field_02CC < 0) {
+            timer->field_02CC = 0;
+            ready = 1;
+        } else if (UTY_CmpTime(value, scale,
+                               timer->field_02CC,
+                               timer_library->source) != 0) {
+            ready = 1;
         } else {
-            target_time = (10000.0f * (float)value) / (float)scale;
-            clock_value += (clock_scale * adjustment) / timer_library->source;
-            current_time = (10000.0f * (float)clock_value) / (float)clock_scale;
-            if (handle->conditions_primary[15] != 1) {
-                tolerance = handle->conditions_primary[46];
-                if (current_time + tolerance < target_time) {
-                    ready = 0;
-                } else if (current_time - tolerance >= target_time) {
-                    ready = 1;
-                    if (timer->last_frame_time != target_time &&
-                        timer->previous_frame_time != target_time) {
-                        timer->previous_frame_time = target_time;
-                        timer->frame_time_repeat_count++;
-                    }
-                } else {
-                    repeat_count = timer->frame_time_repeat_count;
-                    special_timing = 0;
-                    if (timer_library->source == 59940 &&
-                        handle->playback_settings.frame_rate_code <= 2 &&
-                        timer->speed == 1000) {
-                        special_timing = 1;
-                    }
-                    if (repeat_count <= (special_timing != 0)) {
-                        ready = timer->previous_frame_ready;
-                    } else if (current_time < target_time) {
-                        ready = 0;
-                    } else {
-                        ready = 1;
-                    }
-                    timer->frame_time_repeat_count = 0;
-                    timer->previous_frame_ready = ready;
-                    timer->last_frame_time = target_time;
-                }
-            } else if (target_time <= current_time) {
-                ready = 1;
-            } else {
+            ready = 0;
+        }
+    } else {
+        clock_rate = timer_library->source;
+        clock_value += (clock_scale * adjustment) / clock_rate;
+        target_time = (float)value;
+        target_time = (10000.0f * target_time) / (float)scale;
+        current_time =
+            (10000.0f * (float)clock_value) /
+            (float)clock_scale;
+        if (handle->conditions_primary[15] != 1) {
+            tolerance = handle->conditions_primary[46];
+            if (current_time + tolerance < target_time) {
                 ready = 0;
+            } else if (current_time - tolerance >= target_time) {
+                ready = 1;
+                if (timer->last_frame_time != target_time &&
+                    timer->previous_frame_time != target_time) {
+                    timer->previous_frame_time = target_time;
+                    timer->frame_time_repeat_count++;
+                }
+            } else {
+                repeat_count = timer->frame_time_repeat_count;
+                special_timing = 0;
+                if (clock_rate == 59940 &&
+                    handle->playback_settings.frame_rate_code <= 2 &&
+                    timer->speed == 1000) {
+                    special_timing = 1;
+                }
+                if (repeat_count <= (special_timing != 0)) {
+                    ready = timer->previous_frame_ready;
+                } else if (current_time < target_time) {
+                    ready = 0;
+                } else {
+                    ready = 1;
+                }
+                timer->frame_time_repeat_count = 0;
+                timer->previous_frame_ready = ready;
+                timer->last_frame_time = target_time;
             }
+        } else if (target_time <= current_time) {
+            ready = 1;
+        } else {
+            ready = 0;
         }
     }
     return ready;
+}
+
+int SFTIM_IsGetFrmTime(SfdHandle* handle, const SfdFrameTime* frame_time)
+{
+    if (frame_time == 0) {
+        return 0;
+    }
+    return sftim_IsGetFrameTime(handle, frame_time);
 }
 
 int SFD_GetFps(SfdHandle* handle, int* frame_rate)
@@ -364,18 +409,6 @@ static void sftim_Tc2TimeN(int rate, SfdTimeCode* timecode,
     *scale = rate;
 }
 
-static const SfdTimeCodeConvertFn sftim_tc2time[9][2] = {
-    {0, 0},
-    {sftim_Tc2Time23N, sftim_Tc2Time23D},
-    {sftim_Tc2TimeN, sftim_Tc2TimeN},
-    {sftim_Tc2TimeN, sftim_Tc2TimeN},
-    {sftim_Tc2Time29N, sftim_Tc2Time29D},
-    {sftim_Tc2TimeN, sftim_Tc2TimeN},
-    {sftim_Tc2TimeN, sftim_Tc2TimeN},
-    {sftim_Tc2Time59N, sftim_Tc2Time59D},
-    {sftim_Tc2TimeN, sftim_Tc2TimeN},
-};
-
 void SFTIM_Tc2Time(SfdTimeCode* timecode, int* value, int* scale)
 {
     int frame_rate_code = timecode->frame_rate_code;
@@ -457,7 +490,8 @@ int SFTIM_ChkRegularTime(SfdHandle* handle, int* value, int* scale)
     return 1;
 }
 
-/* TODO: [near miss] 98.64%; previous-sample check/delta CSE omits retail reload. */
+/* TODO: [near miss] 98.64045%; previous-sample reload is CSE'd;
+ * donor fake volatile is excluded; need a real read boundary. */
 static int sftim_GetTimeExtClock(SfdHandle* handle, int* value, int* scale)
 {
     int sample;

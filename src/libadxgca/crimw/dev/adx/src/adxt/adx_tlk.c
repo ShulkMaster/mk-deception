@@ -419,11 +419,27 @@ s32 ADXT_GetErrCode(ADXTHandle* handle)
     return handle->error_code;
 }
 
-/* TODO: [near miss] 98.97727%; shared helper handle/index homes swap; declaration
- * reversal closes this body but regresses DiscardSmpl, while open-coding adds a base copy. */
 void ADXT_ExecServer(void)
 {
-    adxt_ExecServers();
+    long index;
+
+    ADXCRS_Lock();
+    if (adxt_tsvr_enter_cnt != 0) {
+        ADXCRS_Unlock();
+        return;
+    }
+    adxt_tsvr_enter_cnt = 1;
+    ADXCRS_Unlock();
+    ADXSJD_ExecServer();
+    adxt_tsvr_enter_cnt = 2;
+    for (index = 0; index < ADXT_MAX_HANDLES; index++) {
+        if (adxt_obj[index].used == 1) {
+            ADXT_ExecHndl(&adxt_obj[index]);
+        }
+    }
+    adxt_tsvr_enter_cnt = 3;
+    ADXRNA_ExecServer();
+    adxt_tsvr_enter_cnt = 0;
 }
 
 void ADXT_SetAutoRcvr(ADXTHandle* handle, s32 mode)
@@ -574,7 +590,8 @@ static inline void adxt_GetTimeSfreq2(
     *sample_count += handle->time_offset;
 }
 
-/* TODO: [breakthrough] 99.98%; pool offsets agree; six BSS offsets remain. */
+/* TODO: [breakthrough needed] 99.98%; six BSS offsets remain;
+ * recover the original file-ID buffer producer; RE4 lacks it. */
 void ADXT_GetTime(ADXTHandle* handle, s32* sample_count, s32* scale)
 {
     s32 actual_count;

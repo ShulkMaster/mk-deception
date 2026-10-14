@@ -304,8 +304,8 @@ int MPV_Init(int handle_count, void* work);
 MPVContext* MPV_Create(void);
 int MPV_Destroy(MPVContext* handle);
 void MPV_Finish(void);
-int MPV_DecodePicAtrSj(MPVContext* handle, SJ* stream);
-int MPV_DecodePicAtr(MPVContext* handle, const SJCK* input,
+int MPV_DecodePicAtrSj(void* handle, SJ* stream);
+int MPV_DecodePicAtr(MPVContext* handle, SJCK* input,
                      int* consumed_size);
 int MPV_GetPicAtr(MPVContext* handle, MPVPictureInfo* picture);
 void MPV_GetPicUsr(MPVContext* handle, void** buffer, int* size);

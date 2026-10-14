@@ -631,7 +631,8 @@ int gc_format_procedure(int device) {
     return 0;
 }
 
-/* TODO: [near miss] 95.51%; mount/delete/unmount CFG agrees; device copies and register homes remain. */
+/* TODO: [near miss] 95.51%; inline device-copy ownership remains;
+ * prior trace and SDK channel-type control give no new source fix. */
 int gc_delete_file(int device, const char* fileName) {
     s32 rc;
     int mapped;
@@ -720,8 +721,8 @@ static inline int calc_data_checksum(unsigned char* buffer, unsigned int length)
     return sum;
 }
 
-/* TODO: [breakthrough] 96.21%; shared cleanup/helpers recovered; checksum shift and SDK argument-copy boundaries remain. */
-int load_from_memcard2(int device, int modeFlag, unsigned int offset, const char* unusedStr,
+/* TODO: [breakthrough] 96.71%; channel copies partly restored; checksum producer and dead default branches remain. */
+int load_from_memcard2(const int device, int modeFlag, unsigned int offset, const char* unusedStr,
                        const char* fileName, void* buffer, int size, const char* unusedCardName,
                        int unusedNameLen, unsigned int* freeBlocks, int* freeBytes,
                        int* checksumFailOut) {
@@ -916,8 +917,8 @@ static inline int mem_card_close(CARDFileInfo* fileInfo) {
     }
 }
 
-static inline int mem_card_write(CARDFileInfo* fileInfo, void* buffer, int size) {
-    int writeLen;
+static inline int mem_card_write(CARDFileInfo* fileInfo, void* buffer, const int size) {
+    s32 writeLen;
     s32 rc;
 
     writeLen = ((size + 0x1FFF) / 0x2000) * 0x2000;
@@ -945,8 +946,8 @@ static inline int mem_card_write(CARDFileInfo* fileInfo, void* buffer, int size)
     }
 }
 
-/* TODO: [breakthrough] 96.67%; full-width checksum mask recovered; mask shift and SDK wrapper copies remain. */
-int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFlag,
+/* TODO: [breakthrough] 98.22%; cleanup and padding agree; recover checksum shift and mount owner before coloring. */
+int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int createFlag,
                      const char* unusedStr, const char* fileName, void* buffer, int size,
                      unsigned int* freeBlocks,
                      int* freeBytes, int skipChecksum, int unused0, int unusedMode, int unused1) {
@@ -1148,11 +1149,7 @@ int save_to_memcard2(int device, int modeFlag, unsigned int offset, int createFl
     return status;
 
 unmount_only:
-    if (device >= 0 && device < 2) {
-        do {
-            rc = CARDUnmount(device);
-        } while (rc == -1);
-    }
+    mem_card_unmount(device);
     return result;
 
 close_file:
@@ -1161,11 +1158,7 @@ close_file:
         rc = CARDClose(&fileInfo);
     } while (rc == -1);
 unmount_file:
-    if (device >= 0 && device < 2) {
-        do {
-            rc = CARDUnmount(device);
-        } while (rc == -1);
-    }
+    mem_card_unmount(device);
 unload_buffer:
     unload_memorycard_write_buffer();
 done:

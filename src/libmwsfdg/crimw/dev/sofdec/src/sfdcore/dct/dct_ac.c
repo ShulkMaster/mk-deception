@@ -1,13 +1,11 @@
+#include <math.h>
+
 double cos(double);
 const char* DCT_GetVerStr(void);
 
 static double dctac_i_const[8][8];
 static double dctac_f_const[8][8];
 static const char* dctac_version_dummy;
-
-static inline double dctac_Cos(double angle, int column) {
-    return cos(angle * (0.5 + (double)column));
-}
 
 void dctac_TransDouble(const double* input, double* output,
                        double transform[8][8]) {
@@ -37,6 +35,10 @@ void dctac_TransDouble(const double* input, double* output,
     }
 }
 
+static double dctac_Cos(double angle, int column) {
+    return cos(angle * (0.5 + (double)column));
+}
+
 void DCT_AcIdctDouble(const double input[64], double output[64]) {
     dctac_TransDouble(input, output, dctac_i_const);
 }
@@ -45,7 +47,6 @@ void DCT_AcFdctDouble(const double input[64], double output[64]) {
     dctac_TransDouble(input, output, dctac_f_const);
 }
 
-/* TODO: [near miss] 86.78%; retail BSS pool-base relocations remain; verify table layout. */
 void DCT_AcInit(void) {
     double* inverse_element;
     double* forward_element;

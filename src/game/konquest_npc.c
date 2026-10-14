@@ -1852,25 +1852,12 @@ static void npc_manager_release_npc_model(KonquestNpc* npc) {
     }
 }
 
-/* TODO: [near miss] 99.08%; visible-slot manager load schedules before counter init. */
 void npc_make_invisible(KonquestNpc* npc) {
-    int index;
-
     if (npc_is_visible_model_active(npc) == 0) {
         return;
     }
 
-    for (index = 0; index < 15; index++) {
-        if (npc_manager_pdata->visible_npcs[index] == npc) {
-            npc_manager_pdata->visible_npcs[index] = 0;
-            npc_manager_pdata->visible_count--;
-            if (npc->data->events[7].script_function == 1) {
-                npc_manager_pdata->special_count--;
-            }
-            npc->model_visible = 0;
-            break;
-        }
-    }
+    npc_manager_remove_visible_entry(npc);
 
     npc->wait_for_animation = 0;
     if (!npc->flags_1D_bit6) {
@@ -2422,11 +2409,11 @@ static void set_shadow_bones(MkObj* shadow, MkObj* source, float scale) {
     RwFrameUpdateObjects(shadow->frame);
 }
 
-/* TODO: [near miss] 99.19%; at.y/at.z temp FPRs and light_direction store order still differ from retail; light_direction store order permutations measured. */
 void npc_shadow_set_light_angle(Vec* angles) {
     MKMATRIX rotation;
     float projection_z;
     float projection_x;
+    const RwV3d* direction;
 
     if (angles == 0) {
         return;
@@ -2436,11 +2423,12 @@ void npc_shadow_set_light_angle(Vec* angles) {
     }
 
     YXZ_angles_to_MKMATRIX(angles, &rotation);
-    projection_x = rotation.at.x / rotation.at.y;
-    projection_z = rotation.at.z / rotation.at.y;
-    npc_shadows.light_direction.y = rotation.at.y;
-    npc_shadows.light_direction.z = rotation.at.z;
-    npc_shadows.light_direction.x = rotation.at.x;
+    direction = &rotation.at;
+    projection_x = direction->x / direction->y;
+    projection_z = direction->z / direction->y;
+    npc_shadows.light_direction.x = direction->x;
+    npc_shadows.light_direction.y = direction->y;
+    npc_shadows.light_direction.z = direction->z;
     MKMatrixSetIdentity(&npc_shadows.projection);
     npc_shadows.projection.up.x = -projection_x;
     npc_shadows.projection.up.y = 0.0f;
@@ -2942,7 +2930,7 @@ static float p_update_npc_shadows(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 98.46%; only the model-age loop header differs (manager/index register homes and li r3,0 position). */
+/* TODO: [near miss] 98.46%; strength-reduced model-age offset setup and manager/element homes remain; source-shape evidence needed. */
 void npc_update(int update_all) {
     struct NpcManagerPdata* manager;
     MkPtr* link;
@@ -3654,7 +3642,7 @@ float p_npc_idle(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.74%; post-setup NPC/event GPR swap and name add operand/dest coloring remain. */
+/* TODO: [near miss] 99.74%; eight post-setup owner/name register rows remain; need new coalescing evidence. */
 float p_npc_proc(void) {
     KonquestNpc* npc;
     struct KonquestNpcEvent* event;

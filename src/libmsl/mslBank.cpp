@@ -131,8 +131,24 @@ static inline void mslBankUnloadSounds(mslLoadedBank* bank)
     bank->system = 0;
 }
 
-/* TODO: [near miss] 99.73%; unload iterator uses r27 instead of r29;
- * loop-scope change regresses both helper consumers; retain phase boundaries. */
+static inline void mslBankStopAndUnloadSounds(mslLoadedBank* bank)
+{
+    int i;
+
+    mslBankStopActiveSounds(bank);
+    i = 0;
+
+    for (mslBankSoundEntry* sound_entry = bank->sounds.pointer;
+         i < bank->sound_count; i++, sound_entry++) {
+        if (sound_entry->sound != 0) {
+            mslSoundUncommit(sound_entry->sound);
+            mslSoundUnLoad(sound_entry->sound);
+        }
+        sound_entry->sound = 0;
+    }
+    bank->system = 0;
+}
+
 extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
     if (bank == 0) {
         return 0;
@@ -141,9 +157,7 @@ extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
     bank->system->pending_bank_loads--;
     if (bank != 0 && bank->system != 0) {
 
-        mslBankStopActiveSounds(bank);
-
-        mslBankUnloadSounds(bank);
+        mslBankStopAndUnloadSounds(bank);
     }
 
     if (bank->asset_info != 0) {
@@ -255,7 +269,8 @@ extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
     return 0;
 }
 
-/* TODO: [near miss] 99.72%; five unload-entry register rows remain; stop at coloring. */
+/* TODO: [near miss] 99.72%; five unload-cursor register rows remain;
+ * a combined phase rotates callback homes; retain separate phases and stop. */
 static void mslBankLoadResidentARamUploadComplete(void* callback_data) {
     _mslAsyncResponse* response;
     mslAsyncBank* async_bank = (mslAsyncBank*)callback_data;

@@ -16,15 +16,15 @@ typedef struct MfCiObject {
     signed char used;
     signed char status;
     unsigned char reserved_02[2];
-    int sector_length;
-    int file_size;
-    int sector_count;
-    int sector_position;
-    int transfer_length;
-    int request_sectors;
+    long sector_length;
+    long file_size;
+    long sector_count;
+    long sector_position;
+    long transfer_length;
+    long request_sectors;
     char filename[20];
-    int source_offset;
-    int request_length;
+    long source_offset;
+    long request_length;
 } MfCiObject;
 
 typedef void (*MfCiErrorCallback)(void* object, const char* message,
@@ -94,7 +94,41 @@ void* mfci_err_obj;
 char mfci_err_str[300];
 MfCiObject mfci_obj[MFCI_MAX_HANDLES];
 
+static int mfci_init_flag;
+
 extern CvFsInterface mfci_vtbl;
+
+static void mfci_call_errfn(const char* message, void* handle)
+{
+    if (mfci_err_func != 0) {
+        mfci_err_func(mfci_err_obj, message, handle);
+    }
+}
+
+MfCiObject* mfCiOpenEntry(int entry, int mode)
+{
+    MfCiObject* handle;
+
+    if (entry < 0 || entry >= MFCI_MAX_HANDLES) {
+        sprintf(mfci_err_str, mfci_bad_entry);
+        mfci_call_errfn(mfci_err_str, 0);
+        return 0;
+    }
+    if (mode != 0) {
+        sprintf(mfci_err_str, mfci_bad_entry_mode);
+        mfci_call_errfn(mfci_err_str, 0);
+        return 0;
+    }
+    handle = &mfci_obj[entry];
+    if (handle->used != 0) {
+        sprintf(mfci_err_str, mfci_no_entry_handle);
+        mfci_call_errfn(mfci_err_str, 0);
+        return 0;
+    }
+    mfci_init_flag = 1;
+    handle->used = 1;
+    return handle;
+}
 
 typedef char MfCiObjectSizeCheck[sizeof(MfCiObject) == 0x38 ? 1 : -1];
 typedef char CvFsInterfaceSizeCheck[sizeof(CvFsInterface) == 0x68 ? 1 : -1];
@@ -108,7 +142,7 @@ static inline int mfci_ByteToSct(int sector_length, int byte_count)
     return (sector_count - 1) / sector_length;
 }
 
-static inline MfCiObject* mfci_GetFreeHn(void)
+static MfCiObject* mfci_alloc(void)
 {
     MfCiObject* handle = 0;
     int index;
@@ -122,8 +156,8 @@ static inline MfCiObject* mfci_GetFreeHn(void)
     return handle;
 }
 
-static inline unsigned char* mfci_get_adr_size(const char* filename,
-                                                int* file_size)
+static unsigned char* mfci_get_adr_size(const char* filename,
+                                        int* file_size)
 {
     char* end;
     unsigned long address;
@@ -319,11 +353,9 @@ int mfCiTell(void* object)
     return handle->sector_position;
 }
 
-/* TODO: [near miss] 98.28%; clamp branch orientation agrees; positive arm has a separate store site instead of retail shared store. */
 int mfCiSeek(void* object, int offset, int origin)
 {
     MfCiObject* handle = object;
-    int position;
 
     if (handle == 0) {
         if (mfci_err_func != 0) {
@@ -340,18 +372,8 @@ int mfCiSeek(void* object, int offset, int origin)
     } else if (origin == 1) {
         handle->sector_position += offset;
     }
-
-    position = handle->sector_count;
-    if (handle->sector_position < position) {
-        position = handle->sector_position;
-    }
-    handle->sector_position = position;
-    position = handle->sector_position;
-    if (position > 0) {
-        handle->sector_position = position;
-    } else {
-        handle->sector_position = 0;
-    }
+    handle->sector_position = (handle->sector_position < handle->sector_count) ? handle->sector_position : handle->sector_count;
+    handle->sector_position = (handle->sector_position > 0) ? handle->sector_position : 0;
     SVM_Unlock();
     return handle->sector_position;
 }
@@ -369,8 +391,6 @@ void mfCiClose(void* object)
     }
 }
 
-/* TODO: [near miss] 99.25%; validation and parsing agree; BSS/rodata base
- * registers remain reversed after helper, local and search-form checks. */
 void* mfCiOpen(const char* filename, void* parameter, int mode)
 {
     MfCiObject* handle;
@@ -391,7 +411,7 @@ void* mfCiOpen(const char* filename, void* parameter, int mode)
         return 0;
     }
 
-    handle = mfci_GetFreeHn();
+    handle = mfci_alloc();
     if (handle == 0) {
         if (mfci_err_func != 0) {
             mfci_err_func(
@@ -433,7 +453,7 @@ void mfCiEntryErrFunc(MfCiErrorCallback callback, void* object)
  * bounded loop forms and no-peephole fail; stop pending compiler-phase evidence. */
 void mfCiExecServer(void)
 {
-    int index;
+    long index;
 
     for (index = 0; index < MFCI_MAX_HANDLES; index++) {
     }

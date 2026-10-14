@@ -256,7 +256,9 @@ struct PfxVm {
             unsigned char flag151_40 : 1;
             unsigned char flag151_20 : 1;
             unsigned char flag151_10 : 1;
-            unsigned char flags151_low : 4;
+            unsigned char : 2;
+            unsigned char flag151_02 : 1;
+            unsigned char : 1;
         };
     };
     char pad152[2];

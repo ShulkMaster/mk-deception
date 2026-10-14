@@ -21,21 +21,17 @@
 extern int mcard_msg_active;
 extern int mcard_hault_msg_active;
 
-static const char stringBase0[] =
-#include "platform/gcmcardmsg_stringBase0.inc"
-;
-
-#define STR_MC_FMT_SPACE (&stringBase0[0x5EA8])
-#define STR_MC_FMT_SSS (&stringBase0[0x5EE2])
-#define STR_MC_FMT_SS (&stringBase0[0x5EEB])
-#define STR_MC_FMT_BODY_SPACES (&stringBase0[0x5EF3])
-#define STR_MC_FMT_SSSS (&stringBase0[0x5ED6])
-#define STR_MC_FMT_SDSDS (&stringBase0[0x5F05])
-#define STR_MC_FMT_SS_COMMA (&stringBase0[0x5F14])
-#define STR_MC_FMT_SSSDSDS (&stringBase0[0x5EAA])
-#define STR_MC_FMT_NO_SPACE_OPTS (&stringBase0[0x5EBF])
-#define STR_MC_FMT_S (&stringBase0[0x5ED3])
-#define STR_MC_FMT_KONQUEST_BODY (&stringBase0[0x5EF6])
+#define STR_MC_FMT_SPACE " "
+#define STR_MC_FMT_SSS "%s %s %s"
+#define STR_MC_FMT_SS "%s %s%s"
+#define STR_MC_FMT_BODY_SPACES "  "
+#define STR_MC_FMT_SSSS "%s %s %s %s"
+#define STR_MC_FMT_SDSDS "%s %d %s %d %s"
+#define STR_MC_FMT_SS_COMMA "%s, %s"
+#define STR_MC_FMT_SSSDSDS "%s %s %s %d %s %d %s"
+#define STR_MC_FMT_NO_SPACE_OPTS "%s %s %s   %s\n%s   "
+#define STR_MC_FMT_S "%s"
+#define STR_MC_FMT_KONQUEST_BODY "%s%s  %s%s%s%s"
 
 static char message_buffer[0x1e];
 static char message_buf_temp1[0x1e];
@@ -382,7 +378,7 @@ void (*msg_routine_table[])(void) = {
 };
 
 const char* gc_mc_msg_text[] = {
-#include "platform/gcmcardmsg_text.inc"
+#include "platform/gcmcardmsg_text_literals.inc"
 };
 
 
@@ -1573,15 +1569,33 @@ int is_this_a_hault_message(void) {
     return is_hault_message_id(mcard_msg_active);
 }
 
-/* TODO: [breakthrough needed] 91.76%; status and halt predicates agree; named NBC/string pool hoisting remains. */
+static inline void boot_show_no_cards_message(void) {
+    const char* slotName;
+    const char* optA;
+    const char* bodyPart;
+
+    slotName = nbc_find_text(0x70, 0);
+    if (slotName == 0) {
+        slotName = STR_MC_FMT_SPACE;
+    }
+    init_memcard_msg_screen();
+    set_memcard_popup_message_title_text(nbc_find_text(0x32, 0));
+    bodyPart = nbc_find_text(0x33, 0);
+    sprintf(message_buffer, STR_MC_FMT_S, bodyPart);
+    set_memcard_popup_message_body_text(message_buffer);
+    optA = nbc_find_text(0x15, 0);
+    sprintf(message_buffer, STR_MC_FMT_SSSS,
+        nbc_find_text(0x12, 0), slotName, nbc_find_text(0x13, 0), optA);
+    set_memcard_popup_message_options_text(message_buffer);
+    set_memcard_popup_message_type(0xb);
+    fire_up_memcard_mesage_screen();
+}
+
 void gc_boot_space_check(void) {
     int prevStatus[2];
     int device;
     int statusRc;
     int anyPresent;
-    const char* slotName;
-    const char* optA;
-    const char* bodyPart;
     int active;
 
     if (low_storage_slot_message_done != 0) {
@@ -1607,21 +1621,7 @@ void gc_boot_space_check(void) {
             break;
         }
 
-        slotName = nbc_find_text(0x70, 0);
-        if (slotName == 0) {
-            slotName = STR_MC_FMT_SPACE;
-        }
-        init_memcard_msg_screen();
-        set_memcard_popup_message_title_text(nbc_find_text(0x32, 0));
-        bodyPart = nbc_find_text(0x33, 0);
-        sprintf(message_buffer, STR_MC_FMT_S, bodyPart);
-        set_memcard_popup_message_body_text(message_buffer);
-        optA = nbc_find_text(0x15, 0);
-        sprintf(message_buffer, STR_MC_FMT_SSSS,
-            nbc_find_text(0x12, 0), slotName, nbc_find_text(0x13, 0), optA);
-        set_memcard_popup_message_options_text(message_buffer);
-        set_memcard_popup_message_type(0xb);
-        fire_up_memcard_mesage_screen();
+        boot_show_no_cards_message();
         mcard_msg__no_cards_at_boot_answer = 0;
         mcard_msg_active = 0x19;
         prepare_for_haulting_message();
@@ -1647,8 +1647,7 @@ void gc_boot_space_check(void) {
     low_storage_slot_message_done = 1;
 }
 
-/* TODO: [near miss] 99.84%; body suffix/middle and options first text homes
- * differ in six saved-register rows; calls and cleanup agree. */
+/* TODO: [near miss] 99.835167%; six suffix/middle and options text GPR rows remain; calls and cleanup agree. */
 int gc_no_space_routine(const char* nameOrNull, int device) {
     const char* name;
     int ret;

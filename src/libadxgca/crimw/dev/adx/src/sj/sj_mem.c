@@ -13,7 +13,7 @@ typedef struct SJMemory {
     const SJInterface* interface;
     int used;
     const SJMemoryUuid* uuid;
-    int available;
+    long available;
     int read_position;
     u8* buffer;
     int buffer_size;
@@ -31,7 +31,7 @@ extern void SJERR_CallErr(const char* message);
 void SJMEM_Destroy(SJ* sj);
 const void* SJMEM_GetUuid(SJ* sj);
 void SJMEM_Reset(SJ* sj);
-void SJMEM_GetChunk(SJ* sj, int channel, int max_size, SJCK* chunk);
+void SJMEM_GetChunk(SJ* sj, long channel, long max_size, SJCK* chunk);
 void SJMEM_UngetChunk(SJ* sj, int channel, SJCK* chunk);
 void SJMEM_PutChunk(SJ* sj, int channel, SJCK* chunk);
 int SJMEM_GetNumData(SJ* sj, int channel);
@@ -192,7 +192,7 @@ void SJMEM_PutChunk(SJ* sj, int channel, SJCK* chunk)
     SJCRS_Unlock();
 }
 
-void SJMEM_GetChunk(SJ* sj, int channel, int max_size, SJCK* chunk)
+void SJMEM_GetChunk(SJ* sj, long channel, long max_size, SJCK* chunk)
 {
     SJMemory* memory = (SJMemory*)sj;
 

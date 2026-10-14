@@ -33,6 +33,10 @@ struct ChessSpellDefinition;
 struct ChessLibraryEntry;
 struct AnimPdata;
 
+typedef struct ChessRestriction {
+    unsigned int expiry_clock;
+} ChessRestriction;
+
 typedef struct ChessScreenRef {
     ScreenObj* screen;
     unsigned int instance;
@@ -158,7 +162,7 @@ typedef struct ChessPiece {
     int field_64; /* +0x64 - process stack kind */
     ChessPieceMovement* movement; /* +0x68 */
     struct ChessPieceMoveMap* move_map; /* +0x6C - packed three-bit cell values */
-    unsigned int access_restrictions[6]; /* +0x70 */
+    ChessRestriction access_restrictions[6]; /* +0x70 */
     struct ChessPieceSpellData* spells; /* +0x88 - allocated spell rules */
     unsigned int used_spells; /* +0x8C - bit per cast spell */
 } ChessPiece;
@@ -354,7 +358,7 @@ typedef struct ChessSavedPiece {
     int event_pending;
     int queued_event;
     int event_time;
-    unsigned int access_restrictions[6];
+    ChessRestriction access_restrictions[6];
     ChessSavedEffect effects[5];
     unsigned int effect_count;
 } ChessSavedPiece; /* 0x68 */
@@ -405,6 +409,16 @@ typedef struct ChessBoardSave {
             unsigned char p2_difficulty : 4;
             unsigned char p2_pad : 2;
         } ai_bits;
+        struct {
+            unsigned short pad_hi : 5;
+            unsigned short p1_type : 4;
+            unsigned short pad_lo : 7;
+        } ai_half_bits;
+        struct {
+            unsigned int pad_hi : 14;
+            unsigned int p2_type : 4;
+            unsigned int pad_lo : 14;
+        } ai_word_bits;
     };
     unsigned char active_x[2];
     unsigned char active_y[2];
@@ -490,6 +504,8 @@ typedef struct ChessManagerInfo {
     int spell_completion_clock; /* +0xD0 */
     unsigned int saved_field_118; /* +0xD4 */
     unsigned int cursor_track; /* +0xD8 */
+    struct MkPtr* tracked_sounds;
+    int fight_start_tick;
 } ChessManagerInfo;
 
 typedef struct ChessCursor {
@@ -550,8 +566,6 @@ typedef struct ChessModeState {
     ChessBoardRow* board; /* +0x38 */
     ChessSideState* sides[2]; /* +0x3C */
     ChessManagerInfo manager; /* +0x44 */
-    struct MkPtr* tracked_sounds; /* +0x120 */
-    int fight_start_tick; /* +0x124 */
     unsigned int turn_timeout; /* +0x128 */
     int input_transition_busy; /* +0x12C */
     ChessCameraInfo camera; /* +0x130 */

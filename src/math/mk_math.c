@@ -93,7 +93,8 @@ void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float 
 }
 #pragma pop
 
-/* TODO: [near miss] 92.64%; op order matches retail; one extra live FPR (f25-f27 vs f28-f31 frame 0x80 vs 0x70) in hit block. */
+/* TODO: [near miss] 94.81%; rounded dot grouping and 0x70 frame agree;
+ * scalar/helper FPR coloring remains after the bounded lifetime check. */
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, const Vec* cylAxis,
                          float radius, float* tNear, float* tFar) {
     float nx = dir->y * cylAxis->z - dir->z * cylAxis->y;
@@ -147,11 +148,15 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
         fy = nz * cylAxis->x - nx * cylAxis->z;
         fz = nx * cylAxis->y - ny * cylAxis->x;
         lenQ = fx * fx + fy * fy + fz * fz;
-        tMid = -((ox * cylAxis->y - oy * cylAxis->x) * nz + (oy * cylAxis->z - oz * cylAxis->y) * nx +
-                 (oz * cylAxis->x - ox * cylAxis->z) * ny);
+        tMid = -((oy * cylAxis->z - oz * cylAxis->y) * nx +
+                 (oz * cylAxis->x - ox * cylAxis->z) * ny +
+                 (ox * cylAxis->y - oy * cylAxis->x) * nz);
         tMid *= invLen;
         invQ = mk_inv_sqrt(lenQ);
-        denom = dir->x * (fx * invQ) + dir->y * (fy * invQ) + dir->z * (fz * invQ);
+        fy *= invQ;
+        fx *= invQ;
+        fz *= invQ;
+        denom = dir->x * fx + dir->y * fy + dir->z * fz;
         halfChord = radius * radius - dist * dist;
         halfChord = gxMathFastSqrt(halfChord);
         chordOffset = halfChord / denom;
@@ -317,15 +322,11 @@ void uv_v3_to_v3(Vec* out, Vec* from, Vec* to) {
     out->z *= inv;
 }
 
-#pragma push
-#pragma scheduling off
-/* TODO: [near miss] 74.65%; rounded seed and nested FMAs agree; input-load and FPR scheduling remain. */
-void v3_blend3(Vec* out, Vec* weights, const Vec* a, const Vec* b, const Vec* c) {
+void v3_blend3(Vec* out, Vec* weights, Vec* a, Vec* b, Vec* c) {
     out->x = weights->z * c->x + (weights->x * a->x + weights->y * b->x);
     out->y = weights->z * c->y + (weights->x * a->y + weights->y * b->y);
     out->z = weights->z * c->z + (weights->x * a->z + weights->y * b->z);
 }
-#pragma pop
 
 float normalize_v3_length(Vec* v) {
     float len = gxMathFastSqrt(v->x * v->x + v->y * v->y + v->z * v->z);
@@ -410,11 +411,9 @@ void scale_v3(Vec* out, const Vec* v, float s) {
 }
 #pragma pop
 
-#pragma push
-#pragma scheduling off
-/* TODO: [near miss] 97.22%; unity FPR and y/z input-load order differ;
- * arithmetic agrees; new source lifetime evidence needed. */
-void interp_v3(Vec* out, const Vec* a, const Vec* b, float t) {
+/* TODO: [near miss] 99.44%; operations and axis ordering agree;
+ * unity load/subtract FPR differs; stop at coloring. */
+void interp_v3(Vec* out, Vec* a, Vec* b, float t) {
     float s;
     float component;
 
@@ -427,7 +426,6 @@ void interp_v3(Vec* out, const Vec* a, const Vec* b, float t) {
     component = b->z;
     out->z = a->z * t + component * s;
 }
-#pragma pop
 
 void norm_angles_v3(Vec* ang) {
     ang->x = norm_angle_inline(ang->x);
@@ -502,11 +500,7 @@ void p3_x_mat(Vec* out, Vec* p, MKMATRIX* m) {
     out->z = m->pos.z + (p->z * m->at.z + (p->x * m->right.z + p->y * m->up.z));
 }
 
-#pragma push
-#pragma scheduling off
-#pragma optimization_level 1
-/* TODO: [breakthrough] 75.93684%; X/Y subtotal then Z agrees; verify operand scheduling and leaf optimization profile. */
-void mat_x_mat(MKMATRIX* out, const MKMATRIX* a, const MKMATRIX* b) {
+void mat_x_mat(MKMATRIX* out, MKMATRIX* a, MKMATRIX* b) {
     out->right.x = a->right.x * b->right.x + a->right.y * b->up.x + a->right.z * b->at.x;
     out->right.y = a->right.x * b->right.y + a->right.y * b->up.y + a->right.z * b->at.y;
     out->right.z = a->right.x * b->right.z + a->right.y * b->up.z + a->right.z * b->at.z;
@@ -518,7 +512,6 @@ void mat_x_mat(MKMATRIX* out, const MKMATRIX* a, const MKMATRIX* b) {
     out->at.z = a->at.x * b->right.z + a->at.y * b->up.z + a->at.z * b->at.z;
     out->flags = a->flags & b->flags;
 }
-#pragma pop
 
 void set_mat(MKMATRIX* dst, const MKMATRIX* src) {
     *dst = *src;
@@ -633,12 +626,12 @@ void quat_x_quat(Quat* out, const Quat* a, const Quat* b) {
     out->w = aw * bw - ax * bx - ay * by - az * bz;
 }
 
-/* TODO: [near miss] 87.76382%; entry scheduling and antiparallel/sqrt FP homes remain. */
+/* TODO: [near miss] 90.28%; retail keeps stwu first (ours sinks it below the dot loads) and the antiparallel ax/az f7/f8 homes swap. */
 void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
     float dot = v1->x * v2->x + v1->y * v2->y + v1->z * v2->z;
-    float ax;
-    float ay;
     float az;
+    float ay;
+    float ax;
     float len;
     float inv;
     float half;
@@ -817,7 +810,8 @@ static inline void yxz_trig_to_matrix(
     m->flags = 3;
 }
 
-/* TODO: [near miss] 99.0625%; rounded products and trig slots agree; nine trig-input/cysz FP rows remain. */
+/* TODO: [near miss] 99.0625%; nine trig-input/cysz FPR homes differ;
+ * stop at coloring after the compatible neutral combinations stay byte-identical. */
 void YXZ_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
     float cz;
     float sz;

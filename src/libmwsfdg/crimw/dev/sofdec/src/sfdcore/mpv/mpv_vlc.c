@@ -1,332 +1,126 @@
+#include "dolphin/types.h"
 #include "sofdec/uty_mem.h"
 
-static const signed short mpvvlt_run_level_0c[16] = {
-    0x1201, 0x1101, 0x1001, 0x0F01, 0x0306, 0x0210, 0x020F, 0x020E,
-    0x020D, 0x020C, 0x020B, 0x011F, 0x011E, 0x011D, 0x011C, 0x011B,
+#define MPVVLC_VLC_AREA_SIZE 0x5B0
+
+#define MBT_INTRA 0x01
+#define MBT_PATTERN 0x02
+#define MBT_BACKWARD 0x04
+#define MBT_FORWARD 0x08
+#define MBT_QUANT 0x10
+#define MBT_FIXED 0x20
+
+#define MBAI_STUFFING 34
+#define MBAI_ESCAPE 35
+#define MBAI_ERROR 36
+
+#define RL(len, run, level) (((len) << 16) | ((run) << 8) | (level))
+#define DCSIZ(size, len) (((size) << 4) | (len))
+#define CBP(cbp, len) ((((cbp) & 3) << 14) | ((cbp) << 8) | (len))
+#define MV(len, code) (((len) << 8) | (u8)(code))
+#define MBTYPE(type, len) (((type) << 8) | (len))
+#define MBAI(type, inc, len) (((type) << 10) | ((inc) << 4) | (len))
+
+static const u32 mpvvlt_run_level_0c[8] = {
+    0x12011101, 0x10010F01, 0x03060210, 0x020F020E, 0x020D020C, 0x020B011F, 0x011E011D, 0x011C011B,
 };
-static const signed short mpvvlt_run_level_0b[16] = {
-    0x2800, 0x2700, 0x2600, 0x2500, 0x2400, 0x2300, 0x2200, 0x2100,
-    0x2000, 0x0E01, 0x0D01, 0x0C01, 0x0B01, 0x0A01, 0x0901, 0x0801,
+static const u32 mpvvlt_run_level_0b[8] = {
+    0x28002700, 0x26002500, 0x24002300, 0x22002100, 0x20000E01, 0x0D010C01, 0x0B010A01, 0x09010801,
 };
-static const signed short mpvvlt_run_level_0a[16] = {
-    0x1F00, 0x1E00, 0x1D00, 0x1C00, 0x1B00, 0x1A00, 0x1900, 0x1800,
-    0x1700, 0x1600, 0x1500, 0x1400, 0x1300, 0x1200, 0x1100, 0x1000,
+static const u32 mpvvlt_run_level_0a[8] = {
+    0x1F001E00, 0x1D001C00, 0x1B001A00, 0x19001800, 0x17001600, 0x15001400, 0x13001200, 0x11001000,
 };
-static const signed short mpvvlt_run_level_1[16] = {
-    0x020A, 0x0209, 0x0305, 0x0403, 0x0502, 0x0701, 0x0601, 0x0F00,
-    0x0E00, 0x0D00, 0x0C00, 0x011A, 0x0119, 0x0118, 0x0117, 0x0116,
+static const u32 mpvvlt_run_level_1[8] = {
+    0x020A0209, 0x03050403, 0x05020701, 0x06010F00, 0x0E000D00, 0x0C00011A, 0x01190118, 0x01170116,
 };
-static const signed short mpvvlt_run_level_2[16] = {
-    0x0B00, 0x0208, 0x0304, 0x0A00, 0x0402, 0x0207, 0x0115, 0x0114,
-    0x0900, 0x0113, 0x0112, 0x0501, 0x0303, 0x0800, 0x0206, 0x0111,
+static const u32 mpvvlt_run_level_2[8] = {
+    0x0B000208, 0x03040A00, 0x04020207, 0x01150114, 0x09000113, 0x01120501, 0x03030800, 0x02060111,
 };
-static const signed short mpvvlt_run_level_4[8] = {
-    0x0110, 0x0205, 0x0700, 0x0302, 0x0401, 0x010F, 0x010E, 0x0204,
+static const u32 mpvvlt_run_level_4[4] = {
+    0x01100205, 0x07000302, 0x0401010F, 0x010E0204,
 };
 
-signed short* mpvvlc_mbai_i_0;
-signed short* mpvvlc_mbai_i_1;
-signed short* mpvvlc_mbai_p_0;
-signed short* mpvvlc_mbai_p_1;
-signed short* mpvvlc_mbai_b_0;
-signed short* mpvvlc_mbai_b_1;
-signed short* mpvvlc_p_mbtype;
-signed short* mpvvlc_b_mbtype;
-signed short* mpvvlc_motion_0;
-signed short* mpvvlc_motion_1;
-signed short* mpvvlc_cbp;
-unsigned char* mpvvlc_y_dcsiz;
-unsigned char* mpvvlc_c_dcsiz;
-unsigned char* mpvvlc2_y_dcsiz;
-unsigned char* mpvvlc2_c_dcsiz;
-signed short* mpvvlc_run_level_0c;
-signed short* mpvvlc_run_level_0b;
-signed short* mpvvlc_run_level_0a;
-signed short* mpvvlc_run_level_1;
-signed short* mpvvlc_run_level_2;
-signed short* mpvvlc_run_level_4;
-unsigned int* mpvvlc_run_level_8;
+s16 *mpvvlc_mbai_i_0;
+s16 *mpvvlc_mbai_i_1;
+s16 *mpvvlc_mbai_p_0;
+s16 *mpvvlc_mbai_p_1;
+s16 *mpvvlc_mbai_b_0;
+s16 *mpvvlc_mbai_b_1;
+s16 *mpvvlc_p_mbtype;
+s16 *mpvvlc_b_mbtype;
+s16 *mpvvlc_motion_0;
+s16 *mpvvlc_motion_1;
+s16 *mpvvlc_cbp;
+s8 *mpvvlc_y_dcsiz;
+s8 *mpvvlc_c_dcsiz;
+s8 *mpvvlc2_y_dcsiz;
+s8 *mpvvlc2_c_dcsiz;
+u32 *mpvvlc_run_level_0c;
+u32 *mpvvlc_run_level_0b;
+u32 *mpvvlc_run_level_0a;
+u32 *mpvvlc_run_level_1;
+u32 *mpvvlc_run_level_2;
+u32 *mpvvlc_run_level_4;
+u32 *mpvvlc_run_level_8;
 
-static signed short mpvvlt_mbai_i_0[256];
-static signed short mpvvlt_mbai_i_1[64];
-static signed short mpvvlt_mbai_p_0[128];
-static signed short mpvvlt_mbai_p_1[32];
-static signed short mpvvlt_mbai_b_0[128];
-static signed short mpvvlt_mbai_b_1[32];
-static signed short mpvvlt_p_mbtype[32];
-static signed short mpvvlt_b_mbtype[64];
-static signed short mpvvlt_motion_0[128];
-static signed short mpvvlt_motion_1[32];
-static signed short mpvvlt_cbp[512];
-static unsigned char mpvvlt_y_dcsiz[128];
-static unsigned char mpvvlt_c_dcsiz[128];
-static unsigned char mpvvlt2_y_dcsiz[1024];
-static unsigned char mpvvlt2_c_dcsiz[1024];
-static unsigned int mpvvlt_run_level_8[128];
+static s16 mpvvlt_mbai_i_0[0x100];
+static s16 mpvvlt_mbai_i_1[0x40];
+static s16 mpvvlt_mbai_p_0[0x80];
+static s16 mpvvlt_mbai_p_1[0x20];
+static s16 mpvvlt_mbai_b_0[0x80];
+static s16 mpvvlt_mbai_b_1[0x20];
+static s16 mpvvlt_p_mbtype[0x20];
+static s16 mpvvlt_b_mbtype[0x40];
+static s16 mpvvlt_motion_0[0x80];
+static s16 mpvvlt_motion_1[0x20];
+static s16 mpvvlt_cbp[0x200];
+static s8 mpvvlt_y_dcsiz[0x80];
+static s8 mpvvlt_c_dcsiz[0x80];
+static s8 mpvvlt2_y_dcsiz[0x400];
+static s8 mpvvlt2_c_dcsiz[0x400];
+static u32 mpvvlt_run_level_8[0x80];
 
-typedef struct MPVVLCWork {
-    signed short b_mbtype[64];
-    signed short p_mbtype[32];
-    signed short motion_1[32];
-    signed short motion_0[128];
-    unsigned char c_dcsiz[128];
-    unsigned char y_dcsiz[128];
-    signed short run_level_0c[16];
-    signed short run_level_0b[16];
-    signed short run_level_0a[16];
-    signed short run_level_1[16];
-    signed short run_level_2[16];
-    signed short run_level_4[8];
-    unsigned int run_level_8[128];
-} MPVVLCWork;
-
-typedef struct MPVContext MPVContext;
-
-static inline void mpvvlc_fill_u8(unsigned char* output, long count,
-                                  unsigned char value) {
-    int i;
-
-    for (i = 0; i < count; i++) {
-        *output++ = value;
-    }
-}
-
-#define mpvvlc_pack_motion(length, code) \
-    ((signed short)(((length) << 8) | (unsigned char)(code)))
-#define mpvvlc_pack_cbp(cbp, length) \
-    ((signed short)((((cbp) & 3) << 14) | ((cbp) << 8) | (length)))
-#define mpvvlc_pack_mbai(value, flags, length) \
-    ((signed short)(((value) << 4) | (flags) | (length)))
-#define mpvvlc_pack_mbai_base(base, flags, length) \
-    ((signed short)((base) | (flags) | (length)))
-static inline void mpvvlc_fill_s16(signed short* output, long count,
-                                    signed short value) {
-    int i;
-
-    for (i = 0; i < count; i++) {
-        output[i] = value;
-    }
-}
-
-#define mpvvlc_emit_mbai_p_8(output, base)                                \
-    do {                                                                  \
-        *(output)++ = mpvvlc_pack_mbai_base((base), 0x0000, 8);           \
-        *(output)++ = mpvvlc_pack_mbai_base((base), 0xA000, 11);          \
-        mpvvlc_fill_s16((output), 2,                                      \
-                         mpvvlc_pack_mbai_base((base), 0x8800, 10));      \
-        (output) += 2;                                                    \
-        mpvvlc_fill_s16((output), 4,                                      \
-                         mpvvlc_pack_mbai_base((base), 0xA800, 9));       \
-        (output) += 4;                                                    \
-    } while (0)
-
-#define mpvvlc_emit_mbai_p_16_range(output, first, last, length) \
-    do { \
-        int range_increment; \
-        int repeat; \
-        for (range_increment = (first); range_increment >= (last); range_increment--) { \
-            for (repeat = 0; repeat < 2; repeat++) { \
-                *(output)++ = mpvvlc_pack_mbai(range_increment, 0x0000, (length)); \
-            } \
-            for (repeat = 0; repeat < 2; repeat++) { \
-                *(output)++ = mpvvlc_pack_mbai(range_increment, 0xA000, (length) + 3); \
-            } \
-            for (repeat = 0; repeat < 4; repeat++) { \
-                *(output)++ = mpvvlc_pack_mbai(range_increment, 0x8800, (length) + 2); \
-            } \
-            for (repeat = 0; repeat < 8; repeat++) { \
-                *(output)++ = mpvvlc_pack_mbai(range_increment, 0xA800, (length) + 1); \
-            } \
-        } \
-    } while (0)
-
-#define mpvvlc_emit_mbai_b_medium_range(output, first, last, length) \
-    do { \
-        long increment; \
-        long repeat; \
-        for (increment = (first); increment >= (last); --increment) { \
-            for (repeat = 0; repeat < 2; ++repeat) { \
-                *(output)++ = mpvvlc_pack_mbai(increment, 0x0000, (length)); \
-            } \
-            *(output)++ = mpvvlc_pack_mbai(increment, 0x9000, (length) + 3); \
-            *(output)++ = mpvvlc_pack_mbai(increment, 0x9800, (length) + 3); \
-            for (repeat = 0; repeat < 2; ++repeat) { \
-                *(output)++ = mpvvlc_pack_mbai(increment, 0xB000, (length) + 2); \
-            } \
-            for (repeat = 0; repeat < 2; ++repeat) { \
-                *(output)++ = mpvvlc_pack_mbai(increment, 0xB800, (length) + 2); \
-            } \
-        } \
-    } while (0)
-
-#define mpvvlc_emit_mbai_b_range(output, first, last, length) \
-    do { \
-        long increment; \
-        long repeat; \
-        for (increment = (first); increment >= (last); --increment) { \
-            for (repeat = 0; repeat < 2; ++repeat) { \
-                *(output)++ = mpvvlc_pack_mbai(increment, 0x0000, (length)); \
-            } \
-            *(output)++ = mpvvlc_pack_mbai(increment, 0xA000, (length) + 4); \
-            *(output)++ = mpvvlc_pack_mbai(increment, 0xA800, (length) + 4); \
-            for (repeat = 0; repeat < 2; ++repeat) { \
-                *(output)++ = mpvvlc_pack_mbai(increment, 0x9000, (length) + 3); \
-            } \
-            for (repeat = 0; repeat < 2; ++repeat) { \
-                *(output)++ = mpvvlc_pack_mbai(increment, 0x9800, (length) + 3); \
-            } \
-            for (repeat = 0; repeat < 4; ++repeat) { \
-                *(output)++ = mpvvlc_pack_mbai(increment, 0xB000, (length) + 2); \
-            } \
-            for (repeat = 0; repeat < 4; ++repeat) { \
-                *(output)++ = mpvvlc_pack_mbai(increment, 0xB800, (length) + 2); \
-            } \
-        } \
-    } while (0)
-
-#define mpvvlc_emit_mbai_b_pair_range(output, first, last, length) \
-    do { \
-        long increment; \
-        long repeat; \
-        for (increment = (first); increment >= (last); --increment) { \
-            for (repeat = 0; repeat < 2; ++repeat) { \
-                *(output)++ = mpvvlc_pack_mbai(increment, 0, (length)); \
-            } \
-        } \
-    } while (0)
-
-#define mpvvlc_emit_mbai_b_single_range(output, first, last, length) \
-    do { \
-        long increment; \
-        for (increment = (first); increment >= (last); --increment) { \
-            *(output)++ = mpvvlc_pack_mbai(increment, 0, (length)); \
-        } \
-    } while (0)
-
-#define mpvvlc_emit_mbai_b_short_range(output, first, last, length) \
-    do { \
-        long increment; \
-        long repeat; \
-        for (increment = (first); increment >= (last); --increment) { \
-            for (repeat = 0; repeat < 2; ++repeat) { \
-                *(output)++ = mpvvlc_pack_mbai(increment, 0, (length)); \
-            } \
-            *(output)++ = mpvvlc_pack_mbai(increment, 0xB000, (length) + 2); \
-            *(output)++ = mpvvlc_pack_mbai(increment, 0xB800, (length) + 2); \
-        } \
-    } while (0)
+static void mpvvlc_InitMbaiIpic(void);
+static void mpvvlc_InitMbaiPpic(void);
+static void mpvvlc_InitMbaiBpic(void);
+static void mpvvlc_InitMbTypePpic(void);
+static void mpvvlc_InitMbTypeBpic(void);
+static void mpvvlc_InitMotion(void);
+static s16 *mpvvlc_InitCbpSub1(s16 *p);
+static s16 *mpvvlc_InitCbpSub2(s16 *p);
+static inline void mpvvlc_InitCbp(void);
+static void mpvvlc_InitDcSizY(void);
+static void mpvvlc_InitDcSizC(void);
+static void mpvvlc2_InitDcSizY(void);
+static void mpvvlc2_InitDcSizC(void);
 static void mpvvlc_InitIntRunLevel(void);
 
-static inline void mpvvlc_EmitDc(signed char** output, long count, signed char value)
+s32 MPVVLC_IsVlcSizErr(void)
 {
-    int i;
-    for (i = 0; i < count; i++) {
-        *(*output)++ = value;
-    }
-}
-static void mpvvlc2_InitDcSizC(void);
-static void mpvvlc2_InitDcSizY(void);
+    s32 siz;
+    s32 sz = sizeof(s16);
 
-static inline void mpvvlc_EmitDcSize(unsigned char** output, long count,
-                                     unsigned char value) {
-    int i;
-    for (i = 0; i < count; i++) {
-        *(*output)++ = value;
-    }
-}
-static void mpvvlc_InitDcSizC(void);
-static void mpvvlc_InitDcSizY(void);
-
-static inline void mpvvlc_EmitCbp(signed short** output,
-                                   long count, signed short value)
-{
-    int i;
-    for (i = 0; i < count; i++) {
-        *(*output)++ = value;
-    }
-}
-static signed short* mpvvlc_InitCbpSub2(signed short* output);
-static signed short* mpvvlc_InitCbpSub1(signed short* output);
-
-static inline void mpvvlc_fill_motion(signed short** output, long count,
-                                      signed short value) {
-    int i;
-
-    for (i = 0; i < count; i++) {
-        *(*output)++ = value;
-    }
-}
-
-static inline signed short mpvvlc_motion_entry(int length, int code) {
-    return (length << 8) | (unsigned char)code;
-}
-static void mpvvlc_InitMotion(void);
-static void mpvvlc_InitMbTypeBpic(void);
-static void mpvvlc_InitMbTypePpic(void);
-static void mpvvlc_InitMbaiBpic(void);
-static void mpvvlc_InitMbaiPpic(void);
-
-static inline void mpvvlc_append_s16(signed short** output, signed short value,
-                                      long count) {
-    int i;
-
-    for (i = 0; i < count; i++) {
-        *(*output)++ = value;
-    }
-}
-
-static inline void mpvvlc_append_mbai_i_range(
-    signed short** output, long maximum, long minimum, long length, long count) {
-    long increment;
-    int i;
-    signed short value;
-
-    for (increment = maximum; increment >= minimum; increment--) {
-        value = mpvvlc_pack_mbai(increment, 0x4400, length + 2);
-        for (i = 0; i < count; i++) {
-            *(*output)++ = value;
-        }
-        value = mpvvlc_pack_mbai(increment, 0x0400, length + 1);
-        for (i = 0; i < count; i++) {
-            *(*output)++ = value;
-        }
-    }
-}
-static void mpvvlc_InitMbaiIpic(void);
-void MPVVLC_Init(MPVVLCWork* work, MPVContext* decoder);
-int MPVVLC_IsVlcSizErr(void);
-
-
-int MPVVLC_IsVlcSizErr(void)
-{
-    long size;
-    long short_size = sizeof(short);
-
-    if (short_size != 2) {
+    if (sz != 2) {
         return 1;
     }
-    size = 0x5B0 - (sizeof(mpvvlt_run_level_8) + sizeof(mpvvlt_run_level_4) +
-                     sizeof(mpvvlt_run_level_2) + sizeof(mpvvlt_run_level_1) +
-                     sizeof(mpvvlt_run_level_0a) + sizeof(mpvvlt_run_level_0b) +
-                     sizeof(mpvvlt_run_level_0c) + sizeof(mpvvlt_y_dcsiz) +
-                     sizeof(mpvvlt_c_dcsiz) + sizeof(mpvvlt_motion_0) +
-                     sizeof(mpvvlt_motion_1) + sizeof(mpvvlt_p_mbtype) +
-                     sizeof(mpvvlt_b_mbtype));
-    return size < 0;
+    siz = MPVVLC_VLC_AREA_SIZE - (sizeof(mpvvlt_run_level_8) + sizeof(mpvvlt_run_level_4) +
+                      sizeof(mpvvlt_run_level_2) + sizeof(mpvvlt_run_level_1) +
+                      sizeof(mpvvlt_run_level_0a) + sizeof(mpvvlt_run_level_0b) +
+                      sizeof(mpvvlt_run_level_0c) + sizeof(mpvvlt_y_dcsiz) +
+                      sizeof(mpvvlt_c_dcsiz) + sizeof(mpvvlt_motion_0) + sizeof(mpvvlt_motion_1) +
+                      sizeof(mpvvlt_p_mbtype) + sizeof(mpvvlt_b_mbtype));
+    return siz < 0;
 }
 
-/* TODO: [breakthrough] 95.54%; deferred table layout agrees; descending work-buffer origin remains. */
-void MPVVLC_Init(MPVVLCWork* work, MPVContext* decoder) {
-    signed short* cbp_output;
-
+void MPVVLC_Init(u8 *vlc, void *ixa)
+{
     mpvvlc_InitMbaiIpic();
     mpvvlc_InitMbaiPpic();
     mpvvlc_InitMbaiBpic();
     mpvvlc_InitMbTypePpic();
     mpvvlc_InitMbTypeBpic();
     mpvvlc_InitMotion();
-    cbp_output = mpvvlc_InitCbpSub1(mpvvlt_cbp);
-    mpvvlc_InitCbpSub2(cbp_output);
+    mpvvlc_InitCbp();
     mpvvlc_InitDcSizY();
     mpvvlc_InitDcSizC();
     mpvvlc2_InitDcSizY();
@@ -348,443 +142,528 @@ void MPVVLC_Init(MPVVLCWork* work, MPVContext* decoder) {
     mpvvlc_c_dcsiz = mpvvlt_c_dcsiz;
     mpvvlc2_y_dcsiz = mpvvlt2_y_dcsiz;
     mpvvlc2_c_dcsiz = mpvvlt2_c_dcsiz;
-    mpvvlc_run_level_0c = (signed short*)mpvvlt_run_level_0c;
-    mpvvlc_run_level_0b = (signed short*)mpvvlt_run_level_0b;
-    mpvvlc_run_level_0a = (signed short*)mpvvlt_run_level_0a;
-    mpvvlc_run_level_1 = (signed short*)mpvvlt_run_level_1;
-    mpvvlc_run_level_2 = (signed short*)mpvvlt_run_level_2;
-    mpvvlc_run_level_4 = (signed short*)mpvvlt_run_level_4;
+    mpvvlc_run_level_0c = (u32 *)mpvvlt_run_level_0c;
+    mpvvlc_run_level_0b = (u32 *)mpvvlt_run_level_0b;
+    mpvvlc_run_level_0a = (u32 *)mpvvlt_run_level_0a;
+    mpvvlc_run_level_1 = (u32 *)mpvvlt_run_level_1;
+    mpvvlc_run_level_2 = (u32 *)mpvvlt_run_level_2;
+    mpvvlc_run_level_4 = (u32 *)mpvvlt_run_level_4;
     mpvvlc_run_level_8 = mpvvlt_run_level_8;
 
-    if (work != 0) {
-        mpvvlc_run_level_8 = work->run_level_8;
-        UTY_MemcpyDword(work->run_level_8, mpvvlt_run_level_8,
-                        sizeof(work->run_level_8) / sizeof(unsigned int));
-        mpvvlc_run_level_4 = work->run_level_4;
-        UTY_MemcpyDword((unsigned int*)work->run_level_4,
-                        (unsigned int*)mpvvlt_run_level_4,
-                        sizeof(work->run_level_4) / sizeof(unsigned int));
-        mpvvlc_run_level_2 = work->run_level_2;
-        UTY_MemcpyDword((unsigned int*)work->run_level_2,
-                        (unsigned int*)mpvvlt_run_level_2,
-                        sizeof(work->run_level_2) / sizeof(unsigned int));
-        mpvvlc_run_level_1 = work->run_level_1;
-        UTY_MemcpyDword((unsigned int*)work->run_level_1,
-                        (unsigned int*)mpvvlt_run_level_1,
-                        sizeof(work->run_level_1) / sizeof(unsigned int));
-        mpvvlc_run_level_0a = work->run_level_0a;
-        UTY_MemcpyDword((unsigned int*)work->run_level_0a,
-                        (unsigned int*)mpvvlt_run_level_0a,
-                        sizeof(work->run_level_0a) / sizeof(unsigned int));
-        mpvvlc_run_level_0b = work->run_level_0b;
-        UTY_MemcpyDword((unsigned int*)work->run_level_0b,
-                        (unsigned int*)mpvvlt_run_level_0b,
-                        sizeof(work->run_level_0b) / sizeof(unsigned int));
-        mpvvlc_run_level_0c = work->run_level_0c;
-        UTY_MemcpyDword((unsigned int*)work->run_level_0c,
-                        (unsigned int*)mpvvlt_run_level_0c,
-                        sizeof(work->run_level_0c) / sizeof(unsigned int));
-        mpvvlc_y_dcsiz = work->y_dcsiz;
-        UTY_MemcpyDword((unsigned int*)work->y_dcsiz,
-                        (unsigned int*)mpvvlt_y_dcsiz,
-                        sizeof(work->y_dcsiz) / sizeof(unsigned int));
-        mpvvlc_c_dcsiz = work->c_dcsiz;
-        UTY_MemcpyDword((unsigned int*)work->c_dcsiz,
-                        (unsigned int*)mpvvlt_c_dcsiz,
-                        sizeof(work->c_dcsiz) / sizeof(unsigned int));
-        mpvvlc_motion_0 = work->motion_0;
-        UTY_MemcpyDword((unsigned int*)work->motion_0,
-                        (unsigned int*)mpvvlt_motion_0,
-                        sizeof(work->motion_0) / sizeof(unsigned int));
-        mpvvlc_motion_1 = work->motion_1;
-        UTY_MemcpyDword((unsigned int*)work->motion_1,
-                        (unsigned int*)mpvvlt_motion_1,
-                        sizeof(work->motion_1) / sizeof(unsigned int));
-        mpvvlc_p_mbtype = work->p_mbtype;
-        UTY_MemcpyDword((unsigned int*)work->p_mbtype,
-                        (unsigned int*)mpvvlt_p_mbtype,
-                        sizeof(work->p_mbtype) / sizeof(unsigned int));
-        mpvvlc_b_mbtype = work->b_mbtype;
-        UTY_MemcpyDword((unsigned int*)work->b_mbtype,
-                        (unsigned int*)mpvvlt_b_mbtype,
-                        sizeof(work->b_mbtype) / sizeof(unsigned int));
+    if (vlc != 0) {
+        u8 *p;
+        u8 *rl;
+
+        p = vlc + MPVVLC_VLC_AREA_SIZE;
+        p -= sizeof(mpvvlt_run_level_8);
+        mpvvlc_run_level_8 = (u32 *)p;
+        UTY_MemcpyDword((unsigned int*)p, (unsigned int*)mpvvlt_run_level_8, sizeof(mpvvlt_run_level_8) / 4);
+        p -= sizeof(mpvvlt_run_level_4);
+        mpvvlc_run_level_4 = (u32 *)p;
+        UTY_MemcpyDword((unsigned int*)p, (unsigned int*)mpvvlt_run_level_4, sizeof(mpvvlt_run_level_4) / 4);
+        p -= sizeof(mpvvlt_run_level_2);
+        mpvvlc_run_level_2 = (u32 *)p;
+        UTY_MemcpyDword((unsigned int*)p, (unsigned int*)mpvvlt_run_level_2, sizeof(mpvvlt_run_level_2) / 4);
+        p -= sizeof(mpvvlt_run_level_1);
+        mpvvlc_run_level_1 = (u32 *)p;
+        UTY_MemcpyDword((unsigned int*)p, (unsigned int*)mpvvlt_run_level_1, sizeof(mpvvlt_run_level_1) / 4);
+        p -= sizeof(mpvvlt_run_level_0a);
+        mpvvlc_run_level_0a = (u32 *)p;
+        UTY_MemcpyDword((unsigned int*)p, (unsigned int*)mpvvlt_run_level_0a, sizeof(mpvvlt_run_level_0a) / 4);
+        p -= sizeof(mpvvlt_run_level_0b);
+        mpvvlc_run_level_0b = (u32 *)p;
+        UTY_MemcpyDword((unsigned int*)p, (unsigned int*)mpvvlt_run_level_0b, sizeof(mpvvlt_run_level_0b) / 4);
+        p -= sizeof(mpvvlt_run_level_0c);
+        mpvvlc_run_level_0c = (u32 *)p;
+        UTY_MemcpyDword((unsigned int*)p, (unsigned int*)mpvvlt_run_level_0c, sizeof(mpvvlt_run_level_0c) / 4);
+        rl = p;
+        p -= sizeof(mpvvlt_y_dcsiz);
+        mpvvlc_y_dcsiz = (s8 *)p;
+        UTY_MemcpyDword((unsigned int*)p, (unsigned int*)mpvvlt_y_dcsiz, sizeof(mpvvlt_y_dcsiz) / 4);
+        p = rl - (sizeof(mpvvlt_y_dcsiz) + sizeof(mpvvlt_c_dcsiz));
+        mpvvlc_c_dcsiz = (s8 *)p;
+        UTY_MemcpyDword((unsigned int*)p, (unsigned int*)mpvvlt_c_dcsiz, sizeof(mpvvlt_c_dcsiz) / 4);
+        p = rl - (sizeof(mpvvlt_y_dcsiz) + sizeof(mpvvlt_c_dcsiz) + sizeof(mpvvlt_motion_0));
+        mpvvlc_motion_0 = (s16 *)p;
+        UTY_MemcpyDword((unsigned int*)p, (unsigned int*)mpvvlt_motion_0, sizeof(mpvvlt_motion_0) / 4);
+        p = rl - (sizeof(mpvvlt_y_dcsiz) + sizeof(mpvvlt_c_dcsiz) + sizeof(mpvvlt_motion_0) +
+              sizeof(mpvvlt_motion_1));
+        mpvvlc_motion_1 = (s16 *)p;
+        UTY_MemcpyDword((unsigned int*)p, (unsigned int*)mpvvlt_motion_1, sizeof(mpvvlt_motion_1) / 4);
+        p = rl - (sizeof(mpvvlt_y_dcsiz) + sizeof(mpvvlt_c_dcsiz) + sizeof(mpvvlt_motion_0) +
+              sizeof(mpvvlt_motion_1) + sizeof(mpvvlt_p_mbtype));
+        mpvvlc_p_mbtype = (s16 *)p;
+        UTY_MemcpyDword((unsigned int*)p, (unsigned int*)mpvvlt_p_mbtype, sizeof(mpvvlt_p_mbtype) / 4);
+        p = rl - (sizeof(mpvvlt_y_dcsiz) + sizeof(mpvvlt_c_dcsiz) + sizeof(mpvvlt_motion_0) +
+              sizeof(mpvvlt_motion_1) + sizeof(mpvvlt_p_mbtype) + sizeof(mpvvlt_b_mbtype));
+        mpvvlc_b_mbtype = (s16 *)p;
+        UTY_MemcpyDword((unsigned int*)p, (unsigned int*)mpvvlt_b_mbtype, sizeof(mpvvlt_b_mbtype) / 4);
     }
 }
 
-/* TODO: [breakthrough] 99.06%; range helper restores ori/extsh and frame saves; low-table and final-range GPR homes remain. */
+#define MPVVLC_SET_MBAI_I(kmax, kmin, len, n)                                                  \
+    {                                                                                      \
+        s32 k;                                                                      \
+        s32 i;                                                                      \
+        s16 v;                                                                      \
+        for (k = (kmax); k >= (kmin); k--) {                                           \
+            v = MBAI(MBT_INTRA | MBT_QUANT, k, (len) + 2);                         \
+            for (i = 0; i < (n); i++) *p++ = v;                                    \
+            v = MBAI(MBT_INTRA, k, (len) + 1);                                     \
+            for (i = 0; i < (n); i++) *p++ = v;                                    \
+        }                                                                              \
+    }
+
 static void mpvvlc_InitMbaiIpic(void)
 {
-    signed short* output = mpvvlt_mbai_i_0;
+    s16 *p;
+    s32 i;
 
-    mpvvlc_append_s16(&output, 0x0240, 16);
-    mpvvlc_append_s16(&output, 0x023B, 2);
-    mpvvlc_append_s16(&output, 0x0240, 12);
-    mpvvlc_append_s16(&output, 0x022B, 2);
-    mpvvlc_append_s16(&output, 0x0240, 16);
+    p = mpvvlt_mbai_i_0;
+    for (i = 0; i < 16; i++) *p++ = MBAI(0, MBAI_ERROR, 0);
+    for (i = 0; i < 2; i++) *p++ = MBAI(0, MBAI_ESCAPE, 11);
+    for (i = 0; i < 12; i++) *p++ = MBAI(0, MBAI_ERROR, 0);
+    for (i = 0; i < 2; i++) *p++ = MBAI(0, MBAI_STUFFING, 11);
+    for (i = 0; i < 16; i++) *p++ = MBAI(0, MBAI_ERROR, 0);
+    MPVVLC_SET_MBAI_I(33, 22, 11, 1);
+    MPVVLC_SET_MBAI_I(21, 16, 10, 2);
+    MPVVLC_SET_MBAI_I(15, 10, 8, 8);
+    MPVVLC_SET_MBAI_I(9, 8, 7, 16);
 
-    mpvvlc_append_mbai_i_range(&output, 33, 22, 11, 1);
-    mpvvlc_append_mbai_i_range(&output, 21, 16, 10, 2);
-    mpvvlc_append_mbai_i_range(&output, 15, 10, 8, 8);
-    mpvvlc_append_mbai_i_range(&output, 9, 8, 7, 16);
-
-    output = mpvvlt_mbai_i_1;
-    mpvvlc_append_s16(&output, 0x0240, 4);
-    mpvvlc_append_mbai_i_range(&output, 7, 6, 5, 1);
-    mpvvlc_append_mbai_i_range(&output, 5, 4, 4, 2);
-    mpvvlc_append_mbai_i_range(&output, 3, 2, 3, 4);
-    mpvvlc_append_mbai_i_range(&output, 1, 1, 1, 16);
+    p = mpvvlt_mbai_i_1;
+    for (i = 0; i < 4; i++) *p++ = MBAI(0, MBAI_ERROR, 0);
+    MPVVLC_SET_MBAI_I(7, 6, 5, 1);
+    MPVVLC_SET_MBAI_I(5, 4, 4, 2);
+    MPVVLC_SET_MBAI_I(3, 2, 3, 4);
+    MPVVLC_SET_MBAI_I(1, 1, 1, 16);
 }
 
+#define MBT_P_MC (MBT_FIXED | MBT_FORWARD)
+#define MBT_P_PAT (MBT_FIXED | MBT_PATTERN)
+#define MBT_P_MCPAT (MBT_FIXED | MBT_FORWARD | MBT_PATTERN)
+
+#define MPVVLC_SET_MBAI_P0(kmax, kmin, len)                                                    \
+    {                                                                                      \
+        s32 k;                                                                      \
+        for (k = (kmax); k >= (kmin); k--) {                                           \
+            *p++ = MBAI(0, k, (len));                                              \
+        }                                                                              \
+    }
+#define MPVVLC_SET_MBAI_P1(kmax, kmin, len)                                                    \
+    {                                                                                      \
+        s32 k;                                                                      \
+        for (k = (kmax); k >= (kmin); k--) {                                           \
+            *p++ = MBAI(0, k, (len));                                              \
+            *p++ = MBAI(MBT_P_MCPAT, k, (len) + 1);                                \
+        }                                                                              \
+    }
+#define MPVVLC_SET_MBAI_P2(kmax, kmin, len)                                                    \
+    {                                                                                      \
+        s32 k;                                                                      \
+        s32 i;                                                                      \
+        for (k = (kmax); k >= (kmin); k--) {                                           \
+            *p++ = MBAI(0, k, (len));                                              \
+            *p++ = MBAI(MBT_P_PAT, k, (len) + 2);                                  \
+            for (i = 0; i < 2; i++) *p++ = MBAI(MBT_P_MCPAT, k, (len) + 1);        \
+        }                                                                              \
+    }
+#define MPVVLC_SET_MBAI_P3(kmax, kmin, len)                                                    \
+    {                                                                                      \
+        s32 k;                                                                      \
+        s32 i;                                                                      \
+        for (k = (kmax); k >= (kmin); k--) {                                           \
+            *p++ = MBAI(0, k, (len));                                              \
+            *p++ = MBAI(MBT_P_MC, k, (len) + 3);                                   \
+            for (i = 0; i < 2; i++) *p++ = MBAI(MBT_P_PAT, k, (len) + 2);          \
+            for (i = 0; i < 4; i++) *p++ = MBAI(MBT_P_MCPAT, k, (len) + 1);        \
+        }                                                                              \
+    }
+#define MPVVLC_SET_MBAI_P4(kmax, kmin, len)                                                    \
+    {                                                                                      \
+        s32 k;                                                                      \
+        s32 i;                                                                      \
+        for (k = (kmax); k >= (kmin); k--) {                                           \
+            for (i = 0; i < 2; i++) *p++ = MBAI(0, k, (len));                      \
+            for (i = 0; i < 2; i++) *p++ = MBAI(MBT_P_MC, k, (len) + 3);           \
+            for (i = 0; i < 4; i++) *p++ = MBAI(MBT_P_PAT, k, (len) + 2);          \
+            for (i = 0; i < 8; i++) *p++ = MBAI(MBT_P_MCPAT, k, (len) + 1);        \
+        }                                                                              \
+    }
 
 static void mpvvlc_InitMbaiPpic(void)
 {
-    signed short* output = mpvvlt_mbai_p_0;
-    int increment;
+    s16 *p;
+    s32 i;
 
-    mpvvlc_fill_s16(output, 8, mpvvlc_pack_mbai(0x24, 0, 0));
-    output += 8;
-    *output++ = mpvvlc_pack_mbai(0x23, 0, 11);
-    mpvvlc_fill_s16(output, 6, mpvvlc_pack_mbai(0x24, 0, 0));
-    output += 6;
-    *output++ = mpvvlc_pack_mbai(0x22, 0, 11);
-    mpvvlc_fill_s16(output, 8, mpvvlc_pack_mbai(0x24, 0, 0));
-    output += 8;
+    p = mpvvlt_mbai_p_0;
+    for (i = 0; i < 8; i++) *p++ = MBAI(0, MBAI_ERROR, 0);
+    *p++ = MBAI(0, MBAI_ESCAPE, 11);
+    for (i = 0; i < 6; i++) *p++ = MBAI(0, MBAI_ERROR, 0);
+    *p++ = MBAI(0, MBAI_STUFFING, 11);
+    for (i = 0; i < 8; i++) *p++ = MBAI(0, MBAI_ERROR, 0);
+    MPVVLC_SET_MBAI_P0(33, 22, 11);
+    MPVVLC_SET_MBAI_P1(21, 16, 10);
+    MPVVLC_SET_MBAI_P3(15, 10, 8);
+    MPVVLC_SET_MBAI_P4(9, 8, 7);
 
-    for (increment = 33; increment >= 22; increment--) {
-        *output++ = mpvvlc_pack_mbai(increment, 0, 11);
-    }
-
-    for (increment = 21; increment >= 16; increment--) {
-        *output++ = mpvvlc_pack_mbai(increment, 0x0000, 10);
-        *output++ = mpvvlc_pack_mbai(increment, 0xA800, 11);
-    }
-
-    for (increment = 15; increment >= 10; increment--) {
-        mpvvlc_emit_mbai_p_8(output, increment << 4);
-    }
-    mpvvlc_emit_mbai_p_16_range(output, 9, 8, 7);
-
-    output = mpvvlt_mbai_p_1;
-    mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai(0x24, 0, 0));
-    output += 2;
-    for (increment = 7; increment >= 6; increment--) {
-        *output++ = mpvvlc_pack_mbai(increment, 0x0000, 5);
-    }
-    for (increment = 5; increment >= 4; increment--) {
-        *output++ = mpvvlc_pack_mbai(increment, 0x0000, 4);
-        *output++ = mpvvlc_pack_mbai(increment, 0xA800, 5);
-    }
-    for (increment = 3; increment >= 2; increment--) {
-        *output++ = mpvvlc_pack_mbai(increment, 0x0000, 3);
-        *output++ = mpvvlc_pack_mbai(increment, 0x8800, 5);
-        mpvvlc_fill_s16(output, 2,
-                     mpvvlc_pack_mbai(increment, 0xA800, 4));
-        output += 2;
-    }
-    mpvvlc_emit_mbai_p_16_range(output, 1, 1, 1);
+    p = mpvvlt_mbai_p_1;
+    for (i = 0; i < 2; i++) *p++ = MBAI(0, MBAI_ERROR, 0);
+    MPVVLC_SET_MBAI_P0(7, 6, 5);
+    MPVVLC_SET_MBAI_P1(5, 4, 4);
+    MPVVLC_SET_MBAI_P2(3, 2, 3);
+    MPVVLC_SET_MBAI_P4(1, 1, 1);
 }
 
-/* TODO: [breakthrough] 92.88%; code-range grammar and all 160 values agree;
- * early B1 pointer lifetime remains; recover its original first-use owner. */
+#define MBT_B_FWD (MBT_FIXED | MBT_FORWARD)
+#define MBT_B_FWDPAT (MBT_FIXED | MBT_FORWARD | MBT_PATTERN)
+#define MBT_B_BWD (MBT_FIXED | MBT_BACKWARD)
+#define MBT_B_BWDPAT (MBT_FIXED | MBT_BACKWARD | MBT_PATTERN)
+#define MBT_B_BI (MBT_FIXED | MBT_FORWARD | MBT_BACKWARD)
+#define MBT_B_BIPAT (MBT_FIXED | MBT_FORWARD | MBT_BACKWARD | MBT_PATTERN)
+
+#define MPVVLC_SET_MBAI_B0(kmax, kmin, len)                                                    \
+    {                                                                                      \
+        s32 k;                                                                      \
+        for (k = (kmax); k >= (kmin); k--) {                                           \
+            *p++ = MBAI(0, k, (len));                                              \
+        }                                                                              \
+    }
+#define MPVVLC_SET_MBAI_B1(kmax, kmin, len)                                                    \
+    {                                                                                      \
+        s32 k;                                                                      \
+        s32 i;                                                                      \
+        for (k = (kmax); k >= (kmin); k--) {                                           \
+            for (i = 0; i < 2; i++) *p++ = MBAI(0, k, (len));                      \
+        }                                                                              \
+    }
+#define MPVVLC_SET_MBAI_B2(kmax, kmin, len)                                                    \
+    {                                                                                      \
+        s32 k;                                                                      \
+        s32 i;                                                                      \
+        for (k = (kmax); k >= (kmin); k--) {                                           \
+            for (i = 0; i < 2; i++) *p++ = MBAI(0, k, (len));                      \
+            *p++ = MBAI(MBT_B_BI, k, (len) + 2);                                   \
+            *p++ = MBAI(MBT_B_BIPAT, k, (len) + 2);                                \
+        }                                                                              \
+    }
+#define MPVVLC_SET_MBAI_B3(kmax, kmin, len)                                                    \
+    {                                                                                      \
+        s32 k;                                                                      \
+        s32 i;                                                                      \
+        for (k = (kmax); k >= (kmin); k--) {                                           \
+            for (i = 0; i < 2; i++) *p++ = MBAI(0, k, (len));                      \
+            *p++ = MBAI(MBT_B_BWD, k, (len) + 3);                                  \
+            *p++ = MBAI(MBT_B_BWDPAT, k, (len) + 3);                               \
+            for (i = 0; i < 2; i++) *p++ = MBAI(MBT_B_BI, k, (len) + 2);           \
+            for (i = 0; i < 2; i++) *p++ = MBAI(MBT_B_BIPAT, k, (len) + 2);        \
+        }                                                                              \
+    }
+#define MPVVLC_SET_MBAI_B4(kmax, kmin, len)                                                    \
+    {                                                                                      \
+        s32 k;                                                                      \
+        s32 i;                                                                      \
+        for (k = (kmax); k >= (kmin); k--) {                                           \
+            for (i = 0; i < 2; i++) *p++ = MBAI(0, k, (len));                      \
+            *p++ = MBAI(MBT_B_FWD, k, (len) + 4);                                  \
+            *p++ = MBAI(MBT_B_FWDPAT, k, (len) + 4);                               \
+            for (i = 0; i < 2; i++) *p++ = MBAI(MBT_B_BWD, k, (len) + 3);          \
+            for (i = 0; i < 2; i++) *p++ = MBAI(MBT_B_BWDPAT, k, (len) + 3);       \
+            for (i = 0; i < 4; i++) *p++ = MBAI(MBT_B_BI, k, (len) + 2);           \
+            for (i = 0; i < 4; i++) *p++ = MBAI(MBT_B_BIPAT, k, (len) + 2);        \
+        }                                                                              \
+    }
+
 static void mpvvlc_InitMbaiBpic(void)
 {
-    signed short* output1 = mpvvlt_mbai_b_1;
-    signed short* output = mpvvlt_mbai_b_0;
+    s16 *p;
+    s32 i;
 
-    mpvvlc_fill_s16(output, 8, mpvvlc_pack_mbai_base(0x240, 0, 0));
-    output += 8;
-    *output++ = mpvvlc_pack_mbai_base(0x230, 0, 11);
-    mpvvlc_fill_s16(output, 6, mpvvlc_pack_mbai_base(0x240, 0, 0));
-    output += 6;
-    *output++ = mpvvlc_pack_mbai_base(0x220, 0, 11);
-    mpvvlc_fill_s16(output, 8, mpvvlc_pack_mbai_base(0x240, 0, 0));
-    output += 8;
+    p = mpvvlt_mbai_b_0;
+    for (i = 0; i < 8; i++) *p++ = MBAI(0, MBAI_ERROR, 0);
+    *p++ = MBAI(0, MBAI_ESCAPE, 11);
+    for (i = 0; i < 6; i++) *p++ = MBAI(0, MBAI_ERROR, 0);
+    *p++ = MBAI(0, MBAI_STUFFING, 11);
+    for (i = 0; i < 8; i++) *p++ = MBAI(0, MBAI_ERROR, 0);
+    MPVVLC_SET_MBAI_B0(33, 22, 11);
+    MPVVLC_SET_MBAI_B1(21, 16, 10);
+    MPVVLC_SET_MBAI_B3(15, 10, 8);
+    MPVVLC_SET_MBAI_B4(9, 8, 7);
 
-    mpvvlc_emit_mbai_b_single_range(output, 33, 22, 11);
-    mpvvlc_emit_mbai_b_pair_range(output, 21, 16, 10);
-    mpvvlc_emit_mbai_b_medium_range(output, 15, 10, 8);
-    mpvvlc_emit_mbai_b_range(output, 9, 8, 7);
-
-    output = output1;
-    mpvvlc_fill_s16(output, 2, mpvvlc_pack_mbai_base(0x240, 0, 0));
-    output += 2;
-    mpvvlc_emit_mbai_b_single_range(output, 7, 6, 5);
-    mpvvlc_emit_mbai_b_pair_range(output, 5, 4, 4);
-    mpvvlc_emit_mbai_b_short_range(output, 3, 2, 3);
-    mpvvlc_emit_mbai_b_range(output, 1, 1, 1);
+    p = mpvvlt_mbai_b_1;
+    for (i = 0; i < 2; i++) *p++ = MBAI(0, MBAI_ERROR, 0);
+    MPVVLC_SET_MBAI_B0(7, 6, 5);
+    MPVVLC_SET_MBAI_B1(5, 4, 4);
+    MPVVLC_SET_MBAI_B2(3, 2, 3);
+    MPVVLC_SET_MBAI_B4(1, 1, 1);
 }
 
-static void mpvvlc_InitMbTypePpic(void) {
-    signed short* output = mpvvlt_p_mbtype;
-    int i;
-    long entry_count = 16;
-
-    *output++ = 0x1106;
-    *output++ = 0x1205;
-    *output++ = 0x1A05;
-    *output++ = 0x0105;
-    for (i = 0; i < 4; i++) *output++ = 0x0803;
-    for (i = 0; i < 8; i++) *output++ = 0x0202;
-    for (i = 0; i < entry_count; i++) *output++ = 0x0A01;
-}
-
-static void mpvvlc_InitMbTypeBpic(void) {
-    signed short* output = mpvvlt_b_mbtype;
-    int i;
-    long entry_count = 16;
-
-    *output++ = 0x1F00;
-    *output++ = 0x1106;
-    *output++ = 0x1606;
-    *output++ = 0x1A06;
-    for (i = 0; i < 2; i++) *output++ = 0x1E05;
-    for (i = 0; i < 2; i++) *output++ = 0x0105;
-    for (i = 0; i < 4; i++) *output++ = 0x0804;
-    for (i = 0; i < 4; i++) *output++ = 0x0A04;
-    for (i = 0; i < 8; i++) *output++ = 0x0403;
-    for (i = 0; i < 8; i++) *output++ = 0x0603;
-    for (i = 0; i < entry_count; i++) *output++ = 0x0C02;
-    for (i = 0; i < entry_count; i++) *output++ = 0x0E02;
-}
-
-/* TODO: [breakthrough needed] 67.33%; cursor guards agree; packed-value folding and pair scheduling need source evidence. */
-static void mpvvlc_InitMotion(void) {
-    signed short* output = mpvvlt_motion_0;
-    int code;
-
-    mpvvlc_fill_motion(&output, 24, 0x007F);
-    for (code = 16; code >= 11; code--) {
-        *output++ = mpvvlc_motion_entry(11, code);
-        *output++ = mpvvlc_motion_entry(11, -code);
-    }
-    for (code = 10; code >= 8; code--) {
-        mpvvlc_fill_motion(&output, 2, mpvvlc_motion_entry(10, code));
-        mpvvlc_fill_motion(&output, 2, mpvvlc_motion_entry(10, -code));
-    }
-    for (code = 7; code >= 5; code--) {
-        mpvvlc_fill_motion(&output, 8, mpvvlc_motion_entry(8, code));
-        mpvvlc_fill_motion(&output, 8, mpvvlc_motion_entry(8, -code));
-    }
-    mpvvlc_fill_motion(&output, 16, mpvvlc_motion_entry(7, 4));
-    mpvvlc_fill_motion(&output, 16, mpvvlc_motion_entry(7, -4));
-
-    output = mpvvlt_motion_1;
-    mpvvlc_fill_motion(&output, 2, 0x007F);
-    *output++ = mpvvlc_motion_entry(5, 3);
-    *output++ = mpvvlc_motion_entry(5, -3);
-    mpvvlc_fill_motion(&output, 2, mpvvlc_motion_entry(4, 2));
-    mpvvlc_fill_motion(&output, 2, mpvvlc_motion_entry(4, -2));
-    mpvvlc_fill_motion(&output, 4, mpvvlc_motion_entry(3, 1));
-    mpvvlc_fill_motion(&output, 4, mpvvlc_motion_entry(3, -1));
-    mpvvlc_fill_motion(&output, 16, mpvvlc_motion_entry(1, 0));
-}
-
-static signed short* mpvvlc_InitCbpSub1(signed short* output) {
-    int i;
-
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0, 0);
-    *output++ = mpvvlc_pack_cbp(0x27, 9);
-    *output++ = mpvvlc_pack_cbp(0x1B, 9);
-    *output++ = mpvvlc_pack_cbp(0x3B, 9);
-    *output++ = mpvvlc_pack_cbp(0x37, 9);
-    *output++ = mpvvlc_pack_cbp(0x2F, 9);
-    *output++ = mpvvlc_pack_cbp(0x1F, 9);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x3A, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x36, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x2E, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x1E, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x39, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x35, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x2D, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x1D, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x26, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x1A, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x25, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x19, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x2B, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x17, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x33, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x0F, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x2A, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x16, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x32, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x0E, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x29, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x15, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x31, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x0D, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x23, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x13, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x0B, 8);
-    for (i = 0; i < 2; i++) *output++ = mpvvlc_pack_cbp(0x07, 8);
-    return output;
-}
-
-static signed short* mpvvlc_InitCbpSub2(signed short* output)
+static void mpvvlc_InitMbTypePpic(void)
 {
-    int i;
-    for (i = 0; i < 4; i++) *output++ = 0xA207;
-    for (i = 0; i < 4; i++) *output++ = 0x9207;
-    for (i = 0; i < 4; i++) *output++ = 0x8A07;
-    for (i = 0; i < 4; i++) *output++ = 0x8607;
-    for (i = 0; i < 4; i++) *output++ = 0x6107;
-    for (i = 0; i < 4; i++) *output++ = 0x5107;
-    for (i = 0; i < 4; i++) *output++ = 0x4907;
-    for (i = 0; i < 4; i++) *output++ = 0x4507;
-    for (i = 0; i < 8; i++) *output++ = 0xFF06;
-    for (i = 0; i < 8; i++) *output++ = 0xC306;
-    for (i = 0; i < 8; i++) *output++ = 0x2406;
-    for (i = 0; i < 8; i++) *output++ = 0x1806;
-    mpvvlc_EmitCbp(&output, 16, 0xBE05);
-    mpvvlc_EmitCbp(&output, 16, 0x8205);
-    mpvvlc_EmitCbp(&output, 16, 0x7D05);
-    mpvvlc_EmitCbp(&output, 16, 0x4105);
-    mpvvlc_EmitCbp(&output, 16, 0x3805);
-    mpvvlc_EmitCbp(&output, 16, 0x3405);
-    mpvvlc_EmitCbp(&output, 16, 0x2C05);
-    mpvvlc_EmitCbp(&output, 16, 0x1C05);
-    mpvvlc_EmitCbp(&output, 16, 0x2805);
-    mpvvlc_EmitCbp(&output, 16, 0x1405);
-    mpvvlc_EmitCbp(&output, 16, 0x3005);
-    mpvvlc_EmitCbp(&output, 16, 0x0C05);
-    mpvvlc_EmitCbp(&output, 32, 0x2004);
-    mpvvlc_EmitCbp(&output, 32, 0x1004);
-    mpvvlc_EmitCbp(&output, 32, 0x0804);
-    mpvvlc_EmitCbp(&output, 32, 0x0404);
-    mpvvlc_EmitCbp(&output, 64, 0x3C03);
-    return output;
+    s16 *p;
+    s32 i;
+
+    p = mpvvlt_p_mbtype;
+    *p++ = MBTYPE(MBT_INTRA | MBT_QUANT, 6);
+    *p++ = MBTYPE(MBT_PATTERN | MBT_QUANT, 5);
+    *p++ = MBTYPE(MBT_FORWARD | MBT_PATTERN | MBT_QUANT, 5);
+    *p++ = MBTYPE(MBT_INTRA, 5);
+    for (i = 0; i < 4; i++) *p++ = MBTYPE(MBT_FORWARD, 3);
+    for (i = 0; i < 8; i++) *p++ = MBTYPE(MBT_PATTERN, 2);
+    for (i = 0; i < 16; i++) *p++ = MBTYPE(MBT_FORWARD | MBT_PATTERN, 1);
 }
 
-static void mpvvlc_InitDcSizY(void) {
-    unsigned char* output = mpvvlt_y_dcsiz;
+static void mpvvlc_InitMbTypeBpic(void)
+{
+    s16 *p;
+    s32 i;
 
-    mpvvlc_EmitDcSize(&output, 32, 0x12);
-    mpvvlc_EmitDcSize(&output, 32, 0x22);
-    mpvvlc_EmitDcSize(&output, 16, 0x03);
-    mpvvlc_EmitDcSize(&output, 16, 0x33);
-    mpvvlc_EmitDcSize(&output, 16, 0x43);
-    mpvvlc_EmitDcSize(&output, 8, 0x54);
-    mpvvlc_EmitDcSize(&output, 4, 0x65);
-    mpvvlc_EmitDcSize(&output, 2, 0x76);
-    *(signed char*)output++ = 0x87;
-    *(signed char*)output = 0x87;
+    p = mpvvlt_b_mbtype;
+    *p++ = MBTYPE(0x1F, 0);
+    *p++ = MBTYPE(MBT_INTRA | MBT_QUANT, 6);
+    *p++ = MBTYPE(MBT_BACKWARD | MBT_PATTERN | MBT_QUANT, 6);
+    *p++ = MBTYPE(MBT_FORWARD | MBT_PATTERN | MBT_QUANT, 6);
+    for (i = 0; i < 2; i++) *p++ = MBTYPE(MBT_FORWARD | MBT_BACKWARD | MBT_PATTERN | MBT_QUANT, 5);
+    for (i = 0; i < 2; i++) *p++ = MBTYPE(MBT_INTRA, 5);
+    for (i = 0; i < 4; i++) *p++ = MBTYPE(MBT_FORWARD, 4);
+    for (i = 0; i < 4; i++) *p++ = MBTYPE(MBT_FORWARD | MBT_PATTERN, 4);
+    for (i = 0; i < 8; i++) *p++ = MBTYPE(MBT_BACKWARD, 3);
+    for (i = 0; i < 8; i++) *p++ = MBTYPE(MBT_BACKWARD | MBT_PATTERN, 3);
+    for (i = 0; i < 16; i++) *p++ = MBTYPE(MBT_FORWARD | MBT_BACKWARD, 2);
+    for (i = 0; i < 16; i++) *p++ = MBTYPE(MBT_FORWARD | MBT_BACKWARD | MBT_PATTERN, 2);
 }
 
-static void mpvvlc_InitDcSizC(void) {
-    unsigned char* output = mpvvlt_c_dcsiz;
+#define MPVVLC_SET_MOTION(len, kmax, kmin, n)                                                  \
+    {                                                                                      \
+        s32 k;                                                                      \
+        s32 i;                                                                      \
+        s16 v;                                                                      \
+        for (k = (kmax); k >= (kmin); k--) {                                           \
+            v = MV(len, k);                                                        \
+            for (i = 0; i < (n); i++) *p++ = v;                                    \
+            v = MV(len, -k);                                                       \
+            for (i = 0; i < (n); i++) *p++ = v;                                    \
+        }                                                                              \
+    }
 
-    mpvvlc_EmitDcSize(&output, 32, 0x02);
-    mpvvlc_EmitDcSize(&output, 32, 0x12);
-    mpvvlc_EmitDcSize(&output, 32, 0x22);
-    mpvvlc_EmitDcSize(&output, 16, 0x33);
-    mpvvlc_EmitDcSize(&output, 8, 0x44);
-    mpvvlc_EmitDcSize(&output, 4, 0x55);
-    mpvvlc_EmitDcSize(&output, 2, 0x66);
-    *output++ = 0x77;
-    *(signed char*)output = 0x88;
+#define MPVVLC_SET_MOTION_POS(len, kmax, kmin, n)                                              \
+    {                                                                                      \
+        s32 k;                                                                      \
+        s32 i;                                                                      \
+        s16 v;                                                                      \
+        for (k = (kmax); k >= (kmin); k--) {                                           \
+            v = MV(len, k);                                                        \
+            for (i = 0; i < (n); i++) *p++ = v;                                    \
+        }                                                                              \
+    }
+
+static void mpvvlc_InitMotion(void)
+{
+    s16 *p;
+    s32 i;
+
+    p = mpvvlt_motion_0;
+    for (i = 0; i < 24; i++) *p++ = 0x7F;
+    MPVVLC_SET_MOTION(11, 16, 11, 1);
+    MPVVLC_SET_MOTION(10, 10, 8, 2);
+    MPVVLC_SET_MOTION(8, 7, 5, 8);
+    MPVVLC_SET_MOTION(7, 4, 4, 16);
+
+    p = mpvvlt_motion_1;
+    for (i = 0; i < 2; i++) *p++ = 0x7F;
+    MPVVLC_SET_MOTION(5, 3, 3, 1);
+    MPVVLC_SET_MOTION(4, 2, 2, 2);
+    MPVVLC_SET_MOTION(3, 1, 1, 4);
+    MPVVLC_SET_MOTION_POS(1, 0, 0, 16);
 }
 
-static void mpvvlc2_InitDcSizY(void) {
-    signed char* output = (signed char*)mpvvlt2_y_dcsiz;
+static s16 *mpvvlc_InitCbpSub1(s16 *p)
+{
+    s32 i;
 
-    mpvvlc_EmitDc(&output, 256, 0x12);
-    mpvvlc_EmitDc(&output, 256, 0x22);
-    mpvvlc_EmitDc(&output, 128, 0x03);
-    mpvvlc_EmitDc(&output, 128, 0x33);
-    mpvvlc_EmitDc(&output, 128, 0x43);
-    mpvvlc_EmitDc(&output, 64, 0x54);
-    mpvvlc_EmitDc(&output, 32, 0x65);
-    mpvvlc_EmitDc(&output, 16, 0x76);
-    output[0] = 0x87; output[1] = 0x87;
-    output[2] = 0x87; output[3] = 0x87;
-    output[4] = 0x87; output[5] = 0x87;
-    output[6] = 0x87; output[7] = 0x87;
-    output[8] = 0x98; output[9] = 0x98;
-    output[10] = 0x98; output[11] = 0x98;
-    output[12] = 0xA9; output[13] = 0xA9;
-    output[14] = 0xB9; output[15] = 0xB9;
+    for (i = 0; i < 2; i++) *p++ = CBP(0, 0);
+    *p++ = CBP(39, 9);
+    *p++ = CBP(27, 9);
+    *p++ = CBP(59, 9);
+    *p++ = CBP(55, 9);
+    *p++ = CBP(47, 9);
+    *p++ = CBP(31, 9);
+    for (i = 0; i < 2; i++) *p++ = CBP(58, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(54, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(46, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(30, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(57, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(53, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(45, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(29, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(38, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(26, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(37, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(25, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(43, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(23, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(51, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(15, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(42, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(22, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(50, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(14, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(41, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(21, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(49, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(13, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(35, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(19, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(11, 8);
+    for (i = 0; i < 2; i++) *p++ = CBP(7, 8);
+    return p;
 }
 
-static void mpvvlc2_InitDcSizC(void) {
-    signed char* output = (signed char*)mpvvlt2_c_dcsiz;
+static s16 *mpvvlc_InitCbpSub2(s16 *p)
+{
+    s32 i;
 
-    mpvvlc_EmitDc(&output, 256, 0x02);
-    mpvvlc_EmitDc(&output, 256, 0x12);
-    mpvvlc_EmitDc(&output, 256, 0x22);
-    mpvvlc_EmitDc(&output, 128, 0x33);
-    mpvvlc_EmitDc(&output, 64, 0x44);
-    mpvvlc_EmitDc(&output, 32, 0x55);
-    mpvvlc_EmitDc(&output, 16, 0x66);
-    output[0] = 0x77; output[1] = 0x77;
-    output[2] = 0x77; output[3] = 0x77;
-    output[4] = 0x77; output[5] = 0x77;
-    output[6] = 0x77; output[7] = 0x77;
-    output[8] = 0x88; output[9] = 0x88;
-    output[10] = 0x88; output[11] = 0x88;
-    output[12] = 0x99; output[13] = 0x99;
-    output[14] = 0xAA;
-    output[15] = 0xBA;
+    for (i = 0; i < 4; i++) *p++ = CBP(34, 7);
+    for (i = 0; i < 4; i++) *p++ = CBP(18, 7);
+    for (i = 0; i < 4; i++) *p++ = CBP(10, 7);
+    for (i = 0; i < 4; i++) *p++ = CBP(6, 7);
+    for (i = 0; i < 4; i++) *p++ = CBP(33, 7);
+    for (i = 0; i < 4; i++) *p++ = CBP(17, 7);
+    for (i = 0; i < 4; i++) *p++ = CBP(9, 7);
+    for (i = 0; i < 4; i++) *p++ = CBP(5, 7);
+    for (i = 0; i < 8; i++) *p++ = CBP(63, 6);
+    for (i = 0; i < 8; i++) *p++ = CBP(3, 6);
+    for (i = 0; i < 8; i++) *p++ = CBP(36, 6);
+    for (i = 0; i < 8; i++) *p++ = CBP(24, 6);
+    for (i = 0; i < 16; i++) *p++ = CBP(62, 5);
+    for (i = 0; i < 16; i++) *p++ = CBP(2, 5);
+    for (i = 0; i < 16; i++) *p++ = CBP(61, 5);
+    for (i = 0; i < 16; i++) *p++ = CBP(1, 5);
+    for (i = 0; i < 16; i++) *p++ = CBP(56, 5);
+    for (i = 0; i < 16; i++) *p++ = CBP(52, 5);
+    for (i = 0; i < 16; i++) *p++ = CBP(44, 5);
+    for (i = 0; i < 16; i++) *p++ = CBP(28, 5);
+    for (i = 0; i < 16; i++) *p++ = CBP(40, 5);
+    for (i = 0; i < 16; i++) *p++ = CBP(20, 5);
+    for (i = 0; i < 16; i++) *p++ = CBP(48, 5);
+    for (i = 0; i < 16; i++) *p++ = CBP(12, 5);
+    for (i = 0; i < 32; i++) *p++ = CBP(32, 4);
+    for (i = 0; i < 32; i++) *p++ = CBP(16, 4);
+    for (i = 0; i < 32; i++) *p++ = CBP(8, 4);
+    for (i = 0; i < 32; i++) *p++ = CBP(4, 4);
+    for (i = 0; i < 64; i++) *p++ = CBP(60, 3);
+    return p;
 }
 
+static inline void mpvvlc_InitCbp(void)
+{
+    s16 *p;
 
-static void mpvvlc_InitIntRunLevel(void) {
-    unsigned int* output = mpvvlt_run_level_8;
-    long repeat;
+    p = mpvvlc_InitCbpSub1(mpvvlt_cbp);
+    mpvvlc_InitCbpSub2(p);
+}
 
-    for (repeat = 0; repeat < 4; ++repeat) {
-        *output++ = 0x00000000;
-    }
-    for (repeat = 0; repeat < 4; ++repeat) {
-        *output++ = 0x00064040;
-    }
-    for (repeat = 0; repeat < 2; ++repeat) {
-        *output++ = 0x00080202;
-    }
-    for (repeat = 0; repeat < 2; ++repeat) {
-        *output++ = 0x00080109;
-    }
-    for (repeat = 0; repeat < 2; ++repeat) {
-        *output++ = 0x00080400;
-    }
-    for (repeat = 0; repeat < 2; ++repeat) {
-        *output++ = 0x00080108;
-    }
-    for (repeat = 0; repeat < 4; ++repeat) {
-        *output++ = 0x00070107;
-    }
-    for (repeat = 0; repeat < 4; ++repeat) {
-        *output++ = 0x00070106;
-    }
-    for (repeat = 0; repeat < 4; ++repeat) {
-        *output++ = 0x00070201;
-    }
-    for (repeat = 0; repeat < 4; ++repeat) {
-        *output++ = 0x00070105;
-    }
-    *output++ = 0x0009010D;
-    *output++ = 0x00090600;
-    *output++ = 0x0009010C;
-    *output++ = 0x0009010B;
-    *output++ = 0x00090203;
-    *output++ = 0x00090301;
-    *output++ = 0x00090500;
-    *output++ = 0x0009010A;
-    for (repeat = 0; repeat < 8; ++repeat) {
-        *output++ = 0x00060300;
-    }
-    for (repeat = 0; repeat < 8; ++repeat) {
-        *output++ = 0x00060104;
-    }
-    for (repeat = 0; repeat < 8; ++repeat) {
-        *output++ = 0x00060103;
-    }
-    for (repeat = 0; repeat < 16; ++repeat) {
-        *output++ = 0x00050200;
-    }
-    for (repeat = 0; repeat < 16; ++repeat) {
-        *output++ = 0x00050102;
-    }
-    for (repeat = 0; repeat < 32; ++repeat) {
-        *output++ = 0x00040101;
-    }
+static void mpvvlc_InitDcSizY(void)
+{
+    s8 *p;
+    s32 i;
+
+    p = mpvvlt_y_dcsiz;
+    for (i = 0; i < 32; i++) *p++ = DCSIZ(1, 2);
+    for (i = 0; i < 32; i++) *p++ = DCSIZ(2, 2);
+    for (i = 0; i < 16; i++) *p++ = DCSIZ(0, 3);
+    for (i = 0; i < 16; i++) *p++ = DCSIZ(3, 3);
+    for (i = 0; i < 16; i++) *p++ = DCSIZ(4, 3);
+    for (i = 0; i < 8; i++) *p++ = DCSIZ(5, 4);
+    for (i = 0; i < 4; i++) *p++ = DCSIZ(6, 5);
+    for (i = 0; i < 2; i++) *p++ = DCSIZ(7, 6);
+    for (i = 0; i < 2; i++) *p++ = DCSIZ(8, 7);
+}
+
+static void mpvvlc_InitDcSizC(void)
+{
+    s8 *p;
+    s32 i;
+
+    p = mpvvlt_c_dcsiz;
+    for (i = 0; i < 32; i++) *p++ = DCSIZ(0, 2);
+    for (i = 0; i < 32; i++) *p++ = DCSIZ(1, 2);
+    for (i = 0; i < 32; i++) *p++ = DCSIZ(2, 2);
+    for (i = 0; i < 16; i++) *p++ = DCSIZ(3, 3);
+    for (i = 0; i < 8; i++) *p++ = DCSIZ(4, 4);
+    for (i = 0; i < 4; i++) *p++ = DCSIZ(5, 5);
+    for (i = 0; i < 2; i++) *p++ = DCSIZ(6, 6);
+    *p++ = DCSIZ(7, 7);
+    *p++ = DCSIZ(8, 8);
+}
+
+static void mpvvlc2_InitDcSizY(void)
+{
+    s8 *p;
+    s32 i;
+
+    p = mpvvlt2_y_dcsiz;
+    for (i = 0; i < 256; i++) *p++ = DCSIZ(1, 2);
+    for (i = 0; i < 256; i++) *p++ = DCSIZ(2, 2);
+    for (i = 0; i < 128; i++) *p++ = DCSIZ(0, 3);
+    for (i = 0; i < 128; i++) *p++ = DCSIZ(3, 3);
+    for (i = 0; i < 128; i++) *p++ = DCSIZ(4, 3);
+    for (i = 0; i < 64; i++) *p++ = DCSIZ(5, 4);
+    for (i = 0; i < 32; i++) *p++ = DCSIZ(6, 5);
+    for (i = 0; i < 16; i++) *p++ = DCSIZ(7, 6);
+    for (i = 0; i < 8; i++) *p++ = DCSIZ(8, 7);
+    for (i = 0; i < 4; i++) *p++ = DCSIZ(9, 8);
+    for (i = 0; i < 2; i++) *p++ = DCSIZ(10, 9);
+    for (i = 0; i < 2; i++) *p++ = DCSIZ(11, 9);
+}
+
+static void mpvvlc2_InitDcSizC(void)
+{
+    s8 *p;
+    s32 i;
+
+    p = mpvvlt2_c_dcsiz;
+    for (i = 0; i < 256; i++) *p++ = DCSIZ(0, 2);
+    for (i = 0; i < 256; i++) *p++ = DCSIZ(1, 2);
+    for (i = 0; i < 256; i++) *p++ = DCSIZ(2, 2);
+    for (i = 0; i < 128; i++) *p++ = DCSIZ(3, 3);
+    for (i = 0; i < 64; i++) *p++ = DCSIZ(4, 4);
+    for (i = 0; i < 32; i++) *p++ = DCSIZ(5, 5);
+    for (i = 0; i < 16; i++) *p++ = DCSIZ(6, 6);
+    for (i = 0; i < 8; i++) *p++ = DCSIZ(7, 7);
+    for (i = 0; i < 4; i++) *p++ = DCSIZ(8, 8);
+    for (i = 0; i < 2; i++) *p++ = DCSIZ(9, 9);
+    *p++ = DCSIZ(10, 10);
+    *p++ = DCSIZ(11, 10);
+}
+
+static void mpvvlc_InitIntRunLevel(void)
+{
+    u32 *p;
+    s32 i;
+
+    p = mpvvlt_run_level_8;
+    for (i = 0; i < 4; i++) *p++ = RL(0, 0, 0);
+    for (i = 0; i < 4; i++) *p++ = RL(6, 0x40, 0x40);
+    for (i = 0; i < 2; i++) *p++ = RL(8, 2, 2);
+    for (i = 0; i < 2; i++) *p++ = RL(8, 1, 9);
+    for (i = 0; i < 2; i++) *p++ = RL(8, 4, 0);
+    for (i = 0; i < 2; i++) *p++ = RL(8, 1, 8);
+    for (i = 0; i < 4; i++) *p++ = RL(7, 1, 7);
+    for (i = 0; i < 4; i++) *p++ = RL(7, 1, 6);
+    for (i = 0; i < 4; i++) *p++ = RL(7, 2, 1);
+    for (i = 0; i < 4; i++) *p++ = RL(7, 1, 5);
+    *p++ = RL(9, 1, 13);
+    *p++ = RL(9, 6, 0);
+    *p++ = RL(9, 1, 12);
+    *p++ = RL(9, 1, 11);
+    *p++ = RL(9, 2, 3);
+    *p++ = RL(9, 3, 1);
+    *p++ = RL(9, 5, 0);
+    *p++ = RL(9, 1, 10);
+    for (i = 0; i < 8; i++) *p++ = RL(6, 3, 0);
+    for (i = 0; i < 8; i++) *p++ = RL(6, 1, 4);
+    for (i = 0; i < 8; i++) *p++ = RL(6, 1, 3);
+    for (i = 0; i < 16; i++) *p++ = RL(5, 2, 0);
+    for (i = 0; i < 16; i++) *p++ = RL(5, 1, 2);
+    for (i = 0; i < 32; i++) *p++ = RL(4, 1, 1);
 }

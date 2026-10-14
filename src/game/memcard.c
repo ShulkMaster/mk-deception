@@ -511,7 +511,6 @@ void storage_status_change_calculations(int device) {
     }
 }
 
-/* TODO: [near miss] 91.23%; string pool recovered; address/register lowering remains. */
 int load_konquest_region_from_memcard_w_error(
     int device, int slot, int arg, int region, void* buffer, char* cardName,
     int nameLen, unsigned int* freeBlocks, int* freeBytes) {
@@ -519,11 +518,9 @@ int load_konquest_region_from_memcard_w_error(
     int scratch;
     int cont;
     int attempts;
-    unsigned int offset;
 
     result = -100;
     scratch = 0;
-    offset = (region + slot * 8 - 1) * SAVE_CHUNK_SIZE + 0x28B8;
     for (;;) {
         result = -100;
         cont = 0;
@@ -542,7 +539,7 @@ int load_konquest_region_from_memcard_w_error(
             }
             while (attempts-- != 0 && result != 0) {
                 result = load_from_memcard2(
-                    device, 0, offset, STR_EMPTY_NAME, "MKD", buffer,
+                    device, 0, (region - 1 + slot * 8) * SAVE_CHUNK_SIZE + 0x28B8, STR_EMPTY_NAME, "MKD", buffer,
                     SAVE_CHUNK_SIZE, cardName, nameLen, freeBlocks, freeBytes, &scratch);
             }
             if (result == 0 &&

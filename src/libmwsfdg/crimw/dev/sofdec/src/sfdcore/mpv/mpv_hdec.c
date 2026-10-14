@@ -365,15 +365,15 @@ int MPV_GoNextDelimSj(SJ* stream)
 static inline void mpvhdec_ConsumeDelim(MPVContext* context, SJ* stream)
 {
     SJCK remainder;
-    u8* aligned;
     int bit_offset;
+    u32* aligned;
     int consumed;
 
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
-    aligned = (u8*)((unsigned long)context->header_chunk.data & ~3UL);
-    bit_offset = (context->header_chunk.data - aligned) * 8;
-    consumed = (aligned + ((bit_offset + 7) >> 3) + 4) -
+    bit_offset = ((unsigned long)context->header_chunk.data -
+                  (unsigned long)(aligned = (u32*)((unsigned long)context->header_chunk.data & ~3UL))) * 8;
+    consumed = ((u8*)(aligned + 1) + ((bit_offset + 7) >> 3)) -
                context->header_chunk.data;
     SJ_SplitChunk(&context->header_chunk, consumed,
                   &context->header_chunk, &remainder);
@@ -499,17 +499,17 @@ static int mpvhdec_AnalyUd(MPVContext* context, const u8* data, long length)
 static inline void mpvhdec_ConsumeUserData(MPVContext* context, SJ* stream)
 {
     SJCK remainder;
-    u8* aligned;
     int bit_offset;
+    u32* aligned;
     int consumed;
 
     stream->interface->get_chunk(
         stream, 1, 0x7FFFFFFF, &context->header_chunk);
-    aligned = (u8*)((unsigned long)context->header_chunk.data & ~3UL);
-    bit_offset = (context->header_chunk.data - aligned) * 8;
+    bit_offset = ((unsigned long)context->header_chunk.data -
+                  (unsigned long)(aligned = (u32*)((unsigned long)context->header_chunk.data & ~3UL))) * 8;
     mpvhdec_AnalyUd(
         context, context->header_chunk.data, context->header_chunk.len);
-    consumed = (aligned + ((bit_offset + 7) >> 3) + 4) -
+    consumed = ((u8*)(aligned + 1) + ((bit_offset + 7) >> 3)) -
                context->header_chunk.data;
     SJ_SplitChunk(&context->header_chunk, consumed,
                   &context->header_chunk, &remainder);
@@ -526,7 +526,8 @@ static inline u32 mpvhdec_AlignSequenceWindow(u32 bits, int bit_offset)
     return bits;
 }
 
-/* TODO: [near miss] 99.60%; f_code/table indices agree; initial alignment misses word copy, honest helper forms exhausted. */
+/* TODO: [near miss] 99.5956%; raw-word alignment copy is absent before allocation;
+ * result-owning helper is byte-neutral; stop until original reader phase is recovered. */
 static int mpvhdec_DecPscSj(MPVContext* context, SJ* stream)
 {
     SJCK remainder;
@@ -784,7 +785,7 @@ static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
 }
 
 /* TODO: [near miss] 95.45%; result/stream homes agree; input data load is hoisted into the save sequence. */
-int MPV_DecodePicAtr(MPVContext* context, const SJCK* input,
+int MPV_DecodePicAtr(MPVContext* context, SJCK* input,
                      int* consumed_size)
 {
     int result;
@@ -801,9 +802,9 @@ int MPV_DecodePicAtr(MPVContext* context, const SJCK* input,
     return result;
 }
 
-/* TODO: [near miss] 97.19%; context/stream r28/r27 swap and ConsumeDelim/UserData offset arithmetic order remain. */
-int MPV_DecodePicAtrSj(MPVContext* context, SJ* stream)
+int MPV_DecodePicAtrSj(void* handle, SJ* stream)
 {
+    MPVContext* context = handle;
     SJCK initial_chunk;
     SJCK chunk;
     const u8* chunk_data;

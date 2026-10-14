@@ -2023,17 +2023,47 @@ static float p_fade_fog(void) {
 void remove_prize_description(void) {
     del_string_obj_by_id(0xA00F);
 }
-/* TODO: [near miss] 98.69%; retail builds description in r3 and copies it to r30 after index's last use; ours keeps it in r28. */
+#pragma opt_propagation off
 void display_prize_description(CoffinEntry* entries, int index, int last_index, int available,
                                unsigned int string_bank, int priority) {
-    display_prize_description_impl(
-        entries, index, last_index, available, string_bank, priority);
+    const char* title;
+    const char* description;
+    StringObj* description_obj;
+    int kontent_type;
+
+    if (!available) {
+        kontent_type = -1;
+    } else if (index < 0 || index > last_index) {
+        kontent_type = -1;
+    } else {
+        kontent_type = entries[index].kontent_type;
+    }
+    title = get_string_by_id(string_bank | kontent_type);
+    string_center_xy(
+        0xA00F, 9, title, screen_width / 2,
+        screen_height / 2 + 0x8A, priority);
+    description = prize_description_text(entries, index, last_index, available);
+    if ((unsigned int)entries[index].kontent_type == 0xC &&
+        (get_language() == 0 || get_language() == 5)) {
+        char* separator = strchr(description, ':');
+        if (separator != 0) *separator = '\n';
+    }
+    if (description != 0) {
+        description_obj = create_wrapped_string(
+            0xA00F, load_font(9), description, screen_width / 2 - 0xC0,
+            screen_height / 2 - 0x87, 0x180, 0, 1, 0);
+        if (description_obj != 0) {
+            description_obj->priority = priority;
+            insert_2d_obj((ScreenObj*)description_obj);
+        }
+    }
 }
+#pragma opt_propagation reset
 void move_picture_to_camera(KryptScreenObjLatch* picture_latch) {
     move_picture_to_camera_impl(picture_latch);
 }
-/* TODO: [near miss] 97.59559%; typed object/particle declaration order improved;
- * aggregate stack slots and register coloring remain. */
+/* TODO: [breakthrough needed] 97.59559%; recover early initializer owner without
+ * changing late function order; aggregate slots and register homes remain. */
 static void start_opening_coffin_effects(Vec* origin) {
     opening_coffin_effects_impl(origin);
 }

@@ -4,13 +4,12 @@
 #include "sofdec/sfd_transport.h"
 #include "sofdec/sfx.h"
 #include "sofdec/mws_ycc.h"
+#include "sofdec/mws_create.h"
 
 typedef struct MwsPlayer {
     unsigned char reserved_000[0x0C];
     int playback_state;
-    unsigned char reserved_010[0x10];
-    int field_020;
-    unsigned char reserved_024[8];
+    unsigned char reserved_010[0x1C];
     int field_02C;
     unsigned char reserved_030[0x10];
     SfdHandle* sfd;
@@ -304,9 +303,9 @@ SJ* MWSFTAG_CreateAinfSj(MwsPlayer* player)
     return sj;
 }
 
-int MWSFTAG_IsUseAinfSj(MwsPlayer* player)
+long MWSFTAG_IsUseAinfSj(const MwsCreateParams* create)
 {
-    if (player->field_020 == 0 || player->field_020 == 0x101) {
+    if (create->composition_mode == 0 || create->composition_mode == 0x101) {
         return 1;
     }
     return 0;
@@ -376,8 +375,8 @@ static inline void mwsfsfx_SetPln(SFXPlaneBuffer* plane, void* pixels,
     plane->height = height;
 }
 
-/* TODO: [near miss] 99.92%; typed selectors recover pool/player/output homes;
- * Cb pixel/pitch load order remains (two rows). */
+/* TODO: [breakthrough] 99.92%; Cb staging locals match the whole unit only under object flag
+ * -pragma "opt_propagation off" (not in configure.py yet); source alone leaves the Cb load rows. */
 void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
                             SFXFrameInfo* output)
 {
@@ -418,9 +417,13 @@ void MWSFSFX_CnvFrmInfToSfx(MwsPlayer* player, MwsFrameInfo* input,
     if (input->frame_structure != 3) {
         mwsfsfx_SetPln(&output->y, input->frame, width, height);
     } else {
+        void* cb;
+        int cb_pitch;
         mwPlyCalcYccPlane(input->frame, width, height, &plane);
         mwsfsfx_SetPln(&output->y, plane.y, plane.y_pitch, height);
-        mwsfsfx_SetPln(&output->cb, plane.cb, plane.cb_pitch, height);
+        cb = plane.cb;
+        cb_pitch = plane.cb_pitch;
+        mwsfsfx_SetPln(&output->cb, cb, cb_pitch, height);
         mwsfsfx_SetPln(&output->cr, plane.cr, plane.cr_pitch, height);
     }
 

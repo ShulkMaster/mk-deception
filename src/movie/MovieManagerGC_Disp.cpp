@@ -1,6 +1,7 @@
 #include "movie/MovieManagerGC_Disp.h"
 
 #include "dolphin/gx.h"
+#include "dolphin/gx_vert.h"
 #include "dolphin/cache.h"
 #include "dolphin/mtx.h"
 #include "dolphin/os.h"
@@ -49,28 +50,12 @@ static SceneCtrl scn_ctrl;
 static unsigned char is_set_black;
 static GXRenderModeObj* rmode = &GXNtsc480IntDf;
 
-#define WGPIPE_S16 (*(volatile short*)GXFIFO_ADDR)
-#define WGPIPE_F32 (*(volatile float*)GXFIFO_ADDR)
-
-static void setTevPrm(GXTexMapID map0, GXTexMapID map1);
+static void setCamera(UsrCamObj* cam);
+static void allocTexMem(UsrTexObj* tob, int width, int height);
+static void clrTexMem(UsrTexObj* tob);
 static void drawTex(UsrCamObj* cam, UsrTexObj* tex);
 static void drawQuad(UsrCamObj* cam);
-
-static inline void setCamera(UsrCamObj* cam) {
-    Vec up = {0.0f, 1.0f, 0.0f};
-    Vec position = {0.0f, 0.0f, 400.0f};
-    Vec target = {0.0f, 0.0f, 0.0f};
-    Mtx44 proj;
-    float half_height = rmode->xfbHeight / 2;
-    float half_width = rmode->fbWidth / 2;
-
-    C_MTXFrustum(proj, half_height, -half_height, -half_width,
-                 half_width, 400.0f, 3000.0f);
-    GXSetProjection(proj, 0);
-    C_MTXLookAt(cam->view, &position, &up, &target);
-}
-
-static const char allocation_error[] = "can't allocate tex buf.\n";
+static void setTevPrm(GXTexMapID map0, GXTexMapID map1);
 
 void MovieManager_Default_StartVideo(void) {
     GXColor copy_clear_color = {0, 0, 0, 0};
@@ -87,14 +72,8 @@ void MovieManager_Default_StartVideo(void) {
     scn_ctrl.tob1.bufC = 0;
     VISetBlack(1);
     is_set_black = 1;
-    if (scn_ctrl.tob0.bufY != 0) {
-        memset(scn_ctrl.tob0.bufY, 0, scn_ctrl.tob0.sizeY);
-        memset(scn_ctrl.tob0.bufC, 0x80, scn_ctrl.tob0.sizeC);
-    }
-    if (scn_ctrl.tob1.bufY != 0) {
-        memset(scn_ctrl.tob1.bufY, 0, scn_ctrl.tob1.sizeY);
-        memset(scn_ctrl.tob1.bufC, 0x80, scn_ctrl.tob1.sizeC);
-    }
+    clrTexMem(&scn_ctrl.tob0);
+    clrTexMem(&scn_ctrl.tob1);
 }
 
 void MovieManager_Default_StopVideo(void) {
@@ -122,9 +101,6 @@ void MovieManager_Default_ProcessFrame(void* ctx, int unused, int width, int hei
     static char init;
     NativeMovieProcessCtx* proc;
     UsrTexObj* tex;
-    int padded_half_width;
-    int chroma_width;
-    int chroma_height;
 
     proc = (NativeMovieProcessCtx*)ctx;
     if (init == 0) {
@@ -138,38 +114,7 @@ void MovieManager_Default_ProcessFrame(void* ctx, int unused, int width, int hei
     }
     last_tob = tex;
     if (tex->bufY == 0) {
-        padded_half_width = width / 2 + 0x1F;
-        chroma_width = padded_half_width & 0xFFE0;
-        chroma_height = (unsigned short)(height / 2);
-        tex->width =
-            ((((padded_half_width * 2) & 0x1FFC0) + 0x1F) & 0xFFE0);
-        tex->height = (unsigned short)height;
-        tex->sizeY = GXGetTexBufferSize(
-            tex->width, tex->height,
-            GX_TF_I8, 0, 0);
-        tex->sizeC = GXGetTexBufferSize(
-            chroma_width, chroma_height, GX_TF_IA8, 0, 0);
-        tex->bufY = mwMovMalloc(tex->sizeY);
-        tex->bufC = mwMovMalloc(tex->sizeC);
-        if (tex->bufY == 0 || tex->bufC == 0) {
-            OSReport(allocation_error);
-        } else {
-            if (tex->bufY != 0) {
-                memset(tex->bufY, 0, tex->sizeY);
-                memset(tex->bufC, 0x80, tex->sizeC);
-            }
-            GXInitTexObj(&tex->tex0, tex->bufY,
-                         tex->width,
-                         tex->height,
-                         GX_TF_I8, 0, 0, 0);
-            GXInitTexObj(&tex->tex1, tex->bufC,
-                         chroma_width, chroma_height,
-                         GX_TF_IA8, 0, 0, 0);
-            GXInitTexObjLOD(&tex->tex0, 0, 0, 0.0f, 0.0f, 0.0f,
-                            0, 0, 0);
-            GXInitTexObjLOD(&tex->tex1, 0, 0, 0.0f, 0.0f, 0.0f,
-                            0, 0, 0);
-        }
+        allocTexMem(tex, width, height);
     }
     mwPlyFxSetOutBufPitchHeight(proc->handle, tex->width, tex->height);
     mwPlyFxCnvFrmY84C44(proc->handle, &proc->frame, tex->bufY, tex->bufC);
@@ -181,6 +126,51 @@ void MovieManager_Default_ProcessFrame(void* ctx, int unused, int width, int hei
     if (is_set_black != 0) {
         VISetBlack(0);
         is_set_black = 0;
+    }
+}
+
+static void setCamera(UsrCamObj* cam) {
+    Vec up = {0.0f, 1.0f, 0.0f};
+    Vec position = {0.0f, 0.0f, 400.0f};
+    Vec target = {0.0f, 0.0f, 0.0f};
+    Mtx44 proj;
+    float half_height = rmode->xfbHeight / 2;
+    float half_width = rmode->fbWidth / 2;
+
+    C_MTXFrustum(proj, half_height, -half_height, -half_width,
+                 half_width, 400.0f, 3000.0f);
+    GXSetProjection(proj, 0);
+    C_MTXLookAt(cam->view, &position, &up, &target);
+}
+
+static void allocTexMem(UsrTexObj* tob, int width, int height) {
+    int padded_half_width = width / 2 + 0x1F;
+    int chroma_width = padded_half_width & 0xFFE0;
+    int chroma_height = (unsigned short)(height / 2);
+
+    tob->width = ((((padded_half_width * 2) & 0x1FFC0) + 0x1F) & 0xFFE0);
+    tob->height = (unsigned short)height;
+    tob->sizeY = GXGetTexBufferSize(tob->width, tob->height, GX_TF_I8, 0, 0);
+    tob->sizeC = GXGetTexBufferSize(chroma_width, chroma_height, GX_TF_IA8, 0, 0);
+    tob->bufY = mwMovMalloc(tob->sizeY);
+    tob->bufC = mwMovMalloc(tob->sizeC);
+    if (tob->bufY == 0 || tob->bufC == 0) {
+        OSReport("can't allocate tex buf.\n");
+    } else {
+        clrTexMem(tob);
+        GXInitTexObj(&tob->tex0, tob->bufY, tob->width, tob->height,
+                     GX_TF_I8, 0, 0, 0);
+        GXInitTexObj(&tob->tex1, tob->bufC, chroma_width, chroma_height,
+                     GX_TF_IA8, 0, 0, 0);
+        GXInitTexObjLOD(&tob->tex0, 0, 0, 0.0f, 0.0f, 0.0f, 0, 0, 0);
+        GXInitTexObjLOD(&tob->tex1, 0, 0, 0.0f, 0.0f, 0.0f, 0, 0, 0);
+    }
+}
+
+static void clrTexMem(UsrTexObj* tob) {
+    if (tob->bufY != 0) {
+        memset(tob->bufY, 0, tob->sizeY);
+        memset(tob->bufC, 0x80, tob->sizeC);
     }
 }
 
@@ -208,7 +198,7 @@ static void drawTex(UsrCamObj* cam, UsrTexObj* tex) {
     }
 }
 
-static inline void drawQuad(UsrCamObj* cam) {
+static void drawQuad(UsrCamObj* cam) {
     Mtx model;
     Mtx tmp;
     float tex_zero = 0.0f;
@@ -222,26 +212,14 @@ static inline void drawQuad(UsrCamObj* cam) {
     PSMTXConcat(cam->view, model, tmp);
     GXLoadPosMtxImm(tmp, 0);
     GXBegin(0x80, 0, 4);
-    WGPIPE_S16 = halfW;
-    WGPIPE_S16 = halfH;
-    WGPIPE_S16 = 0;
-    WGPIPE_F32 = tex_one;
-    WGPIPE_F32 = tex_zero;
-    WGPIPE_S16 = halfW;
-    WGPIPE_S16 = negH;
-    WGPIPE_S16 = 0;
-    WGPIPE_F32 = tex_one;
-    WGPIPE_F32 = tex_one;
-    WGPIPE_S16 = negW;
-    WGPIPE_S16 = negH;
-    WGPIPE_S16 = 0;
-    WGPIPE_F32 = tex_zero;
-    WGPIPE_F32 = tex_one;
-    WGPIPE_S16 = negW;
-    WGPIPE_S16 = halfH;
-    WGPIPE_S16 = 0;
-    WGPIPE_F32 = tex_zero;
-    WGPIPE_F32 = tex_zero;
+    GXPosition3s16(halfW, halfH, 0);
+    GXTexCoord2f32(tex_one, tex_zero);
+    GXPosition3s16(halfW, negH, 0);
+    GXTexCoord2f32(tex_one, tex_one);
+    GXPosition3s16(negW, negH, 0);
+    GXTexCoord2f32(tex_zero, tex_one);
+    GXPosition3s16(negW, halfH, 0);
+    GXTexCoord2f32(tex_zero, tex_zero);
 }
 
 static void setTevPrm(GXTexMapID map0, GXTexMapID map1) {

@@ -145,19 +145,17 @@ static inline int sfh_read_header_s16(const SFHHandle* handle, int offset,
 static inline const SFHStreamRecord* sfh_find_stream(
     const unsigned char* header, unsigned int stream_id)
 {
-    int i;
+    long i;
     const SFHStreamRecord* candidate;
     const SFHStreamRecord* stream;
 
     stream = 0;
-    i = 0;
-    for (; i < 26; i++) {
-        candidate = (const SFHStreamRecord*)(header + 0x180);
+    for (i = 0; i < 26; i++) {
+        candidate = (const SFHStreamRecord*)(header + 0x180 + i * 0x40);
         if (candidate->id == stream_id) {
             stream = candidate;
             break;
         }
-        header += sizeof(SFHStreamRecord);
     }
     return stream;
 }
@@ -408,7 +406,8 @@ int SFH_AnlyElemCodecVid(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 94.66%; endian decode agrees; compiler folds the manual swap/store into stwbrx. */
+/* TODO: [near miss] 94.66%; correct 32-bit endian decode remains;
+ * stop at N09: stwbrx replaces retail's manual swap/store. */
 int SFH_AnlyElemSmpHz(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
@@ -701,8 +700,6 @@ int SFH_IsEffFtrInf(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [breakthrough] 96.67%; search state declared candidate/stream/i with stream zeroed first,
- * result/index registers now retail; one mr r6,r3 vs clrlwi scheduling row remains. */
 int SFH_IsExistStmId(SFHHandle* handle, unsigned char stream_id,
     int* result)
 {

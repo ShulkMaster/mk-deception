@@ -11,16 +11,16 @@ typedef struct SJRingBufferUuid {
 
 typedef struct SJRingBuffer {
     const SJInterface* interface;
-    int used;
+    long used;
     const SJRingBufferUuid* uuid;
-    int data_size;
-    int free_size;
-    int write_position;
-    int read_position;
+    long data_size;
+    long free_size;
+    long write_position;
+    long read_position;
     u8* buffer;
-    int buffer_size;
-    int extra_size;
-    int flow_count[2][2];
+    long buffer_size;
+    long extra_size;
+    long flow_count[2][2];
     SJErrorCallback error_callback;
     void* error_object;
 } SJRingBuffer;
@@ -41,7 +41,7 @@ int SJRBF_IsGetChunk(
     SJ* sj, int channel, int size, int* available);
 void SJRBF_UngetChunk(SJ* sj, int channel, SJCK* chunk);
 void SJRBF_PutChunk(SJ* sj, int channel, SJCK* chunk);
-void SJRBF_GetChunk(SJ* sj, int channel, int max_size, SJCK* chunk);
+void SJRBF_GetChunk(SJ* sj, long channel, long max_size, SJCK* chunk);
 int SJRBF_GetNumData(SJ* sj, int channel);
 void SJRBF_Reset(SJ* sj);
 void SJRBF_EntryErrFunc(
@@ -166,7 +166,7 @@ int SJRBF_IsGetChunk(
     SJ* sj, int channel, int size, int* available)
 {
     SJRingBuffer* ring = (SJRingBuffer*)sj;
-    int chunk_size;
+    long chunk_size;
 
     SJCRS_Lock();
     if (ring == 0) {
@@ -327,12 +327,10 @@ void SJRBF_PutChunk(SJ* sj, int channel, SJCK* chunk)
     SJCRS_Unlock();
 }
 
-/* TODO: [near miss] 99.63636%; source equals RE4; string-base/buffer_size r7/r8
- * coloring only; permuter improved only through a pointer alias (rejected). */
 static void sjrbf_GetChunk(
-    SJRingBuffer* ring, int channel, int max_size, SJCK* chunk)
+    SJRingBuffer* ring, long channel, long max_size, SJCK* chunk)
 {
-    int chunk_size;
+    long chunk_size;
 
     if (ring == 0) {
         SJERR_CallErr("E2004090211 : NULL pointer is specified.");
@@ -389,7 +387,7 @@ static void sjrbf_GetChunk(
 }
 
 void SJRBF_GetChunk(
-    SJ* sj, int channel, int max_size, SJCK* chunk)
+    SJ* sj, long channel, long max_size, SJCK* chunk)
 {
     SJCRS_Lock();
     sjrbf_GetChunk((SJRingBuffer*)sj, channel, max_size, chunk);

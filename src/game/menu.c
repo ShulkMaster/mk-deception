@@ -87,7 +87,6 @@ extern int p2_profile_status;
 extern int last_switch_time;
 extern SwitchMapEntry p1_temp_switch_map[];
 extern SwitchMapEntry p2_temp_switch_map[];
-extern int controller_image_offset_tbl[];
 extern int p1_rumble_on;
 extern int p2_rumble_on;
 extern int p1_temp_rumble_state;
@@ -269,6 +268,7 @@ static ModeSelectPortrait portrait_list[] = {
 };
 
 static int button_checklist[] = {7, 4, 6, 5, 2, 1, 3};
+int controller_image_offset_tbl[16] = {7, 4, 6, 5, 3, 1, 0, 2};
 
 void adjust_screen_reset(void) {
     adjust_display_offset(0, 0, 1);

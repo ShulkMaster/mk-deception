@@ -1141,8 +1141,16 @@ void SBPlayable_Stream::StopIfDonePlaying(void) {
     }
 }
 
-/* TODO: [near miss] 98.32%; retail zeroes a separate secondary sound late (shared with
- * format = 0) but that placement shrinks the frame 0x60->0x50; GPR coloring remains. */
+static inline SPSoundEntry* GetStreamSoundEntry(SPSoundTable* table) {
+    SPSoundEntry* sound = 0;
+    if (table != 0) {
+        sound = SPGetSoundEntry(table, 0);
+    }
+    return sound;
+}
+
+/* TODO: [near miss] 99.24%; result/stream-loop and voice-address GPR homes remain;
+ * preserve lookup ownership and stop at coloring. */
 int SBPlayable_Stream::iPlayPrepped(void) {
     int result = -1;
 
@@ -1182,21 +1190,12 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                 return result;
             }
             AXSetVoicePriority(voices[1], 0x19);
-            SPSoundEntry* sound = 0;
-
-            if (file_entry->sound_table != 0) {
-                sound = SPGetSoundEntry(
-                    file_entry->sound_table, 0);
-            }
+            SPSoundEntry* sound = GetStreamSoundEntry(file_entry->sound_table);
             SetStreamVoiceSource(
                 voices[0], sound,
                 frequency, use_stream_loop,
                 use_loop_address);
-            sound = 0;
-            if (file_entry->secondary_sound_table != 0) {
-                sound = SPGetSoundEntry(
-                    file_entry->secondary_sound_table, 0);
-            }
+            sound = GetStreamSoundEntry(file_entry->secondary_sound_table);
             SetStreamVoiceSource(
                 voices[1], sound,
                 frequency, use_stream_loop,
@@ -1208,12 +1207,7 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                 voices[1], 0, 0, -960, -960,
                 0x7F, 0x7F, mix_fader);
         } else {
-            SPSoundEntry* sound = 0;
-
-            if (file_entry->sound_table != 0) {
-                sound = SPGetSoundEntry(
-                    file_entry->sound_table, 0);
-            }
+            SPSoundEntry* sound = GetStreamSoundEntry(file_entry->sound_table);
             SetStreamVoiceSource(
                 voices[0], sound,
                 frequency, use_stream_loop,

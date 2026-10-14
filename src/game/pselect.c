@@ -135,9 +135,6 @@ extern int menu_player;
 extern ProfileUnlockBits64 default_char_bits;
 extern ProfileUnlockBits64 default_alt_char_bits;
 extern ProfileUnlockBits64 default_pz_char_bits;
-extern LightDef* pselect_light_list[3];
-extern struct PselectCharEntry pselect_char_tbl[];
-extern struct PselectCharEntry pselect_pz_char_tbl[];
 extern GlobalBackgroundEntry global_background_data[];
 
 void set_default_button_repeat_time(void);
@@ -250,6 +247,61 @@ struct PselectBgndEntry pz_pselect_bgnd_table[6] = {
     {8, &stringBase0[0x140], 0},
     {21, &stringBase0[0x153], 0},
     {18, &stringBase0[0x161], 0},
+};
+
+#define PSELECT_STRING(offset) ((char*)&stringBase0[offset])
+
+struct PselectCharEntry pselect_char_tbl[27] = {
+    {12, 86, PSELECT_STRING(0x171), PSELECT_STRING(0x17D), PSELECT_STRING(0x190), PSELECT_STRING(0x19C), PSELECT_STRING(0x1B0), PSELECT_STRING(0x1B2), PSELECT_STRING(0x1BA), PSELECT_STRING(0x1BF)},
+    {21, 84, PSELECT_STRING(0x1C6), PSELECT_STRING(0x1D0), PSELECT_STRING(0x1E1), PSELECT_STRING(0x1EB), PSELECT_STRING(0x1FD), PSELECT_STRING(0x1FF), PSELECT_STRING(0x206), PSELECT_STRING(0x20F)},
+    {0, 95, PSELECT_STRING(0x217), PSELECT_STRING(0x217), PSELECT_STRING(0x225), PSELECT_STRING(0x233), PSELECT_STRING(0x249), PSELECT_STRING(0x24B), PSELECT_STRING(0x253), PSELECT_STRING(0x25B)},
+    {4, 91, PSELECT_STRING(0x265), PSELECT_STRING(0x217), PSELECT_STRING(0x272), PSELECT_STRING(0x27F), PSELECT_STRING(0x249), PSELECT_STRING(0x294), PSELECT_STRING(0x29F), PSELECT_STRING(0x2AA)},
+    {30, 103, PSELECT_STRING(0x2AE), PSELECT_STRING(0x2AE), PSELECT_STRING(0x2B8), PSELECT_STRING(0x2C2), PSELECT_STRING(0x2D4), PSELECT_STRING(0x2D6), PSELECT_STRING(0x2DD), PSELECT_STRING(0x2E4)},
+    {1, 77, PSELECT_STRING(0x2F1), PSELECT_STRING(0x217), PSELECT_STRING(0x2FD), PSELECT_STRING(0x309), PSELECT_STRING(0x2D4), PSELECT_STRING(0x31D), PSELECT_STRING(0x323), PSELECT_STRING(0x32C)},
+    {3, 99, PSELECT_STRING(0x333), PSELECT_STRING(0x217), PSELECT_STRING(0x340), PSELECT_STRING(0x34D), PSELECT_STRING(0x1B0), PSELECT_STRING(0x362), PSELECT_STRING(0x36B), PSELECT_STRING(0x372)},
+    {14, 82, PSELECT_STRING(0x37D), PSELECT_STRING(0x388), PSELECT_STRING(0x399), PSELECT_STRING(0x3A4), PSELECT_STRING(0x1FD), PSELECT_STRING(0x3B7), PSELECT_STRING(0x3BD), PSELECT_STRING(0x3C9)},
+    {8, 97, PSELECT_STRING(0x3D6), PSELECT_STRING(0x3E2), PSELECT_STRING(0x3F5), PSELECT_STRING(0x401), PSELECT_STRING(0x2D4), PSELECT_STRING(0x415), PSELECT_STRING(0x41F), PSELECT_STRING(0x42A)},
+    {23, 94, PSELECT_STRING(0x432), PSELECT_STRING(0x43E), PSELECT_STRING(0x451), PSELECT_STRING(0x45D), PSELECT_STRING(0x1B0), PSELECT_STRING(0x471), PSELECT_STRING(0x47B), PSELECT_STRING(0x483)},
+    {11, 83, PSELECT_STRING(0x489), PSELECT_STRING(0x495), PSELECT_STRING(0x4A8), PSELECT_STRING(0x4B4), PSELECT_STRING(0x4C8), PSELECT_STRING(0x4CA), PSELECT_STRING(0x4D6), PSELECT_STRING(0x4DD)},
+    {19, 85, PSELECT_STRING(0x4E6), PSELECT_STRING(0x4F1), PSELECT_STRING(0x503), PSELECT_STRING(0x50E), PSELECT_STRING(0x249), PSELECT_STRING(0x521), PSELECT_STRING(0x529), PSELECT_STRING(0x532)},
+    {6, 81, PSELECT_STRING(0x53E), PSELECT_STRING(0x217), PSELECT_STRING(0x549), PSELECT_STRING(0x554), PSELECT_STRING(0x1B0), PSELECT_STRING(0x567), PSELECT_STRING(0x571), PSELECT_STRING(0x57E)},
+    {32, 19, PSELECT_STRING(0x582), PSELECT_STRING(0x582), PSELECT_STRING(0x58E), PSELECT_STRING(0x4B4), PSELECT_STRING(0x59A), PSELECT_STRING(0x59A), PSELECT_STRING(0x59A), PSELECT_STRING(0x59A)},
+    {5, 92, PSELECT_STRING(0x59C), PSELECT_STRING(0x217), PSELECT_STRING(0x5AB), PSELECT_STRING(0x5BA), PSELECT_STRING(0x1B0), PSELECT_STRING(0x5D1), PSELECT_STRING(0x5DA), PSELECT_STRING(0x5E6)},
+    {10, 78, PSELECT_STRING(0x5F0), PSELECT_STRING(0x217), PSELECT_STRING(0x5FE), PSELECT_STRING(0x60C), PSELECT_STRING(0x1B0), PSELECT_STRING(0x622), PSELECT_STRING(0x627), PSELECT_STRING(0x634)},
+    {27, 102, PSELECT_STRING(0x63C), PSELECT_STRING(0x64B), PSELECT_STRING(0x661), PSELECT_STRING(0x670), PSELECT_STRING(0x1FD), PSELECT_STRING(0x687), PSELECT_STRING(0x695), PSELECT_STRING(0x6A4)},
+    {15, 100, PSELECT_STRING(0x6A6), PSELECT_STRING(0x6B1), PSELECT_STRING(0x6C3), PSELECT_STRING(0x6CE), PSELECT_STRING(0x1FD), PSELECT_STRING(0x6E1), PSELECT_STRING(0x6EC), PSELECT_STRING(0x6F6)},
+    {25, 96, PSELECT_STRING(0x701), PSELECT_STRING(0x70F), PSELECT_STRING(0x724), PSELECT_STRING(0x732), PSELECT_STRING(0x1FD), PSELECT_STRING(0x748), PSELECT_STRING(0x74F), PSELECT_STRING(0x75C)},
+    {9, 89, PSELECT_STRING(0x769), PSELECT_STRING(0x774), PSELECT_STRING(0x786), PSELECT_STRING(0x791), PSELECT_STRING(0x249), PSELECT_STRING(0x7A4), PSELECT_STRING(0x7AC), PSELECT_STRING(0x7B9)},
+    {7, 76, PSELECT_STRING(0x7C4), PSELECT_STRING(0x217), PSELECT_STRING(0x7CF), PSELECT_STRING(0x7DB), PSELECT_STRING(0x1FD), PSELECT_STRING(0x7EF), PSELECT_STRING(0x7F9), PSELECT_STRING(0x800)},
+    {22, 79, PSELECT_STRING(0x806), PSELECT_STRING(0x812), PSELECT_STRING(0x825), PSELECT_STRING(0x831), PSELECT_STRING(0x1FD), PSELECT_STRING(0x845), PSELECT_STRING(0x84F), PSELECT_STRING(0x857)},
+    {31, 104, PSELECT_STRING(0x862), PSELECT_STRING(0x862), PSELECT_STRING(0x871), PSELECT_STRING(0x880), PSELECT_STRING(0x249), PSELECT_STRING(0x896), PSELECT_STRING(0x89E), PSELECT_STRING(0x8A5)},
+    {20, 88, PSELECT_STRING(0x8B2), PSELECT_STRING(0x8BD), PSELECT_STRING(0x8CF), PSELECT_STRING(0x8DA), PSELECT_STRING(0x4C8), PSELECT_STRING(0x8ED), PSELECT_STRING(0x8F8), PSELECT_STRING(0x903)},
+    {24, 80, PSELECT_STRING(0x90F), PSELECT_STRING(0x91C), PSELECT_STRING(0x932), PSELECT_STRING(0x93F), PSELECT_STRING(0x1FD), PSELECT_STRING(0x954), PSELECT_STRING(0x95F), PSELECT_STRING(0x967)},
+    {18, 87, PSELECT_STRING(0x971), PSELECT_STRING(0x97B), PSELECT_STRING(0x98C), PSELECT_STRING(0x996), PSELECT_STRING(0x1FD), PSELECT_STRING(0x9A8), PSELECT_STRING(0x9B0), PSELECT_STRING(0x9B6)},
+    {16, 90, PSELECT_STRING(0x9C3), PSELECT_STRING(0x9D0), PSELECT_STRING(0x9E4), PSELECT_STRING(0x9F1), PSELECT_STRING(0x1FD), PSELECT_STRING(0xA06), PSELECT_STRING(0xA0E), PSELECT_STRING(0xA17)},
+};
+
+struct PselectCharEntry pselect_pz_char_tbl[12] = {
+    {0, 95, PSELECT_STRING(0xA20), PSELECT_STRING(0xA20), PSELECT_STRING(0xA31), 0, PSELECT_STRING(0xA42), PSELECT_STRING(0xA49), 0, 0},
+    {1, 77, PSELECT_STRING(0xA56), PSELECT_STRING(0xA56), PSELECT_STRING(0xA65), 0, PSELECT_STRING(0xA74), PSELECT_STRING(0xA7A), 0, 0},
+    {5, 92, PSELECT_STRING(0xA86), PSELECT_STRING(0xA86), PSELECT_STRING(0xA98), 0, PSELECT_STRING(0xAAA), PSELECT_STRING(0xAB8), 0, 0},
+    {6, 81, PSELECT_STRING(0xACC), PSELECT_STRING(0xACC), PSELECT_STRING(0xADA), 0, PSELECT_STRING(0xAE8), PSELECT_STRING(0xAF1), 0, 0},
+    {8, 97, PSELECT_STRING(0xB00), PSELECT_STRING(0xB00), PSELECT_STRING(0xB0F), 0, PSELECT_STRING(0xB1E), PSELECT_STRING(0xB26), 0, 0},
+    {3, 99, PSELECT_STRING(0xB34), PSELECT_STRING(0xB34), PSELECT_STRING(0xB44), 0, PSELECT_STRING(0xB54), PSELECT_STRING(0xB5B), 0, 0},
+    {10, 78, PSELECT_STRING(0xB68), PSELECT_STRING(0xB79), PSELECT_STRING(0xB91), 0, PSELECT_STRING(0xBA2), PSELECT_STRING(0xBAB), 0, 0},
+    {12, 86, PSELECT_STRING(0xBBA), PSELECT_STRING(0xBC9), PSELECT_STRING(0xBDF), 0, PSELECT_STRING(0xBEE), PSELECT_STRING(0xBF8), 0, 0},
+    {4, 91, PSELECT_STRING(0xC08), PSELECT_STRING(0xC18), PSELECT_STRING(0xC2F), 0, PSELECT_STRING(0xC3F), PSELECT_STRING(0xC45), 0, 0},
+    {21, 84, PSELECT_STRING(0xC51), PSELECT_STRING(0xC5E), PSELECT_STRING(0xC72), 0, PSELECT_STRING(0xC7F), PSELECT_STRING(0xC85), 0, 0},
+    {19, 85, PSELECT_STRING(0xC91), PSELECT_STRING(0xC9F), PSELECT_STRING(0xCB4), 0, PSELECT_STRING(0xCC2), PSELECT_STRING(0xCCD), 0, 0},
+    {23, 94, PSELECT_STRING(0xCDE), PSELECT_STRING(0xCED), PSELECT_STRING(0xD03), 0, PSELECT_STRING(0xD12), PSELECT_STRING(0xD18), 0, 0},
+};
+
+struct LightDefAmbient pselect_ambient = {
+    1, 0, 3, {0.6f, 0.6f, 0.6f, 0.0f},
+};
+
+LightDef* pselect_light_list[3] = {
+    (LightDef*)&pselect_ambient, 0, 0,
 };
 
 static int rnd_sleep_tbl[19] = {
@@ -436,13 +488,52 @@ void pselect_random_select(int player) {
     g_game_info.pads[pad].flag_bits.disabled = 1;
 }
 
-/* TODO: [breakthrough needed] 54.48%; retail frame is 0x40 with r23-r31 saved: the
- * is_char_locked bit test (__shl2i on gp_data unlock words) and table lookup are inline. */
+static inline int pselect_character_id_valid(int char_id) {
+    int valid = 0;
+
+    if ((unsigned long long)char_id < 0x2CULL) {
+        valid = 1;
+    }
+    return valid;
+}
+
+static inline int pselect_character_locked_impl(int char_id, int alt_bit) {
+    unsigned long long mask;
+    unsigned long long bit;
+
+    if (!pselect_character_id_valid(char_id)) {
+        return 1;
+    }
+
+    switch (mode_of_play) {
+    case 6:
+        mask = gp_data.pz_chars.value;
+        mask |= default_pz_char_bits.value;
+        break;
+    default:
+        if (alt_bit != 0) {
+            mask = gp_data.cat2.value;
+            mask |= default_alt_char_bits.value;
+        } else {
+            mask = gp_data.cat1.value;
+            mask |= default_char_bits.value;
+        }
+    }
+
+    bit = 1ULL << char_id;
+    if ((mask & bit) != 0ull) {
+        return 0;
+    }
+    return 1;
+}
+
+/* TODO: [breakthrough] 97.55%; retail table ownership, frame and retained homes recovered;
+ * validity branch/join and shift-argument staging need original inline evidence. */
 static float p_random_player_select(void) {
-    struct RandomSelectPdata* pdata;
+    int attempts;
     int slot;
     int char_id;
-    int attempts;
+    struct RandomSelectPdata* pdata;
     int pad;
 
     pdata = (struct RandomSelectPdata*)apdata;
@@ -455,10 +546,10 @@ static float p_random_player_select(void) {
 
     attempts = 0;
     slot = randu0(pdata->num_chars & 0xFFFF) & 0xFFFF;
-    char_id = pselect_char_at(slot)->char_id;
-    while (is_char_locked(char_id, 0) || char_id == 0x20) {
+    char_id = pselect_char_id_at(slot);
+    while (pselect_character_locked_impl(char_id, 0) || char_id == 0x20) {
         slot = randu0(pdata->num_chars & 0xFFFF) & 0xFFFF;
-        char_id = pselect_char_at(slot)->char_id;
+        char_id = pselect_char_id_at(slot);
         attempts += 1;
         if (attempts > 0x32) {
             slot = 0;
@@ -1050,14 +1141,6 @@ float p_enter_profile_code(void) {
     return sleep_ticks_one;
 }
 
-static inline int pselect_character_id_valid(int char_id) {
-    int valid = 0;
-
-    if ((unsigned long long)char_id < 0x2CULL) {
-        valid = 1;
-    }
-    return valid;
-}
 
 /* TODO: [near miss] 97.91045%; validity join/compare registers remain; return rewrites and whole-TU nopeephole regress callers. */
 int is_char_locked(int char_id, int alt_bit) {
@@ -1415,7 +1498,8 @@ void get_bg_pselect_team_textures(PselectTexOut out, int team) {
     }
 }
 
-/* TODO: [near miss] 98.88%; loop and lock-result joins agree; shared validity branch and registers remain. */
+/* TODO: [near miss] 98.88%; shared validity join differs before allocation;
+ * value numbering also merges its zero with the comparison high word. */
 void get_pselect_head_textures(PselectTexOut out) {
     int n;
     int i;

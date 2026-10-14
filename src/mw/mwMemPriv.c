@@ -65,7 +65,8 @@ int privGetAlignFromMwMemFlags(u32 flags) {
     }
 }
 
-/* TODO: [near miss] 94.17%; alignment and pointer operations agree, but leaf register allocation differs from retail. */
+/* TODO: [near miss] 94.17%; pointer/mask webs rotate across nine leaf rows;
+ * propagation-off control is neutral; stop without new ownership evidence. */
 void* privGetBlockFromUsedHdr(MwMemUsedHeader* header) {
     u8* block;
     u32 alignment_mask;

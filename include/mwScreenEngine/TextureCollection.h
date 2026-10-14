@@ -15,7 +15,7 @@ typedef struct GVTextureCollection {
     RwTexture** colors; /* +0x08 */
     RwTexture** alphas; /* +0x0C */
     unsigned char pad10[0x04];
-    unsigned int count; /* +0x14 */
+    int count; /* +0x14 */
     unsigned int refreshFlag; /* +0x18 */
     unsigned int reloadFlag; /* +0x1C */
     unsigned char pad20[0x10];

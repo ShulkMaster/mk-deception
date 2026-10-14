@@ -75,7 +75,8 @@ static inline SFXAObject* SFXA_FindFreeObject(void) {
     return 0;
 }
 
-/* TODO: [near miss] 84.64%; initializer constant/address scheduling remains; scheduling-off regresses the TU. */
+/* TODO: [near miss] 84.64%; initializer address/constant scheduling remains;
+ * clean propagation-off is neutral; stop at the scheduling ceiling. */
 SFXAObject* SFXA_Create(void) {
     SFXAObject* object = SFXA_FindFreeObject();
     if (object == 0) {

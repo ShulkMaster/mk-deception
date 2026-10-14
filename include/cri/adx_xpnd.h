@@ -14,7 +14,7 @@ typedef struct AdxXpnd {
     int index;
     int mode;
     int status;
-    int num_decoded_blocks;
+    long num_decoded_blocks;
     AdxXpndParams params;
     short delay[2][2];
     short coefficients[2];

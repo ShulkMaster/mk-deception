@@ -28,7 +28,7 @@ struct char_traits<char> {
     }
     static char_type* assign(char_type* s, unsigned long n, char_type a)
     {
-        return (char_type*)memset(s, a, n);
+        return (char_type*)memset(s, static_cast<unsigned char>(a), n);
     }
 };
 
@@ -246,7 +246,7 @@ basic_string<charT, traits, Allocator>::replace(size_type pos, size_type n1, siz
         __msl_error("basic_string::replace pos out of range\n");
     }
     size_type xlen = std::min(n1, size_ - pos);
-    if (n2 > max_size() || size_ - xlen > max_size() - n2) {
+    if (n2 > max_size() || length() - xlen > max_size() - n2) {
         __msl_error("basic_string::length error\n");
     }
     size_type new_size = n2 + (size_ - xlen);
@@ -260,7 +260,7 @@ basic_string<charT, traits, Allocator>::replace(size_type pos, size_type n1, siz
             traits::assign(p + pos, n2, c);
         }
         if (data_ != 0) {
-            traits::copy(p + (pos + n2), data_ + (pos + xlen), size_ - (pos + xlen));
+            traits::copy(p + pos + n2, data_ + pos + xlen, size_ - (pos + xlen));
         }
         traits::assign(p[new_size], charT());
         if (data_ != 0) {
@@ -270,7 +270,7 @@ basic_string<charT, traits, Allocator>::replace(size_type pos, size_type n1, siz
         capacity_.m_ = new_cap;
         size_ = new_size;
     } else if (data_ != 0) {
-        traits::move(data_ + (pos + n2), data_ + (pos + xlen), size_ - (pos + xlen));
+        traits::move(data_ + pos + n2, data_ + pos + xlen, size_ - (pos + xlen));
         if (n2 != 0) {
             traits::assign(data_ + pos, n2, c);
         }

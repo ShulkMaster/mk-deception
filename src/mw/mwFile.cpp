@@ -276,13 +276,12 @@ void _mwFileServiceThread()
     spServers->serviceThread();
 }
 
-/* TODO: [near miss] 91.66666%; compact callback truth conversion needs verified whole-TU size mode. */
 void _mwFileTickEx(bool perform_callbacks)
 {
     _mwFilePlatformTick();
     spServers->service();
     if (!_mwFilePlatformIsInServiceThread() && spTickCallback != 0) {
-        spTickCallback(perform_callbacks);
+        spTickCallback(perform_callbacks ? 1 : 0);
     }
 }
 
@@ -316,8 +315,8 @@ extern "C" int mwFileOpenModeToFlags(const char* mode)
 
 extern "C" void mwFileGetDefaultInitParam(mwFileInitParam*);
 
-/* TODO: [breakthrough needed] 95.12%; retail's unreachable diagnostic block needs original guard evidence;
- * compact saves need a verified whole-TU size-mode check. */
+/* TODO: [breakthrough needed] 95.12195%; recover the original tracking-init
+ * producer for the unreachable diagnostic at +0x60; all live paths agree. */
 extern "C" int mwFileInit(mwFileInitParam* parameters)
 {
     mwFileInitParam default_parameters;
@@ -389,11 +388,8 @@ void mwFileMultithreadedMemTraits::deallocate(void* object)
 void* mwFileMultithreadedMemTraits::allocate(
     unsigned long size, mwTargetMemAlign alignment, const char* name)
 {
-    mwFileMutex* mutex = getMutex();
-    mutex->lock();
-    void* allocation = mwFileMemTraits::allocate(size, alignment, name);
-    mutex->unlock();
-    return allocation;
+    mwFileMutexLock lock(*getMutex());
+    return mwFileMemTraits::allocate(size, alignment, name);
 }
 
 mwFileMutex* mwFileMultithreadedMemTraits::getMutex()

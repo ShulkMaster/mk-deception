@@ -161,7 +161,7 @@ const short skg_prim_tbl[1024] = {
 };
 
 static inline void ADXB_CopySamples(short* output, const short* extra,
-                                    int count)
+                                    long count)
 {
     for (; count > 0; count--) {
         *output++ = *extra++;
@@ -173,8 +173,8 @@ void ADXB_ExecOneAdx(AdxBasicDecoderExt*);
 void ADXB_EvokeDecode(AdxBasicDecoderExt*);
 int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt*, signed char*, int);
 void ADXB_Destroy(AdxBasicDecoderExt*);
-void adxb_DefAddWr(void*, int, int);
-short* adxb_DefGetWr(void*, int*, int*, int*);
+void adxb_DefAddWr(void*, long, long);
+short* adxb_DefGetWr(void*, long*, long*, long*);
 
 void ADXB_ExecHndl(AdxBasicDecoderExt* decoder)
 {
@@ -211,24 +211,25 @@ void ADXB_ExecHndl(AdxBasicDecoderExt* decoder)
     }
 }
 
-/* TODO: [near miss] 99.80%; shared round-up numerator and trailing count swap r23/r26; stop at coloring. */
+/* TODO: [near miss] 99.7955%; canonical arithmetic/write types preserve all bytes;
+ * round-up/trailing homes swap r23/r26; donor owner cross regresses, stop at coloring. */
 void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
 {
     AdxBasicDecoder* base = &decoder->base;
     AdxDecodeParams* params = &base->decode;
-    int block_size;
-    int block_samples;
-    int loop_samples;
-    int pcm_distance;
-    int pcm_size;
-    int write_position;
+    long block_size;
+    long block_samples;
+    long loop_samples;
+    long pcm_distance;
+    long pcm_size;
+    long write_position;
     short* pcm_buffer;
-    int decoded_blocks;
-    int decoded_samples;
-    int trailing_samples;
-    int i;
-    int offset;
-    int copy_count;
+    long decoded_blocks;
+    long decoded_samples;
+    long trailing_samples;
+    long i;
+    long offset;
+    long copy_count;
     short* copy_source;
 
     if (base->status == 1 && ADXPD_GetStat(base->expander) == 0) {
@@ -584,7 +585,7 @@ static int adxb_MakeEncryptionKey(int sample_count, short* state,
     return 0;
 }
 
-static int adxb_get_key(AdxBasicDecoderExt* decoder,
+static long adxb_get_key(AdxBasicDecoderExt* decoder,
                                             unsigned char version,
                                             unsigned char revision,
                                             int sample_count,
@@ -595,7 +596,6 @@ static int adxb_get_key(AdxBasicDecoderExt* decoder,
         *state = 0;
         *multiplier = 0;
         *increment = 0;
-        return 0;
     } else if (revision >= 16) {
         adxb_MakeEncryptionKey(sample_count, state, multiplier,
                                increment);
@@ -617,8 +617,6 @@ static int adxb_get_key(AdxBasicDecoderExt* decoder,
     return 0;
 }
 
-/* TODO: [breakthrough needed] 99.84%; two selector returns miss retail's shared
- * zero-status join; recover stripped SKG producer and return ownership. */
 int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
                          int length)
 {
@@ -632,7 +630,7 @@ int ADXB_DecodeHeaderAdx(AdxBasicDecoderExt* decoder, signed char* input,
     short delay_right[2];
     unsigned char version;
     unsigned char revision;
-    int status;
+    long status;
 
     base->header_decoded = 1;
     if (ADX_DecodeInfo((AdxHeader*)input, length, &data_length, &base->encoding,
@@ -745,15 +743,15 @@ AdxBasicDecoderExt* ADXB_Create(int max_channels, short* pcm_buffer,
     return decoder;
 }
 
-void adxb_DefAddWr(void* object, int data_length, int samples)
+void adxb_DefAddWr(void* object, long data_length, long samples)
 {
     AdxBasicDecoderExt* decoder = object;
     decoder->base.current_write_position += samples;
     decoder->base.total_decoded_samples += samples;
 }
 
-short* adxb_DefGetWr(void* object, int* write_position, int* room,
-                     int* loop_samples)
+short* adxb_DefGetWr(void* object, long* write_position, long* room,
+                     long* loop_samples)
 {
     AdxBasicDecoderExt* decoder = object;
     *write_position = decoder->base.current_write_position;
