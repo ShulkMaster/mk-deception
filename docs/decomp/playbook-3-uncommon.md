@@ -190,8 +190,17 @@ FP operands + schedule. REQUIRE same math, grouping, rounding.
   FP order + all inverse-sqrt consumers.
 - Swap only commutative operands, or name real factors. Drop temps only
   without reassociation. Keep polynomial-before-sqrt order.
+- Ordered squared-distance/bound compare has reversed operands despite
+  matching arithmetic: REQUIRE the same float tree and false unordered
+  result. TRY squaring the existing radius accumulator before the direct
+  distance `<= radius` test; preserves radius ownership and retail compare
+  operands without a new distance snapshot (`test_collision`).
 - Separate single-precision boundaries: name intermediates in eval order
   (`ADX_GetCoefficient`).
+- Reciprocal-normalization numerator/denominator homes differ: REQUIRE the
+  same left-associated component sum and single-precision division. TRY
+  staging the sum in the existing scalar before taking its reciprocal
+  (`obj_spawn_bld`); preserve component-store order.
 - Rounded product before add: explicit float conversion; verify output bits.
 - Mixed fused + separate ops: narrow function-scoped `fp_contract`; lexical
   toggles inside a function may do nothing. Retail `fmuls` + `fadds` where we

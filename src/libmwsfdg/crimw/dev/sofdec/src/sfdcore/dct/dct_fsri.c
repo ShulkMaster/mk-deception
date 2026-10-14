@@ -1,5 +1,6 @@
 #include "runtime/cstring.h"
 #include "sofdec/dct_fsri.h"
+#include "runtime/asm_sequences.inc"
 
 const char* DCT_GetVerStr(void);
 void DCT_AcInit(void);
@@ -249,10 +250,9 @@ void DCT_FsriTrans6Blk(DctFsriParams* params)
     DCT_FsriTransCore(params, -1);
 }
 
-/* TODO: [blocked] 25.000%; RE4 confirms the exact GQR7 mtspr sequence;
- * matching requires authorized handwritten assembly. */
 void DCT_FsriSetGqr(void)
 {
+    asm { SEQ_DCT_FsriSetGqr_Block() }
 }
 
 #pragma opt_loop_invariants off

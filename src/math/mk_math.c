@@ -530,14 +530,13 @@ float ang_sub_ang(float a, float b) {
     return d;
 }
 
-/* TODO: [near miss] 51.15%; rounded products and branches agree; FP scheduling/register webs remain. */
-float quat_extract_ang_y(const Quat* q) {
+float quat_extract_ang_y(Quat* q) {
     float xx = q->x * q->x;
     float yy = q->y * q->y;
     float zx = q->z * q->x;
     float wy = q->w * q->y;
-    float t = -(kTwo * (xx + yy) - kOne);
     float s = kTwo * (zx + wy);
+    float t = -(kTwo * (xx + yy) - kOne);
     float ang;
 
     if (t >= kZero) {
@@ -708,7 +707,32 @@ void quat_to_mat(MKMATRIX* out, const Quat* q) {
     out->flags = 3;
 }
 
-/* TODO: [near miss] 97.92%; seventeen FP home rows remain; shared helper fixes this but regresses matrix sibling. */
+static inline void yxz_trig_to_matrix(
+    const float* cx, const float* sx, const float* cy, const float* sy,
+    const float* cz, const float* sz, MKMATRIX* m) {
+    float cycz;
+    float cysz;
+    float sysz;
+    float czsy;
+
+    cycz = *cy * *cz;
+    cysz = *cy * *sz;
+    czsy = *cz * *sy;
+    sysz = *sy * *sz;
+    m->right.x = *sx * sysz + cycz;
+    m->right.y = *cx * *sz;
+    m->right.z = cysz * *sx - czsy;
+    m->up.x = *sx * czsy - cysz;
+    m->up.y = *cx * *cz;
+    m->up.z = *sx * cycz + sysz;
+    m->at.x = *sy * *cx;
+    m->at.y = -*sx;
+    m->at.z = *cy * *cx;
+    m->flags = 3;
+}
+
+/* TODO: [near miss] 99.17%; shared rotation preserves both consumers;
+ * nine sz/czsy/sysz FPR rows remain; stop at coloring. */
 void YXZ_angles_to_quat(const Vec* angles, Quat* out) {
     float sy;
     float cy;
@@ -717,29 +741,11 @@ void YXZ_angles_to_quat(const Vec* angles, Quat* out) {
     float sz;
     float cz;
     MKMATRIX m;
-    float cycz;
-    float cysz;
-    float sysz;
-    float czsy;
 
     gxMathCosSin(&cx, &sx, angles->x);
     gxMathCosSin(&cy, &sy, angles->y);
     gxMathCosSin(&cz, &sz, angles->z);
-
-    cycz = cy * cz;
-    cysz = cy * sz;
-    czsy = cz * sy;
-    sysz = sy * sz;
-    m.right.x = sx * sysz + cycz;
-    m.right.y = cx * sz;
-    m.right.z = cysz * sx - czsy;
-    m.up.x = sx * czsy - cysz;
-    m.up.y = cx * cz;
-    m.up.z = sx * cycz + sysz;
-    m.at.x = sy * cx;
-    m.at.y = -sx;
-    m.at.z = cy * cx;
-    m.flags = 3;
+    yxz_trig_to_matrix(&cx, &sx, &cy, &sy, &cz, &sz, &m);
     RtQuatConvertFromMatrix(out, &m);
 }
 
@@ -791,27 +797,8 @@ void ZYX_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
     RwMatrixTranslate(m, &saved, 2);
 }
 
-static inline void yxz_trig_to_matrix(
-    const float* cx, const float* sx, const float* cy, const float* sy,
-    const float* cz, const float* sz, MKMATRIX* m) {
-    float cycz = *cy * *cz;
-    float cysz = *cy * *sz;
-    float sysz = *sy * *sz;
-    float czsy = *cz * *sy;
-    m->right.x = *sx * sysz + cycz;
-    m->right.y = *cx * *sz;
-    m->right.z = cysz * *sx - czsy;
-    m->up.x = *sx * czsy - cysz;
-    m->up.y = *cx * *cz;
-    m->up.z = *sx * cycz + sysz;
-    m->at.x = *sy * *cx;
-    m->at.y = -*sx;
-    m->at.z = *cy * *cx;
-    m->flags = 3;
-}
-
-/* TODO: [near miss] 99.0625%; nine trig-input/cysz FPR homes differ;
- * stop at coloring after the compatible neutral combinations stay byte-identical. */
+/* TODO: [near miss] 99.53%; shared rotation order restores trig homes;
+ * six sz/cysz FPR rows remain; stop at coloring. */
 void YXZ_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
     float cz;
     float sz;

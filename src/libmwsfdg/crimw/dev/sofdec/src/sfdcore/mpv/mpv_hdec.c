@@ -527,7 +527,7 @@ static inline u32 mpvhdec_AlignSequenceWindow(u32 bits, int bit_offset)
 }
 
 /* TODO: [near miss] 99.5956%; raw-word alignment copy is absent before allocation;
- * result-owning helper is byte-neutral; stop until original reader phase is recovered. */
+ * const-input/result-owner controls are neutral; recover the original reader phase. */
 static int mpvhdec_DecPscSj(MPVContext* context, SJ* stream)
 {
     SJCK remainder;

@@ -4,6 +4,7 @@
 #include "dolphin/base/PPCArch.h"
 #include "dolphin/cache.h"
 #include "sofdec/uty_mem.h"
+#include "runtime/asm_sequences.inc"
 
 struct MPVLibWork {
     int conditions[17];
@@ -146,17 +147,19 @@ void MPV_MbCbFn(void)
 {
 }
 
-/* TODO: [blocked] 68.79%; retail inlines a dcbi cache-line loop, but no
- * supported C intrinsic is confirmed; keep the portable cache API fallback. */
-int MPV_Destroy(MPVContext* handle)
+int MPV_Destroy(MPVContext* mpv)
 {
+    register MPVContext* handle = mpv;
+    register int i;
     if (mpvlib_CheckHandle(handle) != 0) {
         return MPVERR_SetCode(0, 0xFF030201);
     }
 
     MPVM2V_Destroy(handle);
     if ((mpvlib_libwork.flags & 0x10000000) != 0) {
-        DCInvalidateRange(handle, sizeof(*handle));
+        for (i = 0; i < sizeof(*handle); i += 0x20) {
+            asm { SEQ_MPV_Destroy_DcbiLine(handle, i) }
+        }
     }
     handle->state = 1;
     return 0;
@@ -248,33 +251,40 @@ static MPVContext* mpvlib_SearchFreeHn(void)
     return 0;
 }
 
-/* TODO: [blocked] 66.39%; approved cache block awaits Studio loop labels
- * (F27) and a ruling on the required register asm operand. */
 MPVContext* MPV_Create(void)
 {
-    MPVContext* handle = mpvlib_SearchFreeHn();
+    register MPVContext* handle;
+    register int i;
+    register MPVContext* free_handle;
 
+    free_handle = mpvlib_SearchFreeHn();
+    handle = free_handle;
     if (handle == 0) {
         return 0;
     }
 
     if ((mpvlib_libwork.flags & 0x10000000) != 0) {
-        DCInvalidateRange(handle, sizeof(*handle));
-        memset(handle, 0, sizeof(*handle));
+        for (i = 0; i < sizeof(*handle); i += 0x20) {
+            asm { SEQ_MPV_Create_DcbiDcbzLine(free_handle, i) }
+        }
     }
     handle = mpvlib_InitHn(handle);
     handle->m2v_handle = MPVM2V_Create();
     return handle;
 }
 
-/* TODO: [blocked] 72.38%; retail inline dcbi loop requires authorized
- * assembly; retained cache-invalidate call cannot match its instruction body. */
 void MPV_Finish(void)
 {
+    register int i;
+    register u8* index_work;
+
     MPVUMC_Finish();
     MPVM2V_Finish();
+    index_work = mpvlib_libwork.index_work;
     if ((mpvlib_libwork.flags & 0x10000000) != 0) {
-        DCInvalidateRange(mpvlib_libwork.index_work, 0x1C60);
+        for (i = 0; i < 0x1C60; i += 0x20) {
+            asm { SEQ_MPV_Finish_DcbiLine(index_work, i) }
+        }
     }
 }
 
@@ -321,15 +331,16 @@ static void mpvlib_InitPicAtr(MPVPictureAttributes* attributes)
     attributes->field_63 = 0xFF;
     attributes->field_64 = 0xFF;
 }
-/* TODO: [blocked] 74.11%; locked-cache instructions need authorized assembly;
- * initialization CFG and rodata/BSS layout also remain unresolved. */
+/* TODO: [breakthrough] 76.89%; locked-cache loop is an approved asm block; remaining:
+ * error-ladder CFG (retail hang is a bctrl through null), HID2 spill slot, rodata/BSS layout. */
 int MPV_Init(int handle_count, void* work)
 {
     static const u32 test_wrok = 0x01020304;
     static const char version_check[] = "1.933";
     MPVContext* handles;
     u8* after_handles;
-    u8* index_work;
+    register u8* index_work;
+    register int i;
     u32 hid2;
     u32 work_address;
     int error;
@@ -382,8 +393,9 @@ int MPV_Init(int handle_count, void* work)
     after_handles = (u8*)handles + handle_count * sizeof(MPVContext);
     index_work = after_handles + 0x3A0;
     if ((mpvlib_libwork.flags & 0x10000000) != 0) {
-        DCInvalidateRange(index_work, 0x1C60);
-        memset(index_work, 0, 0x1C60);
+        for (i = 0; i < 0x1C60; i += 0x20) {
+            asm { SEQ_MPV_Init_DcbiDcbzLine(index_work, i) }
+        }
     }
 
     UTY_MemcpyDword((unsigned int*)mpvlib_libwork.conditions,

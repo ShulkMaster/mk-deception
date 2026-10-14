@@ -150,7 +150,6 @@ void trial_end_tunes(void);
 float subzero_his_tinkle_snd(void);
 float p_animate(void);
 float p_anim_idle(void);
-float p_idle(void);
 
 struct ExitFloatIntArgs {
     unsigned int header;

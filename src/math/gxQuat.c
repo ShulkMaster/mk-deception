@@ -18,9 +18,9 @@ union GxQuatFloatBits {
     unsigned int u;
 };
 
-/* TODO: [near miss] 89.40%; oneMinusT/absDot FPRs and scaled-q2-first order match; retail ranks
- * t f28, sign f29, theta f27 (ours f29/f27/f28); declaration order and a t copy do not move it. */
-void gxQuatInterpQuat(Quat* out, const Quat* q1, const Quat* q2, float t) {
+/* TODO: [near miss] 98.52%; component load/store order agrees;
+ * t/sign/theta/oneMinusT/absDot FPR homes differ; stop at coloring. */
+void gxQuatInterpQuat(Quat* out, Quat* q1, const Quat* q2, float t) {
     float absDot;
     float oneMinusT;
     float sign;

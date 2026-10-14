@@ -420,6 +420,13 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   TRY typed source/destination slot pointers followed by the dereference copy
   (`_copy_register_to_register`); signed pointer types cannot substitute for
   unsigned register storage.
+- Serialized reference table: retail forms owner + scaled index, then uses
+  displaced member loads/stores; direct indexing emits index + member offset
+  with indexed accesses. REQUIRE the canonical table layout and unchanged
+  relocation/load/store order. TRY a typed pointer to the actual slot for
+  publication and a separate value snapshot read directly from the table
+  (`PatchAnims`, `PatchAttribueList`); a slot-only read or C++ reference need
+  not preserve that address grouping. No shifted struct view or fake offset.
 - Several stores to one instruction record: element pointer folds array-member
   offset into base, retail keeps owner + index stride and each store's field
   offset. REQUIRE a real count snapshot and later count reload. TRY canonical
@@ -953,6 +960,12 @@ lifetimes.
   owning the complete operation (`pz_fighters_chomper_fatality_in_progress`
   flesh launch). Compare initializer payloads and pool positions separately;
   correct stack slots do not prove TU data layout.
+- Packed font words precede caller POD return slots, retail follows them:
+  REQUIRE distinct real words and repeated byte-publication / text-update
+  operations. TRY separate inlines owning the aligned packed-color word and
+  the later snapshot/update/restore word; keep GetColor PODs and latches in
+  caller (`mkScreenEngineClient::HandleAction`). Extracting the whole action
+  also moves the return temporary and can lose the intended order.
 - Factory output pointer and inlined scalar bit-view slots exchanged: REQUIRE
   exact factory guard, post-call owner reloads and scalar math. TRY typed inline
   owning the complete factory/setup operation (`npc_update_pos_on_path`
@@ -986,6 +999,12 @@ branch-only alias = dishonest even at 100.
 - Decl order + scope `[da]` (mk-da's top rule): lifetimes look shifted ->
   one honest move of where a real local is declared (outer vs block, before vs
   after another local's first use). GC/1.2.5 colors in decl order.
+- Disjoint template/cursor owners, only template takes a higher saved home:
+  REQUIRE allocation trace selects template before the later cursor, whose
+  lower home is reusable. TRY declaring the existing cursor at function scope
+  before the template owner; keep its initialization and live interval
+  unchanged (`mslSoundAttach`). A split loop-index web can still select first;
+  verify the actual selection order rather than sweeping declarations.
 - Two independent init loops share one index, only 2nd loop rotates
   constants/address regs: REQUIRE separate arrays, no shared index value. TRY
   C++ loop-local index for 2nd loop (`ScreenObject::ScreenObject`); keep
@@ -1263,6 +1282,11 @@ Helper locals and web kind.
   field reads for those tests; retain the separate snapshot taken after
   callbacks (`ani_to_frame_x_col`). Confirm the compiler still emits one
   early field load and preserves every later reload.
+- Global tick/list/sqrt homes rotate in an entirely inlined bounded scan:
+  REQUIRE no intervening calls or writes to the tick, and a separate reload
+  after publication. TRY direct unsigned tick reads instead of a named
+  snapshot; verify CSE retains one preheader load and the later reload
+  (`spawn_bld_fall`).
 - Inlined helper loop's fresh locals color above loop temps, retail reuses
   dead outer regs: open-code + reuse existing locals; MWCC colors reused
   local's 2nd web after loop temps (`AddRequestingCS_ByThread`).
