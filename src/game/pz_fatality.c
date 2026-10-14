@@ -802,7 +802,7 @@ static inline void pz_lightning_bolt(Vec* position, int pan_side) {
 
     bolt = MK_LIVE(bolt, bolt_instance);
     if (bolt != 0 && bolt->instance != 0) {
-        bolt->vtbl->destroy(bolt, bolt->vtbl);
+        ((MkHdr*)bolt)->typed_vtbl->destroy((MkHdr*)bolt);
     }
 }
 
@@ -1138,6 +1138,35 @@ static float pz_fighter_fatality_huge_shove(void) {
     return 0.0f;
 }
 
+static const PuzzleAttackParameters pz_stripped_attack_0 = {
+    9.0f, 0.1f, 1.0f, 0x00010000, 0x00060008, 3,
+    0.2f, 0.7f, 1.5f, 14.0f, 11.0f, 0, 1, 0, 0,
+};
+static const PuzzleAttackParameters pz_stripped_attack_1 = {
+    12.0f, 0.1f, 1.2f, 0x00010000, 0x00030007, 3,
+    0.2f, 0.7f, 1.8f, 15.0f, 13.0f, 0, 1, 0, 0,
+};
+static const PuzzleAttackParameters pz_stripped_attack_2 = {
+    6.0f, 0.1f, 1.6f, 0x00010000, 0x00040007, 3,
+    0.2f, 0.65f, 1.5f, 8.0f, 7.0f, 1, 1, 0, 0,
+};
+static const PuzzleAttackParameters pz_stripped_attack_3 = {
+    6.0f, 0.1f, 1.6f, 0x00010000, 0x00040007, 3,
+    0.2f, 0.65f, 1.5f, 8.0f, 7.0f, 0, 1, 0, 0,
+};
+static const PuzzleAttackParameters pz_stripped_attack_4 = {
+    6.0f, 0.1f, 1.6f, 0x00010000, 0x00040007, 3,
+    0.2f, 0.65f, 1.5f, 8.0f, 7.0f, 1, 1, 0, 0,
+};
+static const PuzzleAttackParameters pz_stripped_attack_5 = {
+    6.0f, 0.1f, 1.6f, 0x00010000, 0x00040007, 3,
+    0.2f, 0.65f, 1.5f, 8.0f, 7.0f, 0, 1, 0, 0,
+};
+static const PuzzleAttackParameters pz_stripped_attack_6 = {
+    12.0f, 0.1f, 1.2f, 0x00010000, 0x00030007, 3,
+    0.2f, 0.7f, 1.8f, 15.0f, 13.0f, 0, 1, 0, 0,
+};
+
 static float pz_fighter_fatality_good_solid_kick(void) {
     PuzzleAttackParameters attack = {
         11.0f, 0.1f, 0.9f, 0x00010001, 0x00070008, 3,
@@ -1233,6 +1262,138 @@ void pz_fighter_get_grinder_post(int player, Vec* post) {
     post->x = g_pz_fighters_engine.fighter_posts[0].x;
     post->y = g_pz_fighters_engine.fighter_posts[0].y;
     post->z = g_pz_fighters_engine.fighter_posts[0].z;
+}
+
+static const Vec pz_stripped_meat_terminal = {0.01f, 0.01f, 0.01f};
+
+static inline void pz_launch_grinder_meat_alt0(void) {
+    MKMATRIX* bone_matrix;
+    Vec position;
+    Vec velocity;
+    Vec terminal = {0.04f, 0.08f, 0.03f};
+    float direction = 1.0f;
+
+    if (plyr_pdata->plyr_num == 1) {
+        direction = -1.0f;
+    }
+
+    bone_matrix = force_calc_bone_world_mat(plyr_obj, 9);
+    RwFrameTransform(g_pz_fighters_engine.grinder_meat_alt0->frame, bone_matrix, 0);
+    get_bone_world_pos(plyr_obj, 9, &position);
+    position.y = 0.8f;
+    unhide_obj(g_pz_fighters_engine.grinder_meat_alt0);
+    pz_grinder_scale_launch_vector(&velocity, &bone_matrix->at, 0.1f);
+    velocity.y = 0.05f;
+    velocity.x = 0.02f * direction;
+    velocity.z = 0.003f * direction;
+    ft_create_flesh_path(
+        g_pz_fighters_engine.grinder_meat_alt0, &position, 0, 0, &velocity, 0, &terminal, 0,
+        -0.004f, 0.5f, 0.1f);
+}
+
+static inline void pz_launch_grinder_meat_default(void) {
+    MKMATRIX* bone_matrix;
+    Vec position;
+    Vec velocity;
+    Vec terminal = {0.04f, 0.08f, 0.03f};
+    float direction = 1.0f;
+
+    if (plyr_pdata->plyr_num == 1) {
+        direction = -1.0f;
+    }
+
+    bone_matrix = force_calc_bone_world_mat(plyr_obj, 9);
+    RwFrameTransform(g_pz_fighters_engine.grinder_meat_default->frame, bone_matrix, 0);
+    get_bone_world_pos(plyr_obj, 9, &position);
+    position.y = 0.6f;
+    unhide_obj(g_pz_fighters_engine.grinder_meat_default);
+    pz_grinder_scale_launch_vector(&velocity, &bone_matrix->at, 0.1f);
+    velocity.y = 0.08f;
+    velocity.x = 0.04f * direction;
+    velocity.z = -0.005f * direction;
+    ft_create_flesh_path(
+        g_pz_fighters_engine.grinder_meat_default, &position, 0, 0, &velocity, 0, &terminal, 0,
+        -0.004f, 0.5f, 0.1f);
+}
+
+static inline void pz_launch_grinder_meat_alt1(void) {
+    MKMATRIX* bone_matrix;
+    Vec position;
+    Vec velocity;
+    Vec terminal = {0.04f, 0.08f, 0.03f};
+    float direction = 1.0f;
+
+    if (plyr_pdata->plyr_num == 1) {
+        direction = -1.0f;
+    }
+
+    bone_matrix = force_calc_bone_world_mat(plyr_obj, 9);
+    RwFrameTransform(g_pz_fighters_engine.grinder_meat_alt1->frame, bone_matrix, 0);
+    get_bone_world_pos(plyr_obj, 9, &position);
+    position.y = 0.45f;
+    unhide_obj(g_pz_fighters_engine.grinder_meat_alt1);
+    pz_grinder_scale_launch_vector(&velocity, &bone_matrix->at, 0.1f);
+    velocity.y = 0.04f;
+    velocity.x = 0.04f * direction;
+    velocity.z = 0.003f * direction;
+    ft_create_flesh_path(
+        g_pz_fighters_engine.grinder_meat_alt1, &position, 0, 0, &velocity, 0, &terminal, 0,
+        -0.004f, 0.5f, 0.1f);
+}
+
+static inline void pz_launch_grinder_meat_alt2(void) {
+    MKMATRIX* bone_matrix;
+    Vec position;
+    Vec velocity;
+    Vec terminal = {0.02f, 0.02f, 0.07f};
+    float direction = 1.0f;
+
+    if (plyr_pdata->plyr_num == 1) {
+        direction = -1.0f;
+    }
+
+    bone_matrix = force_calc_bone_world_mat(plyr_obj, 20);
+    RwFrameTransform(g_pz_fighters_engine.grinder_meat_alt2->frame, bone_matrix, 0);
+    get_bone_world_pos(plyr_obj, 20, &position);
+    position.y = 0.8f;
+    unhide_obj(g_pz_fighters_engine.grinder_meat_alt2);
+    pz_grinder_scale_launch_vector(&velocity, &bone_matrix->at, 0.1f);
+    velocity.y = 0.03f;
+    velocity.x = 0.02f * direction;
+    velocity.z = 0.003f * direction;
+    ft_create_flesh_path(
+        g_pz_fighters_engine.grinder_meat_alt2, &position, 0, 0, &velocity, 0, &terminal, 0,
+        -0.004f, 0.5f, 0.1f);
+}
+
+static inline void pz_grinder_create_final_path(Vec* position, Vec* velocity) {
+    struct PuzzleFighterRenderObject* object = g_pz_fighters_engine.grinder_meat_final;
+    Vec terminal = {0.04f, 0.08f, 0.03f};
+
+    unhide_obj(object);
+    ft_create_flesh_path(
+        object, position, 0, 0, velocity, 0, &terminal, 0,
+        -0.004f, 0.5f, 0.1f);
+}
+
+static inline void pz_launch_grinder_meat_final(void) {
+    Vec final_position;
+    Vec final_velocity;
+
+    final_position.x = 2.05f;
+    final_position.y = 1.8f;
+    final_position.z = 0.0f;
+    final_velocity.x = -0.0625f;
+    final_velocity.y = 0.105f;
+    final_velocity.z = 0.0f;
+    if (screen_width > 650) {
+        final_velocity.x *= 1.1f;
+    }
+    if (plyr_pdata->plyr_num == 0) {
+        final_position.x *= -1.0f;
+        final_velocity.x *= -1.0f;
+    }
+    pz_grinder_create_final_path(&final_position, &final_velocity);
 }
 
 /* TODO: [Scope warn] path_velocity block: branch-entry initializer drops 100% to 86.03%; late component stores to 93.08%. */
@@ -1502,137 +1663,6 @@ static float p_grinder_noise(void) {
     return 1.0f;
 }
 
-static inline void pz_launch_grinder_meat_alt0(void) {
-    MKMATRIX* bone_matrix;
-    Vec position;
-    Vec velocity;
-    Vec terminal = {0.04f, 0.08f, 0.03f};
-    float direction = 1.0f;
-
-    if (plyr_pdata->plyr_num == 1) {
-        direction = -1.0f;
-    }
-
-    bone_matrix = force_calc_bone_world_mat(plyr_obj, 9);
-    RwFrameTransform(g_pz_fighters_engine.grinder_meat_alt0->frame, bone_matrix, 0);
-    get_bone_world_pos(plyr_obj, 9, &position);
-    position.y = 0.8f;
-    unhide_obj(g_pz_fighters_engine.grinder_meat_alt0);
-    pz_grinder_scale_launch_vector(&velocity, &bone_matrix->at, 0.1f);
-    velocity.y = 0.05f;
-    velocity.x = 0.02f * direction;
-    velocity.z = 0.003f * direction;
-    ft_create_flesh_path(
-        g_pz_fighters_engine.grinder_meat_alt0, &position, 0, 0, &velocity, 0, &terminal, 0,
-        -0.004f, 0.5f, 0.1f);
-}
-
-static inline void pz_launch_grinder_meat_alt2(void) {
-    MKMATRIX* bone_matrix;
-    Vec position;
-    Vec velocity;
-    Vec terminal = {0.02f, 0.02f, 0.07f};
-    float direction = 1.0f;
-
-    if (plyr_pdata->plyr_num == 1) {
-        direction = -1.0f;
-    }
-
-    bone_matrix = force_calc_bone_world_mat(plyr_obj, 20);
-    RwFrameTransform(g_pz_fighters_engine.grinder_meat_alt2->frame, bone_matrix, 0);
-    get_bone_world_pos(plyr_obj, 20, &position);
-    position.y = 0.8f;
-    unhide_obj(g_pz_fighters_engine.grinder_meat_alt2);
-    pz_grinder_scale_launch_vector(&velocity, &bone_matrix->at, 0.1f);
-    velocity.y = 0.03f;
-    velocity.x = 0.02f * direction;
-    velocity.z = 0.003f * direction;
-    ft_create_flesh_path(
-        g_pz_fighters_engine.grinder_meat_alt2, &position, 0, 0, &velocity, 0, &terminal, 0,
-        -0.004f, 0.5f, 0.1f);
-}
-
-static inline void pz_launch_grinder_meat_alt1(void) {
-    MKMATRIX* bone_matrix;
-    Vec position;
-    Vec velocity;
-    Vec terminal = {0.04f, 0.08f, 0.03f};
-    float direction = 1.0f;
-
-    if (plyr_pdata->plyr_num == 1) {
-        direction = -1.0f;
-    }
-
-    bone_matrix = force_calc_bone_world_mat(plyr_obj, 9);
-    RwFrameTransform(g_pz_fighters_engine.grinder_meat_alt1->frame, bone_matrix, 0);
-    get_bone_world_pos(plyr_obj, 9, &position);
-    position.y = 0.45f;
-    unhide_obj(g_pz_fighters_engine.grinder_meat_alt1);
-    pz_grinder_scale_launch_vector(&velocity, &bone_matrix->at, 0.1f);
-    velocity.y = 0.04f;
-    velocity.x = 0.04f * direction;
-    velocity.z = 0.003f * direction;
-    ft_create_flesh_path(
-        g_pz_fighters_engine.grinder_meat_alt1, &position, 0, 0, &velocity, 0, &terminal, 0,
-        -0.004f, 0.5f, 0.1f);
-}
-
-static inline void pz_launch_grinder_meat_default(void) {
-    MKMATRIX* bone_matrix;
-    Vec position;
-    Vec velocity;
-    Vec terminal = {0.04f, 0.08f, 0.03f};
-    float direction = 1.0f;
-
-    if (plyr_pdata->plyr_num == 1) {
-        direction = -1.0f;
-    }
-
-    bone_matrix = force_calc_bone_world_mat(plyr_obj, 9);
-    RwFrameTransform(g_pz_fighters_engine.grinder_meat_default->frame, bone_matrix, 0);
-    get_bone_world_pos(plyr_obj, 9, &position);
-    position.y = 0.6f;
-    unhide_obj(g_pz_fighters_engine.grinder_meat_default);
-    pz_grinder_scale_launch_vector(&velocity, &bone_matrix->at, 0.1f);
-    velocity.y = 0.08f;
-    velocity.x = 0.04f * direction;
-    velocity.z = -0.005f * direction;
-    ft_create_flesh_path(
-        g_pz_fighters_engine.grinder_meat_default, &position, 0, 0, &velocity, 0, &terminal, 0,
-        -0.004f, 0.5f, 0.1f);
-}
-
-static inline void pz_grinder_create_final_path(Vec* position, Vec* velocity) {
-    struct PuzzleFighterRenderObject* object = g_pz_fighters_engine.grinder_meat_final;
-    Vec terminal = {0.04f, 0.08f, 0.03f};
-
-    unhide_obj(object);
-    ft_create_flesh_path(
-        object, position, 0, 0, velocity, 0, &terminal, 0,
-        -0.004f, 0.5f, 0.1f);
-}
-
-static inline void pz_launch_grinder_meat_final(void) {
-    Vec final_position;
-    Vec final_velocity;
-
-    final_position.x = 2.05f;
-    final_position.y = 1.8f;
-    final_position.z = 0.0f;
-    final_velocity.x = -0.0625f;
-    final_velocity.y = 0.105f;
-    final_velocity.z = 0.0f;
-    if (screen_width > 650) {
-        final_velocity.x *= 1.1f;
-    }
-    if (plyr_pdata->plyr_num == 0) {
-        final_position.x *= -1.0f;
-        final_velocity.x *= -1.0f;
-    }
-    pz_grinder_create_final_path(&final_position, &final_velocity);
-}
-
-/* TODO: [near miss] 99.97%; verified equal vector constants remain at different TU pool offsets. */
 float r_pz_fighter_grinding(void) {
     struct PuzzleGrinderNoisePdata* noise;
     struct PuzzleGrinderMeatController* meat;
@@ -1994,9 +2024,56 @@ static void pz_fighters_fatality_bird_in_place(int x, int y) {
     }
 }
 
+static const Vec pz_stripped_bird_offset = {0.0f, 0.5f, -0.5f};
+
 static int dropped_heart_snd_cb(void) {
     snd_req(0x1ADD);
     return 0;
+}
+
+static inline void pz_launch_chomper_flesh_path(void) {
+    Vec flesh_velocity = {0.0f, 0.05f, 0.0f};
+    Vec flesh_terminal_velocity = {0.05f, 0.05f, -0.05f};
+
+    ft_create_flesh_path(
+        g_pz_fighters_engine.fatality_piece,
+        &g_pz_fighters_engine.fatality_piece->position, 1, 0,
+        &flesh_velocity, 0, &flesh_terminal_velocity,
+        dropped_heart_snd_cb, -0.0015f, 0.7f, 0.1f);
+}
+
+static inline float pz_fighter_signed_squared_distance_to_post(
+    int attacker, struct PuzzleFighterRenderObject* object) {
+    Vec offset = {0.5f, 0.0f, 0.0f};
+    float object_x;
+    float target_z;
+    float delta_x;
+    float target_x;
+    float delta_z;
+    int direction = 1;
+
+    if (attacker == 0) {
+        target_x = g_pz_fighters_engine.fighter_posts[1].x;
+        target_z = g_pz_fighters_engine.fighter_posts[1].z;
+        target_x += offset.x;
+        target_z += offset.z;
+    } else {
+        target_x = g_pz_fighters_engine.fighter_posts[0].x;
+        target_z = g_pz_fighters_engine.fighter_posts[0].z;
+        target_x -= offset.x;
+        target_z -= offset.z;
+    }
+    object_x = object->position.x;
+    delta_x = target_x - object_x;
+    delta_z = target_z - object->position.z;
+    if (target_x < 0.0f) {
+        if (object_x < target_x) {
+            direction = -1;
+        }
+    } else if (object_x > target_x) {
+        direction = -1;
+    }
+    return direction * ((delta_x * delta_x) + (delta_z * delta_z));
 }
 
 static float p_chomper_controller(void) {
@@ -2175,40 +2252,6 @@ static float pz_fighter_chomper_actively_fighting(int active) {
     return 0.0f;
 }
 
-static inline float pz_fighter_signed_squared_distance_to_post(
-    int attacker, struct PuzzleFighterRenderObject* object) {
-    Vec offset = {0.5f, 0.0f, 0.0f};
-    float object_x;
-    float target_z;
-    float delta_x;
-    float target_x;
-    float delta_z;
-    int direction = 1;
-
-    if (attacker == 0) {
-        target_x = g_pz_fighters_engine.fighter_posts[1].x;
-        target_z = g_pz_fighters_engine.fighter_posts[1].z;
-        target_x += offset.x;
-        target_z += offset.z;
-    } else {
-        target_x = g_pz_fighters_engine.fighter_posts[0].x;
-        target_z = g_pz_fighters_engine.fighter_posts[0].z;
-        target_x -= offset.x;
-        target_z -= offset.z;
-    }
-    object_x = object->position.x;
-    delta_x = target_x - object_x;
-    delta_z = target_z - object->position.z;
-    if (target_x < 0.0f) {
-        if (object_x < target_x) {
-            direction = -1;
-        }
-    } else if (object_x > target_x) {
-        direction = -1;
-    }
-    return direction * ((delta_x * delta_x) + (delta_z * delta_z));
-}
-
 static float pz_fighters_chomper_fatality_prep(void) {
     static int attack_begun;
     struct PuzzleFatalityHazardObject *chomper;
@@ -2359,18 +2402,6 @@ static float pz_fighters_chomper_fatality_prep(void) {
     return 0.0f;
 }
 
-static inline void pz_launch_chomper_flesh_path(void) {
-    Vec flesh_velocity = {0.0f, 0.05f, 0.0f};
-    Vec flesh_terminal_velocity = {0.05f, 0.05f, -0.05f};
-
-    ft_create_flesh_path(
-        g_pz_fighters_engine.fatality_piece,
-        &g_pz_fighters_engine.fatality_piece->position, 1, 0,
-        &flesh_velocity, 0, &flesh_terminal_velocity,
-        dropped_heart_snd_cb, -0.0015f, 0.7f, 0.1f);
-}
-
-/* TODO: [near miss] 99.95992%; body and vector slots agree; seven initializer pool positions differ from retail. */
 static float pz_fighters_chomper_fatality_in_progress(void) {
     static int mode_timer;
     static int launch_sounds = 1;
@@ -2765,6 +2796,22 @@ static void pz_fighter_chomper_entering_fatality(
     reset_chomper_motion();
 }
 
+static inline void pz_fighter_chomper2_offset_post(int player, float* post_x, float* post_z) {
+    Vec offset = {0.05f, 0.0f, 0.0f};
+
+    if (player == 0) {
+        *post_x = g_pz_fighters_engine.fighter_posts[1].x;
+        *post_z = g_pz_fighters_engine.fighter_posts[1].z;
+        *post_x += offset.x;
+        *post_z += offset.z;
+    } else {
+        *post_x = g_pz_fighters_engine.fighter_posts[0].x;
+        *post_z = g_pz_fighters_engine.fighter_posts[0].z;
+        *post_x -= offset.x;
+        *post_z -= offset.z;
+    }
+}
+
 static float pz_fighters_chomper2_preround(void) {
     return pz_fatality_start_preround();
 }
@@ -2912,40 +2959,13 @@ static float p_chomper2_controller(void) {
     return 1.0f;
 }
 
-static inline void pz_fighter_offset_fatality_post(
-    int player, float* target_x, float* target_z) {
-    Vec offset = {0.05f, 0.0f, 0.0f};
-
-    if (player == 0) {
-        *target_x = g_pz_fighters_engine.fighter_posts[1].x;
-        *target_x += offset.x;
-        *target_z = g_pz_fighters_engine.fighter_posts[1].z;
-        *target_z += offset.z;
-    } else {
-        *target_x = g_pz_fighters_engine.fighter_posts[0].x;
-        *target_x -= offset.x;
-        *target_z = g_pz_fighters_engine.fighter_posts[0].z;
-        *target_z -= offset.z;
-    }
-}
-
-/* TODO: [near miss] 99.80%; plyr_pdata owner r3/r4 swaps with the Vec template base (4 rows); loads, stores and CFG agree. */
+/* TODO: [near miss] 99.80%; initial/preschedule pcode preserves both owners;
+ * only Vec-template and player-data r3/r4 allocation differs. */
 static float pz_fighter_chomper2_victim_crushed(void) {
-    Vec blood_offset = {0.05f, 0.0f, 0.0f};
     float blood_x;
     float blood_z;
 
-    if (plyr_pdata->plyr_num == 0) {
-        blood_x = g_pz_fighters_engine.fighter_posts[1].x;
-        blood_z = g_pz_fighters_engine.fighter_posts[1].z;
-        blood_x += blood_offset.x;
-        blood_z += blood_offset.z;
-    } else {
-        blood_x = g_pz_fighters_engine.fighter_posts[0].x;
-        blood_z = g_pz_fighters_engine.fighter_posts[0].z;
-        blood_x -= blood_offset.x;
-        blood_z -= blood_offset.z;
-    }
+    pz_fighter_chomper2_offset_post(plyr_pdata->plyr_num, &blood_x, &blood_z);
     blood_z -= 0.2f;
     bgnd_launch_fx_at_position(
         "chunk_crush1_fx", blood_x, 0.1f, blood_z);
@@ -2988,7 +3008,6 @@ static float pz_fighter_chomper2_actively_fighting(int active) {
 }
 #pragma opt_propagation reset
 
-/* TODO: [Scope warn] offset block: moving initializer to case entry drops 100% to 96.27%. */
 static float pz_fighters_chomper2_fatality_prep(void) {
     static int fatality_attackbegun;
     struct PuzzleFatalityHazardObject *chomper;
@@ -3016,18 +3035,7 @@ static float pz_fighters_chomper2_fatality_prep(void) {
         attacker = g_pz_fighters_engine.fatality_attacker;
         attacker_object = pz_fighter_get_player_obj(attacker);
         direction = 1;
-        {
-            Vec offset = {0.05f, 0.0f, 0.0f};
-            if (attacker == 0) {
-                target_x = g_pz_fighters_engine.fighter_posts[1].x + offset.x;
-                target_z = g_pz_fighters_engine.fighter_posts[1].z;
-                target_z += offset.z;
-            } else {
-                target_x = g_pz_fighters_engine.fighter_posts[0].x - offset.x;
-                target_z = g_pz_fighters_engine.fighter_posts[0].z;
-                target_z -= offset.z;
-            }
-        }
+        pz_fighter_chomper2_offset_post(attacker, &target_x, &target_z);
 
         attacker_x = attacker_object->position.x;
         delta_x = target_x - attacker_x;
@@ -3162,7 +3170,6 @@ static float pz_fighters_chomper2_fatality_prep(void) {
     return 0.0f;
 }
 
-/* TODO: [Scope warn] blood_offset block: moving initializer to launch_sounds branch entry drops 100% to 91.28%. */
 static float pz_fighters_chomper2_fatality_in_progress(void) {
     static int launch_sounds = 1;
     static int launch_more_meat_chunks = 1;
@@ -3210,21 +3217,7 @@ static float pz_fighters_chomper2_fatality_in_progress(void) {
                         g_pz_fighters_engine.fatality_victim),
                     pz_fighter_wipe_blood_off);
 
-                {
-                    Vec blood_offset = {0.05f, 0.0f, 0.0f};
-
-                    if (attacker_data->plyr_num == 0) {
-                        blood_x = g_pz_fighters_engine.fighter_posts[1].x;
-                        blood_z = g_pz_fighters_engine.fighter_posts[1].z;
-                        blood_x += blood_offset.x;
-                        blood_z += blood_offset.z;
-                    } else {
-                        blood_x = g_pz_fighters_engine.fighter_posts[0].x;
-                        blood_z = g_pz_fighters_engine.fighter_posts[0].z;
-                        blood_x -= blood_offset.x;
-                        blood_z -= blood_offset.z;
-                    }
-                }
+                pz_fighter_chomper2_offset_post(attacker_data->plyr_num, &blood_x, &blood_z);
                 blood_z -= 0.2f;
 
                 bgnd_launch_fx_at_position(
@@ -3486,6 +3479,23 @@ static void pz_fighter_set_objects_falling_obj(
     }
 }
 
+static inline void pz_fighter_offset_fatality_post(
+    int player, float* target_x, float* target_z) {
+    Vec offset = {0.05f, 0.0f, 0.0f};
+
+    if (player == 0) {
+        *target_x = g_pz_fighters_engine.fighter_posts[1].x;
+        *target_x += offset.x;
+        *target_z = g_pz_fighters_engine.fighter_posts[1].z;
+        *target_z += offset.z;
+    } else {
+        *target_x = g_pz_fighters_engine.fighter_posts[0].x;
+        *target_x -= offset.x;
+        *target_z = g_pz_fighters_engine.fighter_posts[0].z;
+        *target_z -= offset.z;
+    }
+}
+
 static float pz_fighters_objects_falling_preround(void) {
     g_pz_fighter_fatality_engine.controller->preround_active = 1;
     if (g_pz_fighter_fatality_engine.controller
@@ -3684,8 +3694,6 @@ static float p_objects_falling_controller2(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.93%; nine equal-value Vec initializer pool offsets differ;
- * recover missing TU rodata prefix before link equivalence. */
 static void pz_fighter_fatality_launch_eyes(void) {
     struct PuzzleFighterRenderObject* left_eye = g_pz_fighters_engine.left_eye;
     struct PuzzleFighterRenderObject* right_eye = g_pz_fighters_engine.right_eye;
@@ -4032,12 +4040,30 @@ static void pz_fighter_objects_falling_entering_fatality(
     g_pz_fighter_fatality_engine.controller->phase = 0;
 }
 
+static inline void pz_lightning_target_position(int victim, float* target_x, float* target_z) {
+    Vec offset = {0.05f, 0.0f, 0.0f};
+    if (screen_width > 650) {
+        offset.x = 0.35f;
+    }
+    if (victim == 0) {
+        *target_x = g_pz_fighters_engine.fighter_posts[1].x;
+        *target_x += offset.x;
+        *target_z = g_pz_fighters_engine.fighter_posts[1].z;
+        *target_z += offset.z;
+    } else {
+        *target_x = g_pz_fighters_engine.fighter_posts[0].x;
+        *target_x -= offset.x;
+        *target_z = g_pz_fighters_engine.fighter_posts[0].z;
+        *target_z -= offset.z;
+    }
+}
+
 static float pz_fighters_lightning_preround(void) {
     return pz_fatality_start_preround();
 }
 
-/* TODO: [breakthrough] 99.67%; smoke pair fixes bolt homes;
- * instance/smoke, first spark/burn, and later texture coloring remain. */
+/* TODO: [near miss] 99.66732%; bolt/effect/texture homes remain;
+ * canonical one-argument destroy is byte-neutral. */
 static float p_lightning_controller(void) {
     Vec position = {0.0f, 0.0f, 0.0f};
 
@@ -4070,24 +4096,6 @@ static float p_lightning_controller(void) {
 
 static float pz_fighter_lightning_actively_fighting(int active) {
     return pz_fatality_set_random_hazard_phase(active);
-}
-
-static inline void pz_lightning_target_position(int victim, float* target_x, float* target_z) {
-    Vec offset = {0.05f, 0.0f, 0.0f};
-    if (screen_width > 650) {
-        offset.x = 0.35f;
-    }
-    if (victim == 0) {
-        *target_x = g_pz_fighters_engine.fighter_posts[1].x;
-        *target_x += offset.x;
-        *target_z = g_pz_fighters_engine.fighter_posts[1].z;
-        *target_z += offset.z;
-    } else {
-        *target_x = g_pz_fighters_engine.fighter_posts[0].x;
-        *target_x -= offset.x;
-        *target_z = g_pz_fighters_engine.fighter_posts[0].z;
-        *target_z -= offset.z;
-    }
 }
 
 /* TODO: [near miss] 99.82%; typed target-position helper removes bare scopes;
@@ -5106,7 +5114,15 @@ static float pz_fighters_burn_fatality_in_progress(void) {
     return pz_fatality_finish_timed_fatality();
 }
 
-/* TODO: [near miss] 99.91%; only r29/r30 coloring of burners[1] after the loop remains. */
+static inline void pz_fighter_register_burners(
+    struct PuzzleFighterRenderObject* primary,
+    struct PuzzleFighterRenderObject* secondary) {
+    g_pz_fighter_fatality_engine.scene_objects[0] = primary;
+    g_pz_fighter_fatality_engine.scene_objects[1] = secondary;
+    obj_create_sobjs(primary);
+    obj_create_sobjs(secondary);
+}
+
 static float pz_fighter_load_and_place_initial_burn(void) {
     struct PuzzleEffectBankContext effect_context;
     struct PuzzleFighterRenderObject* burners[2];
@@ -5138,10 +5154,7 @@ static float pz_fighter_load_and_place_initial_burn(void) {
         insert_fgnd_mkobj(burners[i]);
     }
 
-    g_pz_fighter_fatality_engine.scene_objects[0] = burners[0];
-    g_pz_fighter_fatality_engine.scene_objects[1] = burners[1];
-    obj_create_sobjs(burners[0]);
-    obj_create_sobjs(burners[1]);
+    pz_fighter_register_burners(burners[0], burners[1]);
 
     controller = 0;
     if (_create_mkproc_generic_tinystack(

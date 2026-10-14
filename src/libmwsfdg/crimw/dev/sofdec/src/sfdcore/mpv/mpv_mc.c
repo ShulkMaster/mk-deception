@@ -154,7 +154,12 @@ void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
     }
 }
 
-/* TODO: [breakthrough] 95.34%; aligned average is exact; case1/2 packed-word coloring and cursor schedule remain. */
+static inline u32 mpvmc_avg_masked(u32 w, u32 a, u32 m1, u32 m2)
+{
+    u32 x = w ^ a;
+    return (w & a) + ((x & m1) >> 1) + (x & m2);
+}
+
 void MPVMC08_OneRefV2_TuneC(MPVMCContext *context)
 {
     s32 row;
@@ -163,7 +168,6 @@ void MPVMC08_OneRefV2_TuneC(MPVMCContext *context)
     const u8 *reference1;
     s32 stride;
 
-    u32 x0, x1;
     u32 w0, a0, w1, a1, w2, a2;
     u32 m1 = 0xFEFEFEFE;
     u32 m2 = 0x01010101;
@@ -179,10 +183,8 @@ void MPVMC08_OneRefV2_TuneC(MPVMCContext *context)
             a0 = ((const u32*)reference1)[0];
             w1 = ((const u32*)reference0)[1];
             a1 = ((const u32*)reference1)[1];
-            x0 = w0 ^ a0;
-            x1 = w1 ^ a1;
-            destination[0] = (w0 & a0) + ((x0 & m1) >> 1) + (x0 & m2);
-            destination[1] = (w1 & a1) + ((x1 & m1) >> 1) + (x1 & m2);
+            destination[0] = mpvmc_avg_masked(w0, a0, m1, m2);
+            destination[1] = mpvmc_avg_masked(w1, a1, m1, m2);
             reference0 += stride;
             reference1 += stride;
             destination += 2;
@@ -204,10 +206,8 @@ void MPVMC08_OneRefV2_TuneC(MPVMCContext *context)
             a0 = (a0 << 8) | (a1 >> 24);
             w2 = (w1 << 8) | w2;
             a2 = (a1 << 8) | a2;
-            x0 = w0 ^ a0;
-            x1 = w2 ^ a2;
-            destination[0] = (w0 & a0) + ((x0 & m1) >> 1) + (x0 & m2);
-            destination[1] = (w2 & a2) + ((x1 & m1) >> 1) + (x1 & m2);
+            destination[0] = mpvmc_avg_masked(w0, a0, m1, m2);
+            destination[1] = mpvmc_avg_masked(w2, a2, m1, m2);
             destination += 2;
         }
         break;
@@ -227,10 +227,8 @@ void MPVMC08_OneRefV2_TuneC(MPVMCContext *context)
             a0 = (a0 << 16) | (a1 >> 16);
             w2 = (w1 << 16) | w2;
             a2 = (a1 << 16) | a2;
-            x0 = w0 ^ a0;
-            x1 = w2 ^ a2;
-            destination[0] = (w0 & a0) + ((x0 & m1) >> 1) + (x0 & m2);
-            destination[1] = (w2 & a2) + ((x1 & m1) >> 1) + (x1 & m2);
+            destination[0] = mpvmc_avg_masked(w0, a0, m1, m2);
+            destination[1] = mpvmc_avg_masked(w2, a2, m1, m2);
             destination += 2;
         }
         break;
@@ -250,10 +248,8 @@ void MPVMC08_OneRefV2_TuneC(MPVMCContext *context)
             a0 = (a0 << 24) | (a1 >> 8);
             w2 = (w1 << 24) | (w2 >> 8);
             a2 = (a1 << 24) | (a2 >> 8);
-            x0 = w0 ^ a0;
-            x1 = w2 ^ a2;
-            destination[0] = (w0 & a0) + ((x0 & m1) >> 1) + (x0 & m2);
-            destination[1] = (w2 & a2) + ((x1 & m1) >> 1) + (x1 & m2);
+            destination[0] = mpvmc_avg_masked(w0, a0, m1, m2);
+            destination[1] = mpvmc_avg_masked(w2, a2, m1, m2);
             destination += 2;
         }
         break;

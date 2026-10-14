@@ -2728,8 +2728,6 @@ static inline int ejb_attack_collide(int attack_region, float horizontal) {
     return collision_result;
 }
 
-/* TODO: [near miss] 99.92%; plyr_pdata/opponent state swap r4/r5 across collision checks;
- * owner/scope/argument and inline-boundary forms add no gain; localized coloring remains. */
 float ani_to_frame_x_col(
     float target_frame, int attack_region, float horizontal_scale,
     float vertical_scale, int reaction, float reaction_rate, int strength) {
@@ -2816,9 +2814,9 @@ float ani_to_frame_x_col(
             case 6: {
                 MkObj* opponent_object;
                 PlyrPdata* opponent;
-                int opponent_state = his_pdata->state;
+                int opponent_state;
 
-                if ((opponent_state & 0x1000) != 0) {
+                if ((his_pdata->state & 0x1000) != 0) {
                     if (his_pdata->throw_restriction == 3) {
                         collision_blocked = 0;
                     } else if ((game_tick_ctr -
@@ -2828,7 +2826,7 @@ float ani_to_frame_x_col(
                         collision_blocked = 1;
                     }
                 }
-                if (opponent_state == 0x120C) {
+                if (his_pdata->state == 0x120C) {
                     collision_blocked = 0;
                 }
                 opponent = plyr_pdata->his_plyr_pdata;

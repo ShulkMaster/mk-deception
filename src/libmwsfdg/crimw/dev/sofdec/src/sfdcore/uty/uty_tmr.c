@@ -31,8 +31,8 @@ u64 UTY_GetTmr(void)
     return OSGetTime();
 }
 
-/* TODO: [breakthrough needed] 91.666664%; retail rereads the counter twice
- * after decrement; the extra observation's source purpose is unresolved. */
+/* TODO: [breakthrough needed] 91.666664%; retail's second post-store reload only
+ * matches as a discarded volatile read (RE4 donor local); no consumer found. */
 void UTY_FinishTmr(void)
 {
     utytmr_init_cnt--;

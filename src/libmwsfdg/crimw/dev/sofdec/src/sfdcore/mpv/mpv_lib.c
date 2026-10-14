@@ -248,9 +248,8 @@ static MPVContext* mpvlib_SearchFreeHn(void)
     return 0;
 }
 
-/* TODO: [breakthrough needed] 66.39%; RE4's helper-shaped search improves the
- * CFG, but the remaining locked-cache dcbi/dcbz_l sequence requires unavailable
- * ordinary-C evidence and must not be forced. */
+/* TODO: [blocked] 66.39%; approved cache block awaits Studio loop labels
+ * (F27) and a ruling on the required register asm operand. */
 MPVContext* MPV_Create(void)
 {
     MPVContext* handle = mpvlib_SearchFreeHn();

@@ -198,7 +198,7 @@ static const Vec nb_world_up = {0.0f, 1.0f, 0.0f};
 static const Vec nb_hit_zero = {0.0f, 0.0f, 0.0f};
 static const Vec nb_collision_zero = {0.0f, 0.0f, 0.0f};
 
-/* TODO: [breakthrough needed] 94.21%; final basis needs retail fused dot-product staging and full-vector publication (including Y); rebound factor/copy order unresolved. */
+/* TODO: [near miss] 98.15%; basis coefficients computed ahead of the momentum stores (no facing reload); residue is stage-2 scheduling order and the FPR rotation it causes. */
 void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     static unsigned int last_sound_time;
     struct NbNpcState* npc;
@@ -212,14 +212,15 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     float separation;
     float impact_scale;
     float alignment;
-    float old_x;
-    float old_z;
-    float old_y;
     float momentum_x;
     float momentum_y;
     float momentum_z;
     int attack_flags;
     int play_impact_sound;
+    float x_on_facing;
+    float x_on_side;
+    float z_on_facing;
+    float z_on_side;
 
     npc = bgnd_fetch_npc(npc_id);
     spad_set_vector(0, 0x1A);
@@ -365,25 +366,23 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
         facing.z = -1.0f * facing.z;
     }
 
-    old_x = npc->momentum.x;
-    old_z = npc->momentum.z;
-    npc->momentum.x =
-        -impact_scale * (old_x * facing.x + old_z * facing.z);
-    npc->momentum.z = old_x * side.x + old_z * side.z;
-    old_x = npc->momentum.x;
-    old_z = npc->momentum.z;
     local_x = nb_collision_x_axis;
-
     local_z = nb_collision_z_axis;
-    old_y = npc->momentum.y;
-
+    momentum_x = npc->momentum.x;
+    momentum_z = npc->momentum.z;
+    x_on_facing = local_x.x * facing.x + local_x.z * facing.z;
+    x_on_side = local_x.x * side.x + local_x.z * side.z;
+    z_on_facing = local_z.x * facing.x + local_z.z * facing.z;
+    z_on_side = local_z.x * side.x + local_z.z * side.z;
     npc->momentum.x =
-        old_x * (local_x.x * facing.x + local_x.z * facing.z) +
-        old_z * (local_x.x * side.x + local_x.z * side.z);
-    npc->momentum.z =
-        old_x * (local_z.x * facing.x + local_z.z * facing.z) +
-        old_z * (local_z.x * side.x + local_z.z * side.z);
-    npc->momentum.y = old_y;
+        -1.0f * impact_scale * (momentum_x * facing.x + momentum_z * facing.z);
+    npc->momentum.z = momentum_x * side.x + momentum_z * side.z;
+    momentum_y = npc->momentum.y;
+    momentum_x = npc->momentum.x;
+    momentum_z = npc->momentum.z;
+    npc->momentum.x = momentum_x * x_on_facing + momentum_z * x_on_side;
+    npc->momentum.z = momentum_x * z_on_facing + momentum_z * z_on_side;
+    npc->momentum.y = momentum_y;
     bgnd_collision_if_enable_col(5, npc_id + 0x12C);
 }
 
@@ -603,7 +602,7 @@ static int nb_npc_hurt_player(
     return 0;
 }
 
-/* TODO: [breakthrough] 96.58955%; normalization and tangent axes repaired; vector-copy rounding/stores and FP homes remain. */
+/* TODO: [breakthrough needed] 96.59%; recover acceleration aggregate forwarding, duplicate stores and rounding. */
 static float p_npc_on_pendulum_rope(void) {
     MkObj* object;
     struct NbNpcState* npc;
@@ -828,7 +827,7 @@ static float p_npc_on_pendulum_rope(void) {
     }
 }
 
-/* TODO: [near miss] 91.65%; FPR load/operand scheduling and fused tangent-plane projection math differ. */
+/* TODO: [near miss] 99.488190%; projection operations agree; acceleration-scale and normal-force FPR homes differ. */
 static void nb_get_desired_acceleration(
     struct NbNpcState* state, Vec* acceleration, const Vec* surface_normal) {
     float force_z;
@@ -839,6 +838,8 @@ static void nb_get_desired_acceleration(
     float inv_length;
     float squared_length;
     float normal_component;
+    float acceleration_scale;
+    Vec normal_force;
 
     force_z = 0.0f;
     acceleration->z = 0.0f;
@@ -870,22 +871,30 @@ static void nb_get_desired_acceleration(
     force_y *= inv_length;
     force_x *= inv_length;
     force_z *= inv_length;
-    force_y *= state->acceleration_scale;
-    force_x *= state->acceleration_scale;
-    force_z *= state->acceleration_scale;
+    acceleration_scale = state->acceleration_scale;
+    force_y *= acceleration_scale;
+    force_x *= acceleration_scale;
+    force_z *= acceleration_scale;
 
+    normal_force.x = surface_normal->x;
+    normal_force.y = surface_normal->y;
+    normal_force.z = surface_normal->z;
     normal_component =
-        -(force_z * surface_normal->z +
-          (force_x * surface_normal->x + force_y * surface_normal->y));
+        -(float)(force_z * normal_force.z +
+                 (force_x * normal_force.x + force_y * normal_force.y));
+
+    normal_force.x *= normal_component;
+    normal_force.y *= normal_component;
+    normal_force.z *= normal_component;
 
     acceleration->x =
-        (surface_normal->x * normal_component + force_x) /
+        (normal_force.x + force_x) /
         state->acceleration_divisor;
     acceleration->y =
-        (surface_normal->y * normal_component + force_y) /
+        (normal_force.y + force_y) /
         state->acceleration_divisor;
     acceleration->z =
-        (surface_normal->z * normal_component + force_z) /
+        (normal_force.z + force_z) /
         state->acceleration_divisor;
 }
 

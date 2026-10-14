@@ -248,7 +248,8 @@ void update_live_particles(PfxVm* pfx) {
     pfx->transforms[index].live = live;
 }
 
-/* TODO: [breakthrough] 98.01%; dispatch/types agree; retail indexed descriptor loop remains an advancing cursor. */
+/* TODO: [breakthrough needed] 98.01%; initial descriptor scan advances a pointer;
+ * recover retail base/index addressing without eager per-iteration address addition. */
 void* pfx_get_field(PfxVm* pfx, int index, int field) {
     PfxRuntimeBuffer* buffer;
     PfxFieldDescription* description;

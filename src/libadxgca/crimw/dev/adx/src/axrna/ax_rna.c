@@ -122,14 +122,6 @@ static inline void axrna_set_source_type(AXRNAHandle* handle, int source_type)
     }
 }
 
-static inline void axrna_wait(int count)
-{
-    int i;
-
-    for (i = 0; i < count; i++) {
-    }
-}
-
 void AXRNA_SetAdjsfreqFlg(AXRNAHandle* handle, int enabled)
 {
     if (handle != 0) {
@@ -311,7 +303,8 @@ static inline void axrna_flash_channels(AXRNAHandle* handle)
     }
 }
 
-/* TODO: [breakthrough] 98.68%; fatal mismatch, frame and descriptor slots match; phase index/stride GPR assignments remain. */
+/* TODO: [near miss] 98.68%; all operations, CFG and descriptor slots agree;
+ * phase index/stride GPR coloring remains; stop after donor type controls. */
 void AXRNA_ExecHndl(AXRNAHandle* handle)
 {
     SJCK buffer_remainder;
@@ -424,7 +417,7 @@ void axrna_update_play(AXRNAHandle* handle)
     int current_position;
     int previous_position;
     int channel;
-    int release_bytes;
+    long release_bytes;
     int played;
 
     voice = handle->voices[handle->num_channels - 1];
@@ -504,9 +497,12 @@ int AXRNA_GetNumData(AXRNAHandle* handle)
     return num_data;
 }
 
-/* TODO: [near miss] 97.96154%; signed address shifts recovered; AXPB address initialization scheduling remains. */
 void AXRNA_SetPlaySw(AXRNAHandle* handle, int enabled)
 {
+    AXPBADDR address;
+    s32 last;
+    s32 loop;
+    s32 current;
     int channel;
 
     if (handle == 0) {
@@ -520,17 +516,17 @@ void AXRNA_SetPlaySw(AXRNAHandle* handle, int enabled)
         handle->play_position = -1;
         for (channel = 0; channel < handle->num_channels; channel++) {
             if (handle->voices[channel] != 0) {
-                AXPBADDR address;
-                s32 start = handle->aram_addresses[channel];
-                s32 end = start + handle->buffer_size - 1;
-                address.format = 10;
+                last = handle->buffer_size - 1;
+                loop = handle->aram_addresses[channel];
+                current = handle->aram_addresses[channel];
                 address.loopFlag = 1;
-                address.loopAddressHi = start >> 16;
-                address.loopAddressLo = start;
-                address.endAddressHi = end >> 16;
-                address.endAddressLo = end;
-                address.currentAddressHi = start >> 16;
-                address.currentAddressLo = start;
+                address.format = 10;
+                address.loopAddressHi = loop >> 16;
+                address.loopAddressLo = loop;
+                address.endAddressHi = (loop + last) >> 16;
+                address.endAddressLo = loop + last;
+                address.currentAddressHi = current >> 16;
+                address.currentAddressLo = current;
                 AXSetVoiceAddr(handle->voices[channel], &address);
                 AXSetVoiceState(handle->voices[channel], 1);
             }
@@ -552,60 +548,64 @@ void AXRNA_SetPlaySw(AXRNAHandle* handle, int enabled)
     GCRNA_UnlockCs();
 }
 
-/* TODO: [near miss] 95.16%; counted retry loops recovered; delay prechecks fold away. */
 void AXRNA_SetTransSw(AXRNAHandle* handle, int enabled)
 {
-    int channel;
-    int retry;
+    long channel;
+    long retry;
+    long spin;
 
-    if (handle != 0 && enabled != axrna_get_transfer_switch(handle)) {
-        if (enabled == 1) {
-            GCRNA_LockCs();
-            for (channel = 0; channel < handle->num_channels; channel++) {
-                handle->buffers[channel]->interface->reset(handle->buffers[channel]);
-                memset(&handle->input_chunks[channel], 0, sizeof(SJCK));
-                memset(&handle->buffer_chunks[channel], 0, sizeof(SJCK));
-                memset(&handle->requests[channel], 0, sizeof(ARQRequest));
-                handle->transfer_pending[channel] = 0;
-            }
-            handle->transfer_samples = 0;
-            handle->transfer_position = 0;
-            handle->flash_samples = 0;
-            handle->flash_position = 0;
-            handle->play_position = -1;
-            handle->switches |= 1;
-            GCRNA_UnlockCs();
-            return;
+    if (handle == 0) {
+        return;
+    }
+    if (enabled == axrna_get_transfer_switch(handle)) {
+        return;
+    }
+    if (enabled == 1) {
+        GCRNA_LockCs();
+        for (channel = 0; channel < handle->num_channels; channel++) {
+            handle->buffers[channel]->interface->reset(handle->buffers[channel]);
+            memset(&handle->input_chunks[channel], 0, sizeof(SJCK));
+            memset(&handle->buffer_chunks[channel], 0, sizeof(SJCK));
+            memset(&handle->requests[channel], 0, sizeof(ARQRequest));
+            handle->transfer_pending[channel] = 0;
         }
-        if (enabled == 0) {
-            for (channel = 0; channel < handle->num_channels; channel++) {
-                for (retry = 0; retry < 200; retry++) {
-                    if (handle->transfer_pending[channel] == 0) {
-                        break;
-                    }
-                    axrna_wait(100000);
+        handle->transfer_samples = 0;
+        handle->transfer_position = 0;
+        handle->flash_samples = 0;
+        handle->flash_position = 0;
+        handle->play_position = -1;
+        handle->switches |= 1;
+        GCRNA_UnlockCs();
+    } else if (enabled == 0) {
+        for (channel = 0; channel < handle->num_channels; channel++) {
+            for (retry = 0; retry < 200; retry++) {
+                if (handle->transfer_pending[channel] == 0) {
+                    break;
                 }
-                if (retry == 200) {
-                    RNAERR_CallErrFunc(
-                        "E2071701:DMA transfer(data) to A-RAM did not finish.\n");
-                    return;
-                }
-                for (retry = 0; retry < 200; retry++) {
-                    if (handle->flash_pending[channel] == 0) {
-                        break;
-                    }
-                    axrna_wait(100000);
-                }
-                if (retry == 200) {
-                    RNAERR_CallErrFunc(
-                        "E2071701:DMA transfer(flash) to A-RAM did not finish.\n");
-                    return;
+                for (spin = 0; spin < 100000; spin++) {
                 }
             }
-            handle->switches &= 2;
-        } else {
-            RNAERR_CallErrFunc("E1070308:Illigal parameter(sw).\n");
+            if (retry == 200) {
+                RNAERR_CallErrFunc(
+                    "E2071701:DMA transfer(data) to A-RAM did not finish.\n");
+                return;
+            }
+            for (retry = 0; retry < 200; retry++) {
+                if (handle->flash_pending[channel] == 0) {
+                    break;
+                }
+                for (spin = 0; spin < 100000; spin++) {
+                }
+            }
+            if (retry == 200) {
+                RNAERR_CallErrFunc(
+                    "E2071701:DMA transfer(flash) to A-RAM did not finish.\n");
+                return;
+            }
         }
+        handle->switches &= 2;
+    } else {
+        RNAERR_CallErrFunc("E1070308:Illigal parameter(sw).\n");
     }
 }
 

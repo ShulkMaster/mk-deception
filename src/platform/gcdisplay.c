@@ -78,8 +78,8 @@ static inline int font_string_width(char* s) {
     if (FontData == 0) {
         return 0;
     }
-    maxW = 0;
     lineW = 0;
+    maxW = 0;
     while (*s != '\0') {
         if (*s == '\n') {
             if (maxW < lineW) {
@@ -440,11 +440,39 @@ static void gc_native_display_render(NativeRenderCb cb, void* arg) {
     }
 }
 
-/* TODO: [near miss] 99.47%; GXColor copy slots and font-width registers differ; stop at coloring. */
+static inline void DrawRectangle(int left, int top, int width, int height, GXColor color) {
+    GXSetNumChans(1);
+    GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
+    GXSetChanMatColor(0, color);
+    GXSetChanAmbColor(0, color);
+    GXSetNumTexGens(0);
+    GXSetNumTevStages(1);
+    GXSetTevOrder(0, 0xFF, 0xFF, 4);
+    GXSetTevOp(0, 4);
+    GXClearVtxDesc();
+    GXSetVtxDesc(9, 1);
+    GXSetVtxAttrFmt(0, 9, 0, 3, 0);
+    GXBegin(0x80, 0, 4);
+    wgPipe[0] = left;
+    wgPipe[0] = top;
+    wgPipe[0] = left + width;
+    wgPipe[0] = top;
+    wgPipe[0] = left + width;
+    wgPipe[0] = top + height;
+    wgPipe[0] = left;
+    wgPipe[0] = top + height;
+
+    GXSetNumChans(0);
+    GXSetNumTexGens(0);
+    GXSetNumTevStages(1);
+    GXSetTevOp(0, 3);
+    GXSetTevOrder(0, 0, 0, 0xFF);
+}
+
+/* TODO: [near miss] 99.62%; one width-accumulator LI/MR mismatch
+ * is introduced by value numbering; new owner evidence needed. */
 static void render_text(void* text) {
     char* s;
-    GXColor black;
-    int w;
     int msgW;
     int msgH;
     int x;
@@ -454,35 +482,8 @@ static void render_text(void* text) {
     save_projection_matrix();
     set_2d_projection();
 
-    black = Black;
-    w = screen_width;
 
-    GXSetNumChans(1);
-    GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
-    GXSetChanMatColor(0, black);
-    GXSetChanAmbColor(0, black);
-    GXSetNumTexGens(0);
-    GXSetNumTevStages(1);
-    GXSetTevOrder(0, 0xFF, 0xFF, 4);
-    GXSetTevOp(0, 4);
-    GXClearVtxDesc();
-    GXSetVtxDesc(9, 1);
-    GXSetVtxAttrFmt(0, 9, 0, 3, 0);
-    GXBegin(0x80, 0, 4);
-    wgPipe[0] = 0;
-    wgPipe[0] = 0;
-    wgPipe[0] = w;
-    wgPipe[0] = 0;
-    wgPipe[0] = w;
-    wgPipe[0] = 0x1E0;
-    wgPipe[0] = 0;
-    wgPipe[0] = 0x1E0;
-
-    GXSetNumChans(0);
-    GXSetNumTexGens(0);
-    GXSetNumTevStages(1);
-    GXSetTevOp(0, 3);
-    GXSetTevOrder(0, 0, 0, 0xFF);
+    DrawRectangle(0, 0, screen_width, 0x1E0, Black);
 
     msgW = font_string_width(s);
     x = (screen_width - msgW) / 2;
@@ -520,51 +521,11 @@ static void render_text_without_clear(char* text, int x, int y) {
 }
 #pragma dont_inline reset
 
-static inline void set_chan0_color(GXColor color)
-{
-    GXSetChanMatColor(0, color);
-    GXSetChanAmbColor(0, color);
-}
-
-/* TODO: [near miss] 99.954025%; by-value GXColor copy slots remain reversed; named
- * per-call locals coalesce, and a shared inline with display_dragon_with_text regresses. */
 static void render_image(void* unused) {
-    int w;
-    int h;
-    GXColor black;
-
     save_projection_matrix();
     set_2d_projection();
 
-    black = Black;
-    h = screen_height;
-    w = screen_width;
-
-    GXSetNumChans(1);
-    GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
-    set_chan0_color(black);
-    GXSetNumTexGens(0);
-    GXSetNumTevStages(1);
-    GXSetTevOrder(0, 0xFF, 0xFF, 4);
-    GXSetTevOp(0, 4);
-    GXClearVtxDesc();
-    GXSetVtxDesc(9, 1);
-    GXSetVtxAttrFmt(0, 9, 0, 3, 0);
-    GXBegin(0x80, 0, 4);
-    wgPipe[0] = 0;
-    wgPipe[0] = 0;
-    wgPipe[0] = w;
-    wgPipe[0] = 0;
-    wgPipe[0] = w;
-    wgPipe[0] = h;
-    wgPipe[0] = 0;
-    wgPipe[0] = h;
-
-    GXSetNumChans(0);
-    GXSetNumTexGens(0);
-    GXSetNumTevStages(1);
-    GXSetTevOp(0, 3);
-    GXSetTevOrder(0, 0, 0, 0xFF);
+    DrawRectangle(0, 0, screen_width, screen_height, Black);
     display_image();
     restore_projection_matrix();
 }
@@ -988,12 +949,9 @@ int gc_prompt_for_refresh_rate(PADStatus* pads)
     return 1;
 }
 
-/* TODO: [near miss] 98.21%; GXColor copy slots recovered; width-loop coloring, masks and y scheduling remain. */
+/* TODO: [near miss] 98.47%; width-loop LI/MR, case masks and y scheduling remain. */
 static void display_dragon_with_text(void* arg) {
     DragonTextPrompt* prompt = arg;
-    GXColor black;
-    int w;
-    int h;
     int msgW;
     int msgH;
     int yesNoH;
@@ -1005,35 +963,7 @@ static void display_dragon_with_text(void* arg) {
     save_projection_matrix();
     set_2d_projection();
 
-    black = Black;
-    h = screen_height;
-    w = screen_width;
-
-    GXSetNumChans(1);
-    GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
-    set_chan0_color(black);
-    GXSetNumTexGens(0);
-    GXSetNumTevStages(1);
-    GXSetTevOrder(0, 0xFF, 0xFF, 4);
-    GXSetTevOp(0, 4);
-    GXClearVtxDesc();
-    GXSetVtxDesc(9, 1);
-    GXSetVtxAttrFmt(0, 9, 0, 3, 0);
-    GXBegin(0x80, 0, 4);
-    wgPipe[0] = 0;
-    wgPipe[0] = 0;
-    wgPipe[0] = w;
-    wgPipe[0] = 0;
-    wgPipe[0] = w;
-    wgPipe[0] = h;
-    wgPipe[0] = 0;
-    wgPipe[0] = h;
-
-    GXSetNumChans(0);
-    GXSetNumTexGens(0);
-    GXSetNumTevStages(1);
-    GXSetTevOp(0, 3);
-    GXSetTevOrder(0, 0, 0, 0xFF);
+    DrawRectangle(0, 0, screen_width, screen_height, Black);
     display_image();
 
     if (OSGetFontEncode() == 1) {

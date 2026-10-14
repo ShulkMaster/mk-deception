@@ -10,6 +10,7 @@
 #include "sofdec/uty_timer.h"
 
 #include "runtime/cstring.h"
+#include <math.h>
 
 typedef MPVPlaneSet SfdYccPlane;
 
@@ -79,24 +80,11 @@ typedef struct SfdMpvRepeatTimer {
 
 typedef SfdUserIsSkipFn SfdMpvSkipCallback;
 
-typedef struct SfdMpvSkipTimer {
-    unsigned char reserved_000[0x18];
-    SfdMpvSkipCallback callback;
-    unsigned char reserved_01C[0xC8];
-    int current_value;
-    int current_scale;
-    unsigned char reserved_0EC[0x50];
-    int base_value;
-    unsigned char reserved_140[0x24];
-    int time_offset;
-} SfdMpvSkipTimer;
 
 typedef char SfdMpvDecodeTimerSizeCheck[
     sizeof(SfdMpvDecodeTimer) == 0x144 ? 1 : -1];
 typedef char SfdMpvRepeatTimerSizeCheck[
     sizeof(SfdMpvRepeatTimer) == 0x5B0 ? 1 : -1];
-typedef char SfdMpvSkipTimerSizeCheck[
-    sizeof(SfdMpvSkipTimer) == 0x168 ? 1 : -1];
 
 /* The cached sequence-header bytes and their length are one seek-work record. */
 typedef struct SfdMpvRawHeader {
@@ -209,7 +197,7 @@ static int sfmpv_Concat(SfdHandle* handle, SJ* stream);
 static int sfmpv_DecodeOneUnit(SfdHandle* handle, int active_size,
                                int delimiter_type, int has_data,
                                int* processed);
-static int sfmpv_NeedSafeDlmRefresh(const SfdBufferTransfer* transfer,
+static int sfmpv_NeedSafeDlmRefresh(SfdBufferTransfer* transfer,
                                     int current_type,
                                     const unsigned char* delimiter);
 static int sfmpv_GetActiveSize(SfdHandle* handle, int* active_size,
@@ -259,12 +247,12 @@ static inline int sfmpv_SetPicUsrBufSub(SfdHandle* handle,
 }
 
 static inline const unsigned char* sfmpv_SearchTransferDelimiter(
-    const SfdBufferTransfer* transfer, int delimiter_mask, int* code)
+    SfdBufferTransfer* transfer, int delimiter_mask, int* code)
 {
     unsigned char boundary[8];
     const unsigned char* delimiter;
-    int tail;
-    int head;
+    long tail;
+    long head;
     int i;
     int found_code;
 
@@ -278,14 +266,10 @@ static inline const unsigned char* sfmpv_SearchTransferDelimiter(
     if (transfer->chunks[1].len == 0) {
         return 0;
     }
-    tail = transfer->chunks[0].len;
-    if (tail >= 3) {
-        tail = 3;
-    }
-    head = transfer->chunks[1].len;
-    if (head >= 3) {
-        head = 3;
-    }
+    tail = transfer->chunks[0].len < 3 ?
+           transfer->chunks[0].len : 3;
+    head = transfer->chunks[1].len < 3 ?
+           transfer->chunks[1].len : 3;
     memcpy(boundary,
            transfer->chunks[0].data + transfer->chunks[0].len - tail,
            tail);
@@ -329,8 +313,8 @@ static inline const unsigned char* sfmpv_BsearchTransferDelimiter(
 
     if (transfer->chunks[1].len != 0) {
         unsigned char boundary[8];
-        int tail;
-        int head;
+        long tail;
+        long head;
         int i;
 
         delimiter = MPV_BsearchDelim(
@@ -340,14 +324,10 @@ static inline const unsigned char* sfmpv_BsearchTransferDelimiter(
             *code = MPV_CheckDelim(delimiter);
             return delimiter;
         }
-        tail = transfer->chunks[0].len;
-        if (tail > 3) {
-            tail = 3;
-        }
-        head = transfer->chunks[1].len;
-        if (head > 3) {
-            head = 3;
-        }
+        tail = transfer->chunks[0].len < 3 ?
+               transfer->chunks[0].len : 3;
+        head = transfer->chunks[1].len < 3 ?
+               transfer->chunks[1].len : 3;
 
         memcpy(boundary,
                transfer->chunks[0].data + transfer->chunks[0].len - tail,
@@ -510,15 +490,15 @@ static inline int sfmpv_StopSub(SfdHandle* handle)
     return result;
 }
 
-static inline int sfmpv_ChkPara(SfdMpvParameters* parameters)
+static inline s32 sfmpv_ChkPara(SfdMpvParameters* parameters)
 {
-    int i;
+    s32 i;
 
     if (parameters->frame_count <= 0 || parameters->frame_count > 16) {
         return -1;
     }
-    if ((unsigned int)parameters->reference_buffer == 0 ||
-        (unsigned int)parameters->frame_buffer == 0) {
+    if ((u32)parameters->reference_buffer == 0 ||
+        (u32)parameters->frame_buffer == 0) {
         for (i = 0; i < 2; i++) {
             if (sfmpv_rfb_adr_tbl[i] == 0) {
                 return -1;
@@ -746,15 +726,13 @@ static inline int sfmpv_IsLateSkip(SfdHandle* handle, int picture_type)
 {
     SfdMpvFrameWork* work =
         handle->transports[2].context;
-    SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
-    SfdMpvSkipTimer* skip_timer =
-        (SfdMpvSkipTimer*)&handle->timer_state;
-    int target = timer->output_start.valid == 0
+    SfdTimerState* timer = &handle->timer_state;
+    int target = timer->elapsed_time.active == 0
                      ? 0
-                     : skip_timer->time_offset +
-                           (skip_timer->current_value - skip_timer->base_value);
-    SfdMpvSkipCallback callback = skip_timer->callback;
-    int scale = skip_timer->current_scale;
+                     : timer->sample_history.fields_00[1] +
+                           (timer->field_00C0.value - timer->elapsed_time.value);
+    SfdMpvSkipCallback callback = timer->skip_state.callback;
+    int scale = timer->field_00C0.scale;
     int value;
     int current_scale;
 
@@ -762,10 +740,10 @@ static inline int sfmpv_IsLateSkip(SfdHandle* handle, int picture_type)
         return callback(handle, picture_type, target, scale);
     }
     if (picture_type == 1) {
-        SFTIM_UpdateItime((SfdTimerState*)skip_timer, target);
+        SFTIM_UpdateItime(timer, target);
     }
     if (picture_type == 1 || picture_type == 2) {
-        target = SFTIM_GetNextItime((SfdTimerState*)skip_timer, target);
+        target = SFTIM_GetNextItime(timer, target);
     }
     if (SFTIM_GetSpeed(handle) <= 1000 &&
         work->field_084 >= handle->conditions_primary[38]) {
@@ -892,22 +870,6 @@ static inline void sfmpv_SkipEndcode(SfdHandle* handle, SJ* stream)
     stream->interface->unget_chunk(stream, 1, &chunk);
 }
 
-static inline int sfmpv_ReadConcatSamples(SfdHandle* handle,
-                                         int* samples, int* sample_rate)
-{
-    int result;
-
-    if (handle->create_config.buffer.transport_setup->entries[3] !=
-        &SFD_tr_ad_adxt) {
-        *samples = 0;
-        *sample_rate = 44100;
-        result = 1;
-    } else {
-        result = SFCON_ReadTotSmplQue(handle, samples, sample_rate);
-    }
-    return result;
-}
-
 static inline int sfmpv_IsTerm(SfdHandle* handle, int size, int code)
 {
     if (code == 0x80) {
@@ -969,11 +931,9 @@ static inline int sfmpv_ChkRingSpace(SfdHandle* handle)
 static inline void sfmpv_DecUsrHdr(SfdHandle* handle, SJCK* header,
                                    int* consumed)
 {
-    MPVContext* decoder;
-    SfdMpvFrameWork* work;
+    SfdMpvFrameWork* work = handle->transports[2].context;
+    MPVContext* decoder = work->decoder;
 
-    work = handle->transports[2].context;
-    decoder = work->decoder;
     header->data = (unsigned char*)SFSET_GetCond(handle, 93);
     header->len = SFSET_GetCond(handle, 94);
     if (header->data != 0 && (unsigned int)header->len != 0 &&
@@ -1226,18 +1186,49 @@ static int SFMPV_ExecServer(SfdHandle* handle)
     return sfmpv_ExecServerSub(handle);
 }
 
-/* TODO: [near miss] 98.60%; handle/result and inline phase owners retain saved-register rotation; stop at coloring. */
+static inline int sfmpv_DecodeSomePic(SfdHandle* handle)
+{
+    int result;
+    int active_size;
+    int processed;
+    int delimiter_type;
+    int has_data;
+
+    for (;;) {
+        result = sfmpv_GetActiveSize(handle, &active_size, &delimiter_type,
+                                     &has_data);
+        if (result != 0) {
+            break;
+        }
+        result = sfmpv_DecodeOneUnit(handle, active_size, delimiter_type,
+                                     has_data, &processed);
+        if (result != 0) {
+            break;
+        }
+        if (processed == 0) {
+            break;
+        }
+    }
+    return result;
+}
+
+static inline void sfmpv_UpdateFlowCnt(SfdHandle* handle)
+{
+    SJ* stream;
+    int write_count;
+    int read_count;
+
+    SFBUF_RingGetSj(handle, handle->transports[2].parameter_10, &stream);
+    SFBUF_GetFlowCnt(stream, &write_count, &read_count);
+    handle->playback_runtime.time_values[3] =
+        SFBUF_UpdateFlowCnt(handle->playback_runtime.time_values[3],
+                            write_count);
+}
+
 static int sfmpv_ExecServerSub(SfdHandle* handle)
 {
     int result;
     int header_consumed;
-    int has_data;
-    int delimiter_type;
-    int processed;
-    int active_size;
-    int read_count;
-    int write_count;
-    SJ* stream;
     SJCK header;
     int frame_count;
 
@@ -1256,27 +1247,8 @@ static int sfmpv_ExecServerSub(SfdHandle* handle)
         sfmpv_DecUsrHdr(handle, &header, &header_consumed);
     }
 
-    for (;;) {
-        result = sfmpv_GetActiveSize(handle, &active_size, &delimiter_type,
-                                     &has_data);
-        if (result != 0) {
-            break;
-        }
-        result = sfmpv_DecodeOneUnit(handle, active_size, delimiter_type,
-                                     has_data, &processed);
-        if (result != 0) {
-            break;
-        }
-        if (processed == 0) {
-            break;
-        }
-    }
-
-    SFBUF_RingGetSj(handle, handle->transports[2].parameter_10, &stream);
-    SFBUF_GetFlowCnt(stream, &write_count, &read_count);
-    handle->playback_runtime.time_values[3] =
-        SFBUF_UpdateFlowCnt(handle->playback_runtime.time_values[3],
-                            write_count);
+    result = sfmpv_DecodeSomePic(handle);
+    sfmpv_UpdateFlowCnt(handle);
 
     sfmpv_ChkPrep(handle);
     frame_count = SFMPVF_GetNumFrm(handle);
@@ -1291,8 +1263,6 @@ static int sfmpv_ExecServerSub(SfdHandle* handle)
     return result;
 }
 
-/* TODO: [breakthrough needed] 94.54%; shared cap branches and length
- * reloads remain; recover the original helper or compiler boundary. */
 static int sfmpv_GetActiveSize(SfdHandle* handle, int* active_size,
                                int* delimiter_type, int* has_data)
 {
@@ -1387,8 +1357,7 @@ static int sfmpv_GetActiveSize(SfdHandle* handle, int* active_size,
     return 0;
 }
 
-/* TODO: [breakthrough needed] 94.67%; shared fallback cap branches and length reloads are missing; compiler lowering needs evidence. */
-static int sfmpv_NeedSafeDlmRefresh(const SfdBufferTransfer* transfer,
+static int sfmpv_NeedSafeDlmRefresh(SfdBufferTransfer* transfer,
                                     int current_type,
                                     const unsigned char* delimiter)
 {
@@ -1565,14 +1534,15 @@ static int sfmpv_DecodeOneUnit(SfdHandle* handle, int active_size,
     return result;
 }
 
-/* TODO: [near miss] 96.828575%; complete sample acquisition restores time joins;
- * fallback Boolean, clock coloring and folded final status test remain. */
+/* TODO: [near miss] 99.76%; shared sample/status exits recovered;
+ * nine video timecode GPR homes remain; stop at coloring. */
 static int sfmpv_Concat(SfdHandle* handle, SJ* stream)
 {
     SfdMpvFrameWork* work =
         handle->transports[2].context;
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
     int concat_time;
+    int result;
     SfdMpvRepeatTimer* repeat_timer =
         (SfdMpvRepeatTimer*)&handle->timer_state;
 
@@ -1624,19 +1594,25 @@ static int sfmpv_Concat(SfdHandle* handle, SJ* stream)
         int* total_samples =
             &handle->timer_state.sample_window.fields_04[0];
 
-        if (sfmpv_ReadConcatSamples(handle, &samples, &sample_rate) == 0) {
+        if (handle->create_config.buffer.transport_setup->entries[3] !=
+            &SFD_tr_ad_adxt) {
+            samples = 0;
+            sample_rate = 44100;
+        } else if (SFCON_ReadTotSmplQue(handle, &samples, &sample_rate) == 0) {
             concat_time = -1;
-        } else {
-            time_unit = timer->initial.scale;
-            *total_samples += samples;
-            concat_time = UTY_MulDiv(*total_samples, time_unit, sample_rate) -
-                          repeat_timer->reference_time_offset;
-            if (concat_time < 0) {
-                concat_time = 0;
-            }
+            goto check_sample_time;
         }
+        time_unit = timer->initial.scale;
+        *total_samples += samples;
+        concat_time = UTY_MulDiv(*total_samples, time_unit, sample_rate) -
+                      repeat_timer->reference_time_offset;
         if (concat_time < 0) {
-            return -1;
+            concat_time = 0;
+        }
+    check_sample_time:
+        if (concat_time < 0) {
+            result = -1;
+            goto check_status;
         }
     }
     if (concat_time > 0) {
@@ -1646,6 +1622,11 @@ static int sfmpv_Concat(SfdHandle* handle, SJ* stream)
     SFTIM_InitTtu((SfdTimerTimeUnit*)&timer->initial, 0x7FFFFFFF);
     SFTIM_InitTtu((SfdTimerTimeUnit*)&timer->maximum, -1);
     work->decode_mode = 0xC0;
+    result = 0;
+check_status:
+    if (result == -1) {
+        return -1;
+    }
     sfmpv_SkipEndcode(handle, stream);
     return 0;
 }
@@ -1922,9 +1903,16 @@ static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
         if (cache != 0 && cache->valid == 0) {
             SfdMpvRawHeader* raw_header = &cache->raw_header;
 
-            raw_header->size =
-                header->len < (int)sizeof(raw_header->data)
-                    ? header->len : (int)sizeof(raw_header->data);
+            long copy_size;
+            long header_size;
+
+            header_size = header->len;
+            copy_size = sizeof(raw_header->data);
+
+            if (header_size < copy_size) {
+                copy_size = header_size;
+            }
+            raw_header->size = copy_size;
             MEM_Copy(raw_header->data, header->data, raw_header->size);
             if (cache_bit_rate == 0x3FFFF) {
                 cache->byte_rate = 0;
@@ -2039,8 +2027,8 @@ static void sfmpv_CalcRepeatField(SfdHandle* handle,
     }
 }
 
-/* TODO: [near miss] 98.27702%; metadata/direct divisor recovered;
- * initial timestamp and source clock arithmetic webs remain. */
+/* TODO: [near miss] 98.27702%; timestamp/source-clock GPR webs remain;
+ * donor flag rank is neutral and function-scope arithmetic regresses. */
 static void sfmpv_DoReformTc(SfdHandle* handle,
                              MPVPictureInfo* picture, long long pts,
                              int group_changed)
@@ -2112,7 +2100,6 @@ static void sfmpv_DoReformTc(SfdHandle* handle,
         timer->reformed_timecode.frames = timer->source_timecode.frames;
     }
 }
-#pragma pool_data off
 static void sfmpv_Pts2Tc(long long pts, int frame_rate_code, int drop_frame,
                          int frame_offset, SfdTimeCode* timecode)
 {
@@ -2174,7 +2161,6 @@ static void sfmpv_Pts2Tc(long long pts, int frame_rate_code, int drop_frame,
     timecode->seconds = seconds;
     timecode->frames = pictures;
 }
-#pragma pool_data on
 
 static int sfmpv_ChkBufSiz(SfdHandle* handle,
                            SfdMpvPlaybackSettings* settings)
@@ -2259,7 +2245,8 @@ static int sfmpv_ChkBufSiz(SfdHandle* handle,
     return 0;
 }
 
-/* TODO: [near miss] 98.49%; late-skip load scheduling and register coloring remain. */
+/* TODO: [near miss] 99.2351%; canonical timer fixes validity-load order;
+ * skip/GOP/timer registers remain; stop pending new owner evidence. */
 static int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
 {
     SfdMpvFrameWork* work =
@@ -2475,7 +2462,6 @@ static int sfmpv_SetFrmPara(SfdHandle* handle,
     return 0;
 }
 
-/* TODO: [near miss] 96.49%; consumed-count join fixed; shared delimiter caps and head staging remain. */
 static int sfmpv_GoDdelim(SfdHandle* handle, SJ* stream,
                           int delimiter_mask)
 {
@@ -2571,7 +2557,6 @@ static int SFMPV_Create(SfdHandle* handle)
     return 0;
 }
 
-/* TODO: [near miss] 99.36%; BSS placement fixed; ChkPara keeps frame_count live instead of retail's reload before the table loop. */
 static int sfmpv_InitInf(SfdHandle* handle, SfdMpvFrameWork* work)
 {
     SfdMpvPictureUserBuffers* user;
@@ -2645,7 +2630,8 @@ static void sfmpv_ErrFn(SfdCallbackObject object, int error)
     }
 }
 
-/* TODO: [near miss] 89.78%; BSS placement fixed; handle/BSS-base/decoder GPR coloring and base-load scheduling remain. */
+/* TODO: [near miss] 89.78%; BSS layout agrees; handle/base/decoder homes
+ * and prologue scheduling remain; stop at coloring. */
 static int SFMPV_Destroy(SfdHandle* handle)
 {
     MPVContext* decoder;

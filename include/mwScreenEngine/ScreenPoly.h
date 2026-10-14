@@ -79,7 +79,10 @@ struct ScreenPoly {
     float offsetY; /* +0x6C */
     RwTexture* colorTex; /* +0x70 */
     RwTexture* alphaTex; /* +0x74 */
-    unsigned char filterFlags; /* +0x78 -- bit7 hide; bit6 linear */
+    union {
+        unsigned char filterFlags;
+        ScreenPolyFilterBits filterBits;
+    };
     unsigned char pad79[3];
 }; /* 0x7C */
 
@@ -87,6 +90,6 @@ struct ScreenPoly {
 struct ScreenPolyVTable;
 extern struct ScreenPolyVTable __vt__10ScreenPoly;
 
-extern int vert_map__10ScreenPoly[4];
+extern const int vert_map__10ScreenPoly[4];
 
 #endif

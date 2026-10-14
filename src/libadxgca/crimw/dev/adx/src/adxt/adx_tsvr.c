@@ -135,15 +135,51 @@ static inline void adxt_finish_playing_input(ADXTHandle* handle) {
     }
 }
 
-/* TODO: [near miss] 99.61%; retained owners and PLAYING loop agree; BUFFERING loop coloring remains. */
-void ADXT_ExecHndl(ADXTHandle* handle)
+static inline void adxt_exec_buffering(ADXTHandle* handle)
 {
-    SJCK chunk;
-    s32 decoder_channels;
+    AXRNAHandle* rna;
+    AdxSjdHandle* decoder;
     s32 buffer_data;
     s32 buffer_room;
+    s32 decoder_channels;
+    s32 channel;
     s32 bytes;
+    SJ* output;
+    SJCK chunk;
 
+    rna = handle->rna;
+    decoder = handle->decoder;
+
+    buffer_data = ADXRNA_GetNumData(rna);
+    buffer_room = ADXRNA_GetNumRoom(rna);
+    if (buffer_data >= handle->maximum_decode_samples * 2 ||
+        buffer_room <= ADXSJD_GetBlkSmpl(decoder) ||
+        ADXSJD_GetStat(handle->decoder) == ADXSJD_STATUS_INPUT_END) {
+        if (handle->suppress_playback == 0) {
+            if (handle->paused == 0) {
+                ADXRNA_SetPlaySw(rna, 1);
+                handle->playback_time = 0;
+                handle->playback_start_vsync = adxt_vsync_cnt;
+            }
+            handle->status = ADXT_STATUS_PLAYING;
+        }
+        handle->decoder_ready = 1;
+    }
+    if (ADXSJD_GetStat(handle->decoder) == ADXSJD_STATUS_INPUT_END) {
+        decoder_channels = ADXT_GetNumChan(handle);
+        bytes = handle->maximum_decode_samples * decoder_channels * 2;
+        for (channel = 0; channel < decoder_channels; channel++) {
+            output = handle->output_sj[channel];
+
+            output->interface->get_chunk(output, 0, bytes, &chunk);
+            memset(chunk.data, 0, chunk.len);
+            output->interface->put_chunk(output, 1, &chunk);
+        }
+    }
+}
+
+void ADXT_ExecHndl(ADXTHandle* handle)
+{
     if (handle == 0) {
         ADXERR_CallErrFunc1(adxt_exec_parameter_error);
         return;
@@ -156,42 +192,7 @@ void ADXT_ExecHndl(ADXTHandle* handle)
     } else if (handle->status == ADXT_STATUS_DECODING_HEADER) {
         adxt_stat_decinfo(handle);
     } else if (handle->status == ADXT_STATUS_BUFFERING) {
-        AdxSjdHandle* decoder;
-        AXRNAHandle* rna;
-
-        rna = handle->rna;
-        decoder = handle->decoder;
-
-        buffer_data = ADXRNA_GetNumData(rna);
-        buffer_room = ADXRNA_GetNumRoom(rna);
-        if (buffer_data >= handle->maximum_decode_samples * 2 ||
-            buffer_room <= ADXSJD_GetBlkSmpl(decoder) ||
-            ADXSJD_GetStat(handle->decoder) == ADXSJD_STATUS_INPUT_END) {
-            if (handle->suppress_playback == 0) {
-                if (handle->paused == 0) {
-                    ADXRNA_SetPlaySw(rna, 1);
-                    handle->playback_time = 0;
-                    handle->playback_start_vsync = adxt_vsync_cnt;
-                }
-                handle->status = ADXT_STATUS_PLAYING;
-            }
-            handle->decoder_ready = 1;
-        }
-        if (ADXSJD_GetStat(handle->decoder) == ADXSJD_STATUS_INPUT_END) {
-            s32 channel;
-
-            decoder_channels = ADXT_GetNumChan(handle);
-            bytes = handle->maximum_decode_samples * decoder_channels * 2;
-            for (channel = 0; channel < decoder_channels; channel++) {
-                SJ* output = handle->output_sj[channel];
-
-                output->interface->get_chunk(
-                    output, 0, bytes, &chunk);
-                memset(chunk.data, 0, chunk.len);
-                output->interface->put_chunk(
-                    output, 1, &chunk);
-            }
-        }
+        adxt_exec_buffering(handle);
     } else if (handle->status == ADXT_STATUS_DRAINING) {
         adxt_dbg_rna_ndata = ADXRNA_GetNumData(handle->rna);
         if (ADXRNA_GetNumData(handle->rna) <= 0) {
@@ -347,8 +348,8 @@ void adxt_stat_decinfo(ADXTHandle* handle)
     handle->status = ADXT_STATUS_BUFFERING;
 }
 
-/* TODO: [near miss] 99.95%; split-count snapshots agree;
- * only first scanned-length volatile GPR differs; stop at coloring. */
+/* TODO: [near miss] 99.95%; callback-visible count snapshots agree;
+ * isolated scanned-length LHA/ADD GPR home remains; stop at coloring. */
 void adxt_nlp_trap_entry(void* object)
 {
     ADXTHandle* handle = object;

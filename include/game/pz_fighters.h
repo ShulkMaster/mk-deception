@@ -66,15 +66,9 @@ typedef struct PuzzleFightersEngine {
     float balance; /* +0x00 */
     Vec arena_axis; /* +0x04 */
     Vec constraint_axis; /* +0x10 */
-    float center_x; /* +0x1C */
-    float center_y; /* +0x20 */
-    float center_z; /* +0x24 */
-    float player1_idle_x; /* +0x28 */
-    float player1_idle_y; /* +0x2C */
-    float player1_idle_z; /* +0x30 */
-    float player2_idle_x; /* +0x34 */
-    float player2_idle_y; /* +0x38 */
-    float player2_idle_z; /* +0x3C */
+    Vec center; /* +0x1C */
+    Vec player1_idle; /* +0x28 */
+    Vec player2_idle; /* +0x34 */
     Vec fighter_posts[2]; /* +0x40 - home/grinder posts */
     int round_running; /* +0x58 */
     int super_move_active; /* +0x5C */

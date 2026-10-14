@@ -195,11 +195,6 @@ int get_tile_from_position(const Vec* position);
 KonquestWaypoint* get_door_path(int id);
 void* get_data_table(void* table, int id);
 int get_row_count_for_table(void* table, int row);
-struct KonquestPuiRuntime;
-struct MkSobj;
-int should_this_pui_be_saved(const struct KonquestPuiRuntime* pui);
-int get_konquest_pui_inventory_bit_index(const struct KonquestPuiRuntime* pui);
-void get_konquest_pui_object_pos(Vec* position, const struct MkSobj* pui);
 const char* nbc_find_text(int index, int table);
 int save_konquest_region_to_memcard_w_error(
     int device, int slot, int mode, const char* title, unsigned int region,
@@ -513,16 +508,17 @@ int load_konq_memory_from_krd_buffer(void) {
     return 1;
 }
 
-/* TODO: [breakthrough] 88.43891%; typed NPC/PUI/event indexing recovered; fixed-base record addressing, booleans and loop lowering remain. */
+/* TODO: [near miss] 99.68326%; PUI count/snapshot and stale-next homes remain;
+ * independent list cursors preserve retail operations and record layout. */
 int save_konq_memory_to_krd_buffer(int region) {
     KonquestRegionBuffer* buffer;
     MkPtr** trigger_list;
     MkPtr** pui_list;
     MkPtr* node;
+    MkPtr* pui_node;
+    MkPtr* npc_node;
     MkPtr* next;
     KonquestTrigger* trigger;
-    KonquestNpcSaveEntry* npc_save;
-    KonquestPuiSaveEntry* pui_save;
     const struct KonquestPuiRuntime* pui;
     Vec pui_position;
     int trigger_count;
@@ -532,14 +528,12 @@ int save_konq_memory_to_krd_buffer(int region) {
     unsigned int loaded;
 
     buffer = &konq_region_data_buffer;
+    trigger_count = 0;
     memset(buffer->trigger_entries, -1, sizeof(buffer->trigger_entries));
     trigger_list = &konquest_pdata->triggers;
-    trigger_count = 0;
     if (is_mkptr_list_valid(trigger_list)) {
         node = *trigger_list;
         while (node != 0) {
-            KonquestTriggerSaveEntry* trigger_save;
-
             trigger = (KonquestTrigger*)node->hdr;
             if (node->instance != trigger->hdr.instance) {
                 next = node->next;
@@ -551,15 +545,14 @@ int save_konq_memory_to_krd_buffer(int region) {
                 if (trigger_count >= 0xC8) {
                     break;
                 }
-                trigger_save = &buffer->trigger_entries[trigger_count];
                 if (trigger->save_state == 2) {
-                    trigger_save->bits.active = 0;
+                    buffer->trigger_entries[trigger_count].bits.active = 0;
                 } else if (trigger->save_state == 1) {
-                    trigger_save->bits.active = 1;
+                    buffer->trigger_entries[trigger_count].bits.active = 1;
                 } else {
-                    trigger_save->bits.active = trigger->userdata->active != 0;
+                    buffer->trigger_entries[trigger_count].bits.active = trigger->userdata->active != 0;
                 }
-                trigger_save->trigger_id = trigger->trigger_id;
+                buffer->trigger_entries[trigger_count].trigger_id = trigger->trigger_id;
                 trigger_count++;
             }
             node = node->next;
@@ -568,85 +561,81 @@ int save_konq_memory_to_krd_buffer(int region) {
     pui_list = &konquest_pdata->pui_list;
     pui_count = 0;
     if (is_mkptr_list_valid(pui_list)) {
-        node = *pui_list;
-        while (node != 0) {
-            if (node->instance != node->hdr->instance) {
-                next = node->next;
-                discard_stale_mkptr(node);
-                node = next;
+        pui_node = *pui_list;
+        while (pui_node != 0) {
+            if (pui_node->instance != pui_node->hdr->instance) {
+                next = pui_node->next;
+                discard_stale_mkptr(pui_node);
+                pui_node = next;
                 continue;
             }
-            pui = (const struct KonquestPuiRuntime*)node->hdr;
+            pui = (const struct KonquestPuiRuntime*)pui_node->hdr;
             if (should_this_pui_be_saved(pui) != 0) {
                 if (pui_count >= 0x19) {
                     break;
                 }
-                pui_save = &buffer->pui_entries[pui_count];
-                pui_save->inventory_bit =
+                buffer->pui_entries[pui_count].inventory_bit =
                     get_konquest_pui_inventory_bit_index(pui);
                 get_konquest_pui_object_pos(&pui_position,
-                                            (const struct MkSobj*)pui);
-                pui_save->pos_x = pui_position.x;
-                pui_save->pos_y = pui_position.y;
-                pui_save->pos_z = pui_position.z;
+                                            pui);
+                buffer->pui_entries[pui_count].pos_x = pui_position.x;
+                buffer->pui_entries[pui_count].pos_y = pui_position.y;
+                buffer->pui_entries[pui_count].pos_z = pui_position.z;
                 pui_count++;
             }
-            node = node->next;
+            pui_node = pui_node->next;
         }
     }
     buffer->pui_count = pui_count;
     npc_count = 0;
     trigger_list = &konquest_pdata->npcs;
     if (is_mkptr_list_valid(trigger_list)) {
-        node = *trigger_list;
-        while (node != 0) {
-            int flag_index;
+        npc_node = *trigger_list;
+        while (npc_node != 0) {
             unsigned int* packed_flags;
+            int flag_index;
             KonquestNpc* npc;
 
-            npc = (KonquestNpc*)node->hdr;
-            if (node->instance != npc->hdr.instance) {
-                next = node->next;
-                discard_stale_mkptr(node);
-                node = next;
+            npc = (KonquestNpc*)npc_node->hdr;
+            if (npc_node->instance != npc->hdr.instance) {
+                next = npc_node->next;
+                discard_stale_mkptr(npc_node);
+                npc_node = next;
                 continue;
             }
             if (npc_count < 0x96 && npc != 0) {
-                npc_save = &buffer->npc_entries[npc_count];
-                npc_save->pos_x = npc->transform->field_58;
-                npc_save->pos_y = npc->transform->field_4C;
-                npc_save->pos_z = npc->transform->field_54;
-                npc_save->flags = npc->flags;
-                npc_save->flag_bits.cleared_flag = 0;
+                buffer->npc_entries[npc_count].pos_x = npc->transform->field_58;
+                buffer->npc_entries[npc_count].pos_y = npc->transform->field_4C;
+                buffer->npc_entries[npc_count].pos_z = npc->transform->field_54;
+                buffer->npc_entries[npc_count].flags = npc->flags;
+                buffer->npc_entries[npc_count].flag_bits.cleared_flag = 0;
                 if (npc->path_data != 0) {
-                    npc_save->path_id = npc->path_data->path_id;
-                    npc_save->path_field30 =
+                    buffer->npc_entries[npc_count].path_id = npc->path_data->path_id;
+                    buffer->npc_entries[npc_count].path_field30 =
                         npc->path_data->field_30;
-                    npc_save->path_field34 =
+                    buffer->npc_entries[npc_count].path_field34 =
                         npc->path_data->field_34;
-                    npc_save->path_field3C =
+                    buffer->npc_entries[npc_count].path_field3C =
                         npc->path_data->field_3C;
-                    npc_save->path_param_a = npc->path_data->param_a;
-                    npc_save->path_param_b = npc->path_data->param_b;
+                    buffer->npc_entries[npc_count].path_param_a = npc->path_data->param_a;
+                    buffer->npc_entries[npc_count].path_param_b = npc->path_data->param_b;
                 } else {
-                    npc_save->path_id = 0;
-                    npc_save->path_field30 = 0;
-                    npc_save->path_field34 = 0;
-                    npc_save->path_field3C = 0;
-                    npc_save->path_param_a = kPathDefaultFloat;
-                    npc_save->path_param_b = kPathDefaultFloat;
+                    buffer->npc_entries[npc_count].path_id = 0;
+                    buffer->npc_entries[npc_count].path_field30 = 0;
+                    buffer->npc_entries[npc_count].path_field34 = 0;
+                    buffer->npc_entries[npc_count].path_field3C = 0;
+                    buffer->npc_entries[npc_count].path_param_a = kPathDefaultFloat;
+                    buffer->npc_entries[npc_count].path_param_b = kPathDefaultFloat;
                 }
-                packed_flags = &npc_save->path_flags;
+                packed_flags = &buffer->npc_entries[npc_count].path_flags;
                 *packed_flags = 0;
-                flag_index = 0;
-                do {
+                for (flag_index = 0; flag_index < 7; flag_index++) {
                     if (npc->event_slots[flag_index].enabled != 0) {
                         *packed_flags |= 1U << flag_index;
                     }
-                    flag_index++;
-                } while (flag_index < 7);
+                }
             }
-            node = node->next;
+            npc_node = npc_node->next;
             npc_count++;
         }
     }

@@ -369,11 +369,6 @@ typedef struct FatalityObjectGroupView {
     int group;
 } FatalityObjectGroupView;
 
-typedef struct FatalityContextView {
-    char pad00[0x14];
-    unsigned char flags14;
-} FatalityContextView;
-
 typedef struct FatalityBgndScriptView {
     char pad00[8];
     unsigned int function;
@@ -1977,19 +1972,17 @@ unsigned int fatality_boraicho_light_fart_torch(MkObj* torch) {
     return emitter;
 }
 
-/* TODO: [near miss] 91.51%; matcher offset recovered; register allocation and load scheduling remain. */
+/* TODO: [near miss] 95.89%; torch/fatality_state saved registers (r31/r30) are swapped and the prologue string-base addi/mr order differs; bone-tag copy and costume bitfield match. */
 MkObj* fatality_boraicho_get_torch(
     const Vec* parent_offset, const Vec* rotation) {
-    static const int torch_bone_tag = 1;
-    MkObj* torch;
+    int player = fatality_state.player->plyr_num;
+    MkObj* torch = load_named_model_for_player("TORCH", player, player, 0);
+    int torch_bone_tag[1] = {1};
     RpMaterial* material;
     FatalityFakeBoneMatcher* matcher;
-    int player;
     int destination_bone;
 
-    player = fatality_state.player->plyr_num;
-    torch = load_named_model_for_player("TORCH", player, player, 0);
-    if (torch != 0 && build_bones_tbl(torch, &torch_bone_tag) != 0) {
+    if (torch != 0 && build_bones_tbl(torch, torch_bone_tag) != 0) {
         insert_fgnd_mkobj(torch);
         specskin_initialize_clump(torch->clump);
         mk_insert(
@@ -2003,8 +1996,7 @@ MkObj* fatality_boraicho_get_torch(
             torch, fatality_state.attacker_object, destination_bone,
             parent_offset, 0, rotation, 1, 0.0f);
         fatality_state.fake_bone_matcher = matcher;
-        if ((((FatalityContextView*)fatality_state.context)->flags14 &
-             0x80) != 0) {
+        if (fatality_state.context->flags_14_bits.alternate_costume) {
             obj_create_sobjs(torch);
             material = obj_find_material_by_id(torch, 1);
             if (material != 0) {
@@ -2134,21 +2126,24 @@ MkObj* load_cloth_boned_model(
     return object;
 }
 
-/* TODO: [near miss] 99.96%; explosion ABI fixed; effect_owner colored r29 vs retail r30 (decl order and limb reuse neutral). */
+static inline void spawn_pfx_on_bone(
+    const char* name, MkObj* object, int bone_id) {
+    MkPfx* effect;
+
+    effect = find_pfx_by_name(name);
+    if (effect != 0) {
+        pfx_bind_emitter_to_obj_bone(effect, object, bone_id);
+        reset_effect(name);
+        resume_effect(name);
+    }
+}
+
 void fatality_explode_victim(PlyrInfo* player_info, float arg1, float arg2) {
     MkObj* limb;
-    MkObj* effect_owner;
-    MkPfx* effect;
     int bone_id;
 
     limb_sever_explode_apart(player_info, arg1, arg2, 0.25f, 3);
-    effect_owner = player_info->slot.mirror_a;
-    effect = find_pfx_by_name("meatchunk");
-    if (effect != 0) {
-        pfx_bind_emitter_to_obj_bone(effect, effect_owner, 0xD);
-        reset_effect("meatchunk");
-        resume_effect("meatchunk");
-    }
+    spawn_pfx_on_bone("meatchunk", player_info->slot.mirror_a, 0xD);
 
     limb = MK_HDR_LIVE(player_info->slot.fighter->severed_limbs[0].object,
                        player_info->slot.fighter->severed_limbs[0].instance);
@@ -2365,14 +2360,7 @@ unsigned int pfxhandle_spawn_at_bid(
 
 void pfx_spawn_at_bid(
     const char* name, MkObj* object, int bone_id) {
-    MkPfx* effect;
-
-    effect = find_pfx_by_name(name);
-    if (effect != 0) {
-        pfx_bind_emitter_to_obj_bone(effect, object, bone_id);
-        reset_effect(name);
-        resume_effect(name);
-    }
+    spawn_pfx_on_bone(name, object, bone_id);
 }
 
 void play_final_fatality_music(void) {
@@ -3496,10 +3484,22 @@ void run_fatality_sequence(
     cmdscript_execute(plyr_pdata->cmo);
 }
 
-/* TODO: [near miss] 99.42%; glitch_to_stance ABI fixed; opponent/object volatile pair r4/r5 swapped in aux latches (decl order neutral). */
-static int init_fatality_world(void) {
-    PlyrPdata* opponent;
+static inline void fatality_hide_opponent_auxiliaries(PlyrPdata* opponent) {
     MkObj* object;
+
+    object = MK_HDR_LIVE(opponent->aux_weapon_latch.obj,
+                         opponent->aux_weapon_latch.instance);
+    if (object != 0) {
+        object->hide_flag_bits.hidden = 1;
+    }
+    object = MK_HDR_LIVE(opponent->mirror_obj.obj,
+                         opponent->mirror_obj.instance);
+    if (object != 0) {
+        object->hide_flag_bits.hidden = 1;
+    }
+}
+
+static int init_fatality_world(void) {
     MkProc* process;
 
     if (plyr_pdata->character_id == 2 ||
@@ -3551,17 +3551,7 @@ static int init_fatality_world(void) {
         plyr_turn_off_mirrorguy(fatality_state.player_info);
         plyr_turn_off_shadowbox(fatality_state.player_info);
 
-        opponent = fatality_state.opponent;
-        object = MK_HDR_LIVE(opponent->aux_weapon_latch.obj,
-                             opponent->aux_weapon_latch.instance);
-        if (object != 0) {
-            object->hide_flag_bits.hidden = 1;
-        }
-        object = MK_HDR_LIVE(opponent->mirror_obj.obj,
-                             opponent->mirror_obj.instance);
-        if (object != 0) {
-            object->hide_flag_bits.hidden = 1;
-        }
+        fatality_hide_opponent_auxiliaries(fatality_state.opponent);
         start_gore2_update();
         setup_screen_for_fatality();
         return 1;

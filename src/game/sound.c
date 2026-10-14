@@ -1703,9 +1703,8 @@ float p_random_snd_req_delay(void) {
     return 0.0f;
 }
 
-#pragma optimization_level 1
-
-/* TODO: [breakthrough needed] 88.98%; correct clamps/result joins; existing O1 duplicates index and float loads. */
+/* TODO: [breakthrough needed] 93.28%; table LWZX and sentinel branch absent before allocation;
+ * recover source/inline boundaries; FPR/GPR coloring remains secondary. */
 MslSoundHandle pan_vol_pitch_random_hit(
     int group, float pan, float volume, float pitch) {
     struct SoundRequest request;
@@ -1768,6 +1767,8 @@ MslSoundHandle pan_vol_pitch_random_hit(
     }
     return result;
 }
+
+#pragma optimization_level 1
 
 /* TODO: [breakthrough needed] 92.57%; existing O1 scope retains two index shifts;
  * need compiler-stable table lookup and sentinel exit evidence. */

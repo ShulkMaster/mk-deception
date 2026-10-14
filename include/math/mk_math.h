@@ -43,7 +43,7 @@ void uv_from_angle_y(Vec* out, float angle_y);
 void uv_from_angles_xy(Vec* out, float angle_x, float angle_y);
 float uv_v3_to_v3_dist(Vec* out, Vec* from, Vec* to);
 void uv_v3_to_v3(Vec* out, Vec* from, Vec* to);
-void v3_blend3(Vec* out, Vec* weights, const Vec* a, const Vec* b, const Vec* c);
+void v3_blend3(Vec* out, Vec* weights, Vec* a, Vec* b, Vec* c);
 float normalize_v3_length(Vec* v);
 void normalize_v3(Vec* v);
 void zero_v3(Vec* v);
@@ -56,7 +56,7 @@ void v3_add_v3(Vec* out, const Vec* a, const Vec* b);
 void v3_x_v_add_v3(Vec* dst, const Vec* v, float s);
 void scale_v3(Vec* out, const Vec* v, float s);
 /* Produces a * weight_a + b * (1.0f - weight_a). */
-void interp_v3(Vec* out, const Vec* a, const Vec* b, float weight_a);
+void interp_v3(Vec* out, Vec* a, Vec* b, float weight_a);
 void norm_angles_v3(Vec* ang);
 float norm_angle(float angle);
 
@@ -76,7 +76,7 @@ void v3_x_mat_sub_v3(Vec* out, Vec* v, MKMATRIX* m, Vec* sub);
 void v3_x_mat_add_v3(Vec* out, Vec* v, MKMATRIX* m, Vec* add);
 void v3_x_mat(Vec* out, Vec* v, MKMATRIX* m);
 void p3_x_mat(Vec* out, Vec* p, MKMATRIX* m);
-void mat_x_mat(MKMATRIX* out, const MKMATRIX* a, const MKMATRIX* b);
+void mat_x_mat(MKMATRIX* out, MKMATRIX* a, MKMATRIX* b);
 void set_mat(MKMATRIX* dst, const MKMATRIX* src);
 float ang_sub_ang(float angle_a, float angle_b);
 float quat_extract_ang_y(const Quat* q);

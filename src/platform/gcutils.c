@@ -62,10 +62,10 @@ static inline void fill_gamma_filter(struct GcFilter* filter) {
 void* do_gamecube_reset(void* argument);
 static void reset_watch(OSAlarm* alarm, OSContext* context);
 
-static int gc_must_reset;
 int use_feedback_effect = 0;
 static int reset_watch_is_running = 0;
 static OSThread* game_main_thread = 0;
+static int gc_must_reset = 0;
 
 #define GC_THREAD_OWNER_IS_LIVE(owner) ((owner) != 0 && *(owner) != 0)
 
@@ -271,8 +271,8 @@ void handle_reset_switch(void) {
 }
 
 static void reset_watch(OSAlarm* alarm, OSContext* context) {
-    static int must_reset;
-    static int f_reset_button_pressed;
+    static int f_reset_button_pressed = 0;
+    static int must_reset = 0;
     int reset_pressed;
 
     reset_pressed = OSGetResetButtonState();
@@ -344,7 +344,7 @@ int is_widescreen_mode(void) {
 }
 
 void render_post_3D_effect(void) {
-    static int bPostEffectBuffersInitialized;
+    static int bPostEffectBuffersInitialized = 0;
 
     if (bPostEffectBuffersInitialized == 0) {
         setup_post_effect_buffers();
@@ -368,7 +368,7 @@ void adjust_gamma(void) {
 }
 
 void gc_setup_render_mode(unsigned int pixel_format) {
-    static int count;
+    static int count = 0;
     struct GcFilter filter;
 
     count = ~count;

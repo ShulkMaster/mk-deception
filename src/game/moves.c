@@ -1148,7 +1148,7 @@ void configure_iceball(MkObj* iceball) {
     }
 }
 
-static inline void moves_select_special_weapon_style(PlyrPdata* player) {
+static inline void moves_select_special_weapon_style(PlyrPdata* const player) {
     unsigned int style_index;
     PlyrWeaponStyle* style;
 
@@ -1163,11 +1163,40 @@ static inline void moves_select_special_weapon_style(PlyrPdata* player) {
     }
 }
 
-/* TODO: [near miss] 99.32%; inline checks and callback ownership agree; search register colors and player handoff remain. */
+static inline void moves_activate_style_weapons(PlyrPdata* const* const player_owner) {
+    PlyrPdata* const player = *player_owner;
+    PlyrMirrorSlots* slots;
+
+    slots = player->mirror_slots;
+    if (MK_HDR_LIVE(slots->weapon[0].primary.obj, slots->weapon[0].primary.instance) != 0) {
+        plyr_weapon_grab(
+            player,
+            MK_HDR_LIVE(slots->weapon[0].primary.obj, slots->weapon[0].primary.instance));
+    }
+    if (MK_HDR_LIVE(slots->weapon[1].primary.obj, slots->weapon[1].primary.instance) != 0) {
+        plyr_weapon2_grab(
+            player,
+            MK_HDR_LIVE(slots->weapon[1].primary.obj, slots->weapon[1].primary.instance));
+    }
+    if (MK_HDR_LIVE(slots->weapon[2].primary.obj, slots->weapon[2].primary.instance) != 0) {
+        plyr_weapon3_grab(
+            player,
+            MK_HDR_LIVE(slots->weapon[2].primary.obj, slots->weapon[2].primary.instance));
+    }
+    if (MK_HDR_LIVE(slots->weapon[3].primary.obj, slots->weapon[3].primary.instance) != 0) {
+        plyr_weapon4_grab(
+            player,
+            MK_HDR_LIVE(slots->weapon[3].primary.obj, slots->weapon[3].primary.instance));
+    }
+    plyr_weapon_show(player, 1, slots);
+    if (player->baraka_moveset_callback != 0) {
+        player->baraka_moveset_callback(player, slots);
+    }
+}
+
+/* TODO: [near miss] 99.82%; activation owner agrees; style-search r5/r6 coloring remains. */
 void start_special_weapon_monitor(void) {
     struct MovesWeaponWatchPdata* pdata;
-    PlyrMirrorSlots* slots;
-    PlyrPdata* player;
     MkProc* monitor;
 
     pdata = 0;
@@ -1190,32 +1219,7 @@ void start_special_weapon_monitor(void) {
             plyr_weapon_hide(plyr_pdata, 0, &plyr_pdata->fighter_definition->mirror_slots);
         }
 
-        player = plyr_pdata;
-        slots = player->mirror_slots;
-        if (MK_HDR_LIVE(slots->weapon[0].primary.obj, slots->weapon[0].primary.instance) != 0) {
-            plyr_weapon_grab(
-                player,
-                MK_HDR_LIVE(slots->weapon[0].primary.obj, slots->weapon[0].primary.instance));
-        }
-        if (MK_HDR_LIVE(slots->weapon[1].primary.obj, slots->weapon[1].primary.instance) != 0) {
-            plyr_weapon2_grab(
-                player,
-                MK_HDR_LIVE(slots->weapon[1].primary.obj, slots->weapon[1].primary.instance));
-        }
-        if (MK_HDR_LIVE(slots->weapon[2].primary.obj, slots->weapon[2].primary.instance) != 0) {
-            plyr_weapon3_grab(
-                player,
-                MK_HDR_LIVE(slots->weapon[2].primary.obj, slots->weapon[2].primary.instance));
-        }
-        if (MK_HDR_LIVE(slots->weapon[3].primary.obj, slots->weapon[3].primary.instance) != 0) {
-            plyr_weapon4_grab(
-                player,
-                MK_HDR_LIVE(slots->weapon[3].primary.obj, slots->weapon[3].primary.instance));
-        }
-        plyr_weapon_show(player, 1, slots);
-        if (player->baraka_moveset_callback != 0) {
-            player->baraka_moveset_callback(player, slots);
-        }
+        moves_activate_style_weapons(&plyr_pdata);
         plyr_weapon_trail_show(plyr_pdata->mirror_slots);
 
         pdata->monitor_token = aproc->entry;
@@ -4212,7 +4216,8 @@ void noobsmoke_sidekick_double_charge(void) {
     }
 }
 
-/* TODO: [near miss] 99.96%; wrapped angle f27 versus retail f26; honest helper/lifetime forms exhausted, stop at coloring. */
+/* TODO: [breakthrough needed] 99.96403%; recover defined offset/lateral Y inputs;
+ * normalized-angle f27/f26 coloring also remains. */
 static float p_plyr_sidekick_charge(void) {
     float wrapped_angle;
     float position_y;
@@ -4429,8 +4434,7 @@ static inline void moves_create_sidekick_exit_process(void) {
     }
 }
 
-/* TODO: [near miss] 99.81%; six player-x/normalized-z FPR rows differ;
- * fresh retail float-pool targets remain a TU layout check. */
+/* TODO: [near miss] 99.81%; six player-x/normalized-z FPR rows remain; prior trace and owner controls exhausted. */
 int advance_my_sidekick_from_behind_with_moveset(void) {
     MkObj* sidekick;
     MkHdr* object;

@@ -279,15 +279,15 @@ static inline float pz_fighter_signed_idle_distance(unsigned int player) {
     float player2_distance;
 
     player1 = g_game_info.plyr0.slot.mirror_a;
-    dz = player1->pos.value.z - g_pz_fighters_engine.player1_idle_z;
-    dx = player1->pos.value.x - g_pz_fighters_engine.player1_idle_x;
+    dz = player1->pos.value.z - g_pz_fighters_engine.player1_idle.z;
+    dx = player1->pos.value.x - g_pz_fighters_engine.player1_idle.x;
     player1_distance = dx * dx + dz * dz;
     if (dx > 0.0f) {
         player1_distance = -1.0f * player1_distance;
     }
     player2 = g_game_info.plyr1.slot.mirror_a;
-    dz = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
-    dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
+    dz = player2->pos.value.z - g_pz_fighters_engine.player2_idle.z;
+    dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle.x;
     player2_distance = dx * dx + dz * dz;
     if (dx < 0.0f) {
         player2_distance = -1.0f * player2_distance;
@@ -592,11 +592,11 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
         pz_fighter_calculate_start_pos();
         move_player(
             g_game_info.plyr0.slot.mirror_a,
-            (Vec*)&g_pz_fighters_engine.player1_idle_x,
+            &g_pz_fighters_engine.player1_idle,
             &g_game_info.plyr0.slot.mirror_a->ang);
         move_player(
             g_game_info.plyr1.slot.mirror_a,
-            (Vec*)&g_pz_fighters_engine.player2_idle_x,
+            &g_pz_fighters_engine.player2_idle,
             &g_game_info.plyr1.slot.mirror_a->ang);
         g_pz_fighters_engine.start_flag_bits.player0_started = 0;
         g_pz_fighters_engine.start_flag_bits.player1_started = 0;
@@ -1410,18 +1410,18 @@ apply_control:
     }
     if (player1_busy == 0 || player2_busy == 0) {
         dz = g_game_info.plyr0.slot.mirror_a->pos.value.z -
-             g_pz_fighters_engine.player1_idle_z;
+             g_pz_fighters_engine.player1_idle.z;
         dx = g_game_info.plyr0.slot.mirror_a->pos.value.x;
-        dx -= g_pz_fighters_engine.player1_idle_x;
+        dx -= g_pz_fighters_engine.player1_idle.x;
         player1_distance = dx * dx + dz * dz;
         player1_absolute = player1_distance;
         if (dx > 0.0f) {
             player1_distance = -1.0f * player1_distance;
         }
         dz = g_game_info.plyr1.slot.mirror_a->pos.value.z -
-             g_pz_fighters_engine.player2_idle_z;
+             g_pz_fighters_engine.player2_idle.z;
         dx = g_game_info.plyr1.slot.mirror_a->pos.value.x -
-             g_pz_fighters_engine.player2_idle_x;
+             g_pz_fighters_engine.player2_idle.x;
         player2_distance = dx * dx + dz * dz;
         player2_absolute = player2_distance;
         if (dx < 0.0f) {
@@ -1566,15 +1566,15 @@ static int pz_fighter_individual_plyr_do_something(
     player_distance = xz_distance_between_players();
     g_pz_fighters_engine.fighters_positioned = 0;
     player1 = g_game_info.plyr0.slot.mirror_a;
-    dx1 = player1->pos.value.x - g_pz_fighters_engine.player1_idle_x;
-    dz1 = player1->pos.value.z - g_pz_fighters_engine.player1_idle_z;
+    dx1 = player1->pos.value.x - g_pz_fighters_engine.player1_idle.x;
+    dz1 = player1->pos.value.z - g_pz_fighters_engine.player1_idle.z;
     player1_distance = dx1 * dx1 + dz1 * dz1;
     if (dx1 > 0.0f) {
         player1_distance = -1.0f * player1_distance;
     }
     player2 = g_game_info.plyr1.slot.mirror_a;
-    dx2 = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
-    dz2 = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
+    dx2 = player2->pos.value.x - g_pz_fighters_engine.player2_idle.x;
+    dz2 = player2->pos.value.z - g_pz_fighters_engine.player2_idle.z;
     signed_distance = dx2 * dx2 + dz2 * dz2;
     if (dx2 < 0.0f) {
         signed_distance = -1.0f * signed_distance;
@@ -1657,15 +1657,15 @@ static int pz_fighters_idle_process(void) {
     if (fighters->positioning_active == 0) {
         fighters->fighters_positioned = moved = 0;
         player1 = g_game_info.plyr0.slot.mirror_a;
-        dz = player1->pos.value.z - fighters->player1_idle_z;
-        dx = player1->pos.value.x - fighters->player1_idle_x;
+        dz = player1->pos.value.z - fighters->player1_idle.z;
+        dx = player1->pos.value.x - fighters->player1_idle.x;
         player1_distance = dx * dx + dz * dz;
         if (dx > 0.0f) {
             player1_distance = -1.0f * player1_distance;
         }
         player2 = g_game_info.plyr1.slot.mirror_a;
-        dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
-        player2_distance = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
+        dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle.x;
+        player2_distance = player2->pos.value.z - g_pz_fighters_engine.player2_idle.z;
         player2_distance = dx * dx + player2_distance * player2_distance;
         if (dx < 0.0f) {
             player2_distance = player2_distance * -1.0f;
@@ -1712,16 +1712,16 @@ static int pz_fighters_inside_super_move_scenerio(void) {
     if (g_pz_fighters_engine.positioning_active == 0) {
         g_pz_fighters_engine.fighters_positioned = moved = 0;
         player1 = g_game_info.plyr0.slot.mirror_a;
-        dz = player1->pos.value.z - g_pz_fighters_engine.player1_idle_z;
-        dx = player1->pos.value.x - g_pz_fighters_engine.player1_idle_x;
+        dz = player1->pos.value.z - g_pz_fighters_engine.player1_idle.z;
+        dx = player1->pos.value.x - g_pz_fighters_engine.player1_idle.x;
         player1_distance = dx * dx + dz * dz;
         if (dx > 0.0f) {
             player1_distance = -1.0f * player1_distance;
         }
         player2 = g_game_info.plyr1.slot.mirror_a;
-        dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
+        dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle.x;
         player2_z = player2->pos.value.z;
-        player2_distance = player2_z - g_pz_fighters_engine.player2_idle_z;
+        player2_distance = player2_z - g_pz_fighters_engine.player2_idle.z;
         player2_distance = dx * dx + player2_distance * player2_distance;
         if (dx < 0.0f) {
             player2_distance = -1.0f * player2_distance;
@@ -3019,16 +3019,16 @@ static float pz_fighter_move_into_desired_position(void) {
     float distance2;
     float distance;
 
-    dx = player1->pos.value.x - g_pz_fighters_engine.player1_idle_x;
-    dz = player1->pos.value.z - g_pz_fighters_engine.player1_idle_z;
+    dx = player1->pos.value.x - g_pz_fighters_engine.player1_idle.x;
+    dz = player1->pos.value.z - g_pz_fighters_engine.player1_idle.z;
     distance1 = dx * dx + dz * dz;
     if (dx > 0.0f) {
         distance1 = -1.0f * distance1;
     }
 
     player2 = puzzle_fighter_object(1);
-    dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
-    dz = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
+    dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle.x;
+    dz = player2->pos.value.z - g_pz_fighters_engine.player2_idle.z;
     distance2 = dx * dx + dz * dz;
     if (dx < 0.0f) {
         distance2 = -1.0f * distance2;
@@ -3078,8 +3078,8 @@ void pz_fighters_calc_distance_to_desired_idle_pos_abs(
     float dx;
     float dz;
 
-    dx = player1->pos.value.x - g_pz_fighters_engine.player1_idle_x;
-    dz = player1->pos.value.z - g_pz_fighters_engine.player1_idle_z;
+    dx = player1->pos.value.x - g_pz_fighters_engine.player1_idle.x;
+    dz = player1->pos.value.z - g_pz_fighters_engine.player1_idle.z;
     *player1_distance = dx * dx + dz * dz;
     *player1_absolute = *player1_distance;
     if (dx > 0.0f) {
@@ -3087,8 +3087,8 @@ void pz_fighters_calc_distance_to_desired_idle_pos_abs(
     }
 
     player2 = puzzle_fighter_object(1);
-    dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
-    dz = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
+    dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle.x;
+    dz = player2->pos.value.z - g_pz_fighters_engine.player2_idle.z;
     *player2_distance = dx * dx + dz * dz;
     *player2_absolute = *player2_distance;
     if (dx < 0.0f) {
@@ -3105,16 +3105,16 @@ void pz_fighters_calc_distance_to_desired_idle_pos(
     float player2_dx;
     float player2_dz;
 
-    dx = player1->pos.value.x - g_pz_fighters_engine.player1_idle_x;
-    dz = player1->pos.value.z - g_pz_fighters_engine.player1_idle_z;
+    dx = player1->pos.value.x - g_pz_fighters_engine.player1_idle.x;
+    dz = player1->pos.value.z - g_pz_fighters_engine.player1_idle.z;
     *player1_distance = dx * dx + dz * dz;
     if (dx > 0.0f) {
         *player1_distance = -1.0f * *player1_distance;
     }
 
     player2 = puzzle_fighter_object(1);
-    player2_dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle_x;
-    player2_dz = player2->pos.value.z - g_pz_fighters_engine.player2_idle_z;
+    player2_dx = player2->pos.value.x - g_pz_fighters_engine.player2_idle.x;
+    player2_dz = player2->pos.value.z - g_pz_fighters_engine.player2_idle.z;
     *player2_distance = player2_dx * player2_dx + player2_dz * player2_dz;
     if (player2_dx < 0.0f) {
         *player2_distance = -1.0f * *player2_distance;
@@ -3179,12 +3179,7 @@ static void pz_fighter_snap_to_distance(
     xz_distance_between_players();
 }
 
-/* TODO: [near miss] 73.04%; center FPR scheduling, engine base formation,
- * and extra stores remain. */
-static void pz_fighter_calculate_start_pos(void) {
-    float screen_scale = 1.0f;
-    float post1_scale;
-    float post2_scale;
+static inline void pz_fighter_update_idle_positions(void) {
     float player1_idle_x;
     float player1_idle_y;
     float player1_idle_z;
@@ -3199,12 +3194,7 @@ static void pz_fighter_calculate_start_pos(void) {
     float center_z;
     float center_x_delta;
     float center_z_delta;
-    if (screen_width > 650) {
-        screen_scale = 1.1f;
-    }
 
-    post1_scale = -1.6f * screen_scale;
-    post2_scale = 1.6f * screen_scale;
     center_x = 0.0f;
     center_z = 0.0f;
     center_x_delta = g_pz_fighters_engine.arena_axis.x *
@@ -3224,18 +3214,33 @@ static void pz_fighter_calculate_start_pos(void) {
     player2_idle_x = player2_x_offset + center_x;
     player2_idle_y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
     player2_idle_z = player2_z_offset + center_z;
-    g_pz_fighters_engine.center_x = 0.0f;
-    g_pz_fighters_engine.center_z = 0.0f;
-    g_pz_fighters_engine.center_y = 0.0f;
-    g_pz_fighters_engine.center_x = center_x;
-    g_pz_fighters_engine.center_z = center_z;
+    g_pz_fighters_engine.center.x = 0.0f;
+    g_pz_fighters_engine.center.z = 0.0f;
+    g_pz_fighters_engine.center.y = 0.0f;
+    g_pz_fighters_engine.center.x = center_x;
+    g_pz_fighters_engine.center.z = center_z;
 
-    g_pz_fighters_engine.player1_idle_x = player1_idle_x;
-    g_pz_fighters_engine.player1_idle_y = player1_idle_y;
-    g_pz_fighters_engine.player1_idle_z = player1_idle_z;
-    g_pz_fighters_engine.player2_idle_x = player2_idle_x;
-    g_pz_fighters_engine.player2_idle_y = player2_idle_y;
-    g_pz_fighters_engine.player2_idle_z = player2_idle_z;
+    g_pz_fighters_engine.player1_idle.x = player1_idle_x;
+    g_pz_fighters_engine.player1_idle.y = player1_idle_y;
+    g_pz_fighters_engine.player1_idle.z = player1_idle_z;
+    g_pz_fighters_engine.player2_idle.x = player2_idle_x;
+    g_pz_fighters_engine.player2_idle.y = player2_idle_y;
+    g_pz_fighters_engine.player2_idle.z = player2_idle_z;
+}
+
+/* TODO: [breakthrough needed] 73.12%; initialized center and idle owners
+ * retain extra copies; recover their operation boundary. */
+static void pz_fighter_calculate_start_pos(void) {
+    float screen_scale = 1.0f;
+    float post1_scale;
+    float post2_scale;
+    if (screen_width > 650) {
+        screen_scale = 1.1f;
+    }
+
+    post1_scale = -1.6f * screen_scale;
+    post2_scale = 1.6f * screen_scale;
+    pz_fighter_update_idle_positions();
     g_pz_fighters_engine.fighter_posts[0].x =
         g_pz_fighters_engine.arena_axis.x * post1_scale;
     g_pz_fighters_engine.fighter_posts[0].z =
@@ -3258,16 +3263,16 @@ float pz_fighter_fetch_distance_to_center_pos(void) {
     } else {
         fighter = g_game_info.plyr1.slot.mirror_a;
     }
-    dx = g_pz_fighters_engine.center_x - fighter->pos.value.x;
-    dz = g_pz_fighters_engine.center_z - fighter->pos.value.z;
+    dx = g_pz_fighters_engine.center.x - fighter->pos.value.x;
+    dz = g_pz_fighters_engine.center.z - fighter->pos.value.z;
     distance = dx * dx + dz * dz;
 
     if ((player == 0) &&
-        (g_pz_fighters_engine.center_x < fighter->pos.value.x)) {
+        (g_pz_fighters_engine.center.x < fighter->pos.value.x)) {
         distance *= -1.0f;
     }
     if ((player == 1) &&
-        (g_pz_fighters_engine.center_x > fighter->pos.value.x)) {
+        (g_pz_fighters_engine.center.x > fighter->pos.value.x)) {
         distance *= -1.0f;
     }
     return distance;

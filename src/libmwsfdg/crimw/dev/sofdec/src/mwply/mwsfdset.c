@@ -27,7 +27,7 @@ typedef struct MwsPlayer {
 } MwsPlayer;
 
 extern void MWSFSVM_Error(const char* message, ...);
-extern void MWSFLIB_SetErrCode(int error);
+extern int MWSFLIB_SetErrCode(int error);
 extern int MWSFRNA_GetOutPan(MwsPlayer* player);
 extern void MWSFRNA_SetOutPan(MwsPlayer* player, int pan);
 extern int MWSFRNA_GetOutVol(MwsPlayer* player);

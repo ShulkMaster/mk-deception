@@ -170,8 +170,8 @@ static inline PfxFieldSet pfx_memory_field_set(PfxVm* pfx) {
 
 #pragma push
 #pragma optimize_for_size on
-/* TODO: [near miss] 97.40%; returned field-set copy emits four extra stores and a 0x40 frame;
- * recover the two retail aggregate instances under the shared propagation mode. */
+/* TODO: [breakthrough needed] 97.40%; initial pcode retains four field-set
+ * records under propagation-off; recover the two retail aggregate instances. */
 void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
 {
     unsigned char* cursor;

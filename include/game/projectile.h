@@ -34,7 +34,7 @@ void set_active_projectile_rx_info(int reaction, float scale, int flags);
 void set_active_projectile_dn_sound(int sound);
 void set_active_projectile_sound(
     int start_sound, int flight_sound, int impact_sound);
-void set_active_projectile_velocity(const Vec* velocity);
+void set_active_projectile_velocity(Vec* velocity);
 void set_active_add_ang_y(float angle);
 void set_active_projectile_hit_gnd_script(unsigned int script_index);
 void set_active_projectile_end_script(unsigned int script_index);

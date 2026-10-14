@@ -34,33 +34,117 @@ void MPVUMC_BpicSkipped(MPVContext* context, s32 count)
     }
 }
 
-/* TODO: [blocked] 0.00%; scalar copy lacks retail dcbz/cache paths; assembly recovery is unauthorized. */
-static void mpvumc_PpicSkipMb(const MPVBlockOffsets* offsets,
-                              const MPVPlaneSet* source,
+/* Two chroma rows (one double each) or one luma row (two doubles), with and without
+ * clearing the destination cache lines first. */
+#define MPVUMC_COPY_CHROMA_CLEAR(dst, src, pitch, first, second) \
+    __dcbz(dst, 0);                                               \
+    first = (src)[0];                                             \
+    __dcbz(dst, (pitch) * 8);                                     \
+    second = (src)[pitch];                                        \
+    (src) += (pitch) * 2;                                         \
+    (dst)[0] = first;                                             \
+    (dst)[pitch] = second;                                        \
+    (dst) += (pitch) * 2
+#define MPVUMC_COPY_CHROMA(dst, src, pitch, first, second)       \
+    first = (src)[0];                                             \
+    second = (src)[pitch];                                        \
+    (src) += (pitch) * 2;                                         \
+    (dst)[0] = first;                                             \
+    (dst)[pitch] = second;                                        \
+    (dst) += (pitch) * 2
+#define MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second)   \
+    __dcbz(dst, 0);                                               \
+    first = (src)[0];                                             \
+    second = (src)[1];                                            \
+    (src) += (pitch);                                             \
+    (dst)[0] = first;                                             \
+    (dst)[1] = second;                                            \
+    (dst) += (pitch)
+#define MPVUMC_COPY_LUMA(dst, src, pitch, first, second)         \
+    first = (src)[0];                                             \
+    second = (src)[1];                                            \
+    (src) += (pitch);                                             \
+    (dst)[0] = first;                                             \
+    (dst)[1] = second;                                            \
+    (dst) += (pitch)
+
+static void mpvumc_PpicSkipMb(MPVBlockOffsets* offsets,
+                              MPVPlaneSet* source,
                               MPVPlaneSet* destination)
 {
-    s32 plane;
-    s32 row;
-    const u8* luma_source;
-    u8* luma_destination;
+    s32 pitch;
+    f64* src;
+    f64* dst;
+    f64 first;
+    f64 second;
 
-    for (plane = 0; plane < 2; plane++) {
-        const u8* src = source->planes[plane] + offsets->chroma;
-        u8* dst = destination->planes[plane] + offsets->chroma;
-        for (row = 0; row < 8; row++) {
-            *(u64*)dst = *(const u64*)src;
-            src += destination->chroma_stride;
-            dst += destination->chroma_stride;
-        }
+    pitch = destination->chroma_stride / 8;
+    if ((offsets->chroma & 0x1F) == 0) {
+        src = (f64*)(source->planes[0] + offsets->chroma);
+        dst = (f64*)(destination->planes[0] + offsets->chroma);
+        MPVUMC_COPY_CHROMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_CHROMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_CHROMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_CHROMA_CLEAR(dst, src, pitch, first, second);
+        src = (f64*)(source->planes[1] + offsets->chroma);
+        dst = (f64*)(destination->planes[1] + offsets->chroma);
+        MPVUMC_COPY_CHROMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_CHROMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_CHROMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_CHROMA_CLEAR(dst, src, pitch, first, second);
+    } else {
+        src = (f64*)(source->planes[0] + offsets->chroma);
+        dst = (f64*)(destination->planes[0] + offsets->chroma);
+        MPVUMC_COPY_CHROMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_CHROMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_CHROMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_CHROMA(dst, src, pitch, first, second);
+        src = (f64*)(source->planes[1] + offsets->chroma);
+        dst = (f64*)(destination->planes[1] + offsets->chroma);
+        MPVUMC_COPY_CHROMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_CHROMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_CHROMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_CHROMA(dst, src, pitch, first, second);
     }
-
-    luma_source = source->planes[2] + offsets->luma;
-    luma_destination = destination->planes[2] + offsets->luma;
-    for (row = 0; row < 16; row++) {
-        ((u64*)luma_destination)[0] = ((const u64*)luma_source)[0];
-        ((u64*)luma_destination)[1] = ((const u64*)luma_source)[1];
-        luma_source += destination->luma_stride;
-        luma_destination += destination->luma_stride;
+    pitch = destination->luma_stride / 8;
+    if ((offsets->luma & 0x1F) == 0) {
+        src = (f64*)(source->planes[2] + offsets->luma);
+        dst = (f64*)(destination->planes[2] + offsets->luma);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA_CLEAR(dst, src, pitch, first, second);
+    } else {
+        src = (f64*)(source->planes[2] + offsets->luma);
+        dst = (f64*)(destination->planes[2] + offsets->luma);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
+        MPVUMC_COPY_LUMA(dst, src, pitch, first, second);
     }
 }
 

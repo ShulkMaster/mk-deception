@@ -1448,7 +1448,8 @@ void sh_start_grinder_chunk_spew(Vec* position, PlyrPdata* player) {
     }
 }
 
-/* TODO: [breakthrough needed] 95.53%; displacement escape and timer/scale lifetime evidence missing; frame 0xE0 versus retail 0xF0. */
+/* TODO: [breakthrough needed] 95.53178%; displacement stack stores and duplicate
+ * timer/scale homes remain missing; recover original aggregate ownership. */
 float pfx_sh_grinder_meat_spew(void) {
     float* destination_angles;
     PfxEmitter* emitter;
@@ -1898,8 +1899,8 @@ float pfx_react_falling_attach_smoke_to_bones_proc(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 97.29%; field/table-owner register association and scheduling remain;
- * normalization operations agree. */
+/* TODO: [near miss] 97.36%; normalized direction retains its component owners;
+ * field/table GPR association, FP constant homes and scheduling remain. */
 float pfx_kenshi_lift_smoke(void) {
     float* destination_scales;
     PfxEmitter* emitter;
@@ -2067,9 +2068,12 @@ float pfx_kenshi_lift_smoke(void) {
                     dy * dy +
                     dz * dz;
                 inverse_length = gxMathFastInvSqrt(length_sq);
-                destination_velocities->x = 0.05f * (dx * inverse_length);
-                destination_velocities->y = 0.05f * (dy * inverse_length);
-                destination_velocities->z = 0.05f * (dz * inverse_length);
+                dx *= inverse_length;
+                dy *= inverse_length;
+                dz *= inverse_length;
+                destination_velocities->x = 0.05f * dx;
+                destination_velocities->y = 0.05f * dy;
+                destination_velocities->z = 0.05f * dz;
                 destination_velocities->y = 0.005f;
 
                 destination_colors[2] = 0x80;

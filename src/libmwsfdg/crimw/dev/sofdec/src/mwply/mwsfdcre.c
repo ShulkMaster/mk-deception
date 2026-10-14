@@ -1,5 +1,6 @@
 #include "cri/sj.h"
 #include "sofdec/mws_sound.h"
+#include "sofdec/mws_create.h"
 #include "cri/adxt_internal.h"
 #include "runtime/cstring.h"
 #include "sofdec/sfd_mpvf.h"
@@ -30,20 +31,6 @@ typedef struct MwsPictureUserWork {
 typedef char MwsPictureUserWorkSizeCheck[
     sizeof(MwsPictureUserWork) == 0x800 ? 1 : -1];
 
-typedef struct MwsCreateParams {
-    int file_type;
-    int maximum_bps;
-    int width;
-    int height;
-    int frame_count;
-    int decoder_count;
-    void* work;
-    int work_size;
-    int composition_mode;
-    int buffer_format;
-    int field_28;
-    int field_2C;
-} MwsCreateParams;
 
 struct MwsPlayer {
     const void* interface;
@@ -176,7 +163,6 @@ extern void MWSFTAG_DestroyAinfSj(MwsPlayer*);
 extern SJ* MWSFTAG_CreateAinfSj(MwsPlayer*);
 extern int MWSFTAG_SetAinfSj(MwsPlayer*);
 extern void MWSFTAG_InitTagInf(MwsPlayer*);
-extern int MWSFTAG_IsUseAinfSj(const MwsCreateParams*);
 extern void MWSFFRM_InitSfhInfTable(MwsPlayer*);
 extern void MWSFFRM_SetShfCbFn(MwsPlayer*);
 extern SFXHandle* MWSFSFX_Create(void*, int, int, int);
@@ -418,7 +404,8 @@ void mwSfdDestroy(MWPLY handle)
     MWSFCRE_DestroySfd(player);
 }
 
-/* TODO: [near miss] 97.77%; player/create/size/pool/free-loop register rotation remains; CFG and stores agree. */
+/* TODO: [near miss] 97.77%; canonical creation-parameter API recovered;
+ * player/create/size/pool/free-loop homes and pool relocations remain. */
 static int mwsfcre_MallocCompoWork(MwsPlayer* player)
 {
     const MwsCreateParams* create = &player->create;

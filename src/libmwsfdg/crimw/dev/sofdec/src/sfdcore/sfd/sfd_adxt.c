@@ -1,6 +1,7 @@
 #include "cri/adx_tlk.h"
 #include "cri/sj.h"
 #include "runtime/cmath.h"
+#include <math.h>
 #include "runtime/cstring.h"
 #include "sofdec/sfd_library.h"
 #include "sofdec/sfd_player.h"
@@ -65,8 +66,7 @@ extern int ADXT_GetErrCode(ADXTHandle* decoder);
 extern int ADXT_GetSfreq(ADXTHandle* decoder);
 extern int ADXT_GetNumSmpl(ADXTHandle* decoder);
 extern int ADXT_GetNumChan(ADXTHandle* decoder);
-extern void ADXT_GetTime(ADXTHandle* decoder, int* value, int* scale,
-                         int* status);
+extern void ADXT_GetTime(ADXTHandle* decoder, s32* value, s32* scale);
 extern int ADXT_DiscardSmpl(ADXTHandle* decoder, int samples);
 extern void ADXT_TermSupply(ADXTHandle* decoder);
 extern void ADXT_SetSvrFreq(ADXTHandle* decoder, int frequency);
@@ -366,8 +366,8 @@ static inline void sfadxt_UpdateTime(SfdAdxtWork* work,
                                      ADXTHandle* decoder,
                                      SfdTestWork* test_work)
 {
-    int decoder_value;
-    int decoder_scale;
+    s32 decoder_value;
+    s32 decoder_scale;
     SfdTestTime master;
     SfdTestTime sample;
     SfdTestTime output;
@@ -375,7 +375,7 @@ static inline void sfadxt_UpdateTime(SfdAdxtWork* work,
     int unit;
 
     sfadxt_stat = ADXT_GetStat(decoder);
-    ADXT_GetTime(decoder, &decoder_value, &decoder_scale, &sfadxt_stat);
+    ADXT_GetTime(decoder, &decoder_value, &decoder_scale);
     master.value = decoder_value;
     master.scale = decoder_scale;
     sample.value = UTY_GetTmr();
@@ -389,12 +389,11 @@ static inline void sfadxt_UpdateTime(SfdAdxtWork* work,
     }
 }
 
-/* TODO: [near miss] 96.43%; owner allocation and status-to-time call staging remain. */
 static int sfadxt_GetTime(SfdHandle* handle, int* value, int* scale)
 {
     SfdAdxtWork* work = sfadxt_GetWork(handle);
     ADXTHandle* decoder = work->decoder;
-    SfdTestWork* test_work = sfadxt_GetTestWork(handle);
+    SfdTestWork* test_work = &handle->timer_state.test_work;
 
     if (SFTIM_ChkRegularTime(handle, value, scale) == 0) {
         return 0;
@@ -618,7 +617,8 @@ static inline int sfadxt_SearchFrmTop(SfdHandle* handle,
     return offset - data;
 }
 
-/* TODO: [near miss] 97.53%; frame scan CFG agrees; caller and scan owner registers differ. */
+/* TODO: [near miss] 97.52688%; caller/scan GPR homes remain;
+ * canonical scan rank is neutral; donor register pin is forbidden. */
 static void sfadxt_ExcludeHdr(SfdHandle* handle, const unsigned char* data,
                               int size, int* consumed)
 {
@@ -643,50 +643,55 @@ static void sfadxt_ExcludeHdr(SfdHandle* handle, const unsigned char* data,
     handle->playback_runtime.time_values[8] += excluded;
 }
 
-static inline void sfadxt_SearchEndcode(const unsigned char* data, int limit,
-    int* found_end, int* scanned) {
-    const unsigned char* position = data;
+static inline int sfadxt_SearchEndcode(const unsigned char* data, int limit,
+                                       int* found_end)
+{
+    const unsigned char* position;
+    int scanned;
     int end_size;
 
+    position = data;
     *found_end = 0;
-    for (*scanned = 0; *scanned < limit; *scanned += 0x12) {
+    for (scanned = 0; scanned < limit; scanned += 0x12) {
         if (ADXT_IsEndcode(position, 0x12, &end_size) != 0) {
             *found_end = 1;
             break;
         }
         position += 0x12;
     }
+    return scanned;
 }
 
-/* TODO: [near miss] 99.41%; synchronization operations and reloads agree;
- * scalar scan outputs agree; three retained-register webs remain. */
 static void sfadxt_AdjustSync(SfdHandle* handle, const unsigned char* data,
                               int size, int* consumed)
 {
-    int found_end;
-    int audio_start;
-    SfdAdxtWork* work;
-    int sample_rate;
-    int end_size;
-    int using_time_unit;
-    int scan_bytes;
-    SfdTimerState* timer = &handle->timer_state;
-    int video_start;
-    int difference;
     int block_size;
+    int bytes_per_frame;
+    int excluded;
     int bytes_remaining;
     int channels;
-    int excluded;
+    int found_end;
+    SfdTimerState* timer;
+    int video_start;
+    int audio_start;
+    int sample_rate;
+    int scan_bytes;
+    int available;
+    int end_size;
+    int using_time_unit;
+    int difference;
+    SfdAdxtWork* work;
+    int inserted;
+    int samples_remaining;
 
     *consumed = 0;
+    timer = &handle->timer_state;
     work = sfadxt_GetWork(handle);
     if (sfadxt_GetAudioInf(handle, &channels, &sample_rate) != 0) {
         work->copy = sfadxt_CopyData;
         return;
     }
-    audio_start =
-        SFTIM_GetAudioStartSample(timer, sample_rate);
-
+    audio_start = SFTIM_GetAudioStartSample(timer, sample_rate);
     if (audio_start < 0) {
         return;
     }
@@ -695,32 +700,25 @@ static void sfadxt_AdjustSync(SfdHandle* handle, const unsigned char* data,
         work->copy = sfadxt_CopyData;
         return;
     }
-    video_start = SFTIM_GetVideoStartSample(
-        timer, sample_rate, &using_time_unit);
-
+    video_start = SFTIM_GetVideoStartSample(timer, sample_rate, &using_time_unit);
     if (video_start < 0) {
         return;
     }
     SFTIM_SetStartTime(timer, video_start, sample_rate);
     excluded = 0;
-    difference =
-        (video_start - audio_start) - work->sample_offset;
-
+    difference = (video_start - audio_start) - work->sample_offset;
     if (difference >= 0) {
         found_end = 0;
         bytes_remaining = difference / 0x20 * channels * 0x12;
         if (bytes_remaining > 0) {
-            int bytes_per_frame = channels * 0x12;
-
-            int available =
-                channels * (size / bytes_per_frame) * 0x12;
+            bytes_per_frame = channels * 0x12;
             block_size = bytes_remaining;
-            if (available < block_size) {
+            available = size / bytes_per_frame * channels * 0x12;
+            if (available < bytes_remaining) {
                 block_size = available;
             }
-            sfadxt_SearchEndcode(data, block_size, &found_end, &scan_bytes);
-            work->sample_offset +=
-                (scan_bytes / bytes_per_frame) * 0x20;
+            scan_bytes = sfadxt_SearchEndcode(data, block_size, &found_end);
+            work->sample_offset = work->sample_offset + scan_bytes / bytes_per_frame * 0x20;
             excluded = scan_bytes;
             bytes_remaining -= block_size;
         }
@@ -731,19 +729,18 @@ static void sfadxt_AdjustSync(SfdHandle* handle, const unsigned char* data,
         if (found_end != 0) {
             SFSET_SetCond(handle, 6, 0);
         }
-    } else if (using_time_unit != 0) {
-        int samples_remaining = ((-difference) / 0x20) << 5;
-
-        if (samples_remaining > 0) {
-            int inserted = ADXT_InsertSilence(
-                sfadxt_GetWork(handle)->decoder, channels,
-                samples_remaining);
-
-            samples_remaining -= inserted;
-            work->sample_offset -= inserted;
-        }
-        if (samples_remaining <= 0) {
-            work->copy = sfadxt_CopyData;
+    } else {
+        if (using_time_unit != 0) {
+            samples_remaining = (-difference) / 0x20 * 0x20;
+            if (samples_remaining > 0) {
+                inserted = ADXT_InsertSilence(sfadxt_GetWork(handle)->decoder,
+                                              channels, samples_remaining);
+                samples_remaining -= inserted;
+                work->sample_offset -= inserted;
+            }
+            if (samples_remaining <= 0) {
+                work->copy = sfadxt_CopyData;
+            }
         }
     }
     *consumed = excluded;
@@ -958,7 +955,8 @@ static inline void sfadxt_WriteTotSmpl(SfdHandle* handle)
     }
 }
 
-/* TODO: [near miss] 97.78409%; server phases and input-size lifetime match; stop at transfer/owner register coloring. */
+/* TODO: [near miss] 97.78%; all server operations and CFG agree;
+ * handle/result/input-size GPR rotation remains; stop at coloring. */
 static int sfadxt_ExecServerSub(SfdHandle* handle)
 {
     int result;

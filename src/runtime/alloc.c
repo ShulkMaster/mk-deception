@@ -309,7 +309,8 @@ static inline unsigned long variable_allocation_size(unsigned long size) {
     return size;
 }
 
-/* TODO: [near miss] 96.16%; coalescing and split-helper register associations remain; stop at coloring. */
+/* TODO: [near miss] 96.15619%; 273 coalescing/split register rows remain;
+ * split-result ownership is neutral; stop without new helper evidence. */
 void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size) {
     unsigned long old_size;
     unsigned long is_variable;

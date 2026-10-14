@@ -51,7 +51,8 @@ KonquestTimedEvent* npc_which_event_is_more_recent(
     return event_b;
 }
 
-/* TODO: [near miss] 99.74%; shared specificity masks agree; six temporary GPR rows remain. */
+/* TODO: [near miss] 99.74%; six mask-intermediate GPR rows remain;
+ * shared accumulation rewrite regresses an exact consumer; stop at coloring. */
 static KonquestTimedEvent* which_event_is_more_recent(
     const KonquestTime* current, KonquestTimedEvent* event_a,
     KonquestTimedEvent* event_b) {

@@ -10,6 +10,13 @@ typedef struct LightDef LightDef;
 typedef struct LightPdata LightPdata;
 typedef struct MkxRpLight MkxRpLight;
 
+struct LightDefAmbient {
+    int type;
+    MkProcEntryFn procFn;
+    int flags;
+    RwRGBAReal color;
+};
+
 struct LightDef {
     int type;              /* +0x00 */
     MkProcEntryFn procFn;  /* +0x04 */

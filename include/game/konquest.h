@@ -28,6 +28,12 @@ typedef struct LipSyncKeyframe {
     int frame;
 } LipSyncKeyframe;
 
+struct KonquestPuiRuntime;
+int should_this_pui_be_saved(const struct KonquestPuiRuntime* pui);
+int get_konquest_pui_inventory_bit_index(const struct KonquestPuiRuntime* pui);
+void get_konquest_pui_object_pos(
+    Vec* position, const struct KonquestPuiRuntime* pui);
+
 int get_num_puis(void);
 int get_pui_inventory_bit_index(void* item);
 

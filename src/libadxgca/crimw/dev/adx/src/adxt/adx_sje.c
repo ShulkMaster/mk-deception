@@ -215,6 +215,33 @@ static inline void adxsje_write_chunk(SJ* output, const void* data, s32 size)
     }
 }
 
+static inline void adxsje_put(SJ* output, void* data, s32 size)
+{
+    SJCK chunk;
+
+    output->interface->get_chunk(output, 0, size, &chunk);
+    if (chunk.len < size) {
+        output->interface->unget_chunk(output, 0, &chunk);
+    } else {
+        memcpy(chunk.data, data, size);
+        output->interface->put_chunk(output, 1, &chunk);
+    }
+}
+
+static inline void adxsje_put16(SJ* output, void* data)
+{
+    SJCK chunk;
+
+    output->interface->get_chunk(output, 0, 2, &chunk);
+    if (chunk.len < 2) {
+        output->interface->unget_chunk(output, 0, &chunk);
+    } else {
+        s16* cursor = (s16*)chunk.data;
+        *cursor++ = *(s16*)data;
+        output->interface->put_chunk(output, 1, &chunk);
+    }
+}
+
 void ADXSJE_ExecServer(void)
 {
     s32 index;
@@ -597,7 +624,6 @@ fail:
     return 0;
 }
 
-/* TODO: [near miss] 97.14%; marker stack/widths agree; first native-word destination/source loads reordered. */
 s32 adxsje_write_end_code(AdxSjeHandle* encoder)
 {
     s32 end_size;
@@ -622,123 +648,120 @@ s32 adxsje_write_end_code(AdxSjeHandle* encoder)
         return 0;
     }
     value = 0x8001;
-    adxsje_write_chunk(output, &value, sizeof(value));
+    adxsje_put16(output, &value);
     value = end_size;
-    adxsje_write_chunk(output, &value, sizeof(value));
+    adxsje_put16(output, &value);
     zero = 0;
     for (index = 0; index < end_size; index++) {
-        adxsje_write_chunk(output, &zero, sizeof(zero));
+        adxsje_put(output, &zero, 1);
     }
     return output_size;
 }
 
-static inline s32 adxsje_read_pcm(AdxSjeHandle* encoder, SJ** inputs,
-                                  s16** sample_buffer, s32 requested_samples)
+static inline void adxsje_set_hist(AdxSjeHandle* encoder, s32 channel,
+                                   s16 previous0, s16 previous1)
 {
-    SJ** input_cursor;
-    s32 pcm_samples;
+    encoder->previous0[channel] = previous0;
+    encoder->previous1[channel] = previous1;
+}
+
+static inline s32 adxsje_read_pcm(AdxSjeHandle* encoder, s16** sample_buffer,
+                                  s32 requested_samples)
+{
+    SJ** inputs = encoder->input;
+    s32 pcm_samples = 0;
     s32 channel;
-    s32 byte_count;
     SJCK chunk;
 
-    input_cursor = inputs;
-    pcm_samples = 0;
-    for (channel = 0; channel < encoder->channel_count; input_cursor++, channel++) {
-        pcm_samples = (u32)(*input_cursor)->interface->get_num_data(
-            *input_cursor, 1) / sizeof(s16);
+    for (channel = 0; channel < encoder->channel_count; channel++) {
+        pcm_samples = inputs[channel]->interface->get_num_data(
+            inputs[channel], 1) / sizeof(s16);
         if (pcm_samples < requested_samples) {
             return 0;
         }
     }
-    byte_count = requested_samples * (s32)sizeof(s16);
-    input_cursor = inputs;
-    for (channel = 0; channel < encoder->channel_count; input_cursor++, channel++) {
+    for (channel = 0; channel < encoder->channel_count; channel++) {
         pcm_samples = 0;
         while (pcm_samples < requested_samples) {
-            (*input_cursor)->interface->get_chunk(
-                *input_cursor, 1, byte_count, &chunk);
+            inputs[channel]->interface->get_chunk(
+                inputs[channel], 1, requested_samples * 2, &chunk);
             memcpy(sample_buffer[channel] + pcm_samples, chunk.data, chunk.len);
-            pcm_samples += (s16)((u32)chunk.len / sizeof(s16));
-            (*input_cursor)->interface->put_chunk(*input_cursor, 0, &chunk);
+            pcm_samples += (s16)(chunk.len / sizeof(s16));
+            inputs[channel]->interface->put_chunk(inputs[channel], 0, &chunk);
         }
     }
     return pcm_samples;
 }
 
-static inline s32 adxsje_encode_pcm_block(AdxSjeHandle* encoder)
+static inline void adxsje_encode_blocks(AdxSjeHandle* encoder)
 {
-    SJ** inputs;
-    s32 requested_samples;
-    s32 pcm_samples;
-    s16* sample_buffer[ADXSJE_MAX_CHANNELS];
+    s32 channel;
+    struct AdxSjePredictorFilter* filter;
+    struct AdxSjeIirFilter* iir_filter;
 
-    requested_samples = encoder->sample_count - encoder->sample_position;
-    sample_buffer[0] = encoder->samples[0];
-    sample_buffer[1] = encoder->samples[1];
-    inputs = encoder->input;
-    if (encoder->block_samples < requested_samples) {
-        requested_samples = encoder->block_samples;
-    }
-    pcm_samples = adxsje_read_pcm(encoder, inputs, sample_buffer, requested_samples);
-    if (pcm_samples == 0) {
-        return 0;
-    } else {
-        s32 channel;
-        if (requested_samples < encoder->block_samples) {
-            s32 padding_channel;
-            for (padding_channel = 0; padding_channel < encoder->channel_count; padding_channel++) {
-                if (sample_buffer[padding_channel] != 0) {
-                    memset(sample_buffer[padding_channel] + requested_samples, 0,
-                           (encoder->block_samples - requested_samples) * (s32)sizeof(s16));
-                }
-            }
-        }
-
-        encoder->sample_position += encoder->block_samples;
-        for (channel = 0; channel < encoder->channel_count; channel++) {
-            struct AdxSjePredictorFilter* filter;
-            struct AdxSjeIirFilter* iir_filter;
-            s16 previous1;
-
-            adxsje_calc_rsig(encoder, channel);
-            filter = encoder->filter[channel];
-            iir_filter = filter->iir_filter;
-            encoder->scale[channel] = filter->scale;
-            encoder->gain[channel] = filter->gain;
-            previous1 = iir_filter->previous1;
-            encoder->previous0[channel] = iir_filter->previous0;
-            encoder->previous1[channel] = previous1;
-            adxsje_set_rsig(encoder, channel);
-        }
-        return encoder->block_samples;
+    for (channel = 0; channel < encoder->channel_count; channel++) {
+        adxsje_calc_rsig(encoder, channel);
+        filter = encoder->filter[channel];
+        iir_filter = filter->iir_filter;
+        encoder->scale[channel] = filter->scale;
+        encoder->gain[channel] = filter->gain;
+        adxsje_set_hist(encoder, channel, iir_filter->previous0,
+                        iir_filter->previous1);
+        adxsje_set_rsig(encoder, channel);
     }
 }
 
-/* TODO: [near miss] 98.68263%; PCM transfer and filter-history register assignments remain. */
+static inline void adxsje_pad_pcm(AdxSjeHandle* encoder, s16** sample_buffer,
+                                  s32 sample_total)
+{
+    s32 channel;
+
+    for (channel = 0; channel < encoder->channel_count; channel++) {
+        if (sample_buffer[channel] != 0) {
+            memset(sample_buffer[channel] + sample_total, 0,
+                   (encoder->block_samples - sample_total) * 2);
+        }
+    }
+}
+
 s32 adxsje_encode_data(AdxSjeHandle* encoder)
 {
     s32 total_size;
-    s32 produced;
-    s32 encoded_samples;
     SJ* output;
+    s32 requested_samples;
+    s32 pcm_samples;
+    s32 encoded_samples;
+    s16* sample_buffer[ADXSJE_MAX_CHANNELS];
 
-    total_size = 0;
     output = encoder->output;
-    for (;;) {
+    total_size = 0;
+    do {
         if ((output->interface->get_num_data(output, 0) /
              ADXSJE_BLOCK_BYTES) / encoder->channel_count <= 0) {
             break;
         }
-        encoded_samples = adxsje_encode_pcm_block(encoder);
+        sample_buffer[0] = encoder->samples[0];
+        sample_buffer[1] = encoder->samples[1];
+        requested_samples =
+            (encoder->block_samples < encoder->sample_count - encoder->sample_position)
+                ? encoder->block_samples
+                : encoder->sample_count - encoder->sample_position;
+        pcm_samples = adxsje_read_pcm(encoder, sample_buffer, requested_samples);
+        if (pcm_samples == 0) {
+            encoded_samples = 0;
+        } else {
+            if (requested_samples < encoder->block_samples) {
+                adxsje_pad_pcm(encoder, sample_buffer, requested_samples);
+            }
+            encoder->sample_position += encoder->block_samples;
+            adxsje_encode_blocks(encoder);
+            encoded_samples = encoder->block_samples;
+        }
         if (encoded_samples == 0) {
             break;
         }
-        produced = adxsje_output_sdata(encoder);
-        total_size += produced;
-        if (encoder->sample_position >= encoder->sample_count) {
-            break;
-        }
-    }
+        total_size += adxsje_output_sdata(encoder);
+    } while (encoder->sample_position < encoder->sample_count);
     return total_size;
 }
 

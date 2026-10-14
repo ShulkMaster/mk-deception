@@ -471,8 +471,8 @@ static inline int count_section_slots(const SectionPerSlotDef* definitions) {
     return count;
 }
 
-/* TODO: [breakthrough] 91.21%; unsigned size, prefix and map reload recovered;
- * slot-footprint lowering and allocator register homes remain. */
+/* TODO: [breakthrough needed] 91.20606%; retained prefix/count/allocation phases agree;
+ * retail's overwritten slot-footprint accumulator needs original lowering evidence. */
 void set_section_memory_scheme(int scheme) {
     SectionSlotDef** new_map = &section_memory_maps[scheme];
     int common_position;

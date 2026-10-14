@@ -80,74 +80,78 @@ void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest
 }
 
 static inline void hdrlessHeapAlignArena(_mwMemHeap* heap) {
-    u32 alignment_mask;
     u32 alignment_inverse;
+    u32 alignment_mask;
+    u32 block_size;
     u8* arena_start;
 
     if (heap != 0) {
         alignment_mask = (1 << privGetAlignFromMwMemFlags(heap->flags)) - 1;
         alignment_inverse = ~alignment_mask;
+        block_size = heap->blockSize;
         heap->blockPrefixSize =
-            ((heap->blockSize + alignment_mask) & alignment_inverse) - heap->blockSize;
+            ((block_size + alignment_mask) & alignment_inverse) - block_size;
         arena_start = heap->heapStart + heap->blockPrefixSize;
         heap->arenaAlignmentPadding =
             ((u32)(arena_start + alignment_mask) & alignment_inverse) - (u32)arena_start;
     }
 }
 
-/* TODO: [near miss] 98.10%; alignment registers and one extra zero load
- * remain; loop matches, stop until new ownership evidence. */
-void hdrlessHeapResetHeap(_mwMemHeap* heap) {
-    u32 index;
-    MwMemUsedHeader* header;
-    u32 available_size;
-    u32 block_count;
-    u32 block_stride;
-    u8* arena_start;
+static inline void hdrlessHeapResetArena(_mwMemHeap* heap) {
     u32 header_size;
+    u8* arena_start;
+    u32 block_stride;
+    u32 block_count;
+    u32 available_size;
+    MwMemUsedHeader* header;
+    u32 index;
+    u8 arena_padding;
 
-    if (heap != 0) {
-        u8 arena_padding;
-        hdrlessHeapAlignArena(heap);
-        index = 0;
-        heap->usedList = 0;
-        heap->freeList = 0;
-        heap->freeTail = 0;
-        arena_start = heap->heapStart;
-        arena_padding = heap->arenaAlignmentPadding;
-        available_size = heap->heapEnd - arena_start - arena_padding;
-        header = mwMemHeaderAt(arena_start, arena_padding);
-        block_stride = heap->blockSize + heap->blockPrefixSize;
-        header->next = 0;
-        block_count = available_size / block_stride;
-        header->previous = 0;
-        header_size = block_stride - sizeof(MwMemUsedHeader);
-        while (index < block_count) {
-            header->allocationSize = header_size;
-            header->prefixSize = 0;
-            header->heapIndex = 0;
-            header->alignmentPadding = 0;
-            privClearBitFlag(&header->flags);
-            privSetAlignInBitFlag(&header->flags, 4);
-            privSetAlignInBitFlag(&header->flags, 0);
-            if (heap->freeList == 0) {
-                heap->freeList = header;
-                header->next = 0;
-                header->previous = (MwMemUsedHeader*)~(u32)header->next;
-            } else {
-                header->next = heap->freeList;
-                heap->freeList = header;
-                header->previous = (MwMemUsedHeader*)~(u32)header->next;
-            }
-            header = mwMemHeaderAt(header, block_stride);
-            index++;
+    hdrlessHeapAlignArena(heap);
+    index = 0;
+    heap->usedList = 0;
+    heap->freeList = 0;
+    heap->freeTail = 0;
+    arena_start = heap->heapStart;
+    arena_padding = heap->arenaAlignmentPadding;
+    available_size = heap->heapEnd - arena_start - arena_padding;
+    header = mwMemHeaderAt(arena_start, arena_padding);
+    block_stride = heap->blockSize + heap->blockPrefixSize;
+    header->next = 0;
+    block_count = available_size / block_stride;
+    header->previous = 0;
+    header_size = block_stride - sizeof(MwMemUsedHeader);
+    while (index < block_count) {
+        header->allocationSize = header_size;
+        header->prefixSize = 0;
+        header->heapIndex = 0;
+        header->alignmentPadding = 0;
+        privClearBitFlag(&header->flags);
+        privSetAlignInBitFlag(&header->flags, 4);
+        privSetAlignInBitFlag(&header->flags, 0);
+        if (heap->freeList == 0) {
+            heap->freeList = header;
+            header->next = 0;
+            header->previous = (MwMemUsedHeader*)~(u32)header->next;
+        } else {
+            header->next = heap->freeList;
+            heap->freeList = header;
+            header->previous = (MwMemUsedHeader*)~(u32)header->next;
         }
-        heap->currentUsedSize = 0;
-        heap->totalManagedSize = heap->heapEnd - heap->heapStart;
-        heap->currentAllocationCount = 0;
-        heap->currentFreeSize = heap->totalManagedSize;
-        heap->dirty = 1;
-        heap->virtAllocCount = 0;
+        header = mwMemHeaderAt(header, block_stride);
+        index++;
+    }
+    heap->currentUsedSize = 0;
+    heap->totalManagedSize = heap->heapEnd - heap->heapStart;
+    heap->currentAllocationCount = 0;
+    heap->currentFreeSize = heap->totalManagedSize;
+    heap->dirty = 1;
+    heap->virtAllocCount = 0;
+}
+
+void hdrlessHeapResetHeap(_mwMemHeap* heap) {
+    if (heap != 0) {
+        hdrlessHeapResetArena(heap);
     }
 }
 

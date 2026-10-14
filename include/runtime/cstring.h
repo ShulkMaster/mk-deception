@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 void* memcpy(void* destination, const void* source, unsigned long size);
-void* memset(void* destination, int value, unsigned long size);
+void* memset(void* destination, int value, unsigned int size);
 int memcmp(const void* lhs, const void* rhs, unsigned long size);
 char* strcpy(char* destination, const char* source);
 char* strncpy(char* destination, const char* source, unsigned long count);

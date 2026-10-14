@@ -22,21 +22,21 @@ typedef struct GcCiObject {
     unsigned char reserved_03;
     unsigned char reserved_04[4];
     void* transfer_buffer;
-    int dvd_status;
-    int sector_length;
-    int file_size;
-    int sector_count;
-    int sector_position;
-    int transfer_length;
-    int request_sectors;
+    long dvd_status;
+    long sector_length;
+    long file_size;
+    long sector_count;
+    long sector_position;
+    long transfer_length;
+    long request_sectors;
     DVDFileInfo file_info;
 } GcCiObject;
 
 typedef struct GcCiDebug {
-    int dvd_status;
+    long dvd_status;
     signed char transfer_status;
     unsigned char reserved_05[3];
-    int canceling;
+    long canceling;
 } GcCiDebug;
 
 typedef void (*GcCiErrorCallback)(void* object, const char* message,
@@ -185,131 +185,73 @@ GcCiStatus gcCiGetStat(void* object)
     return handle->status;
 }
 
-static inline unsigned long gcci_milliseconds(void)
+static inline void gcci_call_error(const char* message, void* handle)
 {
-    return OSGetTick() / (OS_TIMER_CLOCK / 1000);
+    if (gcg_ci_err_func != 0) {
+        gcg_ci_err_func(gcg_ci_err_obj, message, handle);
+    }
 }
 
 static inline int gcci_is_idle(const GcCiObject* handle)
 {
-    return handle->status == GCCI_STATUS_COMPLETE ||
-           handle->status == GCCI_STATUS_IDLE;
+    int idle = 0;
+
+    if (handle->status == GCCI_STATUS_COMPLETE ||
+        handle->status == GCCI_STATUS_IDLE) {
+        idle = 1;
+    }
+    return idle;
 }
 
 static inline int gcci_is_dvd_finished(const GcCiObject* handle)
 {
-    return handle->dvd_status == DVD_STATE_END ||
-           handle->dvd_status == DVD_STATE_CANCELED;
+    int done = 0;
+
+    if (handle->dvd_status == DVD_STATE_END ||
+        handle->dvd_status == DVD_STATE_CANCELED) {
+        done = 1;
+    }
+    return done;
 }
 
-static inline void gcci_cancel_transfer(GcCiObject* handle)
+void gcCiStopTr(void* object)
 {
+    GcCiObject* handle;
+    int cancel_result;
     unsigned long start;
     unsigned long current;
     unsigned long elapsed;
-    int cancel_result;
 
+    handle = object;
     if (handle == 0) {
-        if (gcg_ci_err_func != 0) {
-            gcg_ci_err_func(gcg_ci_err_obj, "E0092912:handl is null.", 0);
-        }
+        gcci_call_error("E0092912:handl is null.", 0);
         return;
     }
     if (handle->status == GCCI_STATUS_COMPLETE ||
         handle->status == GCCI_STATUS_IDLE) {
         return;
     }
-
     DVDGetCommandBlockStatus(&handle->file_info.cb);
     DVDGetDriveStatus();
     gcg_ci_debug.canceling = 1;
     cancel_result = DVDCancel(&handle->file_info.cb);
     gcg_ci_debug.canceling = 0;
     if (cancel_result < 0) {
-        if (gcg_ci_err_func != 0) {
-            gcg_ci_err_func(gcg_ci_err_obj, "E0092917:DVDCancel failed.",
-                            handle);
-        }
+        gcci_call_error("E0092917:DVDCancel failed.", handle);
         return;
     }
-
-    start = gcci_milliseconds();
+    start = OSTicksToMilliseconds(OSGetTick());
     while (!gcci_is_dvd_finished(handle)) {
         handle->dvd_status = DVDGetCommandBlockStatus(&handle->file_info.cb);
         gcg_ci_debug.dvd_status = handle->dvd_status;
-        current = gcci_milliseconds();
-        elapsed = (0xFFFFFFFF - start) + current;
-        if (current >= start) {
-            elapsed = current - start;
-        }
+        current = OSTicksToMilliseconds(OSGetTick());
+        elapsed = (current >= start) ? (current - start)
+                                     : (0xFFFFFFFF - start + current);
         if (elapsed > GCCI_CANCEL_TIMEOUT_MS) {
-            if (gcg_ci_err_func != 0) {
-                gcg_ci_err_func(gcg_ci_err_obj,
-                                "E0092918:DVDCancel time out.", handle);
-            }
+            gcci_call_error("E0092918:DVDCancel time out.", handle);
             break;
         }
     }
-
-    handle->status = GCCI_STATUS_IDLE;
-    gcg_ci_debug.transfer_status = GCCI_STATUS_IDLE;
-    DVDGetCommandBlockStatus(&handle->file_info.cb);
-    DVDGetDriveStatus();
-}
-
-static inline unsigned long gcci_elapsed_milliseconds(unsigned long start)
-{
-    unsigned long current = gcci_milliseconds();
-    if (current >= start) {
-        return current - start;
-    }
-    return (0xFFFFFFFF - start) + current;
-}
-
-/* TODO: [near miss] 99.57%; start/debug saved-register pair remains; stop at clean-C coloring ceiling. */
-void gcCiStopTr(void* object)
-{
-    GcCiObject* handle = object;
-    unsigned long start;
-    int cancel_result;
-
-    if (handle == 0) {
-        if (gcg_ci_err_func != 0) {
-            gcg_ci_err_func(gcg_ci_err_obj, "E0092912:handl is null.", 0);
-        }
-        return;
-    }
-    if (handle->status == GCCI_STATUS_COMPLETE ||
-        handle->status == GCCI_STATUS_IDLE) {
-        return;
-    }
-
-    DVDGetCommandBlockStatus(&handle->file_info.cb);
-    DVDGetDriveStatus();
-    gcg_ci_debug.canceling = 1;
-    cancel_result = DVDCancel(&handle->file_info.cb);
-    gcg_ci_debug.canceling = 0;
-    if (cancel_result < 0) {
-        if (gcg_ci_err_func != 0) {
-            gcg_ci_err_func(gcg_ci_err_obj, "E0092917:DVDCancel failed.",
-                            handle);
-        }
-        return;
-    }
-
-    start = gcci_milliseconds();
-    while (!gcci_is_dvd_finished(handle)) {
-        handle->dvd_status = DVDGetCommandBlockStatus(&handle->file_info.cb);
-        gcg_ci_debug.dvd_status = handle->dvd_status;
-        if (gcci_elapsed_milliseconds(start) > GCCI_CANCEL_TIMEOUT_MS) {
-            if (gcg_ci_err_func != 0) {
-                gcg_ci_err_func(gcg_ci_err_obj,
-                                "E0092918:DVDCancel time out.", handle);
-            }
-            break;
-        }
-    }
-
     handle->status = GCCI_STATUS_IDLE;
     gcg_ci_debug.transfer_status = GCCI_STATUS_IDLE;
     DVDGetCommandBlockStatus(&handle->file_info.cb);
@@ -362,25 +304,31 @@ static inline void gcci_update_transfer(GcCiObject* handle)
     }
 }
 
-static inline int gcci_is_any_transferring(GcCiObject* current)
+static inline long gcci_is_any_transferring(GcCiObject* table)
 {
-    int index;
+    long index;
 
-    for (index = 0; index < GCCI_MAX_HANDLES; current++, index++) {
-        if (current->used == 1 &&
-            current->status == GCCI_STATUS_TRANSFERRING) {
+    for (index = 0; index < GCCI_MAX_HANDLES; index++) {
+        if (table[index].used == 1 &&
+            table[index].status == GCCI_STATUS_TRANSFERRING) {
             return 1;
         }
     }
     return 0;
 }
 
-/* TODO: [near miss] 99.04%; loop index/debug base swap r30/r28 and overflow subf schedules early; honest forms exhausted, stop at coloring. */
+static inline void gcci_update_table(GcCiObject* table)
+{
+    long index;
+
+    for (index = 0; index < GCCI_MAX_HANDLES; index++) {
+        gcci_update_transfer(&table[index]);
+    }
+}
+
 int gcCiReqRd(void* object, int sectors, void* buffer)
 {
-    GcCiObject* current;
     int aligned_length;
-    int index;
     GcCiObject* handle = object;
     int offset;
     int length;
@@ -413,8 +361,7 @@ int gcCiReqRd(void* object, int sectors, void* buffer)
         return 0;
     }
 
-    current = gcg_ci_obj;
-    if (gcci_is_any_transferring(current)) {
+    if (gcci_is_any_transferring(gcg_ci_obj)) {
         return 0;
     }
 
@@ -424,15 +371,11 @@ int gcCiReqRd(void* object, int sectors, void* buffer)
         return 0;
     }
 
-    handle->transfer_length = index = 0;
+    handle->transfer_length = 0;
     handle->transfer_buffer = buffer;
     handle->request_sectors = sectors;
 
-    do {
-        gcci_update_transfer(current);
-        index++;
-        current++;
-    } while (index < GCCI_MAX_HANDLES);
+    gcci_update_table(gcg_ci_obj);
 
     offset = handle->sector_position * handle->sector_length;
     length = handle->request_sectors * handle->sector_length;
@@ -481,15 +424,12 @@ int gcCiTell(void* object)
 int gcCiSeek(void* object, int offset, int origin)
 {
     GcCiObject* handle = object;
-    int position;
+    long position;
 
     if (handle == 0) {
-        if (gcg_ci_err_func != 0) {
-            gcg_ci_err_func(gcg_ci_err_obj, "E0092912:handl is null.", 0);
-        }
+        gcci_call_error("E0092912:handl is null.", 0);
         return 0;
     }
-
     if (origin == 0) {
         handle->sector_position = offset;
     } else if (origin == 2) {
@@ -503,26 +443,22 @@ int gcCiSeek(void* object, int offset, int origin)
         position = handle->sector_position;
     }
     handle->sector_position = position;
-    position = handle->sector_position;
-    if (position <= 0) {
-        position = 0;
-    }
-    handle->sector_position = position;
+    handle->sector_position = (handle->sector_position > 0) ? handle->sector_position : 0;
     return handle->sector_position;
 }
 
-/* TODO: [near miss] 98.01%; close body and API agree; prologue register homes and final-store address remain. */
 void gcCiClose(void* object)
 {
     GcCiObject* handle;
 
-    if (object == 0) {
+    handle = object;
+    if (handle == 0) {
         return;
     }
-    gcci_cancel_transfer(handle = object);
+    gcCiStopTr(object);
     DVDClose(&handle->file_info);
-    ((GcCiObject*)object)->used = 0;
-    memset(object, 0, sizeof(*handle));
+    handle->used = 0;
+    memset(handle, 0, sizeof(GcCiObject));
 }
 
 static inline void gcci_make_path(char* path, const char* filename)

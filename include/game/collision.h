@@ -112,6 +112,9 @@ CollisionObj* get_collision_obj(void);
 float repel_check_plyrs(void);
 int repel_against_global_collision_list(
     Vec* position, Vec* movement, Vec* result_position);
+int npc_repel_against_global_collision_list(
+    Vec* position, Vec* movement, Vec* result_position,
+    unsigned int ignored_flags);
 void repel_against_obstacle_list(
     PlyrInfo* player, Vec* previous_position, Vec* movement,
     Vec* position, struct ConstrainInfo* info);

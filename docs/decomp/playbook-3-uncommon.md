@@ -23,6 +23,20 @@ Compiler settings (M01, M13, M15, M16):
 Compiler mode across a TU. IF compact saves, `divw`, Boolean lowering repeat
 across TU, REQUIRE sibling evidence + all-function and section baselines.
 
+- Repeated optimization options in canonical argv, but retail has invariant
+  motion or CTR loops absent before allocation: REQUIRE the compiler's actual
+  effective option state, not an assumption about which `-O` wins. TRY a
+  read-only option capture and trace before source-loop trials
+  (`ADX_DecodeSte4AsMono`); GC/2.7 level 2 omits loop/invariant passes.
+  Profile controls still require whole-TU comparison and every prior exact.
+- Ordinary `lis`/`lfs` constant addressing vs generated SDA2 loads: REQUIRE
+  retail relocation kinds, a whole-object control, and actual table/BSS/literal
+  payload accounting. TRY object-only `-sdata2 0` (`SFTIM_IsGetFrmTimeTunit`)
+  after honest source recovery; check every prior exact in all comparison
+  modes. Constants can move from `.sdata2` into `.rodata` without changing
+  values, so inspect bytes and relocations before classifying an aggregate
+  section score. Equal values at other pool offsets remain layout residue;
+  never add prefix storage to manufacture the retail address.
 - TU profile: object-wide `-O4,s` + existing `-use_lmw_stmw on`; test
   scheduling separately. Compact saves + indexed-loop lowering together -> try
   profile before changing loop source; `-O4,p` -> `-O4,s` alone closed
@@ -75,6 +89,12 @@ across TU, REQUIRE sibling evidence + all-function and section baselines.
   needed, pragma alone may do nothing (move-list getter). Pragma also keeps
   every inlined helper's param/return copies in that consumer; if those
   recolor an exact region, make helper copy-free (H21), don't drop pragma.
+- Inline query return copy survives initial/presched but coalesces in a
+  forwarding wrapper: REQUIRE the complete consumer body and all callers.
+  Opening that body and scoping propagation off may both be necessary
+  (`display_prize_description`); either alone can be neutral. Test object
+  mode first, then bounded honest sibling recovery before scoped fallback.
+  Keep a shared implementation needed by other callers and verify them all.
 - FP const load or pooled string address moved across selection branch:
   propagation off, tested apart from scheduling + CSE (AI avoidance reset,
   Puzzle burn controller).
@@ -182,6 +202,15 @@ FP operands + schedule. REQUIRE same math, grouping, rounding.
   subtraction phase followed by component scale/add
   (`p_fake_bone_matcher_proc`); interleaved expressions can eliminate the
   observed stack stores even with equivalent scalar math.
+- Repeated relative-layout publication keeps zero-origin subtracts that direct
+  expressions fold: REQUIRE full coordinate snapshots, origin values, and
+  store order. TRY a shared inline helper for the complete layout publication
+  (`SpreadSheet_image::FinishSetup`); keep owner loads in the caller when retail
+  does. Stage named coordinates in their final space before the helper call;
+  call-argument conversion expressions create different temporary owners.
+  Publish through the actual output type, never array-index across scalar
+  members. Do not restore hardcoded string-pool offsets to close a separate
+  pool mismatch.
 - Check whether negation is in FP before conversion or on the int.
 - Fixed-point angle wrap swaps coefficient FPRs: REQUIRE multiply, integer
   conversion, 20-bit mask, float conversion and scale match retail in order.
@@ -210,7 +239,7 @@ operands.
 - Identical calls before different actions in separate retail arms stay
   branch-local.
 - One equality dispatch with conditional jump + unconditional default:
-  one-case switch with default.
+  one-case switch with implicit or explicit default (`WifImage::HandleEvent`).
 - Returned signed compare operand order (`a > b` vs `b < a`) differing only
   in load homes: try once. Not for FP unordered.
 - Quotient once + guarded subtraction of end padding: keep count, guard the
@@ -254,6 +283,12 @@ width.
   not cached element ptr (`mwPlyGetFxType`).
 - Stack vectors swapping roles: trace each dest through all calls (difference
   vector updated in place into midpoint).
+- Three scalar angle deltas with one ownership/coloring mismatch: REQUIRE
+  canonical vector semantics and existing vector-angle operations; TRY one
+  `Vec delta` with member accesses, preserving each wrap and FMA in order.
+  Scalar-replaced members become FE objects rather than named scalar webs
+  (`look_at_interaction_target`). Check the caller's inline decision and the
+  whole object; do not invent an aggregate for unrelated scalars.
 - Localized-array base before index getter, then advance.
 - Uniform stack displacement: adjacent-version source or same function in a
   donor decomp may show a real unused local (`__DSPHandler` 4-byte array before
@@ -285,6 +320,11 @@ width.
   at offset 0 in a register across a join while others reload. Copy, pun,
   index, plain pointer local put the local in memory but miss that CSE
   (`rnd_vector_from_point`, `rnd_point_in_disc`, `rnd_point_in_cylinder`).
+  Apply the immutable pointer at the actual complete operation boundary:
+  `npc_repel_against_global_collision_list` retains its target Vec through
+  the required-center cylinder initializer; `reset_player_collision` needs
+  that initial constructor, not a later sphere helper that adds reloads
+  after a call. `const T*` alone does not make the pointer immutable.
 
 ## M08
 
@@ -345,6 +385,21 @@ public APIs keep their documented `const`.
 
 - Coordinate loads moved before intervening stores: compare input qualifier
   with mutable caller objects (Krypt position inputs, Puzzle flesh path).
+- Existing source-level scheduling-off hides the qualifier's load-hoisting
+  effect: REQUIRE mutable callers, retail reloads after output stores, and a
+  measured canonical-mode control. TRY removing the old scheduling wrapper
+  together with only the proven input qualifiers; test each input separately
+  to explain a combined fix (`v3_blend3`). Neutral qualifier trials under
+  disabled scheduling do not rule out M12. Preserve rounded products, every
+  store boundary, and all sibling/consumer matches; retain the old source if
+  no supported combination improves it. Do not add a new mode workaround.
+- Aggregate initialization has the wrong copy schedule or saved-GPR range:
+  REQUIRE mutable caller objects and the same real initializer payload.
+  TRY dropping an unsupported root-input pointee `const` before judging
+  declaration-owned initialization neutral; remeasure the initializer form
+  after fixing that alias fact (`is_shape_in_frustum`: shape-type load across
+  six initialized vectors). Check all consumers and data sections; recovered
+  copy scheduling does not prove pooled initializer offsets.
 - Tables/counts reloaded after global stores: drop unsupported pointee
   `const` per input, update decls + callers (`SFD_SetMpvParaTbl`).
 - Read-only slot table at private helper: donor mutable-slot signature at that
@@ -434,6 +489,13 @@ builds `va_list` inline where SDK macro emits helper call: scope
 String/constant identity, placement, extent. REQUIRE ELF sizes, bytes, reloc
 addends, use. Use `-c functionRelocDiffs=data_value`.
 
+- An existing inline's aggregate initializer appears before its retail owner:
+  REQUIRE actual first-use relocations, definition visibility, stable emitted
+  function order and every consumer's value/strict comparison. TRY moving the
+  real inline definition beside its first consumers, retaining an earlier
+  declaration where needed (`p_scripted_camera`: orbit/chase initializers).
+  Prove the complete pool is a byte-preserving permutation and other data
+  unchanged; never insert prefix storage or a dummy producer.
 - Pooled literals for anonymous pools, named objects for real symbols,
   natural string bounds. Equal pool sizes != right strings (Krypt swapped
   coffin/dirt names). Reloc may name first aggregate as section-wide base;
@@ -458,6 +520,19 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   TRY moving that definition before functions, preserving every initializer
   (`p_credits_screen`, `ending_data_table`). Compare the full pool and table;
   this can remove an unsupported shared-base hoist and close other consumers.
+- Named stand-in pool with a real literal-pointer table: REQUIRE every
+  table target, first-use order, full pool bytes and consumer values.
+  TRY original individual table strings and formatter literals with the
+  measured object pooling policy (`gc_boot_space_check`, NBC table).
+  Preserve duplicates through normal compiler reuse; a giant indexed
+  literal macro does not recover individual producer ownership.
+- Named diagnostic pool hoisted across a buffer-return loop: REQUIRE the
+  decoded retail literals, complete pool bytes, and the real buffer-base
+  owner. TRY compiler-pooled literals and opening the complete validation /
+  return phase in that owner (`mslDSB_CancelRead`). Pool recovery and phase
+  ownership can each regress alone; remeasure them together after confirming
+  both independently. Preserve IRQ, command-free and callback order; compare
+  all consumers and normalized relocation targets, not just pool names.
 - Unused inline body can still emit initializer data.
 - Terminal `gap_*`: check linker alignment first. `jmt`: retail split `gap_*`
   = final 4 bytes of `.data` + `.sdata2`; built sections stop at those
@@ -465,8 +540,15 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
 - High-bit bytes in plain `char` pools: adjacent literals with fixed-width
   octal escapes, keep embedded NULs.
 - Float pools: retail `lis`/`lfs` per literal vs one pooled base: object
-  `-pooldata off` if whole-object control passes (`SFADXT_SetSpeed`), else
-  donor scoped `pool_data off` (`sfmpv_Pts2Tc`).
+  REQUIRE canonical MSL header provenance and the first `.rodata` link object.
+  TRY restoring `<math.h>` before disabling pooling (`DCT_AcInit`): GC/2.7
+  pools floats only when that first object is non-weak; real `sqrtf` weak
+  statics can prevent it. Verify their section: normal small-data settings
+  can put them in `.sdata2`, where this rule does not apply. Compare every
+  function/data in all three modes; never add a dummy weak prefix. If header
+  provenance is ruled out, use object `-pooldata off` when the whole-object
+  control passes (`SFADXT_SetSpeed`), else donor scoped `pool_data off`
+  (`sfmpv_Pts2Tc`).
 - Literals in `.data` or one pooled object, retail one local `@NNN` per
   literal in `.rodata` `[da]`: `-str reuse,readonly` (not `pool`). Split
   literals as `@stringBase0 + n`: object `-str reuse,pool,readonly` (`mk_obj`).
@@ -493,6 +575,12 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   exact reverse decl order, late per-function float labels (`@4226` vs reused
   `@305`), named string stand-in where retail has `@stringBase0` (add `-str
   reuse,pool,readonly`, real literals).
+- Recovered ordinary helpers under deferred emission: REQUIRE retail inline
+  expansions, donor body + MAP evidence, and every function/data comparison.
+  TRY reversed helper definitions with paired `auto,deferred`
+  (`mwPlyInitSfdFx`); `noauto` retains calls, while explicit `inline` on an
+  exported function can remove its required standalone definition. Compare
+  natural literal extents after alignment; never restore artificial padding.
 - Deferred inline + recursion: inline helper whose body calls an inlinable
   recursive function is never inlined (`always_inline`, `level=`, placement
   neutral). Retail inlining such helper -> no helper; open-code in caller.
@@ -545,6 +633,18 @@ built objects; only linked DOL hash catches wrong layout.
   NULL`). 2.7 C deferred: `= 0` prefix keeps forward decl order; uninit
   globals + function statics follow, reverse parse order (function static sits
   at its function's parse position) (`mwMem` `StrategyAllocationActive`).
+  Function statics with `= 0` join the forward prefix at their parse position;
+  `$N` suffix order = declaration order (`gcutils` `gc_must_reset`,
+  `f_reset_button_pressed$471` -> link-exact).
+- Deferred `.sdata2`/`.sdata` constant order = creation order in codegen order
+  (= `.text` order incl. MAP `UNUSED` slots). Retail emitted out-of-line copies
+  of helpers it also inlined; their codegen creates constants early
+  (`MovieManagerGC_Disp` drawQuad, `konquest_interior` 60.0 @1069). No GC 2.7
+  mode reproducing this found yet; do not invent helper bodies.
+- Verify a link fix without touching the tree: link a scratch DOL from the
+  `ninja -t query build/GQNE5D/main.elf` inputs with the candidate `.o`
+  substituted, then sha1 vs `build.sha1`; run the current object as a negative
+  control.
 - Asm conversion moves `.bss`: inline asm (opword or text block) does not count
   as a reference, so turning the first-referencing C function into an asm
   block hands first use to a later function and reorders the statics. If the
@@ -581,6 +681,13 @@ built objects; only linked DOL hash catches wrong layout.
   retail entry load = source, not dead read (`LSC_Init`, `ADXGC_SetupDvdFs`);
   retail symbol binding beats donor storage class. Only scalar prefix proven
   -> init that prefix, stop.
+- Extern-only owners hide common-BSS address sharing: REQUIRE complete real
+  types and retail offsets/sizes/bindings for the known prefix. TRY natural
+  definitions before first use (`p_mk_chess_game_setup`); late definitions can
+  match offsets without fixing code, while explicit zero initialization may
+  wrongly move them to `.data`. Verify every consumer and data value. Leave
+  unknown suffix objects undefined; no guessed arrays, padding, or aggregate
+  overlay. A correct partial prefix is not full-BSS or link exactness.
 - Small object's first `extern` must see complete type for SDA (DVD thread
   queue); multi-record table declared as pointer falsely picks SDA. All small
   globals in `.bss` with `lis` addressing where ours uses `@sda21`: object
@@ -599,6 +706,20 @@ hierarchy, weak owner, sizes, order. Fix decls, zero slots, inline-visible
 dtors; verify weak emission with linked SHA. Don't duplicate deleting call's
 null guard.
 
+- Factory arms allocate the base size, call its constructor, then install
+  distinct derived vtables: REQUIRE ELF class identities, inheritance,
+  allocation sizes and virtual-slot signatures. TRY real empty derived
+  classes and `switch` arms returning `new Derived`, in retail body order
+  (`mkScreenEngineClient::CreateAction`). Let the compiler emit null guards
+  and vptr stores; preserve existing out-of-line method ownership and judge
+  all vtables, RTTI, consumers and relocations.
+- Vtable address emits `li ...@sda21` where retail uses `lis`/`addi`: REQUIRE
+  ELF OBJECT binding, section and full table extent. A scalar pointer extern
+  misdescribes the table as a small object. TRY an array declaration with the
+  proven pointer-slot count, correcting duplicate declarations too
+  (`ScreenParticle::~ScreenParticle`, `mkScreenEngineClient::CreateInstance`).
+  Check every constructor/destructor and data section; do not guess a table
+  size or change the TU SDA threshold to compensate.
 - `extern "C" T f() {...}` needing implicit inline (struct copy assign,
   template instance) is deferred to end of `.text`; declare prototypes in
   `extern "C" { }` block, plain defs (`mwFileAsync`).

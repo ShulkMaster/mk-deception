@@ -170,8 +170,8 @@ const char* mwFileDirectoryMountPoint::getInternalPath() const
     return directory.data();
 }
 
-/* TODO: [breakthrough needed] 91.69%; level=1 keeps append(const char*) out of line (traits::length call);
- * retail inlines it as strlen + append(s, n). */
+/* TODO: [breakthrough needed] 91.69014%; unary append and remainder snapshot
+ * differ; recover the nested inline boundary under the canonical profile. */
 int mwFileDirectoryMountPoint::initialize(const char* path)
 {
     const char* remainder;
@@ -200,7 +200,8 @@ mwFileDirectoryMountPoint::~mwFileDirectoryMountPoint()
     }
 }
 
-/* TODO: [breakthrough needed] 70.97%; base mwFileMountPoint ctor not inlined (level=1: base of polymorphic mwFileQueryable never inlines); retail inlines it. */
+/* TODO: [breakthrough needed] 70.97%; base-constructor call remains;
+ * recover the original inline boundary under the canonical compiler profile. */
 mwFileDirectoryMountPoint::mwFileDirectoryMountPoint(const char* mount_name)
     : mwFileMountPoint(mount_name), parent(0)
 {

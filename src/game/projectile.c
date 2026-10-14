@@ -370,8 +370,7 @@ void set_active_projectile_sound(
 
 
 
-/* TODO: [near miss] 97.70%; velocity y preload and inverse-length f2/f3 plus squared-length f4/f2 allocation remain. */
-void set_active_projectile_velocity(const Vec* velocity) {
+void set_active_projectile_velocity(Vec* velocity) {
     MkObj* object;
     float inverse_length;
 
@@ -389,8 +388,7 @@ void set_active_projectile_velocity(const Vec* velocity) {
                 return;
             }
             inverse_length = gxMathFastInvSqrt(
-                object->pos_vel.x * object->pos_vel.x +
-                object->pos_vel.z * object->pos_vel.z);
+                projectile_horizontal_length_squared(&object->pos_vel));
             object->ang.y = gxMathArcTanYX(
                 object->pos_vel.x * inverse_length,
                 object->pos_vel.z * inverse_length);
@@ -595,36 +593,6 @@ static inline MkObj* projectile_load_foreground_object(
     return object;
 }
 
-static inline MkObj* projectile_create_attached_process(
-    MkObj* object, MkObj* existing_object, MkHdr** allocated_data) {
-    MkProc* process;
-
-    if (object == 0) {
-        return 0;
-    }
-    process = _create_mkproc_generic_tinystack(
-        0x2026, 0x1F, p_projectile_handler,
-        sizeof(struct ProjectilePdata), allocated_data);
-    if (process == 0) {
-        if (object != existing_object && object->hdr.instance != 0) {
-            object->hdr.typed_vtbl->destroy(&object->hdr);
-        }
-        return 0;
-    }
-
-    ((struct ProjectilePdata*)*allocated_data)->process = process;
-    ((struct ProjectilePdata*)*allocated_data)->process_instance = process->instance;
-    process->pre_destroy = pw_projectile;
-    process->destroy_cb = ps_projectile;
-    if (object != existing_object) {
-        mk_insert(&object->hdr, &process->pdata_list_b);
-    }
-
-    return object;
-}
-
-/* TODO: [near miss] 98.34%; equivalent attached-object return join and
- * inverse-length FPR coloring remain; recover the factory exit shape. */
 static MkObj* start_projectile_from_specific_plyr_bone(
     int bone_id, MkObj* existing_object, const char* model_name,
     float speed, float tolerance, Vec* bone_offset,
@@ -633,8 +601,8 @@ static MkObj* start_projectile_from_specific_plyr_bone(
     MkHdr* allocated_data;
     MkObj* object;
     MkObj* launch_object;
+    MkProc* process;
     Vec position;
-    float squared_length;
     float inverse_length;
     int player;
 
@@ -657,10 +625,25 @@ static MkObj* start_projectile_from_specific_plyr_bone(
     object->hide_flag_bits.hidden = 1;
     object->flags_08_bits.angular_velocity_enabled = 1;
     object->flags_08_bits.gravity_enabled = 1;
-    object = projectile_create_attached_process(
-        object, existing_object, &allocated_data);
     if (object == 0) {
         return 0;
+    }
+    process = _create_mkproc_generic_tinystack(
+        0x2026, 0x1F, p_projectile_handler,
+        sizeof(struct ProjectilePdata), &allocated_data);
+    if (process == 0) {
+        if (object != existing_object && object->hdr.instance != 0) {
+            object->hdr.typed_vtbl->destroy(&object->hdr);
+        }
+        return 0;
+    }
+    ((struct ProjectilePdata*)allocated_data)->process = process;
+    ((struct ProjectilePdata*)allocated_data)->process_instance =
+        process->instance;
+    process->pre_destroy = pw_projectile;
+    process->destroy_cb = ps_projectile;
+    if (object != existing_object) {
+        mk_insert(&object->hdr, &process->pdata_list_b);
     }
 
     if (use_sidekick == 0) {
@@ -685,10 +668,8 @@ static MkObj* start_projectile_from_specific_plyr_bone(
     if (object->pos_vel.x == 0.0f && object->pos_vel.y == 0.0f) {
         object->ang.y = plyr_obj->ang.y;
     } else {
-        squared_length =
-            object->pos_vel.x * object->pos_vel.x +
-            object->pos_vel.z * object->pos_vel.z;
-        inverse_length = gxMathFastInvSqrt(squared_length);
+        inverse_length = gxMathFastInvSqrt(
+            projectile_horizontal_length_squared(&object->pos_vel));
         object->ang.y = gxMathArcTanYX(
             object->pos_vel.x * inverse_length,
             object->pos_vel.z * inverse_length);
@@ -763,7 +744,6 @@ static void pw_projectile(void) {
     proj_pdata = (struct ProjectilePdata*)pdata_of_proc(aproc);
 }
 
-/* TODO: [near miss] 99.72%; heading inverse-sqrt FP register allocation remains. */
 void retarget_projectile(struct ProjectilePdata* pdata) {
     struct ProjectilePdata* source;
     MkObj* object;
@@ -803,8 +783,7 @@ void retarget_projectile(struct ProjectilePdata* pdata) {
         object->ang.y = plyr_obj->ang.y;
     } else {
         inverse_length = gxMathFastInvSqrt(
-            object->pos_vel.x * object->pos_vel.x +
-            object->pos_vel.z * object->pos_vel.z);
+            projectile_horizontal_length_squared(&object->pos_vel));
         object->ang.y = gxMathArcTanYX(
             object->pos_vel.x * inverse_length,
             object->pos_vel.z * inverse_length);
@@ -1349,15 +1328,10 @@ static float p_projectile_launch_upward(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 98.87%; effects and four script expansions agree; pdata/process
- * coloring and join copies remain. */
 static float p_projectile_downward(void) {
     struct ProjectilePdata* projectile;
-    struct ProjectileScriptPdata* script_data;
     PlyrPdata* victim;
     MkObj* object;
-    MkObj* source;
-    MkProc* process;
     Vec target_position;
     float dx;
     float dy;
@@ -1396,32 +1370,8 @@ static float p_projectile_downward(void) {
         }
 
         if (projectile->flags.bytes.setup.bits.ground_script_set) {
-            source = MK_HDR_LIVE(projectile->source_object,
-                                 projectile->source_object_instance);
-            if (source != 0) {
-                if (source == g_game_info.plyr0.slot.mirror_a) {
-                    process = projectile_start_end_script(
-                        g_game_info.plyr0.slot.pdata, projectile->target.impaled_target,
-                        projectile->ground_script_index);
-                } else {
-                    process = projectile_start_end_script(
-                        g_game_info.plyr1.slot.pdata, projectile->target.impaled_target,
-                        projectile->ground_script_index);
-                }
-                if (process != 0) {
-                    script_data = (struct ProjectileScriptPdata*)pdata_of_proc(process);
-                    object =
-                        MK_HDR_LIVE(projectile->object, projectile->object_instance);
-                    if (script_data != 0 && object != 0) {
-                        script_data->last_position.x = object->pos.value.x;
-                        script_data->last_position.y = object->pos.value.y;
-                        script_data->last_position.z = object->pos.value.z;
-                        script_data->velocity.x = object->pos_vel.x;
-                        script_data->velocity.y = object->pos_vel.y;
-                        script_data->velocity.z = object->pos_vel.z;
-                    }
-                }
-            }
+            projectile_start_script_snapshot(
+                projectile, &projectile->ground_script_index);
         }
 
         if (proj_pdata->flight_sound != 0) {
@@ -1447,35 +1397,8 @@ static float p_projectile_downward(void) {
             }
 
             if (projectile->flags.bytes.setup.bits.hit_script_set) {
-                source = MK_HDR_LIVE(projectile->source_object,
-                                     projectile->source_object_instance);
-                if (source != 0) {
-                    if (source == g_game_info.plyr0.slot.mirror_a) {
-                        process = projectile_start_end_script(
-                            g_game_info.plyr0.slot.pdata,
-                            projectile->target.impaled_target,
-                            projectile->hit_script_index);
-                    } else {
-                        process = projectile_start_end_script(
-                            g_game_info.plyr1.slot.pdata,
-                            projectile->target.impaled_target,
-                            projectile->hit_script_index);
-                    }
-                    if (process != 0) {
-                        script_data =
-                            (struct ProjectileScriptPdata*)pdata_of_proc(process);
-                        object = MK_HDR_LIVE(projectile->object,
-                                             projectile->object_instance);
-                        if (script_data != 0 && object != 0) {
-                            script_data->last_position.x = object->pos.value.x;
-                            script_data->last_position.y = object->pos.value.y;
-                            script_data->last_position.z = object->pos.value.z;
-                            script_data->velocity.x = object->pos_vel.x;
-                            script_data->velocity.y = object->pos_vel.y;
-                            script_data->velocity.z = object->pos_vel.z;
-                        }
-                    }
-                }
+                projectile_start_script_snapshot(
+                    projectile, &projectile->hit_script_index);
             }
 
             trial_state_collision_check(1, proj_pdata->target.impaled_target->plyr_num);

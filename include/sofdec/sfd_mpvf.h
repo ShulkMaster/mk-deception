@@ -9,15 +9,15 @@ typedef struct SfdVideoFrameState SfdVideoFrameState;
 typedef struct SfdMpvPictureUserData SfdMpvPictureUserData;
 
 typedef struct SfdMpvParameters {
-    int chroma_width;
-    int chroma_height;
-    int width;
-    int height;
-    int reference_buffer;
-    int maximum_width;
-    int maximum_height;
-    int frame_count;
-    int frame_buffer;
+    s32 chroma_width;
+    s32 chroma_height;
+    s32 width;
+    s32 height;
+    s32 reference_buffer;
+    s32 maximum_width;
+    s32 maximum_height;
+    s32 frame_count;
+    s32 frame_buffer;
 } SfdMpvParameters;
 
 typedef char SfdMpvParametersSizeCheck[

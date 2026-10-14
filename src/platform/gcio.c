@@ -16,8 +16,8 @@ unsigned int pad_channels[5] = {
     0x80000000, 0x40000000, 0x20000000, 0x10000000, 0xffffffff,
 };
 
-int pad1_rumble_available;
 int pad2_rumble_available;
+int pad1_rumble_available;
 
 int get_num_controllers(void) {
     int channel;
@@ -31,8 +31,35 @@ int get_num_controllers(void) {
     return count;
 }
 
-/* TODO: [near miss] 98.70%; pad/member indexing and CFG agree;
- * channel/stride nonvolatile coloring remains; stop at coloring; retail back-end loop counters dominate channel. */
+static inline void probe_rumble_pads(void) {
+    int probe_channel;
+
+    for (probe_channel = 0; probe_channel < 4; probe_channel++) {
+        int retry_count = 5000;
+        unsigned int probe = SIProbe(probe_channel);
+
+        while ((probe == 0x80 || probe == 8) && retry_count != 0) {
+            probe = SIProbe(probe_channel);
+            retry_count--;
+        }
+        if (probe == 0x09000000) {
+            if (probe_channel == 0) {
+                pad1_rumble_available = 1;
+            }
+            if (probe_channel == 1) {
+                pad2_rumble_available = 1;
+            }
+        } else if (probe == 0x8b100000) {
+            if (probe_channel == 0) {
+                pad1_rumble_available = 0;
+            }
+            if (probe_channel == 1) {
+                pad2_rumble_available = 0;
+            }
+        }
+    }
+}
+
 void scan_switches(void) {
     PADStatus statuses[4];
     int channel;
@@ -42,41 +69,13 @@ void scan_switches(void) {
     PADClampCircle(statuses);
 
     for (channel = 0; channel < 2; channel++) {
-        PADStatus* status = &statuses[channel];
-
-        if (status->err == 0) {
-            GcPadFlags* flags = &g_game_info.pads[channel].flag_bits;
+        if (statuses[channel].err == 0) {
             int switch_index;
 
-            if (!flags->connected) {
-                int probe_channel;
-
-                flags->connected = 1;
+            if (!g_game_info.pads[channel].flag_bits.connected) {
+                g_game_info.pads[channel].flag_bits.connected = 1;
                 PADInit();
-                for (probe_channel = 0; probe_channel < 4; probe_channel++) {
-                    int retry_count = 5000;
-                    unsigned int probe = SIProbe(probe_channel);
-
-                    while ((probe == 0x80 || probe == 8) && retry_count != 0) {
-                        probe = SIProbe(probe_channel);
-                        retry_count--;
-                    }
-                    if (probe == 0x09000000) {
-                        if (probe_channel == 0) {
-                            pad1_rumble_available = 1;
-                        }
-                        if (probe_channel == 1) {
-                            pad2_rumble_available = 1;
-                        }
-                    } else if (probe == 0x8b100000) {
-                        if (probe_channel == 0) {
-                            pad1_rumble_available = 0;
-                        }
-                        if (probe_channel == 1) {
-                            pad2_rumble_available = 0;
-                        }
-                    }
-                }
+                probe_rumble_pads();
                 SISetSamplingRate(1);
             }
 
@@ -86,6 +85,8 @@ void scan_switches(void) {
                 int mask = gc_controller_offset_tbl[switch_index];
 
                 if (mask > 0) {
+                    PADStatus* status = &statuses[channel];
+
                     if (status->button & mask) {
                         g_game_info.pads[channel].buttons |= default_switch_map[switch_index].mask;
                     } else {
@@ -93,7 +94,7 @@ void scan_switches(void) {
                     }
                 }
             }
-            if (flags->stick_dispatch) {
+            if (g_game_info.pads[channel].flag_bits.stick_dispatch) {
                 dispatch_pad_sticks(channel);
             }
             dispatch_right_sticks(channel);
@@ -101,14 +102,12 @@ void scan_switches(void) {
             if (g_game_info.pads[channel].edge != 0 && g_game_info.pads[channel].player == 0) {
                 assign_player(channel);
             }
-            g_game_info.pads[channel].stick_pack = status->stickX + 0x7f;
-            g_game_info.pads[channel].stick_pack |= (unsigned int)(~status->stickY + 0x7f) << 8;
-            g_game_info.pads[channel].stick_pack |= (unsigned int)(status->substickX + 0x7f) << 16;
-            g_game_info.pads[channel].stick_pack |= (unsigned int)(~status->substickY + 0x7f) << 24;
-        } else if (status->err == -1) {
-            GcPadFlags* flags = &g_game_info.pads[channel].flag_bits;
-
-            if (flags->connected) {
+            g_game_info.pads[channel].stick_pack = statuses[channel].stickX + 0x7f;
+            g_game_info.pads[channel].stick_pack |= (unsigned int)(~statuses[channel].stickY + 0x7f) << 8;
+            g_game_info.pads[channel].stick_pack |= (unsigned int)(statuses[channel].substickX + 0x7f) << 16;
+            g_game_info.pads[channel].stick_pack |= (unsigned int)(~statuses[channel].substickY + 0x7f) << 24;
+        } else if (statuses[channel].err == -1) {
+            if (g_game_info.pads[channel].flag_bits.connected) {
                 PADReset(pad_channels[channel]);
             }
             if (are_controllers_locked()) {
@@ -127,20 +126,20 @@ void scan_switches(void) {
                         controller_removed(channel);
                     }
                 } else {
-                    flags->connected = 0;
+                    g_game_info.pads[channel].flag_bits.connected = 0;
                     PADReset(pad_channels[channel]);
                     unassign_player(g_game_info.pads[channel].player);
                 }
-            } else if (!flags->connected) {
+            } else if (!g_game_info.pads[channel].flag_bits.connected) {
                 if (g_game_info.pads[channel].player != 0) {
                     unassign_player(g_game_info.pads[channel].player);
                 }
                 PADReset(pad_channels[channel]);
             } else {
-                flags->connected = 0;
+                g_game_info.pads[channel].flag_bits.connected = 0;
                 PADReset(pad_channels[channel]);
             }
-        } else if (status->err == -3) {
+        } else if (statuses[channel].err == -3) {
             g_game_info.pads[channel].buttons = 0;
             g_game_info.pads[channel].prev_buttons = 0;
             g_game_info.pads[channel].edge = 0;

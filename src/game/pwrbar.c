@@ -792,7 +792,8 @@ float p_move_pbars_off_screen(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.54%; first bolt's latch result lands in r5 then mr r3 in retail; coloring only. */
+/* TODO: [near miss] 99.54%; first latch/result copy coalesces into r3;
+ * preserve the five exact later bolt expansions. */
 static void update_combo_break_counts(void) {
     if (g_game_info.plyr0.slot.pdata->breaker_strength !=
         p1_last_combo_break_count) {

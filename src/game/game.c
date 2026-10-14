@@ -973,8 +973,8 @@ static inline int game_count_active_players(void) {
     return count;
 }
 
-/* TODO: [near miss] 99.55%; latch pairs are scalar structs (retail zero sharing) and alpha arms are byte typed;
- * fatality_left and flawless_text still swap homes with their instance members and two table-base temps use r0. */
+/* TODO: [near miss] 99.55%; latch homes, table bases and fade temporaries differ;
+ * stop at coloring until new owner or lifetime evidence is available. */
 void do_win_effect(void) {
     PlyrInfo* victor;
     PlyrInfo* defeated;

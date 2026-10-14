@@ -146,7 +146,8 @@ void __vector_pod<T, Allocator>::resize(size_type sz, const value_type& x)
     }
 }
 
-/* TODO: [near miss] 99.25%; only the @stringBase0 addends differ (template string pool order). */
+/* TODO: [near miss] 99.24691%; max-size/old-buffer and suffix-copy register
+ * homes differ; two template string-pool addends remain. */
 template <class T, class Allocator>
 void __vector_pod<T, Allocator>::insert(iterator position, size_type n, const value_type& x)
 {
@@ -257,9 +258,10 @@ public:
     typedef T* iterator;
 
     __vector_imp(const allocator_type& a) : base(a) {}
-    __vector_imp(const __vector_imp& x) : base(x.alloc())
+    __vector_imp(const __vector_imp& x) : base(x.cap_.first())
     {
-        init(x.data_, x.data_ + x.size_, forward_iterator_tag());
+        const_pointer first = x.data_;
+        init(first, first + x.size_, forward_iterator_tag());
     }
 
     iterator begin() { return this->data_; }
@@ -287,6 +289,8 @@ public:
     void init(ForwardIterator first, ForwardIterator last, forward_iterator_tag);
 };
 
+/* TODO: [breakthrough] QueueItem const-range 87.38%; real producer recovered;
+ * placement-copy construct remains outlined and source homes/pool addends differ. */
 template <class T, class Allocator>
 template <class ForwardIterator>
 void __vector_imp<T, Allocator, false>::init(ForwardIterator first, ForwardIterator last,
@@ -334,6 +338,8 @@ __vector_imp<T, Allocator, false>::erase(iterator first, iterator last)
     return first;
 }
 
+/* TODO: [breakthrough] QueueItem 90.53%; direct allocator owner recovered;
+ * placement-copy construct remains outlined and string-pool addends differ. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::reserve(size_type n)
 {
@@ -341,7 +347,7 @@ void __vector_imp<T, Allocator, false>::reserve(size_type n)
         if (n > max_size()) {
             __msl_error("vector::reserve length error\n");
         }
-        base tmp(this->alloc());
+        base tmp(this->cap_.first());
         tmp.data_ = tmp.cap_.first().allocate(n);
         tmp.cap_.second() = n;
         pointer last = this->data_ + this->size_;
@@ -353,7 +359,8 @@ void __vector_imp<T, Allocator, false>::reserve(size_type n)
     }
 }
 
-/* TODO: [breakthrough needed] QueueItem 78.10%, Callback 67.99%; allocator construction and reallocation paths need retail inlining recovery. */
+/* TODO: [breakthrough needed] QueueItem 78.10043%, Callback 67.99262%; QueueItem
+ * construction exceeds inline cost 515/512; recover its placement-copy producer. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::insert(iterator position, size_type n,
                                                const value_type& x)

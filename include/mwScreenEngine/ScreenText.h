@@ -11,7 +11,7 @@
  *   ScreenText::Render
  *     -> pfxfont_begin_render / set_transform / string_render
  *     -> nativefont_* (gc_font) for GX display lists
- * Soft ceiling: ProcessEngineEvent ~98.5%; Render ~93.3%.
+ * Soft ceiling: ProcessEngineEvent ~98.5%.
  *
  * Pump ProcessEngineEvent 0x407 or 0x409 (0x408 is a no-op) before
  * first Render so StringObj exists; link pfxfont + gc_font.
@@ -26,6 +26,10 @@
 
 typedef struct StringObj StringObj;
 typedef struct ScreenText ScreenText;
+
+#ifdef __cplusplus
+class ScreenAnimControl;
+#endif
 
 /* C view matching SETextElement_t (ScreenObject.h). */
 typedef struct SEText {
@@ -54,6 +58,9 @@ struct ScreenText {
     int stringObjInstance; /* +0x18 */
     PfxFontSlot* font; /* +0x1C */
     char* string; /* +0x20 */
+#ifdef __cplusplus
+    void SetComponent(ScreenAnimControl* ctrl, float* values, int);
+#endif
 }; /* 0x24 */
 
 enum {

@@ -503,9 +503,16 @@ struct char_traits {
 template <class Base, class Member>
 struct _EmptyMemberOpt : public Base {
     _EmptyMemberOpt(const Base& b);
+    _EmptyMemberOpt(const _EmptyMemberOpt& other);
 
     Member m_;
 };
+
+template <class Base, class Member>
+_EmptyMemberOpt<Base, Member>::_EmptyMemberOpt(const _EmptyMemberOpt& other)
+    : Base(other), m_(other.m_)
+{
+}
 }
 
 template <class T, int Alignment>
@@ -564,6 +571,8 @@ private:
     T* data_;
 };
 
+/* TODO: [breakthrough] 56.37%; allocator/member copy restored;
+ * allocator/tag argument setup and range-load scheduling remain. */
 template <class T, class Traits, class Allocator>
 basic_string<T, Traits, Allocator>::basic_string(const basic_string& str)
     : alloc_(str.alloc_)
@@ -1532,12 +1541,12 @@ int mwFileGCHandle::nativeOpen(const char* path, unsigned long open_flags)
     if (entry_number == -1) {
         return -18;
     }
-    if (!openInstance(1)) {
-        return -18;
+    if (openInstance(1)) {
+        size = handle(1, 0)->length;
+        field_0x18 = handle(1, 0)->start_address >> 11;
+        return 0;
     }
-    size = handle(1, 0)->length;
-    field_0x18 = handle(1, 0)->start_address >> 11;
-    return 0;
+    return -18;
 }
 
 unsigned long mwFileGCHandle::getFileAlign()
@@ -1707,8 +1716,9 @@ int gcnHostWriteCommand::serviceState(int state)
     case 0: {
         gcnHostFileHandle* handle = static_cast<gcnHostFileHandle*>(file);
         if (offset != (unsigned long)ftell(handle->host_file)) {
-            if ((unsigned long)fseek(handle->host_file, (long)(offset & 0x7FFFFFFF), 0) !=
-                (offset & 0x7FFFFFFF)) {
+            unsigned long seek_result = fseek(handle->host_file,
+                                              (long)(offset & 0x7FFFFFFF), 0);
+            if (seek_result != (unsigned long)(offset & 0x7FFFFFFF)) {
                 error = -9;
                 return 2;
             }
@@ -1825,13 +1835,13 @@ int mwFileMountPointPlugin<T, OpenCommand>::convertToPlatformPath(
         return -15;
     }
     required = strlen(converted) + 1;
-    if (size < required) {
-        return -26;
+    if (size >= required) {
+        if (buffer != 0) {
+            strcpy(buffer, converted);
+        }
+        return 0;
     }
-    if (buffer != 0) {
-        strcpy(buffer, converted);
-    }
-    return 0;
+    return -26;
 }
 
 template <class T, class OpenCommand>
@@ -1883,9 +1893,13 @@ void mwFileDevicePlugin<T, OpenCommand>::reportError(mwFileError error, mwFileCo
     int count = ++error_count;
     OSRestoreInterrupts(enabled);
     if (count == 0 && error_callback != 0) {
-        mwFileDevice::Callback callback = {error_callback, error_callback_data,
-                                           MWFILE_ERROR_STATE_RAISED, error,
-                                           this->getName(), command};
+        mwFileDevice::Callback callback;
+        callback.function = error_callback;
+        callback.callback_data = error_callback_data;
+        callback.state = MWFILE_ERROR_STATE_RAISED;
+        callback.error = error;
+        callback.path = this->getName();
+        callback.command = command;
         mwFileDevice::queueErrorCallback(callback);
     }
 }
@@ -1897,9 +1911,13 @@ void mwFileDevicePlugin<T, OpenCommand>::revokeError(mwFileCommand* command)
     int count = --error_count;
     OSRestoreInterrupts(enabled);
     if (count == -1 && error_callback != 0) {
-        mwFileDevice::Callback callback = {error_callback, error_callback_data,
-                                           MWFILE_ERROR_STATE_CLEARED, MWFILE_ERROR_NONE,
-                                           this->getName(), command};
+        mwFileDevice::Callback callback;
+        callback.function = error_callback;
+        callback.callback_data = error_callback_data;
+        callback.state = MWFILE_ERROR_STATE_CLEARED;
+        callback.error = MWFILE_ERROR_NONE;
+        callback.path = this->getName();
+        callback.command = command;
         mwFileDevice::queueErrorCallback(callback);
     }
 }
@@ -2108,38 +2126,37 @@ mwFileAsyncResult mwFileXPCloseCommand<T, H>::getResult() const
     return result;
 }
 
+/* TODO: [near miss] 99.63%; close/abort CFG and file reads agree; stop at mask/buffer-data homes. */
 template <class T, class H>
 int mwFileXPCloseCommand<T, H>::handleNotStartedState()
 {
     if (this->isAborted()) {
         this->error = -16;
         this->file = 0;
-        return 2;
-    }
-
-    H* handle = static_cast<H*>(this->file);
-    if ((handle->getFlags() & 2) != 0) {
-        if (!handle->lockBuffer(buffer)) {
-            this->error = -12;
-            return 2;
-        }
-        if (buffer->getLength() != 0 && buffer->isDirty()) {
-            unsigned long alignment = handle->getReadAlign();
-            unsigned long used = buffer->getLength();
-            unsigned long padded = (used + (alignment - 1)) & ~(alignment - 1);
-            if (padded != used) {
-                memset(buffer->getData() + used, 0, padded - used);
-            }
-            this->error = static_cast<T*>(this)->nativeWriteAsync(buffer->getData(), padded,
-                                                                   buffer->getPosition(), 1);
-            if (this->error != 0) {
+    } else {
+        if ((static_cast<H*>(this->file)->getFlags() & 2) != 0) {
+            if (!static_cast<H*>(this->file)->lockBuffer(buffer)) {
+                this->error = -12;
                 return 2;
             }
-            return 6;
+            if (buffer->getLength() != 0 && buffer->isDirty()) {
+                unsigned long read_mask = static_cast<H*>(this->file)->getReadAlign() - 1;
+                unsigned long used = buffer->getLength();
+                unsigned long padded = (used + read_mask) & ~read_mask;
+                if (padded != used) {
+                    memset(buffer->getData() + used, 0, padded - used);
+                }
+                this->error = static_cast<T*>(this)->nativeWriteAsync(buffer->getData(), padded,
+                                                                       buffer->getPosition(), 1);
+                if (this->error != 0) {
+                    return 2;
+                }
+                return 6;
+            }
+            static_cast<H*>(this->file)->unlockBuffer();
         }
-        handle->unlockBuffer();
+        this->error = static_cast<H*>(this->file)->close();
     }
-    this->error = handle->close();
     return 2;
 }
 
@@ -2186,7 +2203,7 @@ mwFileXPReadUnbufferedCommand<T, H>::~mwFileXPReadUnbufferedCommand()
 }
 
 template <class T, class H>
-unsigned char mwFileXPReadUnbufferedCommand<T, H>::isA(mwFileTypeInfo* type,
+inline unsigned char mwFileXPReadUnbufferedCommand<T, H>::isA(mwFileTypeInfo* type,
                                                         const void*& object) const
 {
     if (type == &mwFileClassTypeInfo<mwFileCommandProgress>::sTypeInfo) {
@@ -2296,7 +2313,7 @@ mwFileXPReadBufferedCommand<T, H>::~mwFileXPReadBufferedCommand()
 }
 
 template <class T, class H>
-unsigned char mwFileXPReadBufferedCommand<T, H>::isA(mwFileTypeInfo* type,
+inline unsigned char mwFileXPReadBufferedCommand<T, H>::isA(mwFileTypeInfo* type,
                                                       const void*& object) const
 {
     if (type == &mwFileClassTypeInfo<mwFileCommandProgress>::sTypeInfo) {

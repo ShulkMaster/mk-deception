@@ -3,19 +3,19 @@
 #include "cri/adx_xpnd.h"
 typedef struct AdxDecodeParams {
     const unsigned short* input;
-    int input_blocks;
-    int channel_count;
-    int block_size;
-    int samples_per_block;
+    long input_blocks;
+    long channel_count;
+    long block_size;
+    long samples_per_block;
     short* pcm_buffer;
-    int pcm_size;
-    int pcm_distance;
-    int write_position;
-    int room;
-    int loop_samples;
+    long pcm_size;
+    long pcm_distance;
+    long write_position;
+    long room;
+    long loop_samples;
 } AdxDecodeParams;
-typedef short* (*AdxGetWriteInfo)(void*, int*, int*, int*);
-typedef void (*AdxAddWriteInfo)(void*, int, int);
+typedef short* (*AdxGetWriteInfo)(void*, long*, long*, long*);
+typedef void (*AdxAddWriteInfo)(void*, long, long);
 typedef struct AdxBasicDecoder {
     short used;
     short header_decoded;
@@ -38,18 +38,18 @@ typedef struct AdxBasicDecoder {
     int loop_end_offset;
     int max_channels;
     short* pcm_buffer;
-    int pcm_size;
-    int pcm_distance;
+    long pcm_size;
+    long pcm_distance;
     AdxDecodeParams decode;
     int field_74;
     AdxGetWriteInfo get_write_info;
     void* get_write_object;
     AdxAddWriteInfo add_write_info;
     void* add_write_object;
-    int total_decoded_samples;
-    int current_write_position;
-    int decoded_samples;
-    int decoded_data_length;
+    long total_decoded_samples;
+    long current_write_position;
+    long decoded_samples;
+    long decoded_data_length;
     short format_type;
     short raw_format_type;
     short codec_type;

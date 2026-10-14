@@ -39,7 +39,7 @@ void _compare_float_float(void);
 void _compare_uint_uint(void);
 void _compare_int_int(void);
 static void _combine_float_float(void);
-void _combine_uint_uint(void);
+static void _combine_uint_uint(void);
 void _combine_int_int(void);
 void _copy_register_to_address(void);
 void _copy_column_address_to_register(void);
@@ -1344,18 +1344,17 @@ static void _combine_float_float(void) {
     destination->real = result;
 }
 
-/* TODO: [near miss] 99.146339%; argument owner restored; seven selector/source-slot register rows remain. */
-void _combine_uint_uint(void) {
+static void _combine_uint_uint(void) {
     CmdScriptRegister* destination;
     CmdScript* cs;
     unsigned int a;
     const unsigned int* right;
     unsigned int b;
     unsigned int result;
-    unsigned int op;
+    CmdScriptOp op;
     unsigned int* args;
-    unsigned int destination_index;
-    unsigned int source_index;
+    CmdScriptReg source_index;
+    CmdScriptReg destination_index;
 
     result = 0;
     cs = active_cmdscript;
@@ -1368,31 +1367,31 @@ void _combine_uint_uint(void) {
     a = destination->word;
     b = *right;
     switch (op) {
-    case 0:
+    case CMDSCRIPT_OP_ADD:
         result = a + b;
         break;
-    case 1:
+    case CMDSCRIPT_OP_SUB:
         result = a - b;
         break;
-    case 2:
+    case CMDSCRIPT_OP_MUL:
         result = a * b;
         break;
-    case 3:
+    case CMDSCRIPT_OP_DIV:
         result = a / b;
         break;
-    case 4:
+    case CMDSCRIPT_OP_MOD:
         result = a % b;
         break;
-    case 5:
+    case CMDSCRIPT_OP_AND:
         result = a & b;
         break;
-    case 6:
+    case CMDSCRIPT_OP_OR:
         result = a | b;
         break;
-    case 7:
+    case CMDSCRIPT_OP_SHL:
         result = a << b;
         break;
-    case 8:
+    case CMDSCRIPT_OP_SHR:
         result = a >> b;
         break;
     }

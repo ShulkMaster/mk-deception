@@ -2,32 +2,10 @@
 
 static const MPVMCFunction mpvmc16_oneref1p_func_table[4] = {0, 0, 0, 0};
 
-static inline u32 mpvmc16_pack_avg4(const u8* reference0,
-                                    const u8* reference1)
-{
-    return (((reference0[0] +
-              (reference0[1] + reference1[0] + reference1[1] + 2))
-             << 22) &
-            0xFF000000) |
-           (((reference0[1] +
-              (reference0[2] + reference1[1] + reference1[2] + 2))
-             << 14) &
-            0x00FF0000) |
-           (((reference0[2] +
-              (reference0[3] + reference1[2] + reference1[3] + 2))
-             << 6) &
-            0x0000FF00) |
-           (((reference0[3] +
-              (reference0[4] + reference1[3] + reference1[4] + 2)) >>
-             2) &
-            0x000000FF);
-}
-
-
-/* TODO: [near miss] 54.12%; filter operations agree; pixel-web/frame and
- * scheduling differ; const closure is neutral, stop at codegen. */
 void MPVMC16_OneRef4p_TuneC(MPVMCContext* context)
 {
+    s32 a0, b0, a1, b1, a2, b2;
+    u32 p0, p1, p2, p3, p4, p5, p6, p7;
     s32 row;
     s32 stride;
     const u8* reference0;
@@ -39,36 +17,33 @@ void MPVMC16_OneRef4p_TuneC(MPVMCContext* context)
     reference1 = context->reference1;
     destination = (u32*)context->destination;
     for (row = 0; row < 16; row++) {
-        u32 a0, b0, a1, b1, a2, b2;
-        u32 p0, p1, p2, p3, p4, p5, p6, p7;
-
         __dcbt((void*)reference1, stride);
         a0 = reference0[0];
         b0 = reference1[0];
         a1 = reference0[1];
         b1 = reference1[1];
-        p0 = a0 + a1 + b0 + b1 + 2;
         a2 = reference0[2];
         b2 = reference1[2];
-        p1 = a1 + a2 + b1 + b2 + 2;
+        p0 = (u32)a0 + a1 + b0 + b1 + 2;
+        p1 = (u32)a1 + a2 + b1 + b2 + 2;
         a0 = reference0[3];
         b0 = reference1[3];
-        p2 = a2 + a0 + b2 + b0 + 2;
+        p2 = (u32)a2 + a0 + b2 + b0 + 2;
         a1 = reference0[4];
         b1 = reference1[4];
-        p3 = a0 + a1 + b0 + b1 + 2;
+        p3 = (u32)a0 + a1 + b0 + b1 + 2;
         a2 = reference0[5];
         b2 = reference1[5];
-        p4 = a1 + a2 + b1 + b2 + 2;
+        p4 = (u32)a1 + a2 + b1 + b2 + 2;
         a0 = reference0[6];
         b0 = reference1[6];
-        p5 = a2 + a0 + b2 + b0 + 2;
+        p5 = (u32)a2 + a0 + b2 + b0 + 2;
         a1 = reference0[7];
         b1 = reference1[7];
-        p6 = a0 + a1 + b0 + b1 + 2;
+        p6 = (u32)a0 + a1 + b0 + b1 + 2;
         a2 = reference0[8];
         b2 = reference1[8];
-        p7 = a1 + a2 + b1 + b2 + 2;
+        p7 = (u32)a1 + a2 + b1 + b2 + 2;
         a0 = reference0[9];
         b0 = reference1[9];
         destination[0] = ((p0 << 22) & 0xFF000000) |
@@ -79,28 +54,28 @@ void MPVMC16_OneRef4p_TuneC(MPVMCContext* context)
                          ((p5 << 14) & 0x00FF0000) |
                          ((p6 << 6) & 0x0000FF00) |
                          ((p7 >> 2) & 0x000000FF);
-        p0 = a2 + a0 + b2 + b0 + 2;
+        p0 = (u32)a2 + a0 + b2 + b0 + 2;
         a1 = reference0[10];
         b1 = reference1[10];
-        p1 = a0 + a1 + b0 + b1 + 2;
+        p1 = (u32)a0 + a1 + b0 + b1 + 2;
         a2 = reference0[11];
         b2 = reference1[11];
-        p2 = a1 + a2 + b1 + b2 + 2;
+        p2 = (u32)a1 + a2 + b1 + b2 + 2;
         a0 = reference0[12];
         b0 = reference1[12];
-        p3 = a2 + a0 + b2 + b0 + 2;
+        p3 = (u32)a2 + a0 + b2 + b0 + 2;
         a1 = reference0[13];
         b1 = reference1[13];
-        p4 = a0 + a1 + b0 + b1 + 2;
+        p4 = (u32)a0 + a1 + b0 + b1 + 2;
         a2 = reference0[14];
         b2 = reference1[14];
-        p5 = a1 + a2 + b1 + b2 + 2;
+        p5 = (u32)a1 + a2 + b1 + b2 + 2;
         a0 = reference0[15];
         b0 = reference1[15];
-        p6 = a2 + a0 + b2 + b0 + 2;
+        p6 = (u32)a2 + a0 + b2 + b0 + 2;
         a1 = reference0[16];
         b1 = reference1[16];
-        p7 = a0 + a1 + b0 + b1 + 2;
+        p7 = (u32)a0 + a1 + b0 + b1 + 2;
         destination[16] = ((p0 << 22) & 0xFF000000) |
                          ((p1 << 14) & 0x00FF0000) |
                          ((p2 << 6) & 0x0000FF00) |

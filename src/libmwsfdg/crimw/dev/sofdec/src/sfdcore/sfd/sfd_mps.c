@@ -244,29 +244,17 @@ static int SFMPS_Create(SfdHandle* handle)
     return 0;
 }
 
-static inline void sfmps_UpdateStreamBounds(SfmpsWork* work)
+static inline void sfmps_UpdateStreamBounds(SfmpsWork* work,
+                                            MpsSystemHeader* header)
 {
     MpsHandle* decoder = work->decoder;
-    MpsSystemHeader header;
-    int max_audio = 0;
-    int max_video = 0;
+    int max_audio = 0, max_video = 0;
     int index;
 
     for (index = 0; index < 3; index++) {
-        int video_bound;
-        int audio_bound;
-
-        MPS_GetSysHd(decoder, &header, index);
-        audio_bound = header.audio_bound;
-        if (max_audio > audio_bound) {
-            audio_bound = max_audio;
-        }
-        max_audio = audio_bound;
-        video_bound = header.video_bound;
-        if (max_video > video_bound) {
-            video_bound = max_video;
-        }
-        max_video = video_bound;
+        MPS_GetSysHd(decoder, header, index);
+        max_audio = (max_audio > header->audio_bound) ? max_audio : header->audio_bound;
+        max_video = (max_video > header->video_bound) ? max_video : header->video_bound;
     }
     work->max_audio_bound = max_audio;
     work->max_video_bound = max_video;
@@ -274,38 +262,71 @@ static inline void sfmps_UpdateStreamBounds(SfmpsWork* work)
 
 static inline void sfmps_ProcPrepSeek(SfdHandle* handle)
 {
-    SfmpsSeekSnapshot* snapshot = sfmps_GetSeekSnapshot(handle);
     SfmpsWork* work;
+    SfmpsSeekSnapshot* snapshot;
 
-    if (snapshot == 0) {
-        return;
-    }
-
-    work = sfmps_GetWork(handle);
-    if (work->audio_pts_baseline == 0x7FFFFFFFFFFFFFFFLL) {
-        return;
-    }
-    handle->timer_state.audio_start_pts =
-        work->audio_pts_baseline - snapshot->video_pts_baseline;
-    if (snapshot->active == 0) {
-        snapshot->mux_rate = handle->playback_settings.values_18[0] * 50;
-        snapshot->rate_bound = handle->playback_settings.values_18[1];
-        snapshot->video_bound = work->max_video_bound;
-        snapshot->audio_bound = work->max_audio_bound;
-        snapshot->scr_base = handle->timer_state.field_0150;
-        snapshot->video_pts_baseline = work->video_pts_baseline;
-        snapshot->first_video_stream = work->first_video_stream;
-        snapshot->first_audio_stream = work->first_audio_stream;
+    snapshot = sfmps_GetSeekSnapshot(handle);
+    if (snapshot != 0) {
+        work = handle->transports[1].context;
+        if (work->audio_pts_baseline != 0x7FFFFFFFFFFFFFFFLL) {
+            handle->timer_state.audio_start_pts =
+                work->audio_pts_baseline - snapshot->video_pts_baseline;
+            if (snapshot->active == 0) {
+                snapshot->mux_rate = handle->playback_settings.values_18[0] * 50;
+                snapshot->rate_bound = handle->playback_settings.values_18[1];
+                snapshot->video_bound = work->max_video_bound;
+                snapshot->audio_bound = work->max_audio_bound;
+                snapshot->scr_base = handle->timer_state.field_0150;
+                snapshot->video_pts_baseline = work->video_pts_baseline;
+                snapshot->first_video_stream = work->first_video_stream;
+                snapshot->first_audio_stream = work->first_audio_stream;
+            }
+        }
     }
 }
 
-static inline void sfmps_UpdatePlaybackSettings(SfdHandle* handle)
+/* TODO: [near miss] 99.52%; RE4 shape restored; retail folds the buffer-array base into the
+ * ring-size load (add handle,idx*116; lwz 0x1324), which RE4 reaches only via a padded view. */
+static void sfmps_ProcPrep(SfdHandle* handle)
 {
-    SfmpsWork* work = sfmps_GetWork(handle);
-    MpsHandle* decoder = work->decoder;
+    MpsHandle* decoder;
+    SfmpsWork* work;
+    MpsSystemHeader header;
     MpsSystemHeader system;
     MpsPackHeader pack;
+    int prep_output2, prep_output, prep_user;
+    SfdBufferState* input_buffer;
+    int size;
+    int need;
 
+    sfmps_UpdateStreamBounds(handle->transports[1].context, &header);
+    prep_output2 = SFBUF_GetPrepFlg(handle, handle->transports[1].parameter_18);
+    prep_output = SFBUF_GetPrepFlg(handle, handle->transports[1].parameter_14);
+    prep_user = SFBUF_GetPrepFlg(handle, handle->transports[1].buffer_output3);
+    if ((prep_output2 | prep_output | prep_user) != 1) {
+        if (SFBUF_GetPrepFlg(handle, handle->transports[1].parameter_10) == 1) {
+            size = handle->create_config.buffer.buffer_sizes[0];
+            need = handle->conditions_primary[22];
+            input_buffer = handle->buffers;
+            input_buffer += handle->transports[1].parameter_10;
+            if (size <= 0) {
+                size = input_buffer->work.ring.supply.buffer_size;
+            }
+            if (size <= 0) {
+                size = need;
+            }
+            if (size < need) {
+                need = size;
+            }
+            if (SFBUF_GetWTot(handle, 0) >= need) {
+                SFBUF_SetPrepFlg(handle, handle->transports[1].parameter_18, 1);
+                SFBUF_SetPrepFlg(handle, handle->transports[1].parameter_14, 1);
+                SFBUF_SetPrepFlg(handle, handle->transports[1].buffer_output3, 1);
+            }
+        }
+    }
+    work = handle->transports[1].context;
+    decoder = work->decoder;
     MPS_GetPackHd(decoder, &pack);
     if (pack.mux_rate != -1 && pack.mux_rate > 0) {
         handle->playback_settings.values_18[0] = pack.mux_rate;
@@ -320,53 +341,7 @@ static inline void sfmps_UpdatePlaybackSettings(SfdHandle* handle)
     if (handle->playback_settings.values_18[4] == -1) {
         handle->playback_settings.values_18[4] = work->max_video_bound;
     }
-}
-
-/* TODO: [near miss] 98.78%; one buffer-base instruction and work/decoder/
- * seek-snapshot registers remain; original owner evidence needed. */
-static void sfmps_ProcPrep(SfdHandle* handle)
-{
-    SfmpsWork* work = sfmps_GetWork(handle);
-    SfdBufferState* input_buffer;
-    int size;
-    int prep_output2;
-    int prep_output;
-    int prep_user;
-
-    sfmps_UpdateStreamBounds(work);
-
-    prep_output2 = SFBUF_GetPrepFlg(handle,
-                                    handle->transports[1].parameter_18);
-    prep_output = SFBUF_GetPrepFlg(handle,
-                                   handle->transports[1].parameter_14);
-    prep_user = SFBUF_GetPrepFlg(handle,
-                                 handle->transports[1].buffer_output3);
-    if ((prep_output2 | prep_output | prep_user) != 1 &&
-        SFBUF_GetPrepFlg(handle, handle->transports[1].parameter_10) == 1) {
-        int need;
-        size = handle->create_config.buffer.buffer_sizes[0];
-        need = handle->conditions_primary[22];
-        input_buffer = handle->buffers;
-        input_buffer += handle->transports[1].parameter_10;
-        if (size <= 0) {
-            size = input_buffer->work.ring.supply.buffer_size;
-        }
-        if (size <= 0) {
-            size = need;
-        }
-        if (size < need) {
-            need = size;
-        }
-        if (SFBUF_GetWTot(handle, 0) >= need) {
-            SFBUF_SetPrepFlg(handle, handle->transports[1].parameter_18, 1);
-            SFBUF_SetPrepFlg(handle, handle->transports[1].parameter_14, 1);
-            SFBUF_SetPrepFlg(handle, handle->transports[1].buffer_output3, 1);
-        }
-    }
-
-    sfmps_UpdatePlaybackSettings(handle);
-
-    work = sfmps_GetWork(handle);
+    work = handle->transports[1].context;
     if (SFSET_GetCond(handle, 6) != 0 &&
         SFSET_GetCond(handle, 0x50) != 0 &&
         SFBUF_GetWTot(handle, 2) == 0 && work->max_audio_bound == 0 &&
@@ -379,7 +354,6 @@ static void sfmps_ProcPrep(SfdHandle* handle)
         SFTRN_GetPrepFlg(handle, 7) != 0) {
         SFSET_SetCond(handle, 5, 0);
     }
-
     sfmps_ProcPrepSeek(handle);
 }
 
@@ -541,6 +515,7 @@ static int sfmps_CopyVideo(SfdHandle* handle, int stream_index,
 {
     SfmpsWork* work;
     SfmpsWork* selected_work;
+    MpsSystemHeader header;
     int desired_stream;
     int candidate;
 
@@ -555,7 +530,7 @@ static int sfmps_CopyVideo(SfdHandle* handle, int stream_index,
             break;
         case 2: {
             selected_work = sfmps_GetWork(handle);
-            sfmps_UpdateStreamBounds(selected_work);
+            sfmps_UpdateStreamBounds(selected_work, &header);
             if (selected_work->max_video_bound >= 2) {
                 candidate = 2;
             } else {
@@ -865,25 +840,25 @@ static inline void sfmps_ScanSkip(SfdHandle* handle,
     *copied = amount;
 }
 
-/* TODO: [near miss] 98.74%; supply fields and stack slots match retail; ring base is
- * materialized (retail folds handle+i*0x74), scan cursor/amount and work/result coloring remain. */
+/* TODO: [near miss] 98.92%; work/result homes now retail; ring base still materialized, seek
+ * header cursor r21/r22 and IsZero unit-load r3/r4 remain (RE4 needs register/view forms). */
 static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
                                int size, int* consumed, int* copied,
                                int readable)
 {
+    int delimiter;
+    int result = 0;
     SfmpsWork* work;
     MpsHandle* decoder;
     int buffer_index;
-    int delimiter;
     int header_flags;
     int decoded_size;
     int packet_consumed;
     int packet_copied;
-    int result = 0;
     int proceed;
 
     *copied = *consumed = delimiter = 0;
-    work = sfmps_GetWork(handle);
+    work = handle->transports[1].context;
     buffer_index = handle->transports[1].parameter_10;
     decoder = work->decoder;
     if (size >= 4) {

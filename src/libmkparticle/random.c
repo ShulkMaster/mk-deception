@@ -152,7 +152,7 @@ void rnd_point_in_disc(PfxVec3* output, const PfxVec3* axis,
     output->z = perpendicular.z * radius;
 }
 
-/* TODO: [near miss] 99.48%; stack-resident vectors and separate normalization correction agree; inverse/sine FPR coloring remains. */
+/* TODO: [near miss] 99.48%; thirteen inverse/sine FPR rows remain; need new normalization-owner evidence. */
 void rnd_point_in_sphere_section(PfxVec3* output, const PfxVec3* axis,
                                  float radius, float radius_spread,
                                  float angle, float angle_spread) {

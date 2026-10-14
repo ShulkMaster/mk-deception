@@ -2147,7 +2147,7 @@ int mk_chess_xfer_piece_from_scripts(int, int, int);
 int ncs_create_pebble_monitor_proc(int, int, int, int);
 int ncs_create_pebbles_with_sobj(int, int);
 int npc_get_his_flag_state(int, int);
-int pan_vol_pitch_random_hit(int, void *, float, float, float);
+MslSoundHandle pan_vol_pitch_random_hit(int, float, float, float);
 int pan_vol_pitch_random_snd_req(int, void *, float, float, float);
 int pan_vol_snd_req(int, void *, float, float);
 int snd_req_vol(int, void *, float);
@@ -13098,7 +13098,7 @@ void _pan_vol_pitch_random_hit(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = pan_vol_pitch_random_hit(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
+    ((struct ScriptRawResult*)active_cmdscript)->value.i = pan_vol_pitch_random_hit(args->slots[0].i, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
 void _random_snd_req_delay(void) {

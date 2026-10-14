@@ -1474,7 +1474,8 @@ static inline void mark_bitset_locked(
     bits->value &= mask;
 }
 
-/* TODO: [near miss] 98.92857%; retail category jump table corrected; equivalent codegen residue. */
+/* TODO: [near miss] 98.93%; traced mask/word temporaries swap r0 with r3/r5;
+ * prior operand and helper forms are neutral; retain coloring ceiling. */
 void mark_as_locked(PlayerProfile* profile, int category, int character) {
     unsigned long long mask;
     ProfileUnlockBits64* bits;
@@ -2080,49 +2081,21 @@ static inline void find_next_matching_slot(
     *slot = -1;
 }
 
-/* TODO: [near miss] 92.90%; walk homes recovered; start/pin homes and exhaustion join remain; helper reuse inlines into scanner. */
+#pragma auto_inline off
 int move_to_profile(int count, unsigned char* code, int* devicePtr, int* slotPtr) {
-    int slot;
-    int device;
-    int startSlot;
-    int startDevice;
-    int first;
     int i;
 
     i = 0;
     *devicePtr = STORAGE_MAX_DEVICES - 1;
     *slotPtr = STORAGE_MAX_SLOTS - 1;
     while (i < count) {
-        device = *devicePtr;
-        first = 1;
-        slot = *slotPtr;
-        startDevice = device;
-        startSlot = slot;
-        advance_device_slot(&device, &slot);
-        while (device != startDevice || slot != startSlot) {
-            if (DEVICE_AT(device)->profiles[slot].present == 1 &&
-                DEVICE_AT(device)->inUse[slot] == 0 &&
-                multi_code_matches_slot(
-                    code, &DEVICE_AT(device)->profiles[slot]) != 0) {
-                *devicePtr = device;
-                *slotPtr = slot;
-                break;
-            }
-            advance_device_slot(&device, &slot);
-            if (first != 0) {
-                advance_device_slot(&startDevice, &startSlot);
-                first = 0;
-            }
-        }
-        if (device == startDevice && slot == startSlot) {
-            *devicePtr = -1;
-            *slotPtr = -1;
-        }
+        find_next_matching_slot(code, devicePtr, slotPtr);
         if (*devicePtr == -1 || *slotPtr == -1) return 0;
         i++;
     }
     return 1;
 }
+#pragma auto_inline reset
 
 #define PPL_LIST_PID_P1 0x9026
 #define PPL_LIST_PID_P2 0x9027

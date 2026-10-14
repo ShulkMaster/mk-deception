@@ -177,6 +177,9 @@ void vdestroy_pfx(MkPfx* pfx);
 void render_pfx_clone(PfxClone* clone);
 void render_pfx(MkPfx* pfx);
 void hide_pfx(MkPfx* pfx, int hide);
+#ifdef __cplusplus
+extern "C"
+#endif
 void pfx_end_batch(void);
 void pfx_start_batch(void);
 void insert_PFXlist_in_transl_tree(void);

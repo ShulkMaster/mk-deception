@@ -84,8 +84,8 @@ static void gc_set_render_state(BOOL use_alpha_map)
     *(volatile float*)GXFIFO_ADDR = (v); \
 } while (0)
 
-/* TODO: [blocked] 91.14%; retail writes colors through an inlined GXColor4u8-style helper
- * (clrlwi per component), which this object's `-inline off` prevents; also needs a vm.h flag151_02 bitfield. */
+/* TODO: [blocked] 91.40%; flag151 bit 0x02 recovered; retail GXColor4u8
+ * inline boundary remains unresolved under this object's inline-off mode. */
 static void gc_generic_render(PfxVm* vm) {
     PfxVec3 axis0, axis1;
     PfxVec3 base1, base0, base_corner;
@@ -131,7 +131,7 @@ static void gc_generic_render(PfxVm* vm) {
     }
     colors = vm->flag150_80 ? &vm->color1B4 : &rgba_white;
     color_stride = 0;
-    if (vm->flags151 & 2) _rwDlTextureSet(vm->alpha_texture, 1);
+    if (vm->flag151_02) _rwDlTextureSet(vm->alpha_texture, 1);
     _rwDlTextureSet(vm->render_texture, 0);
     positions = pfx_get_field(vm, -2, 0x100);
     position_stride = pfx_get_struct_size(vm, 0x100);
@@ -262,7 +262,7 @@ void particle_render(PfxVm* vm) {
     set_view_matrix(vm);
     set_vertex_format(vm);
     rw_set_render_state();
-    gc_set_render_state((vm->flags151 >> 1) & 1);
+    gc_set_render_state(vm->flag151_02);
     setup_lights(vm);
     if (vm->flag150_02) {
         save_projection_matrix();

@@ -716,7 +716,12 @@ static inline void compose_bone_rotation(
     out->z += parent->z * tw;
 }
 
-/* TODO: [near miss] 98.29%; mapped-ID compare agrees; parent/child bone GPR allocation and compose/weighted-correction FPR coloring remain. */
+static inline MkBone* matcher_bone_by_index(MkObj* object, unsigned int index) {
+    return object->bones[index];
+}
+
+/* TODO: [near miss] 98.50%; bone GPR homes agree; quaternion-compose and
+ * weighted-position FP coloring/operand scheduling remain after neutral-subset checks. */
 static float p_bone_matcher(void) {
     BoneMatcherState* matcher = (BoneMatcherState*)apdata;
     MkObj* parent_obj;
@@ -739,9 +744,7 @@ static float p_bone_matcher(void) {
     float fraction;
     float parent_weight;
     float child_weight;
-    float correction_x;
-    float correction_y;
-    float correction_z;
+    Vec correction;
     float parent_delta_x;
     float parent_delta_y;
     float parent_delta_z;
@@ -815,7 +818,7 @@ static float p_bone_matcher(void) {
     }
 
     child_bone = child_obj->bones[child_bid];
-    parent_bone = parent_obj->bones[parent_bid];
+    parent_bone = matcher_bone_by_index(parent_obj, parent_bid);
     if (child_bone == 0 || parent_bone == 0) {
         mkproc_die();
     }
@@ -929,16 +932,16 @@ static float p_bone_matcher(void) {
         parent_obj, parent_bid, &parent_offset, &parent_pos);
     get_bone_offset_world_pos(
         child_obj, child_bid, &child_offset, &child_pos);
-    correction_x = parent_pos.x - child_pos.x;
-    correction_y = parent_pos.y - child_pos.y;
-    correction_z = parent_pos.z - child_pos.z;
+    correction.x = parent_pos.x - child_pos.x;
+    correction.y = parent_pos.y - child_pos.y;
+    correction.z = parent_pos.z - child_pos.z;
 
     if (matcher->blend_ticks > 0.0f) {
         fraction = game_speed / (1.0f + matcher->blend_ticks);
         matcher->blend_ticks -= game_speed;
-        correction_x *= fraction;
-        correction_y *= fraction;
-        correction_z *= fraction;
+        correction.x *= fraction;
+        correction.y *= fraction;
+        correction.z *= fraction;
     } else {
         if (matcher->flags_08.bits.release_parent_weight != 0) {
             matcher->child_weight = 0.0f;
@@ -949,12 +952,12 @@ static float p_bone_matcher(void) {
         parent_weight = -matcher->child_weight;
         child_weight = 1.0f - matcher->child_weight;
 
-        parent_delta_x = correction_x * parent_weight;
-        parent_delta_y = correction_y * parent_weight;
-        parent_delta_z = correction_z * parent_weight;
-        child_delta_x = correction_x * child_weight;
-        child_delta_y = correction_y * child_weight;
-        child_delta_z = correction_z * child_weight;
+        parent_delta_x = correction.x * parent_weight;
+        parent_delta_y = correction.y * parent_weight;
+        parent_delta_z = correction.z * parent_weight;
+        child_delta_x = correction.x * child_weight;
+        child_delta_y = correction.y * child_weight;
+        child_delta_z = correction.z * child_weight;
         parent_obj->pos.value.x = parent_delta_x + parent_obj->pos.value.x;
         parent_obj->pos.value.y = parent_delta_y + parent_obj->pos.value.y;
         parent_obj->pos.value.z = parent_delta_z + parent_obj->pos.value.z;
@@ -964,9 +967,9 @@ static float p_bone_matcher(void) {
         update_obj_pos(child_obj);
         update_obj_pos(parent_obj);
     } else {
-        child_obj->pos.value.x += correction_x;
-        child_obj->pos.value.y += correction_y;
-        child_obj->pos.value.z += correction_z;
+        child_obj->pos.value.x += correction.x;
+        child_obj->pos.value.y += correction.y;
+        child_obj->pos.value.z += correction.z;
         update_obj_pos(child_obj);
     }
     update_bone_hierarchy(

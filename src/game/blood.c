@@ -2558,7 +2558,8 @@ static float p_bleed(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.15%; point increment and bone-transfer register/load scheduling remain. */
+/* TODO: [breakthrough needed] 99.36730%; next-record base absent in initial pcode;
+ * recover its real address producer; bone/matrix homes also differ. */
 static void do_pfx_bleed(MkHdr* hdr) {
     PfxVm* vm;
 
@@ -2613,7 +2614,6 @@ static void do_pfx_bleed(MkHdr* hdr) {
                     BloodPath* path;
                     BloodSurface* surface;
                     const int* record_indices;
-                    const int* next_index;
                     BloodSurfaceRecord* record;
                     BloodSurfaceRecord* next_record;
                     struct BloodSurfaceEdge* edge;
@@ -2638,8 +2638,7 @@ static void do_pfx_bleed(MkHdr* hdr) {
                     edge_distance =
                         0.0005f + v3_dot_v3(&edge->normal, &destination->position);
                     if (!(edge_distance < edge->plane_distance)) {
-                        point_index++;
-                        state->point_index = point_index;
+                        state->point_index = ++point_index;
                         if (point_index >= path->point_count ||
                             path->corner_indices[point_index] < 0) {
 ground_fall:
@@ -2681,9 +2680,10 @@ ground_fall:
 
                             goto remove_particle;
                         } else {
-                            next_index = &record_indices[point_index];
-                            next_record = &surface->records[*next_index];
-                            record = &surface->records[next_index[-1]];
+                            next_record =
+                                &surface->records[record_indices[point_index]];
+                            record =
+                                &surface->records[record_indices[point_index - 1]];
                             new_bone_id = next_record->bone;
                             old_bone_id = record->bone;
                             if (old_bone_id != new_bone_id) {

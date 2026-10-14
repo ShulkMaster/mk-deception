@@ -2085,8 +2085,8 @@ static inline float advance_material_fade(struct FadeMaterialPdata* pdata, MkObj
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.11%; complete fade step and store/call order agree; 18 rows
- * swap amount/color r3/r4 homes; seek new ownership evidence. */
+/* TODO: [near miss] 99.11%; 18 amount/material r3/r4 rows remain;
+ * trace confirms inline amount versus address temporary; stop at coloring. */
 static float p_fade_material(void) {
     MkObj* obj;
     struct FadeMaterialPdata* pdata;
@@ -3563,8 +3563,8 @@ static void _move_bones_from_obj_to_limbobj(
 
 
 
-/* TODO: [near miss] 99.95%; six pivot/second-chain matrix register rows remain;
- * hierarchy owner recovered; original pivot-helper shape still unresolved. */
+/* TODO: [near miss] 99.94624%; six pivot/second-chain matrix register rows;
+ * recover the original MAP-backed pivot helper before further coloring trials. */
 MkObj* obj_sever_limb(
     MkObj* obj, int limb, Vec* limb_velocities, int include_children) {
     MkObj* source;

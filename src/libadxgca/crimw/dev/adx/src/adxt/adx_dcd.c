@@ -1,6 +1,7 @@
 #include "cri/adx_dcd.h"
 #include "dolphin/types.h"
 #include "fdlibm.h"
+#include <math.h>
 #include "runtime/cstring.h"
 
 extern float __float_nan;

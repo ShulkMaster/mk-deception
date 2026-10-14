@@ -2747,8 +2747,6 @@ void limb_sever_explode_apart_plyr_num(
     }
 }
 
-/* TODO: [breakthrough needed] 99.76%; retail retains overwritten local-X stores;
- * recover original vector producer evidence before restoring redundant writes. */
 void limb_sever_explode_apart(
     PlyrInfo* player, float arg1, float arg2, float strength, int mode) {
     struct NcsLimbUpdatePdata* update;
@@ -2782,6 +2780,7 @@ void limb_sever_explode_apart(
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 5, 0);
 
+    local_velocity.x = 0.05f;
     local_velocity.y = 0.05f;
     local_velocity.x = 0.0f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);
@@ -2811,6 +2810,7 @@ void limb_sever_explode_apart(
     obj_set_ang_vel(severed, &angular_velocity);
     limb_sever_show_z_meat_chunks(owner, 2, 0);
 
+    local_velocity.x = -0.05f;
     local_velocity.y = 0.05f;
     local_velocity.x = 0.0f;
     v3_x_mat(&world_velocity, &local_velocity, limb_matrix);

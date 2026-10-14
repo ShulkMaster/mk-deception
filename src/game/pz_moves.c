@@ -678,8 +678,8 @@ int pz_finish_him_request(void) {
     return 0;
 }
 
-/* TODO: [near miss] 98.5782%; unordered distance guard recovered;
- * retail constant-true branch remains; do not invent a dummy condition. */
+/* TODO: [breakthrough needed] 98.5782%; three retail guard instructions
+ * remain; recover the original predicate before toggle_obj_and_ani_flips. */
 static float pz_fighter_scorpion_attack_start(void) {
     float player_distance = xz_distance_between_players();
     float home_distance =

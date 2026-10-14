@@ -1,15 +1,13 @@
 #include "dolphin/types.h"
-#include "runtime/cstring.h"
+#include "runtime/__mem.h"
 
-__declspec(section ".init") void __fill_mem(void* destination, int value, unsigned long size);
-
-__declspec(section ".init") void* memset(void* destination, int value, unsigned long size)
+void* memset(void* destination, int value, unsigned int size)
 {
     __fill_mem(destination, value, size);
     return destination;
 }
 
-__declspec(section ".init") void __fill_mem(void* destination, int value, unsigned long size)
+void __fill_mem(void* destination, int value, unsigned long size)
 {
     u8* byte_destination;
     u32* word_destination;
@@ -26,29 +24,29 @@ __declspec(section ".init") void __fill_mem(void* destination, int value, unsign
             } while (--count != 0);
         }
         if (fill != 0)
-            fill = fill << 24 | fill << 16 | fill << 8 | fill;
+            fill |= fill << 24 | fill << 16 | fill << 8;
 
-        word_destination = (u32*)(byte_destination - 3);
+        word_destination = (u32*)(byte_destination + 1) - 1;
         count = size >> 5;
         if (count != 0) {
             do {
-                word_destination[1] = fill;
-                word_destination[2] = fill;
-                word_destination[3] = fill;
-                word_destination[4] = fill;
-                word_destination[5] = fill;
-                word_destination[6] = fill;
-                word_destination[7] = fill;
-                *(word_destination += 8) = fill;
+                *++word_destination = fill;
+                *++word_destination = fill;
+                *++word_destination = fill;
+                *++word_destination = fill;
+                *++word_destination = fill;
+                *++word_destination = fill;
+                *++word_destination = fill;
+                *++word_destination = fill;
             } while (--count != 0);
         }
-        count = (size >> 2) & 7;
+        count = (size & 31) >> 2;
         if (count != 0) {
             do {
                 *++word_destination = fill;
             } while (--count != 0);
         }
-        byte_destination = (u8*)word_destination + 3;
+        byte_destination = (u8*)(word_destination + 1) - 1;
         size &= 3;
     }
     if (size != 0) {
@@ -58,7 +56,7 @@ __declspec(section ".init") void __fill_mem(void* destination, int value, unsign
     }
 }
 
-__declspec(section ".init") void* memcpy(void* destination, const void* source, unsigned long size)
+void* memcpy(void* destination, const void* source, unsigned long size)
 {
     const u8* source_byte;
     u8* destination_byte;

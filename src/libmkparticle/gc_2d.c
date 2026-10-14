@@ -53,7 +53,7 @@ void native2d_reset_renderstate(void) {
 }
 
 #pragma optimization_level 2
-/* TODO: [near miss] 97.95%; alpha load owner and Y/FIFO r3-r4 allocation remain. */
+/* TODO: [near miss] 97.95%; alpha and Y/FIFO GPR homes differ; stop at coloring. */
 void native2d_draw(Pfx2dObj* obj) {
     int y;
     int x;
