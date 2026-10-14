@@ -835,19 +835,17 @@ static inline mslBankSoundEntry* mslBankFindID(
 static inline char* mslBankSoundGetNameInline(
     mslBankSoundEntry* bank_sound) {
     static char name[0x100] = "               ";
-    char* result;
 
     sprintf(name, "%08x", bank_sound);
     if (bank_sound == 0) {
         mslDebugPrintf("mslBankSoundGetName NULL sound\n");
-        result = name;
-    } else if (bank_sound->definition == 0) {
-        mslDebugPrintf("mslBankSoundGetName never loaded??\n");
-        result = name;
-    } else {
-        result = name;
+        return name;
     }
-    return result;
+    if (bank_sound->definition == 0) {
+        mslDebugPrintf("mslBankSoundGetName never loaded??\n");
+        return name;
+    }
+    return name;
 }
 
 static inline _ListNode* mslBankSoundUseInline(
@@ -1075,7 +1073,8 @@ static inline void mslBankPlaySoundInline(
 
 #pragma push
 #pragma inline_max_size(1024)
-/* TODO: [near miss] 99.60%; play-phase system load matches; saved-register coloring remains. */
+/* TODO: [near miss] 99.59584%; diagnostic-name address copies couple node/argument
+ * and finish colors; early returns preserve bytes; recover the original inline boundary. */
 extern "C" unsigned long mslBankPlayVolPanPitch(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, float pan, float pitch,

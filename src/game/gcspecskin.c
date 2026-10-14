@@ -4,6 +4,8 @@
 #include "rw/dltextur.h"
 #include "gameware/dltoken.h"
 #include "rw/gamecube_globals.h"
+#include "rw/gamecube.h"
+#include "rw/nodegamecube.h"
 #include "rw/gcspecular.h"
 #include "rw/rpworld_types.h"
 #include "rw/rpmatfx.h"
@@ -22,13 +24,6 @@ struct SpecularGeometryData {
     int material_index;
 };
 
-struct SpecColor4 {
-    float red;
-    float green;
-    float blue;
-    float alpha;
-};
-
 struct SpecLight {
     unsigned char object_type;
     unsigned char light_type;
@@ -37,7 +32,7 @@ struct SpecLight {
     RwFrame* frame;
     unsigned char pad08[0x0C];
     float radius;
-    struct SpecColor4 color;
+    RwRGBAReal color;
     unsigned char pad28[0x0C];
     RwLLLink in_world;
 };
@@ -78,17 +73,8 @@ struct SpecDisplayHeader {
 };
 
 struct SpecDisplayResource {
-    unsigned char pad00[0x18];
+    RwResEntry resource_entry;
     struct SpecDisplayHeader header;
-};
-
-struct SpecResourceEntry {
-    struct SpecDisplayResource* display_resource;
-    struct SpecMeshHeader* mesh_header;
-    unsigned int object_setup_0;
-    unsigned char pad0C[0x10];
-    unsigned int object_setup_1;
-    unsigned int object_setup_2;
 };
 
 struct SpecMatrixPalette {
@@ -96,42 +82,19 @@ struct SpecMatrixPalette {
     unsigned int valid_bits;
 };
 
-struct SpecLightingData {
-    unsigned char pad00[0x0C];
-    struct SpecColor4 ambient;
-    int has_ambient;
-    unsigned int light_mask;
-    int light_count;
-};
-
-typedef void* (*RpSkinInstanceCallback)(void*, RwResEntry**);
-typedef RpAtomic* (*RpSkinRenderCallback)(RpAtomic*, struct SpecResourceEntry*);
-typedef RpAtomic* (*RpSkinLightingCallback)(RpAtomic*, struct SpecLightingData*);
-
-static RpAtomic* MKReflectionRenderCallback(
-    RpAtomic* atomic, struct SpecResourceEntry* resource);
-static RpAtomic* MKSpecSkinRenderCallback(
-    RpAtomic* atomic, struct SpecResourceEntry* resource);
+static void* MKReflectionRenderCallback(
+    void* object, RxGameCubeAtomicAllInOneInstanceData* resource);
+static void* MKSpecSkinRenderCallback(
+    void* object, RxGameCubeAtomicAllInOneInstanceData* resource);
 static void SpecSkinProcessMaterialList(
-    RpAtomic* atomic, struct SpecResourceEntry* resource);
+    RpAtomic* atomic, RxGameCubeAtomicAllInOneInstanceData* resource);
 static void GCSpecSkinMaterialNoSpecmap(struct SpecMesh* mesh);
 static void GCSpecSkinMaterial(struct SpecMesh* mesh, int alpha_pass);
 static RpAtomic* GCSpecSkinLighting(
-    RpAtomic* atomic, struct SpecLightingData* lighting);
+    RpAtomic* atomic, RwGameCubeLightingData* lighting);
 
 extern GXLightObj _RwGCLightObjs[8];
 
-RxPipeline* _rpDlAtomicPipelineCreate(
-    unsigned int plugin_id,
-    unsigned int plugin_data,
-    RpSkinInstanceCallback instance_callback,
-    RpSkinInstanceCallback reinstance_callback,
-    RpSkinLightingCallback lighting_callback,
-    RpSkinRenderCallback render_callback);
-void _rwDlVtxFmtSetup(void*, struct SpecResourceEntry*);
-void _rwDlTransformSetup(const RwMatrix*, int);
-void _rwDlObjectRenderSetup(unsigned int, unsigned int, unsigned int, int);
-void _rwDlRenderStateSetZCompLoc(int);
 void _rpSkinLoadMatrix(const RwMatrix*, int, int);
 
 RxPipeline* SpecSkinAtomicPipeline;
@@ -243,7 +206,8 @@ void ProcessSpecularity(
     GXSetTevAlphaOp(tev_stage, 0, 0, 0, 1, 0);
 }
 
-/* TODO: [near miss] 71.08%; GX byte ABI verified; stage-count sinking changes frame and saved homes; stop at lifetime ceiling. */
+/* TODO: [near miss] 71.08%; front-end propagation sinks stage count past first GX call;
+ * full-width count is neutral; only forcing permuter leads, stop pending a real boundary. */
 void CleanupSpecularity(
     RpMaterial* material, RwTexture* base_texture, RwTexture* alpha_texture) {
     SpecularMaterialPluginData* specular;
@@ -311,17 +275,18 @@ int SpecularCreatePipelines(void) {
 void SetupShadowPlayerPipeline(RpClump* clump) {
 }
 
-static RpAtomic* MKReflectionRenderCallback(
-    RpAtomic* atomic, struct SpecResourceEntry* resource) {
+static void* MKReflectionRenderCallback(
+    void* object, RxGameCubeAtomicAllInOneInstanceData* resource) {
+    RpAtomic* atomic = object;
     RpSkin* skin;
     void* vertex_format;
     RwMatrix* atomic_ltm;
     unsigned int bone;
 
-    resource->display_resource->header.token = _RwDlTokenCurrent;
+    ((struct SpecDisplayResource*)resource->resourceEntry)->header.token = _RwDlTokenCurrent;
     vertex_format = geometry_vertex_format(atomic->geometry);
     atomic_ltm = RwFrameGetLTM(atomic->object.parent);
-    _rwDlVtxFmtSetup(vertex_format, resource);
+    _rwDlVtxFmtSetup(vertex_format, (RpGameCubeVtxFmtSetupData*)resource);
 
     skin = RpSkinGeometryGetSkin(atomic->geometry);
     if (skin->maxNumWeights > 1) {
@@ -331,9 +296,9 @@ static RpAtomic* MKReflectionRenderCallback(
     }
 
     _rwDlObjectRenderSetup(
-        resource->object_setup_0,
-        resource->object_setup_2,
-        resource->object_setup_1,
+        resource->geometryFlags,
+        resource->lightMask,
+        resource->hasAmbient,
         0);
     if (skin->maxNumWeights == 1) {
         for (bone = 0; bone < skin->numUsedBones; bone++) {
@@ -344,12 +309,12 @@ static RpAtomic* MKReflectionRenderCallback(
                 1);
         }
     }
-    return atomic;
+    return object;
 }
 
-/* TODO: [near miss] 99.56%; atomic/resource r30/r31 homes remain swapped; stop at coloring. */
-static RpAtomic* MKSpecSkinRenderCallback(
-    RpAtomic* atomic, struct SpecResourceEntry* resource) {
+static void* MKSpecSkinRenderCallback(
+    void* object, RxGameCubeAtomicAllInOneInstanceData* resource) {
+    RpAtomic* atomic = object;
     RwCamera* camera;
     RpSkin* skin;
     RwMatrix* atomic_ltm;
@@ -363,10 +328,10 @@ static RpAtomic* MKSpecSkinRenderCallback(
     RwEngineInstance->dOpenDevice.fpRenderStateGet(0x0A, &old_src_blend);
     RwEngineInstance->dOpenDevice.fpRenderStateGet(0x0B, &old_dst_blend);
 
-    resource->display_resource->header.token = _RwDlTokenCurrent;
+    ((struct SpecDisplayResource*)resource->resourceEntry)->header.token = _RwDlTokenCurrent;
     vertex_format = geometry_vertex_format(atomic->geometry);
     atomic_ltm = RwFrameGetLTM(atomic->object.parent);
-    _rwDlVtxFmtSetup(vertex_format, resource);
+    _rwDlVtxFmtSetup(vertex_format, (RpGameCubeVtxFmtSetupData*)resource);
 
     skin = RpSkinGeometryGetSkin(atomic->geometry);
     if (skin->maxNumWeights > 1) {
@@ -376,9 +341,9 @@ static RpAtomic* MKSpecSkinRenderCallback(
     }
 
     _rwDlObjectRenderSetup(
-        resource->object_setup_0,
-        resource->object_setup_2,
-        resource->object_setup_1,
+        resource->geometryFlags,
+        resource->lightMask,
+        resource->hasAmbient,
         0);
     if (skin->maxNumWeights == 1) {
         for (bone = 0; bone < skin->numUsedBones; bone++) {
@@ -423,7 +388,7 @@ static RpAtomic* MKSpecSkinRenderCallback(
     RwEngineInstance->dOpenDevice.fpRenderStateSet(0x0B, 2);
     RwEngineInstance->dOpenDevice.fpRenderStateSet(0x0A, old_src_blend);
     RwEngineInstance->dOpenDevice.fpRenderStateSet(0x0B, old_dst_blend);
-    return atomic;
+    return object;
 }
 
 static inline void upload_material_transform(
@@ -489,7 +454,7 @@ static inline int* spec_priority_slot(
 /* TODO: [breakthrough needed] 98.01662%; header/member formation differs pre-RA;
  * typed/in-place address controls fail; retain canonical plugins, seek native boundary. */
 static void SpecSkinProcessMaterialList(
-    RpAtomic* atomic, struct SpecResourceEntry* resource) {
+    RpAtomic* atomic, RxGameCubeAtomicAllInOneInstanceData* resource) {
     struct SpecMesh* alpha_meshes[64];
     struct SpecMesh* reflection_meshes[64];
     int reflection_priority[64];
@@ -505,11 +470,11 @@ static void SpecSkinProcessMaterialList(
     int i;
     unsigned int reflection_offset = 0;
 
-    display_header = &resource->display_resource->header;
+    display_header = &((struct SpecDisplayResource*)resource->resourceEntry)->header;
     display_lists =
         &display_header->lists[display_header->display_list_count - 1];
     bLastMatUploadedRoot = 1;
-    mesh_header = resource->mesh_header;
+    mesh_header = (struct SpecMeshHeader*)resource->meshHeader;
     first_mesh = mesh_header->meshes;
     num_meshes = mesh_header->num_meshes;
 
@@ -1002,7 +967,7 @@ static inline void spec_point_metrics(
 
 static inline void upload_point_light(
     struct SpecLight* light,
-    struct SpecLightingData* lighting,
+    RwGameCubeLightingData* lighting,
     const Vec* delta,
     float inverse_distance,
     float intensity) {
@@ -1014,7 +979,7 @@ static inline void upload_point_light(
     int blue;
     float color_scale;
 
-    light_index = lighting->light_count;
+    light_index = lighting->lightIndex;
     light_object = &_RwGCLightObjs[light_index];
     GXInitLightAttn(light_object, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
     GXInitLightPos(
@@ -1032,13 +997,13 @@ static inline void upload_point_light(
     color.a = 0;
     GXInitLightColor(light_object, color);
     GXLoadLightObjImm(light_object, 1U << light_index);
-    lighting->light_mask |= 1U << lighting->light_count;
-    lighting->light_count++;
+    lighting->lightMask |= 1U << lighting->lightIndex;
+    lighting->lightIndex++;
 }
 
 static inline void upload_directional_light(
     struct SpecLight** light_slot,
-    struct SpecLightingData* lighting,
+    RwGameCubeLightingData* lighting,
     float intensity,
     RwV3d* direction) {
     struct SpecLight* light;
@@ -1054,7 +1019,7 @@ static inline void upload_directional_light(
     light_ltm = RwFrameGetLTM((*light_slot)->frame);
     RwV3dTransformVector(
         direction, &light_ltm->at, &_RwDlInvCamLTM);
-    light_index = lighting->light_count;
+    light_index = lighting->lightIndex;
     light_object = &_RwGCLightObjs[light_index];
     light = *light_slot;
     GXInitLightAttn(light_object, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
@@ -1073,14 +1038,14 @@ static inline void upload_directional_light(
     color.a = 0;
     GXInitLightColor(light_object, color);
     GXLoadLightObjImm(light_object, 1U << light_index);
-    lighting->light_mask |= 1U << lighting->light_count;
-    lighting->light_count++;
+    lighting->lightMask |= 1U << lighting->lightIndex;
+    lighting->lightIndex++;
 }
 
-/* TODO: [near miss] 99.94294%; point2 light-index/object homes still swap;
- * upload blocks are small; need a real first-upload source boundary. */
+/* TODO: [near miss] 99.94294%; point2 object claims r26 before index;
+ * recover upload owner order while preserving caller normalization/GXColor slots. */
 static RpAtomic* GCSpecSkinLighting(
-    RpAtomic* atomic, struct SpecLightingData* lighting) {
+    RpAtomic* atomic, RwGameCubeLightingData* lighting) {
     RpMaterial* specular_material;
     RwMatrix* atomic_ltm;
     RwMatrix* light_ltm;
@@ -1106,12 +1071,12 @@ static RpAtomic* GCSpecSkinLighting(
     float point2_dist;
 
     directional_intensity = 1.0f;
-    lighting->light_mask = 0;
+    lighting->lightMask = 0;
     lighting->ambient.red = 0.0f;
     lighting->ambient.green = 0.0f;
     lighting->ambient.blue = 0.0f;
     lighting->ambient.alpha = 1.0f;
-    lighting->light_count = 0;
+    lighting->lightIndex = 0;
 
     RwMatrixInvert(
         &cachedInverseAtomicLTM,
@@ -1122,10 +1087,10 @@ static RpAtomic* GCSpecSkinLighting(
         FindLocalLights();
 
         if (pAmbLight != 0) {
-            lighting->has_ambient = 1;
+            lighting->hasAmbient = 1;
             lighting->ambient = pAmbLight->color;
         } else {
-            lighting->has_ambient = 0;
+            lighting->hasAmbient = 0;
         }
 
         strongest_point_intensity = 0.0f;

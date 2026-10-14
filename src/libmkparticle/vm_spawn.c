@@ -353,7 +353,8 @@ void pfxvm_spawn_uv(PfxVmEmitter* emitter, unsigned int field, float u, float v)
     }
 }
 
-/* TODO: [near miss] 99.96%; sphere signature order recovered; stop at three particle-offset register differences. */
+/* TODO: [near miss] 99.96021%; three initial offset GPR homes differ;
+ * complete shared lookup did not inline; preserve retail call boundaries. */
 void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
 {
     int instruction_index;

@@ -90,16 +90,16 @@ struct PselectProfileView {
     int bg_team[5];
 };
 
-struct BgPselectCancelTeam {
+struct BgPselectTeamRecord {
     int entries[6];
     RwTexture** colors;
     RwTexture** alphas;
     int focus;
 };
 
-struct BgPselectCancelPdata {
+struct BgPselectTeamPdata {
     MkHdr hdr;
-    struct BgPselectCancelTeam teams[2];
+    struct BgPselectTeamRecord teams[2];
 };
 
 struct BgPselectTeamView {
@@ -663,11 +663,19 @@ static inline int wager_clamp_bet_to_balances(
     return 0;
 }
 
-/* TODO: [near miss] 99.34%; behavior, CFG and indexed debits agree;
- * koin/first-balance array r7/r8 coloring remains; stop at coloring. */
+static inline void wager_debit_balances(
+    int* p1_koins, int* p2_koins, int koin) {
+    if (wager_clamp_bet_to_balances(p1_koins, p2_koins, koin) == 0) {
+        wager_cancelled();
+        return;
+    }
+
+    p1_koins[koin] -= g_game_info.pselect.field_1d8;
+    p2_koins[koin] -= g_game_info.pselect.field_1d8;
+    proc_create(p_wager_save_profiles, 0x209F);
+}
+
 void wager_completed(void) {
-    int* p1_koins;
-    int* p2_koins;
     int koin;
 
     if (wager_completed_ran != 0) {
@@ -686,16 +694,7 @@ void wager_completed(void) {
         return;
     }
 
-    p1_koins = p1_profile.koins;
-    p2_koins = p2_profile.koins;
-    if (wager_clamp_bet_to_balances(p1_koins, p2_koins, koin) == 0) {
-        wager_cancelled();
-        return;
-    }
-
-    p1_koins[koin] -= g_game_info.pselect.field_1d8;
-    p2_koins[koin] -= g_game_info.pselect.field_1d8;
-    proc_create(p_wager_save_profiles, 0x209F);
+    wager_debit_balances(p1_profile.koins, p2_profile.koins, koin);
 }
 
 int get_current_wager_koin(void) {
@@ -1439,34 +1438,79 @@ static inline RwTexture* pselect_load_team_head_alpha(int char_id) {
     return 0;
 }
 
-/* TODO: [near miss] 96.73%; scan returns and screen reloads recovered; team-view CSE and owner/register homes remain. */
-void get_bg_pselect_team_textures(PselectTexOut out, int team) {
-    struct BgPselectPdata* pdata;
-    struct BgPselectTeamView* teamv;
+static inline int bg_team_record_focus_of(struct BgPselectTeamPdata* pdata,
+                                           int team, int char_id) {
     int i;
-    int char_id;
+    int member_count;
+
+    if (pdata == 0) {
+        return -1;
+    }
+    member_count = pdata->teams[team].entries[0] - 1;
+    for (i = 0; i < 5; i++) {
+        if (i >= member_count) {
+            break;
+        }
+        if (pdata->teams[team].entries[i + 1] == char_id) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static inline void pselect_update_team_preview(int player) {
+    struct BgPselectTeamPdata* pdata;
     int sel_pos;
-    int focus_char;
+    int char_id;
     int count;
     RwTexture* tex;
-    struct PselectCharEntry* ent;
+
+    if (pselect_mode != 1) {
+        return;
+    }
+    pdata = get_screen_pdata();
+    if (pdata == 0) {
+        return;
+    }
+    count = pdata->teams[player].entries[0];
+    sel_pos = p2_selbox_pos;
+    if (player == 0) {
+        sel_pos = p1_selbox_pos;
+    }
+    if (pselect_mode == 2) {
+        char_id = pselect_pz_char_tbl[sel_pos].char_id;
+    } else {
+        char_id = pselect_char_tbl[sel_pos].char_id;
+    }
+    if (count > 0 && count <= 5) {
+        tex = load_named_tga_from_slot(PSELECT_SEC_SLOT,
+                                       pselect_char_tbl[sel_pos].head_name);
+        pdata->teams[player].colors[count - 1] = tex;
+    }
+    pdata->teams[player].focus =
+        bg_team_record_focus_of(get_screen_pdata(), player, char_id);
+}
+
+void get_bg_pselect_team_textures(PselectTexOut out, int team) {
+    struct BgPselectTeamPdata* pdata;
+    int i;
+    int char_id;
 
     pdata = get_screen_pdata();
     if (pdata == 0) {
         return;
     }
 
-    teamv = bg_team_view(pdata, team);
-    teamv->colors = out.colors;
-    teamv->alphas = out.alphas;
+    pdata->teams[team].colors = out.colors;
+    pdata->teams[team].alphas = out.alphas;
 
     for (i = 0; i < 5; i++) {
-        if (i > teamv->count - 2) {
+        if (i > pdata->teams[team].entries[0] - 2) {
             out.colors[i] = 0;
             out.alphas[i] = 0;
             continue;
         }
-        char_id = teamv->chars[i];
+        char_id = pdata->teams[team].entries[i + 1];
         if (char_id != 0x2C) {
             out.colors[i] = pselect_load_team_head_color(char_id);
             out.alphas[i] = pselect_load_team_head_alpha(char_id);
@@ -1476,26 +1520,7 @@ void get_bg_pselect_team_textures(PselectTexOut out, int team) {
         }
     }
 
-    if (pselect_mode == 1) {
-        struct BgPselectPdata* preview_pdata;
-
-        preview_pdata = get_screen_pdata();
-        if (preview_pdata == 0) {
-            return;
-        }
-
-        count = bg_team_view(preview_pdata, team)->count;
-        sel_pos = (team == 0) ? p1_selbox_pos : p2_selbox_pos;
-        focus_char = pselect_char_id_at(sel_pos);
-
-        if (count > 0 && count <= 5) {
-            ent = &pselect_char_tbl[sel_pos];
-            tex = load_named_tga_from_slot(PSELECT_SEC_SLOT, ent->head_name);
-            bg_team_view(preview_pdata, team)->colors[count - 1] = tex;
-        }
-
-        bg_team_view(preview_pdata, team)->focus = bg_team_focus_of(get_screen_pdata(), team, focus_char);
-    }
+    pselect_update_team_preview(team);
 }
 
 /* TODO: [near miss] 98.88%; shared validity join differs before allocation;
@@ -1606,10 +1631,8 @@ char* pselect_get_player_name(int player) {
     return global_player_data[char_id].name;
 }
 
-/* TODO: [breakthrough needed] 94.48%; initial pcode already caches team owner;
- * canonical-record layout regresses exact siblings; recover retail CSE boundary. */
 void pselect_player_moved(int player) {
-    struct BgPselectPdata* pdata;
+    struct BgPselectTeamPdata* pdata;
     int sel_pos;
     int char_id;
     int count;
@@ -1622,33 +1645,29 @@ void pselect_player_moved(int player) {
     if (pdata == 0) {
         return;
     }
-
-    count = bg_team_view(pdata, player)->count;
+    count = pdata->teams[player].entries[0];
     sel_pos = p2_selbox_pos;
     if (player == 0) {
         sel_pos = p1_selbox_pos;
     }
-
     if (pselect_mode == 2) {
         char_id = pselect_pz_char_tbl[sel_pos].char_id;
     } else {
         char_id = pselect_char_tbl[sel_pos].char_id;
     }
-
     if (count > 0 && count <= 5) {
         tex = load_named_tga_from_slot(PSELECT_SEC_SLOT,
                                        pselect_char_tbl[sel_pos].head_name);
-        bg_team_view(pdata, player)->colors[count - 1] = tex;
+        pdata->teams[player].colors[count - 1] = tex;
     }
-
-    bg_team_view(pdata, player)->focus = bg_team_focus_of(get_screen_pdata(), player,
-                                    char_id);
+    pdata->teams[player].focus =
+        bg_team_record_focus_of(get_screen_pdata(), player, char_id);
 }
 
 /* TODO: [breakthrough needed] 94.48%; count-address and selector-index CSE
  * differ before allocation; recover the original owner/inline boundary. */
 void bg_pselect_player_canceled(int player) {
-    struct BgPselectCancelPdata* pdata;
+    struct BgPselectTeamPdata* pdata;
     int* entries;
     int count;
     int sel_pos;
@@ -1965,8 +1984,8 @@ int pselect_get_selbox_pos(int player) {
     return 0;
 }
 
-/* TODO: [breakthrough] 92.53%; scalar table and sparse-mode joins recovered;
- * saved homes and character-validity CFG remain unresolved. */
+/* TODO: [breakthrough needed] 95.98290%; validity false-edge and shift staging differ;
+ * PS2 outlines the lock call; recover the original GC predicate/inline boundary. */
 void pselect_update_selbox_pos(int player, int new_pos) {
     int* pos_p;
     int cols;
@@ -1975,6 +1994,7 @@ void pselect_update_selbox_pos(int player, int new_pos) {
     int delta;
     int char_id;
     int row2;
+    int second_row_end;
     int abs_delta;
 
     if (player == 0) {
@@ -2006,12 +2026,13 @@ void pselect_update_selbox_pos(int player, int new_pos) {
     char_id = pselect_char_id_at(new_pos);
     row2 = cols * 2;
     delta = new_pos - *pos_p;
+    second_row_end = row2 - 1;
 
     while (is_char_locked(char_id, 0)) {
         if (char_id == 0x20) {
             break;
         }
-        if (delta == 1 && (*pos_p == cols - 1 || *pos_p == row2 - 1 ||
+        if (delta == 1 && (*pos_p == cols - 1 || *pos_p == second_row_end ||
                            *pos_p == cols * 3 - 1)) {
             new_pos = *pos_p - (cols - 1);
             *pos_p = new_pos;
@@ -2028,7 +2049,8 @@ void pselect_update_selbox_pos(int player, int new_pos) {
                 }
             } else if (delta == -1 &&
                        (*pos_p == 0 || *pos_p == cols || *pos_p == row2)) {
-                new_pos = cols + *pos_p - 1;
+                new_pos = cols + *pos_p;
+                new_pos -= 1;
                 *pos_p = new_pos;
             } else {
                 new_pos = *pos_p + delta;
@@ -2222,7 +2244,7 @@ static float p_save_bg_profile(void) {
 }
 
 void bg_pselect_load_team(int team) {
-    struct BgPselectCancelPdata* pdata;
+    struct BgPselectTeamPdata* pdata;
     struct PselectProfileView* profile;
     int i;
 
@@ -2459,8 +2481,6 @@ float p_pz_pselect(void) {
 }
 #pragma opt_common_subs reset
 
-/* TODO: [near miss] 99.21%; sleep and player-selection call shape agree;
- * 23 wager-refund selector/profile/zero register rows remain. */
 float p_pselect(void) {
     GameInfo* gi;
     PlyrInfo* plyr1;
@@ -2574,11 +2594,11 @@ float p_pselect(void) {
                 order = wager_koin_order[gi->pselect.field_1d4];
                 p1_koin = &p1_profile.koins[order];
                 p2_koin = &p2_profile.koins[order];
+                *p1_koin += amount;
+                *p2_koin += amount;
                 gi->pselect.field_1d4 = 0;
                 gi->pselect.field_1d8 = 0;
-                *p1_koin += amount;
                 gi->pselect.field_1dc = 0;
-                *p2_koin += amount;
                 gi->pselect.field_1d0 = 0;
                 gi->pselect.field_1e0 = 1;
                 gi->pselect.field_1f0 = 1;

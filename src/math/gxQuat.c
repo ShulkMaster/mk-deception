@@ -18,14 +18,21 @@ union GxQuatFloatBits {
     unsigned int u;
 };
 
-/* TODO: [near miss] 98.52%; component load/store order agrees;
- * t/sign/theta/oneMinusT/absDot FPR homes differ; stop at coloring. */
+static inline void gxQuatSlerpWeights(float abs_dot, float* first, float* second)
+{
+    float theta = gxMathArcCos(abs_dot);
+    float inv_sin = kOne / gxMathSin(theta);
+
+    *first = inv_sin * gxMathSin(*first * theta);
+    *second = inv_sin * gxMathSin(*second * theta);
+}
+
+/* TODO: [near miss] 99.02778%; magnitude/second-weight homes agree;
+ * sign must select before t/theta/inverse-sine; recover its real producer. */
 void gxQuatInterpQuat(Quat* out, Quat* q1, const Quat* q2, float t) {
     float absDot;
     float oneMinusT;
     float sign;
-    float theta;
-    float invSin;
     float dot;
     Quat scaled;
 
@@ -44,10 +51,7 @@ void gxQuatInterpQuat(Quat* out, Quat* q1, const Quat* q2, float t) {
         sign = kNegOne;
     }
     if (absDot < kSlerpDotThresh) {
-        theta = gxMathArcCos(absDot);
-        invSin = kOne / gxMathSin(theta);
-        t = invSin * gxMathSin(t * theta);
-        oneMinusT = invSin * gxMathSin(oneMinusT * theta);
+        gxQuatSlerpWeights(absDot, &t, &oneMinusT);
     }
     oneMinusT *= sign;
     scaled.x = q2->x * oneMinusT;

@@ -88,8 +88,7 @@ struct KonquestNpcAnimState {
     int state_08;
     MkObj* object;
     CollisionObj* editor_object;
-    AniTextureControl* lip_texture;
-    unsigned int lip_texture_instance;
+    struct KonquestTextureLatch texture_latch;
     union {
         int dialog_anim;
         struct KonquestDialogAnimation* dialog_sequence;
@@ -313,8 +312,7 @@ struct NpcManagerObject {
 struct NpcManagerModelSlot {
     unsigned int art_id;
     MkObj* object;
-    AniTextureControl* lip_texture;
-    unsigned int lip_texture_instance;
+    struct KonquestTextureLatch texture_latch;
     KonquestNpcData* data;
     float age;
     int available;
@@ -1279,9 +1277,9 @@ void npc_assign_path(void* path, int flags, int travel_mode);
 
 static inline AniTextureControl* npc_get_lip_texture(
     struct KonquestNpcAnimState* animation) {
-    AniTextureControl* texture = animation->lip_texture;
+    AniTextureControl* texture = animation->texture_latch.texture;
     if (texture != 0) {
-        if (texture->instance == animation->lip_texture_instance) {
+        if (texture->instance == animation->texture_latch.instance) {
             return texture;
         }
         texture = 0;
@@ -1455,8 +1453,6 @@ static RpAtomic* AtomicFindTextureWithRootString(
     return atomic;
 }
 
-/* TODO: [breakthrough] 99.34%; canonical two-argument bone setup removes unused r5;
- * final instance-load base and setup flag scheduling remain. */
 static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
     struct NpcManagerPdata* manager = npc_manager_pdata;
 
@@ -1478,11 +1474,9 @@ static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
                 manager->models[index].age = 0.0f;
                 if (npc->animation != 0) {
                     struct KonquestNpcAnimState* animation;
-                    AniTextureControl* texture;
-                    unsigned int instance;
 
                     npc->animation->object = manager->models[index].object;
-                    lip_texture = MK_LIVE(manager->models[index].lip_texture, manager->models[index].lip_texture_instance);
+                    lip_texture = MK_LIVE(manager->models[index].texture_latch.texture, manager->models[index].texture_latch.instance);
 
                     if (lip_texture == 0) {
                         if (npc->art_id == 0) {
@@ -1502,17 +1496,14 @@ static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
                                 0x6002B, npc->art_id,
                                 npc->animation->object->clump, 1);
                             if (lip_texture != 0) {
-                                manager->models[index].lip_texture = lip_texture;
-                                manager->models[index].lip_texture_instance =
+                                manager->models[index].texture_latch.texture = lip_texture;
+                                manager->models[index].texture_latch.instance =
                                     lip_texture->instance;
                             }
                         }
                     }
                     animation = npc->animation;
-                    texture = manager->models[index].lip_texture;
-                    instance = manager->models[index].lip_texture_instance;
-                    animation->lip_texture = texture;
-                    animation->lip_texture_instance = instance;
+                    animation->texture_latch = manager->models[index].texture_latch;
                 }
                 npc_manager_setup_model(manager->models[index].object);
                 return;
@@ -1522,8 +1513,8 @@ static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
     npc_manager_load_new_npc_model(npc);
 }
 
-/* TODO: [breakthrough] 99.72%; canonical two-argument bone call removes unused r5;
- * npc/art_id r30/r31 coloring remains. */
+/* TODO: [near miss] 99.72%; parameter/ID allocation sweeps swap r30/r31;
+ * recover the original semantic owner boundary, not parameter aliases. */
 static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
     unsigned int art_id;
     AniTextureControl* lip_texture = 0;
@@ -1603,8 +1594,8 @@ static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
         slot->art_id = art_id;
         slot->object = object;
         if (lip_texture != 0) {
-            slot->lip_texture = lip_texture;
-            slot->lip_texture_instance = lip_texture->instance;
+            slot->texture_latch.texture = lip_texture;
+            slot->texture_latch.instance = lip_texture->instance;
         }
         slot->age = 0.0f;
         slot->available = 0;
@@ -1613,8 +1604,8 @@ static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
     if (npc->animation != 0) {
         npc->animation->object = object;
         if (lip_texture != 0) {
-            npc->animation->lip_texture = lip_texture;
-            npc->animation->lip_texture_instance = lip_texture->instance;
+            npc->animation->texture_latch.texture = lip_texture;
+            npc->animation->texture_latch.instance = lip_texture->instance;
         }
     }
 }
@@ -1784,8 +1775,8 @@ void npc_make_visible(KonquestNpc* npc) {
             proc->destroy_cb = npc_post_sleep;
             npc->animation = animation;
             npc->proc = proc;
-            animation->lip_texture = 0;
-            animation->lip_texture_instance = 0;
+            animation->texture_latch.texture = 0;
+            animation->texture_latch.instance = 0;
             animation->owner_npc = npc;
             animation->proc = 0;
             animation->object = 0;
@@ -1818,13 +1809,13 @@ static void npc_manager_release_npc_model(KonquestNpc* npc) {
                 }
                 texture = npc_get_lip_texture(npc->animation);
                 if (texture != 0) {
-                    MkHdr* texture_hdr = (MkHdr*)npc->animation->lip_texture;
+                    MkHdr* texture_hdr = (MkHdr*)npc->animation->texture_latch.texture;
 
                     if (texture_hdr->instance != 0) {
                         texture_hdr->typed_vtbl->destroy(texture_hdr);
                     }
-                    npc->animation->lip_texture = 0;
-                    npc->animation->lip_texture_instance = 0;
+                    npc->animation->texture_latch.texture = 0;
+                    npc->animation->texture_latch.instance = 0;
                 }
                 slot->data = 0;
                 slot->available = 1;
@@ -2214,7 +2205,8 @@ void npc_assign_path_to_him(
     }
 }
 
-/* TODO: [near miss] 99.11%; door ID and travel mode use swapped r30/r31; stop at coloring. */
+/* TODO: [near miss] 99.11%; door ID remains the earlier parameter web;
+ * propagation removes copies before PCode; recover a genuine later owner. */
 void npc_assign_door_path(int door_id, int travel_mode) {
     KonquestWaypoint* path;
 
@@ -4605,15 +4597,32 @@ void npc_set_ani_frame(float frame) {
     }
 }
 
-/* TODO: [near miss] 99.85%; first wait snapshot webs color script/NPC r29/r28;
- * retail uses r28/r27; operations and second expansion agree. */
 void npc_blend_to_ani_string(int* animation_ids) {
+    KonquestNpc* npc;
+    CmdScript* saved_script;
     unsigned int count = get_row_count_for_table_by_pointer(
         konquest_pdata->waypoint_script, animation_ids);
 
     if (aproc->pid == 0xA014) {
         if (g_active_npc->wait_ticks > 0.0f) {
-            npc_suspend_animation_wait();
+            npc = g_active_npc;
+            if (npc == 0) {
+                return;
+            }
+            npc->wait_ticks -= 1.0f;
+            if (g_active_npc->wait_ticks <= 0.0f) {
+                g_active_npc->wait_ticks = 0.0f;
+                return;
+            }
+            active_cmdscript->state = 2;
+            saved_script = active_cmdscript;
+            npc = g_active_npc;
+            cmdscript_step_backward();
+            memcpy(npc->saved_script_state, active_cmdscript->stack_mem,
+                sizeof(npc->saved_script_state));
+            npc->saved_script_position = (unsigned int)active_cmdscript->pc;
+            npc->saved_script_stack_depth = get_script_stack_depth();
+            active_cmdscript = saved_script;
         } else {
             g_active_npc->queued_animation =
                 get_animation(animation_ids[count - 1]);
@@ -4623,7 +4632,24 @@ void npc_blend_to_ani_string(int* animation_ids) {
                 1.0f +
                 g_active_npc->queued_animation->frame_count /
                     g_active_npc->animation_speed;
-            npc_suspend_animation_wait();
+            npc = g_active_npc;
+            if (npc == 0) {
+                return;
+            }
+            npc->wait_ticks -= 1.0f;
+            if (g_active_npc->wait_ticks <= 0.0f) {
+                g_active_npc->wait_ticks = 0.0f;
+                return;
+            }
+            active_cmdscript->state = 2;
+            saved_script = active_cmdscript;
+            npc = g_active_npc;
+            cmdscript_step_backward();
+            memcpy(npc->saved_script_state, active_cmdscript->stack_mem,
+                sizeof(npc->saved_script_state));
+            npc->saved_script_position = (unsigned int)active_cmdscript->pc;
+            npc->saved_script_stack_depth = get_script_stack_depth();
+            active_cmdscript = saved_script;
         }
     } else if (g_active_npc->animation != 0) {
         AnimPdata* animation =
@@ -4632,9 +4658,7 @@ void npc_blend_to_ani_string(int* animation_ids) {
         unsigned int index;
 
         for (index = 0; index < count; index++, animation_ids++) {
-            int animation_id = *animation_ids;
-
-            npc_queue_active_animation(animation_id, 3);
+            npc_queue_active_animation(*animation_ids, 3);
             while (animation->frame < animation->high_frame - 10.0f) {
                 npc_ani_1_frame();
                 _mkproc_sleep_ticks = 1.0f;
@@ -5241,14 +5265,14 @@ float p_do_lip_synch(void) {
             }
             if (lip->mode == 3) {
                 AniData* animation =
-                    lip->animation_table[frame + 6];
+                    lip->player.table[frame + 6];
 
                 if (animation != 0) {
                     transition_to_anim_script(
-                        lip->animation, animation, 3, 0.15f);
+                        lip->player.animation, animation, 3, 0.15f);
                 }
             } else {
-                AniTextureControl* texture = MK_LIVE(lip->texture, lip->texture_instance);
+                AniTextureControl* texture = MK_LIVE(lip->texture_latch.texture, lip->texture_latch.instance);
 
                 if (texture != 0) {
                     set_ani_texture_frame(texture, frame);
@@ -5259,7 +5283,7 @@ float p_do_lip_synch(void) {
     }
     if (lip->mode == 1) {
         if (mslSoundIsValid(lip->sound_handle) == 0) {
-            AniTextureControl* texture = MK_LIVE(lip->texture, lip->texture_instance);
+            AniTextureControl* texture = MK_LIVE(lip->texture_latch.texture, lip->texture_latch.instance);
 
             if (texture != 0) {
                 set_ani_texture_frame(texture, 0);
@@ -5272,7 +5296,7 @@ float p_do_lip_synch(void) {
             AniTextureControl* texture;
 
             snd_stop(lip->sound_handle);
-            texture = MK_LIVE(lip->texture, lip->texture_instance);
+            texture = MK_LIVE(lip->texture_latch.texture, lip->texture_latch.instance);
 
             if (texture != 0) {
                 set_ani_texture_frame(texture, 0);
@@ -5294,21 +5318,15 @@ static inline void npc_start_lip_synch(
             (MkHdr**)&lip) != 0) {
         AniTextureControl* texture;
         struct KonquestNpcAnimState* animation;
-        KonquestLipSyncPdata* target;
-        unsigned int texture_instance;
 
         zero_pdata_payload(sizeof(*lip), &lip->hdr);
         lip->mode = 1;
         lip->npc = g_active_npc;
         animation = g_active_npc->animation;
-        target = lip;
-        texture = animation->lip_texture;
-        texture_instance = animation->lip_texture_instance;
-        target->texture = texture;
-        target->texture_instance = texture_instance;
+        lip->texture_latch = animation->texture_latch;
         lip->sound_handle = sound_id;
 
-        texture = MK_LIVE(lip->texture, lip->texture_instance);
+        texture = MK_LIVE(lip->texture_latch.texture, lip->texture_latch.instance);
 
         if (texture != 0) {
             lip->keyframes = keyframes;
@@ -5317,37 +5335,8 @@ static inline void npc_start_lip_synch(
     }
 }
 
-/* TODO: [near miss] 99.81%; lip pdata body written out (matches retail copy order); remaining rows swap the animation texture/instance load order. */
 void npc_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
-    KonquestLipSyncPdata* lip;
-
-    if (g_active_npc->animation != 0 && sound_id != -1 &&
-        _create_mkproc_generic_nostack(
-            0x8232, 0x1F, p_do_lip_synch, sizeof(*lip),
-            (MkHdr**)&lip) != 0) {
-        AniTextureControl* texture;
-        KonquestLipSyncPdata* target;
-        unsigned int texture_instance;
-        struct KonquestNpcAnimState* animation;
-
-        zero_pdata_payload(sizeof(*lip), &lip->hdr);
-        lip->mode = 1;
-        lip->npc = g_active_npc;
-        animation = g_active_npc->animation;
-        target = lip;
-        texture = animation->lip_texture;
-        texture_instance = animation->lip_texture_instance;
-        target->texture = texture;
-        target->texture_instance = texture_instance;
-        lip->sound_handle = sound_id;
-
-        texture = MK_LIVE(lip->texture, lip->texture_instance);
-
-        if (texture != 0) {
-            lip->keyframes = keyframes;
-        }
-        lip->stop_requested = 0;
-    }
+    npc_start_lip_synch(sound_id, keyframes);
 }
 
 void kill_lip_sync_procs(void) {
@@ -5370,7 +5359,7 @@ void kill_lip_sync_procs(void) {
                     KonquestLipSyncPdata* lip =
                         (KonquestLipSyncPdata*)pdata_of_proc(proc);
                     unsigned int sound_handle = lip->sound_handle;
-                    AniTextureControl* texture = MK_LIVE(lip->texture, lip->texture_instance);
+                    AniTextureControl* texture = MK_LIVE(lip->texture_latch.texture, lip->texture_latch.instance);
 
                     if (sound_handle != 0) {
                         snd_stop(sound_handle);
@@ -5728,7 +5717,7 @@ static inline void npc_stop_lip_sync_procs(void) {
                     KonquestLipSyncPdata* lip =
                         (KonquestLipSyncPdata*)pdata_of_proc(proc);
                     unsigned int sound_handle = lip->sound_handle;
-                    texture = MK_LIVE(lip->texture, lip->texture_instance);
+                    texture = MK_LIVE(lip->texture_latch.texture, lip->texture_latch.instance);
 
                     if (sound_handle != 0) {
                         snd_stop(sound_handle);
@@ -5791,11 +5780,12 @@ int is_this_the_monk_npc(KonquestNpc* npc) {
     return 0;
 }
 
-/* TODO: [near miss] 99.64%; seventeen rows exchange animation owner r27/r29 with monk_finished. */
 void npc_play_two_player_one_shot_anims(int npc_animation_id,
                                         int monk_animation_id) {
-    int monk_finished;
+    AnimPdata* monk_animation;
     int npc_finished;
+    AnimPdata* npc_animation;
+    int monk_finished;
 
     npc_finished = 0;
     monk_finished = 0;
@@ -5809,12 +5799,12 @@ void npc_play_two_player_one_shot_anims(int npc_animation_id,
             blocked = 1;
         }
         if (blocked == 0) {
-            AnimPdata* npc_animation =
-                (AnimPdata*)pdata_of_proc(
-                    g_active_npc->animation->proc);
-            AnimPdata* monk_animation;
             MkProc* monk_animation_proc;
             KonquestNpc* monk_npc;
+
+            npc_animation =
+                (AnimPdata*)pdata_of_proc(
+                    g_active_npc->animation->proc);
 
             npc_queue_active_animation(npc_animation_id, 3);
 
@@ -6384,8 +6374,8 @@ KonquestNpc* konquest_make_monk_an_npc(void) {
             animation->alpha = 0xFF;
             texture = konquest_create_monk_face_ani_texture(monk);
             if (texture != 0) {
-                animation->lip_texture = texture;
-                animation->lip_texture_instance = texture->instance;
+                animation->texture_latch.texture = texture;
+                animation->texture_latch.instance = texture->instance;
             }
             animation->owner_npc = npc;
             animation->proc = 0;
@@ -6469,7 +6459,6 @@ static int npc_dialog_wait_for_widescreen_bars(void) {
     return 1;
 }
 
-/* TODO: [near miss] 99.54%; inlined npc_start_lip_synch texture/instance copy colors lip/animation r4/r5 swapped (same residue as npc_lip_synch). */
 void npc_play_dialog_and_anim_sequence(int dialog_id, int animation_id) {
     int sound_id;
     LipSyncKeyframe* keyframes;
@@ -6508,54 +6497,22 @@ void npc_set_random_dialog_and_anim_sequence(int dialog, int animation) {
     }
 }
 
-/* TODO: [near miss] 99.34%; saved-register coloring (sequences/choice/keyframes/sound homes) and two texture-field load order remain. */
 void npc_play_random_dialog_sequence(void) {
+    struct KonquestDialogDefinition* dialog;
     struct KonquestRandomDialogSequence* sequences =
         konquest_pdata->random_dialog_sequences;
     int count = konquest_pdata->random_dialog_sequence_count;
 
     if (konquest_pdata->load_config->dialog_definitions != 0 &&
         npc_dialog_wait_for_widescreen_bars() != 0) {
-        int sound_id;
         int dialog_animation;
-        LipSyncKeyframe* keyframes;
         unsigned short choice = randu0((unsigned short)count);
-        struct KonquestDialogDefinition* dialog =
+        dialog =
             &konquest_pdata->load_config->dialog_definitions[
                 sequences[choice].dialog];
 
         dialog_text = get_string_by_id(dialog->string_id | 0x20000);
-        keyframes = dialog->keyframes;
-        sound_id = dialog->sound_id;
-        if (g_active_npc->animation != 0 && sound_id != -1) {
-            KonquestLipSyncPdata* lip;
-
-            if (_create_mkproc_generic_nostack(
-                    0x8232, 0x1F, p_do_lip_synch, sizeof(*lip),
-                    (MkHdr**)&lip) != 0) {
-                unsigned int texture_instance;
-                struct KonquestNpcAnimState* animation;
-                KonquestLipSyncPdata* target;
-                AniTextureControl* texture;
-
-                zero_pdata_payload(sizeof(*lip), &lip->hdr);
-                lip->mode = 1;
-                lip->npc = g_active_npc;
-                target = lip;
-                animation = g_active_npc->animation;
-                texture = animation->lip_texture;
-                texture_instance = animation->lip_texture_instance;
-                target->texture = texture;
-                target->texture_instance = texture_instance;
-                lip->sound_handle = sound_id;
-                texture = MK_LIVE(lip->texture, lip->texture_instance);
-
-                if (texture != 0) {
-                    lip->keyframes = keyframes;
-                }
-                lip->stop_requested = 0;
-            }
-        }
+        npc_start_lip_synch(dialog->sound_id, dialog->keyframes);
         dialog_animation = sequences[choice].animation;
         if (g_active_npc->animation != 0) {
             g_active_npc->animation->dialog_anim = dialog_animation;
@@ -7082,8 +7039,8 @@ void make_damashi_npc(MkObj* object) {
             npc->animation = animation;
             npc->proc = proc;
             animation->alpha = 0xFF;
-            animation->lip_texture = 0;
-            animation->lip_texture_instance = 0;
+            animation->texture_latch.texture = 0;
+            animation->texture_latch.instance = 0;
             animation->owner_npc = npc;
             animation->proc = 0;
             animation->object = object;

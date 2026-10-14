@@ -1418,7 +1418,6 @@ void bgnd_set_active_danger_zone(unsigned int zone);
 void bgnd_create_danger_zone( int shape_type, unsigned int zone_index, unsigned int obstacle_id, float height, unsigned int collision_script_function);
 void bgnd_delete_proc_by_id(int pid);
 void bgnd_start_script_in_proc_bigstack( int process_id, unsigned int script_index);
-void bgnd_start_script_in_proc( int process_id, unsigned int script_index);
 static inline int bgnd_list_exists(MkPtr** list) {
     return list != 0;
 }
@@ -1491,11 +1490,6 @@ void pebble_turn_culling_off(int player);
 void pebble_turn_culling_on(int player);
 void pebble_unhide_me(int player, int index);
 void pebble_hide_me(int player, int index);
-void pebble_setup_bounce_props(int player, int index, Vec* velocity, int flags);
-void pebble_set_ang_vel(int player, int index, Vec* velocity);
-void pebble_set_ang(int player, int index, Vec* angles);
-void pebble_set_scale(int player, int index, Vec* scale);
-void pebble_set_vel(int player, int index, Vec* velocity);
 void bgnd_pebble_burst_at_pos(int unused, int first, int second, void* script, float x, float y, float z);
 void bgnd_pebble_burst_at_pebble_pos(int unused, int first, int second);
 void bgnd_pebble_burst_at_chunk_pos(int player, int first, int end);
@@ -1522,7 +1516,7 @@ void bgnd_pebble_launch_at_time( int player, int index, float position_x, float 
 void bgnd_pebble_simple_launch_at_time(int player, int index, unsigned int delay, int behavior_param);
 
 static inline BgndPebbleCollection* bgnd_create_pebble_collection(
-    MkSobj* object, unsigned int count) {
+    MkSobj* object, const unsigned int count) {
     BgndPebbleCollection* collection;
     unsigned int i;
 
@@ -1562,7 +1556,6 @@ static inline MkSobj* bgnd_lookup_sobj(int model_index, unsigned int object_id) 
     }
     return object;
 }
-MkSobj* bgnd_fetch_sobj(int model_index, unsigned int object_id);
 MkObj* bgnd_fetch_obj(int model_id);
 void bgnd_unhide_pebbles(int player);
 void bgnd_hide_pebbles(int player);
@@ -2031,8 +2024,8 @@ static void add_mkx_light_obj_to_bgnd_cleanup_list(MkHdr* header) {
     }
 }
 
-/* TODO: [breakthrough] 90.13%; signed weapon loop and direct latch macros recovered;
- * shared BSS owner, camera latch merge and loop staging remain. */
+/* TODO: [breakthrough needed] 90.12643%; recover bgnd_generic_proc_item's
+ * 0x20 storage type before completing pooled BSS ownership; latch/loop residue remains. */
 void destroy_background_extras(void) {
     unsigned int index;
     int weapon_index;
@@ -6205,7 +6198,8 @@ void bgnd_start_cracks(void) {
         bgnd_reset_crack_pool();
     }
 }
-/* TODO: [near miss] 98.86%; state-13 FP coloring and one call argument order remain. */
+/* TODO: [near miss] 98.85714%; 22 state-13 FP/call-setup rows remain;
+ * zero-spill allocation and failed vector/snapshot controls justify stopping at coloring. */
 static float p_pebble_path_monitor(void) {
     BgndPebbleMonitor* monitor;
     BgndPebbleControl* pebble;
@@ -6741,8 +6735,8 @@ static inline BgndPebblePlayerData* bgnd_create_pebble_process(
     return result;
 }
 
-/* TODO: [near miss] 99.45%; count/array-offset and process homes differ;
- * operations agree with retail; stop at register coloring. */
+/* TODO: [near miss] 99.78022%; eight process zero/result GPR rows remain;
+ * recover index/process ownership; caller/reset/const-input controls regress. */
 BgndPebbleControl* bgnd_create_pebbles_with_sobj(
     MkSobj* object, unsigned int player, int mode, unsigned int count) {
     unsigned int index;
@@ -8571,29 +8565,26 @@ static inline int beetle_lair_player_faces_wall(PlyrPdata* player) {
     MkObj* opponent;
     float separation_length;
     float opponent_length;
-    float own_x;
-    float own_z;
-    float opponent_x;
-    float opponent_z;
-    float separation_x;
-    float separation_z;
+    Vec own_offset;
+    Vec opponent_offset;
+    Vec separation;
 
     if (player == 0 || player->his_plyr_pdata == 0) {
         return 0;
     }
     own = player->plyr_info->slot.mirror_a;
     opponent = player->his_plyr_pdata->plyr_info->slot.mirror_a;
-    own_z = own->pos.value.z - wall_target.z;
-    opponent_z = opponent->pos.value.z - wall_target.z;
-    own_x = own->pos.value.x - wall_target.x;
-    opponent_x = opponent->pos.value.x - wall_target.x;
-    separation_z = opponent_z - own_z;
-    separation_x = opponent_x - own_x;
-    separation_length = gxMathFastSqrt(separation_x * separation_x +
-        separation_z * separation_z);
-    opponent_length = gxMathFastSqrt(opponent_x * opponent_x +
-        opponent_z * opponent_z);
-    if ((separation_x * opponent_x + separation_z * opponent_z) /
+    own_offset.x = own->pos.value.x - wall_target.x;
+    opponent_offset.x = opponent->pos.value.x - wall_target.x;
+    own_offset.z = own->pos.value.z - wall_target.z;
+    opponent_offset.z = opponent->pos.value.z - wall_target.z;
+    separation.x = opponent_offset.x - own_offset.x;
+    separation.z = opponent_offset.z - own_offset.z;
+    separation_length = gxMathFastSqrt(separation.x * separation.x +
+        separation.z * separation.z);
+    opponent_length = gxMathFastSqrt(opponent_offset.x * opponent_offset.x +
+        opponent_offset.z * opponent_offset.z);
+    if ((separation.x * opponent_offset.x + separation.z * opponent_offset.z) /
             (separation_length * opponent_length) > 0.9f) {
         return 1;
     }
@@ -9730,7 +9721,8 @@ float r_beetle_lair_transition(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.26%; stack homes agree; wall-predicate and impact-normalization FPR coloring remain; delta order neutral. */
+/* TODO: [breakthrough] 99.67886%; scalarized wall vectors fix separation homes;
+ * wall-load scheduling and reused impact-component webs remain. */
 static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
     MkObj* player_object;
     MkObj* opponent_object;
@@ -9911,12 +9903,10 @@ static inline void bl_init_beetle(
                                  beetle->heading_degrees, &scale,
                                  &beetle->position);
 }
-/* TODO: [near miss] 98.86548%; axis/tick/control GPR homes remain;
- * late scale/position FPR pair also swaps; need real ownership evidence. */
+/* TODO: [breakthrough] 99.72447%; direct constructor selections fix control homes;
+ * timer/pebble claims versus constant bases remain; preserve early timer sums. */
 static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
     BlBeetleControl* beetles;
-    BlBeetleControl* beetle;
-    Pebble* pebble;
     Vec position;
     int random_ticks;
     int index;
@@ -9929,9 +9919,7 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
         position.z = 1.99f + sfrand(0.8f);
         position.x = -1.0f + sfrand(0.8f);
         position.y = 0.0f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 1, 0,
+        bl_init_beetle(&beetles[index], &data->pebble_data->pebbles[index], &position, local_scale, 1, 0,
                        random_ticks, 1.0f, 0, 0);
     }
     for (; index < 9; index++) {
@@ -9940,9 +9928,7 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
         position.z = 5.0f + sfrand(0.15f);
         position.x = -4.0f + sfrand(0.15f);
         position.y = 0.0f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 0, 0,
+        bl_init_beetle(&beetles[index], &data->pebble_data->pebbles[index], &position, local_scale, 0, 0,
                        random_ticks, 1.0f, 0, 0);
     }
     for (; index < 21; index++) {
@@ -9951,9 +9937,7 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
         position.z = 1.99f + sfrand(0.25f);
         position.x = -1.0f + sfrand(0.25f);
         position.y = 0.0f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 4, 0,
+        bl_init_beetle(&beetles[index], &data->pebble_data->pebbles[index], &position, local_scale, 4, 0,
                        random_ticks, 0.55f, 0, 0);
     }
     for (; index < 23; index++) {
@@ -9962,20 +9946,18 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
         position.z = sfrand(7.0f);
         position.x = sfrand(7.0f);
         position.y = 0.0f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 0,
+        bl_init_beetle(&beetles[index], &data->pebble_data->pebbles[index], &position, local_scale, 2, 0,
                        random_ticks, 9.0f, 0, 0);
     }
     for (; index < 27; index++) {
+        float position_y;
         float local_scale = 1.0f + frand(0.45f);
         random_ticks = (unsigned short)randu0(180) + 180;
-        position.y = 2.0f + sfrand(1.5f);
+        position_y = 2.0f + sfrand(1.5f);
         position.x = sfrand(2.5f);
+        position.y = position_y;
         position.z = 15.17f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 5,
+        bl_init_beetle(&beetles[index], &data->pebble_data->pebbles[index], &position, local_scale, 2, 5,
                        random_ticks, 9.0f, 0, 1);
     }
     for (; index < 31; index++) {
@@ -9984,9 +9966,7 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
         position.z = sfrand(7.0f);
         position.x = sfrand(7.0f);
         position.y = 0.0f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 3, 0,
+        bl_init_beetle(&beetles[index], &data->pebble_data->pebbles[index], &position, local_scale, 3, 0,
                        random_ticks, 9.0f, 0, 0);
     }
     data->pebble_data->count = 31;
@@ -9996,19 +9976,19 @@ static inline float bl_jittered_scale(float base, float jitter) {
     return base + frand(jitter);
 }
 
-/* TODO: [near miss] 99.76471%; loop-2 GPR and scale/position FPR homes remain;
- * current capture confirms webs; complete ground-cluster boundary regresses. */
+/* TODO: [near miss] 99.79608%; loop-2 GPR and two scale/position pairs remain;
+ * split-tick claim order unresolved; loop-local positions retained. */
 static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     BlBeetleControl* beetle;
     BlBeetleControl* beetles;
     Pebble* pebble;
-    Vec position;
     int random_ticks;
     int index;
 
     beetles = data->pebble_data->user_data;
     index = 0;
     for (; index < 5; index++) {
+        Vec position;
         float local_scale = bl_jittered_scale(1.7f, 0.25f);
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 37.0f + sfrand(1.4f);
@@ -10020,6 +10000,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
                        random_ticks, 1.0f, 0x136, 0);
     }
     for (; index < 7; index++) {
+        Vec position;
         float local_scale = bl_jittered_scale(1.0f, 0.25f);
         random_ticks = (unsigned short)randu0(180) + 180;
         position.z = 40.0f + sfrand(0.25f);
@@ -10030,6 +10011,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
                        local_scale, 2, 0, random_ticks, 0.5f, 0, 0);
     }
     for (; index < 10; index++) {
+        Vec position;
         float local_scale = bl_jittered_scale(1.35f, 0.15f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
@@ -10042,6 +10024,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
                        random_ticks, 0.5f, 0, 0);
     }
     for (; index < 12; index++) {
+        Vec position;
         float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
@@ -10057,6 +10040,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->movement_target.z = 47.9f;
     }
     for (; index < 14; index++) {
+        Vec position;
         float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
@@ -10072,6 +10056,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->movement_target.z = 47.7f;
     }
     for (; index < 16; index++) {
+        Vec position;
         float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
@@ -10087,6 +10072,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->movement_target.z = 47.7f;
     }
     for (; index < 19; index++) {
+        Vec position;
         float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
@@ -10100,6 +10086,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->speed_scale = 0.5f + frand(0.25f);
     }
     for (; index < 21; index++) {
+        Vec position;
         float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
@@ -10115,6 +10102,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->movement_target.z = 44.0f;
     }
     for (; index < 22; index++) {
+        Vec position;
         float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
@@ -10130,6 +10118,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->movement_target.z = 44.0f;
     }
     for (; index < 24; index++) {
+        Vec position;
         float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
@@ -10145,6 +10134,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->movement_target.z = 23.0f;
     }
     for (; index < 25; index++) {
+        Vec position;
         float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;
@@ -10160,6 +10150,7 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         beetle->movement_target.z = 23.0f;
     }
     for (; index < 28; index++) {
+        Vec position;
         float local_scale = bl_jittered_scale(1.0f, 0.45f);
         unsigned int random_ticks;
         random_ticks = (unsigned short)randu0(180) + 180;

@@ -1647,7 +1647,8 @@ void gc_boot_space_check(void) {
     low_storage_slot_message_done = 1;
 }
 
-/* TODO: [near miss] 99.835167%; six suffix/middle and options text GPR rows remain; calls and cleanup agree. */
+/* TODO: [near miss] 99.835167%; suffix/middle and options-first homes remain;
+ * exact replay rules out order alone; missing copy/owner provenance. */
 int gc_no_space_routine(const char* nameOrNull, int device) {
     const char* name;
     int ret;

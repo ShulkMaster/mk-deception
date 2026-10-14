@@ -126,7 +126,13 @@ mwFileServer* mwFileDirectoryMountPoint::getServer()
     return parent->getServer();
 }
 
-/* TODO: [near miss] 97.35%; Allocator() default-argument temp is passed via mr r4,r3 where retail re-materializes the stack address. */
+static inline void append_mount_path(
+    std::basic_string<char, std::char_traits<char>, mwFileMemAllocator<char, 3> >& full_path,
+    const char* path)
+{
+    full_path.append(path, strlen(path));
+}
+
 int mwFileDirectoryMountPoint::convertToPlatformPath(
     char* buffer, const char* path, unsigned long size,
     unsigned long& required)
@@ -134,7 +140,7 @@ int mwFileDirectoryMountPoint::convertToPlatformPath(
     std::basic_string<char, std::char_traits<char>, mwFileMemAllocator<char, 3> > full_path;
     full_path.reserve(directory.length() + strlen(path));
     full_path.assign(directory, 0, -1);
-    full_path.append(path, strlen(path));
+    append_mount_path(full_path, path);
 
     mwFileMountPoint* mount_point;
     int error = mwFileMountTable::spTable->getMountPointFromPath(
@@ -145,7 +151,6 @@ int mwFileDirectoryMountPoint::convertToPlatformPath(
     return mount_point->convertToPlatformPath(buffer, path, size, required);
 }
 
-/* TODO: [near miss] 97.43%; same Allocator() default-argument temp staging as convertToPlatformPath. */
 int mwFileDirectoryMountPoint::startOpenFileCommand(
     mwFileCommand*& command, const char* path, unsigned long flags,
     mwFileCallback callback, void* callback_data)
@@ -153,7 +158,7 @@ int mwFileDirectoryMountPoint::startOpenFileCommand(
     std::basic_string<char, std::char_traits<char>, mwFileMemAllocator<char, 3> > full_path;
     full_path.reserve(directory.length() + strlen(path));
     full_path.assign(directory, 0, -1);
-    full_path.append(path, strlen(path));
+    append_mount_path(full_path, path);
 
     mwFileMountPoint* mount_point;
     int error = mwFileMountTable::spTable->getMountPointFromPath(
@@ -191,7 +196,8 @@ int mwFileDirectoryMountPoint::initialize(const char* path)
     return 0;
 }
 
-/* TODO: [breakthrough needed] 89.73%; ~mwFileMountPoint (T, defined later) is called, retail inlines it; level=1 base inlining unresolved. */
+/* TODO: [breakthrough needed] 89.72973%; base destructor call remains;
+ * its nested delete exhausts inline depth even with early visibility; recover original eligibility. */
 mwFileDirectoryMountPoint::~mwFileDirectoryMountPoint()
 {
     if (parent != 0) {
@@ -454,7 +460,8 @@ int mwFileMountTable::getMountPointFromName(
     return -15;
 }
 
-/* TODO: [near miss] 99.94%; pointer_less local and its by-value copy trade stack slots 0xc/0x10. */
+/* TODO: [near miss] 99.94%; comparator and its call copy retain reversed
+ * 0xc/0x10 slots; recover the original object boundary before more shaping. */
 int mwFileMountTable::removeMountPoint(mwFileMountPoint* mount_point)
 {
     pointer_less<mwFileMountPoint> compare;
@@ -471,7 +478,7 @@ int mwFileMountTable::removeMountPoint(mwFileMountPoint* mount_point)
     return 0;
 }
 
-/* TODO: [near miss] 99.94%; pointer_less local and its by-value copy trade stack slots 0xc/0x10. */
+/* TODO: [near miss] 99.93877%; comparator copy slots remain swapped at 0xc/0x10. */
 int mwFileMountTable::addMountPoint(mwFileMountPoint* mount_point)
 {
     pointer_less<mwFileMountPoint> compare;

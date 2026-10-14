@@ -1271,9 +1271,9 @@ static inline void blood_interpolate_direction(
     float current_weight, float next_weight, Vec* position) {
     Vec weighted_current;
 
-    weighted_current.x = (float)(current->x * current_weight);
-    weighted_current.y = (float)(current->y * current_weight);
-    weighted_current.z = (float)(current->z * current_weight);
+    weighted_current.x = current->x * current_weight;
+    weighted_current.y = current->y * current_weight;
+    weighted_current.z = current->z * current_weight;
     direction->x = next->x * next_weight;
     direction->y = next->y * next_weight;
     direction->z = next->z * next_weight;
@@ -1512,8 +1512,6 @@ static inline float blood_splat_distance(const struct BloodSplat* splat, const M
     return gxMathFastSqrt(x * x + y * y + z * z);
 }
 
-/* TODO: [near miss] 99.15%; splat-scan tick, list-base and counter homes differ;
- * structured reset/add regresses; nested-entry jump remains under review. */
 void spawn_bld_fall(
     const char* blood_type, MkBone* bone, Vec* position,
     Vec* velocity, FighterMirror* owner) {
@@ -1529,7 +1527,6 @@ void spawn_bld_fall(
     float nearby_radius;
     int index;
     struct BloodSplat* splat;
-    unsigned int tick;
 
     watcher = 0;
     object = 0;
@@ -1595,7 +1592,6 @@ void spawn_bld_fall(
                         splat_limit = 6;
                     }
 
-                    tick = exec_tick_ctr;
                     for (index = 0; index < BLOOD_SPLAT_COUNT; index++) {
                         splat = &ncs_blood_splat_list[index];
                         if (blood_splat_distance(
@@ -1604,14 +1600,14 @@ void spawn_bld_fall(
                             nearby_index = index;
                         }
                         if (splat->expiry_tick <
-                            tick) {
+                            (unsigned int)exec_tick_ctr) {
                             unsigned int age;
 
                             if (nearby_index == index) {
                                 nearby_index = -1;
                                 expired_nearby_count++;
                             }
-                            age = tick -
+                            age = (unsigned int)exec_tick_ctr -
                                 splat->expiry_tick;
                             if (oldest_age < age) {
                                 oldest_age = age;
@@ -1639,7 +1635,7 @@ void spawn_bld_fall(
                         if (splat->splat_count < splat_limit) {
                             goto add_splat;
                         }
-                        if (splat->expiry_tick < tick) {
+                        if (splat->expiry_tick < (unsigned int)exec_tick_ctr) {
                             splat->reuse_count++;
                             if (splat->reuse_count < 3) {
                                 goto reset_splat;
@@ -1901,6 +1897,15 @@ static float p_decal_emitter_watcher(void) {
     return 1.0f;
 }
 
+static inline void blood_reset_splats(void) {
+    int index;
+
+    memset(ncs_blood_splat_list, 0, sizeof(ncs_blood_splat_list));
+    for (index = 0; index < BLOOD_SPLAT_COUNT; index++) {
+        ncs_blood_splat_list[index].position.y = -10000.0f;
+    }
+}
+
 void reset_blood_decals(void) {
     int index;
 
@@ -1919,10 +1924,7 @@ void reset_blood_decals(void) {
         index++;
     }
 
-    memset(ncs_blood_splat_list, 0, sizeof(ncs_blood_splat_list));
-    for (index = 0; index < BLOOD_SPLAT_COUNT; index++) {
-        ncs_blood_splat_list[index].position.y = -10000.0f;
-    }
+    blood_reset_splats();
 }
 
 static inline MkProc* bleed_start_foot_prints(
@@ -1959,13 +1961,13 @@ static inline MkProc* bleed_start_foot_prints(
     return foot_proc;
 }
 
-/* TODO: [near miss] 99.13%; flag-value ABI recovered; footprint slots, splat-loop indexing and player-owner registers remain. */
+/* TODO: [breakthrough] 99.74486%; shared splat reset restores loop order;
+ * footprint outputs occupy 0x0C/0x08 rather than 0x1C/0x18; flag slots and SDA homes remain. */
 void bleed_restart(void) {
     MkProc* proc;
     MkProc* foot_proc;
     MkProcInitFlags bleed_flags;
     MkProcInitFlags pfx_flags;
-    int index;
 
     destroy_mkprocs_pid(0x5013);
     destroy_mkprocs_pid(0x5014);
@@ -1984,10 +1986,7 @@ void bleed_restart(void) {
     gusher_list = 0;
     bleed_startup__fire_off_splat_watcher_func = 1;
 
-    memset(ncs_blood_splat_list, 0, sizeof(ncs_blood_splat_list));
-    for (index = 0; index < BLOOD_SPLAT_COUNT; index++) {
-        ncs_blood_splat_list[index].position.y = -10000.0f;
-    }
+    blood_reset_splats();
 
     bleed_startup__fire_off_splat_watcher_func = 0;
 
@@ -2056,14 +2055,7 @@ void bleed_startup(void) {
     }
 }
 
-static inline void blood_reset_splats(void) {
-    int index;
 
-    memset(ncs_blood_splat_list, 0, sizeof(ncs_blood_splat_list));
-    for (index = 0; index < BLOOD_SPLAT_COUNT; index++) {
-        ncs_blood_splat_list[index].position.y = -10000.0f;
-    }
-}
 
 void bleed_init(void) {
     bleed_proc_item.proc = 0;
@@ -2403,154 +2395,148 @@ static float p_pfx_bleed(void) {
     return 1.0f;
 }
 
-static inline void blood_advance_bleed(MkHdr* hdr) {
-    struct BloodSpawnStep* step;
+static float p_bleed(void) {
+    BloodPath* target;
+    MkPtr** list;
+    int index;
     struct BleedPdata* pdata;
     MkObj* object;
-    BloodModelData* model;
-    BloodPath* target;
-    BloodSurfaceRecord* records;
-    const int* record_indices;
-    int point_count;
-    int candidate;
-    int index;
-
-    pdata = (struct BleedPdata*)hdr;
-    if (pdata == 0) {
-        return;
-    }
-    if (--pdata->timer > 0) {
-        return;
-    }
-    object = MK_HDR_LIVE(pdata->object, pdata->object_instance);
-    if (object != 0 && !object->hide_flag_bits.hidden) {
-        step = pdata->step;
-        model = pdata->spawn_state;
-        target = &model->paths[step->target_index];
-        if (target != 0) {
-            records = model->surface.records;
-            record_indices = target->record_indices;
-            point_count = target->point_count;
-            for (index = 0; index < point_count; index++) {
-                candidate = records[record_indices[index]].bone;
-                if (candidate != (unsigned int)pdata->bone) {
-                    switch ((unsigned int)pdata->bone) {
-                    case 16:
-                        switch (candidate) {
-                        case 9:
-                        case 13:
-                            break;
-                        default:
-                            continue;
-                        }
-                        break;
-                    case 6:
-                    case 9:
-                    case 13:
-                        switch (candidate) {
-                        case 3:
-                        case 6:
-                        case 12:
-                        case 14:
-                        case 15:
-                        case 17:
-                        case 18:
-                        case 19:
-                            break;
-                        default:
-                            continue;
-                        }
-                        break;
-                    case 0:
-                    case 3:
-                        if (candidate >= 3 || candidate < 0) {
-                            continue;
-                        }
-                        break;
-                    case 17:
-                    case 19:
-                        switch (candidate) {
-                        case 19:
-                        case 21:
-                            break;
-                        default:
-                            continue;
-                        }
-                        break;
-                    case 21:
-                    case 23:
-                    case 25:
-                        switch (candidate) {
-                        case 23:
-                        case 25:
-                            break;
-                        default:
-                            continue;
-                        }
-                        break;
-                    case 15:
-                    case 18:
-                        switch (candidate) {
-                        case 18:
-                        case 20:
-                            break;
-                        default:
-                            continue;
-                        }
-                        break;
-                    case 20:
-                    case 22:
-                    case 24:
-                        switch (candidate) {
-                        case 22:
-                        case 24:
-                            break;
-                        default:
-                            continue;
-                        }
-                        break;
-                    default:
-                        continue;
-                    }
-                }
-                goto spawn;
-            }
-            goto cleanup;
-spawn:
-            obj_spawn_bld(object, 0, step->blood_type, step, target,
-                index, 0, pdata->art_id, pdata->owner);
-            if (step->delay < 0) {
-                goto cleanup;
-            }
-            pdata->timer = step->delay;
-            pdata->step++;
-            return;
-        }
-    }
-cleanup:
-    if (pdata->hdr.instance != 0) {
-        pdata->hdr.typed_vtbl->destroy(&pdata->hdr);
-    }
-}
-
-/* TODO: [near miss] 85.05%; reachable search/cleanup agree; dead null-dispatch island and coloring remain. */
-static float p_bleed(void) {
-    MkPtr** list;
+    struct BloodSpawnStep* step;
     MkPtr* item;
-    MkPtr* next;
     MkHdr* hdr;
+    BloodSurfaceRecord* records;
+    BloodModelData* model;
+    const int* record_indices;
+    MkPtr* next;
+    int candidate;
 
     list = &aproc->pdata_list;
     if (list != 0) {
         item = *list;
         while (item != 0) {
             hdr = item->hdr;
-            if (hdr->instance != item->instance) {
+            if (item->instance != hdr->instance) {
                 next = item->next;
                 discard_stale_mkptr(item);
                 item = next;
             } else {
-                blood_advance_bleed(hdr);
+                pdata = (struct BleedPdata*)hdr;
+                if (pdata == 0) {
+                    if (hdr->instance != 0) {
+                        hdr->typed_vtbl->destroy(hdr);
+                    }
+                } else if (--pdata->timer <= 0) {
+                    object = MK_HDR_LIVE(pdata->object, pdata->object_instance);
+                    if (object != 0 && !object->hide_flag_bits.hidden) {
+                        step = pdata->step;
+                        model = pdata->spawn_state;
+                        target = &model->paths[step->target_index];
+                        if (target != 0) {
+                            records = model->surface.records;
+                            record_indices = target->record_indices;
+                            for (index = 0; index < target->point_count; index++) {
+                                candidate = records[record_indices[index]].bone;
+                                if (candidate != (unsigned int)pdata->bone) {
+                                    switch ((unsigned int)pdata->bone) {
+                                    case 16:
+                                        switch (candidate) {
+                                        case 9:
+                                        case 13:
+                                            break;
+                                        default:
+                                            continue;
+                                        }
+                                        break;
+                                    case 6:
+                                    case 9:
+                                    case 13:
+                                        switch (candidate) {
+                                        case 3:
+                                        case 6:
+                                        case 12:
+                                        case 14:
+                                        case 15:
+                                        case 17:
+                                        case 18:
+                                        case 19:
+                                            break;
+                                        default:
+                                            continue;
+                                        }
+                                        break;
+                                    case 0:
+                                    case 3:
+                                        if (candidate >= 3 || candidate < 0) {
+                                            continue;
+                                        }
+                                        break;
+                                    case 17:
+                                    case 19:
+                                        switch (candidate) {
+                                        case 19:
+                                        case 21:
+                                            break;
+                                        default:
+                                            continue;
+                                        }
+                                        break;
+                                    case 21:
+                                    case 23:
+                                    case 25:
+                                        switch (candidate) {
+                                        case 23:
+                                        case 25:
+                                            break;
+                                        default:
+                                            continue;
+                                        }
+                                        break;
+                                    case 15:
+                                    case 18:
+                                        switch (candidate) {
+                                        case 18:
+                                        case 20:
+                                            break;
+                                        default:
+                                            continue;
+                                        }
+                                        break;
+                                    case 20:
+                                    case 22:
+                                    case 24:
+                                        switch (candidate) {
+                                        case 22:
+                                        case 24:
+                                            break;
+                                        default:
+                                            continue;
+                                        }
+                                        break;
+                                    default:
+                                        continue;
+                                    }
+                                }
+                                goto spawn;
+                            }
+                        }
+                    }
+                    goto cleanup;
+spawn:
+                    obj_spawn_bld(object, 0, step->blood_type, step, target,
+                        index, 0, pdata->art_id, pdata->owner);
+                    if (step->delay >= 0) {
+                        goto advance;
+                    }
+cleanup:
+                    if (pdata->hdr.instance != 0) {
+                        pdata->hdr.typed_vtbl->destroy(&pdata->hdr);
+                    }
+                    goto next_item;
+advance:
+                    pdata->timer = step->delay;
+                    pdata->step++;
+                }
+next_item:
                 item = item->next;
             }
         }
@@ -2558,8 +2544,8 @@ static float p_bleed(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough needed] 99.36730%; next-record base absent in initial pcode;
- * recover its real address producer; bone/matrix homes also differ. */
+/* TODO: [breakthrough needed] 99.63981%; bone lookup CSE restores matrix homes;
+ * next-record address folds into indexed load; recover genuine address producer. */
 static void do_pfx_bleed(MkHdr* hdr) {
     PfxVm* vm;
 
@@ -2615,12 +2601,10 @@ static void do_pfx_bleed(MkHdr* hdr) {
                     BloodSurface* surface;
                     const int* record_indices;
                     BloodSurfaceRecord* record;
-                    BloodSurfaceRecord* next_record;
                     struct BloodSurfaceEdge* edge;
                     PlyrPdata* owner;
                     MkProc* foot_proc;
                     MkBone* old_bone;
-                    MkBone* new_bone;
                     RwMatrix* old_matrix;
                     RwMatrix* new_matrix;
                     MKMATRIX inverse;
@@ -2680,16 +2664,13 @@ ground_fall:
 
                             goto remove_particle;
                         } else {
-                            next_record =
-                                &surface->records[record_indices[point_index]];
                             record =
                                 &surface->records[record_indices[point_index - 1]];
-                            new_bone_id = next_record->bone;
+                            new_bone_id = surface->records[record_indices[point_index]].bone;
                             old_bone_id = record->bone;
                             if (old_bone_id != new_bone_id) {
                                 if (state->path_point == 0) {
-                                    new_bone = apfx_render_obj->bones[new_bone_id];
-                                    new_matrix = new_bone->parent_matrix;
+                                    new_matrix = apfx_render_obj->bones[new_bone_id]->parent_matrix;
                                     if (new_matrix == 0) {
                                         goto ground_fall;
                                     }
@@ -2716,7 +2697,7 @@ ground_fall:
                                         destination->position.y * old_matrix->up.z +
                                         destination->position.z * old_matrix->at.z +
                                         old_matrix->pos.z;
-                                    if (new_bone != 0 && new_matrix != 0) {
+                                    if (apfx_render_obj->bones[new_bone_id] != 0 && new_matrix != 0) {
                                         coordinate.x -= new_matrix->pos.x;
                                         coordinate.y -= new_matrix->pos.y;
                                         coordinate.z -= new_matrix->pos.z;
@@ -2864,7 +2845,8 @@ static inline MkPfx* blood_find_bound_pfx(MkBone* bone, unsigned int art_id) {
     return 0;
 }
 
-/* TODO: [near miss] 99.31%; algorithm/CFG/widths agree; saved bone-index/pfx-pointer homes (r14/r20/r21) and arg-copy order remain. */
+/* TODO: [near miss] 99.42928%; normalization now agrees; bone-index/pfx homes
+ * and entry copies remain; nested bone selection loses retained offset. */
 int obj_spawn_bld(
     MkObj* object, struct BloodVelocityState* previous, int batch_count,
     struct BloodSpawnStep* step, BloodPath* path, int point_index,
@@ -2959,7 +2941,8 @@ int obj_spawn_bld(
                         weights.x = state->weight_0 + path->interpolation_bias;
                         weights.y = state->weight_1 + path->interpolation_bias;
                         weights.z = state->weight_step + path->interpolation_bias;
-                        inverse_weight = 1.0f / (weights.x + weights.y + weights.z);
+                        inverse_weight = weights.x + weights.y + weights.z;
+                        inverse_weight = 1.0f / inverse_weight;
                         weights.x *= inverse_weight;
                         weights.y *= inverse_weight;
                         weights.z *= inverse_weight;
@@ -3114,8 +3097,9 @@ static int obj_set_bld_vel(
 
 static inline int blood_surface_find_neighbor(
     const BloodSurface* surface, int triangle_index, int corner) {
+    const int* candidate;
     const int (*triangles)[3] = surface->triangles;
-    const int* triangle = triangles[triangle_index];
+    const int* triangle;
     int next_corner = corner + 1;
     int candidate_triangle;
     int candidate_corner;
@@ -3126,13 +3110,12 @@ static inline int blood_surface_find_neighbor(
     if (next_corner == 3) {
         next_corner = 0;
     }
+    triangle = triangles[triangle_index];
     vertex = triangle[corner];
     next_vertex = triangle[next_corner];
     for (candidate_triangle = 0;
          candidate_triangle < surface->record_count;
          candidate_triangle++) {
-        const int* candidate;
-
         if (candidate_triangle == triangle_index) {
             continue;
         }
@@ -3152,10 +3135,10 @@ static inline int blood_surface_find_neighbor(
     return -1;
 }
 
-/* TODO: [near miss] 97.14%; triangle pointer/corner counter registers and neighbor-helper triangle address operand order remain. */
+/* TODO: [near miss] 99.95%; initial pcode keeps triangle base before offset;
+ * one ADD remains; inspect frontend pointer-add canonicalization. */
 static void obj_bld_surface_build_polys(
     MkObj* object, BloodSurface* output, const BloodSurface* source) {
-    const int* triangle;
     int selected_bone;
     int corner;
     int triangle_index;
@@ -3177,15 +3160,14 @@ static void obj_bld_surface_build_polys(
     triangles = output->triangles;
     for (triangle_index = 0;
          triangle_index < output->record_count;
-         triangle_index++, record++) {
-        triangle = triangles[triangle_index];
+         record++, triangle_index++) {
         triangle_bones[0] = obj_get_bid_for_tid(
-            object, vertices[triangle[0]].tag);
+            object, vertices[triangles[triangle_index][0]].tag);
         triangle_bones[1] = obj_get_bid_for_tid(
-            object, vertices[triangle[1]].tag);
+            object, vertices[triangles[triangle_index][1]].tag);
         if (triangle_bones[0] != triangle_bones[1]) {
             triangle_bones[2] = obj_get_bid_for_tid(
-                object, vertices[triangle[2]].tag);
+                object, vertices[triangles[triangle_index][2]].tag);
             if (triangle_bones[0] != triangle_bones[2]) {
                 if (triangle_bones[1] == triangle_bones[2]) {
                     triangle_bones[0] = triangle_bones[1];
@@ -3210,10 +3192,10 @@ static void obj_bld_surface_build_polys(
         object->bones[selected_bone]->flags_54_bits.calculation_locked = 1;
         object->bones[selected_bone]->flags_54_bits.field_bit3 = 1;
         for (corner = 0; corner < 3; corner++) {
-            record->vertex_indices[corner] = triangle[corner];
+            record->vertex_indices[corner] = triangles[triangle_index][corner];
             v3_sub_v3(
                 &record->points[corner],
-                &vertices[triangle[corner]].position,
+                &vertices[triangles[triangle_index][corner]].position,
                 &object->bones[selected_bone]->bind_offset);
         }
 

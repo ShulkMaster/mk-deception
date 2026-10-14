@@ -3558,7 +3558,8 @@ static inline void quat_to_normalized_matrix(RwMatrix* matrix, Quat* rotation) {
     matrix->up.x = cross.z - weighted.z;
 }
 
-/* TODO: [breakthrough] 94.74%; parent/head snapshots recovered; unlink guard and quaternion schedule remain. */
+/* TODO: [breakthrough needed] 94.74214%; unlink CFG and quaternion lowering remain;
+ * noauto controls recursion but does not recover the current helper boundary. */
 static void _bone_make_parents_my_children(MkBone* bone) {
     Vec displacement;
     Quat inverse_rotation __attribute__((aligned(16)));

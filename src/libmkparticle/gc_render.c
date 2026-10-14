@@ -1,6 +1,7 @@
 /* BUILD: Retail calls helper boundaries and separates multiply/add operations. */
 
 #include "dolphin/gx.h"
+#include "dolphin/gx_vert.h"
 #include "dolphin/mtx.h"
 #include "dolphin/types.h"
 #include "libmkparticle/gc_state.h"
@@ -73,19 +74,13 @@ static void gc_set_render_state(BOOL use_alpha_map)
 
 /* These are actual GX FIFO writes, not match-forcing volatile accesses. */
 #define WRITE_VERTEX(p, color, u, v) do { \
-    *(volatile float*)GXFIFO_ADDR = (p).x; \
-    *(volatile float*)GXFIFO_ADDR = (p).y; \
-    *(volatile float*)GXFIFO_ADDR = (p).z; \
-    *(volatile unsigned char*)GXFIFO_ADDR = (color)->r; \
-    *(volatile unsigned char*)GXFIFO_ADDR = (color)->g; \
-    *(volatile unsigned char*)GXFIFO_ADDR = (color)->b; \
-    *(volatile unsigned char*)GXFIFO_ADDR = (color)->a; \
-    *(volatile float*)GXFIFO_ADDR = (u); \
-    *(volatile float*)GXFIFO_ADDR = (v); \
+    GXPosition3f32((p).x, (p).y, (p).z); \
+    GXColor4u8((color)->r, (color)->g, (color)->b, (color)->a); \
+    GXTexCoord2f32((u), (v)); \
 } while (0)
 
-/* TODO: [blocked] 91.40%; flag151 bit 0x02 recovered; retail GXColor4u8
- * inline boundary remains unresolved under this object's inline-off mode. */
+/* TODO: [breakthrough] 95.77995%; canonical vertex FIFO calls recover retained axis X;
+ * twelve color masks still fold in backend constant propagation; owner boundary remains. */
 static void gc_generic_render(PfxVm* vm) {
     PfxVec3 axis0, axis1;
     PfxVec3 base1, base0, base_corner;
@@ -205,8 +200,9 @@ static void gc_generic_render(PfxVm* vm) {
         point.y = positions->y - corner.y;
         point.z = positions->z - corner.z;
         if (vm->flag150_02) {
+            point.y = 480.0f - point.y;
             point.x += axis1.x;
-            point.y = (480.0f - point.y) + 2.0f * axis0.y;
+            point.y += 2.0f * axis0.y;
             point.z = 0.0f;
         }
         WRITE_VERTEX(point, colors, u, v);

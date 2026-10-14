@@ -471,7 +471,6 @@ void pfx_parametric_spawn(PfxVm* pfx, float frame_time) {
     pfxmetrics_event(pfx->metrics, 0x2001);
 }
 
-/* TODO: [near miss] 99.24%; color and output-field lifetimes recovered; state, flags, and loop GPR coloring remains. */
 void pfx_parametric_update(PfxVm* pfx, float frame_time) {
     PfxParametricState* state;
     float damping;
@@ -486,14 +485,14 @@ void pfx_parametric_update(PfxVm* pfx, float frame_time) {
     float blue[2];
     float alpha[2];
     PfxColor blended_color;
+    int index;
     int texture_curve;
+    int valid_count;
     int size_curve;
     int color_curve;
-    int age_scaled_size;
-    int has_damping;
     int texture_frames;
-    int valid_count;
-    int index;
+    int has_damping;
+    int age_scaled_size;
     int curve_index;
     int stride;
     PfxVec3* position;
@@ -503,8 +502,8 @@ void pfx_parametric_update(PfxVm* pfx, float frame_time) {
     PfxTextureFrame* uv;
 
     damping = 1.0f;
+    inverse_lifetime = 1.0f / pfx->parametric->lifetime;
     state = pfx->parametric;
-    inverse_lifetime = 1.0f / state->lifetime;
     position = pfx_get_field(pfx, -2, 0x100);
     texture = pfx_get_field(pfx, -2, 0x102);
     size = pfx_get_field(pfx, -2, 0x103);

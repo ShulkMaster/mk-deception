@@ -695,7 +695,7 @@ void end_save_message(int mode, int result, int device, int flag) {
 }
 
 int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, const char* title,
-                                           unsigned int region, void* regionBuf, int flag,
+                                           unsigned char region, void* regionBuf, int flag,
                                            unsigned int* freeBlocks, int* freeBytes) {
     int result = 4;
     unsigned char region_index = region - 1;
@@ -829,7 +829,8 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
 }
 
 #pragma dont_inline on
-/* TODO: [near miss] 99.63%; progress-add order aligns; region-save and mode-check register allocation remains. */
+/* TODO: [near miss] 99.88130%; six mode-range/profile/file-offset register rows remain;
+ * correct retail sleep constants; verify data-value relocations. */
 int save_to_memcard_w_error(int device, int mode, const char* title, void* settings, int flag,
                             unsigned int* freeBlocks, int* freeBytes) {
     StorageDevice* dev;
@@ -856,7 +857,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
         if (mode == 3) {
             mu_access_progress = 0;
             fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
-            _mkproc_sleep_ticks = kThree;
+            _mkproc_sleep_ticks = kOne;
             vtbl = aproc->vtbl;
             vtbl->sleep();
         }
@@ -883,14 +884,14 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                 mcard_msg_deleting_data(device);
                 break;
             }
-            _mkproc_sleep_ticks = kOne;
+            _mkproc_sleep_ticks = kThree;
             vtbl = aproc->vtbl;
             vtbl->sleep();
 
             if (mode == 3) {
                 mu_access_progress = 9;
                 fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
-                _mkproc_sleep_ticks = kThree;
+                _mkproc_sleep_ticks = kOne;
                 vtbl = aproc->vtbl;
                 vtbl->sleep();
                 tries = 2;
@@ -902,41 +903,37 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                 }
                 mu_access_progress = 0x12;
                 fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
-                _mkproc_sleep_ticks = kThree;
+                _mkproc_sleep_ticks = kOne;
                 vtbl = aproc->vtbl;
                 vtbl->sleep();
                 if (result == 0) {
-                    int chunkOff;
                     int profile;
                     char* regionBuffer = konq_region_data_buffer;
                     int chunk;
-                    int progressBase;
+                    int regionTries;
                     memset(regionBuffer, 0, SAVE_CHUNK_SIZE);
                     profile = 0;
-                    progressBase = 0;
                     while (profile < 7 && result == 0) {
                         chunk = 0;
-                        chunkOff = 0;
                         while (chunk < 8 && result == 0) {
-                            tries = 2;
+                            regionTries = 2;
                             result = 4;
-                            while (tries-- != 0 && result != 0) {
+                            while (regionTries-- != 0 && result != 0) {
                                 result = save_to_memcard2(
                                     device, 0,
-                                    profile * SAVE_PROFILE_STRIDE + chunkOff + STORAGE_LOAD_SIZE, 0,
+                                    profile * SAVE_PROFILE_STRIDE + chunk * SAVE_CHUNK_SIZE +
+                                        STORAGE_LOAD_SIZE, 0,
                                     "", "MKD", regionBuffer, SAVE_CHUNK_SIZE,
                                     deviceFreeBlocks, deviceFreeBytes, 0, 0, mode, 0);
                             }
                             chunk += 1;
-                            chunkOff += SAVE_CHUNK_SIZE;
                         }
-                        mu_access_progress = chunk + (progressBase + 0x13);
+                        mu_access_progress = profile * 7 + (chunk + 0x13);
                         fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
-                        _mkproc_sleep_ticks = kThree;
+                        _mkproc_sleep_ticks = kOne;
                         vtbl = aproc->vtbl;
                         vtbl->sleep();
                         profile += 1;
-                        progressBase += 7;
                     }
                 }
             }
@@ -954,7 +951,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
             if (mode == 3) {
                 mu_access_progress = 100;
                 fire_screen_studio_event(SAVE_EVENT_PROGRESS, 0);
-                _mkproc_sleep_ticks = kThree;
+                _mkproc_sleep_ticks = kOne;
                 vtbl = aproc->vtbl;
                 vtbl->sleep();
             }

@@ -2459,13 +2459,12 @@ static void pzpfx_copy_puzzleblocks(struct PuzzlePlayerState* player) {
     }
 }
 
-/* TODO: [near miss] 99.97015%; board placement index uses r3 instead of r6;
- * inspect index lifetime at the placement lookup. */
 static void pzpfx_copy_playpieces(struct PuzzlePlayerState* player) {
     int preview_index;
-    int board_index;
+    int event_player;
     const struct PuzzleArtPlacement* preview_placement;
     const struct PuzzleArtPlacement* board_placement;
+    int board_index;
     const int* preview_x;
     const int* preview_y;
     const int* board_x;
@@ -2478,7 +2477,6 @@ static void pzpfx_copy_playpieces(struct PuzzlePlayerState* player) {
     struct PuzzleBoardCell* next_piece;
     struct PuzzleBoardCell* current_piece;
     int piece;
-    int event_player;
 
     if (shake_enabled != 0 && movement_active != 0) {
         signrand(3);
@@ -2486,12 +2484,12 @@ static void pzpfx_copy_playpieces(struct PuzzlePlayerState* player) {
     }
 
     event_player = player->event_player;
+    board_index = 1;
+    board_index += event_player;
     preview_index = 3;
     preview_index += event_player;
     preview_placement =
         &art_puzzle_fighter_static_tbl.placements[preview_index];
-    board_index = 1;
-    board_index += event_player;
     board_placement =
         &art_puzzle_fighter_static_tbl.placements[board_index];
     preview_x = &preview_placement->x;
@@ -5581,8 +5579,8 @@ found:
 
 static inline unsigned int puzzle_piece_color(unsigned int type);
 
-/* TODO: [breakthrough needed] 98.00%; duplicated rotation tail and scan GPR homes;
- * recover shared left/right exits and below-cell scan ownership. */
+/* TODO: [breakthrough] 98.01111%; differing-breaker exit fixed; structured
+ * rotation tails duplicate retail joins and below-scan GPR homes differ. */
 static void pz_ai_decide_quick_drop_tower(struct PuzzlePlayerState* player) {
     struct PuzzleBoardCell* left_cell = 0;
     struct PuzzleBoardCell* right_cell = 0;
@@ -5782,7 +5780,7 @@ static void pz_ai_decide_quick_drop_tower(struct PuzzlePlayerState* player) {
                             }
                         }
                         if (below_type != type) {
-                            continue;
+                            return;
                         }
                         player->ai_target_rotation = 2;
                         return;

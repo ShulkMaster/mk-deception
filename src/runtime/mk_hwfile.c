@@ -244,13 +244,13 @@ int mk_hwfile_tell(MkHwFileRequest* request) {
     return offset;
 }
 
-/* TODO: [near miss] 98.79%; safe-free guard recovered; pool owner and index still use swapped GPRs (r4/r5). */
 static inline void mk_hwfile_free_command_safe(void* command) {
     if (command != 0) {
         mwFileFreeCommand(command);
     }
 }
 
+/* TODO: [near miss] 98.79%; safe-free guard recovered; pool owner and index still use swapped GPRs (r4/r5). */
 void mk_hwfile_close(MkHwFileRequest* request) {
     void* command;
     int byte_offset;

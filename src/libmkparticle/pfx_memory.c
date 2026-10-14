@@ -10,28 +10,23 @@
 #include "runtime/mk_mem.h"
 #include "runtime/cstring.h"
 
-/* TODO: [breakthrough needed] 93.26%; field-loop lowering and size accumulation differ;
- * recover table/index ownership under the shared TU compiler mode. */
 int pfx_estimate_render_size(PfxVm* vm)
 {
     int size;
     int index;
-    int field_offset;
-    int render_field_count;
     PfxConfig* config;
     PfxFieldDefinition* field_table;
     PfxFieldDefinition* field;
 
     size = 0;
     index = 0;
-    field_offset = 0;
     config = &_pfx_config;
     field_table = render_fields;
-    render_field_count = _num_render_fields;
-    while (index < render_field_count) {
-        field = (PfxFieldDefinition*)((unsigned char*)field_table +
-                                      field_offset);
-        if ((vm->flags_0x1D4 & field->flag) != 0) {
+    while (index < _num_render_fields) {
+        int flags = vm->flags_0x1D4;
+
+        field = &field_table[index];
+        if ((flags & field->flag) != 0) {
             if (field->flag == 0x100) {
                 size += 0x10;
             } else {
@@ -40,23 +35,21 @@ int pfx_estimate_render_size(PfxVm* vm)
             size = (size + config->align_add) & ~config->align_mask;
         }
         index++;
-        field_offset += sizeof(PfxFieldDefinition);
     }
     return size;
 }
 
-/* TODO: [breakthrough needed] 86.88%; aligned stride retained; indexed property lowering regresses inline caller. */
-int pfx_particle_estimate_size(unsigned int flags, PfxEstimate* estimate)
+int pfx_particle_estimate_size(int flags, PfxEstimate* estimate)
 {
     int count;
     int size;
-    PfxFieldDefinition* field;
+    int index;
 
     count = 0;
     size = 0;
-    for (field = properties; field->flag != 0; field++) {
-        if ((flags & field->flag) != 0) {
-            size += get_size(field->type);
+    for (index = 0; properties[index].flag != 0; index++) {
+        if ((flags & properties[index].flag) != 0) {
+            size += get_size(properties[index].type);
             count++;
         }
     }
@@ -161,17 +154,10 @@ void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
                      estimate->runtime_buffers_size + 0x10;
 }
 
-static inline PfxFieldSet pfx_memory_field_set(PfxVm* pfx) {
-    PfxFieldSet fields;
-    fields.render_flags = pfx->flags_0x1D4;
-    fields.particle_flags = pfx->flags_0x60;
-    return fields;
-}
-
 #pragma push
 #pragma optimize_for_size on
-/* TODO: [breakthrough needed] 97.40%; initial pcode retains four field-set
- * records under propagation-off; recover the two retail aggregate instances. */
+/* TODO: [near miss] 98.73%; by-value field-set records and frame agree;
+ * address/descriptor setup order remains; exhaustive call staging is neutral. */
 void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
 {
     unsigned char* cursor;
@@ -243,8 +229,9 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
         pfx->field_count = estimate->field_count;
         pfx->field_descriptions = cursor;
         cursor += (estimate->field_count + 1) * sizeof(PfxFieldDescription);
-        fields = pfx_memory_field_set(pfx);
-        fill_field_description(pfx->field_descriptions, &fields,
+        fields.render_flags = pfx->flags_0x1D4;
+        fields.particle_flags = pfx->flags_0x60;
+        fill_field_description(pfx->typed_field_descriptions, fields,
                                pfx->field_0x22C);
     }
 
@@ -268,25 +255,22 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
     }
 }
 
-/* TODO: [near miss] 95.00%; pointer induction versus byte offset and saved-register homes remain. */
 #pragma pop
-/* TODO: [near miss] 95.00%; behavior-copy order agrees; source induction and saved homes remain. */
 void pfx_copy_behavior_list(PfxVm* pfx, int count, const PfxBehavior* source)
 {
     int index;
-    const PfxBehavior* behavior;
 
     if (count == pfx->behavior_count) {
-        for (index = 0, behavior = source; index < count; index++, behavior++) {
+        for (index = 0; index < count; index++) {
             unsigned char* destination = pfx_behavior(pfx, index)->segment_0xDC;
             memcpy(destination,
-                   behavior->segment_0xDC, sizeof(behavior->segment_0xDC));
+                   source[index].segment_0xDC, sizeof(source[index].segment_0xDC));
             destination = pfx_behavior(pfx, index)->segment_0x58;
             memcpy(destination,
-                   behavior->segment_0x58, sizeof(behavior->segment_0x58));
+                   source[index].segment_0x58, sizeof(source[index].segment_0x58));
             destination = pfx_behavior(pfx, index)->segment_0x320;
             memcpy(destination,
-                   behavior->segment_0x320, sizeof(behavior->segment_0x320));
+                   source[index].segment_0x320, sizeof(source[index].segment_0x320));
         }
         if (count != 0) {
             pfx_behavior(pfx, 0)->link_0x384 = source[0].link_0x384;

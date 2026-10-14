@@ -617,8 +617,8 @@ static inline int sfadxt_SearchFrmTop(SfdHandle* handle,
     return offset - data;
 }
 
-/* TODO: [near miss] 97.52688%; caller/scan GPR homes remain;
- * canonical scan rank is neutral; donor register pin is forbidden. */
+/* TODO: [near miss] 97.52688%; caller/scan GPR coloring remains;
+ * stop pending new owner or ABI evidence. */
 static void sfadxt_ExcludeHdr(SfdHandle* handle, const unsigned char* data,
                               int size, int* consumed)
 {

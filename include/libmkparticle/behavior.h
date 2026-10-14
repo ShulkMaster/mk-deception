@@ -7,7 +7,7 @@
 typedef struct PfxVm PfxVm;
 
 typedef struct PfxVmField {
-    unsigned int description;
+    int description;
     int stream;
     int offset;
 } PfxVmField;

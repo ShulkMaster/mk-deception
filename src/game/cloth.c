@@ -129,14 +129,7 @@ static inline ClothBone* find_cloth_bone_by_tag(MkObj* obj, int bone_id) {
     }
     return NULL;
 }
-void mks_debug_display_cloth_ontop(int enabled);
-void mks_debug_display_cloth_coll_plane(void);
-void mks_debug_display_cloth_coll_cyl(void);
 void mks_obj_enable_update_cloth(MkObj* obj, int enabled);
-void mks_bgnd_obj_enable_cloth_update(int model_index, int enabled);
-void mks_npc_disable_ground_y_all_cloth_bones(int model_index);
-void mks_npc_set_ground_y_all_cloth_bones( int model_index, float ground_y);
-void mks_npc_cb1_eq_cloth_bone(int model_index, int bone_id);
 void mks_npc_cc1_eq_insert_cloth_coll( int model_index, int bone_index, float radius);
 
 static inline void cloth_bone_set_target(ClothBone* bone, ClothBone* target) {
@@ -149,8 +142,6 @@ static inline void cloth_bone_set_target(ClothBone* bone, ClothBone* target) {
     }
 }
 void mks_npc_set_target( int model_index, int source_bone_id, int target_bone_id);
-void mks_npc_cloth_bones_init_by_tbl( int model_index, int table_id, int flags);
-void mks_npc_start_cloth_bones(int model_index);
 
 static inline MkObj* start_axis_indicator(
     MkObj* target, int bone_index, float scale, MkProcEntryFn track) {
@@ -219,7 +210,6 @@ static inline void cloth_plane_add_bone(ClothCollisionPlane* plane, ClothBone* b
         plane->bones[index] = bone;
     }
 }
-void mks_ccp1_insert_cb1(void);
 void mks_cc1_expand_cyl(float top, float bottom);
 
 static inline void cloth_volume_add_bone(ClothCollisionVolume* volume, ClothBone* bone) {
@@ -238,7 +228,6 @@ static inline void cloth_volume_add_bone(ClothCollisionVolume* volume, ClothBone
         volume->bone_settings[volume->bone_count] = 0;
     }
 }
-void mks_cc1_insert_cb1(void);
 void mks_ccp1_eq_insert_cloth_coll_plane( int bone_index, float distance, float normal_x, float normal_y, float normal_z);
 
 static inline ClothCollisionVolume* create_cloth_coll_on_obj(
@@ -268,13 +257,6 @@ static inline ClothCollisionVolume* create_cloth_coll_on_obj(
 }
 void mks_cc1_eq_insert_cloth_coll(int bone_index, float radius);
 void mks_cb1_set_scale( int include_children, float scale_x, float scale_y, float scale_z);
-void mks_set_cb1_target_bone_cb2(void);
-void mks_cb1_set_coll_offset(float x, float y, float z);
-void mks_cb1_set_coll_offset_xz(float x, float z);
-void mks_cb1_add_coll_pt(float x, float y, float z);
-void mks_cb1_set_ground_y(float ground_y);
-void mks_set_cb1_wind_normal(float x, float y, float z);
-void mks_set_ground_y_all_cloth_bones(float ground_y);
 
 static inline void insert_cloth_force(
     MkObj* obj, ClothBone* first, ClothBone* second,
@@ -299,22 +281,12 @@ static inline void insert_cloth_force(
     }
 }
 void mks_insert_cloth_force_bones(float rest_length, float stiffness);
-void mks_cb2_eq_cloth_bone(int bone_id);
-void mks_cb1_eq_cloth_bone(int bone_id);
-void mks_mat_id_set_zbias(int material_id, float zbias);
-void mks_cloth_bones_init_by_tbl(ClothInitEntry* table, int flags);
 
 static inline void publish_current_wind(double x, double y, double z) {
     wind_v3.x = x;
     wind_v3.y = y;
     wind_v3.z = z;
 }
-void mks_bgnd_start_wind(float x, float y, float z);
-void cloth_change_ground_plane_for(float ground_plane);
-void vdestroy_cloth_coll_volume(MkHdr* hdr);
-void vdestroy_cloth_coll_plane(MkHdr* hdr);
-void vdestroy_cloth_coll(MkHdr* hdr);
-void start_cloth_proc(void);
 
 static inline int cloth_vector_cylinder_displacement(const Vec* point) {
     RwMatrixPosition world_position;
@@ -361,10 +333,6 @@ static inline int cloth_vector_cylinder_displacement(const Vec* point) {
     }
     return 0;
 }
-void start_cloth_bones(MkObj* obj);
-void cloth_bones_init_by_tbl( MkObj* object, ClothInitEntry* table, int count);
-int find_cloth_bone_id_from_tag(MkObj* obj, int tag);
-void obj_translate_cloth(MkObj* object, const Vec* translation);
 
 
 
@@ -1176,7 +1144,8 @@ static void cloth_coll_vector_cyl(void) {
     }
 }
 
-/* TODO: [near miss] 99.59%; BSS order restored; localized saved-register homes remain. */
+/* TODO: [near miss] 99.58791%; response/index/stride homes remain;
+ * recover canonical point-helper frame/argument ownership. */
 static void cloth_coll_point_cyl_inside(void) {
     Vec* force_position;
     MKVECTOR world_point;
@@ -1269,9 +1238,8 @@ static void cloth_coll_point_cyl_inside(void) {
         }
         if (collided) {
             position_weight = 1.0f - cloth_bone->table_scale;
-            pt_displacement_v.xyz.x *= position_weight;
-            pt_displacement_v.xyz.y *= position_weight;
-            pt_displacement_v.xyz.z *= position_weight;
+            gxVectScale(&pt_displacement_v.xyz, &pt_displacement_v.xyz,
+                        position_weight);
             cloth_bone->force_position.x += pt_displacement_v.xyz.x;
             cloth_bone->force_position.y += pt_displacement_v.xyz.y;
             cloth_bone->force_position.z += pt_displacement_v.xyz.z;
@@ -1280,11 +1248,13 @@ static void cloth_coll_point_cyl_inside(void) {
     }
 }
 
-/* TODO: [near miss] 99.55%; dispatch and eligibility CFG agree; owner and plane-loop coloring remain. */
 static void do_cloth_colls(MkHdr* collision) {
     ClothCollisionVolume* volume;
     ClothCollisionPlane* plane;
-    MkBone* reference;
+    Vec* position;
+    unsigned int plane_index;
+    unsigned int deformed_index;
+    unsigned int index;
     MKVECTOR plane_offset;
     MKVECTOR plane_point;
     MKVECTOR world_normal;
@@ -1297,8 +1267,6 @@ static void do_cloth_colls(MkHdr* collision) {
     MKVECTOR offset;
     float plane_distance;
     float point_distance;
-    unsigned int index;
-    Vec* position;
 
     if (collision->vtbl == MK_VTABLE_ADDRESS(vtbl_cloth_coll)) {
         volume = (ClothCollisionVolume*)collision;
@@ -1307,8 +1275,7 @@ static void do_cloth_colls(MkHdr* collision) {
     }
     cloth_coll = volume;
     if (volume != 0) {
-        reference = cloth_coll->reference_bone;
-        cloth_coll_bone = reference;
+        cloth_coll_bone = cloth_coll->reference_bone;
         if (cloth_coll_bone->flags_55_bits.collision_disabled ||
             cloth_coll_bone->flags_55_bits.collision_deferred) {
             return;
@@ -1342,8 +1309,7 @@ static void do_cloth_colls(MkHdr* collision) {
         }
         if (plane != 0) {
             if (!plane->flags_6C_bits.flags_80) {
-                reference = plane->reference_bone;
-                cloth_coll_bone = reference;
+                cloth_coll_bone = plane->reference_bone;
                 if (cloth_coll_bone->flags_55_bits.collision_disabled ||
                     cloth_coll_bone->flags_55_bits.collision_deferred) {
                     return;
@@ -1359,8 +1325,8 @@ static void do_cloth_colls(MkHdr* collision) {
                     &cloth_coll_bone->matrix.pos_vec);
                 plane_distance =
                     PSVECDotProduct(&world_normal, &plane_point);
-                for (index = 0; index < plane->bone_count; index++) {
-                    cloth_bone = plane->bones[index];
+                for (plane_index = 0; plane_index < plane->bone_count; plane_index++) {
+                    cloth_bone = plane->bones[plane_index];
                     point_distance = PSVECDotProduct(
                         &world_normal, &cloth_bone->force_position);
                     if (point_distance < plane_distance) {
@@ -1409,8 +1375,8 @@ static void do_cloth_colls(MkHdr* collision) {
                     PSVECCrossProduct(&edge_0, &edge_1, &plane->normal);
                     PSVECNormalize(&plane->normal, &plane->normal);
                 }
-                for (index = 0; index < plane->bone_count; index++) {
-                    cloth_bone = plane->bones[index];
+                for (deformed_index = 0; deformed_index < plane->bone_count; deformed_index++) {
+                    cloth_bone = plane->bones[deformed_index];
                     PSVECSubtract(
                         &cloth_bone->force_position, &point_0.value, &offset);
                     point_distance =

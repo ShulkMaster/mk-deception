@@ -731,8 +731,8 @@ int SBPlayable_Stream::Pause(void) {
     return result;
 }
 
-/* TODO: [near miss] 96.37%; ADPCM dirty-sync snapshots fixed; secondary result copy
- * and loop-publication scheduling/coloring remain. */
+/* TODO: [breakthrough needed] 96.36713%; named secondary result cannot coalesce with inline block;
+ * original result ownership and address/loop-publication scheduling evidence needed. */
 void SBPlayable_Stream::iUpdate_AXUser(void) {
     SBPlayable_Stream* stream = this;
     int primary_block;

@@ -716,7 +716,8 @@ static inline int initialize_pfx_memory(MkPfx* pfx, PfxVm* vm,
     return ready;
 }
 
-/* TODO: [near miss] 99.70%; allocation scratch and emitter-save homes remain. */
+/* TODO: [near miss] 99.69566%; allocation and emitter-owner homes differ;
+ * trace isolates count/estimate ordering; emitter needs live-range evidence. */
 void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_90,
                                   int field_214, int field_a0, PfxInitCb init_cb,
                                   int pid, MkProcEntryFn entry, void** out_pfx) {

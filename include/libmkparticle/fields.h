@@ -43,7 +43,7 @@ int get_field_count(PfxFieldSet* fields);
 void field_copy(PfxFieldBuffer* destination, PfxFieldBuffer* source,
                 unsigned int field_size, int count);
 void fill_field_description(PfxFieldDescription* descriptions,
-                            PfxFieldSet* fields, int parametric);
+                            PfxFieldSet fields, int parametric);
 
 int get_field_offset(PfxTableRegistry* registry, int description);
 int has_field_description(PfxTableRegistry* registry, int description);

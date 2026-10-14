@@ -714,14 +714,15 @@ static inline int calc_data_checksum(unsigned char* buffer, unsigned int length)
         unsigned char oldBit = bit;
         sum += (unsigned char)(*buffer++ | oldBit);
         bit = (unsigned char)bit >> 1;
-        if (bit == 0) {
+        if (((unsigned int)oldBit >> 1) == 0) {
             bit = 0x80;
         }
     }
     return sum;
 }
 
-/* TODO: [breakthrough] 96.71%; channel copies partly restored; checksum producer and dead default branches remain. */
+/* TODO: [breakthrough] 97.20144%; checksum test/result shifts now agree;
+ * checksum GPR homes, channel copies and dead default branches remain. */
 int load_from_memcard2(const int device, int modeFlag, unsigned int offset, const char* unusedStr,
                        const char* fileName, void* buffer, int size, const char* unusedCardName,
                        int unusedNameLen, unsigned int* freeBlocks, int* freeBytes,
@@ -946,7 +947,8 @@ static inline int mem_card_write(CARDFileInfo* fileInfo, void* buffer, const int
     }
 }
 
-/* TODO: [breakthrough] 98.22%; cleanup and padding agree; recover checksum shift and mount owner before coloring. */
+/* TODO: [breakthrough] 98.55849%; checksum test/result shifts now agree;
+ * checksum GPR homes and mount owner remain. */
 int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int createFlag,
                      const char* unusedStr, const char* fileName, void* buffer, int size,
                      unsigned int* freeBlocks,

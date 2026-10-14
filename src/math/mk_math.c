@@ -93,8 +93,8 @@ void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float 
 }
 #pragma pop
 
-/* TODO: [near miss] 94.81%; rounded dot grouping and 0x70 frame agree;
- * scalar/helper FPR coloring remains after the bounded lifetime check. */
+/* TODO: [breakthrough] 94.82758%; final invLen product order recovered;
+ * triple-product factor ownership and broad FP lifetimes remain. */
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, const Vec* cylAxis,
                          float radius, float* tNear, float* tFar) {
     float nx = dir->y * cylAxis->z - dir->z * cylAxis->y;
@@ -151,7 +151,7 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
         tMid = -((oy * cylAxis->z - oz * cylAxis->y) * nx +
                  (oz * cylAxis->x - ox * cylAxis->z) * ny +
                  (ox * cylAxis->y - oy * cylAxis->x) * nz);
-        tMid *= invLen;
+        tMid = invLen * tMid;
         invQ = mk_inv_sqrt(lenQ);
         fy *= invQ;
         fx *= invQ;

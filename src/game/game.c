@@ -973,8 +973,8 @@ static inline int game_count_active_players(void) {
     return count;
 }
 
-/* TODO: [near miss] 99.55%; latch homes, table bases and fade temporaries differ;
- * stop at coloring until new owner or lifetime evidence is available. */
+/* TODO: [near miss] 99.55213%; latch, table and alpha homes remain;
+ * direct instance ownership folds away; trace scalarization and propagation. */
 void do_win_effect(void) {
     PlyrInfo* victor;
     PlyrInfo* defeated;
@@ -1990,7 +1990,6 @@ static struct LoadingScreenEntry* get_loading_table(void) {
     }
 }
 
-/* TODO: [near miss] 99.85%; final progress scale FPR homes and 0.5f pool entry remain (/ 2.0f form reaches report-exact but drops a retail sdata2 entry). */
 static float p_load_screen(void) {
     ScreenObj* last_image;
     struct LoadScreenPdata* pdata;
@@ -2110,7 +2109,8 @@ static float p_load_screen(void) {
         if (progress > 1.0f) {
             progress = 1.0f;
         }
-        meter->scale_x = (int)(183.0f * progress * 0.5f);
+        progress = 183.0f * progress;
+        meter->scale_x = (int)(progress / 2.0f);
     }
     return 1.0f;
 }

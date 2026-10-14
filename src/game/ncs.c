@@ -1227,8 +1227,8 @@ float p_sc_spear_kill(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 98.80%; spear/emitter saved homes, stride scheduling
- * and one FP operand swap remain; stop at lifetime ceiling. */
+/* TODO: [near miss] 98.79705%; 24 spear/emitter-home and scheduling rows remain;
+ * traced zero-spill latch ownership and failed staging controls justify stopping at coloring. */
 static float p_pfx_sc_spear(void) {
     struct SpearProcPdata* spear_pdata;
     MkObj* emitter_object;
@@ -1668,7 +1668,6 @@ void ncs_camera_wall_show_hide_alpha(
     ((struct NcsCameraWallPdata*)pdata)->special_alpha_initialized = 0;
 }
 
-/* TODO: [near miss] 99.72%; camera position/boundary-test FPR homes remain (retail has no initial white.alpha store). */
 static float p_camera_wall_show_hide_alpha(void) {
     struct NcsCameraWallPdata* pdata;
     NcsCameraWallRegion* region;
@@ -1693,10 +1692,10 @@ static float p_camera_wall_show_hide_alpha(void) {
         if (region->type == 0) {
             float dx = camera_position.x - region->min_x;
             float dz = camera_position.z - region->max_x;
-            float dx_squared = dx * dx;
-            float dz_squared = dz * dz;
 
-            if (dx_squared + dz_squared <= region->max_z) {
+            dx *= dx;
+            dz *= dz;
+            if (dx + dz <= region->max_z) {
                 break;
             }
         } else if (region->type == 1) {
@@ -1997,9 +1996,11 @@ void start_gore2_pebbles(
     }
 }
 
-/* TODO: [near miss] 99.73%; type index and retained count pointer swap r25/r28; stop at coloring. */
 void start_gore2_update(void) {
     struct Gore2UpdatePdata* pdata;
+    int* particle_count;
+    MkObj* object;
+    MkSobj* sobj;
     int type;
 
     pdata = 0;
@@ -2009,16 +2010,14 @@ void start_gore2_update(void) {
         zero_pdata_payload(sizeof(struct Gore2UpdatePdata), &pdata->hdr);
         load_light(pbl_gore2_lights[1], &gore2_light_list, 0);
         for (type = 0; type < 10; type++) {
-            MkObj* object = load_model_from_slot(
+            object = load_model_from_slot(
                 0x10005, pbl_gore2_obj_list[type].object_id, 0x602A);
 
             if (object != 0) {
-                MkSobj* sobj;
-
                 obj_create_sobjs(object);
                 sobj = obj_first_sobj(object);
                 if (sobj != 0) {
-                    int* particle_count = &pbl_gore2_obj_list[type].particle_count;
+                    particle_count = &pbl_gore2_obj_list[type].particle_count;
 
                     pdata->pools[type] = create_pebble_userdata(
                         sobj, *particle_count,
@@ -2986,8 +2985,8 @@ static inline MkProc* limb_sever_create_update_proc(
     return proc;
 }
 
-/* TODO: [near miss] 99.72%; recovered list and creation boundaries, existing-proc latch via MK_LIVE;
- * creation-result register (r27 vs r31) remains. */
+/* TODO: [near miss] 99.72477%; inline creation result reuses r31 before list proc claims r27;
+ * caller-owned creation loses retail failure joins; original inline ownership needed. */
 struct NcsLimbUpdatePdata* limb_sever_find_existing_update_proc(
     PlyrInfo* player, int limb, int proc_id) {
     FighterMirror* fighter;

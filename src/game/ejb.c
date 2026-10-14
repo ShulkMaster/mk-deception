@@ -3298,18 +3298,16 @@ void stop_me(void) {
     object->gravity = 0.0f;
 }
 
-/* TODO: [near miss] 97.31%; five z/x delta FPR rows remain;
- * honest coordinate staging and scalar-norm boundary are neutral. */
 float xz_distance_between_players(void) {
     MkObj* player_one;
     MkObj* player_two;
-    float delta_z;
     float delta_x;
+    float delta_z;
 
     player_one = g_game_info.plyr0.slot.mirror_a;
     player_two = g_game_info.plyr1.slot.mirror_a;
-    delta_z = player_one->pos.value.z - player_two->pos.value.z;
     delta_x = player_one->pos.value.x - player_two->pos.value.x;
+    delta_z = player_one->pos.value.z - player_two->pos.value.z;
     return delta_x * delta_x + delta_z * delta_z;
 }
 

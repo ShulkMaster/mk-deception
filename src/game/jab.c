@@ -2,6 +2,7 @@
 #include "game/fx.h"
 #include "math/gxMath.h"
 #include "game/blood.h"
+#include "libmkparticle/color.h"
 #include "libmkparticle/fields.h"
 #include "libmkparticle/texture_anim.h"
 #include "runtime/mk_pdata.h"
@@ -799,7 +800,8 @@ static inline void kabal_dash_react_pfx_start(PlyrPdata* opponent_data) {
         plyr_obj, 0x10);
 }
 
-/* TODO: [near miss] 99.93%; case 1 tracked_object in r28 vs retail r29 (4 rows). */
+/* TODO: [near miss] 99.93243%; tracked owner needs a later producer web;
+ * named/inline order cannot reach retail r29; native replay has zero stalls. */
 void bulvan_function(int command) {
     PlyrPdata* opponent_data;
     MkPfx* smoke;
@@ -993,39 +995,39 @@ void sh_spawn_grinder_crush_pfx(void) {
     }
 }
 
-/* TODO: [near miss] 92.09%; shared last-particle byte offsets recovered;
- * field cursor coloring and setup/update scheduling remain. */
+/* TODO: [near miss] 92.15710%; seven stream spill slots now agree;
+ * cursor saved homes and setup/update scheduling remain. */
 float pfx_sh_grinder_crush_chunks(void) {
     MkHdr* emitter_object;
     Vec* source_velocities;
     Vec* destination_velocities;
     float* source_timers;
-    float* destination_timers;
     int* source_states;
     int* destination_states;
     Vec* destination_positions;
-    float* destination_angles;
     Vec* source_positions;
     float* source_scales;
-    float* destination_scales;
-    unsigned char* destination_colors;
-    unsigned char* source_colors;
-    unsigned char* color_base;
+    PfxColor* destination_colors;
+    PfxColor* source_colors;
+    PfxColor* color_base;
     float* source_angles;
     PfxVm* vm;
-    unsigned char* last_color;
+    PfxColor* last_color;
     Vec* last_position;
-    float* last_scale;
-    float* last_angle;
     Vec* last_velocity;
-    float* last_timer;
-    int* last_state;
     int field_stride;
     int vector_stride;
     int last_index;
     int last_field_offset;
     int last_vector_offset;
     int index;
+    float* last_timer;
+    int* last_state;
+    float* last_scale;
+    float* last_angle;
+    float* destination_timers;
+    float* destination_scales;
+    float* destination_angles;
 
     emitter_object = pfx_get_emitter_obj(apfx, 0);
     if (g_game_info.bgnd_obj == 0) {
@@ -1057,7 +1059,7 @@ float pfx_sh_grinder_crush_chunks(void) {
     last_index = vm->particle_cursor - 1;
     last_field_offset = field_stride * last_index;
     last_vector_offset = vector_stride * last_index;
-    last_color = color_base + last_field_offset;
+    last_color = PFX_FIELD_AT(color_base, last_field_offset);
     last_position = PFX_FIELD_AT(source_positions, last_field_offset);
     last_scale = PFX_FIELD_AT(source_scales, last_field_offset);
     last_angle = PFX_FIELD_AT(source_angles, last_field_offset);
@@ -1075,17 +1077,17 @@ float pfx_sh_grinder_crush_chunks(void) {
             source_velocities->x = last_velocity->x;
             source_velocities->y = last_velocity->y;
             source_velocities->z = last_velocity->z;
-            source_colors[0] = last_color[0];
-            source_colors[1] = last_color[1];
-            source_colors[2] = last_color[2];
-            source_colors[3] = last_color[3];
+            source_colors->r = last_color->r;
+            source_colors->g = last_color->g;
+            source_colors->b = last_color->b;
+            source_colors->a = last_color->a;
             *source_timers = *last_timer;
             *source_scales = *last_scale;
             *source_angles = *last_angle;
             *source_states = *last_state;
 
             last_position = PFX_FIELD_AT(last_position, -field_stride);
-            last_color -= field_stride;
+            last_color = PFX_FIELD_AT(last_color, -field_stride);
             last_scale = PFX_FIELD_AT(last_scale, -field_stride);
             last_angle = PFX_FIELD_AT(last_angle, -field_stride);
             last_velocity = PFX_FIELD_AT(last_velocity, -vector_stride);
@@ -1149,12 +1151,12 @@ float pfx_sh_grinder_crush_chunks(void) {
             *destination_angles = *source_angles;
             source_angles = PFX_FIELD_AT(source_angles, field_stride);
             destination_angles = PFX_FIELD_AT(destination_angles, field_stride);
-            destination_colors[0] = source_colors[0];
-            destination_colors[1] = source_colors[1];
-            destination_colors[2] = source_colors[2];
-            destination_colors[3] = source_colors[3];
-            source_colors += field_stride;
-            destination_colors += field_stride;
+            destination_colors->r = source_colors->r;
+            destination_colors->g = source_colors->g;
+            destination_colors->b = source_colors->b;
+            destination_colors->a = source_colors->a;
+            source_colors = PFX_FIELD_AT(source_colors, field_stride);
+            destination_colors = PFX_FIELD_AT(destination_colors, field_stride);
         }
         index++;
     }

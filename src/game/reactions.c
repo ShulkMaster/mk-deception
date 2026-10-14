@@ -450,70 +450,37 @@ void flash_hit_at_bid(int bone) {
     flash_object_hit_at_bid(plyr_obj, bone);
 }
 
-/* TODO: [near miss] 99.57%; object/effect nonvolatile pair swapped (r30/r31); stop at coloring. */
+static inline void check_hit_flash(int trial_state, float height) {
+    unsigned int effect;
+    MkObj* object;
+    Vec position;
+
+    if (plyr_pdata->hit_flash_enabled != 0) {
+        trial_increment_state_value(plyr_pdata->plyr_num, trial_state, 1);
+        object = plyr_obj;
+        if (plyr_pdata->plyr_num == 0) {
+            effect = fx_by_owner("hit_fx", 1);
+        } else {
+            effect = fx_by_owner("hit_fx", 2);
+        }
+        effect = fx_next_emitter(effect);
+        get_bone_world_pos(object, 0, &position);
+        position.y = height + g_game_info.field_34;
+        mk_chess_launch_fx_at_pos_with_obj_emit_based(
+            effect, position.x, position.y, position.z);
+    }
+}
+
 void low_flash_check(void) {
-    unsigned int effect;
-    MkObj* object;
-    Vec position;
-
-    if (plyr_pdata->hit_flash_enabled != 0) {
-        trial_increment_state_value(plyr_pdata->plyr_num, 0x1F, 1);
-        object = plyr_obj;
-        if (plyr_pdata->plyr_num == 0) {
-            effect = fx_by_owner("hit_fx", 1);
-        } else {
-            effect = fx_by_owner("hit_fx", 2);
-        }
-        effect = fx_next_emitter(effect);
-        get_bone_world_pos(object, 0, &position);
-        position.y = 0.5f + g_game_info.field_34;
-        mk_chess_launch_fx_at_pos_with_obj_emit_based(
-            effect, position.x, position.y, position.z);
-    }
+    check_hit_flash(0x1F, 0.5f);
 }
 
-/* TODO: [near miss] 99.57%; object/effect nonvolatile pair swapped (r30/r31); stop at coloring. */
 void medium_flash_check(void) {
-    unsigned int effect;
-    MkObj* object;
-    Vec position;
-
-    if (plyr_pdata->hit_flash_enabled != 0) {
-        trial_increment_state_value(plyr_pdata->plyr_num, 0x1E, 1);
-        object = plyr_obj;
-        if (plyr_pdata->plyr_num == 0) {
-            effect = fx_by_owner("hit_fx", 1);
-        } else {
-            effect = fx_by_owner("hit_fx", 2);
-        }
-        effect = fx_next_emitter(effect);
-        get_bone_world_pos(object, 0, &position);
-        position.y = 1.15f + g_game_info.field_34;
-        mk_chess_launch_fx_at_pos_with_obj_emit_based(
-            effect, position.x, position.y, position.z);
-    }
+    check_hit_flash(0x1E, 1.15f);
 }
 
-/* TODO: [near miss] 99.57%; object/effect nonvolatile pair swapped (r30/r31); stop at coloring. */
 void high_flash_check(void) {
-    unsigned int effect;
-    MkObj* object;
-    Vec position;
-
-    if (plyr_pdata->hit_flash_enabled != 0) {
-        trial_increment_state_value(plyr_pdata->plyr_num, 0x1D, 1);
-        object = plyr_obj;
-        if (plyr_pdata->plyr_num == 0) {
-            effect = fx_by_owner("hit_fx", 1);
-        } else {
-            effect = fx_by_owner("hit_fx", 2);
-        }
-        effect = fx_next_emitter(effect);
-        get_bone_world_pos(object, 0, &position);
-        position.y = 1.7f + g_game_info.field_34;
-        mk_chess_launch_fx_at_pos_with_obj_emit_based(
-            effect, position.x, position.y, position.z);
-    }
+    check_hit_flash(0x1D, 1.7f);
 }
 
 void fight_fx_im_hit_with_breaker_flash(
@@ -612,8 +579,8 @@ static inline void start_blade_clash_fx(
     }
 }
 
-/* TODO: [near miss] 99.58%; second emitter/weapon and third weapon
- * register homes differ; operations and first expansion agree. */
+/* TODO: [near miss] 99.57746%; second helper effect/weapon homes swap;
+ * third weapon needs an interference change; native simplify stalls on bone/blade. */
 void fight_fx_blades_clash(PlyrPdata* player) {
     MkObj* blade;
     unsigned int effect;

@@ -26,9 +26,6 @@
 #include "runtime/cstdio.h"
 
 void reset_sg_status(StorageDevice* device, int slot);
-int save_konquest_region_to_memcard_w_error(int device, int slot, int mode, const char* title,
-                                           unsigned char region, void* regionBuf, int flag,
-                                           unsigned int* freeBlocks, int* freeBytes);
 void ppc_set_stage_value(int stage);
 static void pne_set_players_name_to_default(char* name, int* charPos);
 static float p_player_profile_whats_loaded_screen(void);
@@ -289,16 +286,61 @@ void erase_player_profile(int device, int slot) {
     mcard_msg_end();
 }
 
-/* TODO: [near miss] 97.64%; pos_device goes through r0 before r27, and retail seeds ok from region's li 1 (mr) in the erase loop. */
-float p_delete_profile(void) {
-    int ok;
-    int region;
-    int slot;
-    int device;
-    StorageDevice* storage;
-    int* freeBytes;
+static inline void delete_selected_profile(void) {
     unsigned int* freeBlocks;
+    int* freeBytes;
+    StorageDevice* storage;
+    int device;
+    int slot;
+    int region;
+    int ok;
     const char* title;
+
+    device = pos_device;
+    slot = pos_slot;
+    if (device >= 0 && device < STORAGE_MAX_DEVICES && slot >= 0 &&
+        slot < STORAGE_MAX_SLOTS) {
+        storage = DEVICE_AT(device);
+        reset_sg_status(storage, slot);
+        storage_status_change_calculations(device);
+        mcard_msg_deleting_data(device);
+        clear_region_buffer();
+
+        region = 1;
+        freeBlocks = &storage->freeBlocks;
+        freeBytes = &storage->freeBytes;
+        ok = 1;
+        while (region < 9 && ok != 0) {
+            title = nbc_find_text(NBC_MEMCARD_TITLE, 1);
+            ok = save_konquest_region_to_memcard_w_error(
+                device, slot, 5, title, region,
+                konq_region_data_buffer, 0, freeBlocks,
+                freeBytes);
+            if (ok != 0 && mcard_msg_active != MCARD_MSG_ACTIVE_PROGRESS) {
+                mcard_msg_end();
+                mcard_msg_deleting_data(device);
+            }
+            region++;
+        }
+
+        if (ok != 0) {
+            title = nbc_find_text(NBC_MEMCARD_TITLE, 1);
+            ok = save_to_memcard_w_error(
+                device, 4, title, &storage->settings, 0,
+                freeBlocks, freeBytes);
+        }
+        if (ok != 0) {
+            mcard_msg_delete_successful_generic();
+        } else {
+            mcard_msg_delete_failed_generic();
+        }
+        mcard_msg_end();
+    }
+}
+
+/* TODO: [breakthrough] 98.65854%; selected-erase phase restores direct load/shared seed;
+ * device CSE claims r31 before the buffer base; recover owner kinds and seed order. */
+float p_delete_profile(void) {
     int statusChanged;
 
     number_profiles = 0;
@@ -346,46 +388,7 @@ float p_delete_profile(void) {
 
                 if (mcard_msg_confirm_erase_answer == 1) {
                     if (update_storage_status(0) == 0) {
-                        device = pos_device;
-                        slot = pos_slot;
-                        if (device >= 0 && device < STORAGE_MAX_DEVICES && slot >= 0 &&
-                            slot < STORAGE_MAX_SLOTS) {
-                            storage = DEVICE_AT(device);
-                            reset_sg_status(storage, slot);
-                            storage_status_change_calculations(device);
-                            mcard_msg_deleting_data(device);
-                            clear_region_buffer();
-
-                            freeBlocks = &storage->freeBlocks;
-                            freeBytes = &storage->freeBytes;
-                            ok = 1;
-                            region = 1;
-                            while (region < 9 && ok != 0) {
-                                title = nbc_find_text(NBC_MEMCARD_TITLE, 1);
-                                ok = save_konquest_region_to_memcard_w_error(
-                                    device, slot, 5, title, region,
-                                    konq_region_data_buffer, 0, freeBlocks,
-                                    freeBytes);
-                                if (ok != 0 && mcard_msg_active != MCARD_MSG_ACTIVE_PROGRESS) {
-                                    mcard_msg_end();
-                                    mcard_msg_deleting_data(device);
-                                }
-                                region++;
-                            }
-
-                            if (ok != 0) {
-                                title = nbc_find_text(NBC_MEMCARD_TITLE, 1);
-                                ok = save_to_memcard_w_error(
-                                    device, 4, title, &storage->settings, 0,
-                                    freeBlocks, freeBytes);
-                            }
-                            if (ok != 0) {
-                                mcard_msg_delete_successful_generic();
-                            } else {
-                                mcard_msg_delete_failed_generic();
-                            }
-                            mcard_msg_end();
-                        }
+                        delete_selected_profile();
                     }
                 }
                 pv_recalculate_profiles_and_position(&pos_device, &pos_slot, &number_profiles,
@@ -521,72 +524,77 @@ char* ppv_get_current_profile_name(void) {
     return (char*)nbc_find_text(NBC_EMPTY_PROFILE_NAME, 1);
 }
 
-/* TODO: [breakthrough needed] 84.93%; recover iterator boundary without inlining into exact p_view_profile; extra cycle test remains. */
-static void pv_recalculate_profiles_and_position(int* outDevice, int* outSlot,
-                                                 int* outCount, int* outPosition) {
-    int count;
-    int i;
-    int device;
-    int slot;
+static inline void advance_device_slot(int* device, int* slot) {
+    if (*device < 0 || *device >= STORAGE_MAX_DEVICES || *slot < 0 || *slot >= STORAGE_MAX_SLOTS) {
+        return;
+    }
+    if (*slot < STORAGE_MAX_SLOTS - 1) {
+        *slot += 1;
+        return;
+    }
+    *slot = 0;
+    if (*device < 1) {
+        *device += 1;
+    } else {
+        *device = 0;
+    }
+}
+
+static inline void pv_find_next_present_profile(int* device, int* slot) {
+    int startSlot;
+    int startDevice;
     int nextDevice;
     int nextSlot;
 
-    count = 0;
+    startDevice = *device;
+    startSlot = *slot;
+    nextDevice = startDevice;
+    nextSlot = startSlot;
+
+    advance_device_slot(&nextDevice, &nextSlot);
+    while (nextDevice != startDevice || nextSlot != startSlot) {
+        if (DEVICE_AT(nextDevice)->profiles[nextSlot].present == 1) {
+            *device = nextDevice;
+            *slot = nextSlot;
+            return;
+        }
+        advance_device_slot(&nextDevice, &nextSlot);
+    }
+    *device = -1;
+    *slot = -1;
+}
+
+static inline int profile_count_all(void) {
+    int total;
+    int i;
+
+    total = 0;
+    for (i = 0; i < STORAGE_MAX_DEVICES; i++) {
+        total += DEVICE_AT(i)->profileCount;
+    }
+    return total;
+}
+
+#pragma auto_inline off
+static void pv_recalculate_profiles_and_position(int* outDevice, int* outSlot,
+                                                 int* outCount, int* outPosition) {
+    int i;
+
     *outDevice = -1;
     *outSlot = -1;
-    for (i = 0; i < STORAGE_MAX_DEVICES; i++) {
-        count += DEVICE_AT(i)->profileCount;
-    }
-    *outCount = count;
+    *outCount = profile_count_all();
     *outPosition = *outCount / 2;
     if (*outCount > 0) {
         *outDevice = 1;
         *outSlot = 6;
         for (i = 0; i < *outPosition + 1; i++) {
-            device = *outDevice;
-            slot = *outSlot;
-            nextDevice = device;
-            nextSlot = slot;
-            if (device >= 0 && device < STORAGE_MAX_DEVICES && slot >= 0 &&
-                slot < STORAGE_MAX_SLOTS) {
-                if (slot < 6) {
-                    nextSlot = slot + 1;
-                } else {
-                    nextSlot = 0;
-                    if (device < 1) {
-                        nextDevice = device + 1;
-                    } else {
-                        nextDevice = 0;
-                    }
-                }
-            }
-            while (nextDevice != device || nextSlot != slot) {
-                if (DEVICE_AT(nextDevice)->profiles[nextSlot].present == 1) {
-                    *outDevice = nextDevice;
-                    *outSlot = nextSlot;
-                    break;
-                }
-                if (nextDevice >= 0 && nextDevice < STORAGE_MAX_DEVICES &&
-                    nextSlot >= 0 && nextSlot < STORAGE_MAX_SLOTS) {
-                    if (nextSlot < 6) {
-                        nextSlot++;
-                    } else {
-                        nextSlot = 0;
-                        if (nextDevice < 1) {
-                            nextDevice++;
-                        } else {
-                            nextDevice = 0;
-                        }
-                    }
-                }
-            }
-            if (nextDevice == device && nextSlot == slot) {
-                *outDevice = -1;
-                *outSlot = -1;
-            }
+            pv_find_next_present_profile(outDevice, outSlot);
         }
     }
 }
+
+#pragma auto_inline reset
+
 
 static inline void ppv_find_previous_present(int* device, int* slot) {
     int startDevice;
@@ -1561,7 +1569,7 @@ void mark_as_unlocked(PlayerProfile* profile, int category, int character) {
         return;
     case 3:
         if (character < 0 || character >= 35) return;
-        profile->unlock_cat3 |= (unsigned int)(1ULL << character);
+        profile->unlock_cat3 |= 1ULL << character;
         return;
     case 6:
         if (character < 0 || character >= 44) return;
@@ -1570,11 +1578,11 @@ void mark_as_unlocked(PlayerProfile* profile, int category, int character) {
         return;
     case 4:
         if (character < 0 || character >= 11) return;
-        profile->unlock_cat5 |= (unsigned int)(1ULL << character);
+        profile->unlock_cat5 |= 1ULL << character;
         return;
     case 5:
         if (character < 0 || character >= 11) return;
-        profile->unlock_cat6 |= (unsigned int)(1ULL << (character + 10));
+        profile->unlock_cat6 |= 1ULL << (character + 10);
         return;
     case 7:
     case 8:
@@ -1590,7 +1598,7 @@ void mark_as_unlocked(PlayerProfile* profile, int category, int character) {
         return;
     case 10:
         if (character < 0 || character >= 35) return;
-        profile->unlock_cat10 |= (unsigned int)(1ULL << character);
+        profile->unlock_cat10 |= 1ULL << character;
         return;
     default:
         return;
@@ -1728,22 +1736,6 @@ void check_new_mu_for_in_use_profiles(int device) {
         } else {
             DEVICE_AT(p2_profile_device)->inUse[p2_profile_slot] = 1;
         }
-    }
-}
-
-static inline void advance_device_slot(int* device, int* slot) {
-    if (*device < 0 || *device >= STORAGE_MAX_DEVICES || *slot < 0 || *slot >= STORAGE_MAX_SLOTS) {
-        return;
-    }
-    if (*slot < STORAGE_MAX_SLOTS - 1) {
-        *slot += 1;
-        return;
-    }
-    *slot = 0;
-    if (*device < 1) {
-        *device += 1;
-    } else {
-        *device = 0;
     }
 }
 

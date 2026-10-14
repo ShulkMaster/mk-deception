@@ -37,10 +37,8 @@ u64 UTY_GetTmr(void)
 
 void UTY_FinishTmr(void)
 {
-    s32 cnt;
-
     utytmr_init_cnt--;
-    cnt = utytmr_init_cnt;
+    utytmr_init_cnt;
     if (utytmr_init_cnt < 0) {
         utytmr_init_cnt = 0;
     }

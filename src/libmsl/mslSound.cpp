@@ -145,35 +145,42 @@ void _mslSoundStop(_mslSound* sound) {
     mslSoundDeactivate(sound, 1);
 }
 
-static inline void mslSoundReleaseDefinition(mslRuntimeSound* sound) {
-    if (sound->definition != 0) {
-        mslCmdItem* command =
-            sound->definition->commands;
-        int i;
+static inline void mslSoundUnCopyInline(_ListNode* node) {
+    int i;
+    mslCmdItem* command;
+    mslRuntimeSound* sound;
 
-        if (command != 0) {
-            for (i = 0;
-                 i < sound->definition->command_count;
+    sound = (mslRuntimeSound*)ListNodeData(0, node);
+
+    if (sound == currentUpdateSound) {
+        currentUpdateSound = 0;
+    }
+
+    if (sound->definition != 0) {
+        if (sound->definition->commands != 0) {
+            command = sound->definition->commands;
+            for (i = 0; i < sound->definition->command_count;
                  i++, command++) {
                 if (command->type == 1 &&
                     command->attached_wave != 0) {
                     mslWaveUnCopy(
-                        sound->system,
-                        command->attached_wave);
+                        sound->system, command->attached_wave);
                     command->attached_wave = 0;
                 }
             }
-            _mwMemFree(
-                sound->definition->commands, 0, 0);
+            _mwMemFree(sound->definition->commands, 0, 0);
             sound->definition->commands = 0;
         }
         _mwMemFree(sound->definition, 0, 0);
         sound->definition = 0;
     }
+
+    sound->bank_sound_entry = 0;
+    _ListNode* list = node;
+    ListNodeFree(
+        &g_listPoolSound, ListRemove(&list));
 }
 
-/* TODO: [near miss] 99.65%; definition teardown matches; retained node and
- * command cursor remain a nonvolatile register pair after honest form checks. */
 static void mslSoundDeactivate(_mslSound* sound, int immediate) {
     mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
     _ListNode* sound_node = 0;
@@ -217,21 +224,7 @@ static void mslSoundDeactivate(_mslSound* sound, int immediate) {
     if (immediate != 0) {
         mslBankSoundEntry* bank_sound =
             runtime_sound->bank_sound_entry;
-        _ListNode* original_node = sound_node;
-        mslRuntimeSound* copied_sound =
-            (mslRuntimeSound*)ListNodeData(0, original_node);
-
-        if (copied_sound == currentUpdateSound) {
-            currentUpdateSound = 0;
-        }
-
-        mslSoundReleaseDefinition(copied_sound);
-
-        copied_sound->bank_sound_entry = 0;
-        _ListNode* list = original_node;
-
-        ListNodeFree(
-            &g_listPoolSound, ListRemove(&list));
+        mslSoundUnCopyInline(sound_node);
 
         if (bank_sound != 0) {
             mslBankSoundUnUse(bank_sound);
@@ -403,9 +396,9 @@ extern "C" int mslSoundPlayNow(_ListNode* node) {
     return 1;
 }
 
-/* TODO: [near miss] 99.91%; shared failure cleanup CFG recovered; base_sound r27/r28 home swap remains. */
 extern "C" int mslSoundAttach(
     mslRuntimeSound* sound, mslBankSoundEntry* bank_sound) {
+    mslCmdItem* wave_command;
     const mslRuntimeSound* base_sound;
     mslBankSoundDefinition* definition;
     mslCmdItem* source_command;
@@ -439,7 +432,6 @@ extern "C" int mslSoundAttach(
         3, 0, 0, 0);
     if (definition->commands != 0) {
         mslCmdItem* command;
-        mslCmdItem* wave_command;
         source_command = base_sound->definition->commands;
         command = definition->commands;
         for (i = 0; i < definition->command_count;

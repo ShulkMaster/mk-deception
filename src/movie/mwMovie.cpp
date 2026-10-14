@@ -472,27 +472,18 @@ extern "C" void mwMovieUnPauseMovie(_mwMovPlayer* player)
     }
 }
 
-/* TODO: [breakthrough needed] 91.93%; retail keeps `finished` in a stack slot (address-taken local,
- * e.g. an inlined helper given &finished); find the helper's evidence before changing source. */
-extern "C" int mwMoviePlayTick(_mwMovPlayer* player)
+static inline void executeMovieTickState(
+    _mwMovPlayer* const player, int* const finished)
 {
-    int finished = 0;
-
-    if (player == 0) {
-        MOVPRINT(STR_NO_PLAYER_TICK);
-        OSPanic(STR_FILE, 0x21F, STR_ASSERT_ZERO);
-        return 1;
-    }
     __mwMovie_syncFrame();
     ADXM_ExecMain();
     updatePlayerState(player);
-
     switch (player->state) {
     case 0:
-        finished = 1;
+        *finished = 1;
         break;
     case 1:
-        finished = 0;
+        *finished = 0;
         break;
     case 2:
     case 3:
@@ -513,19 +504,31 @@ extern "C" int mwMoviePlayTick(_mwMovPlayer* player)
             player->player_handle->interface->set_volume(
                 player->player_handle, decibels);
         } else {
-            finished = 1;
+            *finished = 1;
         }
         break;
     default:
         MOVPRINT(STR_UNKNOWN_STATE);
         OSPanic(STR_FILE, 0x260, STR_ASSERT_ZERO);
-        finished = 1;
+        *finished = 1;
         break;
     }
-    if (finished == 1) {
+    if (*finished == 1) {
         stopMoviePlay(player);
         player->state = 0;
     }
+}
+
+extern "C" int mwMoviePlayTick(_mwMovPlayer* player)
+{
+    int finished = 0;
+
+    if (player == 0) {
+        MOVPRINT(STR_NO_PLAYER_TICK);
+        OSPanic(STR_FILE, 0x21F, STR_ASSERT_ZERO);
+        return 1;
+    }
+    executeMovieTickState(player, &finished);
     return finished;
 }
 

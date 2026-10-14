@@ -65,10 +65,10 @@ static inline AniTextureControl* image_allocate_ani_texture_control(void) {
 }
 
 static inline int image_raster_is_power_of_two(RwRaster* raster) {
-    int lw;
-    int lh;
-    int w;
     int h;
+    int w;
+    int lh;
+    int lw;
     int t;
 
     w = raster->width;
@@ -114,7 +114,6 @@ AniTextureControl* ck_ani_texture_control_item(AniTextureControlItem* item) {
     return atc;
 }
 
-/* TODO: [near miss] 99.59%; raster ownership and material-id field match; twelve POT dimension/logarithm register operands remain. */
 AniTextureControl* append_texture_by_name_to_atomic_material_id(int slot, char* name,
                                                                  RpAtomic* atomic,
                                                                  int material_id,

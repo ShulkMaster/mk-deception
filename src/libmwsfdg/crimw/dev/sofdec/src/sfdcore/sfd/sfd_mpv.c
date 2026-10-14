@@ -726,15 +726,17 @@ static inline int sfmpv_IsLateSkip(SfdHandle* handle, int picture_type)
 {
     SfdMpvFrameWork* work =
         handle->transports[2].context;
+    int scale;
     SfdTimerState* timer = &handle->timer_state;
     int target = timer->elapsed_time.active == 0
                      ? 0
                      : timer->sample_history.fields_00[1] +
                            (timer->field_00C0.value - timer->elapsed_time.value);
     SfdMpvSkipCallback callback = timer->skip_state.callback;
-    int scale = timer->field_00C0.scale;
     int value;
     int current_scale;
+
+    scale = timer->field_00C0.scale;
 
     if (callback != 0) {
         return callback(handle, picture_type, target, scale);
@@ -767,7 +769,7 @@ static inline void sfmpv_UpdatePicStat(SfdHandle* handle,
 {
     SfdMpvFrameWork* work =
         handle->transports[2].context;
-    SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
+    SfdTimerState* timer = &handle->timer_state;
     MPVContext* decoder = work->decoder;
     int decode_state = work->decode_state;
 
@@ -779,7 +781,7 @@ static inline void sfmpv_UpdatePicStat(SfdHandle* handle,
         if (first == 1) {
             decode_state = 5;
         } else {
-            if (timer->output_start.valid == 0 &&
+            if (timer->elapsed_time.active == 0 &&
                 SFSET_GetCond(handle, 73) == 1) {
                 second = 1;
             }
@@ -1534,66 +1536,64 @@ static int sfmpv_DecodeOneUnit(SfdHandle* handle, int active_size,
     return result;
 }
 
-/* TODO: [near miss] 99.76%; shared sample/status exits recovered;
- * nine video timecode GPR homes remain; stop at coloring. */
 static int sfmpv_Concat(SfdHandle* handle, SJ* stream)
 {
-    SfdMpvFrameWork* work =
-        handle->transports[2].context;
+    SfdMpvFrameWork* work = handle->transports[2].context;
     SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
     int concat_time;
+    int rounded_rate;
+    int field;
+    int frame;
+    int seconds;
+    int minutes;
+    int hours;
+    int type;
+    int fields;
+    SfdTimeCode timecode;
+    int scale;
+    int value;
+    int sample_rate;
+    int samples;
     int result;
-    SfdMpvRepeatTimer* repeat_timer =
-        (SfdMpvRepeatTimer*)&handle->timer_state;
+    int time_unit;
 
     if (SFSET_GetCond(handle, 6) == 0) {
         SfdMpvTimeCodeSnapshot* maximum = &timer->maximum;
         SfdMpvTimeCodeSnapshot* initial = &timer->initial;
-
         if (maximum->valid == 0) {
             concat_time = 0;
         } else {
-            const SfdTimeCode* source = &maximum->timecode;
-            SfdTimeCode timecode;
-            int type = source->frame_rate_code;
-            int fields = source->reserved_1C + source->subframe;
-            int frame = source->frames + source->frame_offset + 1;
-            int seconds = source->seconds;
-            int minutes = source->minutes;
-            int hours = source->hours;
-            int scale;
-            int value;
-
+            type = maximum->timecode.frame_rate_code;
+            rounded_rate = sfmpv_fps_round[type];
+            fields = maximum->timecode.reserved_1C + maximum->timecode.subframe;
+            frame = maximum->timecode.frames + maximum->timecode.frame_offset + 1;
             frame += fields / 2;
-            fields %= 2;
-            seconds += frame / sfmpv_fps_round[type];
-            frame %= sfmpv_fps_round[type];
+            field = fields % 2;
+            hours = maximum->timecode.hours;
+            minutes = maximum->timecode.minutes;
+            seconds = maximum->timecode.seconds;
+            seconds += frame / rounded_rate;
+            frame %= rounded_rate;
             minutes += seconds / 60;
             seconds %= 60;
             hours += minutes / 60;
             minutes %= 60;
-            if (source->drop_frame != 0 && seconds == 0 &&
+            if (maximum->timecode.drop_frame != 0 && seconds == 0 &&
                 minutes % 10 != 0 && (frame == 0 || frame == 1)) {
                 frame = 2;
             }
             timecode.frame_rate_code = type;
-            timecode.drop_frame = source->drop_frame;
+            timecode.drop_frame = maximum->timecode.drop_frame;
             timecode.hours = hours;
             timecode.minutes = minutes;
             timecode.seconds = seconds;
             timecode.frames = frame;
-            timecode.subframe = fields;
+            timecode.subframe = field;
             timecode.frame_offset = 0;
             SFTIM_Tc2Time(&timecode, &value, &scale);
             concat_time = value - initial->value;
         }
     } else {
-        int sample_rate;
-        int samples;
-        int time_unit;
-        int* total_samples =
-            &handle->timer_state.sample_window.fields_04[0];
-
         if (handle->create_config.buffer.transport_setup->entries[3] !=
             &SFD_tr_ad_adxt) {
             samples = 0;
@@ -1603,9 +1603,10 @@ static int sfmpv_Concat(SfdHandle* handle, SJ* stream)
             goto check_sample_time;
         }
         time_unit = timer->initial.scale;
-        *total_samples += samples;
-        concat_time = UTY_MulDiv(*total_samples, time_unit, sample_rate) -
-                      repeat_timer->reference_time_offset;
+        handle->timer_state.sample_window.fields_04[0] += samples;
+        concat_time = UTY_MulDiv(handle->timer_state.sample_window.fields_04[0],
+                                time_unit, sample_rate) -
+                      ((SfdMpvRepeatTimer*)&handle->timer_state)->reference_time_offset;
         if (concat_time < 0) {
             concat_time = 0;
         }
@@ -1630,6 +1631,7 @@ check_status:
     sfmpv_SkipEndcode(handle, stream);
     return 0;
 }
+
 
 static int sfmpv_DecodePicAtr(SfdHandle* handle, const SJCK* header,
                               SJ* stream, int delimiter_type,
@@ -2027,17 +2029,23 @@ static void sfmpv_CalcRepeatField(SfdHandle* handle,
     }
 }
 
-/* TODO: [near miss] 98.27702%; timestamp/source-clock GPR webs remain;
- * donor flag rank is neutral and function-scope arithmetic regresses. */
 static void sfmpv_DoReformTc(SfdHandle* handle,
                              MPVPictureInfo* picture, long long pts,
                              int group_changed)
 {
     int frame_rate = picture->frame_rate_code;
     int drop_frame = picture->drop_frame_flag;
-    int temporal_reference = picture->temporal_reference;
+    int fps_round;
+    int field;
+    int frame;
+    int seconds;
+    int minutes;
+    int hours;
+    int type;
     SfdMpvTimerOverlay* timer =
         (SfdMpvTimerOverlay*)&handle->timer_state;
+    int temporal_reference = picture->temporal_reference;
+    int fields;
 
     if (group_changed != 0 && pts >= 0) {
         sfmpv_Pts2Tc(pts, frame_rate, drop_frame,
@@ -2059,18 +2067,18 @@ static void sfmpv_DoReformTc(SfdHandle* handle,
         SfdTimeCode* source = &timer->source_timecode;
         SfdTimeCode* output = &timer->reformed_timecode;
         SfdMpvRepeatTimer* repeat_timer = (SfdMpvRepeatTimer*)timer;
-        int type = source->frame_rate_code;
-        int fields = source->reserved_1C + source->subframe;
-        int frame = source->frames + source->frame_offset + 1;
-        int field;
-        int seconds = source->seconds;
-        int minutes = source->minutes;
-        int hours = source->hours;
 
+        type = source->frame_rate_code;
+        fps_round = sfmpv_fps_round[type];
+        fields = source->reserved_1C + source->subframe;
+        frame = source->frames + source->frame_offset + 1;
         frame += fields / 2;
         field = fields % 2;
-        seconds += frame / sfmpv_fps_round[type];
-        frame %= sfmpv_fps_round[type];
+        hours = source->hours;
+        minutes = source->minutes;
+        seconds = source->seconds;
+        seconds += frame / fps_round;
+        frame %= fps_round;
         minutes += seconds / 60;
         seconds %= 60;
         hours += minutes / 60;
@@ -2245,8 +2253,8 @@ static int sfmpv_ChkBufSiz(SfdHandle* handle,
     return 0;
 }
 
-/* TODO: [near miss] 99.2351%; canonical timer fixes validity-load order;
- * skip/GOP/timer registers remain; stop pending new owner evidence. */
+/* TODO: [near miss] 99.45895%; skip/publication and GOP owners rotate;
+ * decision helper exceeds inline cost 512; recover an original ownership boundary. */
 static int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
 {
     SfdMpvFrameWork* work =
@@ -2630,8 +2638,8 @@ static void sfmpv_ErrFn(SfdCallbackObject object, int error)
     }
 }
 
-/* TODO: [near miss] 89.78%; BSS layout agrees; handle/base/decoder homes
- * and prologue scheduling remain; stop at coloring. */
+/* TODO: [near miss] 89.7794%; BSS layout agrees; handle/base/decoder homes
+ * and prologue schedule remain; owner-first declaration regresses, stop at coloring. */
 static int SFMPV_Destroy(SfdHandle* handle)
 {
     MPVContext* decoder;

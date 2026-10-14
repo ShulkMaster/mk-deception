@@ -211,8 +211,8 @@ void ADXB_ExecHndl(AdxBasicDecoderExt* decoder)
     }
 }
 
-/* TODO: [near miss] 99.7955%; canonical arithmetic/write types preserve all bytes;
- * round-up/trailing homes swap r23/r26; donor owner cross regresses, stop at coloring. */
+/* TODO: [near miss] 99.7955%; retail/m2c confirm round-up arithmetic; only r23/r26
+ * homes differ; need new source-boundary evidence beyond rejected donor owner forms. */
 void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
 {
     AdxBasicDecoder* base = &decoder->base;

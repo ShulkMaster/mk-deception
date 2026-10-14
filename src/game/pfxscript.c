@@ -2896,8 +2896,6 @@ static inline void bank_destroy(MkHdr* bank) {
     }
 }
 
-/* TODO: [near miss] 98.21%; runtime address precedes parametric load in retail;
- * retained source swaps only those operations; full helper probe needs free TU. */
 static void bank_run_fx(struct PfxBank* bank) {
     struct PfxEffectLatch* effect_latch;
     struct PfxScriptEffect* effect;
@@ -2917,7 +2915,7 @@ static void bank_run_fx(struct PfxBank* bank) {
         }
 
         runtime = (PfxVm*)effect->emitter_storage.emitters;
-        if (effect->parametric != 0) {
+        if (runtime->field_0x22C != 0) {
             runtime->elapsed_time += game_speed;
             if (pfx_frame_begin(runtime) == 0) {
                 pfx_parametric_spawn(runtime, game_speed);

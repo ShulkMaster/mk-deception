@@ -516,8 +516,8 @@ int UpdateShadowCameraLightSource(const float* angles) {
     return 1;
 }
 
-/* TODO: [near miss] 99.90%; Resample camera/source homes r27/r30 swapped: SetFrustum camera
- * param coalesces with the propagated ShadowCamera load temp (replay: uncoalesced = retail). */
+/* TODO: [near miss] 99.90253%; Resample camera CSE and source inline-arg homes swap;
+ * native replay predicts owner-kind order; keep helper and deferred literal layout. */
 void UpdateShadow(MkObj* fighter_object, PlyrPdata* owner, MkObj* object) {
     MkObj* fighter;
     RwMatrix* dir_matrix;

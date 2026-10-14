@@ -64,7 +64,7 @@ void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
                        PfxBuildInfo* build);
 void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate);
 int pfx_estimate_render_size(PfxVm* vm);
-int pfx_particle_estimate_size(unsigned int flags, PfxEstimate* estimate);
+int pfx_particle_estimate_size(int flags, PfxEstimate* estimate);
 void pfx_particle_set_memory(PfxParticleMemory* particle,
                              PfxEstimate* estimate, void* memory);
 void pfx_copy_behavior_list(PfxVm* vm, int count, const PfxBehavior* behaviors);

@@ -5,7 +5,7 @@ static const long AdxQtbl[16] = {
     -8, -7, -6, -5, -4, -3, -2, -1,
 };
 
-int ADX_DecodeSte4AsSte(signed char*, int, short*, short*, short*,
+long ADX_DecodeSte4AsSte(signed char*, long, short*, short*, short*,
                         short*, short, short, short*, short, short);
 int ADX_DecodeSte4AsMono(signed char*, int, short*, short*, short*,
                          short*, short, short, short*, short, short);
@@ -26,8 +26,9 @@ int ADX_DecodeSte4(const signed char* input, int numBlocks,
         randomMultiplier, randomIncrement);
 }
 
-/* TODO: [breakthrough] 85.18% with O4; gain/CTR shape recovered; saved-register and scheduling differences remain. */
-int ADX_DecodeSte4AsSte(signed char* input, int numBlocks,
+/* TODO: [near miss] 85.1842%; CTR/operations agree; saved predictor homes and
+ * sample scheduling remain; canonical types/order do not close donor pin residue. */
+long ADX_DecodeSte4AsSte(signed char* input, long numBlocks,
                         short* outputLeft, short delayLeft[2],
                         short* outputRight, short delayRight[2],
                         short coefficient0, short coefficient1,
@@ -96,10 +97,10 @@ int ADX_DecodeSte4AsSte(signed char* input, int numBlocks,
                     decodedRight = 32767;
                 }
             }
-            leftPacked = AdxQtbl[leftPacked & 0xF];
             outputLeft[0] = olderLeft;
-            rightPacked = AdxQtbl[rightPacked & 0xF];
+            leftPacked = AdxQtbl[leftPacked & 0xF];
             outputRight[0] = decodedRight;
+            rightPacked = AdxQtbl[rightPacked & 0xF];
             previousLeft = leftPacked * leftGain +
                 ((coefficient0 * olderLeft + coefficient1 * previousLeft) >> 12);
             if (previousLeft > 32767 || previousLeft < -32768) {
@@ -133,14 +134,14 @@ int ADX_DecodeSte4AsSte(signed char* input, int numBlocks,
     return numBlocks;
 }
 
-/* TODO: [breakthrough] 89.04% with O4; gain/CTR shape recovered; register homes and entry scheduling remain. */
+/* TODO: [breakthrough] 90.74468%; later older-left ownership restores block/packed homes;
+ * header, LCG and mix owners plus entry scheduling remain. */
 int ADX_DecodeSte4AsMono(signed char* input, int numBlocks,
                          short* outputLeft, short delayLeft[2],
                          short* outputRight, short delayRight[2],
                          short coefficient0, short coefficient1,
                          short* randomState, short randomMultiplier,
                          short randomIncrement) {
-    long olderLeft;
     long olderRight;
     long previousRight;
     long previousLeft;
@@ -154,6 +155,7 @@ int ADX_DecodeSte4AsMono(signed char* input, int numBlocks,
     long blockCount;
     long key;
     long sample;
+    long olderLeft;
 
     blockCount = numBlocks / 2;
 

@@ -1116,7 +1116,8 @@ static inline int coffin_uses_near_tombstone(int index) {
     return 0;
 }
 
-/* TODO: [near miss] 96.56%; PFX owner and loop register coloring plus constant-load scheduling remain. */
+/* TODO: [near miss] 97.15847%; row CSE restores saved homes;
+ * volatile glyph/position owners and FP setup schedule remain; trace those webs. */
 static void set_letter_positions_and_values(PfxVm* pfx) {
     int col;
     int uv_stride;
@@ -1144,19 +1145,17 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
 
     for (row_off = 0; row_off < 4; row_off++) {
         int col_off;
-        int row;
         float z_near;
         float z_far;
-        row = view_row + row_off;
         z_near = s_tomb_z_near + base_z;
         z_far = s_tomb_z_far + base_z;
         for (col_off = 0; col_off < 9; col_off++) {
             int letter_bias;
             opened = get_coffin_bit(
                 krypt_pdata->profile_common->coffin_bits,
-                col_off + (view_col + row * 0x14));
+                col_off + (view_col + (view_row + row_off) * 0x14));
             col = view_col + col_off;
-            coffin_idx = col + row * 0x14;
+            coffin_idx = col + (view_row + row_off) * 0x14;
             letter_bias = opened ? 0x20 : 0;
 
             pos->x = base_x - 0.14f;
@@ -1165,7 +1164,7 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
             if (is_near != 0) pos->z = z_near;
             else pos->z = z_far;
             pos = (Vec*)((char*)pos + pos_stride);
-            *uv = letter_bias + row;
+            *uv = letter_bias + (view_row + row_off);
             uv = (float*)((char*)uv + uv_stride);
 
             pos->x = base_x + 0.14f;
@@ -1183,8 +1182,8 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
     }
 }
 
-/* TODO: [near miss] 98.55%; integer webs now match; only the column-x float setup colors the
- * converted column f1 (retail f4) and schedules the row lfd/z_far fadds one slot later. */
+/* TODO: [near miss] 98.54671%; column conversion homes and adjacent scheduling remain;
+ * in-place coordinate helper loses loop hoist and regresses a sibling; stop at coloring. */
 static void set_number_positions_and_values(PfxVm* pfx) {
     Vec* pos;
     float* uv;

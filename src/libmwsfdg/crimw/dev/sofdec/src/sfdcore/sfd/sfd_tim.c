@@ -490,8 +490,8 @@ int SFTIM_ChkRegularTime(SfdHandle* handle, int* value, int* scale)
     return 1;
 }
 
-/* TODO: [near miss] 98.64045%; previous-sample reload is CSE'd;
- * donor fake volatile is excluded; need a real read boundary. */
+/* TODO: [near miss] 98.64045%; live diff retains previous-sample reload CSE;
+ * real read-boundary evidence is missing; donor fake volatile excluded. */
 static int sftim_GetTimeExtClock(SfdHandle* handle, int* value, int* scale)
 {
     int sample;

@@ -303,8 +303,8 @@ static inline void axrna_flash_channels(AXRNAHandle* handle)
     }
 }
 
-/* TODO: [near miss] 98.68%; all operations, CFG and descriptor slots agree;
- * phase index/stride GPR coloring remains; stop after donor type controls. */
+/* TODO: [near miss] 98.67924%; transfer index precedes SR pointer selection;
+ * complete donor phases regress descriptor slots and flash owner homes. */
 void AXRNA_ExecHndl(AXRNAHandle* handle)
 {
     SJCK buffer_remainder;

@@ -462,8 +462,8 @@ void debug_create_axis_indicator(PlyrInfo* player, Vec* position) {
     }
 }
 
-/* TODO: [near miss] 98.00%; two unreachable retail branches remain; structured-loop forms are
- * neutral and whole-TU peephole control regresses. */
+/* TODO: [breakthrough needed] 98.00%; two retail branches are absent before PCode;
+ * recover original frontend CFG retention; loop and peephole controls exhausted. */
 static float p_fish_attack_bloodsplat(void) {
     Vec effect_origin = {0.0f, 1.6f, 0.0f};
     struct MkObjRef splat;
@@ -857,7 +857,8 @@ void start_fish_attack(MkObj* target, int attack_kind, int target_kind) {
     }
 }
 
-/* TODO: [near miss] 99.54%; limb-offset seed uses li instead of mr; inline initialization introduces owner-register regressions. */
+/* TODO: [near miss] 99.53846%; first-loop stride zero uses LI instead of MR;
+ * shared initializer fixes seed but regresses the exact public initializer. */
 static float p_player_body_explode(void) {
     PlyrInfo* player;
     struct PlayerBodyExplodePdata* pdata;

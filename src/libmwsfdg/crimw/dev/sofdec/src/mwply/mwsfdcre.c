@@ -404,8 +404,8 @@ void mwSfdDestroy(MWPLY handle)
     MWSFCRE_DestroySfd(player);
 }
 
-/* TODO: [near miss] 97.77%; canonical creation-parameter API recovered;
- * player/create/size/pool/free-loop homes and pool relocations remain. */
+/* TODO: [near miss] 97.76836%; live retail/m2c confirm allocation/rollback; saved homes and
+ * equivalent pool relocations remain; donor asm pins excluded. */
 static int mwsfcre_MallocCompoWork(MwsPlayer* player)
 {
     const MwsCreateParams* create = &player->create;

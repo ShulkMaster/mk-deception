@@ -164,8 +164,8 @@ static inline void privFBHeapPartition(_mwMemHeap* heap) {
     }
 }
 
-/* TODO: [breakthrough] 97.35%; retail partition and padding helpers restored;
- * payload-add association and stride scratch registers remain. */
+/* TODO: [near miss] 97.34782%; payload-add association and stride registers remain;
+ * staged payload pointer is neutral inside the recovered padding helper. */
 void fixedBlockHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
     MwMemUsedHeader* used;
 

@@ -423,7 +423,7 @@ typedef void (*mwFileDeviceErrorCallback)(mwFileErrorState, mwFileError, const c
 
 class mwFileDevice {
 public:
-    mwFileDevice() : error_callback(0), error_callback_data(0), error_count(-1) {}
+    mwFileDevice() {}
     virtual ~mwFileDevice();
     virtual void setErrorCallback(mwFileDeviceErrorCallback, void*) = 0;
     virtual void reportError(mwFileError, mwFileCommand*) = 0;
@@ -571,13 +571,14 @@ private:
     T* data_;
 };
 
-/* TODO: [breakthrough] 56.37%; allocator/member copy restored;
- * allocator/tag argument setup and range-load scheduling remain. */
+/* TODO: [near miss] 84.33334%; allocator-before-range order restored;
+ * empty-tag transport and range-argument scheduling remain. */
 template <class T, class Traits, class Allocator>
 basic_string<T, Traits, Allocator>::basic_string(const basic_string& str)
     : alloc_(str.alloc_)
 {
-    init(str.data_, str.data_ + str.size_, get_allocator(), random_access_iterator_tag());
+    const Allocator& allocator = get_allocator();
+    init(str.data_, str.data_ + str.size_, allocator, random_access_iterator_tag());
 }
 
 template <class T, class Traits, class Allocator>
@@ -1187,6 +1188,8 @@ const char* gcnHostMountPoint::convertPath(const char* path)
     return full_path.data();
 }
 
+/* TODO: [near miss] 97.16%; allocator ctor return is forwarded as string arg;
+ * retail rematerializes its stack address; explicit member init is neutral. */
 gcnHostMountPoint::gcnHostMountPoint(const char* mount_name, mwFileServer& server_ref)
     : mwFileDevicePlugin<gcnHostMountPoint, gcnHostOpenCommand>(mount_name, server_ref)
 {
@@ -1235,6 +1238,8 @@ mwFileAsyncResult gcnHostWriteCommand::getResult() const
     return result;
 }
 
+/* TODO: [breakthrough needed] 82.69231%; first error load is retained through selection;
+ * recover frontend/CFG evidence for the retail error reload. */
 mwFileAsyncResult gcnHostOpenCommand::getResult() const
 {
     mwFileAsyncResult result;
@@ -1243,24 +1248,14 @@ mwFileAsyncResult gcnHostOpenCommand::getResult() const
     return result;
 }
 
-int gcnHostOpenCommand::handleNotStartedState()
+/* TODO: [Scope warn] Write requests require append or truncate mode, as supplied by mwFileOpenModeToFlags. */
+static inline int openHostFile(gcnHostFileHandle* handle, const char* path)
 {
-    if (file == 0) {
-        error = -10;
-        return 2;
-    }
-
-    const char* path = name.data();
-    gcnHostFileHandle* handle = static_cast<gcnHostFileHandle*>(file);
     unsigned long open_flags = handle->getFlags();
     char type;
     char plus = 0;
-    int result;
 
-    if ((open_flags & 2) == 0) {
-        _mwFileNoOp(&stringBase0[HOST_READ_MESSAGE], path);
-        result = -13;
-    } else {
+    if ((open_flags & 2) != 0) {
         if ((open_flags & 4) != 0) {
             type = 'a';
             if ((open_flags & 1) != 0) {
@@ -1272,25 +1267,37 @@ int gcnHostOpenCommand::handleNotStartedState()
                 plus = '+';
             }
         }
-
-        char mode[4];
-        mode[0] = type;
-        mode[1] = 'b';
-        mode[2] = plus;
-        mode[3] = '\0';
-        handle->host_file = fopen(path, mode);
-        if (handle->host_file == 0) {
-            result = -18;
-        } else {
-            long position = ftell(handle->host_file);
-            fseek(handle->host_file, 0, 2);
-            handle->setSize(ftell(handle->host_file));
-            fseek(handle->host_file, position, 0);
-            result = 0;
-        }
+    } else {
+        _mwFileNoOp(&stringBase0[HOST_READ_MESSAGE], path);
+        return -13;
     }
 
-    error = result;
+    char mode[4];
+    mode[0] = type;
+    mode[1] = 'b';
+    mode[2] = plus;
+    mode[3] = '\0';
+    handle->host_file = fopen(path, mode);
+    if (handle->host_file == 0) {
+        return -18;
+    } else {
+        long position = ftell(handle->host_file);
+        fseek(handle->host_file, 0, 2);
+        handle->setSize(ftell(handle->host_file));
+        fseek(handle->host_file, position, 0);
+        return 0;
+    }
+}
+
+int gcnHostOpenCommand::handleNotStartedState()
+{
+    if (file == 0) {
+        error = -10;
+        return 2;
+    }
+
+    const char* path = name.data();
+    error = openHostFile(static_cast<gcnHostFileHandle*>(file), path);
     return 2;
 }
 
@@ -1517,17 +1524,15 @@ int mwFileGCHandle::startCloseFileCommand(mwFileCommand*& command,
 
 DVDFileInfo* mwFileGCHandle::handle(unsigned char priority, int** open_count)
 {
-    unsigned char index = priority & 3;
-
-    if (open_counts[index] == 0) {
-        if (!openInstance(index)) {
+    if (open_counts[priority & 3] == 0) {
+        if (!openInstance(priority & 3)) {
             return 0;
         }
     }
     if (open_count != 0) {
-        *open_count = &open_counts[index];
+        *open_count = &open_counts[priority & 3];
     }
-    return &file_info[index];
+    return &file_info[priority & 3];
 }
 
 int mwFileGCHandle::nativeOpen(const char* path, unsigned long open_flags)
@@ -1740,9 +1745,11 @@ int gcnHostFlushCommand::serviceState(int state)
     case 0:
         fflush(static_cast<gcnHostFileHandle*>(file)->host_file);
         error = 0;
-        return 2;
+        break;
+    default:
+        return mwFileCommandPlugin<gcnHostFlushCommand>::serviceState(state);
     }
-    return mwFileCommandPlugin<gcnHostFlushCommand>::serviceState(state);
+    return 2;
 }
 
 int gcnHostCloseCommand::serviceState(int state)
@@ -1755,10 +1762,12 @@ int gcnHostCloseCommand::serviceState(int state)
             handle->host_file = 0;
         }
         error = 0;
-        return 2;
+        break;
     }
+    default:
+        return mwFileCommandPlugin<gcnHostCloseCommand>::serviceState(state);
     }
-    return mwFileCommandPlugin<gcnHostCloseCommand>::serviceState(state);
+    return 2;
 }
 }
 
@@ -1790,9 +1799,9 @@ int mwFileCommandPlugin<T>::service()
 template <class T, class OpenCommand>
 mwFileMountPointPlugin<T, OpenCommand>::mwFileMountPointPlugin(const char* mount_name,
                                                                mwFileServer& server_ref)
-    : mwFileMountPoint(mount_name), server(server_ref)
+    : mwFileMountPoint(mount_name),
+      server((OSInitMutex(&mutex), server_ref))
 {
-    OSInitMutex(&mutex);
     strcpy(internal_path, &stringBase0[SLASH_STRING]);
     strcat(internal_path, mount_name);
     strcat(internal_path, &stringBase0[SLASH_STRING]);
@@ -1861,6 +1870,9 @@ mwFileDevicePlugin<T, OpenCommand>::mwFileDevicePlugin(const char* mount_name,
                                                        mwFileServer& server_ref)
     : mwFileMountPointPlugin<T, OpenCommand>(mount_name, server_ref)
 {
+    error_callback = 0;
+    error_callback_data = 0;
+    error_count = -1;
 }
 
 template <class T, class OpenCommand>
@@ -2126,7 +2138,7 @@ mwFileAsyncResult mwFileXPCloseCommand<T, H>::getResult() const
     return result;
 }
 
-/* TODO: [near miss] 99.63%; close/abort CFG and file reads agree; stop at mask/buffer-data homes. */
+/* TODO: [near miss] 99.63%; named padding-data snapshot folds away; recover mask/data owner boundary. */
 template <class T, class H>
 int mwFileXPCloseCommand<T, H>::handleNotStartedState()
 {
@@ -2508,15 +2520,19 @@ mwFileGCIOMixIn<Command>::mwFileGCIOMixIn()
 {
 }
 
-/* TODO: [near miss] 99.51%; file_info/device r30/r31 swap only, stop at coloring. */
 template <class Command>
 void mwFileGCIOMixIn<Command>::queryErrorState()
 {
     DVDFileInfo* info = file_info;
     if (info != 0) {
+        mwFileDevice* device;
         Command* command = static_cast<Command*>(this);
         mwFile* owner = command->getFile();
-        mwFileDevice* device = owner != 0 ? owner->getDevice() : 0;
+        if (owner != 0) {
+            device = owner->getDevice();
+        } else {
+            device = 0;
+        }
         if (device != 0) {
             mwFileError status = gcnConvertDVDStatus(DVDGetCommandBlockStatus(&info->cb));
             if (error_reported &&

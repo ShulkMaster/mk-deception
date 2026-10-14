@@ -39,6 +39,9 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
 int save_settings_to_memcard_w_error(int device, int mode, const char* title,
                                      GameSettings* settings, int flag,
                                      unsigned int* freeBlocks, int* freeBytes);
+int save_konquest_region_to_memcard_w_error(
+    int device, int slot, int mode, const char* title, unsigned char region,
+    void* regionBuf, int flag, unsigned int* freeBlocks, int* freeBytes);
 int load_konquest_region_from_memcard_w_error(
     int device, int slot, int arg, int region, void* buffer, char* cardName,
     int nameLen, unsigned int* freeBlocks, int* freeBytes);

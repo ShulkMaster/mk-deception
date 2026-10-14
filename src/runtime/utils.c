@@ -1750,22 +1750,6 @@ static inline void uv_init_transform_pair(UvScrollControl* ctrl) {
     ctrl->mtx2.flags = ctrl->mtx2.flags | kUvMtxFlags;
 }
 
-static inline void material_apply_scroll_effects(RpMaterial* material) {
-    int effects;
-    RwBlendFunction dst;
-    RwBlendFunction src;
-    effects = RpMatFXMaterialGetEffects(material);
-    if (effects == kMatFxDual) {
-        RwTexture* dual_texture = RpMatFXMaterialGetDualTexture(material);
-        RpMatFXMaterialGetDualBlendModes(material, &src, &dst);
-        RpMatFXMaterialSetEffects(material, kMatFxDualUvTransform);
-        RpMatFXMaterialSetDualBlendModes(material, src, dst);
-        RpMatFXMaterialSetDualTexture(material, dual_texture);
-    } else {
-        RpMatFXMaterialSetEffects(material, kMatFxUvTransform);
-    }
-}
-
 static inline void material_advance_uv_pair(RwV3d* uv, float rateU, float rateV) {
     uv->x = rateU * game_speed + uv->x;
     uv->y = rateV * game_speed + uv->y;
@@ -1895,7 +1879,6 @@ static inline UvScrollControl* create_uv_scroll_control(void) {
     return ctrl;
 }
 
-/* TODO: [near miss] 99.326920%; dual-texture result staging copy remains. */
 UvScrollControl* material_start_uv_scroll(MkObj* owner, RpMaterial* material,
                                           float u1, float v1, float u2,
                                           float v2) {
@@ -1908,11 +1891,24 @@ UvScrollControl* material_start_uv_scroll(MkObj* owner, RpMaterial* material,
     }
     ctrl = create_uv_scroll_control();
     if (ctrl != 0) {
+        int effects;
+        RwBlendFunction src;
+        RwBlendFunction dst;
+
         ctrl->owner = owner;
         ctrl->owner_instance = owner->hdr.instance;
         mk_insert(&ctrl->hdr, &owner->child_list);
         uv_init_transform_pair(ctrl);
-        material_apply_scroll_effects(material);
+        effects = RpMatFXMaterialGetEffects(material);
+        if (effects == kMatFxDual) {
+            RwTexture* dual_texture = RpMatFXMaterialGetDualTexture(material);
+            RpMatFXMaterialGetDualBlendModes(material, &src, &dst);
+            RpMatFXMaterialSetEffects(material, kMatFxDualUvTransform);
+            RpMatFXMaterialSetDualBlendModes(material, src, dst);
+            RpMatFXMaterialSetDualTexture(material, dual_texture);
+        } else {
+            RpMatFXMaterialSetEffects(material, kMatFxUvTransform);
+        }
         ctrl->rateU1 = u1;
         ctrl->rateV1 = v1;
         ctrl->rateU2 = u2;

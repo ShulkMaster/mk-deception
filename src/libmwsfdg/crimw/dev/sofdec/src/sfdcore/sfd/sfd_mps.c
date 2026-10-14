@@ -285,8 +285,8 @@ static inline void sfmps_ProcPrepSeek(SfdHandle* handle)
     }
 }
 
-/* TODO: [near miss] 99.52%; RE4 shape restored; retail folds the buffer-array base into the
- * ring-size load (add handle,idx*116; lwz 0x1324), which RE4 reaches only via a padded view. */
+/* TODO: [breakthrough needed] 99.52467%; explicit array-base owner survives IRO;
+ * original buffer-root frontend boundary needed for folded load; padded view unsupported. */
 static void sfmps_ProcPrep(SfdHandle* handle)
 {
     MpsHandle* decoder;

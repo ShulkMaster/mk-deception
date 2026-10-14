@@ -145,6 +145,24 @@ static inline SubBlock* merge_previous(SubBlock* subblock, SubBlock** start) {
     return subblock;
 }
 
+static inline void resize_subblock(SubBlock* subblock, unsigned long size) {
+    subblock->size &= 7;
+    subblock->size |= size & ~7UL;
+    if (!(subblock->size & 2)) {
+        *(unsigned long*)((unsigned char*)subblock + size - sizeof(unsigned long)) = size;
+    }
+}
+
+static inline void set_subblock_free(SubBlock* subblock) {
+    SubBlock* next;
+    unsigned long size = subblock_size(subblock);
+
+    subblock->size &= ~2UL;
+    next = (SubBlock*)((unsigned char*)subblock + size);
+    next->size &= ~4UL;
+    *(unsigned long*)((unsigned char*)next - sizeof(unsigned long)) = size;
+}
+
 static inline void merge_next(SubBlock* subblock, SubBlock** start) {
     unsigned long tag = subblock->size;
     SubBlock* next = (SubBlock*)((unsigned char*)subblock + (tag & ~7UL));
@@ -152,12 +170,8 @@ static inline void merge_next(SubBlock* subblock, SubBlock** start) {
     unsigned long size;
 
     if (!(next_tag & 2)) {
-        subblock->size = tag & 7;
         size = (tag & ~7UL) + (next_tag & ~7UL);
-        subblock->size |= size & ~7UL;
-        if (!(subblock->size & 2)) {
-            *(unsigned long*)((unsigned char*)subblock + size - 4) = size;
-        }
+        resize_subblock(subblock, size);
         if (!(subblock->size & 2)) {
             *(unsigned long*)((unsigned char*)subblock + size) &= ~4UL;
         } else {
@@ -238,12 +252,7 @@ static inline void unlink_subblock(Block* block, SubBlock* subblock) {
 #define LINK_FREE_SUBBLOCK(block_, subblock_)                                  \
     do {                                                                       \
         SubBlock** link_start;                           \
-        unsigned long link_size = subblock_size(subblock_);                    \
-                                                                               \
-        (subblock_)->size &= ~2UL;                                             \
-        *(unsigned long*)((unsigned char*)(subblock_) + link_size) &= ~4UL;    \
-        *(unsigned long*)((unsigned char*)(subblock_) + link_size - 4) =       \
-            link_size;                                                         \
+        set_subblock_free(subblock_);                                      \
         link_start = block_start(block_);                                      \
         if (*link_start != NULL) {                                             \
             (subblock_)->prev = (*link_start)->prev;                           \
@@ -309,8 +318,8 @@ static inline unsigned long variable_allocation_size(unsigned long size) {
     return size;
 }
 
-/* TODO: [near miss] 96.15619%; 273 coalescing/split register rows remain;
- * split-result ownership is neutral; stop without new helper evidence. */
+/* TODO: [near miss] 96.36917%; 261 coalescing/split register rows remain;
+ * retain inline head-address boundary; trace block/remainder owner interference. */
 void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size) {
     unsigned long old_size;
     unsigned long is_variable;
@@ -563,17 +572,6 @@ static inline int block_is_empty(const Block* block) {
     return empty;
 }
 
-static inline void set_subblock_free(SubBlock* subblock) {
-    SubBlock* next;
-    unsigned long size = subblock_size(subblock);
-
-    subblock->size &= ~2UL;
-    next = (SubBlock*)((unsigned char*)subblock + size);
-    next->size &= ~4UL;
-    *(unsigned long*)((unsigned char*)next - sizeof(unsigned long)) = size;
-}
-
-/* TODO: [near miss] 99.88%; free-mark phase matches; merge_next flag/length r5/r6 homes remain swapped. */
 static void deallocate_from_var_pools(MemPoolObj* pool, void* ptr) {
     SubBlock* subblock = (SubBlock*)((unsigned char*)ptr - 8);
     Block* block = (Block*)((unsigned long)subblock->block & ~1UL);
@@ -731,7 +729,6 @@ static SubBlock* Block_subBlock(Block* block, unsigned long size) {
     return subblock;
 }
 
-/* TODO: [near miss] 99.86%; canonical size macros recover field reads; localized constructor register homes remain. */
 static void Block_construct(Block* block, unsigned long size) {
     SubBlock* subblock = (SubBlock*)(block + 1);
     SubBlock** start;

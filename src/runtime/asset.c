@@ -338,21 +338,18 @@ void* load_named_binary_block(int handle, const char* name, int* out_size) {
     return NULL;
 }
 
-/* TODO: [near miss] 99.10%; member-address and buffer GPRs are swapped in six rows. */
 void* load_binary_block(int handle, unsigned int art_oid, int* out_size) {
     SecSlotFileEntry* entry;
     void* data;
     unsigned int section_id;
     unsigned int member_index;
-    SecArtMember* member;
 
     section_id = art_oid >> 16;
     member_index = art_oid & 0xFFFFu;
     entry = find_slot_section(handle, section_id);
     if (entry != NULL) {
-        member = &entry->members[member_index];
-        data = entry->buffer + member->data_offset;
-        *out_size = member->size;
+        data = entry->buffer + entry->members[member_index].data_offset;
+        *out_size = entry->members[member_index].size;
     } else {
         data = NULL;
     }

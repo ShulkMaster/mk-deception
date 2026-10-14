@@ -420,11 +420,9 @@ static inline void moves_sleep(float ticks) {
 }
 
 static inline int moves_is_weapon_style(PlyrFighterDefinition* style) {
-    PlyrStyleDefinition* weapon_data;
-
-    if (style != 0 && (weapon_data = style->definition) != 0 &&
-        (weapon_data->primary_weapon != 0 ||
-         weapon_data->secondary_weapon != 0)) {
+    if (style != 0 && style->definition != 0 &&
+        (style->definition->primary_weapon != 0 ||
+         style->definition->secondary_weapon != 0)) {
         return 1;
     }
     return 0;
@@ -1194,7 +1192,6 @@ static inline void moves_activate_style_weapons(PlyrPdata* const* const player_o
     }
 }
 
-/* TODO: [near miss] 99.82%; activation owner agrees; style-search r5/r6 coloring remains. */
 void start_special_weapon_monitor(void) {
     struct MovesWeaponWatchPdata* pdata;
     MkProc* monitor;
@@ -2822,7 +2819,8 @@ void update_my_last_switch(void) {
     p2_current_switch_time = switch_value;
 }
 
-/* TODO: [near miss] 98.41%; retail indexes field bases; entry staging still folds to lwz. */
+/* TODO: [breakthrough needed] 98.41410%; field-base codegen retains displacement in LWZ;
+ * sibling native captures rule out commuted indexing; recover address ownership. */
 static float j_flying_kick2_early(void) {
     MkHdr* object;
     struct SwitchLogEntry* entry;
@@ -2943,7 +2941,8 @@ float j_flying_kick2(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.43%; six switch-log column loads still use element addressing instead of retail indexed field bases. */
+/* TODO: [breakthrough needed] 98.42795%; codegen retains tick displacement in LWZ;
+ * commuted indexing still misses indexed tick load; recover field-base ownership. */
 static float j_flying_kick1_early(void) {
     MkHdr* object;
     struct SwitchLogEntry* entry;
@@ -3022,7 +3021,8 @@ static float j_flying_kick1_early(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.79%; inlined update_my_last_switch needs independent base/base+4 address trees; shared helper source unresolved. */
+/* TODO: [breakthrough needed] 98.79121%; shared switch-log tick load still uses an
+ * element address; recover independent indexed field bases in update_my_last_switch. */
 float j_flying_kick(void) {
     MkHdr* object;
     float attack_ticks;
@@ -3060,8 +3060,8 @@ float j_flying_kick(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.43%; real log-base/index staging restored; retail field-base
- * indexed loads differ from folded entry loads; typed slot/helper forms regress; stop without new alias/layout evidence. */
+/* TODO: [breakthrough needed] 98.42795%; native Operand_Add case 11 folds +4;
+ * recover typed source retaining index-first operands for indexed field loads. */
 static float j_flying_punch_early(void) {
     MkHdr* object;
     struct SwitchLogEntry* entry;
@@ -3140,7 +3140,8 @@ static float j_flying_punch_early(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.84%; airborne landing CFG aligns; typed input-log indexed loads remain. */
+/* TODO: [near miss] 98.84%; input-log field address CSE remains;
+ * typed snapshot boundary is neutral; recover independent indexed field ownership. */
 static float j_flying_punch(void) {
     MkHdr* object;
     int log_index;
@@ -3637,7 +3638,6 @@ void sidekick_intro_check(void) {
     }
 }
 
-/* TODO: [near miss] 99.96%; only wrapped_angle FPR coloring remains (f27 vs retail f26); stop at coloring. */
 static float p_plyr_sidekick_intro(void) {
     PlyrPdata* player;
     PlyrInfo* player_info;
@@ -3651,12 +3651,10 @@ static float p_plyr_sidekick_intro(void) {
     Vec direction;
     Vec lateral;
     Vec offset;
+    Vec position;
     float length_sq;
     float inverse_length;
     float wrapped_angle;
-    float position_x;
-    float position_y;
-    float position_z;
     float angle_x;
     float angle_y;
     float angle_z;
@@ -3698,15 +3696,15 @@ static float p_plyr_sidekick_intro(void) {
     } else {
         v3_add_v3_scaled(&offset, &offset, &lateral, -0.55f);
     }
-    position_x = offset.x += main_object->pos.value.x;
-    position_y = g_game_info.field_34;
-    position_z = offset.z += main_object->pos.value.z;
+    position.x = offset.x += main_object->pos.value.x;
+    position.y = g_game_info.field_34;
+    position.z = offset.z += main_object->pos.value.z;
 
     sidekick->ground_colls_y = main_object->ground_colls_y;
     set_root_and_obj_movement_weights(anim, 0.0f, 0.5f);
-    sidekick->pos.value.x = position_x;
-    sidekick->pos.value.y = position_y;
-    sidekick->pos.value.z = position_z;
+    sidekick->pos.value.x = position.x;
+    sidekick->pos.value.y = position.y;
+    sidekick->pos.value.z = position.z;
     sidekick->ang.x = angle_x;
     sidekick->ang.y = angle_y;
     sidekick->ang.z = angle_z;
@@ -4216,8 +4214,8 @@ void noobsmoke_sidekick_double_charge(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 99.96403%; recover defined offset/lateral Y inputs;
- * normalized-angle f27/f26 coloring also remains. */
+/* TODO: [breakthrough needed] 99.96403%; offset/lateral Y values lack initialization
+ * before the vector call; recover defined inputs before the three angle-coloring rows. */
 static float p_plyr_sidekick_charge(void) {
     float wrapped_angle;
     float position_y;
@@ -4773,8 +4771,6 @@ float x_advance_moveset(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.78%; r3/r4 homes for conversion base and animation
- * reloads differ in seven rows; preserve direct stores and unsigned tick subtraction. */
 void attack_to_frame_x(AniData* animation, float frame, float blend_rate,
                        float step, float weight, unsigned int voice_event,
                        unsigned int whoosh_event, int transition) {
@@ -4792,8 +4788,8 @@ void attack_to_frame_x(AniData* animation, float frame, float blend_rate,
         blend_to_ani(animation, transition, blend_rate);
     }
     plyr_anim_pdata->step = step;
-    voice_frame = voice_event >> 16;
     plyr_anim_pdata->weight = weight;
+    voice_frame = voice_event >> 16;
     whoosh_frame = whoosh_event >> 16;
 
     if (voice_frame < frame && whoosh_frame < frame) {

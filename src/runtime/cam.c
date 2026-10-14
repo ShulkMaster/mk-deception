@@ -151,7 +151,7 @@ int orbit_position_to_end_point(Vec* center, Vec* endpoint,
                                 float time, unsigned int direction, int reset);
 
 static inline float normalize_interaction_angle(float angle) {
-    int fixed_angle = (int)(166886.1f * angle);
+    int fixed_angle = 166886.1f * angle;
     fixed_angle &= 0xFFFFF;
     return 0.000005992112f * (float)fixed_angle;
 }
@@ -1992,7 +1992,7 @@ void set_camera_target_angle(CamVec3* angle) {
 }
 
 /* TODO: [near miss] 99.33%; nine store-phase FPR rows remain;
- * a distinct direction vector is exact here but regresses generic_victory_camera. */
+ * public-body boundary and joint direction/owner grouping still regress the shared caller. */
 void get_target_movement_vector(const Vec* current_position,
                                 const Vec* target_position, Vec* movement,
                                 float duration) {
@@ -2396,26 +2396,13 @@ static void attract_default_move(struct AttractCameraState* state) {
     }
 }
 
-/* TODO: [near miss] 99.66%; real roll delta/step restores multiply;
- * only angle-rate/old-X f3/f5 coloring remains. */
-static void attract_move_flyby(struct AttractCameraState* state) {
+static inline void attract_approach_camera_angles(struct AttractCameraState* state) {
     CameraObj* camera;
-    Vec direction;
     float delta_x;
     float delta_y;
-    float roll_delta;
     float angle_rate;
+    float roll_delta;
     float roll_step;
-
-    direction.x = state->target_position.x - state->camera->pos.x;
-    direction.y = state->target_position.y - state->camera->pos.y;
-    direction.z = state->target_position.z - state->camera->pos.z;
-    v3_to_xy_ang(&state->current_angles, &direction);
-
-    RESOLVE_CAMERA_OBJ(camera);
-    camera->pos.x = state->current_position.x;
-    camera->pos.y = state->current_position.y;
-    camera->pos.z = state->current_position.z;
 
     angle_rate = state->field_48;
     RESOLVE_CAMERA_OBJ(camera);
@@ -2440,6 +2427,23 @@ static void attract_move_flyby(struct AttractCameraState* state) {
         camera->ang.y = camera->ang.y + delta_y;
         camera->ang.z = camera->ang.z + roll_step;
     }
+}
+
+static void attract_move_flyby(struct AttractCameraState* state) {
+    CameraObj* camera;
+    Vec direction;
+
+    direction.x = state->target_position.x - state->camera->pos.x;
+    direction.y = state->target_position.y - state->camera->pos.y;
+    direction.z = state->target_position.z - state->camera->pos.z;
+    v3_to_xy_ang(&state->current_angles, &direction);
+
+    RESOLVE_CAMERA_OBJ(camera);
+    camera->pos.x = state->current_position.x;
+    camera->pos.y = state->current_position.y;
+    camera->pos.z = state->current_position.z;
+
+    attract_approach_camera_angles(state);
 }
 
 static void attract_default_glitch_move(struct AttractCameraState* state) {
@@ -2660,8 +2664,29 @@ void camera_set_custom_camera_movement_flag(int enabled) {
     scripted_camera_data.custom_movement = enabled;
 }
 
-/* TODO: [near miss] 99.64%; only X/Z FPR coloring differs in vector
- * initialization; stop at coloring. */
+static inline void camera_init_reverse_offsets(
+    Vec* offset, Vec* reverse_x, Vec* reverse_z,
+    const Vec* source) {
+    float z;
+    float y;
+    float x;
+
+    x = source->x;
+    y = source->y;
+    z = source->z;
+    offset->x = x;
+    offset->y = y;
+    offset->z = z;
+    reverse_x->x = x;
+    reverse_x->y = y;
+    reverse_x->z = z;
+    reverse_z->x = x;
+    reverse_z->y = y;
+    reverse_z->z = z;
+    reverse_x->x = -x;
+    reverse_z->z = -z;
+}
+
 void camera_check_reverse_move_offset(int expected_mask, int skip_mask) {
     int reverse_x = 0;
     int reverse_z = 0;
@@ -2673,17 +2698,9 @@ void camera_check_reverse_move_offset(int expected_mask, int skip_mask) {
     Vec world_offset;
     float original_distance;
 
-    offset.x = scripted_camera_data.movement_offset.x;
-    offset.y = scripted_camera_data.movement_offset.y;
-    offset.z = scripted_camera_data.movement_offset.z;
-    reverse_x_offset.x = offset.x;
-    reverse_x_offset.y = offset.y;
-    reverse_x_offset.z = offset.z;
-    reverse_z_offset.x = offset.x;
-    reverse_z_offset.y = offset.y;
-    reverse_z_offset.z = offset.z;
-    reverse_x_offset.x = -offset.x;
-    reverse_z_offset.z = -offset.z;
+    camera_init_reverse_offsets(
+        &offset, &reverse_x_offset, &reverse_z_offset,
+        &scripted_camera_data.movement_offset);
     if (scripted_camera_data.movement_focus != 0) {
         v3_x_mat_add_v3(
             &world_offset, &offset,
@@ -3759,8 +3776,8 @@ static inline void interaction_camera_collision_origin(
     }
 }
 
-/* TODO: [breakthrough needed] 93.95954%; original target-retention and orbit-result producer evidence is missing;
- * selected yaw reloads still disappear before allocation. */
+/* TODO: [breakthrough needed] 93.95954%; target-retention/orbit-result boundaries remain
+ * unresolved before allocation; recover selected yaw reloads and inverse-result ownership. */
 static void check_reverse_interaction_cam_targets(void) {
     MkObj* hero;
     const MkObj* target;
@@ -3990,8 +4007,8 @@ static void look_at_interaction_target(Vec* target, int snap_angles) {
     }
 }
 
-/* TODO: [breakthrough needed] 92.40803%; pre-call orbit and helper-result ownership remain unresolved;
- * the extra f23 save enlarges the frame to 0x150. */
+/* TODO: [breakthrough needed] 92.40803%; orbit/result ownership retains extra f23 save;
+ * recover the entry/orbit lifetime boundary under canonical helper and input order. */
 static float p_interaction_cam(void) {
     CameraObj* entry_camera;
     CameraObj* active_camera;
@@ -4464,7 +4481,8 @@ float p_krypt_camera_proc(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.13%; sqrt via gxMathFastSqrt; saved-register ranking remains (pdata r30 vs r25, 50 rows). */
+/* TODO: [near miss] 99.12904%; 50 pdata/address GPR and delta-FPR rows remain;
+ * native zero-spill trace and complete-owner controls justify stopping at allocation. */
 float p_krypt_camera_loop(void) {
     static const union CameraVecBits kDefaultPos = {{-28.5f, 4.4f, 55.0f}};
     static const union CameraVecBits kDefaultAng =
@@ -4583,21 +4601,7 @@ float p_krypt_camera_loop(void) {
             cam->ang.z += roll_delta;
         }
 
-        RESOLVE_CAMERA_OBJ(cam);
-
-        old_cam_ang_offset.x = cam_ang_offset.x;
-        old_cam_ang_offset.y = cam_ang_offset.y;
-        old_cam_ang_offset.z = cam_ang_offset.z;
-        old_cam_pos_offset.x = cam_pos_offset.x;
-        old_cam_pos_offset.y = cam_pos_offset.y;
-        old_cam_pos_offset.z = cam_pos_offset.z;
-
-        cam->pos.x = cam->pos.x + cam_pos_offset.x;
-        cam->pos.y = cam->pos.y + cam_pos_offset.y;
-        cam->pos.z = cam->pos.z + cam_pos_offset.z;
-        cam->ang.x = cam->ang.x + cam_ang_offset.x;
-        cam->ang.y = cam->ang.y + cam_ang_offset.y;
-        cam->ang.z = cam->ang.z + cam_ang_offset.z;
+        add_camera_offsets_impl();
 
         _mkproc_sleep_ticks = 1.0f;
         mkproc_sleep();
@@ -4700,7 +4704,8 @@ BackgroundDangerZone* add_background_danger_zone(RpAtomic* atomic, int type,
     return zone;
 }
 
-/* TODO: [near miss] 99.52%; sphere-type guard signed compare recovered; retail branches bne+b over the body, here beq over it. */
+/* TODO: [breakthrough needed] 99.52174%; IRO_RemoveRedundantJumps folds sphere guard;
+ * PS2 confirms one predicate; need new guard-source provenance before retry. */
 int keep_camera_out_of_danger_zones(Vec* position) {
     int index;
     BackgroundDangerZone* zone;
@@ -5443,8 +5448,9 @@ void remove_widescreen_bars(void) {
     }
 }
 
-/* TODO: [near miss] 64.54929%; projection math/frame agree; FP webs and integer conversion scheduling remain; tier 2. */
-void camera_get_screen_pos_from_world_pos(const Vec* world, RwV2d* screen) {
+/* TODO: [breakthrough] 70.75%; mutable world restores entry load order;
+ * projection/conversion webs need original helper or lifetime evidence. */
+void camera_get_screen_pos_from_world_pos(Vec* world, RwV2d* screen) {
     RwRaster* raster = Camera->frameBuffer;
     float y = world->y;
     float x = world->x;
@@ -5835,8 +5841,8 @@ static inline int camera_target_within_step(const Vec* const current,
     return remaining_length < step_length;
 }
 
-/* TODO: [breakthrough] 97.3851%; rounded step-norm phase retained;
- * three output FRSPs and initializer provenance remain unresolved. */
+/* TODO: [breakthrough needed] 97.38513%; three movement-output FRSPs remain absent;
+ * qualifier/type controls are neutral; recover inliner/store-forwarding and pool ownership evidence. */
 static float generic_victory_camera(void) {
     MkProc* camera_proc = camera_info.proc;
     CameraPdata* pdata = camera_info.pdata;

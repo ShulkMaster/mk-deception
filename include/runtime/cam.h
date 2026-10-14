@@ -248,7 +248,7 @@ void camera_setup_radial_sweep(void* script_args, float travel_time,
                                float final_speed, float radial_step,
                                float radial_distance, float center_x,
                                float center_y, float start_angle);
-void camera_get_screen_pos_from_world_pos(const Vec* world, RwV2d* screen);
+void camera_get_screen_pos_from_world_pos(Vec* world, RwV2d* screen);
 void find_best_conversation_camera_position(void);
 int is_a_to_the_right_of_b(MkObj* a, MkObj* b);
 

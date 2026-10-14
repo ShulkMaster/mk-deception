@@ -1442,13 +1442,12 @@ void pz_fighter_kill_global_projectile(void) {
     }
 }
 
-/* TODO: [near miss] 98.63%; 55 owner/flag register rows remain;
- * operations and CFG agree; need supported owner lifetimes. */
 static float p_pz_fighter_projectile_launcher(void) {
+    MkHdr* saved_pdata;
+    RwFrame* frame;
     struct PuzzleProjectile* projectile = (struct PuzzleProjectile*)apdata;
     int passed_target = 0;
     Vec position;
-    RwFrame* frame;
 
     if ((unsigned int)projectile->state == 2) {
         g_global_projectile = 0;
@@ -1495,7 +1494,7 @@ static float p_pz_fighter_projectile_launcher(void) {
                 passed_target = 1;
             }
             if (passed_target == 1) {
-                MkHdr* saved_pdata = apdata;
+                saved_pdata = apdata;
 
                 apdata = (MkHdr*)projectile->owner;
                 fx_reset(projectile->effect);

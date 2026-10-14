@@ -541,7 +541,6 @@ void material_set_zbias(RpMaterial* material, float bias);
 extern void fx_resume_emit(unsigned int handle);
 extern MkPfx* find_pfx_by_name(const char* name);
 extern void reset_effect(const char* name);
-extern void resume_effect(const char* name);
 
 #define FATALITY_SLEEP(ticks)                                                \
     do {                                                                     \
@@ -549,12 +548,9 @@ extern void resume_effect(const char* name);
         aproc->vtbl->sleep();                          \
     } while (0)
 
-static inline void fatality_fade_and_cleanup(void) {
-    float far_clip;
-    float step;
-
+static inline void fatality_prepare_black_fog(GameInfo* game) {
     background_color.red = 0;
-    g_game_info.sky = 0;
+    game->sky = 0;
     background_color.alpha = 0;
     background_color.green = 0;
     background_color.blue = 0;
@@ -565,6 +561,13 @@ static inline void fatality_fade_and_cleanup(void) {
     fog_color_real[0] = 0.0f;
     fog_color_real[1] = 0.0f;
     fog_color_real[2] = 0.0f;
+}
+
+static inline void fatality_fade_and_cleanup(void) {
+    float far_clip;
+    float step;
+
+    fatality_prepare_black_fog(&g_game_info);
 
     far_clip = Camera->farPlane;
     step = (far_clip - 10.0f) / 30.0f;
@@ -3361,23 +3364,13 @@ void set_victim_v3_units_away(float x, float z) {
     his_obj->pos.value.y = original_y;
 }
 
-/* TODO: [near miss] 87.94%; setup address/load scheduling remains; fade loop and store order agree. */
+/* TODO: [near miss] 87.94%; setup base coalescing moves the Camera load;
+ * fade loop and publication order agree. */
 void fade_fatality_screen(void) {
     float far_clip;
     float step;
 
-    background_color.red = 0;
-    g_game_info.sky = 0;
-    background_color.alpha = 0;
-    background_color.green = 0;
-    background_color.blue = 0;
-    fog_on = 1;
-    fog_distance = 0.0f;
-    fog_type = 1;
-    fog_color_real[3] = 0.0f;
-    fog_color_real[0] = 0.0f;
-    fog_color_real[1] = 0.0f;
-    fog_color_real[2] = 0.0f;
+    fatality_prepare_black_fog(&g_game_info);
 
     far_clip = Camera->farPlane;
     step = (far_clip - 10.0f) / 30.0f;

@@ -421,8 +421,8 @@ void log_switch(int player, int switch_index, int tick,
     if (sw_log_on != 0) show_sw_log();
 }
 
-/* TODO: [near miss] 98.93%; CFG, size and clamp shape agree; loop counter/offset/old_proc
- * saved-register homes rotate by one in the practice and pad-log blocks. */
+/* TODO: [near miss] 98.93023%; count/old_proc simplify threshold rotates saved homes;
+ * isolated fade-restart inline regresses; recover cross-loop ownership. */
 void show_sw_log(void) {
     int index;
     int y;
@@ -657,7 +657,8 @@ static inline void scan_switch_sequence(
     execute_scan_sequence_cmd(action, execution_mode);
 }
 
-/* TODO: [near miss] 97.68%; equivalent rejection branches and GPR coloring remain; stop at compiler model. */
+/* TODO: [breakthrough needed] 97.67619%; rejection polarity differs before regalloc;
+ * recover frontend join and independent decoy-selector ownership. */
 void scan_switch_sequences(unsigned int* sequence) {
     struct SwitchLogEntry* switch_log;
     int log_index;
