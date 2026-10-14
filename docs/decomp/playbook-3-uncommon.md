@@ -108,6 +108,15 @@ across TU, REQUIRE sibling evidence + all-function and section baselines.
   an adjacent call, ours hoists it into a saved reg: same scoped pragma,
   no spelling of the named pool array avoids the CSE (`p_main_menu`,
   `get_modeselect_portrait_list`; user-approved scoped-mode rule).
+- Two old-process null guards surround a retained proc assignment, but the
+  frontend merges the owner with the loaded field before `initial` PCode:
+  REQUIRE both retail guards, the copy between them, and caller pdata storage.
+  TRY scoped `opt_common_subs off` with immediate reset on the unchanged nested
+  source (`puzzle_fighter_display_block_count_msg`). Strip permuter aliases
+  first; declaration order alone cannot restore the missing frontend copy.
+  Compare `initial` and `presched`: with the scoped setting, the second field
+  read can fold into the retained copy between guards; default frontend CSE
+  has already removed that distinction before allocation.
 - Multi-row field, retail adds offset to reloaded owner before `stfsx`: typed
   row-array pointer + propagation off (Puzzle crusher).
 - Fixed-count array copy as two advancing pointers, retail one byte
@@ -385,6 +394,9 @@ public APIs keep their documented `const`.
 
 - Coordinate loads moved before intervening stores: compare input qualifier
   with mutable caller objects (Krypt position inputs, Puzzle flesh path).
+  In-place quaternion callers (`out == q1`) also support the root-input check
+  (`gxQuatInterpQuat`); test each input independently and restore neutral
+  qualifiers, preserving the other quaternion's pre-output snapshot.
 - Existing source-level scheduling-off hides the qualifier's load-hoisting
   effect: REQUIRE mutable callers, retail reloads after output stores, and a
   measured canonical-mode control. TRY removing the old scheduling wrapper

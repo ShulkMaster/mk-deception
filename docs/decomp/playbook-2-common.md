@@ -21,11 +21,14 @@ ABI: wrong arg/return regs. REQUIRE all callers + callee ABI.
   caller copy before adding snapshots (inventory image: texture pair by
   value). Keep `cmpw`-proven signed loop count.
 - Flag init into original word + separate passed word = aggregate-address ABI
-  of one-word POD. Confirm all callers, callee reads, pinned-compiler
+  of one/two-word POD. Confirm all callers, callee reads, pinned-compiler
   value-vs-pointer probe, then fix canonical prototype. Typed initializer /
   constructor helpers recover each expansion's original/copy homes
   (`get_mkproc_nostack`, `bleed_startup`). Never model compiler copies as
-  unused 2nd array element. Recheck header consumers together.
+  unused 2nd array element. Extra returned-record copies: inspect the real
+  consumer's by-value ABI before tuning slots; a direct caller record plus
+  outgoing argument copy can replace the return-constructor chain. Recheck
+  header consumers together.
 - Pointer-returning lookup before a binding call: result may be next call's
   first arg. Keep retail post-lookup owner reload with used typed result
   local; nesting the lookup caches owner too early (Puzzle projectile init).
@@ -453,6 +456,12 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
 - Field-address load-update alone != pointer-to-field local.
 - Index kept across calls, table addresses rebuilt later = typed index, not
   cached entry ptr (`run_ending`, right-stick dispatch).
+- Indexed polymorphic rows: retail reloads the node after virtual callbacks,
+  source keeps an earlier pointer in a saved GPR. REQUIRE canonical base
+  vtable + each reload boundary. TRY `owner->nodes[index]->Method()` at each
+  boundary, with a fresh typed row view only where its fields are consumed
+  (`TextList::Update`). Shortens the cross-call owner lifetime; confirm
+  initial PCode/interference changes before treating saved-home swaps as coloring.
 - Save/restore not a self-store if helper between writes field (air-move init
   restores animation step).
 - Original + advanced snapshots only while both live.
@@ -999,12 +1008,22 @@ branch-only alias = dishonest even at 100.
   string arg = residue (`_trial_add_required_sequence`).
 - Select spelling: `x = p ? 0 : C;` vs `x = C; if (p) x = 0;` same instrs,
   different allocation (`gc_aram_mwmem_heap_setup`).
+- Effect-name load and owner-selection branch differ together: REQUIRE the
+  proven player-to-owner mapping, unchanged call ABI and publication order.
+  TRY a typed inline owning the complete owner selection, called as the owner
+  argument, plus a named string argument assigned immediately before lookup
+  (`pzsm_rain_dance`). Measure both shapes together and every sibling; do not
+  substitute an unrelated phase value for an equal-valued owner ID.
 - Scaled arg: `MEMPRINT(fmt, size_kb *= 1.0f / 1024.0f, name)`
   (`mwMemUserConfigOutofMemoryCallback`); siblings may differ.
 - FP temps: numbered per statement (pooled const first), colored newest-first
   into lowest free volatile FPR. Stage negation + copy into result locals in
   earlier statements (`ai_side_clearances`). `.sdata2` float pool: `@N`
   order = offset order = creation order (M15).
+- Independent FP numerator/denominator homes differ: REQUIRE the same rounded
+  component products, fused expression and later uses. TRY initializing the
+  numerator before the denominator (`quat_extract_ang_y`); reverse named-local
+  numbering changes both owners and their interfering temps. No new lifetimes.
 - Narrow params: explicit cast or u16 local hoists arg load; implicit
   conversion to `unsigned short` param doesn't (`drone_loop`). Needs callee
   narrow-param evidence; u16 return makes callers re-normalize.
@@ -1198,6 +1217,16 @@ Helper locals and web kind.
   real per-player round-start helper owning angle `Vec` + background
   snapshot; null guard stays in caller (`move_plyrs_to_round_start`). Audit
   each player selector.
+- Repeated guarded effects swap object/emitter saved homes: REQUIRE the same
+  guard, calls, snapshots and stores; variants differ only in state/height
+  literals. TRY one typed inline owning the complete effect operation
+  (`low_flash_check`): the object becomes an inline owner above the emitter's
+  split web. Check every variant and data pool; no alias-only extraction.
+- Shared FP operation changes consumers in opposite directions: REQUIRE the
+  same rounded products, arithmetic tree and store order. TRY preserving product
+  declaration order while changing their separate assignment order
+  (`yxz_trig_to_matrix` improves both converters). Initialized declarations can
+  conflate these two facts; judge every consumer together.
 - Validated indexed accessor swaps runtime/index regs: REQUIRE same null
   guard, signed bounds, indexed return. TRY typed inline accessor, named
   runtime owner, single-use index passed directly (`fx_restart_emit`). Both as
@@ -1219,6 +1248,15 @@ Helper locals and web kind.
   invariant, no calls/stores in search. TRY reading owner's bound directly in
   indexed loop, no named count (`cloth_bones_init_by_tbl`). Changes bound's
   web kind, keeps CTR loop; check shared helper consumers.
+- Indexed scan keeps named stride/count ahead of retained table bases:
+  REQUIRE native base-plus-offset traversal and a proven immutable bound.
+  TRY typed indexing and direct bound (`pfx_estimate_render_size`); compiler
+  owns stride/bound invariants after named index/size. Keep observed per-iteration
+  input-read order; never replace a callback-visible bound with a snapshot.
+- Three region copies keep an advancing cursor where retail keeps source base,
+  byte offset and reused row: REQUIRE the same signed bounds and copy order.
+  TRY direct typed source[index] members (`pfx_copy_behavior_list`), without
+  a named advancing or indexed-row pointer. Verify post-loop nonzero-count work.
 - Repeated state tests swap a named state snapshot with a shared owner GPR:
   REQUIRE trace shows the named snapshot below the owner temporary, and no
   calls or aliasing stores between the early tests. TRY direct canonical
@@ -1378,6 +1416,11 @@ One-row operand/constant/copy residue. One at a time:
 - Only `fmuls` operand order differs, swap neutral: REQUIRE same scale +
   consumers. TRY stage real scaled local then compound multiply
   (`emit_in_range`: `half_width = width; half_width *= 0.5f`).
+  Same staging can recover the product destination before `fctiwz` when
+  operand order is already right: mutable float = affine factor, separate
+  `*= count`, then integer-field assignment
+  (`puzzle_fighter_mode_play__new_piece`). Preserve the retail `fmadds` /
+  `fmuls` rounding tree; nesting `*=` in the field assignment loses the shape.
 - Base + const field + dynamic offset (`addi` then `stwx`), ours folds field
   into store `[da]`: `(base + 0xC) + offset`, not `base + (offset + 0xC)`.
   Never hide offset in pointer representation (`_rwResourcesClose`).
@@ -1539,6 +1582,12 @@ add a dummy zero local.
   `@` owners inside the window: confirm two LIs in `initial` become LI/MR in
   `presched` (`konquest_hero_portal_in`). Keep actual null-check and call/store
   order; do not invent a record for unrelated constants or add a zero helper.
+- Allocation failure and timer expiry enter one clear loop, while other paths
+  continue the caller's state machine: REQUIRE first-use named indices and
+  measured structured alternatives; TRY caller-owned traversal. Local forward
+  clear/continuation labels only under AGENTS.md's last-resort exception
+  (`puzzle_fighter_mode_play__new_piece`); do not materialize a dummy decision
+  solely to keep the helper boundary.
 - Exemplar: `p_create_profile` (PIN-entry loop open-coded at both sites,
   block-scoped `int i` per cancel branch; `scan_profile_code` declares
   `cursor` before `i`; dead helper deleted). Same lever: `cftyp422_ppc`

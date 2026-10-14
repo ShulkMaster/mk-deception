@@ -1,7 +1,3 @@
-/* BUILD: -inline noauto,deferred requires reverse retail function order;
- * -O4,s, -use_lmw_stmw on and pooled readonly strings retain the retail codegen. */
-/* TODO: [review] nine backward joins remain across seat selection, mode clear, rotation,
- * AI bonus/fallback and drop repeat; structured forms regress (notes 6573/6574). */
 #include "game/attract.h"
 #include "game/switch.h"
 #include "game/plyr_globals.h"
@@ -1243,47 +1239,6 @@ puzzle_fighter_pair_position_open(struct PuzzlePlayerState* player,
     }
 }
 
-static inline void
-puzzle_fighter_update_invisibility(struct PuzzlePlayerState* player) {
-    struct PuzzleInvisiblePdata* invisible_pdata;
-    struct PuzzleBoardCell* cell;
-    int column;
-    int row;
-
-    do {
-        if (player->invisibility_ticks > 0 &&
-            player->invisibility_ticks < 0x1000) {
-            player->invisibility_ticks--;
-            if (player->invisibility_ticks == 0) {
-                if (_create_mkproc_generic_nostack(
-                        0x6010, 0x1F, p_pzsm_invisible, 0,
-                        (MkHdr**)&invisible_pdata) != 0) {
-                    invisible_pdata->player = player;
-                } else {
-                    break;
-                }
-            }
-        }
-
-        if (player->invisibility_fade <= 0) {
-            return;
-        }
-        player->invisibility_fade++;
-        if (player->invisibility_fade <= 14) {
-            return;
-        }
-        player->invisibility_fade = -1;
-    } while (0);
-
-    for (row = 0; row < 14; row++) {
-        for (column = 0; column < 8; column++) {
-            cell = &player->board[row * 8 + column];
-            cell->match_flag_bits.breaking = 0;
-            cell->match_flag_bits.matched = 0;
-        }
-    }
-}
-
 static inline void pzsm_release_rain_dance_resources(void) {
     reset_effect("pz_sm_storm");
     if (pzsm_raindance_data.rain_anim != 0) {
@@ -2504,9 +2459,11 @@ static void pzpfx_copy_puzzleblocks(struct PuzzlePlayerState* player) {
     }
 }
 
-/* TODO: [near miss] 99.87%; six placement-index GPR rows remain;
- * needs new index-owner/interference evidence; coloring stop. */
+/* TODO: [near miss] 99.97015%; board placement index uses r3 instead of r6;
+ * inspect index lifetime at the placement lookup. */
 static void pzpfx_copy_playpieces(struct PuzzlePlayerState* player) {
+    int preview_index;
+    int board_index;
     const struct PuzzleArtPlacement* preview_placement;
     const struct PuzzleArtPlacement* board_placement;
     const int* preview_x;
@@ -2529,10 +2486,14 @@ static void pzpfx_copy_playpieces(struct PuzzlePlayerState* player) {
     }
 
     event_player = player->event_player;
+    preview_index = 3;
+    preview_index += event_player;
     preview_placement =
-        &art_puzzle_fighter_static_tbl.placements[event_player + 3];
+        &art_puzzle_fighter_static_tbl.placements[preview_index];
+    board_index = 1;
+    board_index += event_player;
     board_placement =
-        &art_puzzle_fighter_static_tbl.placements[event_player + 1];
+        &art_puzzle_fighter_static_tbl.placements[board_index];
     preview_x = &preview_placement->x;
     preview_y = &preview_placement->y;
     board_x = &board_placement->x;
@@ -3189,8 +3150,8 @@ static int puzzle_fighter_match_left_right(struct PuzzleMatchContext* context) {
     return matched;
 }
 
-/* TODO: [near miss] 99.33%; scan hit tests state==0 to the handling directly (beq);
- * retail branches bne-next then b found; no honest spelling found yet. */
+/* TODO: [near miss] 99.32516%; retail keeps bne-next then b-found;
+ * current scan folds them into beq-found. */
 static int puzzle_fighter_find_superbreaker(struct PuzzlePlayerState* player) {
     struct PuzzleBoardCell* cell;
     struct PuzzleBoardCell* superbreaker;
@@ -3729,8 +3690,7 @@ static void puzzle_fighter_display_chain_msg(struct PuzzlePlayerState* player) {
     pan_snd_req(chain_sound_burst_table[sound_index], player->sound_pan);
 }
 
-/* TODO: [near miss] 99.39%; retail's second old-proc branch is absent from
- * initial pcode; recover the original cleanup macro and caller pdata ownership. */
+#pragma opt_common_subs off
 static void puzzle_fighter_display_block_count_msg(
     struct PuzzlePlayerState* player) {
     struct PuzzleMessagePdata* pdata;
@@ -3739,15 +3699,17 @@ static void puzzle_fighter_display_block_count_msg(
     int placement_index;
 
     if (player->block_count_message_proc != 0) {
-        pdata = (struct PuzzleMessagePdata*)pdata_of_proc(
-            proc = player->block_count_message_proc);
-        text = MK_LIVE(pdata->text, pdata->text_instance);
+        proc = player->block_count_message_proc;
+        if (proc != 0) {
+            pdata = (struct PuzzleMessagePdata*)pdata_of_proc(proc);
+            text = MK_LIVE(pdata->text, pdata->text_instance);
 
-        if (text != 0) {
-            destroy_string_obj(text);
-        }
-        if (proc->instance != 0) {
-            proc->hdr.typed_vtbl->destroy(&proc->hdr);
+            if (text != 0) {
+                destroy_string_obj(text);
+            }
+            if (proc->instance != 0) {
+                proc->hdr.typed_vtbl->destroy(&proc->hdr);
+            }
         }
     }
 
@@ -3805,6 +3767,7 @@ static void puzzle_fighter_display_block_count_msg(
         pull_string_obj(player->block_count_font_10);
     }
 }
+#pragma opt_common_subs reset
 
 int puzzle_fighter_plyr_winning_big_based_on_points(void) {
     if (puzzle_ctrl->player1_score > puzzle_ctrl->player2_score + 65) {
@@ -4080,8 +4043,8 @@ static int pzsm_antibreakers(struct PuzzlePlayerState* player,
     }
     return 1;
 }
-/* TODO: [near miss] 99.32%; CFG exact; cell r29 as retail; volatile rotation remains
- * (board/type/phase r8/r12/r7 vs retail r9/r8/r7); decl-order sweep flat. */
+/* TODO: [near miss] 99.31548%; phase/type/board GPR homes differ;
+ * CFG agrees; inspect phase and board-index ownership. */
 static int pzsm_arrange(struct PuzzlePlayerState* player,
                         struct PuzzlePlayerState* opponent) {
     int zero_phase;
@@ -5005,8 +4968,16 @@ static void pzsm_rain_dance_cleanup(void) {
     pzsm_release_rain_dance_resources();
 }
 
-/* TODO: [breakthrough needed] 99.18843%; owner branch/string timing remains;
- * lookup/publication boundaries regress; recover original selector provenance. */
+static inline unsigned int puzzle_effect_owner(int event_player) {
+    unsigned int owner;
+
+    owner = 2;
+    if (event_player == 0) {
+        owner = 1;
+    }
+    return owner;
+}
+
 static int pzsm_rain_dance(struct PuzzlePlayerState* player,
                            struct PuzzlePlayerState* opponent) {
     struct PuzzleBoardCell* drop_row;
@@ -5016,6 +4987,7 @@ static int pzsm_rain_dance(struct PuzzlePlayerState* player,
 
     if (player->supermove_state == 0) {
         int storm_handle;
+        const char* storm_name;
 
         player->supermove_state = 19;
         player->supermove_phase_ticks = player->supermove_amount;
@@ -5064,9 +5036,9 @@ static int pzsm_rain_dance(struct PuzzlePlayerState* player,
                     .y +
             300;
 
-        storm_handle = fx_by_owner(
-            "pz_sm_storm",
-            player->event_player == 0 ? 1 : 2);
+        storm_name = "pz_sm_storm";
+        storm_handle = fx_by_owner(storm_name,
+                                   puzzle_effect_owner(player->event_player));
         if (storm_handle != 0) {
             MkPfx* storm = pfx_from_handle(storm_handle);
 
@@ -5609,8 +5581,8 @@ found:
 
 static inline unsigned int puzzle_piece_color(unsigned int type);
 
-/* TODO: [near miss] 98.00%; retail shares the rotate-left/right tails (goto-join form 99.31, exact CFG,
- * held until a full match); candidate-scan r6/r7/r8 coloring remains (MWCC replay in note). */
+/* TODO: [breakthrough needed] 98.00%; duplicated rotation tail and scan GPR homes;
+ * recover shared left/right exits and below-cell scan ownership. */
 static void pz_ai_decide_quick_drop_tower(struct PuzzlePlayerState* player) {
     struct PuzzleBoardCell* left_cell = 0;
     struct PuzzleBoardCell* right_cell = 0;
@@ -6092,8 +6064,8 @@ static inline void puzzle_scan_occupied_row(struct PuzzlePlayerState* player,
     }
 }
 
-/* TODO: [near miss] 99.78142%; fallback zero, board/column homes and bonus-add
- * order remain; inline ownership trades zero sharing for extra coloring. */
+/* TODO: [near miss] 99.78142%; fallback zero, board/column homes and
+ * bonus-add operand order differ; inspect neighbor-scan ownership. */
 static void pz_ai_decide_match(struct PuzzlePlayerState* player) {
     struct PuzzleAiPlacement placements[2][8];
     int best[2];
@@ -7159,18 +7131,21 @@ puzzle_fighter_mode_play__counter_drops(struct PuzzlePlayerState* player,
     return 1;
 }
 
-/* TODO: [near miss] 99.34%; product FPR and inline-owned zero sharing remain;
- * preserve structured clear paths. */
 static int puzzle_fighter_mode_play__new_piece(struct PuzzlePlayerState* player,
                                                struct PuzzlePlayerState* opponent) {
     struct PuzzlePlayerState* other_player;
     int original_cleared;
+    float scaled_blocks;
     float balance;
+    struct PuzzleInvisiblePdata* invisible_pdata;
+    struct PuzzleBoardCell* cell;
+    int row;
+    int column;
 
     original_cleared = player->cleared_blocks;
-    player->cleared_blocks =
-        (0.5f * player->resolved_chain_count + 1.0f) *
-        player->cleared_blocks;
+    scaled_blocks = 0.5f * player->resolved_chain_count + 1.0f;
+    scaled_blocks *= player->cleared_blocks;
+    player->cleared_blocks = scaled_blocks;
     player->pending_counter_drops += player->cleared_blocks;
 
     other_player = puzzle_ctrl->players[0];
@@ -7284,7 +7259,36 @@ static int puzzle_fighter_mode_play__new_piece(struct PuzzlePlayerState* player,
     pz_event.player = player->event_player;
     pz_fighter_event(&pz_event);
 
-    puzzle_fighter_update_invisibility(player);
+    if (player->invisibility_ticks > 0 &&
+        player->invisibility_ticks < 0x1000) {
+        player->invisibility_ticks--;
+        if (player->invisibility_ticks == 0) {
+            if (_create_mkproc_generic_nostack(
+                    0x6010, 0x1F, p_pzsm_invisible, 0,
+                    (MkHdr**)&invisible_pdata) != 0) {
+                invisible_pdata->player = player;
+            } else {
+                goto clear_invisibility;
+            }
+        }
+    }
+    if (player->invisibility_fade <= 0) {
+        goto invisibility_updated;
+    }
+    player->invisibility_fade++;
+    if (player->invisibility_fade <= 14) {
+        goto invisibility_updated;
+    }
+    player->invisibility_fade = -1;
+clear_invisibility:
+    for (row = 0; row < 14; row++) {
+        for (column = 0; column < 8; column++) {
+            cell = &player->board[row * 8 + column];
+            cell->match_flag_bits.breaking = 0;
+            cell->match_flag_bits.matched = 0;
+        }
+    }
+invisibility_updated:
 
     player->flags2_mode_bits.counter_active = 0;
     player->flags2_mode_bits.score_applied = 0;
@@ -7594,7 +7598,7 @@ float p_puzzle_switch_1(void) {
 }
 
 float p_puzzle_switch_2(void) {
-    return 0.0f;
+    return puzzle_switch_sleep;
 }
 
 float p_puzzle_switch_3(void) {
@@ -7606,11 +7610,11 @@ float p_puzzle_switch_4(void) {
 }
 
 float p_puzzle_switch_drop(void) {
-    return 0.0f;
+    return puzzle_switch_sleep;
 }
 
 float p_puzzle_switch_lt_stick(void) {
-    return 0.0f;
+    return puzzle_switch_sleep;
 }
 
 static void pz_preinit_world(int network_setup) {
