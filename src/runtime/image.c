@@ -296,8 +296,8 @@ AniTextureControl* attach_wiff_to_atomic_material(
     return atc;
 }
 
-/* TODO: [near miss] 90.93%; reverse texture shift folds source/destination
- * addressing; recover the original inline boundary without index-only helpers. */
+/* TODO: [breakthrough needed] 90.93%; initial pcode folds reverse-shift addresses;
+ * recover a genuine boundary retaining independent source/destination indices. */
 AniTextureControl* append_wiff_to_clump_material(int slot, unsigned int art_oid, RpClump* clump,
                                                  const char* tex_name) {
     AniTextureControl* atc;
@@ -1028,17 +1028,15 @@ ScreenObj* insert_2d_obj(ScreenObj* obj) {
     return obj;
 }
 
-/* TODO: [breakthrough needed] 99.07%; engine-selection diamond folds before allocation;
- * recover the dynamic-cast boundary that retains bne+b without a pointer copy. */
 ScreenObj* insert_string_obj(ScreenObj* obj) {
     MkPtr* ptr;
     MkPtr* next;
-    ScreenObj* cur;
+    ScreenObj* as_engine;
     ScreenObj* as_screen;
     StringObj* as_string;
     MkVtable5* vtbl;
-    MkVtable5* cur_vtbl;
     int pri;
+    MkVtable5* cur_vtbl;
     int cur_pri;
     MkPtr* insert;
 
@@ -1078,15 +1076,14 @@ ScreenObj* insert_string_obj(ScreenObj* obj) {
     if (mklist_is_valid(&screen_obj_list)) {
         ptr = screen_obj_list;
         while (ptr != 0) {
-            cur = (ScreenObj*)ptr->hdr;
-            if (ptr->instance != cur->instance) {
+            if (ptr->instance != ptr->hdr->instance) {
                 next = ptr->next;
                 discard_stale_mkptr(ptr);
                 ptr = next;
             } else {
-                cur_vtbl = cur->vtbl;
+                cur_vtbl = ptr->hdr->vtbl;
                 if (cur_vtbl == MK_VTABLE_ADDRESS(vtbl_mkpdata_screen_obj)) {
-                    as_screen = cur;
+                    as_screen = (ScreenObj*)ptr->hdr;
                 } else {
                     as_screen = 0;
                 }
@@ -1094,17 +1091,19 @@ ScreenObj* insert_string_obj(ScreenObj* obj) {
                     cur_pri = as_screen->priority;
                 } else {
                     if (cur_vtbl == MK_VTABLE_ADDRESS(vtbl_mkpdata_string_obj)) {
-                        as_string = (StringObj*)cur;
+                        as_string = (StringObj*)ptr->hdr;
                     } else {
                         as_string = 0;
                     }
                     if (as_string != 0) {
                         cur_pri = as_string->priority;
                     } else {
-                        if (cur_vtbl != MK_VTABLE_ADDRESS(vtbl_screen_engine)) {
-                            cur = 0;
+                        if (cur_vtbl == MK_VTABLE_ADDRESS(vtbl_screen_engine)) {
+                            as_engine = (ScreenObj*)ptr->hdr;
+                        } else {
+                            as_engine = 0;
                         }
-                        if (cur != 0) {
+                        if (as_engine != 0) {
                             cur_pri = 0x11;
                         } else {
                             cur_pri = 0;
@@ -1124,12 +1123,10 @@ ScreenObj* insert_string_obj(ScreenObj* obj) {
     return obj;
 }
 
-/* TODO: [near miss] 99.06779%; current-object/type owners agree;
- * engine-cast branch join remains; whole-unit level-one regresses. */
 ScreenObj* insert_screen_obj(ScreenObj* obj) {
     MkPtr* ptr;
     MkPtr* next;
-    ScreenObj* cur;
+    ScreenObj* as_engine;
     ScreenObj* as_screen;
     StringObj* as_string;
     MkVtable5* vtbl;
@@ -1173,15 +1170,14 @@ ScreenObj* insert_screen_obj(ScreenObj* obj) {
     if (mklist_is_valid(&screen_obj_list)) {
         ptr = screen_obj_list;
         while (ptr != 0) {
-            cur = (ScreenObj*)ptr->hdr;
-            if (ptr->instance != cur->instance) {
+            if (ptr->instance != ptr->hdr->instance) {
                 next = ptr->next;
                 discard_stale_mkptr(ptr);
                 ptr = next;
             } else {
-                MkVtable5* current_vtbl = cur->vtbl;
+                MkVtable5* current_vtbl = ptr->hdr->vtbl;
                 if (current_vtbl == MK_VTABLE_ADDRESS(vtbl_mkpdata_screen_obj)) {
-                    as_screen = cur;
+                    as_screen = (ScreenObj*)ptr->hdr;
                 } else {
                     as_screen = 0;
                 }
@@ -1189,17 +1185,19 @@ ScreenObj* insert_screen_obj(ScreenObj* obj) {
                     cur_pri = as_screen->priority;
                 } else {
                     if (current_vtbl == MK_VTABLE_ADDRESS(vtbl_mkpdata_string_obj)) {
-                        as_string = (StringObj*)cur;
+                        as_string = (StringObj*)ptr->hdr;
                     } else {
                         as_string = 0;
                     }
                     if (as_string != 0) {
                         cur_pri = as_string->priority;
                     } else {
-                        if (current_vtbl != MK_VTABLE_ADDRESS(vtbl_screen_engine)) {
-                            cur = 0;
+                        if (current_vtbl == MK_VTABLE_ADDRESS(vtbl_screen_engine)) {
+                            as_engine = (ScreenObj*)ptr->hdr;
+                        } else {
+                            as_engine = 0;
                         }
-                        if (cur != 0) {
+                        if (as_engine != 0) {
                             cur_pri = 0x11;
                         } else {
                             cur_pri = 0;

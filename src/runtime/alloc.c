@@ -318,8 +318,19 @@ static inline unsigned long variable_allocation_size(unsigned long size) {
     return size;
 }
 
-/* TODO: [near miss] 96.36917%; 261 coalescing/split register rows remain;
- * retain inline head-address boundary; trace block/remainder owner interference. */
+static inline Block* subblock_owner(SubBlock* subblock) {
+    return (Block*)((unsigned long)subblock->block & ~1UL);
+}
+
+static inline void merge_next_in_block(SubBlock* subblock, Block* block) {
+    SubBlock** start = (SubBlock**)((unsigned char*)block + block_size(block) -
+                                   sizeof(unsigned long));
+
+    merge_next(subblock, start);
+}
+
+/* TODO: [near miss] 99.80730%; 18 coalescing register rows remain;
+ * recover the merged-size/head owner boundary; stop at coloring. */
 void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size) {
     unsigned long old_size;
     unsigned long is_variable;
@@ -342,19 +353,17 @@ void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size) {
 
         if (is_variable) {
             unsigned long needed;
-            SubBlock** start;
             if (size > ~0UL - 48) {
                 return NULL;
             }
             needed = variable_allocation_size(size);
             subblock = (SubBlock*)((unsigned char*)ptr - 8);
-            block = (Block*)((unsigned long)subblock->block & ~1UL);
-            start = block_start(block);
-            merge_next(subblock, start);
+            block = subblock_owner(subblock);
+            merge_next_in_block(subblock, block);
             if (subblock_size(subblock) >= needed) {
                 if (subblock_size(subblock) - needed >= 0x50) {
                     remainder = split_subblock(subblock, needed);
-                    block = (Block*)((unsigned long)subblock->block & ~1UL);
+                    block = subblock_owner(subblock);
                     LINK_FREE_SUBBLOCK(block, remainder);
                 }
                 return ptr;
@@ -377,7 +386,7 @@ void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size) {
         subblock = (SubBlock*)((unsigned char*)ptr - 8);
         if (subblock_size(subblock) - size >= 0x50) {
             remainder = split_subblock(subblock, size);
-            block = (Block*)((unsigned long)subblock->block & ~1UL);
+            block = subblock_owner(subblock);
             LINK_FREE_SUBBLOCK(block, remainder);
         }
     }

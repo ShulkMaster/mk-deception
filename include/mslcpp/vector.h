@@ -338,8 +338,8 @@ __vector_imp<T, Allocator, false>::erase(iterator first, iterator last)
     return first;
 }
 
-/* TODO: [breakthrough needed] QueueItem 90.53%; allocator owner agrees;
- * nested placement-new depth and string-pool addends remain. */
+/* TODO: [breakthrough needed] QueueItem 90.52778%; construct remains outlined;
+ * recover its actual instantiation policy while preserving the capacity call and pool. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::reserve(size_type n)
 {

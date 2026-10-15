@@ -1907,8 +1907,19 @@ static float pz_fighters_grinder_fatality_in_progress(void) {
     return pz_fatality_finish_timed_fatality();
 }
 
-/* TODO: [near miss] 99.90%; operations and callback lifetimes agree;
- * only secondary grinder r29/r30 homes remain; stop at coloring. */
+static inline void publish_initial_grinders(
+    struct PuzzleFighterRenderObject** grinders) {
+    struct PuzzleFighterRenderObject* primary;
+    struct PuzzleFighterRenderObject* secondary;
+
+    primary = grinders[0];
+    g_pz_fighter_fatality_engine.scene_objects[0] = primary;
+    secondary = grinders[1];
+    g_pz_fighter_fatality_engine.scene_objects[1] = secondary;
+    obj_create_sobjs(primary);
+    obj_create_sobjs(secondary);
+}
+
 static float pz_fighter_load_and_place_initial_grinders(void) {
     struct PuzzleEffectBankContext effect_context;
     struct PuzzleFighterRenderObject* grinders[2];
@@ -1941,10 +1952,7 @@ static float pz_fighter_load_and_place_initial_grinders(void) {
         insert_fgnd_mkobj(grinders[i]);
     }
 
-    g_pz_fighter_fatality_engine.scene_objects[0] = grinders[0];
-    g_pz_fighter_fatality_engine.scene_objects[1] = grinders[1];
-    obj_create_sobjs(grinders[0]);
-    obj_create_sobjs(grinders[1]);
+    publish_initial_grinders(grinders);
     g_pz_fighter_fatality_engine.grinder_texture =
         load_tga(0x70036, 0x081E0002);
     controller = 0;
@@ -2959,8 +2967,8 @@ static float p_chomper2_controller(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.80%; initial/preschedule pcode preserves both owners;
- * only Vec-template and player-data r3/r4 allocation differs. */
+/* TODO: [near miss] 99.79798%; Vec-template v32 must emit after player-data
+ * v37; recover a real evaluation boundary before more r3/r4 trials. */
 static float pz_fighter_chomper2_victim_crushed(void) {
     float blood_x;
     float blood_z;
@@ -4065,8 +4073,8 @@ static float pz_fighters_lightning_preround(void) {
     return pz_fatality_start_preround();
 }
 
-/* TODO: [near miss] 99.66732%; bolt/effect/texture homes remain;
- * canonical one-argument destroy is byte-neutral. */
+/* TODO: [near miss] 99.66732%; smoke/snapshot homes and texture claim timing;
+ * inspect coalesced-copy degree before changing phase ownership. */
 static float p_lightning_controller(void) {
     Vec position = {0.0f, 0.0f, 0.0f};
 
@@ -4101,8 +4109,6 @@ static float pz_fighter_lightning_actively_fighting(int active) {
     return pz_fatality_set_random_hazard_phase(active);
 }
 
-/* TODO: [near miss] 99.82%; typed target-position helper removes bare scopes;
- * current-x/delta-x FPR coloring remains after owner/scope/boundary trials. */
 static float pz_fighters_lightning_fatality_prep(void) {
     static int one_last_hit = 1;
     static int start_pointing = 1;
@@ -4110,10 +4116,11 @@ static float pz_fighters_lightning_fatality_prep(void) {
     unsigned int lightning_smoke;
     unsigned int burning_smoke;
     float player_distance;
+    float delta_x;
     float target_x;
     float target_z;
-    float delta_x;
     float delta_z;
+    float victim_x;
     float signed_distance;
     int direction;
     int event;
@@ -4136,13 +4143,14 @@ static float pz_fighters_lightning_fatality_prep(void) {
                 direction = 1;
                 pz_lightning_target_position(victim, &target_x, &target_z);
 
-                delta_x = target_x - victim_object->position.x;
+                victim_x = victim_object->position.x;
+                delta_x = target_x - victim_x;
                 delta_z = target_z - victim_object->position.z;
                 if (target_x < 0.0f) {
-                    if (victim_object->position.x < target_x) {
+                    if (victim_x < target_x) {
                         direction = -1;
                     }
-                } else if (victim_object->position.x > target_x) {
+                } else if (victim_x > target_x) {
                     direction = -1;
                 }
                 signed_distance =

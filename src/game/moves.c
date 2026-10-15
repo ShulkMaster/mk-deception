@@ -2904,7 +2904,8 @@ static float j_flying_kick2_early(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.75%; only the inlined update_my_last_switch lwzx addressing differs; fix it there. */
+/* TODO: [breakthrough needed] 98.74525%; shared tick addressing folds before allocation;
+ * recover independent field-base indexing without regressing helper consumers. */
 float j_flying_kick2(void) {
     MkHdr* object;
     float attack_ticks;
@@ -3021,8 +3022,8 @@ static float j_flying_kick1_early(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 98.79121%; shared switch-log tick load still uses an
- * element address; recover independent indexed field bases in update_my_last_switch. */
+/* TODO: [breakthrough needed] 98.79121%; IRO preserves independent field bases;
+ * Operands_Add case 11 drops indexed tick addressing after symbol normalization. */
 float j_flying_kick(void) {
     MkHdr* object;
     float attack_ticks;
@@ -4432,7 +4433,8 @@ static inline void moves_create_sidekick_exit_process(void) {
     }
 }
 
-/* TODO: [near miss] 99.81%; six player-x/normalized-z FPR rows remain; prior trace and owner controls exhausted. */
+/* TODO: [near miss] 99.80978%; raw-x still shares the delta owner;
+ * normalized-z/scale need their original producer; caller scratch slots agree. */
 int advance_my_sidekick_from_behind_with_moveset(void) {
     MkObj* sidekick;
     MkHdr* object;
@@ -4518,7 +4520,32 @@ void advance_sidekick_with_moveset(PlyrPdata* player) {
     }
 }
 
-/* TODO: [near miss] 99.27%; CFG and math agree; equivalent frame slots and GPR coloring remain; stop at coloring. */
+static inline void moves_launch_sidekick_watchdog(PlyrPdata* player) {
+    struct MovesSidekickPdata* watchdog_pdata;
+    MkProc* proc;
+
+    if (player->plyr_num == 0) {
+        proc = _create_mkproc_generic_bigstack(
+            0xC028, 8, p_sidekick_watchdog_launcher,
+            sizeof(*watchdog_pdata), (MkHdr**)&watchdog_pdata);
+    } else {
+        proc = _create_mkproc_generic_bigstack(
+            0xC029, 8, p_sidekick_watchdog_launcher,
+            sizeof(*watchdog_pdata), (MkHdr**)&watchdog_pdata);
+    }
+    if (proc != 0 && watchdog_pdata != 0) {
+        watchdog_pdata->player = player;
+    }
+
+}
+
+static inline CmdScript* moves_get_player_script(PlyrPdata* player, MkProc** player_proc) {
+    *player_proc = MK_LIVE(player->own_player_proc, player->own_player_proc_instance);
+    return get_cmdscript_for_proc(*player_proc);
+}
+
+/* TODO: [breakthrough] 99.74509%; factory slots and retained owners recovered;
+ * process input coalesces with r3 before r30; two scale operand orders remain. */
 static float p_plyr_sidekick_switch(void) {
     PlyrPdata* player;
     PlyrInfo* plyr_info;
@@ -4528,8 +4555,6 @@ static float p_plyr_sidekick_switch(void) {
     AnimPdata* sidekick_anim;
     MkProc* player_proc;
     CmdScript* script;
-    struct MovesSidekickPdata* watchdog_pdata;
-    MkProc* proc;
     float position_y;
     float angle_x;
     float angle_y;
@@ -4562,8 +4587,7 @@ static float p_plyr_sidekick_switch(void) {
         return -1.0f;
     }
 
-    player_proc = MK_LIVE(player->own_player_proc, player->own_player_proc_instance);
-    script = get_cmdscript_for_proc(player_proc);
+    script = moves_get_player_script(player, &player_proc);
     tag_team_activate_player(sidekick, plyr_info->slot.pdata->sidekick_active);
     position_y = plyr_info->slot.mirror_a->pos.value.y;
     angle_x = plyr_info->slot.mirror_a->ang.x;
@@ -4608,18 +4632,7 @@ static float p_plyr_sidekick_switch(void) {
     unhide_obj(sidekick);
     sidekick_anim->step = 1.25f;
 
-    if (player->plyr_num == 0) {
-        proc = _create_mkproc_generic_bigstack(
-            0xC028, 8, p_sidekick_watchdog_launcher,
-            sizeof(*watchdog_pdata), (MkHdr**)&watchdog_pdata);
-    } else {
-        proc = _create_mkproc_generic_bigstack(
-            0xC029, 8, p_sidekick_watchdog_launcher,
-            sizeof(*watchdog_pdata), (MkHdr**)&watchdog_pdata);
-    }
-    if (proc != 0 && watchdog_pdata != 0) {
-        watchdog_pdata->player = player;
-    }
+    moves_launch_sidekick_watchdog(player);
 
     if (g_game_info.flag_bits.level_fatality_active != 0 ||
         g_game_info.flag_bits.level_transition_active != 0) {

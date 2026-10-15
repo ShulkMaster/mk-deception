@@ -1820,8 +1820,8 @@ void init_bgnd_info_struct(void) {
     g_game_info.field_78 = 0;
     g_game_info.mode_table = 0;
 }
-/* TODO: [breakthrough needed] 97.65%; pooled BSS ownership remains incomplete;
- * recover bgnd_generic_proc_item storage and full retail layout before coloring. */
+/* TODO: [breakthrough needed] 97.64873%; pooled BSS lacks generic-proc type;
+ * no direct xrefs or cleanup producer found; recover an indexed storage user. */
 int load_background(int bgnd_id) {
     char* art_name;
     int art_id;
@@ -2024,8 +2024,8 @@ static void add_mkx_light_obj_to_bgnd_cleanup_list(MkHdr* header) {
     }
 }
 
-/* TODO: [breakthrough needed] 90.12643%; recover bgnd_generic_proc_item's
- * 0x20 storage type before completing pooled BSS ownership; latch/loop residue remains. */
+/* TODO: [breakthrough needed] 92.85058%; retail shares the bgnd_animations BSS base;
+ * recover pooled ownership and three post-validation owner reloads. */
 void destroy_background_extras(void) {
     unsigned int index;
     int weapon_index;
@@ -2039,16 +2039,16 @@ void destroy_background_extras(void) {
         GlobalMoveset* moveset = &global_movesets[weapon_index + 6];
         MkObj* object = MK_HDR_LIVE(moveset->primary_weapon, moveset->primary_weapon_instance);
         if (object != 0) {
-            if (moveset->primary_weapon->hdr.instance != 0) {
-                moveset->primary_weapon->hdr.typed_vtbl->destroy(&moveset->primary_weapon->hdr);
+            if (object->hdr.instance != 0) {
+                object->hdr.typed_vtbl->destroy(&object->hdr);
             }
             moveset->primary_weapon = 0;
             moveset->primary_weapon_instance = 0;
         }
         object = MK_HDR_LIVE(moveset->secondary_weapon, moveset->secondary_weapon_instance);
         if (object != 0) {
-            if (moveset->secondary_weapon->hdr.instance != 0) {
-                moveset->secondary_weapon->hdr.typed_vtbl->destroy(&moveset->secondary_weapon->hdr);
+            if (object->hdr.instance != 0) {
+                object->hdr.typed_vtbl->destroy(&object->hdr);
             }
             moveset->secondary_weapon = 0;
             moveset->secondary_weapon_instance = 0;
@@ -2067,9 +2067,8 @@ void destroy_background_extras(void) {
     process = MK_HDR_LIVE(
         g_game_info.camera_proc, g_game_info.camera_proc_instance);
     if (process != 0) {
-        if (g_game_info.camera_proc->hdr.instance != 0) {
-            g_game_info.camera_proc->hdr.typed_vtbl->destroy(
-                &g_game_info.camera_proc->hdr);
+        if (process->hdr.instance != 0) {
+            process->hdr.typed_vtbl->destroy(&process->hdr);
         }
         g_game_info.camera_proc = 0;
         g_game_info.camera_proc_instance = 0;
@@ -9976,8 +9975,8 @@ static inline float bl_jittered_scale(float base, float jitter) {
     return base + frand(jitter);
 }
 
-/* TODO: [near miss] 99.79608%; loop-2 GPR and two scale/position pairs remain;
- * split-tick claim order unresolved; loop-local positions retained. */
+/* TODO: [near miss] 99.79608%; loop-2 tick interference and first/seventh
+ * scale-position homes remain; recover their original producer boundary. */
 static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     BlBeetleControl* beetle;
     BlBeetleControl* beetles;
@@ -10605,18 +10604,15 @@ static void bl_process_beetle_transition_personality(
         }
     }
 }
-/* TODO: [near miss] 99.63%; threshold scheduling agrees; eight coordinate FPR coloring rows remain. */
 static void bl_process_beetle_runaway_personality(
     BlBeetleControl* beetle) {
-    float x;
-    float y;
-    float z;
+    Vec delta;
     float distance_sq;
 
-    x = g_game_info.plyr0.slot.mirror_a->pos.value.x - beetle->position.x;
-    y = g_game_info.plyr0.slot.mirror_a->pos.value.y - beetle->position.y;
-    z = g_game_info.plyr0.slot.mirror_a->pos.value.z - beetle->position.z;
-    distance_sq = z * z + (x * x + y * y);
+    delta.x = g_game_info.plyr0.slot.mirror_a->pos.value.x - beetle->position.x;
+    delta.y = g_game_info.plyr0.slot.mirror_a->pos.value.y - beetle->position.y;
+    delta.z = g_game_info.plyr0.slot.mirror_a->pos.value.z - beetle->position.z;
+    distance_sq = delta.z * delta.z + (delta.x * delta.x + delta.y * delta.y);
     if (distance_sq < 4.0f) {
         beetle->movement_state = 1;
         beetle->personality_ticks = (unsigned short)randu0(30) + 180;
@@ -10624,10 +10620,10 @@ static void bl_process_beetle_runaway_personality(
         beetle->speed_scale = 1.35f + frand(0.2f);
         beetle->fast_motion = 1;
     } else {
-        y = g_game_info.plyr1.slot.mirror_a->pos.value.y - beetle->position.y;
-        x = g_game_info.plyr1.slot.mirror_a->pos.value.x - beetle->position.x;
-        z = g_game_info.plyr1.slot.mirror_a->pos.value.z - beetle->position.z;
-        distance_sq = z * z + (x * x + y * y);
+        delta.x = g_game_info.plyr1.slot.mirror_a->pos.value.x - beetle->position.x;
+        delta.y = g_game_info.plyr1.slot.mirror_a->pos.value.y - beetle->position.y;
+        delta.z = g_game_info.plyr1.slot.mirror_a->pos.value.z - beetle->position.z;
+        distance_sq = delta.z * delta.z + (delta.x * delta.x + delta.y * delta.y);
         if (distance_sq < 4.0f) {
             beetle->movement_state = 1;
             beetle->personality_ticks =

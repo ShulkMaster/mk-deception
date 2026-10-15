@@ -473,7 +473,8 @@ static inline RpLight* create_type5_spot(MkObj* parent, LightDef* def) {
     return light;
 }
 
-/* TODO: [near miss] 99.57%; nine linked-owner latch/reload rows remain; factory output type corrected, stop at boundary. */
+/* TODO: [breakthrough needed] 99.57%; linked-owner reload is absent before register allocation;
+ * recover the validation/destruction owner boundary. */
 MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
     RpLight* light;
     RwFrame* frame;

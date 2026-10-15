@@ -669,7 +669,8 @@ static inline struct PfxBank* bank_from_handle(unsigned int handle)
     return bank;
 }
 
-/* TODO: [near miss] 97.11%; bank resolution agrees; search has one null-branch and generation-packing residue. */
+/* TODO: [breakthrough needed] 97.11%; repeated null gate is absent from initial
+ * pcode and backend merges generation packing; recover original search producers. */
 unsigned int fx2(unsigned int bank_handle, const char* name) {
     if (bank_handle != 0xDEADBABE) {
         return 0;

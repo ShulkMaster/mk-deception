@@ -93,8 +93,8 @@ void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float 
 }
 #pragma pop
 
-/* TODO: [breakthrough] 94.82758%; final invLen product order recovered;
- * triple-product factor ownership and broad FP lifetimes remain. */
+/* TODO: [breakthrough needed] 94.82758%; frontend cost 3/1 swaps triple products;
+ * recover geometry owners while preserving the retail FPR save set. */
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, const Vec* cylAxis,
                          float radius, float* tNear, float* tFar) {
     float nx = dir->y * cylAxis->z - dir->z * cylAxis->y;
@@ -625,15 +625,13 @@ void quat_x_quat(Quat* out, const Quat* a, const Quat* b) {
     out->w = aw * bw - ax * bx - ay * by - az * bz;
 }
 
-/* TODO: [near miss] 90.28%; retail keeps stwu first (ours sinks it below the dot loads) and the antiparallel ax/az f7/f8 homes swap. */
-void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
+void v3_v3_to_quat(Quat* out, Vec* v1, Vec* v2) {
     float dot = v1->x * v2->x + v1->y * v2->y + v1->z * v2->z;
-    float az;
-    float ay;
     float ax;
+    float ay;
+    float az;
     float len;
     float inv;
-    float half;
     float w;
 
     if (dot > kV3ToQuatParallel) {
@@ -654,9 +652,12 @@ void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
             az = v1->x;
         }
         inv = mk_inv_sqrt(ax * ax + ay * ay + az * az);
-        out->x = ax * inv;
-        out->y = ay * inv;
-        out->z = az * inv;
+        ax *= inv;
+        ay *= inv;
+        az *= inv;
+        out->x = ax;
+        out->y = ay;
+        out->z = az;
         out->w = kZero;
         return;
     }
@@ -667,16 +668,14 @@ void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2) {
     ax *= inv;
     ay *= inv;
     az *= inv;
-    half = kHalf * (kOne - dot);
-    w = gxMathFastSqrt(half);
+    w = gxMathFastSqrt(kHalf * (kOne - dot));
     ax *= w;
     ay *= w;
     az *= w;
-    half = kHalf * (kOne + dot);
     out->x = ax;
     out->y = ay;
     out->z = az;
-    out->w = gxMathFastSqrt(half);
+    out->w = gxMathFastSqrt(kHalf * (kOne + dot));
 }
 
 /* TODO: [near miss] 97.45%; rounded products and store order agree;

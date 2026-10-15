@@ -222,7 +222,12 @@ static inline int count_credits_text(void) {
 }
 
 
-/* TODO: [near miss] 99.35185%; duration and width lifetimes recovered; twelve FP/GPR coloring rows remain; tier 2. */
+static inline int scaled_text_extent(float width, float scale) {
+    return width * scale;
+}
+
+/* TODO: [near miss] 99.76852%; FP exact; pdata reload CG v50 and conversion
+ * LIS v54 swap r10/r11; earlier x staging folds back to the same emission. */
 void ending_show_text(int string_id, int duration) {
     MkHdr* pdata;
     char* text;
@@ -246,10 +251,10 @@ void ending_show_text(int string_id, int duration) {
         text_window_state = 0;
         ((struct EndingTextWindowPdata*)pdata)->field_4E8 = 0;
         ((struct EndingTextWindowPdata*)pdata)->field_018 = 0;
-        ((struct EndingTextWindowPdata*)pdata)->x = (float)width * 0.08f;
+        ((struct EndingTextWindowPdata*)pdata)->x = scaled_text_extent((float)width, 0.08f);
         ((struct EndingTextWindowPdata*)pdata)->y = 0x56;
         ((struct EndingTextWindowPdata*)pdata)->font = 0x1D;
-        ((struct EndingTextWindowPdata*)pdata)->wrap_width = (float)width * 0.85f;
+        ((struct EndingTextWindowPdata*)pdata)->wrap_width = scaled_text_extent((float)width, 0.85f);
         ((struct EndingTextWindowPdata*)pdata)->oid = 0x860;
         ((struct EndingTextWindowPdata*)pdata)->alignment = 8;
         ((struct EndingTextWindowPdata*)pdata)->duration = adjusted_duration;

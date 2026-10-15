@@ -469,7 +469,7 @@ static inline int fighting_style_sign_can_restart(int player)
     return 0;
 }
 
-/* TODO: [near miss] 98.96%; restart joins recovered; retail retains a PID selection copy; honest forms exhausted. */
+/* TODO: [near miss] 98.96227%; initial pcode selects directly into PID; recover the retail selection-to-owner copy boundary. */
 void show_fighting_style(GlobalMoveset* moveset, int player) {
     struct FightingStyleSignPdata* pdata;
     ScreenObj* sign;

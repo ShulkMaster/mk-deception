@@ -227,11 +227,9 @@ void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int po
     }
 }
 
-/* TODO: [near miss] 98.18%; in-place boundary cursor restores portal-tail base;
- * remaining BFS register/address lowering differs. */
 int nav_which_area_is_next(int fromArea, int toArea) {
     int areaCount;
-    struct NavPortalEntry* portal;
+    unsigned char* portalCursor;
     int i;
     int queuedCount;
     int found;
@@ -252,19 +250,19 @@ int nav_which_area_is_next(int fromArea, int toArea) {
     konquest_pdata->areaQueue[queuedCount++] = fromArea;
     while (queuedCount != i && found == 0) {
         struct NavArea* area;
-        struct NavPortalList* portals;
         int portalCount;
         int portalIndex;
         int currentArea;
 
         currentArea = konquest_pdata->areaQueue[i++];
         area = nav_get_area(konquest_pdata->navData, currentArea);
-        portals = nav_get_portals(area);
-        portalCount = portals->count;
-        portal = portals->entries;
+        portalCursor = (unsigned char*)area->boundaries;
+        portalCursor += area->boundaryCount * sizeof(struct NavBoundary);
+        portalCount = ((struct NavPortalList*)portalCursor)->count;
+        portalCursor += sizeof(((struct NavPortalList*)0)->count);
         for (portalIndex = 0; portalIndex < portalCount;
-             portalIndex++, portal++) {
-            nextArea = portal->adjacentArea;
+             portalIndex++, portalCursor += sizeof(struct NavPortalEntry)) {
+            nextArea = ((struct NavPortalEntry*)portalCursor)->adjacentArea;
 
             if (konquest_pdata->areaPredecessors[nextArea] == -1) {
                 konquest_pdata->areaQueue[queuedCount++] = nextArea;
@@ -393,19 +391,19 @@ void nav_get_unit_vector_to_area(int areaIndex, Vec* out, Vec* pos) {
     out->y = 0.0f;
 }
 
-/* TODO: [near miss] 92.59%; current-boundary expression improves distance FPRs;
- * normal/input homes and joined packed-next-area return remain. */
+/* TODO: [near miss] 97.68519%; packed cursor and split returns agree;
+ * normal/input FPR producer kinds remain; preserve boundary load scheduling. */
 static struct NavArea* unit_vector_to_area(struct NavArea* area, Vec* nearestNormal,
                                     float* nearestDistance,
                                     Vec* farthestNormal,
                                     float* farthestDistance,
                                     Vec* position) {
     int inside;
-    struct NavBoundary* boundary;
+    unsigned char* cursor;
     int i;
     int count;
 
-    boundary = area->boundaries;
+    cursor = (unsigned char*)area->boundaries;
     inside = 1;
     *farthestDistance = 0.0f;
     *nearestDistance = __float_max[0];
@@ -413,13 +411,14 @@ static struct NavArea* unit_vector_to_area(struct NavArea* area, Vec* nearestNor
     farthestNormal->x = farthestNormal->y = farthestNormal->z = 0.0f;
     count = area->boundaryCount;
     for (i = 0; i < count; i++) {
+        struct NavBoundary* boundary = (struct NavBoundary*)cursor;
         float boundaryZ = boundary->z;
         float distance = boundaryZ * position->z;
         float boundaryX = boundary->x;
 
         distance = boundaryX * position->x + distance -
                    (0.35f + boundary->offset);
-        boundary++;
+        cursor += sizeof(struct NavBoundary);
 
         if (distance > 0.0f) {
             inside = 0;
@@ -435,13 +434,13 @@ static struct NavArea* unit_vector_to_area(struct NavArea* area, Vec* nearestNor
             }
         }
     }
-    count = ((struct NavPortalList*)boundary)->count;
-    boundary = (struct NavBoundary*)((struct NavPortalList*)boundary)->entries;
-    boundary = (struct NavBoundary*)((struct NavPortalEntry*)boundary + count);
+    count = ((struct NavPortalList*)cursor)->count;
+    cursor += sizeof(((struct NavPortalList*)0)->count);
+    cursor += count * sizeof(struct NavPortalEntry);
     if (inside != 0) {
         return 0;
     }
-    return (struct NavArea*)boundary;
+    return (struct NavArea*)cursor;
 }
 
 /* TODO: [near miss] 99.59840%; nav/global CSE homes and portal owners remain;

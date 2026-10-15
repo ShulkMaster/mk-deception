@@ -927,15 +927,9 @@ CmdScript* alloc_cmdscript(void) {
     return cs;
 }
 
-/* TODO: [near miss] 99.53%; shared lookup, signed flag, countdown, and rebasing restored;
- * lookup cursor coloring and one string-add operand order remain. */
-void fixup_data_tables(ScriptSlot* slot) {
-    ScriptTableDef* def;
+static inline void fixup_external_data_tables(ScriptSlot* slot) {
     unsigned int table_index;
-
-    if (slot->tables_fixed_up != 0) {
-        return;
-    }
+    ScriptTableDef* def;
 
     for (table_index = 0; table_index < slot->max_table; table_index++) {
         def = &slot->table_defs[table_index];
@@ -947,6 +941,17 @@ void fixup_data_tables(ScriptSlot* slot) {
             def->data_index = (int)table;
         }
     }
+}
+
+void fixup_data_tables(ScriptSlot* slot) {
+    unsigned int table_index;
+    ScriptTableDef* def;
+
+    if (slot->tables_fixed_up != 0) {
+        return;
+    }
+
+    fixup_external_data_tables(slot);
 
     for (table_index = 0; table_index < slot->max_table; table_index++) {
         def = &slot->table_defs[table_index];
@@ -966,11 +971,14 @@ void fixup_data_tables(ScriptSlot* slot) {
 
                 for (column = 0; column < column_count; column++) {
                     switch (column_type[column]) {
-                    case 4:
-                        if (*value != 0) {
-                            *value += slot->string_base - 1;
+                    case 4: {
+                        unsigned int offset = *value;
+                        if (offset != 0) {
+                            offset += slot->string_base;
+                            *value = offset - 1;
                         }
                         break;
+                    }
                     case 0x85:
                         if (*value != 0) {
                             ScriptTableDef* referenced = &slot->table_defs[*value - 1];
@@ -1075,7 +1083,6 @@ void _copy_stream_to_address(void) {
     memcpy(dst, &args[3], size);
 }
 
-/* TODO: [near miss] 99.02%; name tail fixed; pc-block volatile GPR homes (offset/owner r6/r5 vs r5/r4) remain. */
 void _call_script_function(void) {
     unsigned int* args;
     int func_index;
@@ -1089,10 +1096,11 @@ void _call_script_function(void) {
     push_script_stack_frame_inline(1);
     memcpy(active_cmdscript->stack_sp->args, &current_args[2],
            argument_count * sizeof(unsigned int));
+    func_index--;
     slot = active_cmdscript->mko;
-    function = &slot->func_defs[func_index - 1];
-    active_cmdscript->pc = slot->bytecode + function->code_offset;
-    function = &active_cmdscript->mko->func_defs[func_index - 1];
+    active_cmdscript->pc =
+        slot->bytecode + slot->func_defs[func_index].code_offset;
+    function = &active_cmdscript->mko->func_defs[func_index];
     active_cmdscript->func_name =
         &((char*)active_cmdscript->mko->string_reloc)[function->name_offset - 1];
 }

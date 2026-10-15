@@ -252,6 +252,19 @@ void camera_get_screen_pos_from_world_pos(Vec* world, RwV2d* screen);
 void find_best_conversation_camera_position(void);
 int is_a_to_the_right_of_b(MkObj* a, MkObj* b);
 
+float p_attract_camera(void);
+float p_idle_camera(void);
+int move_to_end_point(const Vec* endpoint, float* initial_speed,
+                      float* final_speed, int reset, float time);
+float p_animate_and_freeze(void);
+float p_animated_intro_done(void);
+void render_background_danger_areas(void);
+void reset_camera_paths(void);
+void cam_recalc_midpoint(void);
+int intro_done(void);
+void shake_camera_y(int count, float strength);
+void get_current_target(Vec* target);
+
 extern RwMatrix* camera_mat;
 extern CameraInfo camera_info;
 extern CameraItem camera_item;

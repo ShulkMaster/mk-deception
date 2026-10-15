@@ -1589,8 +1589,6 @@ MslSoundHandle pan_vol_pitch_random_snd_req(int group, float pan, float volume, 
     return handle;
 }
 
-#pragma dont_inline on
-
 MslSoundHandle random_snd_req(int group) {
     return pan_vol_pitch_random_snd_req(group, 0.0f, 1.0f, 1.0f);
 }
@@ -1626,70 +1624,38 @@ float p_random_snd_req_delay(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 93.28%; table LWZX and sentinel branch absent before allocation;
- * recover source/inline boundaries; FPR/GPR coloring remains secondary. */
 MslSoundHandle pan_vol_pitch_random_hit(
     int group, float pan, float volume, float pitch) {
-    struct SoundRequest request;
     MslSoundHandle result = 0;
-    SoundEntry* entry;
+    int sound_id;
     int* sounds;
     int count;
     SoundCallTable* table;
-    SoundCallTable* call;
     unsigned int choice;
-    int sound_id;
 
     if (group >= 0 && group < 0x13) {
         if (mode_of_play == 6) {
             table = pf_hit_call_table;
             sounds = table[group].sounds;
-            call = &table[group];
-            count = call->count;
+            count = table[group].count;
         } else {
             table = hit_call_table;
             sounds = table[group].sounds;
-            call = &table[group];
-            count = call->count;
+            count = table[group].count;
         }
 
         if (sounds != 0 && count > 0) {
             MslSoundHandle handle;
             choice = randu0((unsigned short)count) & 0xFFFF;
-            handle = 0;
             sound_id = sounds[choice];
-            if (sound_id != -1) {
-                if (sound_id < 0 || sound_id >= 0x1C0C) {
-                    handle = 0;
-                } else {
-                    request.sound_id = sound_id;
-                    request.volume = volume;
-                    request.apply_group_volume = 1;
-                    if (snd_calculate_volume(&request)) {
-                        if (pan < -2.0f) {
-                            pan = -2.0f;
-                        }
-                        if (pan > 2.0f) {
-                            pan = 2.0f;
-                        }
-                        if (pitch < 0.5f) {
-                            pitch = 0.5f;
-                        }
-                        if (pitch > 1.5f) {
-                            pitch = 1.5f;
-                        }
-                        entry = &mk_sound_table[sound_id];
-                        handle = mslBankPlayVolPanPitch(
-                            request.bank, entry->bank, entry->sound, entry->field_0c,
-                            request.volume, pan, pitch, entry->field_18);
-                    }
-                }
-            }
+            handle = play_random_sound(sound_id, pan, volume, pitch);
             result = handle;
         }
     }
     return result;
 }
+
+#pragma dont_inline on
 
 #pragma optimization_level 1
 

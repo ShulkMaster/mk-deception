@@ -82,7 +82,7 @@ float ang_sub_ang(float angle_a, float angle_b);
 float quat_extract_ang_y(Quat* q);
 void interp_quat(Quat* out, Quat* q1, Quat* q2, float weight);
 void quat_x_quat(Quat* out, const Quat* a, const Quat* b);
-void v3_v3_to_quat(Quat* out, const Vec* v1, const Vec* v2);
+void v3_v3_to_quat(Quat* out, Vec* v1, Vec* v2);
 void quat_to_mat(MKMATRIX* out, const Quat* q);
 void YXZ_angles_to_quat(const Vec* angles, Quat* out);
 void mat_to_quat(Quat* out, const MKMATRIX* m);

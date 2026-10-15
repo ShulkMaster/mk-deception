@@ -1355,8 +1355,8 @@ static float p_puzzle_fighter_master(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.86111%; eight displacement/absolute FPR rows remain;
- * complete two-site helper does not improve allocation; stop at coloring. */
+/* TODO: [near miss] 99.86111%; eight FPR rows need raw-input/derived-owner order;
+ * named/Vec owners are neutral; recover the original coordinate-operation boundary. */
 static int pz_fighter_check_for_player_to_center_position_control(void) {
     float player1_distance;
     float player2_distance;
@@ -2108,8 +2108,6 @@ static inline int pz_dispatch_immediate_bomb_reaction(void) {
     return handled;
 }
 
-/* TODO: [near miss] 99.86842%; happy dispatch agrees after selector-source snapshot;
- * first bomb-policy publication swaps only engine-base/one r3/r4 homes. */
 static void pz_fighter_process_immediate_request(void) {
     if (g_pz_fighters_engine.random_fatality_active != 0 &&
         g_pz_fighters_engine.fighter_move.policy_bits.bit4 &&
@@ -2123,8 +2121,8 @@ static void pz_fighter_process_immediate_request(void) {
     g_pz_fighters_engine.immediate_request_active = 0;
     if (g_pz_fighters_engine.immediate_request_type == 8) {
         if (pz_dispatch_immediate_bomb_reaction() == 1) {
-            g_pz_fighters_engine.fighter_move.policy_word = 0;
             g_pz_fighters_engine.random_fatality_active = 1;
+            g_pz_fighters_engine.fighter_move.policy_word = 0;
             g_pz_fighters_engine.fighter_move.policy_bits.bit4 = 1;
         }
         return;
@@ -3139,24 +3137,25 @@ static inline void pz_fighter_update_idle_positions(void) {
     float center_x_delta;
     float center_z_delta;
 
+    player1_idle_y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
+    player2_idle_y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
+
     center_x = 0.0f;
     center_z = 0.0f;
     center_x_delta = g_pz_fighters_engine.arena_axis.x *
                      g_pz_fighters_engine.balance;
     center_z_delta = g_pz_fighters_engine.arena_axis.z *
                      g_pz_fighters_engine.balance;
-    center_x += center_x_delta;
-    center_z += center_z_delta;
+    center_x = center_x_delta + center_x;
+    center_z = center_z_delta + center_z;
 
     player1_x_offset = 0.5f * g_pz_fighters_engine.arena_axis.x;
     player1_z_offset = 0.5f * g_pz_fighters_engine.arena_axis.z;
     player2_x_offset = -0.5f * g_pz_fighters_engine.arena_axis.x;
     player2_z_offset = -0.5f * g_pz_fighters_engine.arena_axis.z;
     player1_idle_x = player1_x_offset + center_x;
-    player1_idle_y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
     player1_idle_z = player1_z_offset + center_z;
     player2_idle_x = player2_x_offset + center_x;
-    player2_idle_y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
     player2_idle_z = player2_z_offset + center_z;
     g_pz_fighters_engine.center.x = 0.0f;
     g_pz_fighters_engine.center.z = 0.0f;
@@ -3172,8 +3171,8 @@ static inline void pz_fighter_update_idle_positions(void) {
     g_pz_fighters_engine.player2_idle.z = player2_idle_z;
 }
 
-/* TODO: [breakthrough needed] 73.11594%; initialized center has an extra copy;
- * original scale/add producer ownership remains missing before allocation. */
+/* TODO: [breakthrough] 89.63768%; early height snapshots restore GPR owners;
+ * post-scale/idle-Y FPR ownership and the third saved register remain. */
 static void pz_fighter_calculate_start_pos(void) {
     float screen_scale = 1.0f;
     float post1_scale;

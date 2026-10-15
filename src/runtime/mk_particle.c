@@ -494,7 +494,8 @@ static inline MkObj* pfx_slot_bound_object(const PfxSlot* slot)
     return obj;
 }
 
-/* TODO: [near miss] 99.15%; binding operations agree; stop at bound-object result register coloring. */
+/* TODO: [near miss] 99.15%; inline result forwards to r3; shared-exit controls
+ * regress; recover original validated-object and return ownership. */
 MkObj* pfx_bind_to_new_obj(MkPfx* pfx, int object_type) {
     PfxSlot* slot;
     MkObj* obj;
@@ -716,8 +717,8 @@ static inline int initialize_pfx_memory(MkPfx* pfx, PfxVm* vm,
     return ready;
 }
 
-/* TODO: [near miss] 99.69566%; allocation and emitter-owner homes differ;
- * trace isolates count/estimate ordering; emitter needs live-range evidence. */
+/* TODO: [near miss] 99.69566%; initial pcode already accumulates into allocation size;
+ * count/estimate scratch and saved emitter homes need source-owner evidence. */
 void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_90,
                                   int field_214, int field_a0, PfxInitCb init_cb,
                                   int pid, MkProcEntryFn entry, void** out_pfx) {

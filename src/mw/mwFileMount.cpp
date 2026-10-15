@@ -68,6 +68,10 @@ public:
     }
 };
 
+inline mwFileMountPoint::~mwFileMountPoint()
+{
+}
+
 extern mwFileServer* mwFileGetGenericCommandServer();
 
 class mwFileMountTable {
@@ -130,7 +134,8 @@ static inline void append_mount_path(
     std::basic_string<char, std::char_traits<char>, mwFileMemAllocator<char, 3> >& full_path,
     const char* path)
 {
-    full_path.append(path, strlen(path));
+    unsigned long length = strlen(path);
+    full_path.append(path, length);
 }
 
 int mwFileDirectoryMountPoint::convertToPlatformPath(
@@ -175,8 +180,6 @@ const char* mwFileDirectoryMountPoint::getInternalPath() const
     return directory.data();
 }
 
-/* TODO: [breakthrough needed] 91.69014%; unary append and remainder snapshot
- * differ; recover the nested inline boundary under the canonical profile. */
 int mwFileDirectoryMountPoint::initialize(const char* path)
 {
     const char* remainder;
@@ -188,16 +191,15 @@ int mwFileDirectoryMountPoint::initialize(const char* path)
 
     _mwFilePlatformInterlockedIncrement(parent->referenceCount());
     directory = parent->getInternalPath();
-    directory.append(remainder, strlen(remainder));
+    append_mount_path(directory, remainder);
     std::replace(directory.begin(), directory.end(), '\\', '/');
     if (directory[directory.length() - 1] != '/') {
-        directory.append("/");
+        append_mount_path(directory, "/");
     }
     return 0;
 }
 
-/* TODO: [breakthrough needed] 89.72973%; base destructor call remains;
- * its nested delete exhausts inline depth even with early visibility; recover original eligibility. */
+#pragma inline_bottom_up off
 mwFileDirectoryMountPoint::~mwFileDirectoryMountPoint()
 {
     if (parent != 0) {
@@ -205,9 +207,10 @@ mwFileDirectoryMountPoint::~mwFileDirectoryMountPoint()
         parent = 0;
     }
 }
+#pragma inline_bottom_up on
 
-/* TODO: [breakthrough needed] 70.97%; base-constructor call remains;
- * recover the original inline boundary under the canonical compiler profile. */
+/* TODO: [breakthrough needed] 70.96774%; base-constructor call remains;
+ * recover implicit Queryable construction while preserving the exact standalone base. */
 mwFileDirectoryMountPoint::mwFileDirectoryMountPoint(const char* mount_name)
     : mwFileMountPoint(mount_name), parent(0)
 {
@@ -511,10 +514,6 @@ mwFileMountTable::~mwFileMountTable()
 mwFileMountTable::mwFileMountTable()
 {
     mounts.reserve(10);
-}
-
-inline mwFileMountPoint::~mwFileMountPoint()
-{
 }
 
 mwFileMountPoint::mwFileMountPoint(const char* mount_name)

@@ -779,7 +779,8 @@ static inline void* mwsfcre_MallocX(MwsPlayer* player, int size)
     return mwsfcre_Alloc(player, size);
 }
 
-/* TODO: [near miss] 99.78%; two dead b (+0x598/+0xaac) = case-4-first arm of mwsfcre_UsesAudio whose statement IRO kept but the backend dropped; only asm does that, so honest C ceiling (note 7060). */
+/* TODO: [breakthrough needed] 99.78355%; two audio-predicate case-arm branches
+ * vanish before allocation; need original meaningful case-body ownership. */
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
                                     MwsCreateParams* params)
 {

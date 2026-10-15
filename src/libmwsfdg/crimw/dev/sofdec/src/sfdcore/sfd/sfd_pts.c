@@ -30,8 +30,8 @@ int SFPTS_IsPtsQueFull(SfdHandle* handle, int buffer_index)
            handle->buffers[buffer_index].work.ring.pts_queue.capacity;
 }
 
-/* TODO: [near miss] 98.49397%; found-arm branch polarity remains;
- * honest range predicate regresses; need a real producer boundary. */
+/* TODO: [near miss] 98.49397%; found-arm copy/join is absent before allocation;
+ * structured search/consume boundary restores branches but changes owner order. */
 int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
                      unsigned int position, SfdPtsEntry* output)
 {

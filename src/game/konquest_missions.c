@@ -1351,8 +1351,8 @@ void text_window_fade_in(unsigned char ticks) {
     }
 }
 
-/* TODO: [breakthrough needed] 97.02676%; five post-validation latch-slot reloads absent;
- * recover their frontend owner boundary before tuning setup/fade helper homes. */
+/* TODO: [breakthrough needed] 97.02676%; IRO shares latch owners; five destroy-slot
+ * reloads remain absent. Recover the checked-latch owner boundary. */
 float p_show_text_window(void) {
     struct KonquestTrialWindowPdata* window =
         (struct KonquestTrialWindowPdata*)apdata;
@@ -1925,7 +1925,17 @@ void drone_set_position(
     force_midpoint_calculation_update = 1;
 }
 
-/* TODO: [near miss] 98.98%; selectors and waits agree; null-idle guard skips one shared-exit branch. */
+static inline void wait_for_drone_getup(MkProc* process, int* timeout) {
+    if (process == 0) {
+        return;
+    }
+    while (*timeout != 0 && process->entry == getup_from_ground) {
+        _mkproc_sleep_ticks = 1.0f;
+        (*timeout)--;
+        aproc->vtbl->sleep();
+    }
+}
+
 void drone_change_to_style(int player, int style) {
     FighterMirror* fighter;
     int timeout;
@@ -1948,13 +1958,7 @@ void drone_change_to_style(int player, int style) {
     } else {
         idle_process = g_game_info.plyr1.idle_proc;
     }
-    if (idle_process != 0) {
-        while (timeout != 0 && idle_process->entry == getup_from_ground) {
-            _mkproc_sleep_ticks = 1.0f;
-            timeout--;
-            aproc->vtbl->sleep();
-        }
-    }
+    wait_for_drone_getup(idle_process, &timeout);
     while (fighter->style_idx != style && attempts < 5) {
         struct KonquestSwitchPdata* pdata;
         MkProc* process = _create_mkproc_generic_tinystack(

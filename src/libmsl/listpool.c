@@ -312,36 +312,11 @@ _ListNode* ListNodeAlloc(ListPool* pool) {
     return node;
 }
 
-/* TODO: [near miss] 99.49%; index zero is li rather than retail mr at +0x118; stop at source-boundary ceiling. */
-int ListPoolAttach(
-    ListPool* pool, void* memory, msl_u32 element_count,
-    msl_u32 element_size) {
-    msl_u32 index;
-    char* data;
-    _ListNode* previous;
+static inline void reset_pool(ListPool* pool) {
     _ListNode* node;
-
-    if (pool == 0) {
-        mslDebugPrintf(LIST_STRING(0x54F));
-        return 0;
-    }
-    if (memory == 0) {
-        mslDebugPrintf(LIST_STRING(0x56C));
-        return 0;
-    }
-    if (element_count == 0) {
-        mslDebugPrintf(LIST_STRING(0x588));
-        return 0;
-    }
-
-    mslDebugPrintf(
-        LIST_STRING(0x5AC), element_count, element_size, memory);
-    previous = 0;
-    pool->element_count = element_count;
-    pool->element_size = element_size;
-    pool->elements = memory;
-    pool->nodes = (_ListNode*)(
-        (char*)memory + element_count * element_size);
+    _ListNode* previous = 0;
+    char* data;
+    msl_u32 index;
 
     if (pool == 0) {
         mslDebugPrintf(LIST_STRING(0x1DE));
@@ -372,6 +347,33 @@ int ListPoolAttach(
         previous->previous_link = &pool->free_list;
         pool->allocated_count = 0;
     }
+}
+
+int ListPoolAttach(
+    ListPool* pool, void* memory, msl_u32 element_count,
+    msl_u32 element_size) {
+    if (pool == 0) {
+        mslDebugPrintf(LIST_STRING(0x54F));
+        return 0;
+    }
+    if (memory == 0) {
+        mslDebugPrintf(LIST_STRING(0x56C));
+        return 0;
+    }
+    if (element_count == 0) {
+        mslDebugPrintf(LIST_STRING(0x588));
+        return 0;
+    }
+
+    mslDebugPrintf(
+        LIST_STRING(0x5AC), element_count, element_size, memory);
+    pool->element_count = element_count;
+    pool->element_size = element_size;
+    pool->elements = memory;
+    pool->nodes = (_ListNode*)(
+        (char*)memory + element_count * element_size);
+
+    reset_pool(pool);
 
     pool->peak_allocated = 0;
     return 1;

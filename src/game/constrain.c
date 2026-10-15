@@ -323,7 +323,8 @@ static inline float constrain_positive_distance(float distance) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 96.92%; retail FP predicates agree; sqrt return copies, stack slots and normalization registers remain. */
+/* TODO: [near miss] 97.94175%; normalization/scaled dot now agree;
+ * sqrt return copies and rotated input/estimate stack slots remain. */
 static float dist_from_plyr_pos_to_arena_edge(
     Vec* position, const Vec* direction) {
     float length;
@@ -356,7 +357,8 @@ static float dist_from_plyr_pos_to_arena_edge(
     outward_dot =
         direction->x * (position->x * inverse_length) +
         direction->z * (position->z * inverse_length);
-    if (1.2f * outward_dot >= 1.0f) {
+    outward_dot = 1.2f * outward_dot;
+    if (outward_dot >= 1.0f) {
         distance = -distance;
     }
     return distance;
@@ -791,7 +793,7 @@ static inline void apply_tightrope_to_players(MkObj* player_1) {
                 &player_1->pos.value, &tightrope_perp_uv, 0.1f - offset);
         }
 
-        player_2 = constrain_player_object(&g_game_info.plyr1);
+        player_2 = g_game_info.plyr1.slot.mirror_a;
         offset =
             xz_dot_xz(&player_2->pos.value, &tightrope_perp_uv) - tightrope_dist;
         if (offset < -0.1f) {
@@ -804,8 +806,6 @@ static inline void apply_tightrope_to_players(MkObj* player_1) {
     }
 }
 
-/* TODO: [near miss] 99.86%; vector publication matches (perp derived from the stored uv);
- * only the saved GPR of the reloaded second player differs (r30 vs retail r31). */
 static void keep_players_on_tightrope(void) {
     MkObj* player_2;
     MkObj* player_1;

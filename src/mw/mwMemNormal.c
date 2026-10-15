@@ -212,7 +212,7 @@ void normHeapFreeMemFromBlock(void* block) {
     privFreeMemFromUsed(privGetUsedHdrFromBlock(block));
 }
 
-/* TODO: [near miss] 96.34%; per-branch search cursors, declaration order and split-arm order recovered; allocator-wide GPR coloring remains. */
+/* TODO: [near miss] 96.34%; initial/later requested-size owners split; best-fit and remainder homes differ. Recover original size lifetime. */
 void* normHeapMallocMem(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest* request) {
     MwMemUsedHeader* used;
     u32 candidate_size;

@@ -101,7 +101,6 @@ extern struct JmtSharedAnimations shared_ani;
 extern MkObj* g_bgnd_preloaded_models[];
 extern int blood_type_list[12];
 extern MkPtr* gusher_list;
-extern void check_release_other_player(void);
 void plyr_bleed_large_ext(PlyrPdata* player, int type, PlyrPdata* owner);
 void drone_ai_set_avoidance_area(Vec* position, float duration);
 void drone_ai_clear_avoidance_area_duration(int player);

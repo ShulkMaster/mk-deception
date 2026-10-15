@@ -287,8 +287,8 @@ static inline MkObj* plyr_live_tracked_obj(PlyrPdata* player) {
     return object;
 }
 
-/* TODO: [near miss] 99.29578%; live object/opponent owner swap r4/r5;
- * recover another latch lifetime after neutral helper/type probes. */
+/* TODO: [near miss] 99.29578%; split object must outrank the second inline
+ * pdata argument; recover owner kinds before more r4/r5 trials. */
 void run_reaction_cleanup_function(PlyrPdata* player) {
     if (player != 0 && player->runtime_data->reaction_cleanup != 0) {
         PlyrPdata* saved_player;
@@ -579,8 +579,8 @@ static inline void start_blade_clash_fx(
     }
 }
 
-/* TODO: [near miss] 99.57746%; second helper effect/weapon homes swap;
- * third weapon needs an interference change; native simplify stalls on bone/blade. */
+/* TODO: [near miss] 99.57746%; second helper homes swap; third weapon needs
+ * interference evidence; retain after native two-stall replay and failed joint solve. */
 void fight_fx_blades_clash(PlyrPdata* player) {
     MkObj* blade;
     unsigned int effect;

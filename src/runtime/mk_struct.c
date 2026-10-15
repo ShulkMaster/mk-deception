@@ -262,8 +262,8 @@ void discard_mkptrs(MkPtr* head) {
     }
 }
 
-/* TODO: [near miss] 99.19%; successor CSE precedes named unlink locals;
- * eight next/prev register rows remain; stop without new ownership evidence. */
+/* TODO: [near miss] 99.19355%; named prev v34 must outrank successor CSE
+ * v39; recover that owner-kind boundary under the unit's inline-off mode. */
 void destroy_mkptrs(MkPtr* head) {
     MkPtr* next;
 

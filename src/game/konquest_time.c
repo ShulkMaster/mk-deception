@@ -51,8 +51,8 @@ KonquestTimedEvent* npc_which_event_is_more_recent(
     return event_b;
 }
 
-/* TODO: [near miss] 99.74%; six mask-intermediate GPR rows remain;
- * shared accumulation rewrite regresses an exact consumer; stop at coloring. */
+/* TODO: [near miss] 99.74359%; weekday IRO and month codegen owners differ;
+ * no two-edge repair preserves other homes; recover their original producer. */
 static KonquestTimedEvent* which_event_is_more_recent(
     const KonquestTime* current, KonquestTimedEvent* event_a,
     KonquestTimedEvent* event_b) {
@@ -110,8 +110,8 @@ static KonquestTimedEvent* which_event_is_more_recent(
     return event_b;
 }
 
-/* TODO: [breakthrough] 59.40678%; year-first conditional extraction recovered;
- * three raw B date homes and mask grouping remain; recover original producers. */
+/* TODO: [breakthrough needed] 59.40678%; raw B dates extend saved lifetimes;
+ * recover GC mask ownership beyond the verified PS2 accumulation/helper shape. */
 int does_event_a_trump_event_b(
     const KonquestTimedEvent* event_a, const KonquestTimedEvent* event_b) {
     int month_a;

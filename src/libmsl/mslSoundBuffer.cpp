@@ -1149,8 +1149,8 @@ static inline SPSoundEntry* GetStreamSoundEntry(SPSoundTable* table) {
     return sound;
 }
 
-/* TODO: [near miss] 99.24%; result/stream-loop and voice-address GPR homes remain;
- * preserve lookup ownership and stop at coloring. */
+/* TODO: [near miss] 99.24171%; result/loop and address-publication homes differ;
+ * result stall defeats declaration changes; recover original publication shape. */
 int SBPlayable_Stream::iPlayPrepped(void) {
     int result = -1;
 

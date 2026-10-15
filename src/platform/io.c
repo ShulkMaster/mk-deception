@@ -11,6 +11,7 @@
 #include "runtime/mk_vtbl.h"
 #include "runtime/utils.h"
 #include "runtime/cstdio.h"
+#include "runtime/cstdlib.h"
 #include "game/trial.h"
 #include "game/ejb.h"
 #include "game/plyr.h"
@@ -274,8 +275,6 @@ void eat_switch_edge(int port, int switch_index) {
     }
 }
 
-/* TODO: [near miss] 98.44538%; axis sampling agrees; repeated threshold
- * load and magnitude registers remain; whole-unit CSE-off regresses. */
 int get_stick_pos(int port, int stick, float* horizontal, float* vertical) {
     int x = 0;
     int y = 0;
@@ -291,8 +290,8 @@ int get_stick_pos(int port, int stick, float* horizontal, float* vertical) {
         x = g_game_info.pads[port].stick_axis_1 - 0x7F;
         y = g_game_info.pads[port].stick_axis_0 - 0x7F;
     }
-    if ((x < 0 ? -x : x) < stick_dead_zone) x = 0;
-    if ((y < 0 ? -y : y) < stick_dead_zone) y = 0;
+    if (__abs(x) < stick_dead_zone) x = 0;
+    if (__abs(y) < stick_dead_zone) y = 0;
     if (x < 0) *horizontal = (float)x / 56.0f;
     else *horizontal = (float)x / 56.0f;
     if (y < 0) *vertical = (float)y / 56.0f;

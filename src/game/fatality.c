@@ -1975,7 +1975,8 @@ unsigned int fatality_boraicho_light_fart_torch(MkObj* torch) {
     return emitter;
 }
 
-/* TODO: [near miss] 95.89%; torch/fatality_state saved registers (r31/r30) are swapped and the prologue string-base addi/mr order differs; bone-tag copy and costume bitfield match. */
+/* TODO: [near miss] 95.89041%; torch/state owner kinds and prologue player/string
+ * interference differ; recover producer lifetimes beyond complete phase helpers. */
 MkObj* fatality_boraicho_get_torch(
     const Vec* parent_offset, const Vec* rotation) {
     int player = fatality_state.player->plyr_num;
@@ -2010,7 +2011,8 @@ MkObj* fatality_boraicho_get_torch(
     return torch;
 }
 
-/* TODO: [near miss] 91.73%; matcher offset recovered; argument staging and string address formation remain. */
+/* TODO: [near miss] 91.73%; initial literal/player argument emission differs;
+ * recover original load-call ownership after complete attachment controls. */
 MkObj* fatality_ashrah_get_doll(
     const Vec* parent_offset, const Vec* child_offset,
     const Vec* rotation) {
@@ -3214,26 +3216,13 @@ void advance_to_weapon_style(PlyrPdata* player) {
 
 
 static inline void fatality_adjust_to_radius(
-    float radius, float attacker_distance_sq, float radius_sq,
-    const Vec* selected, const Vec* victim_delta) {
+    float radius, float attacker_distance_sq, const Vec* selected) {
     CameraObj* camera;
     float inverse_distance;
     float correction;
     float x;
     float z;
 
-    if (radius < 0.0f) {
-        if (!(attacker_distance_sq < radius_sq)) {
-            return;
-        }
-    } else if (!(attacker_distance_sq > radius_sq)) {
-        return;
-    }
-    if (fatality_state.player->character_id == 0x12 &&
-        g_game_info.field_200 == 1 &&
-        selected == victim_delta) {
-        return;
-    }
     inverse_distance = gxMathFastInvSqrt(attacker_distance_sq);
     correction = radius * inverse_distance;
     correction = 0.65f * correction;
@@ -3252,7 +3241,8 @@ static inline void fatality_adjust_to_radius(
 
 }
 
-/* TODO: [breakthrough] 96.60%; mutable input restores load scheduling; FP homes and equivalent exception exit remain. */
+/* TODO: [breakthrough] 97.99367%; caller exception return and size recovered;
+ * radius/partial-square FP owners and negative-admission branch polarity remain. */
 int fat_bgnd_char_setup_radius_check(
     FatalityRadiusCheck* check) {
     Vec attacker_delta;
@@ -3260,8 +3250,8 @@ int fat_bgnd_char_setup_radius_check(
     const Vec* selected;
     float radius;
     float radius_sq;
-    float center_x;
     float center_z;
+    float center_x;
     float attacker_distance_sq;
     float victim_distance_sq;
 
@@ -3306,8 +3296,20 @@ int fat_bgnd_char_setup_radius_check(
         selected = &victim_delta;
         attacker_distance_sq = victim_distance_sq;
     }
-    fatality_adjust_to_radius(
-        radius, attacker_distance_sq, radius_sq, selected, &victim_delta);
+    if (radius < 0.0f) {
+        if (!(attacker_distance_sq < radius_sq)) {
+            goto done;
+        }
+    } else if (!(attacker_distance_sq > radius_sq)) {
+        goto done;
+    }
+    if (fatality_state.player->character_id == 0x12 &&
+        g_game_info.field_200 == 1 &&
+        selected == &victim_delta) {
+        return 1;
+    }
+    fatality_adjust_to_radius(radius, attacker_distance_sq, selected);
+done:
     return 1;
 }
 
@@ -3364,8 +3366,8 @@ void set_victim_v3_units_away(float x, float z) {
     his_obj->pos.value.y = original_y;
 }
 
-/* TODO: [near miss] 87.94%; setup base coalescing moves the Camera load;
- * fade loop and publication order agree. */
+/* TODO: [near miss] 87.94%; pre-RA scheduling overlaps game base and Camera;
+ * recover setup producer order beyond the neutral fog-owner argument. */
 void fade_fatality_screen(void) {
     float far_clip;
     float step;
@@ -3552,7 +3554,8 @@ static int init_fatality_world(void) {
     return 0;
 }
 
-/* TODO: [near miss] 97.45%; initial fog/world address formation and Camera-load scheduling remain. */
+/* TODO: [near miss] 97.45%; tied fog/world address scheduling and early Camera load;
+ * recover original address ownership without changing the verified store order. */
 float start_suicide(void) {
     FatalityBgndScriptView* section_script;
     unsigned int camera_script;
@@ -3636,7 +3639,8 @@ float start_suicide(void) {
 }
 
 
-/* TODO: [near miss] 96.21%; loader agrees; only shared fade setup address scheduling remains (see fade_fatality_screen). */
+/* TODO: [near miss] 96.20953%; fog/world address tie and Camera load across sky store;
+ * recover original address-evaluation boundary. */
 float start_2nd_fatality(void) {
     FatalityDefinition* definition;
 
@@ -3663,7 +3667,8 @@ float start_2nd_fatality(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 96.21%; loader agrees; only shared fade setup address scheduling remains (see fade_fatality_screen). */
+/* TODO: [near miss] 96.21%; pre-RA scheduling creates the GI/Camera overlap;
+ * recover fog-address evaluation order; backend optimizer preserves the input order. */
 float start_fatality(void) {
     FatalityDefinition* definition;
 

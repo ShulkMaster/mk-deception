@@ -333,18 +333,19 @@ static void MatFunc1(RwRGBAReal* color, GXColor* material, void*, float intensit
 
 #pragma push
 #pragma optimize_for_size on
-/* TODO: [near miss] 99.53%; atomic/sentinel/next saved-register homes differ; stop at clean-C coloring ceiling. */
 void GCNSetupNonRenderwarePipeline(RpClump* clump, MkObj* owner) {
-    RwLLLink* sentinel = &clump->atomicList;
     RwLLLink* link = clump->atomicList.next;
     RwLLLink* next;
+    RpAtomic* atomic;
     RpGeometry* geometry;
     RpMaterial* material;
     unsigned int index;
 
-    while (link != sentinel) {
-        RpAtomic* atomic = rpAtomicFromClumpNode(link);
-        MksobjPluginData* atomic_data = MK_ATOMIC_PLUGIN(atomic);
+    while (link != &clump->atomicList) {
+        MksobjPluginData* atomic_data;
+
+        atomic = RW_CONTAINER_OF(link, RpAtomic, inClumpLink);
+        atomic_data = MK_ATOMIC_PLUGIN(atomic);
 
         geometry = atomic->geometry;
         next = link->next;
@@ -386,8 +387,8 @@ void GCNSetupNonRenderwarePipeline(RpClump* clump, MkObj* owner) {
 }
 #pragma pop
 
-/* TODO: [breakthrough needed] 95.78%; vertex-format BSS order and the
- * effect-free retail guard need original inline/compiler evidence. */
+/* TODO: [breakthrough needed] 95.78%; BSS order and effect-free guard remain;
+ * loop offset is an SR temporary; canonical initializer helper is byte-neutral. */
 static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, MkObj* owner) {
     RpGeometry* geometry;
     MksobjPluginData* atomic_data;

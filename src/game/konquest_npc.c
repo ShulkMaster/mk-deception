@@ -6,6 +6,7 @@
 #include "runtime/anim_api.h"
 #include "runtime/asset.h"
 #include "game/konquest.h"
+#include "game/konquest_objects.h"
 #include "game/konquest_time.h"
 #include "game/konquest_lipsync.h"
 #include "game/collision.h"
@@ -103,12 +104,6 @@ struct KonquestNpcEvent {
     unsigned int script_function;
     float distance;
     int enabled;
-};
-
-struct KonquestDoor {
-    MkHdr hdr;
-    char pad08[0x48];
-    KonquestWaypoint* path_waypoints;
 };
 
 struct KonquestRandomDialogSequence {
@@ -592,7 +587,6 @@ void sobj_swap_material_texture(
     MkSobj* sobj, unsigned int material_id, RwTexture* texture);
 void sobj_use_material_color(void* sobj);
 void remove_fgnd_mkobj(void* object);
-void konquest_open_door_sobj(struct KonquestDoor* door, int remain_open);
 void remove_npc(KonquestNpcData* data);
 void get_visible_tile_set(int tile_set);
 void npc_make_visible(KonquestNpc* npc);
@@ -657,6 +651,10 @@ static inline int npc_animation_is_active(struct KonquestNpcAnimState* state) {
 
 static inline int npc_event_has_active_animation(KonquestNpc* npc) {
     return npc_animation_is_active(npc->animation);
+}
+
+static inline struct KonquestNpcEvent* npc_current_event(KonquestNpc* npc) {
+    return &npc->events[npc->state_58];
 }
 
 static inline void npc_set_event_script(
@@ -1310,8 +1308,8 @@ void initialize_npc_data(void) {
     }
 }
 
-/* TODO: [near miss] 99.79%; direction-scale f5/f6 homes and final
- * distance-comparison branch/boolean orientation remain. */
+/* TODO: [near miss] 99.94615%; direction scale homes agree; final ordered
+ * distance <= bound branch and 0/1 return orientation remain. */
 static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
     struct KonquestTileOrigin* tile;
     KonquestNpcData* data;
@@ -1354,8 +1352,8 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
     sphere.center.y = data->position.y;
     sphere.center.z = data->position.z;
     matrix = camera_obj->field_24;
-    direction_y = matrix->at.y;
     direction_x = matrix->at.x;
+    direction_y = matrix->at.y;
     direction_z = matrix->at.z;
     length_squared =
         direction_z * direction_z +
@@ -1513,8 +1511,8 @@ static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
     npc_manager_load_new_npc_model(npc);
 }
 
-/* TODO: [near miss] 99.72%; parameter/ID allocation sweeps swap r30/r31;
- * recover the original semantic owner boundary, not parameter aliases. */
+/* TODO: [near miss] 99.71983%; npc/art ID simplify in different sweeps;
+ * lookup/load extraction is byte-neutral; recover the retained-copy boundary. */
 static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
     unsigned int art_id;
     AniTextureControl* lip_texture = 0;
@@ -2663,8 +2661,8 @@ static int is_this_a_current_event_for_today(
     }
     return 0;
 }
-/* TODO: [near miss] 96.36%; only path-ID load versus zero-initializer
- * scheduling differs at entry; stop at scheduling. */
+/* TODO: [near miss] 96.36364%; post-RA path-ID load follows copies/zeros;
+ * need a real forwarding dependency; preserve null-path index and post-call reload. */
 static void npc_setup_path_for_event(
     KonquestNpc* npc, KonquestTimedEvent* event, int preserve_path) {
     KonquestWaypoint* path;
@@ -2922,20 +2920,24 @@ static float p_update_npc_shadows(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 98.46%; strength-reduced model-age offset setup and manager/element homes remain; source-shape evidence needed. */
-void npc_update(int update_all) {
+static inline void npc_manager_update_model_list(void) {
     struct NpcManagerPdata* manager;
-    MkPtr* link;
     int index;
-    int models_made_visible = 0;
 
-    npc_dispatch_timed_events_for_all_npcs();
     manager = npc_manager_pdata;
     for (index = 0; index < 22; index++) {
         if (manager->models[index].available != 0) {
             manager->models[index].age += 1.0f;
         }
     }
+}
+
+void npc_update(int update_all) {
+    MkPtr* link;
+    int models_made_visible = 0;
+
+    npc_dispatch_timed_events_for_all_npcs();
+    npc_manager_update_model_list();
     if (update_all == 0 && --wait_ticks > 0) {
         return;
     }
@@ -3005,8 +3007,6 @@ void npc_update(int update_all) {
     }
 }
 
-/* TODO: [near miss] 99.87%; script-name add/subi survive initial and presched;
- * full-width pointer sum still uses r5 instead of retail r4. */
 static void npc_invisible_update(KonquestNpc* npc) {
     if (konquest_editor_mode_on == 0) {
         int previous_state;
@@ -3056,18 +3056,18 @@ static void npc_invisible_update(KonquestNpc* npc) {
                         g_active_npc->wait_ticks = 0.0f;
                     }
                     if (g_active_npc->wait_ticks > 0.0f) {
-                        unsigned int function_index;
-                        char* function_name;
+                        ScriptFuncDef* function;
+                        unsigned int name_address;
 
                         memcpy(
                             active_cmdscript->stack_mem,
                             g_active_npc->saved_script_state,
                             sizeof(g_active_npc->saved_script_state));
-                        function_index = script_function - 1;
-                        function_name = (char*)slot->string_reloc;
-                        function_name +=
-                            slot->func_defs[function_index].name_offset;
-                        active_cmdscript->func_name = function_name - 1;
+                        function = &slot->func_defs[script_function - 1];
+                        name_address = slot->string_reloc;
+                        name_address = function->name_offset + name_address;
+                        name_address -= 1;
+                        active_cmdscript->func_name = (char*)name_address;
                         active_cmdscript->pc =
                             (unsigned int*)g_active_npc->saved_script_position;
                         active_cmdscript->stack_sp =
@@ -3270,7 +3270,8 @@ void add_npc_list_to_world(int* npc_ids) {
     }
 }
 
-/* TODO: [near miss] 99.69%; loop zero initialization and script-name add register coloring remain. */
+/* TODO: [near miss] 99.77012%; named first index cannot share stride zero;
+ * recover a reset boundary that keeps the slot below saved caller owners. */
 void start_running_npcs(void) {
     struct NpcManagerPdata* manager;
     MkProc* manager_proc;
@@ -3340,7 +3341,6 @@ void start_running_npcs(void) {
                 if (npc->data->events[7].startup_script != 0) {
                     ScriptSlot* slot;
                     unsigned int script_function;
-                    unsigned int function_index;
                     g_active_npc = npc;
                     script_function =
                         npc->data->events[7].startup_script;
@@ -3350,16 +3350,18 @@ void start_running_npcs(void) {
                             npc->wait_ticks = 0.0f;
                         }
                         if (g_active_npc->wait_ticks > 0.0f) {
-                            char* relocated_name;
-                            function_index = script_function - 1;
+                            ScriptFuncDef* function;
+                            unsigned int name_address;
+
                             memcpy(
                                 active_cmdscript->stack_mem,
                                 g_active_npc->saved_script_state,
                                 sizeof(g_active_npc->saved_script_state));
-                            relocated_name = (char*)slot->string_reloc;
-                            relocated_name +=
-                                slot->func_defs[function_index].name_offset;
-                            active_cmdscript->func_name = relocated_name - 1;
+                            function = &slot->func_defs[script_function - 1];
+                            name_address = slot->string_reloc;
+                            name_address = function->name_offset + name_address;
+                            name_address -= 1;
+                            active_cmdscript->func_name = (char*)name_address;
                             active_cmdscript->pc = (unsigned int*)
                                 g_active_npc->saved_script_position;
                             active_cmdscript->stack_sp =
@@ -3634,7 +3636,6 @@ float p_npc_idle(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.74%; eight post-setup owner/name register rows remain; need new coalescing evidence. */
 float p_npc_proc(void) {
     KonquestNpc* npc;
     struct KonquestNpcEvent* event;
@@ -3686,12 +3687,12 @@ float p_npc_proc(void) {
             g_event_tbl[npc->state_58].setup(npc);
         }
         npc = g_active_npc;
-        event = &npc->events[npc->state_58];
+        event = npc_current_event(npc);
         if (event->script_function != 0) {
             unsigned int script_function;
             ScriptSlot* slot;
             ScriptFuncDef* function;
-            char* function_name;
+            unsigned int name_address;
 
             cmdscript_set_parameters(active_cmdscript, 1, npc->data);
             script_function = event->script_function;
@@ -3706,9 +3707,10 @@ float p_npc_proc(void) {
                         g_active_npc->saved_script_state,
                         sizeof(g_active_npc->saved_script_state));
                     function = &slot->func_defs[script_function - 1];
-                    function_name = (char*)slot->string_reloc;
-                    function_name += function->name_offset;
-                    active_cmdscript->func_name = function_name - 1;
+                    name_address = slot->string_reloc;
+                    name_address = function->name_offset + name_address;
+                    name_address -= 1;
+                    active_cmdscript->func_name = (char*)name_address;
                     active_cmdscript->pc =
                         (unsigned int*)g_active_npc->saved_script_position;
                     active_cmdscript->stack_sp =
@@ -4345,7 +4347,8 @@ static inline float npc_angle_to_next_waypoint(void) {
         g_active_npc->path->waypoints[next].position.z - g_active_npc->data->position.z);
 }
 
-/* TODO: [near miss] 98.26%; first angle site reloads path (r7) vs cached r6, and data.x/waypoint.x float load order differs. */
+/* TODO: [near miss] 98.26%; IRO merges first-site path reads; X-load homes differ;
+ * coordinate/heading/path-argument controls are neutral; recover original owners. */
 void npc_turn_and_face_next_waypoint(void) {
     int active;
     int turn_immediately;
@@ -4386,7 +4389,8 @@ void npc_turn_and_face_next_waypoint(void) {
     }
 }
 
-/* TODO: [near miss] 99.66%; inside the inlined animation check the npc/state temps swap r4/r5 vs retail; stop at coloring. */
+/* TODO: [near miss] 99.65812%; NPC/animation CSE webs still swap r4/r5;
+ * complete target selection is neutral; first-reuse ownership remains unresolved. */
 static float p_turn_and_face(void) {
     struct TurnAndFacePdata* pdata;
     MkObj* target_object;
@@ -6162,7 +6166,7 @@ void npc_open_door_at_waypoint(void) {
         MkPtr* link = konquest_pdata->door_list;
 
         while (link != 0) {
-            struct KonquestDoor* door = (struct KonquestDoor*)link->hdr;
+            KonquestChildObject* door = (KonquestChildObject*)link->hdr;
 
             if (link->instance != door->hdr.instance) {
                 MkPtr* next = link->next;

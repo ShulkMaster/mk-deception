@@ -2393,17 +2393,17 @@ static void create_sidekick(int player_index, PlyrInfo* player) {
 
 
 
-/* TODO: [near miss] 99.13%; latch and inverse-sqrt operations agree;
- * twelve planar displacement/opponent-coordinate FPR rows remain. */
 float active_sidekick_swap_from_behind(PlyrPdata* pdata) {
     MkObj* sidekick = MK_HDR_LIVE(pdata->sidekick_obj, pdata->sidekick_instance);
     MkObj* player;
     MkObj* opponent;
-    float opponent_x;
-    float opponent_z;
     float dx;
     float dz;
+    float opponent_x;
+    float opponent_z;
     float inverse_distance;
+    float position_x;
+    float position_z;
 
     if (pdata->plyr_num == 0) {
         destroy_mkprocs_pid(0xC028);
@@ -2417,15 +2417,17 @@ float active_sidekick_swap_from_behind(PlyrPdata* pdata) {
     inverse_distance = gxMathFastInvSqrt(dx * dx + dz * dz);
     dx *= inverse_distance;
     dz *= inverse_distance;
-    dx *= -2.0f;
-    dz *= -2.0f;
-    dx += opponent_x;
-    dz += opponent_z;
+    position_x = dx;
+    position_z = dz;
+    position_x *= -2.0f;
+    position_z *= -2.0f;
+    position_x += opponent_x;
+    position_z += opponent_z;
     active_sidekick_swap(pdata, 1);
     hide_obj(sidekick);
-    plyr_obj->pos.value.x = dx;
+    plyr_obj->pos.value.x = position_x;
     plyr_obj->pos.value.y = g_game_info.field_34;
-    plyr_obj->pos.value.z = dz;
+    plyr_obj->pos.value.z = position_z;
     bgnd_clear_danger_zone_callback(plyr_pdata);
     if (get_current_bgnd() != 2) {
         set_constrain_last_pos_pdata(&his_obj->pos.value);
@@ -2481,8 +2483,8 @@ float active_sidekick_swap_change_style(PlyrPdata* pdata) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 97.94014%; pdata/sidekick and saved-state homes remain;
- * complete validator is neutral, simpler guard loses retail branches; stop at coloring. */
+/* TODO: [near miss] 97.99296%; saved step/weight homes fixed;
+ * pdata/sidekick, hide/flags and argument-load scheduling remain. */
 float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     PlyrInfo* player;
     MkObj* sidekick;
@@ -2495,8 +2497,8 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     unsigned int saved_animation_flags;
     int saved_hide_bit;
     float saved_frame;
-    float saved_step;
     float saved_weight;
+    float saved_step;
     Vec saved_position;
     Vec saved_angle;
 

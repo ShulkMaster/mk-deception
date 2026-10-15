@@ -474,14 +474,24 @@ static inline void DrawRectangle(int left, int top, int width, int height, GXCol
     GXSetTevOrder(0, 0, 0, 0xFF);
 }
 
-/* TODO: [near miss] 99.62%; one width-accumulator LI/MR mismatch
- * is introduced by value numbering; new owner evidence needed. */
+static inline char* font_accumulate_glyph_width(char* s, int* width) {
+    int charW;
+    char* next;
+
+    next = OSGetFontWidth(s, &charW);
+    *width += FontSpace + (FontSize * charW) / FontData->cellWidth;
+    return next;
+}
+
 static void render_text(void* text) {
     char* s;
     int msgW;
     int msgH;
     int x;
     int y;
+    int maxW;
+    int lineW;
+    char* width_s;
 
     s = text;
     save_projection_matrix();
@@ -490,7 +500,26 @@ static void render_text(void* text) {
 
     DrawRectangle(0, 0, screen_width, 0x1E0, Black);
 
-    msgW = font_string_width(s);
+    width_s = s;
+    if (FontData == 0) {
+        msgW = 0;
+    } else {
+        lineW = 0;
+        maxW = 0;
+        while (*width_s != '\0') {
+            if (*width_s == '\n') {
+                if (maxW < lineW) {
+                    maxW = lineW;
+                }
+                lineW = 0;
+            }
+            width_s = font_accumulate_glyph_width(width_s, &lineW);
+        }
+        if (maxW < lineW) {
+            maxW = lineW;
+        }
+        msgW = (maxW + 0xF) / 0x10;
+    }
     x = (screen_width - msgW) / 2;
     msgH = font_string_height(s);
     y = (screen_height - msgH) / 2;

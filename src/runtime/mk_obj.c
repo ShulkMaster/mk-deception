@@ -2081,8 +2081,8 @@ static inline float advance_material_fade(struct FadeMaterialPdata* pdata, MkObj
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.10%; 18 amount/material r3/r4 rows remain;
- * trace confirms inline amount versus address temporary; stop at coloring. */
+/* TODO: [near miss] 99.10891%; inline amount/material homes swap;
+ * recover material owner without advancing its load before accumulator update. */
 static float p_fade_material(void) {
     MkObj* obj;
     struct FadeMaterialPdata* pdata;
@@ -3423,30 +3423,32 @@ static inline unsigned int limb_material_bank_base(MkObj* obj) {
     return 0;
 }
 
-static inline RpMaterial* limb_find_object_material(MkObj* obj, unsigned int id) {
+static inline void limb_show_meat_chunk(MkObj* obj, unsigned int material_id_base,
+                                        int chunk_id) {
     MkPtr* ptr;
     MkSobj* sobj;
     RpMaterial* material;
+    unsigned int material_id = material_id_base + (unsigned int)chunk_id;
 
     material = 0;
     ptr = first_mkptr(&obj->sobj_list);
     while (ptr != 0) {
         sobj = (MkSobj*)ptr->hdr;
-        material = find_geometry_material_by_id(sobj->atomic->geometry, id);
+        material = find_geometry_material_by_id(
+            sobj->atomic->geometry, material_id);
         if (material != 0) {
             break;
         }
         ptr = next_mkptr(ptr);
     }
-    return material;
+    if (material != 0) {
+        show_material(material);
+    }
 }
 
-/* TODO: [near miss] 99.01%; five saved owner homes differ; stop at clean-C coloring ceiling. */
 void limb_sever_show_z_meat_chunks_all(MkObj* obj) {
     unsigned int material_id_base;
-    unsigned int material_id;
     unsigned int chunk_index;
-    RpMaterial* material;
     int chunk_id;
 
     material_id_base = limb_material_bank_base(obj);
@@ -3454,11 +3456,7 @@ void limb_sever_show_z_meat_chunks_all(MkObj* obj) {
     chunk_index = 0;
     while (limb_meat_chunk_list[chunk_index] > -1) {
         chunk_id = limb_meat_chunk_list[chunk_index];
-        material_id = material_id_base + (unsigned int)chunk_id;
-        material = limb_find_object_material(obj, material_id);
-        if (material != 0) {
-            show_material(material);
-        }
+        limb_show_meat_chunk(obj, material_id_base, chunk_id);
         chunk_index++;
     }
 }
@@ -3479,7 +3477,8 @@ static inline void limb_find_geometry_material(
     *result = 0;
 }
 
-/* TODO: [near miss] 98.25%; result owner recovered; bank coloring and helper-exit branch remain. */
+/* TODO: [near miss] 98.25%; bank return claims after named ID;
+ * caller-owned bank changes exact sibling; material-search exit copy remains. */
 void limb_sever_show_z_meat_chunks(
     MkObj* obj, int limb, int include_children) {
     MkPtr* ptr;

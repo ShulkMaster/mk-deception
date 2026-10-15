@@ -955,8 +955,8 @@ static inline void sfadxt_WriteTotSmpl(SfdHandle* handle)
     }
 }
 
-/* TODO: [near miss] 97.78%; all server operations and CFG agree;
- * handle/result/input-size GPR rotation remains; stop at coloring. */
+/* TODO: [near miss] 97.78409%; 108 register rows, all 264 operations agree;
+ * handle wins the native cost stall; need original lifetime context. */
 static int sfadxt_ExecServerSub(SfdHandle* handle)
 {
     int result;

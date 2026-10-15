@@ -1711,16 +1711,12 @@ void screen_engine_process_events(void) {
     Idle__9ScreenMgrFi(screen_manager, 0);
 }
 
-/* TODO: [breakthrough] 89.21296%; shared drain restores index zero sharing;
- * deferred flag recomputation boundary and saved homes remain. */
+/* TODO: [breakthrough] 90.09259%; shared predicate restores all saved homes;
+ * generic queued-flag recomputation remains; recover its producer boundary. */
 int broadcast_screen_studio_event(int event, int flag) {
     int deferred;
 
-    deferred = 0;
-    if ((((g_game_info.field_04 >> 7) & 1) == 0 && is_controller_removed() != 0) ||
-        pause_screen_engine_proc != 0) {
-        deferred = 1;
-    }
+    deferred = screen_engine_is_deferred();
 
     if (deferred == 0) {
         drain_paused_studio_events();
@@ -3656,7 +3652,8 @@ void ScrollRight__11SpreadSheetFi(SpreadSheet* self, int delta) {
     ((ScreenControl*)self)->Update();
 }
 
-/* TODO: [near miss] 98.82%; ScreenControl::Update is now a real virtual call; residual range-check branch remains. */
+/* TODO: [breakthrough needed] 98.81721%; initial pcode folds the count-failure exit;
+ * recover its genuine producer/return boundary; all other code agrees. */
 void ScrollLeft__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int rem;
 
@@ -5271,7 +5268,8 @@ static inline int FindValidTextListFocus(TextList* self, int delta) {
     return 1;
 }
 
-/* TODO: [near miss] 99.74%; one initial boundary-true LI/MR differs; original predicate inline ownership is unproven. */
+/* TODO: [near miss] 99.74249%; initial true owner remains named;
+ * recover its boundary without changing the two scan-predicate CFGs. */
 void Move__8TextListFi(TextList* self, int delta) {
     int oldFocus;
     unsigned char hitBoundary;
@@ -6161,7 +6159,8 @@ void SetComponent__10ScreenPolyFP17ScreenAnimControlPfi(ScreenPoly* poly,
     poly->flags = 1;
 }
 
-/* TODO: [breakthrough needed] 94.47%; aligned indexed transform recovered; identify byte-conversion stack boundary and color-null CFG. */
+/* TODO: [breakthrough needed] 94.46970%; recover shared addressed integer-to-byte
+ * conversion ownership and the color-null CFG before tuning saved homes. */
 void Render__10ScreenPolyFP16ScreenRenderInfo(ScreenPoly* poly,
                                               ScreenRenderInfoC* info) {
     ScreenMatrixStackC* stack;
@@ -6858,8 +6857,7 @@ static inline void screen_update_text_preserving_color(ScreenText* text, StringO
     pfxfont_set_string_color(&live->pfx, &savedColor);
 }
 
-/* TODO: [near miss] 99.93420%; conversion slots/FPR homes remain;
- * progress staging and final multiply order are neutral; need original conversion boundary. */
+/* TODO: [near miss] 99.93420%; getter-result forwarding and conversion scratch order disagree; recover original animation-time ownership. */
 void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
     ScreenEngineClient* self, ScreenMgr* mgr, const ScreenAction* action,
     int handled) {
@@ -7668,7 +7666,16 @@ ScreenAction* CreateAction__20mkScreenEngineClientFi(
     }
 }
 
-/* TODO: [near miss] 95.88%; cache comparison agrees; duplicate zero initialization and loop GPR homes remain. */
+static inline void invalidate_screen_font_cache(ScreenEngineClient* self,
+                                                int unloadId) {
+    for (int i = 0; i < 7; i++) {
+        if (self->fontCache[i].unloadId >= unloadId) {
+            self->fontCache[i].name = 0;
+            self->fontCache[i].unloadId = 0;
+        }
+    }
+}
+
 void UnloadScreenSet__20mkScreenEngineClientFi(ScreenEngineClient* self,
                                                 int unloadId) {
     int count;
@@ -7681,12 +7688,7 @@ void UnloadScreenSet__20mkScreenEngineClientFi(ScreenEngineClient* self,
         }
     } while (count > 0);
 
-    for (int i = 0; i < 7; i++) {
-        if (self->fontCache[i].unloadId >= unloadId) {
-            self->fontCache[i].name = 0;
-            self->fontCache[i].unloadId = 0;
-        }
-    }
+    invalidate_screen_font_cache(self, unloadId);
 }
 
 void UnloadScreen__20mkScreenEngineClientFP6Screen(ScreenEngineClient* self,

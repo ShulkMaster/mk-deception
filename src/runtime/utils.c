@@ -101,7 +101,6 @@ void delete_light_lists(void);
 void cleanup_fight(void);
 void term_collision_system(void);
 void bleed_init(void);
-void initialize_background_danger_zones(void);
 void mslUnDuckAll(_mslSystem* system);
 void init_collision_system(void);
 void pfxscript_initialize(void);

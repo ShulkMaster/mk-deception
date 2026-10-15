@@ -1772,7 +1772,8 @@ static inline MKMATRIX* decal_watcher_next_matrix(
     return &watcher->matrices[watcher->matrix_count];
 }
 
-/* TODO: [near miss] 97.30%; saved-register coloring and position Y-load scheduling remain; owner access uses the typed blood-owner path. */
+/* TODO: [near miss] 97.29870%; matrix-owner sweep and PFX kind drive saved homes;
+ * recover owner boundary and interleaved position copy; stop at coloring. */
 void spawn_decal_emitter(
     const char* name, FighterMirror* owner, const Vec* position,
     const MKMATRIX* orientation, float angle) {

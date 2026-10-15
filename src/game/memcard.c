@@ -829,8 +829,8 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
 }
 
 #pragma dont_inline on
-/* TODO: [near miss] 99.88130%; six mode-range/profile/file-offset register rows remain;
- * correct retail sleep constants; verify data-value relocations. */
+/* TODO: [breakthrough] 99.91098%; profile-byte owner recovered;
+ * mode-range/file-offset homes still swap; recover their source owners. */
 int save_to_memcard_w_error(int device, int mode, const char* title, void* settings, int flag,
                             unsigned int* freeBlocks, int* freeBytes) {
     StorageDevice* dev;
@@ -907,6 +907,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                 vtbl = aproc->vtbl;
                 vtbl->sleep();
                 if (result == 0) {
+                    int profileByteOffset;
                     int profile;
                     char* regionBuffer = konq_region_data_buffer;
                     int chunk;
@@ -914,6 +915,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                     memset(regionBuffer, 0, SAVE_CHUNK_SIZE);
                     profile = 0;
                     while (profile < 7 && result == 0) {
+                        profileByteOffset = profile * SAVE_PROFILE_STRIDE;
                         chunk = 0;
                         while (chunk < 8 && result == 0) {
                             regionTries = 2;
@@ -921,7 +923,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                             while (regionTries-- != 0 && result != 0) {
                                 result = save_to_memcard2(
                                     device, 0,
-                                    profile * SAVE_PROFILE_STRIDE + chunk * SAVE_CHUNK_SIZE +
+                                    profileByteOffset + chunk * SAVE_CHUNK_SIZE +
                                         STORAGE_LOAD_SIZE, 0,
                                     "", "MKD", regionBuffer, SAVE_CHUNK_SIZE,
                                     deviceFreeBlocks, deviceFreeBytes, 0, 0, mode, 0);

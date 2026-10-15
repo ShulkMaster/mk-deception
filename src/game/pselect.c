@@ -527,8 +527,8 @@ static inline int pselect_character_locked_impl(int char_id, int alt_bit) {
     return 1;
 }
 
-/* TODO: [breakthrough] 97.55%; retail table ownership, frame and retained homes recovered;
- * validity branch/join and shift-argument staging need original inline evidence. */
+/* TODO: [near miss] 97.55%; validity result copy/join is absent before allocation;
+ * recover its producer boundary and the early shift-count snapshot. */
 static float p_random_player_select(void) {
     int attempts;
     int slot;
@@ -1141,7 +1141,8 @@ float p_enter_profile_code(void) {
 }
 
 
-/* TODO: [near miss] 97.91045%; validity join/compare registers remain; return rewrites and whole-TU nopeephole regress callers. */
+/* TODO: [near miss] 97.91045%; recover a genuine validity-result copy across the join;
+ * IRO folds the current branch pair before allocation. */
 int is_char_locked(int char_id, int alt_bit) {
     unsigned long long mask;
     unsigned long long bit;
@@ -1523,8 +1524,8 @@ void get_bg_pselect_team_textures(PselectTexOut out, int team) {
     pselect_update_team_preview(team);
 }
 
-/* TODO: [near miss] 98.88%; shared validity join differs before allocation;
- * value numbering also merges its zero with the comparison high word. */
+/* TODO: [near miss] 98.88%; validity join is absent from initial pcode;
+ * recover its original predicate boundary before addressing zero sharing. */
 void get_pselect_head_textures(PselectTexOut out) {
     int n;
     int i;
@@ -1772,8 +1773,8 @@ void resolve_alternate_palettes(PlyrInfo* plyr) {
     }
 }
 
-/* TODO: [near miss] 99.09%; calls, snapshots and output slots agree;
- * codeless validity join and preview-search/address homes remain. */
+/* TODO: [near miss] 99.41989%; canonical preview address agrees; validity
+ * branch producer and preview owner order remain at the documented ceiling. */
 void pselect_player_selected(PlyrInfo* plyr) {
     PlyrInfo* other;
     int* sel_pos;
@@ -1881,13 +1882,13 @@ void pselect_player_selected(PlyrInfo* plyr) {
 
     if (pselect_mode == 1) {
         char_id = pselect_char_id_at(*sel_pos);
-        focus = bg_team_focus_of(get_screen_pdata(),
+        focus = bg_team_record_focus_of(get_screen_pdata(),
                                  plyr->field_04, char_id);
         if (focus >= 0) {
-            struct BgPselectPdata* preview = get_screen_pdata();
+            struct BgPselectTeamPdata* preview = get_screen_pdata();
 
             fire_screen_studio_event(studio_ev, plyr->field_04);
-            bg_team_view(preview, plyr->field_04)->focus = focus;
+            preview->teams[plyr->field_04].focus = focus;
         }
     }
 }
@@ -1984,8 +1985,8 @@ int pselect_get_selbox_pos(int player) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 95.98290%; validity false-edge and shift staging differ;
- * PS2 outlines the lock call; recover the original GC predicate/inline boundary. */
+/* TODO: [breakthrough needed] 95.98290%; public parameters select after internal owners;
+ * recover the GC operation boundary and shared validity-result copy. */
 void pselect_update_selbox_pos(int player, int new_pos) {
     int* pos_p;
     int cols;
@@ -2089,7 +2090,8 @@ void pselect_update_selbox_pos(int player, int new_pos) {
     fire_screen_studio_event(0x1FA4, player);
 }
 
-/* TODO: [near miss] 98.37%; shared inlined character-validity compare and redundant join branch remain. */
+/* TODO: [near miss] 98.37%; shared validity-result copy/join is absent before allocation;
+ * recover its genuine producer boundary in the common predicate. */
 void check_reset_player_selection(int player, int start_pos) {
     int pos;
     int char_id;
@@ -2131,12 +2133,11 @@ int bg_pselect_get_offender_class(int team) {
 
 #pragma opt_propagation reset
 
-/* TODO: [breakthrough] 91.83%; shared focus bound recovered; team root/index staging and register homes remain. */
 void bg_pselect_set_character(int team) {
-    struct BgPselectPdata* pdata;
-    struct BgPselectTeamView* teamv;
+    struct BgPselectTeamPdata* pdata;
     int sel_pos;
     int char_id;
+    int count;
 
     pdata = get_screen_pdata();
     if (pdata == 0) {
@@ -2147,11 +2148,11 @@ void bg_pselect_set_character(int team) {
     if (team == 0) {
         sel_pos = p1_selbox_pos;
     }
-    teamv = bg_team_view(pdata, team);
-    if (teamv->count >= 1 && teamv->count <= 5) {
+    count = pdata->teams[team].entries[0];
+    if (count >= 1 && count <= 5) {
         char_id = pselect_char_id_at(sel_pos);
-        teamv->chars[teamv->count - 1] = char_id;
-        bg_team_view(pdata, team)->focus = bg_team_focus_of(
+        pdata->teams[team].entries[count] = char_id;
+        pdata->teams[team].focus = bg_team_record_focus_of(
             get_screen_pdata(), team, char_id);
     }
 }
@@ -2619,7 +2620,8 @@ float p_pselect(void) {
 
 static void init_startup_selboxes(void);
 
-/* TODO: [near miss] 97.37%; separate player search positions agree; shared validity join and unlock-mask GPR homes remain. */
+/* TODO: [near miss] 97.36994%; position/mask and invariant-mode owners differ;
+ * preserve local searches and outlining; recover the shared validity join. */
 static void init_startup_selboxes(void) {
     int max_col;
     int p1_pos;

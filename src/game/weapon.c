@@ -904,7 +904,8 @@ void plyr_weapon_hide(PlyrPdata* player, int show_aux,
     }
 }
 
-/* TODO: [near miss] 99.36047%; retail slot reloads restored; first owner/candidate GPR pair differs. */
+/* TODO: [near miss] 99.36047%; named owner must precede split candidate in
+ * coloring; in-place validation loses retail branch; recover original web ownership. */
 void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     MkObj* player_object;
     MkObj* weapon_object;

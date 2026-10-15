@@ -1482,8 +1482,8 @@ static inline void mark_bitset_locked(
     bits->value &= mask;
 }
 
-/* TODO: [near miss] 98.93%; traced mask/word temporaries swap r0 with r3/r5;
- * prior operand and helper forms are neutral; retain coloring ceiling. */
+/* TODO: [near miss] 98.92857%; nine word/mask codegen pairs emit NOR before load;
+ * recover a bit-clear owner that preserves retail operations and switch table. */
 void mark_as_locked(PlayerProfile* profile, int category, int character) {
     unsigned long long mask;
     ProfileUnlockBits64* bits;

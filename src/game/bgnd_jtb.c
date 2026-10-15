@@ -198,8 +198,8 @@ static const Vec nb_world_up = {0.0f, 1.0f, 0.0f};
 static const Vec nb_hit_zero = {0.0f, 0.0f, 0.0f};
 static const Vec nb_collision_zero = {0.0f, 0.0f, 0.0f};
 
-/* TODO: [near miss] 98.15044%; final transform has the same operations/reloads;
- * R4 and neutral subsets isolate a scheduler tie; stop pending a supported dependency. */
+/* TODO: [breakthrough needed] 98.15044%; rebound wins CountScheduled 1 vs 0;
+ * recover the store/side-X dependency graph without altering the two stages. */
 void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     static unsigned int last_sound_time;
     struct NbNpcState* npc;
@@ -673,8 +673,8 @@ static inline void nb_get_rope_angle(
     angle_vector->z *= angle;
 }
 
-/* TODO: [breakthrough needed] 97.41940%; cross/speed homes and sqrt slots agree;
- * recover acceleration aggregate forwarding, duplicate stores and rounding. */
+/* TODO: [breakthrough needed] 97.41940%; single-precision producers fold rounds;
+ * recover the construction/publication boundary behind six missing acceleration stores. */
 static float p_npc_on_pendulum_rope(void) {
     MkObj* object;
     struct NbNpcState* npc;
@@ -851,7 +851,8 @@ static float p_npc_on_pendulum_rope(void) {
     }
 }
 
-/* TODO: [near miss] 99.488190%; projection operations agree; acceleration-scale and normal-force FPR homes differ. */
+/* TODO: [near miss] 99.48819%; named scale trails normal-X; Y/Z product homes differ;
+ * recover non-folding products without splitting persistent force owners. */
 static void nb_get_desired_acceleration(
     struct NbNpcState* state, Vec* acceleration, const Vec* surface_normal) {
     float force_z;

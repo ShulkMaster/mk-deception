@@ -571,8 +571,8 @@ private:
     T* data_;
 };
 
-/* TODO: [near miss] 84.33334%; allocator-before-range order restored;
- * empty-tag transport and range-argument scheduling remain. */
+/* TODO: [breakthrough needed] 84.33334%; allocator return lifetime agrees;
+ * recover tag carrier ownership and range-argument scheduling. */
 template <class T, class Traits, class Allocator>
 basic_string<T, Traits, Allocator>::basic_string(const basic_string& str)
     : alloc_(str.alloc_)
@@ -948,7 +948,7 @@ template <class T, class OpenCommand>
 class mwFileMountPointPlugin : public mwFileMountPoint {
 public:
     mwFileMountPointPlugin(const char* mount_name, mwFileServer& server_ref);
-    virtual ~mwFileMountPointPlugin() {}
+    virtual ~mwFileMountPointPlugin();
     virtual int startOpenFileCommand(mwFileCommand*&, const char*, unsigned long,
                                      mwFileCallback, void*);
     virtual int convertToPlatformPath(char*, const char*, unsigned long, unsigned long&);
@@ -965,7 +965,7 @@ template <class T, class OpenCommand>
 class mwFileDevicePlugin : public mwFileMountPointPlugin<T, OpenCommand>, public mwFileDevice {
 public:
     mwFileDevicePlugin(const char* mount_name, mwFileServer& server_ref);
-    virtual ~mwFileDevicePlugin() {}
+    virtual ~mwFileDevicePlugin();
     virtual unsigned char isA(mwFileTypeInfo*, const void*&) const;
     virtual void setErrorCallback(mwFileDeviceErrorCallback, void*);
     virtual void reportError(mwFileError, mwFileCommand*);
@@ -976,7 +976,7 @@ template <class Traits>
 class mwFileHandlePlugin : public mwFile {
 public:
     mwFileHandlePlugin(mwFileMountPoint&, unsigned long);
-    virtual ~mwFileHandlePlugin() {}
+    virtual ~mwFileHandlePlugin();
     virtual int startCloseFileCommand(mwFileCommand*&, mwFileCallback, void*);
     virtual int startReadFileCommand(mwFileCommand*&, unsigned long long, void*,
                                      unsigned long, unsigned char, mwFileCallback,
@@ -986,6 +986,21 @@ public:
                                       void*);
     virtual int startFlushFileCommand(mwFileCommand*&, mwFileCallback, void*);
 };
+
+template <class T, class OpenCommand>
+mwFileMountPointPlugin<T, OpenCommand>::~mwFileMountPointPlugin()
+{
+}
+
+template <class T, class OpenCommand>
+mwFileDevicePlugin<T, OpenCommand>::~mwFileDevicePlugin()
+{
+}
+
+template <class Traits>
+mwFileHandlePlugin<Traits>::~mwFileHandlePlugin()
+{
+}
 
 namespace {
 class gcnHostCloseCommand;
@@ -2262,7 +2277,8 @@ int mwFileXPReadUnbufferedCommand<T, H>::handleSignalState()
     return mwFileCommandPluginBase::handleSignalState();
 }
 
-/* TODO: [breakthrough needed] 96.63%; recover nativeProgress inlining here while retaining the getProgressBytes call boundary. */
+/* TODO: [breakthrough needed] 96.63265%; recover per-consumer nativeProgress
+ * expansion and mixin ownership while preserving exact getProgressBytes. */
 template <class T, class H>
 int mwFileXPReadUnbufferedCommand<T, H>::handleReadingState()
 {
@@ -2379,7 +2395,8 @@ int mwFileXPReadBufferedCommand<T, H>::handleSignalState()
     return mwFileCommandPluginBase::handleSignalState();
 }
 
-/* TODO: [near miss] 97.99%; fill-length block temps (size words) and aligned_offset hi/lo pair colored differently. */
+/* TODO: [near miss] 97.98561%; aligned-offset pair and fill-size words
+ * differ in GPR homes; recover original read-phase ownership. */
 template <class T, class H>
 int mwFileXPReadBufferedCommand<T, H>::handleReadingState()
 {

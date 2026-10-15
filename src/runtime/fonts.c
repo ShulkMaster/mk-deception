@@ -270,8 +270,8 @@ void update_string_obj_pfx(StringObj* obj, PfxFontSlot* font, const char* text) 
     }
 }
 
-/* TODO: [near miss] 96.50%; table-base and render_y scheduling restored;
- * y_off load and compare move ahead of vertical metrics conversion. */
+/* TODO: [near miss] 96.50%; y_off load/test hoist before vertical conversion;
+ * need the retail table-address/publication dependency; native homes agree. */
 void update_string_obj(StringObj* obj, int font, const char* text) {
     int halign;
     int valign;
@@ -588,8 +588,8 @@ StringObj* string_left_xy(int oid, int font, const char* text, int x, int y, int
     return obj;
 }
 
-/* TODO: [near miss] 98.98%; indexed slot rematerialization recovered;
- * search and load-path register allocation remains. */
+/* TODO: [breakthrough needed] 98.98%; named owners conflict with base/index temps;
+ * integer handle typing needs coordinated table-generator and header recovery. */
 PfxFontSlot* load_named_font(const char* name) {
     int offset;
     FontTableEntry* walk;

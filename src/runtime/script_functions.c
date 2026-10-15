@@ -1,5 +1,7 @@
 /* BUILD: -O4,s -use_lmw_stmw on object-wide: replaces per-wrapper optimize_for_size/use_lmw_stmw
  * pragmas; every exact wrapper stays exact and three flag getters improve. */
+#include "runtime/script_functions.h"
+#include "platform/main.h"
 #include "game/game.h"
 #include "game/fatality.h"
 #include "runtime/anim_api_ext.h"
@@ -97,8 +99,6 @@ struct ScriptMkObjResult {
     MkObj* value;
 };
 
-typedef void (*ScriptEntryFn)(void);
-
 float p_blend_to_stance_in_10(void);
 float p_reverse_to_stance_in_10(void);
 float p_blend_to_fstance_in_10(void);
@@ -144,7 +144,6 @@ static MkProcEntryFn exit_table[22] = {
     j_getup_front_10,
     joy_dash_back,
 };
-extern ScriptEntryFn script_callable_function_table[];
 void trial_start_tunes(void);
 void trial_end_tunes(void);
 float subzero_his_tinkle_snd(void);
@@ -793,7 +792,6 @@ union ScriptResultRef {
     struct ScriptCommandView* command;
 };
 
-extern float inverse_game_speed;
 void nis_init(ScriptSlot* cmdscript, unsigned int scene_func, unsigned int cancel_func);
 KonquestNpc* find_npc_by_data(KonquestNpcData* data);
 void nb_place_slave_in_bgnd(
@@ -1137,8 +1135,6 @@ void* limb_sever_find_existing_update_proc(int a, int b, int c);
 void limb_sever_update_slide_end_coeff(int a, float b);
 MkProc* proc_of_anim_pdata(AnimPdata* anim);
 void set_pdata_anim_step(void* anim, float step);
-void plyr_turn_on_shadowbox(int a);
-void plyr_turn_off_shadowbox(PlyrInfo* player);
 void animpdata_ani_to_blend_frame(void* anim, float frame);
 void animpdata_ani_to_end_at1(void* anim);
 void animpdata_ani_to_end(void* anim);
@@ -1165,7 +1161,6 @@ void unhide_obj(int a);
 void hide_obj(int a);
 void* pfx_plyr_bankowner(int a);
 void ncs_script_debug_quickie(int a, float b, int c);
-float get_inverse_game_speed(void);
 void ck_rumble_controller(int a, int b, int c);
 int check_for_green_light(int a);
 int check_for_red_light(int a);
@@ -1367,7 +1362,7 @@ void destroy_kabal_smoke(void);
 int destroy_sobj_ctrl_proc(void);
 int disable_attack5(int);
 int disable_blocking(void);
-int disable_both_repel_flags(void);
+void disable_both_repel_flags(void);
 int disable_joy_temp(int);
 void disable_mileena_collisions(int);
 int disable_my_attacks(int);
@@ -1598,7 +1593,6 @@ void set_reference_pui(KonquestPuiDefinition*);
 int setup_for_flip_ani(void);
 int setup_interior_fighting_arena(void);
 int setup_vomit_slip_sound(void);
-int show_player(int);
 int show_shujinko_unlock_screen(int);
 float slamdown_reaction_max_hit_rules(void);
 int slow_ani_end(void *, float);
@@ -1808,7 +1802,6 @@ int give_koin_award(int, int);
 void give_krypt_key_to_player(KonquestPuiDefinition*, int);
 int hf_bgnd_set_in_setup_zone(int, int);
 int hf_bgnd_set_smasher_mode(int, int);
-int hide_player(int, int);
 int hit_START_chores(int, int, void *, float, float);
 int if_collision_slow_ani_x(void *, float, float);
 int jab_attach_drink_obj_to_hand(int, int, int);
@@ -1885,7 +1878,6 @@ int mks_set_update_delay(int, int);
 int mks_shadow_scale(int, int, void *, float, float);
 int mks_start_axis_indicator_p_axis_track_bone_world_mat(int, void *, float);
 void mks_victim_bleed(int, int);
-int move_player(int, int, int);
 int myvel_his_angle_y(void *, float, float, float);
 int myvel_my_angle_y(void *, float, float, float);
 void nb_npc_slave_plyr_process_collision(unsigned int);
@@ -2045,7 +2037,6 @@ int get_collision_result(void);
 int get_current_bgnd(void);
 int get_doors_for_exterior(void);
 int get_exec_tick_ctr(void);
-float get_game_speed(void);
 void* get_general_pebble_data(struct PebbleData* pebble_data);
 int get_hero_state(void);
 int get_his_previous_state(void);
@@ -5096,7 +5087,7 @@ void _set_pdata_anim_step(void) { set_pdata_anim_step(((struct ScriptRawArgs*)cu
 
 void _puzzle_fighter_scale(void) { puzzle_fighter_scale(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
 
-void _plyr_turn_on_shadowbox(void) { plyr_turn_on_shadowbox(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+void _plyr_turn_on_shadowbox(void) { plyr_turn_on_shadowbox(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
 void _plyr_turn_off_shadowbox(void) {
     struct ScriptRawArgs* args;
@@ -9539,7 +9530,7 @@ void _hide_player(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    hide_player(args->slots[0].i, args->slots[1].i);
+    hide_player(args->slots[0].pointer, args->slots[1].i);
 }
 
 void _setup_for_flip_ani(void) {
@@ -9591,7 +9582,8 @@ void _move_player(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    move_player(args->slots[0].i, args->slots[1].i, args->slots[2].i);
+    move_player(args->slots[0].pointer, args->slots[1].pointer,
+                args->slots[2].pointer);
 }
 
 void _face_ang_from_pos_to_him(void) {
@@ -9614,7 +9606,7 @@ void _show_player(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    show_player(args->slots[0].i);
+    show_player(args->slots[0].pointer);
 }
 
 void _plyr_invulnerable_to_projectiles(void) {

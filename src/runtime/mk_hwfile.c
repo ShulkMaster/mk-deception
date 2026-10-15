@@ -124,7 +124,8 @@ static inline void hwfile_pool_release(MkHwFileHandlePool* pool,
     }
 }
 
-/* TODO: [near miss] 99.34%; pool scan matches; release pool/index r4/r5 homes remain swapped. */
+/* TODO: [near miss] 99.33628%; release pool/index homes differ;
+ * native kind-change prediction lacks a source producer; stop at coloring. */
 MkHwFileRequest* mk_hwfile_open(const char* path, const char* mode) {
     char path_buffer[256];
     MkHwFileRequest* request;

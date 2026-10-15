@@ -1000,7 +1000,8 @@ extern "C" unsigned long mslBankPlayPrep(mslLoadedBank* bank, int sound_id)
     return 0;
 }
 
-/* TODO: [near miss] 99.59%; operations, calls, literals, and return joins agree; stop at saved-register coloring. */
+/* TODO: [near miss] 99.58823%; play arguments, acquired node and finish locals rotate;
+ * recover their copy interference at the native allocation boundary. */
 extern "C" unsigned long mslBankPlayVol(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, unsigned long play_flags) {

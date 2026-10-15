@@ -312,10 +312,10 @@ static inline int collision_point_inside_shape(
 
     switch (shape->type & 7) {
     case 2: {
-        float collision_radius;
-        float distance;
-        float dx;
         float dz;
+        float dx;
+        float distance;
+        float collision_radius;
 
         dz = point->z - shape->cylinder.center.value.z;
         collision_radius = shape->cylinder.radius + radius;
@@ -537,16 +537,37 @@ void purge_global_collision_list(void) {
     }
 }
 
-/* TODO: [breakthrough] 96.66%; shared shape predicate and exit-owned result recovered;
- * inner loop test placement and cylinder FPR homes remain. */
+static inline int collision_list_contains_point(
+    MkPtr** list, const Vec* point, float radius) {
+    MkPtr* item;
+    MkPtr* next;
+    CollisionObj* object;
+
+    if (mklist_is_valid(list)) {
+        item = *list;
+        while (item != 0) {
+            object = (CollisionObj*)item->hdr;
+            if (item->instance != object->hdr.instance) {
+                next = item->next;
+                discard_stale_mkptr(item);
+                item = next;
+                continue;
+            }
+            if (collision_point_inside_shape(
+                    &object->shape, point, radius) != 0) {
+                return 1;
+            }
+            item = item->next;
+        }
+    }
+    return 0;
+}
+
 int is_point_inside_shadow_exclusion_zone(
     const Vec* point, float radius) {
     CollisionObjList* list_object;
-    CollisionObj* collision_object;
     MkPtr* list_item;
-    MkPtr* collision_item;
     MkPtr* next;
-    int inside;
 
     if (mklist_is_valid(&konquest_shadow_collision_lists)) {
         list_item = konquest_shadow_collision_lists;
@@ -558,34 +579,8 @@ int is_point_inside_shadow_exclusion_zone(
                 list_item = next;
                 continue;
             }
-
-            if (mklist_is_valid(&list_object->objects)) {
-                collision_item = list_object->objects;
-                for (;;) {
-                    if (collision_item == 0) {
-                        inside = 0;
-                        break;
-                    }
-                    collision_object = (CollisionObj*)collision_item->hdr;
-                    if (collision_item->instance !=
-                        collision_object->hdr.instance) {
-                        next = collision_item->next;
-                        discard_stale_mkptr(collision_item);
-                        collision_item = next;
-                        continue;
-                    }
-
-                    if (collision_point_inside_shape(
-                            &collision_object->shape, point, radius) != 0) {
-                        inside = 1;
-                        break;
-                    }
-                    collision_item = collision_item->next;
-                }
-            } else {
-                inside = 0;
-            }
-            if (inside != 0) {
+            if (collision_list_contains_point(
+                    &list_object->objects, point, radius) != 0) {
                 return 1;
             }
             list_item = list_item->next;
@@ -1268,8 +1263,6 @@ int npc_repel_against_global_collision_list(
     return result;
 }
 
-/* TODO: [breakthrough] 88.51%; mutable input and float fallback copy recovered;
- * target-vector address ownership and aligned stack storage remain. */
 int repel_against_global_collision_list(
     Vec* position, Vec* movement, Vec* result_position) {
     CollisionShape shape;
@@ -1278,18 +1271,10 @@ int repel_against_global_collision_list(
     int result;
 
     result = 0;
-    target_position.y = position->y + movement->y;
     target_position.x = position->x + movement->x;
+    target_position.y = position->y + movement->y;
     target_position.z = position->z + movement->z;
-    shape.type = 2;
-    shape.cylinder.radius = 0.35f;
-    shape.cylinder.axis.value.x = UNITVECT_Y.x;
-    shape.cylinder.axis.value.y = UNITVECT_Y.y;
-    shape.cylinder.axis.value.z = UNITVECT_Y.z;
-    shape.cylinder.height = 2.4f;
-    shape.cylinder.center.value.y = target_position.y;
-    shape.cylinder.center.value.x = target_position.x;
-    shape.cylinder.center.value.z = target_position.z;
+    initialize_vertical_collision_cylinder(&shape, &target_position, 0.35f, 2.4f);
     shape.cylinder.center.value.y -= 1.0f;
     result_position->x = target_position.x;
     result_position->y = target_position.y;
@@ -1821,16 +1806,46 @@ static CollisionObj* convert_cdf_quad_to_collision_box(
     return collision;
 }
 
-static inline float collision_length_squared_xz(float x, float z) {
+static inline float collision_length_squared_xz(float z, float x) {
     float square_x = x * x;
     float square_z = z * z;
     return square_x + square_z;
 }
 
-/* TODO: [near miss] 98.86%; operations and addresses agree; stop at distance FPR coloring. */
+static inline int collision_cylinder_geometry(
+    Vec* vertices, int top_index, int next_index, int other_index,
+    float* radius, float* height) {
+    float length_squared;
+    float top_x;
+    float top_z;
+    float next_x;
+    float other_x;
+    float next_z;
+    float other_z;
+    float next_distance;
+    float other_distance;
+    int center_index;
+
+    top_x = vertices[top_index].x;
+    top_z = vertices[top_index].z;
+    next_x = vertices[next_index].x;
+    next_z = vertices[next_index].z;
+    other_x = vertices[other_index].x;
+    other_z = vertices[other_index].z;
+    next_distance = collision_length_squared_xz(
+        next_z - top_z, next_x - top_x);
+    other_distance = collision_length_squared_xz(
+        other_z - top_z, other_x - top_x);
+    center_index = next_distance < other_distance ? next_index : other_index;
+
+    *height = vertices[top_index].y - vertices[next_index].y;
+    length_squared = collision_length_squared_xz(next_z - other_z, next_x - other_x);
+    *radius = gxMathFastSqrt(length_squared);
+    return center_index;
+}
+
 static CollisionObj* convert_cdf_triangle_to_collision_cylinder(
     Vec* vertices, const Vec* angles, Vec* position) {
-    float length_squared;
     CollisionObj* collision;
     MKMATRIX matrix;
     Vec center;
@@ -1840,12 +1855,6 @@ static CollisionObj* convert_cdf_triangle_to_collision_cylinder(
     float third_height;
     float second_height;
     float top_height;
-    float next_x;
-    float next_z;
-    float other_x;
-    float other_z;
-    float next_distance;
-    float other_distance;
     int top_index;
     int next_index;
     int other_index;
@@ -1865,19 +1874,8 @@ static CollisionObj* convert_cdf_triangle_to_collision_cylinder(
 
     next_index = (top_index + 1) % 3;
     other_index = (top_index + 2) % 3;
-    next_x = vertices[next_index].x;
-    next_z = vertices[next_index].z;
-    other_x = vertices[other_index].x;
-    other_z = vertices[other_index].z;
-    next_distance = collision_length_squared_xz(
-        next_x - vertices[top_index].x, next_z - vertices[top_index].z);
-    other_distance = collision_length_squared_xz(
-        other_x - vertices[top_index].x, other_z - vertices[top_index].z);
-    center_index = next_distance < other_distance ? next_index : other_index;
-
-    length_squared = collision_length_squared_xz(next_x - other_x, next_z - other_z);
-    height = vertices[top_index].y - vertices[next_index].y;
-    radius = gxMathFastSqrt(length_squared);
+    center_index = collision_cylinder_geometry(
+        vertices, top_index, next_index, other_index, &radius, &height);
 
     gxVectCopy(&center, &vertices[center_index]);
     if (angles != 0) {
@@ -2615,8 +2613,8 @@ static inline void collision_render_sphere_outline(
     }
 }
 
-/* TODO: [near miss] 99.79%; palette loads remain 0,1,2,3 versus retail 1,2,3,0;
- * caller snapshots/open-coded loop regress; original palette owner remains unknown. */
+/* TODO: [near miss] 99.78947%; palette R load must follow G/B/A before loop;
+ * need its original producer boundary while preserving shared vertex scheduling. */
 void render_col_shape(
     CollisionShape* shape, const unsigned int* color) {
     switch (shape->type & 7) {
@@ -2635,8 +2633,8 @@ void render_col_shape(
     }
 }
 
-/* TODO: [near miss] 94.03%; geometry and vertex operations agree;
- * alpha/red palette loads precede retail stack stores; byte-type changes are neutral. */
+/* TODO: [near miss] 94.03%; post-RA ties emit alpha/red before geometry stores;
+ * complete staging and byte-type controls are neutral; recover original input order. */
 static void render_col_shape_as_quad(
     CollisionShape* shape, const unsigned int* color) {
     Vec positions[8];
@@ -2683,8 +2681,8 @@ static inline void set_collision_vertex_values(
     vertex->color_channels.alpha = alpha;
 }
 
-/* TODO: [near miss] 90.02857%; BE commoning/scheduling delays corner stores;
- * recover product lifetimes and palette/store dependencies before coloring. */
+/* TODO: [near miss] 90.02857%; palette byte types already agree with retail;
+ * ready-load priority over corner stores still needs a real source boundary. */
 static void render_col_shape_as_box(
     const CollisionShape* shape, const unsigned int* color) {
     RwIm3DVertex vertices[8];
@@ -3377,7 +3375,7 @@ static int collide_sphere_and_quad(
     return !(sphere_dot > quad_dot);
 }
 
-/* TODO: [near miss] 99.09%; box operations and order agree; stop at localized FPR coloring. */
+/* TODO: [near miss] 99.52381%; box operations and order agree; split-height and scalarized center ownership still differ. */
 static void get_center_for_shape(const CollisionShape* shape, Vec* center) {
     int kind;
 
@@ -3395,8 +3393,8 @@ static void get_center_for_shape(const CollisionShape* shape, Vec* center) {
         base_center.x = shape->box.corners[0].value.x;
         base_center.x = 0.5f * (base_center.x + shape->box.corners[1].value.x);
         base_center.y = 0.5f * (shape->box.corners[0].value.y + shape->box.corners[1].value.y);
-        base_center.z = 0.5f * (shape->box.corners[0].value.z + shape->box.corners[1].value.z);
         half_height = shape->box.axis_0_max - shape->box.axis_0_min;
+        base_center.z = 0.5f * (shape->box.corners[0].value.z + shape->box.corners[1].value.z);
         half_height = 0.5f * half_height;
         base_center.x +=
             0.5f * (shape->box.corners[2].value.x - shape->box.corners[1].value.x);
@@ -3871,11 +3869,23 @@ void set_plyr_attack_region(
     }
 }
 
-/* TODO: [near miss] 98.65%; GPR homes and two elided dead branches remain;
- * stop at codegen without a new producer-boundary lead. */
+static inline int player_collision_definition_count(PlyrPdata* pdata) {
+    int count;
+
+    if (pdata != 0) {
+        if (pdata->character_id == 0x1E) {
+            count = 28;
+        } else {
+            count = 22;
+        }
+    } else {
+        count = 0;
+    }
+    return count;
+}
+
 static void add_plyr_body_attack_nodes(
     int region_id, float radius, float extension) {
-    const int* entries;
     PlayerCollisionNode node;
     CollisionShape local_shape;
     PlayerCollisionNode* inserted[36];
@@ -3884,7 +3894,6 @@ static void add_plyr_body_attack_nodes(
     const float* radius_scale;
     PlayerCollisionData* storage;
     PlyrInfo* player;
-    PlyrPdata* fighter;
     MkObj* object;
     Vec movement;
     Vec difference;
@@ -3895,42 +3904,32 @@ static void add_plyr_body_attack_nodes(
     int definition_count;
     int definition_index;
     int inserted_count = 0;
-    int node_id;
     unsigned int bone_index;
+    const int* entries;
 
     entries = attack_region_list[region_id];
-    player = plyr_pdata->plyr_info;
-    storage = player->collision_data;
+    storage = plyr_pdata->plyr_info->collision_data;
     object = storage->object;
-    attack_radius = storage->attack_radius;
     facing_angle = object->ang.y;
+    attack_radius = storage->attack_radius;
     movement.x = gxMathSin(facing_angle);
     movement.y = 0.0f;
     movement.z = gxMathCos(facing_angle);
     movement.x *= attack_radius;
     movement.z *= attack_radius;
     player = plyr_pdata->plyr_info;
-    if (player == 0) {
-        return;
-    }
-    fighter = player->slot.pdata;
-    if (fighter != 0) {
-        if (fighter->character_id == 0x1E) {
-            definition_count = 28;
-        } else {
-            definition_count = 22;
-        }
+    if (player != 0) {
+        definition_count = player_collision_definition_count(player->slot.pdata);
     } else {
-        definition_count = 0;
+        return;
     }
 
     while (*entries != 0) {
-        node_id = *entries;
         definition_index = 0;
         while (definition_index < definition_count) {
-            if ((node_id | 0x1000) ==
+            if ((*entries | 0x1000) ==
                     col_def_list[definition_index].node_id ||
-                (node_id | 0x4000) ==
+                (*entries | 0x4000) ==
                     col_def_list[definition_index].node_id) {
                 break;
             }
@@ -3959,8 +3958,8 @@ static void add_plyr_body_attack_nodes(
             transform_collision_node(&node);
         }
 
-        storage = plyr_pdata->plyr_info->collision_data;
-        inserted_node = insert_player_attack_node(storage, &node, &movement);
+        inserted_node = insert_player_attack_node(
+            plyr_pdata->plyr_info->collision_data, &node, &movement);
         if (inserted_node != 0) {
             inserted[inserted_count] = inserted_node;
             inserted_count++;
@@ -3983,8 +3982,8 @@ static void add_plyr_body_attack_nodes(
             node.world_shape.type = 1;
             v3_x_v_add_v3(
                 &node.world_shape.sphere.center, &difference, scale);
-            storage = plyr_pdata->plyr_info->collision_data;
-            insert_player_attack_node_unshifted(storage, &node);
+            insert_player_attack_node_unshifted(
+                plyr_pdata->plyr_info->collision_data, &node);
         }
 
         entries++;
@@ -4085,19 +4084,6 @@ void term_player_collision(PlyrInfo* player) {
         free_mem(collision);
         player->collision_data = 0;
     }
-}
-
-static inline int player_collision_definition_count(PlyrPdata* pdata) {
-    int count = 0;
-
-    if (pdata != 0) {
-        if (pdata->character_id == 0x1E) {
-            count = 28;
-        } else {
-            count = 22;
-        }
-    }
-    return count;
 }
 
 void reset_player_collision(PlyrInfo* player) {
