@@ -463,8 +463,8 @@ int mwFileMountTable::getMountPointFromName(
     return -15;
 }
 
-/* TODO: [near miss] 99.94%; comparator and its call copy retain reversed
- * 0xc/0x10 slots; recover the original object boundary before more shaping. */
+/* TODO: [near miss] 99.93877%; comparator follows its ABI copy at 0x10/0xc;
+ * recover object creation order; declaration timing cannot reverse allocation. */
 int mwFileMountTable::removeMountPoint(mwFileMountPoint* mount_point)
 {
     pointer_less<mwFileMountPoint> compare;

@@ -38,22 +38,16 @@ static float fonts_metrics_height(FontMetrics* metrics) {
 
 static int fonts_find_key(const char* keys, char key) {
     int index;
-    const char* walk;
 
-    index = 0;
-    walk = keys;
-    while (*walk != '\0') {
-        if (key == *walk) {
+    for (index = 0; keys[index] != '\0'; index++) {
+        if (key == keys[index]) {
             return index;
         }
-        index++;
-        walk++;
     }
     return -1;
 }
 
 
-/* TODO: [near miss] 99.02%; seven key-search cursor/character register rows remain. */
 void rewrite_button_string(const char* keys, char* text, int swap, int* map) {
     int key_idx;
     int out_bit;
@@ -588,8 +582,8 @@ StringObj* string_left_xy(int oid, int font, const char* text, int x, int y, int
     return obj;
 }
 
-/* TODO: [breakthrough needed] 98.98%; named owners conflict with base/index temps;
- * integer handle typing needs coordinated table-generator and header recovery. */
+/* TODO: [near miss] 98.98305%; shared loader rotates homes; indexed walk deletes
+ * retail rematerialization; integer handle typing alone is byte-neutral. */
 PfxFontSlot* load_named_font(const char* name) {
     int offset;
     FontTableEntry* walk;

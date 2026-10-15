@@ -427,7 +427,7 @@ void ADXSJD_ExecHndl(AdxSjdHandle* handle)
 }
 
 /* TODO: [near miss] 99.8485%; linked-loop limit/length homes swap r31/r28;
- * donor uses a forbidden dead guard; verified lifetime/scanner ceiling remains. */
+ * complete padding consumer also regresses; recover a genuine length owner. */
 void adxsjd_decexec_start(AdxSjdHandle* handle)
 {
     AdxBasicDecoderExt* decoder = handle->decoder;

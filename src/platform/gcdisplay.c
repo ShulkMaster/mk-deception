@@ -1117,8 +1117,6 @@ static void display_image(void) {
     wgPipe[0] = 0x100;
 }
 
-/* TODO: [near miss] 98.49%; 8x4 tile traversal and instruction order agree;
- * 13 localized GPR operands remain. */
 void tile_image(unsigned char* dest) {
     unsigned char* tmp;
     const unsigned char* image;
@@ -1140,7 +1138,7 @@ void tile_image(unsigned char* dest) {
         output = tmp + output_offset;
         for (pixel = 0; pixel < 0x20; pixel++) {
             int y = tile_y + (pixel / 8);
-            *output++ = tile_source[y * 0x100 + (pixel % 8)];
+            output[pixel] = tile_source[y * 0x100 + (pixel % 8)];
         }
         output_offset += 0x20;
     }

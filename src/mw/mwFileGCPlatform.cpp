@@ -1018,9 +1018,11 @@ struct gcnHostFileTraits {
 
 class gcnHostFileHandle : public mwFileHandlePlugin<gcnHostFileTraits> {
 public:
-    gcnHostFileHandle(mwFileMountPoint& mount_point, unsigned long open_flags)
+    gcnHostFileHandle(mwFileMountPoint& mount_point, unsigned long open_flags,
+                      const mwFileString& path)
         : mwFileHandlePlugin<gcnHostFileTraits>(mount_point, open_flags), host_file(0)
     {
+        setDebugName(path.data());
     }
 
     virtual ~gcnHostFileHandle();
@@ -1253,8 +1255,8 @@ mwFileAsyncResult gcnHostWriteCommand::getResult() const
     return result;
 }
 
-/* TODO: [breakthrough needed] 82.69231%; first error load is retained through selection;
- * recover frontend/CFG evidence for the retail error reload. */
+#pragma push
+#pragma opt_common_subs off
 mwFileAsyncResult gcnHostOpenCommand::getResult() const
 {
     mwFileAsyncResult result;
@@ -1262,6 +1264,7 @@ mwFileAsyncResult gcnHostOpenCommand::getResult() const
     result.error = error;
     return result;
 }
+#pragma pop
 
 /* TODO: [Scope warn] Write requests require append or truncate mode, as supplied by mwFileOpenModeToFlags. */
 static inline int openHostFile(gcnHostFileHandle* handle, const char* path)
@@ -1332,10 +1335,7 @@ gcnHostOpenCommand::gcnHostOpenCommand(mwFileCallback completion_callback,
       name(path)
 {
     gcnHostFileHandle* handle = new (MW_TARGET_MEM_ALIGN_32, &stringBase0[HOST_HANDLE_NAME])
-        gcnHostFileHandle(mount_point, open_flags);
-    if (handle != 0) {
-        handle->setDebugName(path.data());
-    }
+        gcnHostFileHandle(mount_point, open_flags, path);
     file = handle;
 }
 }
@@ -2095,11 +2095,13 @@ mwFileXPOpenCommand<H>::~mwFileXPOpenCommand()
     }
 }
 
+/* TODO: [breakthrough needed] 82.69231%; error reload/copy remain;
+ * definition/body CSE scopes restore before deferred emission. */
 template <class H>
 mwFileAsyncResult mwFileXPOpenCommand<H>::getResult() const
 {
     mwFileAsyncResult result;
-    result.value.file = this->error == 0 ? this->file : 0;
+    result.value.file = this->error != 0 ? 0 : this->file;
     result.error = this->error;
     return result;
 }

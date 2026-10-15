@@ -2,7 +2,8 @@
 
 #include "mw/mwMemPriv.h"
 
-/* TODO: [near miss] 99.57%; block-size and allocation-extent registers remain reversed. */
+/* TODO: [near miss] 99.56522%; IroPropagate folds the block-size snapshot;
+ * recover its real owner above the named prefix extent without forcing. */
 void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     MwMemUsedHeader* header;
     u32 block_size;

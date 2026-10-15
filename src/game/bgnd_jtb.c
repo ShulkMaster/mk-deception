@@ -388,7 +388,7 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
 }
 
 /* TODO: [near miss] 97.84585%; 38 momentum FPR/scheduling rows remain;
- * ID homes agree; trace points to numerator ownership and scheduled overlap. */
+ * product propagation and sum ownership remain; in-place sums claim results too early. */
 static void nb_npc_slave_hit_by_plyr(int npc_id) {
     struct NbNpcState* npc;
     Vec target = nb_hit_zero;
@@ -549,16 +549,13 @@ static inline int nb_npc_side_reaction_is_left(
     return use_left_reaction;
 }
 
-/* TODO: [near miss] 99.84541%; four initial X/Z square load/home rows remain;
- * separately rounded products rotate normalization owners; trace their coalescing. */
 static int nb_npc_hurt_player(
     struct NbNpcState* hit, unsigned int player_index, float impact) {
     MkObj* player_object;
     FighterMirror* fighter;
     struct NbFighterHurtView* fighter_view;
     Vec facing;
-    float direction_x;
-    float direction_z;
+    Vec direction;
     float hit_length_inverse;
     float facing_length_inverse;
     float alignment;
@@ -574,15 +571,15 @@ static int nb_npc_hurt_player(
     random_hit(0xD);
     uv_from_angle_y(&facing, player_object->ang.y);
     hit_length_inverse = gxMathFastInvSqrt(
-        hit->momentum.z * hit->momentum.z +
-        hit->momentum.x * hit->momentum.x);
-    direction_x = hit->momentum.x * hit_length_inverse;
-    direction_z = hit->momentum.z * hit_length_inverse;
+        hit->momentum.x * hit->momentum.x +
+        hit->momentum.z * hit->momentum.z);
+    direction.x = hit->momentum.x * hit_length_inverse;
+    direction.z = hit->momentum.z * hit_length_inverse;
     facing_length_inverse = gxMathFastInvSqrt(
         facing.x * facing.x + facing.z * facing.z);
     facing.x *= facing_length_inverse;
     facing.z *= facing_length_inverse;
-    alignment = direction_x * facing.x + direction_z * facing.z;
+    alignment = direction.x * facing.x + direction.z * facing.z;
 
     if (impact > 0.115f && alignment > 0.7f && alignment < 1.3f) {
         xfer_player_proc_to_script_manual_messaging(

@@ -779,8 +779,8 @@ static inline void* mwsfcre_MallocX(MwsPlayer* player, int size)
     return mwsfcre_Alloc(player, size);
 }
 
-/* TODO: [breakthrough needed] 99.78355%; two audio-predicate case-arm branches
- * vanish before allocation; need original meaningful case-body ownership. */
+/* TODO: [breakthrough needed] 99.78355%; two switch exits vanish in IRO;
+ * original arm evidence is missing, and the donor asm stand-in is inadmissible. */
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
                                     MwsCreateParams* params)
 {

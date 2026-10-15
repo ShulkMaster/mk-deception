@@ -1928,6 +1928,35 @@ void reset_blood_decals(void) {
     blood_reset_splats();
 }
 
+static inline MkProc* blood_create_proc(int priority, int pid, MkProcEntryFn entry) {
+    MkProcInitFlags flags;
+    MkProc* allocated_proc;
+
+    flags.value = 0;
+    allocated_proc = get_mkproc_nostack(flags);
+    return create_mkproc(priority, allocated_proc, pid, entry, 0);
+}
+
+static inline void blood_start_processes(void) {
+    MkProc* proc;
+
+    proc = blood_create_proc(0x30, 0x5013, p_bleed);
+    if (proc != 0) {
+        bleed_proc_item.proc = proc;
+        bleed_proc_item.instance = proc->instance;
+    }
+
+    proc = blood_create_proc(0x2E, 0x5014, p_pfx_bleed);
+    if (proc != 0) {
+        bleed_pfx_proc_item.proc = proc;
+        bleed_pfx_proc_item.instance = proc->instance;
+    }
+
+    if (bleed_startup__fire_off_splat_watcher_func != 0) {
+        start_blood_splat_watcher();
+    }
+}
+
 static inline MkProc* bleed_start_foot_prints(
     MkObj* object, FighterMirror* fighter) {
     MkProc* foot_proc;
@@ -1962,13 +1991,9 @@ static inline MkProc* bleed_start_foot_prints(
     return foot_proc;
 }
 
-/* TODO: [breakthrough] 99.74486%; shared splat reset restores loop order;
- * footprint outputs occupy 0x0C/0x08 rather than 0x1C/0x18; flag slots and SDA homes remain. */
 void bleed_restart(void) {
     MkProc* proc;
     MkProc* foot_proc;
-    MkProcInitFlags bleed_flags;
-    MkProcInitFlags pfx_flags;
 
     destroy_mkprocs_pid(0x5013);
     destroy_mkprocs_pid(0x5014);
@@ -1991,24 +2016,7 @@ void bleed_restart(void) {
 
     bleed_startup__fire_off_splat_watcher_func = 0;
 
-    bleed_flags.value = 0;
-    proc = create_mkproc(
-        0x30, get_mkproc_nostack(bleed_flags), 0x5013, p_bleed, 0);
-    if (proc != 0) {
-        bleed_proc_item.proc = proc;
-        bleed_proc_item.instance = proc->instance;
-    }
-
-    pfx_flags.value = 0;
-    proc = create_mkproc(
-        0x2E, get_mkproc_nostack(pfx_flags), 0x5014, p_pfx_bleed, 0);
-    if (proc != 0) {
-        bleed_pfx_proc_item.proc = proc;
-        bleed_pfx_proc_item.instance = proc->instance;
-    }
-    if (bleed_startup__fire_off_splat_watcher_func != 0) {
-        start_blood_splat_watcher();
-    }
+    blood_start_processes();
 
     foot_proc = bleed_start_foot_prints(
         g_game_info.plyr0.slot.mirror_a, g_game_info.plyr0.slot.fighter);
@@ -2029,31 +2037,8 @@ void bleed_restart(void) {
     }
 }
 
-static inline MkProc* blood_create_proc(int priority, int pid, MkProcEntryFn entry) {
-    MkProcInitFlags flags;
-
-    flags.value = 0;
-    return create_mkproc(priority, get_mkproc_nostack(flags), pid, entry, 0);
-}
-
 void bleed_startup(void) {
-    MkProc* proc;
-
-    proc = blood_create_proc(0x30, 0x5013, p_bleed);
-    if (proc != 0) {
-        bleed_proc_item.proc = proc;
-        bleed_proc_item.instance = proc->instance;
-    }
-
-    proc = blood_create_proc(0x2E, 0x5014, p_pfx_bleed);
-    if (proc != 0) {
-        bleed_pfx_proc_item.proc = proc;
-        bleed_pfx_proc_item.instance = proc->instance;
-    }
-
-    if (bleed_startup__fire_off_splat_watcher_func != 0) {
-        start_blood_splat_watcher();
-    }
+    blood_start_processes();
 }
 
 
@@ -3136,8 +3121,8 @@ static inline int blood_surface_find_neighbor(
     return -1;
 }
 
-/* TODO: [near miss] 99.95%; initial pcode keeps triangle base before offset;
- * one ADD remains; inspect frontend pointer-add canonicalization. */
+/* TODO: [near miss] 99.95261%; native indexed address keeps base before row offset;
+ * recover a typed row-address producer with the opposite descriptor order. */
 static void obj_bld_surface_build_polys(
     MkObj* object, BloodSurface* output, const BloodSurface* source) {
     int selected_bone;

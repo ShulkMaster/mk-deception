@@ -1404,7 +1404,8 @@ static float p_cam_bounce_monitor(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.51%; auto-inlined init_plyr_severed_limb_list and the final limb lookup swap r4/r5/r6. */
+/* TODO: [near miss] 99.51136%; initializer/final-limb homes rotate; the final
+ * scheduled block retains separate moving/argument LI owners. */
 void skytemple_player_explode(
     unsigned int player_index, float x, float y, float z) {
     PlyrInfo* player = &g_game_info.plyr1;

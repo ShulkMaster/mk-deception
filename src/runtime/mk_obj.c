@@ -2113,12 +2113,10 @@ void obj_for_all_atomics_set_material_alpha(MkObj* obj, int alpha) {
     }
 }
 
-/* TODO: [near miss] 97.44%; material-result r4 coloring and extra move to r29 remain. */
-void obj_set_material_fade(MkObj* obj, unsigned int id, signed char alpha) {
+static inline RpMaterial* find_object_material_by_id(MkObj* obj, unsigned int id) {
     MkPtr* ptr;
     MkSobj* sobj;
     RpMaterial* material;
-    RwRGBA color;
 
     material = 0;
     ptr = first_mkptr(&obj->sobj_list);
@@ -2130,6 +2128,14 @@ void obj_set_material_fade(MkObj* obj, unsigned int id, signed char alpha) {
         }
         ptr = next_mkptr(ptr);
     }
+    return material;
+}
+
+void obj_set_material_fade(MkObj* obj, unsigned int id, signed char alpha) {
+    RpMaterial* material;
+    RwRGBA color;
+
+    material = find_object_material_by_id(obj, id);
     if (material != 0) {
         color.red = alpha;
         color.green = alpha;
@@ -3461,52 +3467,19 @@ void limb_sever_show_z_meat_chunks_all(MkObj* obj) {
     }
 }
 
-static inline void limb_find_geometry_material(
-    RpGeometry* geometry, unsigned int id, RpMaterial** result) {
-    unsigned int count = geometry->matList.numMaterials;
-    unsigned int i;
-    unsigned int material_id;
-
-    for (i = 0; i < count; i++) {
-        *result = geometry->matList.materials[i];
-        material_id = MK_MATERIAL_PLUGIN(*result)->flags & 0xFFF;
-        if (material_id == id) {
-            return;
-        }
-    }
-    *result = 0;
-}
-
-/* TODO: [near miss] 98.25%; bank return claims after named ID;
- * caller-owned bank changes exact sibling; material-search exit copy remains. */
+/* TODO: [near miss] 99.88%; shared per-chunk helper restores owners and CFG;
+ * final bank-plus-ID add operands are reversed; preserve exact show-all sibling. */
 void limb_sever_show_z_meat_chunks(
     MkObj* obj, int limb, int include_children) {
-    MkPtr* ptr;
-    RpMaterial* material;
     unsigned int material_id_base;
-    unsigned int material_id;
     int* material_ids;
     int shown;
 
     shown = 0;
     material_id_base = limb_material_bank_base(obj);
-
     material_ids = limb_meats_mat_id_tbl[limb];
     while (*material_ids != -1) {
-        material_id = (unsigned int)*material_ids + material_id_base;
-        material = 0;
-        ptr = first_mkptr(&obj->sobj_list);
-        while (ptr != 0) {
-            limb_find_geometry_material(
-                ((MkSobj*)ptr->hdr)->atomic->geometry, material_id, &material);
-            if (material != 0) {
-                break;
-            }
-            ptr = next_mkptr(ptr);
-        }
-        if (material != 0) {
-            show_material(material);
-        }
+        limb_show_meat_chunk(obj, material_id_base, *material_ids);
         material_ids++;
         if (shown != 0 && include_children == 0) {
             break;

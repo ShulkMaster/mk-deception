@@ -164,45 +164,29 @@ extern "C" void mslStreamFile_ReturnBuffer_FromInterrupt(void* buffer) {
     mslTickCallBack_Queue(mslStreamFile_ReturnBuffer_CB, buffer);
 }
 
-static void mslStreamFile_ReturnBuffer_CB(void* buffer) {
-    int enabled;
-    int service;
-
-    if (buffer != 0) {
-        service = 0;
-        enabled = OSDisableInterrupts();
-        mslDSB_PendingAsyncRead* queued;
-
-        mslDSB_ReturnBuffer(buffer);
-        int inner = OSDisableInterrupts();
-        queued = DSB_PAR_Queue.first;
-        OSRestoreInterrupts(inner);
-        if (queued != 0) {
-            service = 1;
-        }
-        OSRestoreInterrupts(enabled);
-        if (service) {
-            mslDSB_ServiceNextRead();
-        }
-    }
-}
-
-/* TODO: [near miss] 97.74509%; buffer-validity helper return joins in a temporary;
- * four success/failure result register rows remain. */
-extern "C" int mslStreamFile_ReturnBuffer(void* buffer) {
-    unsigned long enabled;
-    int service;
+static inline int mslDSB_ReturnBufferAndService(void* buffer) {
+    mslDSB_PendingAsyncRead* queued;
     int result;
+    int service;
+    unsigned long enabled;
 
     if (buffer == 0) {
         result = 0;
     } else {
-        mslDSB_PendingAsyncRead* queued;
         unsigned long inner;
 
         service = 0;
         enabled = OSDisableInterrupts();
-        result = mslDSB_ReturnBuffer(buffer);
+        int difference = (unsigned char*)buffer - &g_DSB_Buffers[0][0];
+        int index;
+        if (difference >= 0 &&
+            (index = difference / (int)sizeof(g_DSB_Buffers[0])) < 5) {
+            result = 1;
+            g_DSB_BufferFree[index] = 1;
+        } else {
+            mslDebugPrintf("MSL ERROR: Unable to free Dynamic Stream Buffer\n");
+            result = 0;
+        }
         inner = OSDisableInterrupts();
         queued = DSB_PAR_Queue.first;
         OSRestoreInterrupts(inner);
@@ -217,8 +201,16 @@ extern "C" int mslStreamFile_ReturnBuffer(void* buffer) {
     return result;
 }
 
-/* TODO: [near miss] 99.81%; pooled literals and allocation ownership recovered;
- * only the queue-tail pointer and zero register homes differ. */
+static void mslStreamFile_ReturnBuffer_CB(void* buffer) {
+    mslDSB_ReturnBufferAndService(buffer);
+}
+
+extern "C" int mslStreamFile_ReturnBuffer(void* buffer) {
+    return mslDSB_ReturnBufferAndService(buffer);
+}
+
+/* TODO: [near miss] 99.80769%; tail-load CG69 and null-link CG71 homes swap;
+ * exact native replay needs earlier null production; recover append ownership. */
 extern "C" mslStreamFileRequest* mslStreamFile_QueueRequest(
     _mwFile* file, unsigned long offset, unsigned long size, int priority,
     mslStreamFileCallback callback, void* callback_data) {

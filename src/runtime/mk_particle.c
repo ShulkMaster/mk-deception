@@ -427,7 +427,8 @@ void pfx_bind_emitter_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone) {
     obj_set_bone_calc_world_mat_flag(obj, bone);
 }
 
-/* TODO: [near miss] 88.61%; native matrix selection agrees; bone index is retained before the success branch and callback staging differs. */
+/* TODO: [near miss] 88.61111%; native argument initialization saves bone before the body;
+ * recover a genuine success-arm owner before callback scheduling. */
 void pfx_bind_render_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone) {
     MkBone* bone_mat;
 
@@ -494,9 +495,7 @@ static inline MkObj* pfx_slot_bound_object(const PfxSlot* slot)
     return obj;
 }
 
-/* TODO: [near miss] 99.15%; inline result forwards to r3; shared-exit controls
- * regress; recover original validated-object and return ownership. */
-MkObj* pfx_bind_to_new_obj(MkPfx* pfx, int object_type) {
+static inline MkObj* pfx_acquire_bound_object(MkPfx* pfx, int object_type) {
     PfxSlot* slot;
     MkObj* obj;
     PfxEmitter* emitter_vm;
@@ -526,6 +525,10 @@ MkObj* pfx_bind_to_new_obj(MkPfx* pfx, int object_type) {
         }
     }
     return obj;
+}
+
+MkObj* pfx_bind_to_new_obj(MkPfx* pfx, int object_type) {
+    return pfx_acquire_bound_object(pfx, object_type);
 }
 
 static inline void pfx_bind_owned_emitter(MkPfx* pfx, MkObj* obj, int emitter)

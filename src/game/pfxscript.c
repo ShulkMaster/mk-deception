@@ -536,8 +536,8 @@ MkPfx* pfx_from_emitter(unsigned int handle) {
     return (MkPfx*)resolved.effect;
 }
 
-/* TODO: [near miss] 97.58%; generation byte uses rotate/insert instead of retail
- * shift/OR; all register homes and lookup control flow agree. */
+/* TODO: [near miss] 97.58%; backend folds generation shift/OR before allocation;
+ * recover a supported generation producer boundary; lookup control/homes agree. */
 unsigned int fx_by_id(int effect_id, unsigned int owner) {
     struct PfxBankLatch* bank_latch;
     struct PfxScriptEffect* effect;
@@ -2163,7 +2163,8 @@ void emit_roundrobin_mechanism(int field, int source) {
     }
 }
 
-/* TODO: [near miss] 99.57%; two OIDs lower as a range; equality forms fold retail branch pair, stop at CFG ceiling. */
+/* TODO: [near miss] 99.575%; build_case_ranges merges adjacent OID labels;
+ * equality guards fold the retail exit pair; recover original dispatch boundary. */
 void bind_to_bone(int bone_index) {
     struct PfxScriptEnvironment* environment;
     MkPfx* effect;
@@ -2852,9 +2853,7 @@ void pfxscript_initialize(void) {
                   p_update_effects, 0);
 }
 
-/* TODO: [near miss] 93.93939%; strength reduction adds an independent offset-zero load;
- * retail shares the index zero; trace excludes register-coloring diagnosis. */
-static float p_update_effects(void) {
+static inline void pfxscript_run_all_banks(void) {
     int index;
 
     for (index = 0; index < 15; index++) {
@@ -2865,6 +2864,10 @@ static float p_update_effects(void) {
             bank_run_fx(bank);
         }
     }
+}
+
+static float p_update_effects(void) {
+    pfxscript_run_all_banks();
     return 1.0f;
 }
 

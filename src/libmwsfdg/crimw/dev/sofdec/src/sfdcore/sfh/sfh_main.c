@@ -462,7 +462,8 @@ int SFH_AnlyElemCodecAud(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 95.51%; aligned endian decode agrees; retail chains the four byte inserts through one register (rlwinm, three rlwimi), ours builds two pairs and ors them. */
+/* TODO: [near miss] 95.51%; peephole forms two insert pairs plus OR;
+ * recover a genuine live boundary before swap/store folding. */
 int SFH_AnlyMaxFrmNum(SFHHandle* handle, int* result)
 {
     *result = 0;

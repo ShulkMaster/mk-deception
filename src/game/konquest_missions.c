@@ -1351,8 +1351,8 @@ void text_window_fade_in(unsigned char ticks) {
     }
 }
 
-/* TODO: [breakthrough needed] 97.02676%; IRO shares latch owners; five destroy-slot
- * reloads remain absent. Recover the checked-latch owner boundary. */
+/* TODO: [breakthrough needed] 97.02676%; five destroy-owner reloads remain;
+ * scoped CSE restores them but disturbs setup-root/frame producers. */
 float p_show_text_window(void) {
     struct KonquestTrialWindowPdata* window =
         (struct KonquestTrialWindowPdata*)apdata;

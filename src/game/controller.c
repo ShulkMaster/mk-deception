@@ -282,7 +282,8 @@ PlyrInfo* get_player_for_port(int port) {
     return player;
 }
 
-/* TODO: [near miss] 91.59%; table-copy behavior agrees; row-address GPR allocation and flag-store scheduling remain. */
+/* TODO: [near miss] 91.58537%; computed rows follow base producers;
+ * recover original address ownership while preserving shared loop-zero setup. */
 void init_player_switch_maps(void) {
     SwitchMapEntry* dest;
     SwitchMapEntry* src;

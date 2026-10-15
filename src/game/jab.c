@@ -1899,7 +1899,7 @@ float pfx_react_falling_attach_smoke_to_bones_proc(void) {
 }
 
 /* TODO: [near miss] 97.55654%; field/table GPR homes and latch-copy join remain;
- * inspect getter-result coalescing at the simplify-sweep boundary. */
+ * bone-placement extraction retains the early table claim and rotates later owners. */
 float pfx_kenshi_lift_smoke(void) {
     float* destination_scales;
     PfxEmitter* emitter;

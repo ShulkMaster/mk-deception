@@ -289,8 +289,8 @@ public:
     void init(ForwardIterator first, ForwardIterator last, forward_iterator_tag);
 };
 
-/* TODO: [breakthrough needed] QueueItem const-range 87.38%; caller depth blocks
- * nested placement new; recover the instantiation policy and source/pool homes. */
+/* TODO: [breakthrough needed] QueueItem const-range 87.38333%; placement-copy
+ * remains outlined; recover per-consumer inline policy and source/pool homes. */
 template <class T, class Allocator>
 template <class ForwardIterator>
 void __vector_imp<T, Allocator, false>::init(ForwardIterator first, ForwardIterator last,
@@ -338,8 +338,8 @@ __vector_imp<T, Allocator, false>::erase(iterator first, iterator last)
     return first;
 }
 
-/* TODO: [breakthrough needed] QueueItem 90.52778%; construct remains outlined;
- * recover its actual instantiation policy while preserving the capacity call and pool. */
+/* TODO: [breakthrough needed] QueueItem 90.52778%; placement-copy remains
+ * outlined; recover its instantiation policy while preserving exact getter calls. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::reserve(size_type n)
 {
@@ -359,8 +359,8 @@ void __vector_imp<T, Allocator, false>::reserve(size_type n)
     }
 }
 
-/* TODO: [breakthrough needed] QueueItem 78.10043%, Callback 67.99262%; caller
- * depth blocks nested placement new; getter/copy call boundaries need recovery. */
+/* TODO: [breakthrough needed] QueueItem 78.10043%, Callback 67.99262%; retain
+ * allocator-accessor calls while recovering deferred placement construction. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::insert(iterator position, size_type n,
                                                const value_type& x)

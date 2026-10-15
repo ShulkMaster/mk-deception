@@ -575,8 +575,8 @@ static float p_constrain_players(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.86207%; two independent projection-load pairs reorder;
- * owner/absolute-value boundaries align; operand and input-snapshot controls regress. */
+/* TODO: [near miss] 99.86207%; first IRO CSE hoists shared UV components;
+ * preserve MkObj projection and recover their placement before scheduling. */
 static void repel_players(void) {
     Vec movement_1;
     Vec movement_2;

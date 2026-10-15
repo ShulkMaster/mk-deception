@@ -91,11 +91,13 @@ extern "C" mslBankWaveEntry* mslBankWavesFind(
     return 0;
 }
 
-static inline void mslBankStopActiveSounds(mslLoadedBank* bank)
+static inline void mslBankStopAndUnloadSounds(mslLoadedBank* bank)
 {
     _mslSound* sound;
     _ListNode* node;
+    int i;
     msl_u32 sound_id;
+    mslBankSoundEntry* sound_entry;
     int saved_guard;
 
     saved_guard = bank->system->sound_list_guard;
@@ -104,7 +106,6 @@ static inline void mslBankStopActiveSounds(mslLoadedBank* bank)
     while (node != 0) {
         sound = (_mslSound*)ListNodeData(0, node);
         sound_id = ListNodeID(&g_listPoolSound, node);
-
         ListNext(&node);
         if (sound->owner_bank == bank) {
             mslDebugPrintf(
@@ -114,31 +115,9 @@ static inline void mslBankStopActiveSounds(mslLoadedBank* bank)
         }
     }
     bank->system->sound_list_guard = saved_guard;
-}
 
-static inline void mslBankUnloadSounds(mslLoadedBank* bank)
-{
-    int i = 0;
-
-    for (mslBankSoundEntry* sound_entry = bank->sounds.pointer;
-         i < bank->sound_count; i++, sound_entry++) {
-        if (sound_entry->sound != 0) {
-            mslSoundUncommit(sound_entry->sound);
-            mslSoundUnLoad(sound_entry->sound);
-        }
-        sound_entry->sound = 0;
-    }
-    bank->system = 0;
-}
-
-static inline void mslBankStopAndUnloadSounds(mslLoadedBank* bank)
-{
-    int i;
-
-    mslBankStopActiveSounds(bank);
     i = 0;
-
-    for (mslBankSoundEntry* sound_entry = bank->sounds.pointer;
+    for (sound_entry = bank->sounds.pointer;
          i < bank->sound_count; i++, sound_entry++) {
         if (sound_entry->sound != 0) {
             mslSoundUncommit(sound_entry->sound);
@@ -269,8 +248,6 @@ extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
     return 0;
 }
 
-/* TODO: [near miss] 99.72%; five unload-cursor register rows remain;
- * a combined phase rotates callback homes; retain separate phases and stop. */
 static void mslBankLoadResidentARamUploadComplete(void* callback_data) {
     _mslAsyncResponse* response;
     mslAsyncBank* async_bank = (mslAsyncBank*)callback_data;
@@ -280,8 +257,7 @@ static void mslBankLoadResidentARamUploadComplete(void* callback_data) {
     response = async_bank->response;
     if (mslBankUse(async_bank->system, bank) != 0) {
         if (bank != 0 && bank->system != 0) {
-            mslBankStopActiveSounds(bank);
-            mslBankUnloadSounds(bank);
+            mslBankStopAndUnloadSounds(bank);
         }
         use_failed = 1;
     }
@@ -363,7 +339,8 @@ static void i_ARQCALLBACK_BankLoadResidentARamUpload_Complete(
         mslBankLoadResidentARamUploadComplete, callback_data);
 }
 
-/* TODO: [near miss] 98.21%; saved-owner registers and failure-path staging remain; inspect lifetimes. */
+/* TODO: [near miss] 98.21%; asset/cursor split owners and failure-stage
+ * zero/copies differ; recover original publication ownership boundary. */
 static void mslBankReadAssetHeaderComplete(
     mwFileCommand* command, _mwFileAsyncResult result, void* callback_data) {
     _mslAsyncResponse* response;
@@ -1000,8 +977,8 @@ extern "C" unsigned long mslBankPlayPrep(mslLoadedBank* bank, int sound_id)
     return 0;
 }
 
-/* TODO: [near miss] 99.58823%; play arguments, acquired node and finish locals rotate;
- * recover their copy interference at the native allocation boundary. */
+/* TODO: [near miss] 99.58823%; two native stalls couple argument/node copies;
+ * recover a proven acquisition/finish boundary under the existing inline policy. */
 extern "C" unsigned long mslBankPlayVol(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, unsigned long play_flags) {
@@ -1074,8 +1051,8 @@ static inline void mslBankPlaySoundInline(
 
 #pragma push
 #pragma inline_max_size(1024)
-/* TODO: [near miss] 99.59584%; diagnostic-name address copies couple node/argument
- * and finish colors; early returns preserve bytes; recover the original inline boundary. */
+/* TODO: [near miss] 99.59584%; two simplify stalls couple diagnostic-address
+ * aliases with node/argument homes; recover a real acquisition/name/finish boundary. */
 extern "C" unsigned long mslBankPlayVolPanPitch(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, float pan, float pitch,
@@ -1313,8 +1290,8 @@ extern "C" int mslBankUse(
     return 0;
 }
 
-/* TODO: [near miss] 98.41%; pool now exact; only ListNodeData(0, node) argument setup
- * order differs (retail moves node before the zero); typed null and decl order are neutral. */
+/* TODO: [near miss] 98.41%; initial LI/MR order survives equal-priority scheduler ties;
+ * recover a real node-argument producer before the null pool argument. */
 void callbackPlay(
     bool loaded, mslBankSoundEntry* bank_sound, _ListNode* node) {
     mslRuntimeSound* copy =

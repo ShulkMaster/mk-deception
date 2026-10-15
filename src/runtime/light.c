@@ -473,8 +473,8 @@ static inline RpLight* create_type5_spot(MkObj* parent, LightDef* def) {
     return light;
 }
 
-/* TODO: [breakthrough needed] 99.57%; linked-owner reload is absent before register allocation;
- * recover the validation/destruction owner boundary. */
+#pragma push
+#pragma opt_common_subs off
 MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
     RpLight* light;
     RwFrame* frame;
@@ -482,7 +482,6 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
     MkxRpLight* mkx;
     MkPtr* node;
     MkxRpLight* headMkx;
-    MkObj* linked;
     MkHdr* lp;
     MkProc* mkproc;
     int count;
@@ -518,11 +517,10 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
         }
         if (count > 1) {
             headMkx = MKX_RPLIGHT_FROM_HDR(point_light_list->hdr);
-            linked = MK_HDR_LIVE(headMkx->obj, headMkx->obj_instance);
-
-            if (linked != 0) {
-                if (linked->hdr.instance != 0) {
-                    ((MkVtableMkobj*)linked->hdr.vtbl)->destroy(linked);
+            if (MK_HDR_LIVE(headMkx->obj, headMkx->obj_instance) != 0) {
+                MkObj* owner = headMkx->obj;
+                if (owner->hdr.instance != 0) {
+                    ((MkVtableMkobj*)owner->hdr.vtbl)->destroy(owner);
                 }
                 headMkx->obj = 0;
                 headMkx->obj_instance = 0;
@@ -673,6 +671,7 @@ created:
 done:
     return mkobj;
 }
+#pragma pop
 
 static void post_light(void) {
     light_pdata = 0;

@@ -96,7 +96,6 @@ struct JmtSharedAnimations {
     void* kabal_falldown;
 };
 
-extern PlyrPdata* his_pdata;
 extern struct JmtSharedAnimations shared_ani;
 extern MkObj* g_bgnd_preloaded_models[];
 extern int blood_type_list[12];

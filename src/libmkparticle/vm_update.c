@@ -241,8 +241,8 @@ static inline void pfx_wrapbox_center(PfxVec3* const output,
     output->z += matrix->elements[3][2];
 }
 
-/* TODO: [near miss] 99.59%; all operations and frame match; rounded-coordinate
- * and rescale FPR homes remain after graph review and bounded permutation. */
+/* TODO: [near miss] 99.58580%; distinct products sink in IroPropagate;
+ * compound scaling stays split/coalesced; recover original phase ownership. */
 static void do_wrapbox(int count, unsigned char* source,
                        unsigned char* destination, int stride,
                        PfxUpdateArguments* arguments)
@@ -511,8 +511,8 @@ static void do_assign_constant_v3(unsigned char* destination, int stride,
     }
 }
 
-/* TODO: [near miss] 99.69%; 19 equivalent stream-address/GPR rows remain;
- * direct age loads and current lerp stride agree; stop at coloring. */
+/* TODO: [near miss] 99.69%; named address accumulators hide retail short owners;
+ * recover pointer-expression destinations before tuning row registers. */
 void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
 {
     int current_stride;

@@ -84,7 +84,8 @@ BOOL __VMIsARAMPageDirty(u32 virtual_address)
     return g_baseVMtoARAM[(virtual_address >> 12) & 0x1FFF] >> 31;
 }
 
-/* TODO: [near miss] 68.93%; clear loop agrees; arena pointer copy/publication and zero setup remain. */
+/* TODO: [near miss] 68.92857%; preallocation deletes the arena-result copy
+ * and shares the clear zero with the generated stride; recover those producers. */
 void __VMAllocVirtualToARAMLUT(void)
 {
     u32 i;

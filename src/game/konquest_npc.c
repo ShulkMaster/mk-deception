@@ -1308,8 +1308,8 @@ void initialize_npc_data(void) {
     }
 }
 
-/* TODO: [near miss] 99.94615%; direction scale homes agree; final ordered
- * distance <= bound branch and 0/1 return orientation remain. */
+/* TODO: [near miss] 99.94615%; ordered <= return arms remain reversed;
+ * range-helper boundaries do not recover retail branch materialization. */
 static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
     struct KonquestTileOrigin* tile;
     KonquestNpcData* data;
@@ -1511,8 +1511,8 @@ static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
     npc_manager_load_new_npc_model(npc);
 }
 
-/* TODO: [near miss] 99.71983%; npc/art ID simplify in different sweeps;
- * lookup/load extraction is byte-neutral; recover the retained-copy boundary. */
+/* TODO: [near miss] 99.71983%; npc/art ID have 12/11 coalesced neighbors;
+ * mouth-cache boundary preserves the graph; recover model-lookup copy ownership. */
 static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
     unsigned int art_id;
     AniTextureControl* lip_texture = 0;
@@ -2033,6 +2033,33 @@ static void load_model_for_npc(KonquestNpc* npc) {
     }
 }
 
+static inline struct KonquestPathData* npc_create_path_data(void) {
+    struct KonquestPathData* path = (struct KonquestPathData*)get_mkhdr(
+        &vtbl_path_data_struct, sizeof(*path));
+
+    if (path != 0) {
+        zero_pdata_payload(sizeof(*path), &path->hdr);
+        path->travel_mode = 0;
+        path->speed = 1.0f;
+        path->table_index = -2;
+    }
+    return path;
+}
+
+static inline void npc_place_at_waypoint(
+    KonquestNpc* npc, KonquestWaypoint* current) {
+    npc->data->position.x = current->position.x;
+    npc->data->position.y = current->position.y;
+    npc->data->position.z = current->position.z;
+    npc->tile_index = get_tile_from_position(&current->position);
+    if (npc_event_has_active_animation(npc) != 0) {
+        npc->animation->object->hide_flag_bits.pin_animation = 0;
+        npc->animation->object->pos.value.x = current->position.x;
+        npc->animation->object->pos.value.y = current->position.y;
+        npc->animation->object->pos.value.z = current->position.z;
+    }
+}
+
 static inline int npc_nearest_waypoint(KonquestNpc* npc, KonquestWaypoint* waypoints) {
     float nearest_distance = 250000.0f;
     int nearest = 0;
@@ -2049,9 +2076,13 @@ static inline int npc_nearest_waypoint(KonquestNpc* npc, KonquestWaypoint* waypo
         konquest_pdata->waypoint_script, waypoints);
     for (index = 0; index < count; index++) {
         KonquestWaypoint* waypoint = &waypoints[index];
-        float delta_x = npc->data->position.x - waypoint->position.x;
-        float delta_z = npc->data->position.z - waypoint->position.z;
-        float distance = delta_x * delta_x + delta_z * delta_z;
+        float delta_z;
+        float delta_x;
+        float distance;
+
+        delta_x = npc->data->position.x - waypoint->position.x;
+        delta_z = npc->data->position.z - waypoint->position.z;
+        distance = delta_x * delta_x + delta_z * delta_z;
 
         if (distance < nearest_distance) {
             nearest_distance = distance;
@@ -2062,7 +2093,6 @@ static inline int npc_nearest_waypoint(KonquestNpc* npc, KonquestWaypoint* waypo
     return nearest;
 }
 
-/* TODO: [near miss] 99.62%; nearest/current waypoint, script offset and delta GPR/FPR coloring remain; stop at coloring. */
 static void npc_set_path(
     KonquestNpc* npc, KonquestWaypoint* waypoints, int table_index,
     int row_count, int waypoint, int travel_mode) {
@@ -2072,16 +2102,7 @@ static void npc_set_path(
         return;
     }
     if (npc->path == 0) {
-        struct KonquestPathData* path = (struct KonquestPathData*)get_mkhdr(
-            &vtbl_path_data_struct, sizeof(*path));
-
-        if (path != 0) {
-            zero_pdata_payload(sizeof(*path), &path->hdr);
-            path->travel_mode = 0;
-            path->speed = 1.0f;
-            path->table_index = -2;
-        }
-        npc->path = path;
+        npc->path = npc_create_path_data();
     }
 
     if (waypoints != 0 && npc->path->waypoints == waypoints &&
@@ -2120,20 +2141,10 @@ static void npc_set_path(
     npc->path->target_waypoint = waypoint;
     npc->path->previous_waypoint = waypoint;
     if (waypoints != 0) {
-        KonquestWaypoint* current = &waypoints[waypoint];
         struct KonquestPathData* script_path;
         KonquestWaypoint* script_waypoints;
 
-        npc->data->position.x = current->position.x;
-        npc->data->position.y = current->position.y;
-        npc->data->position.z = current->position.z;
-        npc->tile_index = get_tile_from_position(&current->position);
-        if (npc_event_has_active_animation(npc) != 0) {
-            npc->animation->object->hide_flag_bits.pin_animation = 0;
-            npc->animation->object->pos.value.x = current->position.x;
-            npc->animation->object->pos.value.y = current->position.y;
-            npc->animation->object->pos.value.z = current->position.z;
-        }
+        npc_place_at_waypoint(npc, &waypoints[waypoint]);
         script_path = npc->path;
         script_waypoints = script_path->waypoints;
         script_index = script_path->current_waypoint;
@@ -2425,8 +2436,8 @@ void npc_shadow_set_light_angle(Vec* angles) {
     npc_shadows.projection.up.z = -projection_z;
 }
 
-/* TODO: [near miss] 99.73%; point.y's 0.0f comes from a separate pool label (@3972 vs @3062)
- * with f2/f3 and atomic r5/r6 swapped; TU float-pool order, then coloring. */
+/* TODO: [near miss] 99.72826%; atomic and projection/zero-result owner kinds differ;
+ * complete phases disturb sqrt slots/frame; original ownership remains unresolved. */
 void npc_shadow_update(void) {
     RwRGBA color = {0, 0, 0, 0};
     struct KonquestCameraPositionView* camera =
@@ -3270,8 +3281,8 @@ void add_npc_list_to_world(int* npc_ids) {
     }
 }
 
-/* TODO: [near miss] 99.77012%; named first index cannot share stride zero;
- * recover a reset boundary that keeps the slot below saved caller owners. */
+/* TODO: [near miss] 99.77012%; first index remains outside zero sharing;
+ * complete manager initialization fixes the copy but rotates slot/process owners. */
 void start_running_npcs(void) {
     struct NpcManagerPdata* manager;
     MkProc* manager_proc;
@@ -5563,16 +5574,7 @@ void vdestroy_konquest_npc_struct(KonquestNpc* npc) {
 }
 
 struct KonquestPathData* get_new_path_data_struct(void) {
-    struct KonquestPathData* path = (struct KonquestPathData*)get_mkhdr(
-        &vtbl_path_data_struct, sizeof(struct KonquestPathData));
-
-    if (path != 0) {
-        zero_pdata_payload(sizeof(struct KonquestPathData), &path->hdr);
-        path->travel_mode = 0;
-        path->speed = 1.0f;
-        path->table_index = -2;
-    }
-    return path;
+    return npc_create_path_data();
 }
 
 void vdestroy_path_data_struct(struct KonquestPathData* path) {

@@ -205,13 +205,13 @@ void ProcessSpecularity(
     GXSetTevAlphaOp(tev_stage, 0, 0, 0, 1, 0);
 }
 
-/* TODO: [near miss] 71.08%; front-end propagation sinks stage count past first GX call;
- * full-width count is neutral; only forcing permuter leads, stop pending a real boundary. */
+/* TODO: [breakthrough needed] 71.08334%; stage count sinks and plugin is an
+ * accessor-result owner; recover the joint first-GX setup boundary. */
 void CleanupSpecularity(
     RpMaterial* material, RwTexture* base_texture, RwTexture* alpha_texture) {
     SpecularMaterialPluginData* specular;
     GXBool textured;
-    unsigned char stage_count;
+    int stage_count;
 
     stage_count = (alpha_texture != 0) + 1;
     textured = base_texture != 0;

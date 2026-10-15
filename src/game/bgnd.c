@@ -2099,16 +2099,9 @@ void destroy_background_extras(void) {
 MkObj* retrieve_bgnd_obj(void) {
     return g_game_info.bgnd_obj;
 }
-/* TODO: [near miss] 95.2381%; first loop initializes offset with li rather
- * than moving the existing zero; stop at the zero-materialization ceiling. */
-void ncs_bgnd_nuke_collision_to_script_interface(void) {
+static inline void bgnd_clear_collision_to_script_state(void) {
     unsigned int index;
 
-    for (index = 0; index < 8; index++) {
-        destroy_list(&g_bgnd_collision_to_script_if[index]);
-    }
-    g_active_obstacle_event_data = 0;
-    g_active_bgnd_col_item = 0;
     for (index = 0; index < 8; index++) {
         g_bgnd_collision_to_script_if[index] = 0;
     }
@@ -2117,6 +2110,11 @@ void ncs_bgnd_nuke_collision_to_script_interface(void) {
     for (index = 0; index < 24; index++) {
         bgnd_danger_zones[index].obstacle = 0;
     }
+}
+
+void ncs_bgnd_nuke_collision_to_script_interface(void) {
+    bgnd_destroy_collision_to_script_lists();
+    bgnd_clear_collision_to_script_state();
 }
 
 void load_bgnd_style(int player, const char* script_name, void* script_args) {
@@ -2250,36 +2248,33 @@ static float p_bgnd_point_light_life_span(void) {
     }
     return -1.0f;
 }
-/* TODO: [near miss] 99.11%; perpendicular Z/light X FPRs and half-width product destination differ. */
 MkObj* bgnd_place_point_light_for_ticks(
     LightDef* light_def, int ticks, float radius_step,
     int offset_from_tightrope) {
     BgndPointLightLifeData* data;
     MkObj* light;
     MkProc* process;
-    float perpendicular_x;
+    Vec perpendicular;
     float light_x;
-    float perpendicular_z;
     float half_width;
 
     data = 0;
     if ((offset_from_tightrope & 1) != 0) {
-        perpendicular_x = tightrope_perp_uv.x;
-        perpendicular_z = tightrope_perp_uv.z;
+        perpendicular.x = tightrope_perp_uv.x;
+        perpendicular.z = tightrope_perp_uv.z;
         light_x = light_def->field20;
-        if (perpendicular_x * (light_def->field20 - camera_obj->pos.x) +
-                perpendicular_z *
+        if (perpendicular.x * (light_x - camera_obj->pos.x) +
+                perpendicular.z *
                     (light_def->field28 - camera_obj->pos.z) >
             0.0f) {
-            perpendicular_x = -1.0f * perpendicular_x;
-            perpendicular_z = -1.0f * perpendicular_z;
+            perpendicular.x = -1.0f * perpendicular.x;
+            perpendicular.z = -1.0f * perpendicular.z;
         }
-        half_width = light_def->field1C;
-        half_width *= 0.5f;
-        perpendicular_x *= half_width;
-        perpendicular_z *= half_width;
-        light_def->field20 = light_x + perpendicular_x;
-        light_def->field28 += perpendicular_z;
+        half_width = light_def->field1C / 2.0f;
+        perpendicular.x *= half_width;
+        perpendicular.z *= half_width;
+        light_def->field20 = light_x + perpendicular.x;
+        light_def->field28 += perpendicular.z;
     }
 
     light = load_light(light_def, &point_light_list, 0);
@@ -3934,7 +3929,8 @@ void bgnd_rotate_xz_about_orgin_active_sobj(float angle) {
     g_active_sobj->ang.y = angle;
     update_mksobj(g_active_sobj);
 }
-/* TODO: [near miss] 99.60674%; item ID, displayed-list head and zero register homes remain; stop at coloring. */
+/* TODO: [near miss] 99.60674%; item-ID parameter claims after list head/zero;
+ * complete transfer extraction retains that owner; stop at coloring. */
 void bgnd_make_displayed_item_pickupable_at_active_sobj_pos(int item_id) {
     BgndDisplayedItem* item;
     MkPtr** displayed_list;
@@ -9720,8 +9716,8 @@ float r_beetle_lair_transition(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough] 99.67886%; scalarized wall vectors fix separation homes;
- * wall-load scheduling and reused impact-component webs remain. */
+/* TODO: [breakthrough] 99.67886%; wall-load schedule and impact raw/product owners differ;
+ * preserve escaped impact-pointer reloads and scalarized wall vectors. */
 static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
     MkObj* player_object;
     MkObj* opponent_object;
@@ -9902,8 +9898,8 @@ static inline void bl_init_beetle(
                                  beetle->heading_degrees, &scale,
                                  &beetle->position);
 }
-/* TODO: [breakthrough] 99.72447%; direct constructor selections fix control homes;
- * timer/pebble claims versus constant bases remain; preserve early timer sums. */
+/* TODO: [near miss] 99.72447%; timer/pebble versus constant-base homes remain;
+ * recover owners without rotating exact FP homes or axis/scale stack slots. */
 static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
     BlBeetleControl* beetles;
     Vec position;

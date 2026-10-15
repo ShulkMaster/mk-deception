@@ -6208,8 +6208,8 @@ static float p_pui_pfx_sequence(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 98.84956%; emitter-object order fixed five rows;
- * recover branch-preserving owner validation with fewer coalesced webs. */
+/* TODO: [near miss] 98.84956%; owner alias pressure remains; early-return
+ * accessor loses retail branch pairs; recover original validation ownership. */
 static void handle_trigger_preprocess(struct KonquestTriggerStruct* trigger) {
     struct KonquestTriggerDefinition* definition;
     KonquestPuiRuntime* pui;
@@ -6898,8 +6898,8 @@ void konquest_transition_object_to_state(
     }
 }
 
-/* TODO: [near miss] 98.85606%; initial pcode reuses the validated object;
- * retail destroy reload needs a genuine boundary; stop at native-proven ceiling. */
+/* TODO: [near miss] 98.85606%; destroy-owner reload remains; scoped CSE fixes
+ * the latch but loses indexed-table stride reuse across rotation. */
 static void object_set_state(KonquestChildObject* record, int state) {
     struct KonquestObjectState* state_data;
     MkHdr* state_object;
@@ -9557,8 +9557,8 @@ static void handle_monk_input(void) {
     }
 }
 
-/* TODO: [near miss] 99.80099%; normalization paths agree; final plane X/Z
- * temporary order remains; preserve fused terms and the Y contribution. */
+/* TODO: [near miss] 99.80099%; X result must emit before Z loads;
+ * scalar predicate is neutral; recover plane producer ownership. */
 static int check_additional_trigger_fire_requirements(
     struct KonquestTriggerStruct* owner, MkObj* hero) {
     KonquestTriggerRequirement* requirement;
@@ -12273,7 +12273,7 @@ static inline int pui_bit_count(struct KonquestPdata* pdata) {
     return pdata->pui_end - pdata->pui_begin - 1;
 }
 
-/* TODO: [near miss] 99.84%; first inventory_index is computed in r5 then copied to r23 in retail (ours computes in r23); coloring only. */
+/* TODO: [near miss] 99.84%; index producer/copy direction remains; membership-query ownership is byte-neutral. */
 static void update_pui_actions(
     KonquestPuiActionBuffer current, KonquestPuiActionBuffer previous) {
     int dynamic_end;

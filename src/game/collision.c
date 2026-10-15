@@ -2633,8 +2633,8 @@ void render_col_shape(
     }
 }
 
-/* TODO: [near miss] 94.03%; post-RA ties emit alpha/red before geometry stores;
- * complete staging and byte-type controls are neutral; recover original input order. */
+/* TODO: [near miss] 94.02985%; alpha/red share the first-STFS deadline/height;
+ * recover original color-producer insertion before post-RA scheduling. */
 static void render_col_shape_as_quad(
     CollisionShape* shape, const unsigned int* color) {
     Vec positions[8];
@@ -3375,7 +3375,8 @@ static int collide_sphere_and_quad(
     return !(sphere_dot > quad_dot);
 }
 
-/* TODO: [near miss] 99.52381%; box operations and order agree; split-height and scalarized center ownership still differ. */
+/* TODO: [near miss] 99.52381%; raw-height/split-product and scalarized Y homes
+ * differ; division changes operand order, so recover the common owner. */
 static void get_center_for_shape(const CollisionShape* shape, Vec* center) {
     int kind;
 
@@ -3428,13 +3429,27 @@ static void get_center_for_shape(const CollisionShape* shape, Vec* center) {
     }
 }
 
-/* TODO: [breakthrough needed] 93.85567%; original edge extent/alignment is
- * unproved (retail frame 0x40, source 0x30); box-center FPR grouping remains. */
+static inline void collision_box_center(Vec* center, const CollisionBox* box) {
+    Vec base_center;
+    float half_height;
+
+    base_center.x = 0.5f * (box->corners[0].value.x + box->corners[1].value.x);
+    half_height = 0.5f * (box->axis_0_max - box->axis_0_min);
+    base_center.y = 0.5f * (box->corners[0].value.y + box->corners[1].value.y);
+    base_center.y += 0.5f * (box->corners[2].value.y - box->corners[1].value.y);
+    base_center.z = box->corners[0].value.z + box->corners[1].value.z;
+    base_center.x += 0.5f * (box->corners[2].value.x - box->corners[1].value.x);
+    base_center.z = 0.5f * base_center.z;
+    base_center.z += 0.5f * (box->corners[2].value.z - box->corners[1].value.z);
+    center->x = box->axis_0.x * half_height + base_center.x;
+    center->y = box->axis_0.y * half_height + base_center.y;
+    center->z = box->axis_0.z * half_height + base_center.z;
+}
+
+/* TODO: [breakthrough] 99.45%; box-center scheduling agrees; X/Z owners and edge storage differ;
+ * FPR owners and original quad-edge stack extent remain unresolved. */
 static void xz_unit_vector_to_shape(
     Vec* result, CollisionShape* shape, Vec* point) {
-    float half_height;
-    float center_x;
-    float center_z;
     int type;
 
     type = shape->type & 7;
@@ -3442,20 +3457,11 @@ static void xz_unit_vector_to_shape(
         result->x = shape->cylinder.center.value.x - point->x;
         result->z = shape->cylinder.center.value.z - point->z;
     } else if (type == 3) {
-        center_x = 0.5f *
-            (shape->box.corners[0].value.x + shape->box.corners[1].value.x);
-        center_x += 0.5f *
-            (shape->box.corners[2].value.x - shape->box.corners[1].value.x);
-        half_height =
-            0.5f * (shape->box.axis_0_max - shape->box.axis_0_min);
-        center_z = 0.5f *
-            (shape->box.corners[0].value.z + shape->box.corners[1].value.z);
-        center_z += 0.5f *
-            (shape->box.corners[2].value.z - shape->box.corners[1].value.z);
-        result->x =
-            shape->box.axis_0.x * half_height + center_x - point->x;
-        result->z =
-            shape->box.axis_0.z * half_height + center_z - point->z;
+        Vec center;
+
+        collision_box_center(&center, &shape->box);
+        result->x = center.x - point->x;
+        result->z = center.z - point->z;
     } else if (type == 4) {
         Vec edge_1;
         Vec edge_0;
@@ -3602,7 +3608,8 @@ static inline void render_player_collision_shape(
     }
 }
 
-/* TODO: [near miss] 98.32%; shape-pointer web is colored before the sphere index, shifting GPR homes by one; stop at coloring. */
+/* TODO: [near miss] 98.31858%; indexed center/index owners differ from stack/body
+ * centers; recover their phase boundaries without retaining extra center addresses. */
 static void render_player_joints(PlayerCollisionData* collision) {
     CollisionShape shape;
     unsigned int index;

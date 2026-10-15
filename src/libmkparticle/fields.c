@@ -233,7 +233,8 @@ static void add_field_description(PfxFieldDescription* field,
     field->offset = offset;
 }
 
-/* TODO: [near miss] 99.66%; property-walk zero counter initialization remains; stop at coloring. */
+/* TODO: [near miss] 99.66%; named offset zero lies below coalesce window;
+ * recover property-phase ownership so the reduced index can share it. */
 void fill_field_description(PfxFieldDescription* descriptions,
                             PfxFieldSet fields, int parametric)
 {

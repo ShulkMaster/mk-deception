@@ -2791,8 +2791,8 @@ void advance_my_current_switch(void) {
     p2_current_switch_time = p2_switch_log[p2_current_log_index].tick;
 }
 
-/* TODO: [breakthrough needed] 89.69%; frontend uses an element-based tick load;
- * retail requires independently indexed field bases. */
+/* TODO: [breakthrough needed] 89.6875%; operand lowering folds tick displacement
+ * into the element load; recover retained field-base address ownership. */
 void update_my_last_switch(void) {
     unsigned int index;
     int switch_id;
@@ -4433,8 +4433,8 @@ static inline void moves_create_sidekick_exit_process(void) {
     }
 }
 
-/* TODO: [near miss] 99.80978%; raw-x still shares the delta owner;
- * normalized-z/scale need their original producer; caller scratch slots agree. */
+/* TODO: [near miss] 99.80978%; raw-x shares the delta owner and normalized-z splits;
+ * recover an independent raw sample before the opponent load; scratch slots agree. */
 int advance_my_sidekick_from_behind_with_moveset(void) {
     MkObj* sidekick;
     MkHdr* object;

@@ -733,7 +733,6 @@ static inline void camera_turn_toward(Vec* angle, Vec* target, float rate) {
     float current_pitch;
     float pitch_delta;
     float yaw_delta;
-    float roll_delta;
 
     pitch_delta = target->x - (current_pitch = angle->x);
     if (pitch_delta > 3.1415927f) {
@@ -748,13 +747,15 @@ static inline void camera_turn_toward(Vec* angle, Vec* target, float rate) {
         yaw_delta += 6.2831855f;
     }
     if (!(pitch_delta * pitch_delta + yaw_delta * yaw_delta < 1.0000001e-6f)) {
-        roll_delta = 0.0f;
-        pitch_delta *= rate;
-        yaw_delta *= rate;
-        roll_delta *= rate;
-        angle->x = current_pitch + pitch_delta;
-        angle->y += yaw_delta;
-        angle->z += roll_delta;
+        Vec step;
+
+        step.x = pitch_delta;
+        step.y = yaw_delta;
+        step.z = 0.0f;
+        gxVectScale(&step, &step, rate);
+        angle->x = current_pitch + step.x;
+        angle->y += step.y;
+        angle->z += step.z;
     }
 }
 
@@ -1016,7 +1017,7 @@ void cam_set_ground_plane(float ground_plane) {
 }
 
 /* TODO: [near miss] 99.73837%; clamp, sampling and half-span product agree;
- * framing/direction FPRs remain; retail height constants corrected. */
+ * CG direction/framing order remains; wrappers fold away; trace pre-emission ordering. */
 void get_play_camera_position(Vec* position) {
     CameraObj* camera;
     Vec camera_direction = {0.0f, 0.0f, 0.0f};
@@ -1160,8 +1161,8 @@ int player_is_stationary(PlyrPdata* player) {
         player->global_moveset->standing_animation_script;
 }
 
-/* TODO: [near miss] 99.71284%; pitch read order and retained input agree;
- * tightrope/roll FPR homes and half-span operand remain. */
+/* TODO: [near miss] 99.76351%; applied vector step restores roll;
+ * yaw product/update interference, norm-zero emission and half-span remain. */
 void adj_cam_pos(void) {
     static Vec midpoint_to_cam_vector;
     CameraObj* camera;
@@ -1385,14 +1386,19 @@ void CameraSize(RwCamera* camera, RwRect* rect, float view_window, float aspect_
     }
 }
 
-/* TODO: [near miss] 95.48%; camera param colored r29 (retail r31) and the camera_item kill reuses the checked node instead of reloading it. */
-void CameraDestroy(RwCamera* camera) {
-    CameraObj* object;
+#pragma push
+#pragma opt_common_subs off
+static inline CameraObj* camera_live_node(void) {
+    CameraObj* node;
+    RESOLVE_CAMERA_OBJ(node);
+    return node;
+}
 
-    RESOLVE_CAMERA_OBJ(object);
-    if (object != 0) {
-        if (object->hdr.instance != 0) {
-            object->hdr.typed_vtbl->destroy(&object->hdr);
+void CameraDestroy(RwCamera* camera) {
+    if (camera_live_node() != 0) {
+        CameraObj* owner = camera_item.node;
+        if (owner->hdr.instance != 0) {
+            owner->hdr.typed_vtbl->destroy(&owner->hdr);
         }
         camera_item.node = 0;
         camera_item.instance = 0;
@@ -1401,17 +1407,17 @@ void CameraDestroy(RwCamera* camera) {
 
     if (camera != 0) {
         RpWorld* world;
-        RwFrame* frame;
-        RwRaster* frame_buffer;
         RwRaster* frame_parent;
-        RwRaster* z_buffer;
+        RwRaster* frame_buffer;
+        RwFrame* frame;
         RwRaster* z_parent;
+        RwRaster* z_buffer;
 
         world = RwCameraGetWorld(camera);
         if (world != 0) {
             RpWorldRemoveCamera(world, camera);
         }
-        frame = rwCameraParentFrame(camera);
+        frame = camera->object.object.parent;
         if (frame != 0) {
             _rwObjectHasFrameSetFrame(camera, 0);
             RwFrameDestroy(frame);
@@ -1437,6 +1443,7 @@ void CameraDestroy(RwCamera* camera) {
         RwCameraDestroy(camera);
     }
 }
+#pragma pop
 
 static float p_shake_camera(void) {
     int index;
@@ -1835,7 +1842,7 @@ int orbit_position_to_end_point(Vec* center, Vec* endpoint,
 }
 
 /* TODO: [near miss] 99.95000%; split square/sum needs different result ownership;
- * direct sqrt rotates saved homes; complete movement helper outlines. */
+ * target-polar return/output boundaries also rotate saved homes; recover radius ownership. */
 static int radial_move_to_game_position(Vec* target_position,
                                         Vec* center, float rate) {
     CameraObj* camera;
@@ -3739,8 +3746,8 @@ static inline void interaction_camera_collision_origin(
     }
 }
 
-/* TODO: [breakthrough] 94.38938%; target/squared-length owners and endpoint sums recovered;
- * retained-target copies, selected yaw reloads and candidate-scale schedule remain. */
+/* TODO: [breakthrough] 94.38938%; retained-target copies/yaw reloads remain;
+ * CSE-off regresses; recover original owner and candidate-scale boundaries. */
 static void check_reverse_interaction_cam_targets(void) {
     MkObj* hero;
     const MkObj* target;
@@ -5847,8 +5854,8 @@ static inline int camera_target_within_step(const Vec* const current,
     return remaining_length < step_length;
 }
 
-/* TODO: [breakthrough needed] 97.41329%; movement rounding is folded by constant
- * propagation; recover its native fold predicate and the publication/pool boundary. */
+/* TODO: [breakthrough needed] 97.41329%; native folding removes already-rounded
+ * defs; recover the original float-copy chain and literal-pool ownership. */
 static float generic_victory_camera(void) {
     MkProc* camera_proc = camera_info.proc;
     CameraPdata* pdata = camera_info.pdata;

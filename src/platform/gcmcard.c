@@ -1358,7 +1358,8 @@ int update_storage_status_for_one_device(int device) {
     return changed;
 }
 
-/* TODO: [near miss] 94.44%; device/mask r29/r30 swap and two callback load pairs; owner/RMW forms neutral. */
+/* TODO: [near miss] 94.44%; named device and CSE table base swap saved homes;
+ * postcallback mask/global load ties remain. */
 int update_storage_status(int flag) {
     int device;
     int any = 0;

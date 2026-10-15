@@ -667,8 +667,8 @@ static int sftim_CheckStagnant(SfdHandle* handle)
     return 0;
 }
 
-/* TODO: [near miss] 99.79%; normal-clock word loads remain reversed;
- * recover clock-read ownership before allocation tuning. */
+/* TODO: [near miss] 99.79311%; normal-clock word loads remain reversed;
+ * recover scalar read ownership without changing shared clock access effects. */
 int SFTIM_IsStagnant(SfdHandle* handle)
 {
     if (sftim_CheckStagnant(handle) != 0) {

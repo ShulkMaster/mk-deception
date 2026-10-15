@@ -8,7 +8,12 @@
 #define ANIM_KEY_LINEAR 2
 #define ANIM_KEY_HOLD 8
 
-/* TODO: [near miss] 99.62%; component count/previous-key index GPR pair and duration/divisor FPR coloring remain. */
+static inline int anim_key_component_count(ScreenAnimKey* key) {
+    return key->m_count / 3;
+}
+
+/* TODO: [near miss] 99.96587%; named duration takes f30 instead of f31;
+ * elapsed-conversion temporary ordering remains after component-count recovery. */
 void ScreenAnimControl::GetValue(float* out, int time) {
     unsigned int count;
     ScreenAnimKey* first;
@@ -34,7 +39,7 @@ void ScreenAnimControl::GetValue(float* out, int time) {
     }
 
     first = ScreenAnimKeyAt(m_keys, 0);
-    n = first->m_count / 3;
+    n = anim_key_component_count(first);
 
     if (count == 1) {
         first->GetValue(valB);

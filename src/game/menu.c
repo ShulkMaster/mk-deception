@@ -82,8 +82,6 @@ struct PauseMenuPdata {
 };
 
 extern int disc_error_occurred;
-extern int p1_profile_status;
-extern int p2_profile_status;
 extern int last_switch_time;
 extern SwitchMapEntry p1_temp_switch_map[];
 extern SwitchMapEntry p2_temp_switch_map[];
@@ -93,11 +91,9 @@ extern int p1_temp_rumble_state;
 extern int p2_temp_rumble_state;
 extern int p1_use_temp_switch_map;
 extern int p2_use_temp_switch_map;
-extern const char* mk6_version_string;
 extern const char* number_strings[];
 extern unsigned long display_off;
 extern int pause_player;
-extern int game_save_loop_count;
 extern int __mini_game_display_ctrl;
 
 void snd_stop(MslSoundHandle handle);

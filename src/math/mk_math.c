@@ -52,14 +52,13 @@ static float mk_inv_sqrt(float x) {
     return guess * correction * (kNewton12 - (scaled_input * correction * correction));
 }
 
-/* TODO: [near miss] 98.70%; named point components agree; direction-Z/scaled-X FPR homes remain. */
 int intersect_xz_lines(const Vec* p, const Vec* dir, Vec* out, float a, float b) {
     float px;
     float pz;
     float dx;
-    float dz;
-    float neg_dx;
     float bx;
+    float neg_dx;
+    float dz;
     float bz;
     float neg_a;
     float cross;
@@ -411,20 +410,12 @@ void scale_v3(Vec* out, const Vec* v, float s) {
 }
 #pragma pop
 
-/* TODO: [near miss] 99.44%; operations and axis ordering agree;
- * unity load/subtract FPR differs; stop at coloring. */
 void interp_v3(Vec* out, Vec* a, Vec* b, float t) {
-    float s;
-    float component;
+    float s = kOne - t;
 
-    s = kOne;
-    component = b->x;
-    s -= t;
-    out->x = a->x * t + component * s;
-    component = b->y;
-    out->y = a->y * t + component * s;
-    component = b->z;
-    out->z = a->z * t + component * s;
+    out->x = a->x * t + b->x * s;
+    out->y = a->y * t + b->y * s;
+    out->z = a->z * t + b->z * s;
 }
 
 void norm_angles_v3(Vec* ang) {
@@ -678,31 +669,42 @@ void v3_v3_to_quat(Quat* out, Vec* v1, Vec* v2) {
     out->w = gxMathFastSqrt(kHalf * (kOne + dot));
 }
 
-/* TODO: [near miss] 97.45%; rounded products and store order agree;
- * component/cross-product FPR coloring remains. */
 void quat_to_mat(MKMATRIX* out, const Quat* q) {
-    float y = q->y;
-    float z = q->z;
-    float x = q->x;
-    float w = q->w;
-    float xy = x * y;
-    float wz = w * z;
-    float zx = z * x;
-    float wy = w * y;
+    float xx;
+    float yy;
+    float zx;
+    float y;
+    float x;
+    float wy;
+    float xy;
+    float wz;
+    float z;
+    float w;
     float yz;
     float wx;
 
-    out->right.x = -(kTwo * (y * y + z * z) - kOne);
+    y = q->y;
+    z = q->z;
+    x = q->x;
+    w = q->w;
+    yy = y * y;
+    xy = x * y;
+    wz = w * z;
+    zx = z * x;
+    wy = w * y;
+
+    out->right.x = -(kTwo * (yy + z * z) - kOne);
     yz = y * z;
     wx = w * x;
     out->right.y = kTwo * (xy + wz);
     out->right.z = kTwo * (zx - wy);
     out->up.x = kTwo * (xy - wz);
-    out->up.y = -(kTwo * (x * x + z * z) - kOne);
+    xx = x * x;
+    out->up.y = -(kTwo * (xx + z * z) - kOne);
     out->up.z = kTwo * (yz + wx);
     out->at.x = kTwo * (zx + wy);
     out->at.y = kTwo * (yz - wx);
-    out->at.z = -(kTwo * (x * x + y * y) - kOne);
+    out->at.z = -(kTwo * (xx + yy) - kOne);
     out->flags = 3;
 }
 
@@ -730,8 +732,8 @@ static inline void yxz_trig_to_matrix(
     m->flags = 3;
 }
 
-/* TODO: [near miss] 99.17%; shared rotation preserves both consumers;
- * nine sz/czsy/sysz FPR rows remain; stop at coloring. */
+/* TODO: [near miss] 99.17%; sz CSE and sysz/czsy inline owners differ;
+ * recover compatible lifetimes for the shared rotation operation. */
 void YXZ_angles_to_quat(const Vec* angles, Quat* out) {
     float sy;
     float cy;
@@ -796,8 +798,8 @@ void ZYX_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
     RwMatrixTranslate(m, &saved, 2);
 }
 
-/* TODO: [near miss] 99.53%; shared rotation order restores trig homes;
- * six sz/cysz FPR rows remain; stop at coloring. */
+/* TODO: [near miss] 99.53%; sy CSE and cysz inline product homes differ;
+ * recover actual load/product lifetime in the shared rotation. */
 void YXZ_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
     float cz;
     float sz;

@@ -9,6 +9,8 @@ typedef struct MkObj MkObj;
 typedef struct PlyrPdata PlyrPdata;
 
 void increment_taunts_performed(void);
+int get_current_bgnd(void);
+int is_local_plyr(void);
 int check_for_online_condition(PlyrPdata* player);
 void online_sync_reset(void);
 void remove_impaled_projectiles(void);

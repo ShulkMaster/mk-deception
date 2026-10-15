@@ -682,7 +682,7 @@ static inline void unload_mode_bank_list(void)
 }
 
 /* TODO: [breakthrough needed] 96.34241%; bank pointer forms before admission;
- * handle-value/slot accessors are neutral; recover the late owner boundary. */
+ * CSE-off regresses; recover the original late admission/owner boundary. */
 void setup_sound_bank_list_by_mode(int mode, int transition_mode) {
     if (mode < 0 || mode >= 0xF) {
         return;
@@ -998,22 +998,11 @@ int get_indirect_bank(unsigned int indirect_bank) {
     return bank;
 }
 
-/* TODO: [near miss] 99.13%; canonical response layout verified; bank/handle r4/r5 coloring remains. */
-static void lsba_callbank(_mslAsyncResponse* response) {
-    struct SoundBankCallback* callback = (struct SoundBankCallback*)response;
-    int bank;
+static inline void sound_publish_bank_response(int bank, _mslAsyncResponse* response) {
     mslLoadedBank* handle;
 
-    if (callback == 0) {
-        return;
-    }
-    if (callback->bank_index == 0) {
-        return;
-    }
-
-    bank = *callback->bank_index;
-    handle = callback->response.result;
-    switch (callback->response.status) {
+    handle = response->result;
+    switch (response->status) {
     case 0:
         sbank_data[bank].handle = handle;
         sbank_data[bank].async_state = 0;
@@ -1039,6 +1028,21 @@ static void lsba_callbank(_mslAsyncResponse* response) {
         sbank_data[bank].callback.response.status = 0;
         break;
     }
+}
+
+static void lsba_callbank(_mslAsyncResponse* response) {
+    struct SoundBankCallback* callback = (struct SoundBankCallback*)response;
+    int bank;
+
+    if (callback == 0) {
+        return;
+    }
+    if (callback->bank_index == 0) {
+        return;
+    }
+
+    bank = *callback->bank_index;
+    sound_publish_bank_response(bank, response);
 }
 
 void check_and_load_sound_bank_async(int bank, int slot) {
@@ -1497,7 +1501,7 @@ void snd_death_voice(void) {
     random_voice(0xE);
 }
 
-#pragma dont_inline off
+#pragma dont_inline reset
 
 static inline MslSoundHandle play_random_sound(
     int sound_id, float pan, float volume, float pitch) {
@@ -1655,18 +1659,13 @@ MslSoundHandle pan_vol_pitch_random_hit(
     return result;
 }
 
-#pragma dont_inline on
-
-#pragma optimization_level 1
-
-/* TODO: [breakthrough needed] 92.57%; existing O1 scope retains two index shifts;
- * need compiler-stable table lookup and sentinel exit evidence. */
+/* TODO: [near miss] 98.61111%; canonical profile/indexed reads agree;
+ * one extra no-sound reset remains; stop at shared-exit codegen. */
 MslSoundHandle random_hit(int group) {
     struct SoundRequest request;
     int* sounds;
     MslSoundHandle handle = 0;
     SoundCallTable* table;
-    SoundCallTable* call;
     int count;
     unsigned int choice;
     int sound_id;
@@ -1675,13 +1674,11 @@ MslSoundHandle random_hit(int group) {
         if (mode_of_play == 6) {
             table = pf_hit_call_table;
             sounds = table[group].sounds;
-            call = &table[group];
-            count = call->count;
+            count = table[group].count;
         } else {
             table = hit_call_table;
             sounds = table[group].sounds;
-            call = &table[group];
-            count = call->count;
+            count = table[group].count;
         }
 
         if (sounds != 0 && count > 0) {
@@ -1689,7 +1686,7 @@ MslSoundHandle random_hit(int group) {
             handle = 0;
             sound_id = sounds[choice];
             if (sound_id == -1) {
-                return handle;
+                handle = 0;
             } else {
                 if (sound_id < 0 || sound_id >= 0x1C0C) {
                     handle = 0;
@@ -1711,7 +1708,6 @@ MslSoundHandle random_hit(int group) {
     return handle;
 }
 
-#pragma optimization_level 4
 
 int init_sounds(void) {
     current_sound_shuffle_state = 0;
@@ -1725,5 +1721,3 @@ int init_sounds(void) {
     mslSetWavePath(msi, "/cdrom/sndsgc/");
     return 1;
 }
-
-#pragma dont_inline reset

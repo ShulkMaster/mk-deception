@@ -162,8 +162,8 @@ static inline int nav_find_area_in_tile(const Vec* position) {
     return -1;
 }
 
-/* TODO: [near miss] 97.64%; portal-entry advance scheduling and delta-X
- * FPR home remain; stop at localized codegen. */
+/* TODO: [near miss] 97.80220%; X displacement agrees; portal-entry ADDI
+ * precedes MTCTR/CMPWI setup; recover the entry-address producer. */
 void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int portalId) {
     struct KonquestPdata* pdata = konquest_pdata;
     struct KonquestNavData* nav = pdata->navData;
@@ -189,6 +189,7 @@ void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int po
     while (remaining > 0) {
         if (portal->adjacentArea == portalId) {
             float dx;
+            float midpointX;
             float dz;
             float normalX;
             float normalZ;
@@ -202,11 +203,12 @@ void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int po
             dz = portal->z;
             normalZ = portal->normalZ;
             quarterLength = 0.25f * length;
-            dx = portal->x;
+            midpointX = portal->x;
             normalX = portal->normalX;
             dz = normalZ * halfLength + dz;
-            dx = normalX * halfLength + dx;
-            dx -= pos->x;
+            midpointX = normalX * halfLength + midpointX;
+            dx = pos->x;
+            dx = midpointX - dx;
             dz -= pos->z;
             side = normalX * dx + normalZ * dz;
 

@@ -26,8 +26,8 @@ int ADX_DecodeSte4(const signed char* input, int numBlocks,
         randomMultiplier, randomIncrement);
 }
 
-/* TODO: [near miss] 85.1842%; CTR/operations agree; saved predictor homes and
- * sample scheduling remain; canonical types/order do not close donor pin residue. */
+/* TODO: [breakthrough] 90.36184%; retained in-place history contributions;
+ * entry widening does not recover coefficient0; resolve conversion ownership. */
 long ADX_DecodeSte4AsSte(signed char* input, long numBlocks,
                         short* outputLeft, short delayLeft[2],
                         short* outputRight, short delayRight[2],
@@ -79,8 +79,9 @@ long ADX_DecodeSte4AsSte(signed char* input, long numBlocks,
             leftPacked = input[0];
             rightPacked = input[0x12];
             input++;
+            olderLeft *= coefficient1;
             olderLeft = (leftPacked >> 4) * leftGain +
-                ((coefficient0 * previousLeft + coefficient1 * olderLeft) >> 12);
+                ((coefficient0 * previousLeft + olderLeft) >> 12);
             if (olderLeft > 32767 || olderLeft < -32768) {
                 if (olderLeft < -32768) {
                     olderLeft = -32768;
@@ -88,8 +89,9 @@ long ADX_DecodeSte4AsSte(signed char* input, long numBlocks,
                     olderLeft = 32767;
                 }
             }
+            olderRight *= coefficient1;
             decodedRight = (rightPacked >> 4) * rightGain;
-            decodedRight += (coefficient0 * previousRight + coefficient1 * olderRight) >> 12;
+            decodedRight += (coefficient0 * previousRight + olderRight) >> 12;
             if (decodedRight > 32767 || decodedRight < -32768) {
                 if (decodedRight < -32768) {
                     decodedRight = -32768;
@@ -134,8 +136,8 @@ long ADX_DecodeSte4AsSte(signed char* input, long numBlocks,
     return numBlocks;
 }
 
-/* TODO: [breakthrough] 90.74468%; later older-left ownership restores block/packed homes;
- * header, LCG and mix owners plus entry scheduling remain. */
+/* TODO: [breakthrough] 92.71277%; in-place high-left history improves predictor
+ * scheduling; header, LCG and mix owners plus entry scheduling remain. */
 int ADX_DecodeSte4AsMono(signed char* input, int numBlocks,
                          short* outputLeft, short delayLeft[2],
                          short* outputRight, short delayRight[2],
@@ -187,8 +189,9 @@ int ADX_DecodeSte4AsMono(signed char* input, int numBlocks,
             leftPacked = input[0];
             rightPacked = input[0x12];
             input++;
+            olderLeft *= coefficient1;
             olderLeft = (leftPacked >> 4) * leftGain +
-                ((coefficient0 * previousLeft + coefficient1 * olderLeft) >> 12);
+                ((coefficient0 * previousLeft + olderLeft) >> 12);
             if (olderLeft > 32767 || olderLeft < -32768) {
                 if (olderLeft < -32768) {
                     olderLeft = -32768;

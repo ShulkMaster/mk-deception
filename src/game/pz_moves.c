@@ -2300,8 +2300,8 @@ void pz_fighter_step_throw_into_check(void) {
     set_both_face_opponent_flags();
 }
 
-/* TODO: [near miss] 96.56%; table-base/index setup differs;
- * restoring local-static ownership changes .data placement. */
+/* TODO: [near miss] 96.55844%; SR index-zero interleaves table materialization;
+ * recover original local-static placement and producer scheduling. */
 void pz_fighter_create_space_between_fighters(void) {
     unsigned short roll = randu0(100);
     float player_distance = xz_distance_between_players();

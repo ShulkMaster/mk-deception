@@ -1135,7 +1135,7 @@ config.libs = [
                    extra_cflags=["-opt", "off", "-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "mk_struct.o", source="runtime/mk_struct.c",
                    extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s",
-                                 "-inline off"]),
+                                 "-inline on,noauto"]),
             Object(Matching, "mk_pdata.o", source="runtime/mk_pdata.c",
                    extra_cflags=["-use_lmw_stmw on", "-opt", "off", "-O4,s"]),
             Object(NonMatching, "mk_proc.o", source="runtime/mk_proc.c",
@@ -2422,7 +2422,7 @@ config.libs = [
                 NonMatching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenAnimControl.o",
                 source="mwScreenEngine/ScreenAnimControl.cpp",
-                extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline off"],
+                extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline on,noauto"],
             ),
             Object(
                 Matching,

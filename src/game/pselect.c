@@ -613,7 +613,6 @@ void wager_cancelled(void) {
     wager_completed_ran = 0;
 }
 
-/* TODO: [near miss] 97.89%; save/refund CFG agrees; refund owners and zero stores use rotated volatile GPRs. */
 static float p_wager_save_profiles(void) {
     int p1_saved;
     int p2_saved;
@@ -624,12 +623,11 @@ static float p_wager_save_profiles(void) {
     if (p1_saved == 0 || p2_saved == 0) {
         int amount = g_game_info.pselect.field_1d8;
         if (amount > 0) {
-            int koin = wager_koin_order[g_game_info.pselect.field_1d4];
+            p1_profile.koins[wager_koin_order[g_game_info.pselect.field_1d4]] += amount;
+            p2_profile.koins[wager_koin_order[g_game_info.pselect.field_1d4]] += amount;
             g_game_info.pselect.field_1d4 = 0;
             g_game_info.pselect.field_1d8 = 0;
             g_game_info.pselect.field_1dc = 0;
-            p1_profile.koins[koin] = p1_profile.koins[koin] + amount;
-            p2_profile.koins[koin] += amount;
             g_game_info.pselect.field_1d0 = 0;
             g_game_info.pselect.field_1e0 = 1;
             g_game_info.pselect.field_1f0 = 1;
@@ -886,11 +884,22 @@ void ck_increment_bet(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 92.96%; strength reduction creates a separate
- * zero index; recover retail accumulator sharing without tying unrelated locals. */
-int ok_to_bring_out_wager_screen(void) {
-    int has_common_koin;
+static inline int wager_profiles_have_common_koin(void) {
+    int has_common_koin = 0;
     int i;
+
+    for (i = 0; i < 6; i++) {
+        unsigned int p1_koins = p1_profile.koins[i];
+        unsigned int p2_koins = p2_profile.koins[i];
+
+        if (p1_koins != 0 && p2_koins != 0) {
+            has_common_koin = 1;
+        }
+    }
+    return has_common_koin;
+}
+
+int ok_to_bring_out_wager_screen(void) {
     int mop;
 
     if (p1_profile_status != 1 || p2_profile_status != 1) {
@@ -904,7 +913,6 @@ int ok_to_bring_out_wager_screen(void) {
         return 0;
     }
 
-    has_common_koin = 0;
     mop = mode_of_play;
     if (mop != 1 && mop != 0) {
         return 0;
@@ -913,15 +921,7 @@ int ok_to_bring_out_wager_screen(void) {
         return 0;
     }
 
-    for (i = 0; i < 6; i++) {
-        unsigned int p1_koins = p1_profile.koins[i];
-        unsigned int p2_koins = p2_profile.koins[i];
-
-        if (p1_koins != 0 && p2_koins != 0) {
-            has_common_koin = 1;
-        }
-    }
-    if (!has_common_koin) {
+    if (!wager_profiles_have_common_koin()) {
         return 0;
     }
     if (g_game_info.pselect.field_1d0 != 0) {
@@ -1027,18 +1027,16 @@ int pselect_bgnd_has_deathtrap(void) {
     return tbl[pos].flags & 1;
 }
 
-/* TODO: [near miss] 96.43%; first balance producer improved; profile/zero register web remains. */
 void ck_restore_kiddy(void) {
     int amount;
 
     amount = g_game_info.pselect.field_1d8;
     if (amount > 0) {
-        int koin = wager_koin_order[g_game_info.pselect.field_1d4];
+        p1_profile.koins[wager_koin_order[g_game_info.pselect.field_1d4]] += amount;
+        p2_profile.koins[wager_koin_order[g_game_info.pselect.field_1d4]] += amount;
         g_game_info.pselect.field_1d4 = 0;
         g_game_info.pselect.field_1d8 = 0;
         g_game_info.pselect.field_1dc = 0;
-        p1_profile.koins[koin] = p1_profile.koins[koin] + amount;
-        p2_profile.koins[koin] += amount;
         g_game_info.pselect.field_1d0 = 0;
         g_game_info.pselect.field_1e0 = 1;
         g_game_info.pselect.field_1f0 = 1;
@@ -1665,11 +1663,10 @@ void pselect_player_moved(int player) {
         bg_team_record_focus_of(get_screen_pdata(), player, char_id);
 }
 
-/* TODO: [breakthrough needed] 94.48%; count-address and selector-index CSE
- * differ before allocation; recover the original owner/inline boundary. */
+/* TODO: [breakthrough] 96.85567%; canonical count/entry and focus owners agree;
+ * selector-index CSE across texture load still removes branch-local multiplies. */
 void bg_pselect_player_canceled(int player) {
     struct BgPselectTeamPdata* pdata;
-    int* entries;
     int count;
     int sel_pos;
     int char_id;
@@ -1683,12 +1680,11 @@ void bg_pselect_player_canceled(int player) {
         return;
     }
 
-    entries = pdata->teams[player].entries;
-    count = entries[0];
+    count = pdata->teams[player].entries[0];
     sel_pos = (player == 0) ? p1_selbox_pos : p2_selbox_pos;
 
     if (count >= 1 && count <= 5) {
-        entries[count] = 0x2C;
+        pdata->teams[player].entries[count] = 0x2C;
         tex = load_named_tga_from_slot(PSELECT_SEC_SLOT, STR_HEAD_PROXY);
         pdata->teams[player].colors[count - 1] = tex;
     }
@@ -1698,9 +1694,13 @@ void bg_pselect_player_canceled(int player) {
                                        pselect_char_tbl[sel_pos].head_name);
         pdata->teams[player].colors[count - 2] = tex;
         pdata->teams[player].entries[count - 1] = 0x2C;
-        char_id = pselect_char_id_at(sel_pos);
+        if (pselect_mode == 2) {
+            char_id = pselect_pz_char_tbl[sel_pos].char_id;
+        } else {
+            char_id = pselect_char_tbl[sel_pos].char_id;
+        }
         pdata->teams[player].focus =
-            bg_team_focus_of(get_screen_pdata(), player, char_id);
+            bg_team_record_focus_of(get_screen_pdata(), player, char_id);
     }
 }
 
@@ -2181,10 +2181,8 @@ void bg_pselect_set_stage(int team, int stage) {
 
 #pragma opt_propagation reset
 
-/* TODO: [breakthrough needed] 93.50%; copy-owner address is reused before count store;
- * recover retail rematerialization boundary without changing shared team layout. */
 void bg_pselect_save_team(int team) {
-    struct BgPselectPdata* pdata;
+    struct BgPselectTeamPdata* pdata;
     struct PselectProfileView* profile;
     MkHdr* save_pdata;
     MkProc* proc;
@@ -2208,10 +2206,10 @@ void bg_pselect_save_team(int team) {
     }
 
     for (i = 0; i < 5; i++) {
-        profile->bg_team[i] = bg_team_view(pdata, team)->chars[i];
+        profile->bg_team[i] = pdata->teams[team].entries[i + 1];
     }
     profile->bg_team_valid = 1;
-    bg_team_view(pdata, team)->count = 6;
+    pdata->teams[team].entries[0] = 6;
 
     proc = _create_mkproc_generic_bigstack(
         0x902A, 0x1F, p_save_bg_profile, sizeof(struct BgSaveProfilePdata), &save_pdata);

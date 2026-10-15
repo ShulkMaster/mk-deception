@@ -445,7 +445,8 @@ int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
     return 0;
 }
 
-/* TODO: [near miss] 87.50%; zero tapout argument schedules before movie-ID load. */
+/* TODO: [near miss] 87.50%; pre-RA scheduler fills the movie-ID address-latency slot
+ * with zero tapout; original producer dependency remains unresolved. */
 void screen_engine_play_movie(int index) {
     if (index >= 0xC8) {
         index -= 0xC8;
@@ -897,8 +898,8 @@ void service_game_timers(void) {
     g_game_info.field_20C += 1;
 }
 
-/* TODO: [near miss] 97.95%; loop state and parameter homes differ;
- * current/target math and live-instance latch agree. */
+/* TODO: [near miss] 97.94872%; string parameter must claim before all loop
+ * owners; no local declaration order can cross that ABI owner band. */
 void display_numerical_change(
     StringObj* string, int font, int start, int change,
     int ticks, int acceleration_interval) {

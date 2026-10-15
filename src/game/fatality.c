@@ -1029,7 +1029,8 @@ static float p_sz2_iceblock_scalar(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 95.24%; one unreachable default-exit branch remains. */
+/* TODO: [near miss] 95.23810%; one unreachable default-exit branch remains;
+ * early explicit default return is neutral; recover original switch-lowering context. */
 void mks_start_fatality_iceball(int mode) {
     switch (mode) {
     case 0:
@@ -3028,7 +3029,8 @@ void bone_matcher_set_ang_pos(
     }
 }
 
-/* TODO: [near miss] 92.14%; return copies coalesce to r3; root/object homes differ. */
+/* TODO: [near miss] 92.14286%; latch-result webs merge into return r3;
+ * recover a genuine return-owner boundary before root/instance coloring. */
 MkObj* weapon_bm_ignore(int weapon, int ignored) {
     PlyrMirrorObjLatch* latch;
     MkObj* object;
@@ -3366,8 +3368,8 @@ void set_victim_v3_units_away(float x, float z) {
     his_obj->pos.value.y = original_y;
 }
 
-/* TODO: [near miss] 87.94%; pre-RA scheduling overlaps game base and Camera;
- * recover setup producer order beyond the neutral fog-owner argument. */
+/* TODO: [near miss] 87.93939%; pre-RA setup scheduling overlaps game base
+ * and Camera; recover their original producer ownership. */
 void fade_fatality_screen(void) {
     float far_clip;
     float step;

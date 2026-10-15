@@ -421,24 +421,28 @@ void kill_async_memcard_scan(void) {
     destroy_mkprocs_pid(MEMCARD_SCAN_PID);
 }
 
-#pragma dont_inline on
+static inline void reset_storage_device_profile_slots(StorageDevice* device) {
+    int i;
+
+    for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
+        device->inUse[i] = 0;
+        set_profile_to_default((PlayerProfile*)&device->profiles[i]);
+    }
+}
+
+#pragma auto_inline off
 void reset_sg_status(StorageDevice* device, int slot) {
     device->inUse[slot] = 0;
     set_profile_to_default((PlayerProfile*)&device->profiles[slot]);
 }
 
-/* TODO: [near miss] 82.51%; loop zero sharing differs before allocation; counter and device-offset homes remain. */
 void reset_storage_device_status_structure(int device) {
     StorageDevice* base;
-    int i;
 
     if (device >= 0 && device < STORAGE_MAX_DEVICES) {
+        DEVICE_AT(device)->status = -1;
         base = DEVICE_AT(device);
-        base->status = -1;
-        for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
-            base->inUse[i] = 0;
-            set_profile_to_default((PlayerProfile*)&base->profiles[i]);
-        }
+        reset_storage_device_profile_slots(base);
         DEVICE_AT(device)->profileCount = 0;
         summarize_unlocked_items();
         set_gsettings_to_default(&base->settings);
@@ -452,7 +456,7 @@ void reset_all_storage_devices_status_structure(void) {
         reset_storage_device_status_structure(i);
     }
 }
-#pragma dont_inline reset
+#pragma auto_inline reset
 
 int create_new_mk5_profile_file(int device) {
     int ok;

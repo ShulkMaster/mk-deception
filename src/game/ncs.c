@@ -1227,8 +1227,8 @@ float p_sc_spear_kill(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 98.79705%; 24 spear/emitter-home and scheduling rows remain;
- * traced zero-spill latch ownership and failed staging controls justify stopping at coloring. */
+/* TODO: [near miss] 98.79705%; checked-spear CSE selects before named emitter;
+ * recover that producer boundary while preserving cursor and FP owners. */
 static float p_pfx_sc_spear(void) {
     struct SpearProcPdata* spear_pdata;
     MkObj* emitter_object;
@@ -2225,7 +2225,8 @@ static inline void resume_sweat_emitters(int particle_mask, int bone,
     } while (type < 3);
 }
 
-/* TODO: [near miss] 97.75%; inlined sweat loop retains nonvolatile-home residue. */
+/* TODO: [near miss] 97.74509%; mask, bone-SR and saved owners cross kind
+ * bands; recover the complete inline boundary before reordering locals. */
 void start_sweat_particles_scripts(int particle_mask, int bone) {
     PlyrPdata* player;
     MkObj* object;

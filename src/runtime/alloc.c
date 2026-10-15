@@ -329,8 +329,8 @@ static inline void merge_next_in_block(SubBlock* subblock, Block* block) {
     merge_next(subblock, start);
 }
 
-/* TODO: [near miss] 99.80730%; 18 coalescing register rows remain;
- * recover the merged-size/head owner boundary; stop at coloring. */
+/* TODO: [near miss] 99.80730%; child extent must precede parent head;
+ * recover ownership without changing decoded block/subblock webs. */
 void* __pool_realloc(__mem_pool* pool, void* ptr, unsigned long size) {
     unsigned long old_size;
     unsigned long is_variable;
@@ -467,16 +467,22 @@ void deallocate_from_fixed_pools(MemPoolObj* pool, void* ptr, unsigned long size
     }
 }
 
+static inline void construct_fixed_subblock(
+    FixSubBlock* subblock, FixBlock* block, FixSubBlock* next)
+{
+    subblock->block = block;
+    subblock->next = next;
+}
+
 static inline void initialize_fixed_pool_block(
     FixStart* start, FixBlock* block, unsigned long index,
-    unsigned long available)
+    unsigned long available, FixSubBlock* buffer)
 {
     FixBlock* head;
     FixBlock* tail;
     unsigned long stride;
     unsigned long count;
     unsigned long i;
-    FixSubBlock* subblock;
     unsigned char* cursor;
 
     if (start->head == NULL) {
@@ -492,22 +498,19 @@ static inline void initialize_fixed_pool_block(
     block->client_size = fix_pool_sizes[index];
     stride = fix_pool_sizes[index] + sizeof(FixBlock*);
     count = (available - sizeof(FixBlock)) / stride;
-    cursor = (unsigned char*)(block + 1);
-    subblock = (FixSubBlock*)cursor;
+    cursor = (unsigned char*)buffer;
     for (i = 0; i < count - 1; i++) {
-        subblock->block = block;
-        cursor += stride;
-        subblock->next = (FixSubBlock*)cursor;
-        subblock = (FixSubBlock*)cursor;
+        unsigned char* next = cursor + stride;
+        construct_fixed_subblock((FixSubBlock*)cursor, block,
+                                (FixSubBlock*)next);
+        cursor = next;
     }
-    subblock->block = block;
-    subblock->next = NULL;
-    block->free = (FixSubBlock*)(block + 1);
+    construct_fixed_subblock((FixSubBlock*)cursor, block, NULL);
+    block->free = buffer;
     block->allocated = 0;
     start->head = block;
 }
 
-/* TODO: [near miss] 93.32%; cursor-view CSE adds a copy; unrolled store scheduling remains. */
 void* allocate_from_fixed_pools(MemPoolObj* pool, unsigned long size) {
     unsigned long index = 0;
     unsigned long count;
@@ -557,7 +560,8 @@ void* allocate_from_fixed_pools(MemPoolObj* pool, unsigned long size) {
 
         available = allocation_size(memory);
         block = memory;
-        initialize_fixed_pool_block(start, block, index, available);
+        initialize_fixed_pool_block(start, block, index, available,
+            (FixSubBlock*)(block + 1));
     }
 
     subblock = start->head->free;

@@ -353,8 +353,6 @@ void pfxvm_spawn_uv(PfxVmEmitter* emitter, unsigned int field, float u, float v)
     }
 }
 
-/* TODO: [near miss] 99.96021%; three initial offset GPR homes differ;
- * complete shared lookup did not inline; preserve retail call boundaries. */
 void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
 {
     int instruction_index;
@@ -372,8 +370,9 @@ void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
          instruction_index < emitter->instruction_count;
          instruction_index++, instruction++) {
         unsigned char* destination;
-        int particle_offset;
+        int table_source_offset;
         PfxTransform* transform;
+        int particle_offset;
 
         if (pfx->behavior_list != 0 && pfx->behavior_list[0] != 0) {
             particle_offset = pfx->behavior_list[0]->active_particle_count *
@@ -409,13 +408,15 @@ void __pfxvm_execute_spawn(PfxVm* pfx, PfxVmEmitter* emitter)
                                    instruction->spawn.table.table);
                 break;
             case 6: {
-                int source_offset = pfx->particle_cursor *
+                unsigned char* source;
+                int table_index;
+
+                table_source_offset = pfx->particle_cursor *
                     pfx_get_struct_size(
                         pfx, instruction->spawn.table.source_field);
-                unsigned char* source = pfx_get_field(
+                source = pfx_get_field(
                     pfx, -2, instruction->spawn.table.source_field);
-                int table_index;
-                source += source_offset;
+                source += table_source_offset;
                 if (pfx_field_get_type(
                         instruction->spawn.table.source_field) == 3) {
                     table_index = (int)*(float*)source;

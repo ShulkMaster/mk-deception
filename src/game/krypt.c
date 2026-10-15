@@ -1182,8 +1182,8 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
     }
 }
 
-/* TODO: [near miss] 98.54671%; column conversion homes and adjacent scheduling remain;
- * in-place coordinate helper loses loop hoist and regresses a sibling; stop at coloring. */
+/* TODO: [near miss] 99.41177%; row-base owner selects below the table-offset CSE;
+ * scalar return/output row helpers do not preserve both homes and schedule. */
 static void set_number_positions_and_values(PfxVm* pfx) {
     Vec* pos;
     float* uv;
@@ -1194,11 +1194,15 @@ static void set_number_positions_and_values(PfxVm* pfx) {
     int row_off;
     int col_off;
     int fill;
+    float origin_x;
     float base_x;
     float base_z;
+    float column_coordinate;
+    float row_coordinate;
     float z_near;
     float z_far;
     int row;
+    int row_base;
     int col;
     int coffin_idx;
     unsigned int cost;
@@ -1215,16 +1219,20 @@ static void set_number_positions_and_values(PfxVm* pfx) {
     pos = pfx_get_field(pfx, -2, 0x100);
     pos_stride = pfx_get_struct_size(pfx, 0x100);
     tombstone_viewport_origin(&view_row, &view_col);
-    base_x = tombstone_col_x(view_col);
-    base_z = tombstone_row_z(view_row);
+    column_coordinate = (float)view_col;
+    row_coordinate = (float)view_row;
+    origin_x = s_tomb_col_spacing * column_coordinate + s_tomb_col_origin;
+    base_x = origin_x;
+    base_z = s_tomb_row_origin - s_tomb_row_spacing * row_coordinate;
 
     for (row_off = 0; row_off < 4; row_off++) {
         row = view_row + row_off;
         z_near = s_tomb_z_near + base_z;
+        row_base = row * 0x14;
         z_far = s_tomb_z_far + base_z;
         for (col_off = 0; col_off < 9; col_off++) {
             col = view_col + col_off;
-            coffin_idx = col + row * 0x14;
+            coffin_idx = col + row_base;
             cost = coffin_data[coffin_idx].cost;
             thousands = cost / 1000;
             hundreds = (cost / 100) - thousands * 10;
@@ -1316,7 +1324,7 @@ static void set_number_positions_and_values(PfxVm* pfx) {
             base_x += s_tomb_col_spacing;
         }
         base_z -= s_tomb_row_spacing;
-        base_x = tombstone_col_x(view_col);
+        base_x = origin_x;
     }
 
     fill = particle;

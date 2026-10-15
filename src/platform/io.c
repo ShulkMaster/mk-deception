@@ -303,7 +303,8 @@ int get_stick_pos(int port, int stick, float* horizontal, float* vertical) {
     return 1;
 }
 
-/* TODO: [near miss] 97.05%; layout and store order agree; literal/BSS base register rows remain; stop at coloring. */
+/* TODO: [near miss] 97.04546%; label must precede the merged BSS root;
+ * recover producer ownership while retaining the exact record/store layout. */
 void init_switch_log(void) {
     int i;
     for (i = 0; i < 30; i++) {
@@ -328,8 +329,8 @@ void init_switch_log(void) {
     }
 }
 
-/* TODO: [near miss] 94.22%; label and reduced loop-offset homes differ;
- * separate indices and loop-local label regress; retain reset store order. */
+/* TODO: [near miss] 94.22%; named label loses the first register claim to reduced offset;
+ * recover label ownership while preserving reset order. */
 void turn_switch_log_on(void) {
     const char* label;
     int i;

@@ -2996,8 +2996,8 @@ static float pz_fighter_chomper2_victim_crushed(void) {
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.32%; motion-array base and stfsx operand order differ;
- * typed owner/helper forms and propagation control did not close the residue. */
+/* TODO: [near miss] 99.31818%; initial STFSX makes motion the base, forbidding r0;
+ * recover address-operand ownership before allocation. */
 static float pz_fighter_chomper2_actively_fighting(int active) {
     int group;
     float (*motion)[2];
@@ -3391,7 +3391,8 @@ static float pz_fighter_chomper2_unload(void) {
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 95.63%; reset and stride zeros coalesce; motion-row address uses r3 instead of r0. */
+/* TODO: [near miss] 95.625%; second value-numbering pass shares reset zero with
+ * hazard stride; recover distinct reset ownership and indexed-store operands. */
 static void pz_fighter_chomper2_entering_fatality(
     int attacker, int victim) {
     unsigned int i;
@@ -4073,8 +4074,8 @@ static float pz_fighters_lightning_preround(void) {
     return pz_fatality_start_preround();
 }
 
-/* TODO: [near miss] 99.66732%; smoke/snapshot homes and texture claim timing;
- * inspect coalesced-copy degree before changing phase ownership. */
+/* TODO: [near miss] 99.66732%; snapshot/smoke coalesced degrees and texture claims;
+ * effect-start boundary is neutral; recover creation/retention ownership. */
 static float p_lightning_controller(void) {
     Vec position = {0.0f, 0.0f, 0.0f};
 

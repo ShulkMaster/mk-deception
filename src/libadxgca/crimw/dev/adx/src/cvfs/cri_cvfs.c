@@ -465,7 +465,8 @@ void cvFsEntryErrFunc(CvFsErrorCallback callback, void* object)
     cvfs_errobj = object;
 }
 
-/* TODO: [near miss] 99.75%; device/table register swap remains; shared resolver must preserve cvFsOpen. */
+/* TODO: [near miss] 99.74747%; device/table homes remain swapped;
+ * query extraction with named input rotates filename and changes the final guard. */
 int cvFsGetFileSize(const char* filename)
 {
     CvFsInterface* interface;
