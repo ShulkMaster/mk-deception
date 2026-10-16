@@ -377,6 +377,15 @@ Bits. REQUIRE storage width, bit position, every use.
 - CRI bit window: `current |= following >> shift; value = current >>
   threshold` in typed inline reader; peeks shift `current` first, then OR
   spill (`mps_dec`). Keep each reader's state-transition timing.
+- ORs become MR plus RLWIMI before allocation: REQUIRE native pass snapshots
+  locating the change in the early rotation scan, not the later store-byte-swap
+  rule. TRY observing the actual scan's source-redefinition, record-form,
+  register-identity and disjoint-mask predicates (`SFH_AnlyMaxFrmNum`). GC2.7's
+  early pass can run twice; pair both windows and verify the complete observed
+  object against an ordinary compile. A successful mask test explains a fold,
+  not an honest way to prevent it. Do not add a dead branch, store or lifetime
+  merely to reject a predicate; recover a real source boundary or retain the
+  ceiling.
 
 ## H05
 
@@ -466,6 +475,24 @@ boundary.
 Retained value or address. REQUIRE shared uses + unchanged ownership
 interval. Reject redundant aliases, identity wrappers, permuter residue.
 
+- Retail recomputes encoded flags at an inlined queue's test and stores, while
+  ours shares normalized arithmetic: REQUIRE the two actual sentinel meanings
+  and native pass snapshots. TRY selecting the sentinels directly
+  (`flag ? -1 : -2` in `broadcast_screen_studio_event`) instead of encoding them
+  as `(flag != 0) - 2`. Both actual arguments substitute directly during
+  inlining. The arithmetic form is merged by IRO common-subexpression removal;
+  the conditional form remains control flow there and is reconstructed by
+  `RebuildCondExpressions` afterward. Preserve the generic queue's mask/sign
+  behavior and every call/store; do not use impossible comparisons, fake
+  volatility or extra copies to prevent sharing.
+- Allocation extent sum adds its first field last, while retail accumulates
+  the fields in order: REQUIRE native EADD/Operands_Add evidence distinguishes
+  a lazy indexed pair from a register plus displacement, and an existing real
+  constant allowance in the same sum. TRY placing that allowance first
+  (`pfx_estimate_size`). The initial register-plus-allowance operand can make
+  later additions form a running extent, with the allowance deferred to the
+  final ADDI. Keep the exact fields, integer types and total; never introduce
+  a constant, artificial scalar barrier or extra consumer to force this path.
 - Perpendicular components and a position snapshot exchange homes: REQUIRE
   native evidence distinguishes named scalars, scalarized vector members and
   a duplicate-load CSE. TRY the actual XZ vector plus the existing snapshot
@@ -625,6 +652,27 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   real `extended_base = packed * 2`.
 
 ## H07
+
+- Reusing existing complete phases restores frontend result ownership but
+  makes the consumer expand into retail out-of-line callers: REQUIRE native
+  ownership evidence, original caller boundaries, and whole-unit mode-ladder
+  measurements. TRY the narrow consumer constraint with the existing helpers
+  unmarked before adding explicit `inline`; helpers parsed with automatic
+  inlining enabled can retain usable inline metadata inside a later scoped
+  `auto_inline off` consumer (`fire_screen_studio_event`,
+  [evidence](reports/glue-event-inline-ownership.md)). Compare raw unscored
+  output too: redundant annotations can remove or reorder helper bodies even
+  when every scored sibling is unchanged. Follow the approval gate for a
+  compiler constraint; this observation does not authorize bypassing it.
+
+- An existing address-taken callback implements an identical completion tail:
+  REQUIRE matching reads, effects and failure exits, plus canonical auto-inline
+  settings. TRY calling that existing unannotated function before marking it
+  inline or duplicating its operation (`mslBankReadAssetHeaderComplete`). Auto
+  inlining can retain a genuine context owner while preserving standalone
+  emission order; explicit inline can defer the callback and disturb pools.
+  Recheck all functions and data. Retrace independent traversal counters after
+  this boundary changes; earlier allocation constraints may no longer apply.
 
 - Reusing a complete inline phase fixes its consumer but lowers auto-inline
   cost enough to expand that consumer into an exact callback: REQUIRE retail
@@ -874,6 +922,15 @@ Loops. REQUIRE zero-trip behavior + test/update order.
   Fixed nonwrapping clear with serial retail index updates: equality bound
   can select eight-way unroll where `<` selects sixteen parallel offsets
   (`__VMAllocARAMToVirtualLUT`). Preserve extent and reloads.
+- Hardware-table clear retains a rounded byte-count CTR and remainder guard:
+  REQUIRE retail byte extent, record stride and authoritative base reloads.
+  TRY the genuine byte-offset traversal with `sizeof(entry)` advancement and
+  a complete typed entry-clear operation (`__VMBASEInvalidatePageTable`).
+  An element-count loop can fold the guards; a scaled element-index loop can
+  recover them but replace the named byte counter with an IRO temporary,
+  allowing value numbering to share its zero. Keep byte-to-record conversion
+  at the proven hardware address boundary and preserve each base reload;
+  never add a separate byte-offset carrier to force an owner.
 - Fixed reverse array clear, only zero/index setup order differs: REQUIRE same
   descending order + unused final iterator. TRY `for (i = count; i-- != 0;)
   array[i] = 0` (defined final wrap) (`ScreenObject::ClearActiveObjects`).
@@ -1306,6 +1363,18 @@ lifetimes.
   (`r_combo_broken_part2`: late `bone_offset = (Vec){0,0,0};`).
 
 ## H15
+
+- Rounded values and their rescaled products share owners across calls:
+  REQUIRE native replay shows split rounded owners, retail short product
+  owners, and separate product assignments propagate into later aliased
+  stores. TRY a complete displacement-and-translation inline operation
+  taking rounded scalar counts and performing compound rescaling before
+  the ordered component stores (`do_wrapbox`). Keep fractional distances
+  and rounded counts as distinct real locals; retrace their inline-local
+  ranks before applying the predicted declaration pair swap. Passing
+  already multiplied arguments can let IroPropagate sink the products;
+  moving an entire declaration group can rotate correct owners. Preserve
+  every rounding boundary, call, input reload and store; no extra uses.
 
 - Quaternion components/products have a measured declaration-order solution
   except for a shared-square CSE versus codegen owner: REQUIRE exact native
@@ -1759,6 +1828,28 @@ straight in (`mps_dec`).
 ## H21
 
 Helper locals and web kind.
+- Resident-read request/context homes swap across an upload inline: REQUIRE
+  native replay identifies the request below the inline callback/destination
+  owners, with identical calls, publications and failure paths. TRY one complete
+  successful-read phase owning allocation/failure cleanup and upload; order its
+  real destination, request and callback declarations from captured inline
+  enumeration (`mslBankLoadResidentWaveChunkDone`). Check saved-register claim
+  order; nesting request and upload separately can rotate the remaining pair.
+- Inlined sample-address setup has identical halfword operations but scattered
+  scalar owners: REQUIRE the canonical SDK record and proven field widths,
+  read order and publication order. TRY constructing the real `AXPBADDR`,
+  then publishing its members individually (`SoundBuffer_Playable::iPlay`).
+  IRO scalarization can recover the address-half owners without
+  changing the stack or access widths. Do not substitute an aggregate copy
+  or external setter when retail has individual stores. Trace any remaining
+  shared format-zero/null owner separately before tuning declarations. If
+  second value numbering forwards format-zero into a nullable lookup and
+  the codegen zero claims a saved register too early, REQUIRE exact native
+  replay and the real lazy table-to-entry/null operation. TRY that complete
+  typed lookup at both channels: its inline null-result local can become the
+  lower-numbered coalescing survivor while preserving constant sharing. A
+  primary-only helper can shift the wrong claim instead. No dummy zero,
+  extra lookup, false null guard or separate pointer with an invented lifetime.
 - Runtime-stride free-chain keeps an extra typed-node/byte-cursor copy:
   REQUIRE retail owner-before-link stores, a proven payload start/extent and
   one cursor walk. TRY passing that actual payload into the complete block
@@ -1892,11 +1983,17 @@ Helper locals and web kind.
   (`TextList::ProcessParams`, `SpreadSheet_text::FinishSetup`). If native replay
   identifies only those input owners swapped, test their private parameter
   order and recheck both consumers. Preserve independent loop/pool residue.
-  A byte-mutation phase may need its own boundary before rendering
-  (`ScreenText::ChangeCase`): REQUIRE the font load stays after mutation and
-  each write reloads the byte. TRY the complete ASCII walk alone, preserving
-  both branch-owned cursors. A shared mutated cursor parameter can fold two
-  branch copies into one pre-branch copy; recheck CFG, not just register homes.
+  A byte-mutation walk has separate branch cursors, and recursive inline
+  consumers retain index increments: REQUIRE the index actually addresses the
+  byte, signed-char predicates, reloaded bytes before writes, and a late font
+  load. TRY the genuine indexed walk in the complete original method before
+  adding another helper boundary (`ScreenText::ChangeCase`,
+  [evidence](reports/glue-event-inline-ownership.md#indexed-ascii-walk)).
+  Standalone strength reduction can remove index bookkeeping while inline
+  consumers retain it. A complete ASCII-only phase can improve a partial
+  control, but is not proof that the extra boundary existed. One shared mutated
+  cursor parameter can also fold two branch copies into one pre-branch copy;
+  recheck CFG and every inline consumer, not just standalone register homes.
 - Caller retry state claims saved homes below loop-address owners: REQUIRE
   exact native replay and a complete per-team initialization phase. TRY one
   inline owning the slot loop, acceptance/countdown and duplicate scan
@@ -2622,6 +2719,14 @@ reuses another var's zero on failure path.
 
 ## H26
 
+- Serialized pointer field is relocated in place, but pointer addition reverses
+  retail ADD inputs: REQUIRE load/add/store width and a proven offset-to-pointer
+  transition. TRY the existing relocation union with offset accumulation and
+  its pointer view at runtime APIs (`mslBankReadAssetHeaderComplete`). Preserve
+  the real target-width address conversion and field layout; canonical
+  pointer+integer commutation can be byte-neutral. Check every shared consumer;
+  never overlay an ordinary pointer merely to force operand order.
+
 In-place derivation `[da]`. IF retail derives value in the register it was
 loaded into, REQUIRE one meaning for the variable, TRY computing it in steps
 in one local (`margin = width; margin = (640 - margin) & ~1;`). mk-da: `bytes
@@ -2705,6 +2810,12 @@ moved accesses), TRY statements in retail order: compute packed words before
 storing, advance cursors after stores, load node output ptr before size store
 (mk-da `MCBlockDecDCNest`, `gop_decode`). Stack-member stores: H14.
 
+- Fixed parameter argument and retained next-index initialization swap:
+  REQUIRE a sequential parameter cursor and identical indices for every
+  optional consumer. TRY starting the cursor at that query's index and
+  postincrementing its argument (`SpreadSheet::ProcessParams`, GetBoolean).
+  This expresses the real cursor advance and can emit the argument before
+  the retained next value; do not couple unrelated counters or move calls.
 - Independent source/destination indices increment in the wrong order:
   REQUIRE initial/pre-RA evidence of code motion around indexed publication,
   unchanged index values and no intervening observable use. TRY advancing the

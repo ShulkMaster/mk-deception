@@ -87,6 +87,25 @@ Tools:
 
 - Ghidra MCP: verify project, select program explicitly. Pseudocode looks
   unrelated -> compare raw bytes and ELF symbol bounds.
+- Native C++ capture: require class-qualified method ownership and matching
+  instruction extent. Bare `Update` can select another class's method
+  (`ScreenQuestionAction` versus `ScreenElseAction`); low alignment is not
+  allocation evidence. Constructors/destructors need the same owner check.
+  Pass the selected occurrence/backend run to auxiliary graph reports too;
+  the raw multi-function capture can explain another method's webs.
+  An encoded-looking identifier may be an explicit C-linkage name, not a
+  C++ method: resolve it against the fresh object's nonempty ELF symbol and
+  observed compiler names before demangling (`Render__10ScreenPolyFP16ScreenRenderInfo`).
+  Prefer the exact spelling; if an initial guessed capture selected another
+  function, discard it and recapture. Require matching symbol extent, reject
+  ambiguous plain aliases, and remove stale objects before validating identity.
+- Reordered integer products: positional register votes can pair different
+  values even when opcodes agree (`ADX_DecodeSte4AsMono`). Establish the
+  product inputs independently from ABI/load evidence, then compare bounded
+  straight-line expression producers. Keep subtraction/shift kinds ordered,
+  reject effects or interior control-flow entries, and leave duplicate
+  expressions ambiguous. A conditional producer correspondence is not a
+  native-vreg mapping or proof that register ordering can realize retail.
 - mwcc_trace (GC2.7 regalloc/inline/pcode): callable via DecompStudio
   `submit` even when the tool catalog omits it; full command + reading guide
   = tier 4 Trace procedure.

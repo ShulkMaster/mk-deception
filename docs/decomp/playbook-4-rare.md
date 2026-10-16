@@ -127,6 +127,23 @@ joint sweep of recorded neutrals before any soft ceiling.
 
 ## N14
 
+- One indexed-address ADD is commuted, with every register home correct:
+  REQUIRE native observation of the actual inline helper's parsing as well
+  as the caller's initial PCode and address descriptor. GC2.7
+  `add_pointer_offset` builds pointer-left `EADD(pointer, index * sizeof(row))`
+  directly; observing `optimizecomm` only in the caller misses that producer
+  (`obj_bld_surface_build_polys`). TRY preserving the complete typed nested
+  subscript at the load: `triangles[triangle_index][corner]` instead of a cached
+  row pointer. In `CreatePoly`, reading `vert_map[n]` directly inside each
+  position/UV/color subscript instead of caching its value likewise recovers
+  retail indexed loads. Native selector traces distinguish the latter case:
+  the cached index materializes three source address pairs before applying
+  member offsets; direct subscripts retain those pairs for indexed loads.
+  Require supported arrays, a stable mapping, unchanged access/store order and
+  a whole-unit comparison. Reversed subscript spelling and declaration changes
+  do not address this producer; do not cast array pointers to integers or add
+  artificial copies to force operand order.
+
 - Trace attribution: an instruction absent from both initial and prescheduled
   PCode need not originate in the frontend. REQUIRE intermediate native pass
   snapshots before naming the cause. Value numbering can create store-forwarded

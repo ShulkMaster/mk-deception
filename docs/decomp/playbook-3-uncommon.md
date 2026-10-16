@@ -501,6 +501,10 @@ public APIs keep their documented `const`.
 
 - Coordinate loads moved before intervening stores: compare input qualifier
   with mutable caller objects (Krypt position inputs, Puzzle flesh path).
+  A qualifier trial that fails because a forwarding wrapper still takes
+  `const T*` is unmeasured: synchronize the supported input type through that
+  wrapper and its declarations before judging the hypothesis
+  (`spawn_decal_emitter`, position copy). Recheck every includer.
   In-place quaternion callers (`out == q1`) also support the root-input check
   (`gxQuatInterpQuat`); test each input independently and restore neutral
   qualifiers, preserving the other quaternion's pre-output snapshot.
@@ -789,7 +793,14 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   discarded function only with genuine body (`dsp_task` 2004 SDK
   `__DSP_add_task`); no donor body -> stop. Keep named `static const` objects
   when converting drops placeholders (`adx_tlk`). Stripped-code restoration
-  needs the user's stripped-code ruling `[da]`.
+  needs the user's stripped-code ruling `[da]`. For auto-inlined client
+  creation helpers (`mkScreenEngineClient::CreateElement`), REQUIRE complete
+  operations surviving in the retail caller, MAP name/size, and original
+  definition order. TRY ordinary definitions before their callers; compare
+  standalone sizes, every caller, and the entire anonymous pool. Equal MAP
+  sizes support ownership but cannot prove stripped instruction bytes. Missing
+  literals without recoverable bodies remain separate evidence gaps; do not
+  invent a body or silently add data records to fill them.
 - `.sdata2` constant order (2.7) = `@N` order = creation order: statements in
   order, operands/args left to right, `?:` and if/else assignment arms before
   the condition (`if (a > 9) g = .5; else g = .25;` -> .5, .25, 9). One
