@@ -136,8 +136,8 @@ class reserve_priority_queue
     typedef std::priority_queue<T, std::vector<T, mwFileMemAllocator<T, 3> >, Compare> base;
 
 public:
-    /* TODO: [near miss] 99.95%; temporary cleanup retains complete-object flag -1;
-     * recover the original base-destructor boundary for retail flag 0. */
+    /* TODO: [near miss] 99.95000%; temporary cleanup retains flag -1;
+     * body-local depth leaks; recover the original destructor context. */
     reserve_priority_queue(const mwFileMemAllocator<T, 3>& a)
         : base(Compare(), std::vector<T, mwFileMemAllocator<T, 3> >(a))
     {

@@ -408,8 +408,10 @@ void mwFileServerQueued::shutdown()
     ready = 0;
 }
 
+#pragma inline_depth(2)
 int mwFileServerQueued::initialize(unsigned short command_count)
 {
+#pragma inline_depth(1)
     if (pending != 0) {
         return 0;
     }
@@ -441,7 +443,8 @@ mwFileServerQueued::mwFileServerQueued() : pending(0), active_count(0), servicin
     memset(active, 0, sizeof(active));
 }
 
-/* TODO: [near miss] 96.52%; early-return block layout differs (retail sets r3 then branches to the epilogue). */
+/* TODO: [breakthrough needed] 96.52174%; first-result return copy follows
+ * its branch; recover the original shared return boundary. */
 bool mwFileServerNotQueued::queryActive() const
 {
     bool active;

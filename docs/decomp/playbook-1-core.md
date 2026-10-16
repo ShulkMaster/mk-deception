@@ -55,6 +55,13 @@ mk-da symbols). Recheck under GC/2.7 before relying on it for game/CRI code.
 ## Gates
 
 - Judge per function, per instruction. TU score up can hide one regression.
+- Before scoring, resolve the exact mangled symbol on both sides and require
+  nonempty instruction ranges. C++ scratch files must keep the original
+  basename: anonymous-namespace mangling embeds it. Extract by ELF section
+  identity, value and size; repeated `.text` names and overlapping section
+  addresses make objdump labels alone ambiguous (`mwFileMount`). Missing or
+  empty input is an error, never a zero-difference match. Unequal nonzero
+  sizes may score a partial match; exactness also requires equal sizes.
 - Check report fuzzy (`build/GQNE5D/report.json`) and `objdiff-cli diff`.
   They can rank variants differently.
 - Run `-c functionRelocDiffs=data_value`. Report-100 can hide wrong
@@ -119,6 +126,8 @@ Tools:
 | Retail-only `b` to a case body between switch dispatch and first arm | N14 |
 | Differing instruction absent from pre-RA `initial` pcode | H29, N14 (not coloring) |
 | Same ops, regs swapped | H15, H21, H22, then tier 4 stops |
+| Same ops, only volatile temps (r0/r3-r12, f0-f13) rotated | H27 statement/operand order, H15 |
+| Lone web wants r3/f1 (return/arg reg), no order fixes it | H01 return type/arg, H15 |
 | Add/or operands commuted in one row | H15, H22 |
 | Call result move order | H16 |
 | Residue in `-opt off` TU | H17, M01 |
