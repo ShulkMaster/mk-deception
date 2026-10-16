@@ -196,9 +196,6 @@ KonquestWaypoint* get_door_path(int id);
 void* get_data_table(void* table, int id);
 int get_row_count_for_table(void* table, int row);
 const char* nbc_find_text(int index, int table);
-int save_konquest_region_to_memcard_w_error(
-    int device, int slot, int mode, const char* title, unsigned int region,
-    void* region_buffer, int flag, unsigned int* free_blocks, int* free_bytes);
 int load_konquest_region_from_memcard_w_error(
     int device, int slot, int arg, int region, void* buffer, char* card_name,
     int name_len, unsigned int* free_blocks, int* free_bytes);
@@ -508,21 +505,21 @@ int load_konq_memory_from_krd_buffer(void) {
     return 1;
 }
 
-/* TODO: [near miss] 99.68326%; PUI count/snapshot and stale-next homes remain;
- * independent list cursors preserve retail operations and record layout. */
 int save_konq_memory_to_krd_buffer(int region) {
     KonquestRegionBuffer* buffer;
     MkPtr** trigger_list;
     MkPtr** pui_list;
     MkPtr* node;
-    MkPtr* pui_node;
+    int pui_count;
     MkPtr* npc_node;
-    MkPtr* next;
+    MkPtr* trigger_next;
+    MkPtr* pui_node;
+    MkPtr* pui_next;
     KonquestTrigger* trigger;
     const struct KonquestPuiRuntime* pui;
+    MkPtr* npc_next;
     Vec pui_position;
     int trigger_count;
-    int pui_count;
     int npc_count;
     unsigned int bit;
     unsigned int loaded;
@@ -536,9 +533,9 @@ int save_konq_memory_to_krd_buffer(int region) {
         while (node != 0) {
             trigger = (KonquestTrigger*)node->hdr;
             if (node->instance != trigger->hdr.instance) {
-                next = node->next;
+                trigger_next = node->next;
                 discard_stale_mkptr(node);
-                node = next;
+                node = trigger_next;
                 continue;
             }
             if (trigger != 0 && ((trigger->flags24 >> 4) & 1) == 0) {
@@ -564,9 +561,9 @@ int save_konq_memory_to_krd_buffer(int region) {
         pui_node = *pui_list;
         while (pui_node != 0) {
             if (pui_node->instance != pui_node->hdr->instance) {
-                next = pui_node->next;
+                pui_next = pui_node->next;
                 discard_stale_mkptr(pui_node);
-                pui_node = next;
+                pui_node = pui_next;
                 continue;
             }
             pui = (const struct KonquestPuiRuntime*)pui_node->hdr;
@@ -598,9 +595,9 @@ int save_konq_memory_to_krd_buffer(int region) {
 
             npc = (KonquestNpc*)npc_node->hdr;
             if (npc_node->instance != npc->hdr.instance) {
-                next = npc_node->next;
+                npc_next = npc_node->next;
                 discard_stale_mkptr(npc_node);
-                npc_node = next;
+                npc_node = npc_next;
                 continue;
             }
             if (npc_count < 0x96 && npc != 0) {

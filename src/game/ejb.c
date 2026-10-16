@@ -1,3 +1,6 @@
+/* TODO: [review] layout stub: lunge_for_throw reproduces a linker-stripped retail function only to
+ * recreate its .sdata2 pool position (0.8f); the body is NOT recovered source. Replace with the
+ * genuine body if a source turns up. */
 #include "game/konquest_missions.h"
 #include "game/pwrbar.h"
 #include "game/collision.h"
@@ -174,7 +177,7 @@ void scorpion_summon_read(void);
 void scorpion_summon_collide(void);
 void break_point(void);
 void auto_ani_on(void);
-static void disable_both_repel_flags(void);
+void disable_both_repel_flags(void);
 static void taunt_raise_my_life_bar(void);
 static void gut_tumble_air_check(void);
 void impale_him(void);
@@ -2322,7 +2325,7 @@ void ejb_release_other_player(int reaction) {
     release_other_player();
     his_obj->flags_09_bits.face_opponent = 0;
     plyr_obj->flags_09_bits.face_opponent = 0;
-    reaction_xfer_him(reaction, 2.0f, 2);
+    reaction_xfer_him(reaction, 0.0f, 2);
 }
 
 void ejb_too_close_repell(void) {
@@ -2336,7 +2339,7 @@ void ejb_too_close_repell(void) {
     delta_x = player_one->pos.value.x - player_two->pos.value.x;
     delta_z = player_one->pos.value.z - player_two->pos.value.z;
     if (delta_x * delta_x + delta_z * delta_z < 1.0f) {
-        reaction_xfer_him(0x135, 2.0f, 2);
+        reaction_xfer_him(0x135, 0.0f, 2);
     }
 }
 
@@ -2513,6 +2516,10 @@ float two_player_animation_flip(
 void two_player_animation(AniData* animation, float attacker_blend) {
     two_player_animation_blend(
         animation, attacker_blend, 0.0f, 1, 0);
+}
+
+float lunge_for_throw(void) {
+    return 0.8f;
 }
 
 void idle_victim(void) {
@@ -3298,30 +3305,47 @@ void stop_me(void) {
     object->gravity = 0.0f;
 }
 
-/* TODO: [near miss] 97.31%; five z/x delta FPR rows remain;
- * honest coordinate staging and scalar-norm boundary are neutral. */
 float xz_distance_between_players(void) {
     MkObj* player_one;
     MkObj* player_two;
-    float delta_z;
     float delta_x;
+    float delta_z;
 
     player_one = g_game_info.plyr0.slot.mirror_a;
     player_two = g_game_info.plyr1.slot.mirror_a;
-    delta_z = player_one->pos.value.z - player_two->pos.value.z;
     delta_x = player_one->pos.value.x - player_two->pos.value.x;
+    delta_z = player_one->pos.value.z - player_two->pos.value.z;
     return delta_x * delta_x + delta_z * delta_z;
 }
 
-/* TODO: [near miss] 98.52%; the gxMathSin result goes through f0 before f31 (extra fmr) in both angle branches; stop at call-result coloring. */
+static inline void myvel_from_opponent_angle(
+    float angle_offset, float x_velocity, float z_velocity) {
+    float angle;
+    float cosine;
+    float sine;
+
+    if (plyr_pdata == g_game_info.plyr0.slot.pdata) {
+        angle = g_game_info.plyr1.slot.mirror_a->ang.y + angle_offset;
+        angle = 0.000005992112f *
+                (float)((int)(166886.1f * angle) & 0xFFFFF);
+        sine = gxMathSin(angle);
+        cosine = gxMathCos(angle);
+    } else if (plyr_pdata == g_game_info.plyr1.slot.pdata) {
+        angle = g_game_info.plyr0.slot.mirror_a->ang.y + angle_offset;
+        angle = 0.000005992112f *
+                (float)((int)(166886.1f * angle) & 0xFFFFF);
+        sine = gxMathSin(angle);
+        cosine = gxMathCos(angle);
+    }
+    plyr_obj->pos_vel.x = sine * x_velocity;
+    plyr_obj->pos_vel.z = cosine * z_velocity;
+}
+
 void myvel_his_angle_y_inout(
     float angle_offset, float x_velocity, float z_velocity) {
     float camera_z;
     float camera_x;
     float cross;
-    float angle;
-    float sine;
-    float cosine;
 
     if (is_his_chest_to_screen() != 0) {
         camera_z = camera_obj->pos.z;
@@ -3344,21 +3368,7 @@ void myvel_his_angle_y_inout(
             angle_offset *= -1.0f;
         }
     }
-    if (plyr_pdata == g_game_info.plyr0.slot.pdata) {
-        angle = g_game_info.plyr1.slot.mirror_a->ang.y + angle_offset;
-        angle = 0.000005992112f *
-                (float)((int)(166886.1f * angle) & 0xFFFFF);
-        sine = gxMathSin(angle);
-        cosine = gxMathCos(angle);
-    } else if (plyr_pdata == g_game_info.plyr1.slot.pdata) {
-        angle = g_game_info.plyr0.slot.mirror_a->ang.y + angle_offset;
-        angle = 0.000005992112f *
-                (float)((int)(166886.1f * angle) & 0xFFFFF);
-        sine = gxMathSin(angle);
-        cosine = gxMathCos(angle);
-    }
-    plyr_obj->pos_vel.x = sine * x_velocity;
-    plyr_obj->pos_vel.z = cosine * z_velocity;
+    myvel_from_opponent_angle(angle_offset, x_velocity, z_velocity);
 }
 
 static inline float myvel_angle_sine_cosine(float angle, float *cosine) {
@@ -3402,25 +3412,12 @@ void myvel_my_angle_y(
     plyr_obj->pos_vel.z = cosine * z_velocity;
 }
 
-/* TODO: [near miss] 97.23%; wrapped angle lands in f29 instead of f28 across the
- * sin/cos calls (extra fmr); helpers/CSE forms reorder constant loads. */
-void myvel_his_angle_y(
-    float angle_offset, float x_velocity, float z_velocity) {
-    float sine;
-    float cosine;
+static inline void myvel_from_flipped_opponent_angle(
+    float angle_offset, float x_velocity, float z_velocity, int flipped) {
     float angle;
-    int flipped;
+    float cosine;
+    float sine;
 
-    swap_active_plyr_proc();
-    flipped = 0;
-    if (plyr_obj->hide_flag_bits.bit6 == 1) {
-        flipped ^= 1;
-    }
-    if (plyr_anim_pdata->flags & 8) {
-        flipped ^= 1;
-    }
-    flipped = flipped != 0;
-    swap_active_plyr_proc();
     if (flipped != 0) {
         if (plyr_pdata == g_game_info.plyr0.slot.pdata) {
             angle = g_game_info.plyr1.slot.mirror_a->ang.y - angle_offset;
@@ -3452,6 +3449,24 @@ void myvel_his_angle_y(
     }
     plyr_obj->pos_vel.x = sine * x_velocity;
     plyr_obj->pos_vel.z = cosine * z_velocity;
+}
+
+void myvel_his_angle_y(
+    float angle_offset, float x_velocity, float z_velocity) {
+    int flipped;
+
+    swap_active_plyr_proc();
+    flipped = 0;
+    if (plyr_obj->hide_flag_bits.bit6 == 1) {
+        flipped ^= 1;
+    }
+    if (plyr_anim_pdata->flags & 8) {
+        flipped ^= 1;
+    }
+    flipped = flipped != 0;
+    swap_active_plyr_proc();
+    myvel_from_flipped_opponent_angle(
+        angle_offset, x_velocity, z_velocity, flipped);
 }
 
 void uv_my_angle_y(Vec* direction, float angle_offset) {
@@ -3696,7 +3711,7 @@ void ani_no_pos(void) {
     plyr_anim_pdata->flags |= 0x40;
 }
 
-static void disable_both_repel_flags(void) {
+void disable_both_repel_flags(void) {
     g_game_info.plyr0.slot.mirror_a->flags_09_bits.bit4 = 0;
     g_game_info.plyr1.slot.mirror_a->flags_09_bits.bit4 = 0;
 }

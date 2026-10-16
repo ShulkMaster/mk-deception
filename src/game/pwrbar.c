@@ -792,14 +792,28 @@ float p_move_pbars_off_screen(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.54%; first latch/result copy coalesces into r3;
- * preserve the five exact later bolt expansions. */
 static void update_combo_break_counts(void) {
     if (g_game_info.plyr0.slot.pdata->breaker_strength !=
         p1_last_combo_break_count) {
-        ensure_combo_bolt(
-            &p1_bolt_1_item, 0, 0x45,
-            &g_game_info.plyr0, 0);
+        ScreenObj* object = MK_LIVE(
+            (ScreenObj*)p1_bolt_1_item.object, p1_bolt_1_item.instance);
+
+        if (object == 0) {
+            object = load_2d_pfxobj(0x10005, 0x2017, 0x20019, 0, 0x1B);
+            if (object != 0) {
+                object->x = BAR_BACK_X + 0x45;
+                object->y = 0x18C;
+                p1_bolt_1_item.object = object;
+                p1_bolt_1_item.instance = object->instance;
+            }
+        }
+        if (object != 0) {
+            if (g_game_info.plyr0.slot.pdata->breaker_strength > 0) {
+                object->flag_bits.hidden = 0;
+            } else {
+                object->flag_bits.hidden = 1;
+            }
+        }
         ensure_combo_bolt(
             &p1_bolt_2_item, 0, 0x57,
             &g_game_info.plyr0, 1);

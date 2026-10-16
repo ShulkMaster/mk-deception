@@ -62,6 +62,9 @@ extern int MksobjLocalOffset;
 extern int MkmaterialGlobalOffset;
 extern int MkmaterialLocalOffset;
 extern int ColorSetGeometryOffset;
+#define MK_SPECULAR_MATERIAL_PLUGIN(material)                           \
+    ((SpecularMaterialPluginData*)((unsigned char*)(material) +          \
+                                    SpecularMaterialOffset))
 #define MK_MATERIAL_PLUGIN(material)                                      \
     ((MkmaterialPluginData*)((unsigned char*)(material) +                 \
                              MkmaterialLocalOffset))

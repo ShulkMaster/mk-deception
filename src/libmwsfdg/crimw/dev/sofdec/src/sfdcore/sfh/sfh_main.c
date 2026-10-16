@@ -406,8 +406,8 @@ int SFH_AnlyElemCodecVid(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 94.66%; correct 32-bit endian decode remains;
- * stop at N09: stwbrx replaces retail's manual swap/store. */
+/* TODO: [near miss] 94.65517%; byte-swap/store folds to stwbrx in backend;
+ * donor dead guard is invalid; retain full-width unsigned endian decode. */
 int SFH_AnlyElemSmpHz(SFHHandle* handle, unsigned char stream_id,
                       int* result)
 {
@@ -462,7 +462,8 @@ int SFH_AnlyElemCodecAud(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 95.51%; aligned endian decode agrees; retail chains the four byte inserts through one register (rlwinm, three rlwimi), ours builds two pairs and ors them. */
+/* TODO: [near miss] 95.51%; peephole forms two insert pairs plus OR;
+ * recover a genuine live boundary before swap/store folding. */
 int SFH_AnlyMaxFrmNum(SFHHandle* handle, int* result)
 {
     *result = 0;
@@ -483,7 +484,8 @@ int SFH_AnlyMaxPlyLenAud(SFHHandle* handle, int* result)
     return sfh_read_header_u32(handle, 0xB8, result);
 }
 
-/* TODO: [breakthrough] 92.39%; aligned word decode recovered; byte-insertion scheduling remains. */
+/* TODO: [near miss] 96.02273%; five byte-swap insertion rows remain;
+ * need a real control-flow boundary; donor dead conditional is not admissible. */
 int SFH_AnlyByteRate(SFHHandle* handle, int* result)
 {
     *result = 0;

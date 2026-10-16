@@ -211,26 +211,72 @@ void ADXB_ExecHndl(AdxBasicDecoderExt* decoder)
     }
 }
 
-/* TODO: [near miss] 99.7955%; canonical arithmetic/write types preserve all bytes;
- * round-up/trailing homes swap r23/r26; donor owner cross regresses, stop at coloring. */
+static inline void ADXB_FinishDecode(AdxBasicDecoderExt* decoder)
+{
+    AdxBasicDecoder* base = &decoder->base;
+    AdxDecodeParams* params = &base->decode;
+    long block_samples;
+    long block_size;
+    long loop_samples;
+    short* pcm_buffer;
+    long write_position;
+    long pcm_size;
+    long pcm_distance;
+    long decoded_blocks;
+    long decoded_samples;
+    long trailing_samples;
+    long copy_count;
+    short* copy_source;
+
+    block_samples = params->samples_per_block;
+    block_size = params->block_size;
+    loop_samples = params->loop_samples;
+    write_position = params->write_position;
+    pcm_buffer = params->pcm_buffer;
+    pcm_size = base->pcm_size;
+    pcm_distance = base->pcm_distance;
+
+    trailing_samples = block_samples - 1 -
+                       (loop_samples + block_samples - 1) % block_samples;
+    loop_samples = (loop_samples + block_samples - 1) / block_samples;
+    decoded_blocks = ADXPD_GetNumBlk(base->expander);
+    decoded_samples = decoded_blocks * block_samples /
+                      params->channel_count;
+    if (loop_samples * params->channel_count <= decoded_blocks) {
+        decoded_samples -= trailing_samples;
+    }
+    base->decoded_samples = decoded_samples;
+    base->decoded_data_length = decoded_blocks * block_size;
+    write_position += decoded_samples;
+    if (write_position >= pcm_size) {
+        write_position -= pcm_size;
+        if (params->channel_count == 2 || decoder->pl2_context != 0) {
+            ADXB_CopySamples(pcm_buffer, &pcm_buffer[pcm_size],
+                             write_position);
+            ADXB_CopySamples(&pcm_buffer[pcm_distance],
+                             &pcm_buffer[pcm_distance + pcm_size],
+                             write_position);
+        } else {
+            copy_count = write_position;
+            copy_source = &pcm_buffer[pcm_size];
+            while (copy_count-- > 0) {
+                *pcm_buffer++ = *copy_source++;
+            }
+        }
+    }
+    ADXPD_Reset(base->expander);
+    base->add_write_info(base->add_write_object,
+                         base->decoded_data_length,
+                         base->decoded_samples);
+    base->status = 3;
+}
+
 void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
 {
     AdxBasicDecoder* base = &decoder->base;
     AdxDecodeParams* params = &base->decode;
-    long block_size;
-    long block_samples;
-    long loop_samples;
-    long pcm_distance;
-    long pcm_size;
-    long write_position;
-    short* pcm_buffer;
-    long decoded_blocks;
-    long decoded_samples;
-    long trailing_samples;
     long i;
     long offset;
-    long copy_count;
-    short* copy_source;
 
     if (base->status == 1 && ADXPD_GetStat(base->expander) == 0) {
         base->get_write_info(base->get_write_object, &params->write_position,
@@ -253,47 +299,7 @@ void ADXB_ExecOneAdx(AdxBasicDecoderExt* decoder)
                 ADXCRS_Unlock();
             }
 
-            block_samples = params->samples_per_block;
-            block_size = params->block_size;
-            loop_samples = params->loop_samples;
-            write_position = params->write_position;
-            pcm_buffer = params->pcm_buffer;
-            pcm_size = base->pcm_size;
-            pcm_distance = base->pcm_distance;
-
-            trailing_samples = block_samples - 1 -
-                               (loop_samples + block_samples - 1) % block_samples;
-            loop_samples = (loop_samples + block_samples - 1) / block_samples;
-            decoded_blocks = ADXPD_GetNumBlk(base->expander);
-            decoded_samples = decoded_blocks * block_samples /
-                              params->channel_count;
-            if (loop_samples * params->channel_count <= decoded_blocks) {
-                decoded_samples -= trailing_samples;
-            }
-            base->decoded_samples = decoded_samples;
-            base->decoded_data_length = decoded_blocks * block_size;
-            write_position += decoded_samples;
-            if (write_position >= pcm_size) {
-                write_position -= pcm_size;
-                if (params->channel_count == 2 || decoder->pl2_context != 0) {
-                    ADXB_CopySamples(pcm_buffer, &pcm_buffer[pcm_size],
-                                     write_position);
-                    ADXB_CopySamples(&pcm_buffer[pcm_distance],
-                                     &pcm_buffer[pcm_distance + pcm_size],
-                                     write_position);
-                } else {
-                    copy_count = write_position;
-                    copy_source = &pcm_buffer[pcm_size];
-                    while (copy_count-- > 0) {
-                        *pcm_buffer++ = *copy_source++;
-                    }
-                }
-            }
-            ADXPD_Reset(base->expander);
-            base->add_write_info(base->add_write_object,
-                                 base->decoded_data_length,
-                                 base->decoded_samples);
-            base->status = 3;
+            ADXB_FinishDecode(decoder);
         }
     }
 }

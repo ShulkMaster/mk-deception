@@ -252,7 +252,8 @@ void __VMBASEInvalidateLockedPageTable(void)
     }
 }
 
-/* TODO: [near miss] 97.60%; initial constant order and zero copy remain; stop at codegen. */
+/* TODO: [near miss] 97.60%; stride zero and clear zero coalesce before allocation;
+ * recover independent loop producers while preserving the serial clear. */
 void __VMBASEInvalidateReversePageTable(void)
 {
     u32 i;

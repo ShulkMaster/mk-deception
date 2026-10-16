@@ -245,9 +245,9 @@ static inline int lensflare_sun_blocked(
     struct FxRayPlane** planes, int count) {
     CameraObj* camera;
     Vec direction;
-    struct FxRayPlane* plane;
-    int blocked;
     int index;
+    int blocked;
+    struct FxRayPlane* plane;
 
     blocked = 0;
     if (count == 0 || planes == 0) {
@@ -267,7 +267,8 @@ static inline int lensflare_sun_blocked(
     return blocked;
 }
 
-/* TODO: [near miss] 98.24%; algorithm and CFG agree; GPR/FPR homes and independent fabs/fneg scheduling remain. */
+/* TODO: [near miss] 98.37209%; obstruction cursor/index now agree;
+ * display FP homes and independent fabs/fneg scheduling remain. */
 static float lensflare_proc2(void) {
     int index;
     struct LensflarePdata* pdata;
@@ -468,7 +469,7 @@ static inline int fighting_style_sign_can_restart(int player)
     return 0;
 }
 
-/* TODO: [near miss] 98.96%; restart joins recovered; retail retains a PID selection copy; honest forms exhausted. */
+/* TODO: [near miss] 98.96227%; initial pcode selects directly into PID; recover the retail selection-to-owner copy boundary. */
 void show_fighting_style(GlobalMoveset* moveset, int player) {
     struct FightingStyleSignPdata* pdata;
     ScreenObj* sign;

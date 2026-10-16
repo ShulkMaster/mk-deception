@@ -420,11 +420,9 @@ static inline void moves_sleep(float ticks) {
 }
 
 static inline int moves_is_weapon_style(PlyrFighterDefinition* style) {
-    PlyrStyleDefinition* weapon_data;
-
-    if (style != 0 && (weapon_data = style->definition) != 0 &&
-        (weapon_data->primary_weapon != 0 ||
-         weapon_data->secondary_weapon != 0)) {
+    if (style != 0 && style->definition != 0 &&
+        (style->definition->primary_weapon != 0 ||
+         style->definition->secondary_weapon != 0)) {
         return 1;
     }
     return 0;
@@ -1194,7 +1192,6 @@ static inline void moves_activate_style_weapons(PlyrPdata* const* const player_o
     }
 }
 
-/* TODO: [near miss] 99.82%; activation owner agrees; style-search r5/r6 coloring remains. */
 void start_special_weapon_monitor(void) {
     struct MovesWeaponWatchPdata* pdata;
     MkProc* monitor;
@@ -2794,8 +2791,8 @@ void advance_my_current_switch(void) {
     p2_current_switch_time = p2_switch_log[p2_current_log_index].tick;
 }
 
-/* TODO: [breakthrough needed] 89.69%; frontend uses an element-based tick load;
- * retail requires independently indexed field bases. */
+/* TODO: [breakthrough needed] 89.6875%; operand lowering folds tick displacement
+ * into the element load; recover retained field-base address ownership. */
 void update_my_last_switch(void) {
     unsigned int index;
     int switch_id;
@@ -2822,7 +2819,8 @@ void update_my_last_switch(void) {
     p2_current_switch_time = switch_value;
 }
 
-/* TODO: [near miss] 98.41%; retail indexes field bases; entry staging still folds to lwz. */
+/* TODO: [breakthrough needed] 98.41410%; field-base codegen retains displacement in LWZ;
+ * sibling native captures rule out commuted indexing; recover address ownership. */
 static float j_flying_kick2_early(void) {
     MkHdr* object;
     struct SwitchLogEntry* entry;
@@ -2906,7 +2904,8 @@ static float j_flying_kick2_early(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.75%; only the inlined update_my_last_switch lwzx addressing differs; fix it there. */
+/* TODO: [breakthrough needed] 98.74525%; shared tick addressing folds before allocation;
+ * recover independent field-base indexing without regressing helper consumers. */
 float j_flying_kick2(void) {
     MkHdr* object;
     float attack_ticks;
@@ -2943,7 +2942,8 @@ float j_flying_kick2(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.43%; six switch-log column loads still use element addressing instead of retail indexed field bases. */
+/* TODO: [breakthrough needed] 98.42795%; codegen retains tick displacement in LWZ;
+ * commuted indexing still misses indexed tick load; recover field-base ownership. */
 static float j_flying_kick1_early(void) {
     MkHdr* object;
     struct SwitchLogEntry* entry;
@@ -3022,7 +3022,8 @@ static float j_flying_kick1_early(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.79%; inlined update_my_last_switch needs independent base/base+4 address trees; shared helper source unresolved. */
+/* TODO: [breakthrough needed] 98.79121%; IRO preserves independent field bases;
+ * Operands_Add case 11 drops indexed tick addressing after symbol normalization. */
 float j_flying_kick(void) {
     MkHdr* object;
     float attack_ticks;
@@ -3060,8 +3061,8 @@ float j_flying_kick(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.43%; real log-base/index staging restored; retail field-base
- * indexed loads differ from folded entry loads; typed slot/helper forms regress; stop without new alias/layout evidence. */
+/* TODO: [breakthrough needed] 98.42795%; native Operand_Add case 11 folds +4;
+ * recover typed source retaining index-first operands for indexed field loads. */
 static float j_flying_punch_early(void) {
     MkHdr* object;
     struct SwitchLogEntry* entry;
@@ -3140,7 +3141,8 @@ static float j_flying_punch_early(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.84%; airborne landing CFG aligns; typed input-log indexed loads remain. */
+/* TODO: [near miss] 98.84%; input-log field address CSE remains;
+ * typed snapshot boundary is neutral; recover independent indexed field ownership. */
 static float j_flying_punch(void) {
     MkHdr* object;
     int log_index;
@@ -3637,7 +3639,6 @@ void sidekick_intro_check(void) {
     }
 }
 
-/* TODO: [near miss] 99.96%; only wrapped_angle FPR coloring remains (f27 vs retail f26); stop at coloring. */
 static float p_plyr_sidekick_intro(void) {
     PlyrPdata* player;
     PlyrInfo* player_info;
@@ -3651,12 +3652,10 @@ static float p_plyr_sidekick_intro(void) {
     Vec direction;
     Vec lateral;
     Vec offset;
+    Vec position;
     float length_sq;
     float inverse_length;
     float wrapped_angle;
-    float position_x;
-    float position_y;
-    float position_z;
     float angle_x;
     float angle_y;
     float angle_z;
@@ -3698,15 +3697,15 @@ static float p_plyr_sidekick_intro(void) {
     } else {
         v3_add_v3_scaled(&offset, &offset, &lateral, -0.55f);
     }
-    position_x = offset.x += main_object->pos.value.x;
-    position_y = g_game_info.field_34;
-    position_z = offset.z += main_object->pos.value.z;
+    position.x = offset.x += main_object->pos.value.x;
+    position.y = g_game_info.field_34;
+    position.z = offset.z += main_object->pos.value.z;
 
     sidekick->ground_colls_y = main_object->ground_colls_y;
     set_root_and_obj_movement_weights(anim, 0.0f, 0.5f);
-    sidekick->pos.value.x = position_x;
-    sidekick->pos.value.y = position_y;
-    sidekick->pos.value.z = position_z;
+    sidekick->pos.value.x = position.x;
+    sidekick->pos.value.y = position.y;
+    sidekick->pos.value.z = position.z;
     sidekick->ang.x = angle_x;
     sidekick->ang.y = angle_y;
     sidekick->ang.z = angle_z;
@@ -4216,8 +4215,8 @@ void noobsmoke_sidekick_double_charge(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 99.96403%; recover defined offset/lateral Y inputs;
- * normalized-angle f27/f26 coloring also remains. */
+/* TODO: [breakthrough needed] 99.96403%; offset/lateral Y values lack initialization
+ * before the vector call; recover defined inputs before the three angle-coloring rows. */
 static float p_plyr_sidekick_charge(void) {
     float wrapped_angle;
     float position_y;
@@ -4434,7 +4433,8 @@ static inline void moves_create_sidekick_exit_process(void) {
     }
 }
 
-/* TODO: [near miss] 99.81%; six player-x/normalized-z FPR rows remain; prior trace and owner controls exhausted. */
+/* TODO: [near miss] 99.80978%; raw-x shares the delta owner and normalized-z splits;
+ * recover an independent raw sample before the opponent load; scratch slots agree. */
 int advance_my_sidekick_from_behind_with_moveset(void) {
     MkObj* sidekick;
     MkHdr* object;
@@ -4520,7 +4520,32 @@ void advance_sidekick_with_moveset(PlyrPdata* player) {
     }
 }
 
-/* TODO: [near miss] 99.27%; CFG and math agree; equivalent frame slots and GPR coloring remain; stop at coloring. */
+static inline void moves_launch_sidekick_watchdog(PlyrPdata* player) {
+    struct MovesSidekickPdata* watchdog_pdata;
+    MkProc* proc;
+
+    if (player->plyr_num == 0) {
+        proc = _create_mkproc_generic_bigstack(
+            0xC028, 8, p_sidekick_watchdog_launcher,
+            sizeof(*watchdog_pdata), (MkHdr**)&watchdog_pdata);
+    } else {
+        proc = _create_mkproc_generic_bigstack(
+            0xC029, 8, p_sidekick_watchdog_launcher,
+            sizeof(*watchdog_pdata), (MkHdr**)&watchdog_pdata);
+    }
+    if (proc != 0 && watchdog_pdata != 0) {
+        watchdog_pdata->player = player;
+    }
+
+}
+
+static inline CmdScript* moves_get_player_script(PlyrPdata* player, MkProc** player_proc) {
+    *player_proc = MK_LIVE(player->own_player_proc, player->own_player_proc_instance);
+    return get_cmdscript_for_proc(*player_proc);
+}
+
+/* TODO: [breakthrough] 99.74509%; factory slots and retained owners recovered;
+ * process input coalesces with r3 before r30; two scale operand orders remain. */
 static float p_plyr_sidekick_switch(void) {
     PlyrPdata* player;
     PlyrInfo* plyr_info;
@@ -4530,8 +4555,6 @@ static float p_plyr_sidekick_switch(void) {
     AnimPdata* sidekick_anim;
     MkProc* player_proc;
     CmdScript* script;
-    struct MovesSidekickPdata* watchdog_pdata;
-    MkProc* proc;
     float position_y;
     float angle_x;
     float angle_y;
@@ -4564,8 +4587,7 @@ static float p_plyr_sidekick_switch(void) {
         return -1.0f;
     }
 
-    player_proc = MK_LIVE(player->own_player_proc, player->own_player_proc_instance);
-    script = get_cmdscript_for_proc(player_proc);
+    script = moves_get_player_script(player, &player_proc);
     tag_team_activate_player(sidekick, plyr_info->slot.pdata->sidekick_active);
     position_y = plyr_info->slot.mirror_a->pos.value.y;
     angle_x = plyr_info->slot.mirror_a->ang.x;
@@ -4610,18 +4632,7 @@ static float p_plyr_sidekick_switch(void) {
     unhide_obj(sidekick);
     sidekick_anim->step = 1.25f;
 
-    if (player->plyr_num == 0) {
-        proc = _create_mkproc_generic_bigstack(
-            0xC028, 8, p_sidekick_watchdog_launcher,
-            sizeof(*watchdog_pdata), (MkHdr**)&watchdog_pdata);
-    } else {
-        proc = _create_mkproc_generic_bigstack(
-            0xC029, 8, p_sidekick_watchdog_launcher,
-            sizeof(*watchdog_pdata), (MkHdr**)&watchdog_pdata);
-    }
-    if (proc != 0 && watchdog_pdata != 0) {
-        watchdog_pdata->player = player;
-    }
+    moves_launch_sidekick_watchdog(player);
 
     if (g_game_info.flag_bits.level_fatality_active != 0 ||
         g_game_info.flag_bits.level_transition_active != 0) {
@@ -4773,8 +4784,6 @@ float x_advance_moveset(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 99.78%; r3/r4 homes for conversion base and animation
- * reloads differ in seven rows; preserve direct stores and unsigned tick subtraction. */
 void attack_to_frame_x(AniData* animation, float frame, float blend_rate,
                        float step, float weight, unsigned int voice_event,
                        unsigned int whoosh_event, int transition) {
@@ -4792,8 +4801,8 @@ void attack_to_frame_x(AniData* animation, float frame, float blend_rate,
         blend_to_ani(animation, transition, blend_rate);
     }
     plyr_anim_pdata->step = step;
-    voice_frame = voice_event >> 16;
     plyr_anim_pdata->weight = weight;
+    voice_frame = voice_event >> 16;
     whoosh_frame = whoosh_event >> 16;
 
     if (voice_frame < frame && whoosh_frame < frame) {

@@ -193,7 +193,8 @@ static inline int gc_resolve_profile_crc_answer(int device)
     return continue_loading;
 }
 
-/* TODO: [near miss] 98.62%; device/index allocation agrees; redundant format-result branch remains. */
+/* TODO: [near miss] 98.61591%; retail retains a live format-result test with
+ * identical zero-result arms; CFG recovery would require redundant source logic. */
 int check_load_profile_result(int* result, int device) {
     StorageDevice* dev;
     int cont;
@@ -522,7 +523,8 @@ static inline int mem_card_unmount(int device) {
     }
 }
 
-/* TODO: [breakthrough needed] 94.72%; recover retail unmount's second checked index and wrapper boundary. */
+/* TODO: [breakthrough needed] 94.72%; second unmount index and nested wrapper
+ * lack proven GC owners; PS2 candidate identity remains unverified. */
 int gc_format_procedure(int device) {
     unsigned int mask;
     s32 sectorSize;
@@ -714,14 +716,15 @@ static inline int calc_data_checksum(unsigned char* buffer, unsigned int length)
         unsigned char oldBit = bit;
         sum += (unsigned char)(*buffer++ | oldBit);
         bit = (unsigned char)bit >> 1;
-        if (bit == 0) {
+        if (((unsigned int)oldBit >> 1) == 0) {
             bit = 0x80;
         }
     }
     return sum;
 }
 
-/* TODO: [breakthrough] 96.71%; channel copies partly restored; checksum producer and dead default branches remain. */
+/* TODO: [near miss] 97.20144%; SDK copies coalesce into channel webs;
+ * checksum homes and missing default blocks need an earlier owner boundary. */
 int load_from_memcard2(const int device, int modeFlag, unsigned int offset, const char* unusedStr,
                        const char* fileName, void* buffer, int size, const char* unusedCardName,
                        int unusedNameLen, unsigned int* freeBlocks, int* freeBytes,
@@ -946,7 +949,8 @@ static inline int mem_card_write(CARDFileInfo* fileInfo, void* buffer, const int
     }
 }
 
-/* TODO: [breakthrough] 98.22%; cleanup and padding agree; recover checksum shift and mount owner before coloring. */
+/* TODO: [breakthrough needed] 98.55849%; checksum/mount homes and extra device snapshot remain;
+ * retail-only switch branches plus coalesced-copy pressure need original wrapper evidence. */
 int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int createFlag,
                      const char* unusedStr, const char* fileName, void* buffer, int size,
                      unsigned int* freeBlocks,
@@ -1328,7 +1332,8 @@ static int gc_get_memcard_serial_number(int device, u64* out) {
     return result;
 }
 
-/* TODO: [near miss] 93.95%; device/result homes and two callback load pairs remain; table-owner/RMW forms neutral. */
+/* TODO: [near miss] 93.95%; parameter/result claim order and callback load ties remain;
+ * recover frontend ownership and callback-load evaluation order. */
 int update_storage_status_for_one_device(int device) {
     int changed = 0;
 
@@ -1353,7 +1358,8 @@ int update_storage_status_for_one_device(int device) {
     return changed;
 }
 
-/* TODO: [near miss] 94.44%; device/mask r29/r30 swap and two callback load pairs; owner/RMW forms neutral. */
+/* TODO: [near miss] 94.44%; named device and CSE table base swap saved homes;
+ * postcallback mask/global load ties remain. */
 int update_storage_status(int flag) {
     int device;
     int any = 0;

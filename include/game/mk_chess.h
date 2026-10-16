@@ -662,4 +662,11 @@ float p_board_switch_1(void);
 float p_board_switch_r2(void);
 float p_board_switch_l1(void);
 
+struct ChessGameDefinition;
+extern struct ChessGameDefinition g_chess_definition_info;
+void mk_chess_advantage_hud(void);
+void mk_chess_game_just_ended(void);
+float mk_chess_transition_from_fight(void);
+float p_mk_chess(void);
+
 #endif

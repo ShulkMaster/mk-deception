@@ -874,7 +874,8 @@ static inline int ladder_get_char_at_pos(int position)
     return current_ladder_tbl[position].character_id;
 }
 
-/* TODO: [breakthrough] 97.95%; ground-height owner restored; initial live-pose indexed-load producer remains. */
+/* TODO: [breakthrough needed] 97.95122%; row binding precedes the first X;
+ * recover a real indexed-load boundary surviving propagation/address CSE. */
 static void place_plyr_on_ladder(int position, int alternate_model) {
     struct LadderPlacement* placement;
     float* ground_height;
@@ -1035,8 +1036,6 @@ static inline void show_ladder_hud_data(void)
     set_string_obj_alpha(arena_name, 255.0f);
 }
 
-/* TODO: [near miss] 99.97742%; four fallback zero/one GPR homes remain;
- * all operations agree; direct slot-owner control regresses, stop at coloring. */
 float p_ladder_select(void) {
     int i;
     PlyrInfo* player;
@@ -1069,9 +1068,9 @@ float p_ladder_select(void) {
         opponent->field_04 = 1;
         player = &g_game_info.plyr0;
     } else {
-        g_game_info.plyr1.player_state = 0;
         opponent = &g_game_info.plyr1;
         opponent->field_04 = 1;
+        g_game_info.plyr1.player_state = 0;
         player = &g_game_info.plyr0;
     }
     load_ssf(gameart_file_table);

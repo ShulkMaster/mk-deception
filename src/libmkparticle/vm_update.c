@@ -241,8 +241,8 @@ static inline void pfx_wrapbox_center(PfxVec3* const output,
     output->z += matrix->elements[3][2];
 }
 
-/* TODO: [near miss] 99.59%; all operations and frame match; rounded-coordinate
- * and rescale FPR homes remain after graph review and bounded permutation. */
+/* TODO: [near miss] 99.58580%; distinct products sink in IroPropagate;
+ * compound scaling stays split/coalesced; recover original phase ownership. */
 static void do_wrapbox(int count, unsigned char* source,
                        unsigned char* destination, int stride,
                        PfxUpdateArguments* arguments)
@@ -511,13 +511,13 @@ static void do_assign_constant_v3(unsigned char* destination, int stride,
     }
 }
 
-/* TODO: [breakthrough] 94.86%; frame-time-first opcode calls corrected;
- * saved-owner coloring and final fieldstack result comparison remain unresolved. */
+/* TODO: [near miss] 99.69%; named address accumulators hide retail short owners;
+ * recover pointer-expression destinations before tuning row registers. */
 void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
 {
-    PfxUpdateInstruction* instruction;
-    int instruction_index;
     int current_stride;
+    int instruction_index;
+    PfxUpdateInstruction* instruction;
     PfxFieldBuffer* previous;
     PfxFieldBuffer* current;
     unsigned char* previous_value;
@@ -695,47 +695,45 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
             }
             break;
         case 12: {
-            PfxVmField* age_field = &instruction->arguments.fade.age_field;
             unsigned char* age_values =
-                behavior->current_streams[age_field->stream].data +
-                age_field->offset;
-            age_values += behavior->current_streams[age_field->stream].stride *
-                          behavior->active_particle_count;
+                behavior->current_streams[
+                    instruction->arguments.fade.age_field.stream].data +
+                instruction->arguments.fade.age_field.offset;
+            age_values += behavior->current_streams[
+                instruction->arguments.fade.age_field.stream].stride *
+                behavior->active_particle_count;
             do_fade_alpha(
                 frame_time, behavior->particle_count, &instruction->arguments,
                 previous_value, current_value, current_stride,
                 age_values,
-                behavior->previous_streams[age_field->stream].stride);
+                behavior->previous_streams[
+                    instruction->arguments.fade.age_field.stream].stride);
             break;
         }
         case 13: {
-            PfxVmField* age_field =
-                &instruction->arguments.color_lerp.age_field;
-            unsigned char* age_values =
-                behavior->current_streams[age_field->stream].data +
-                age_field->offset;
-            age_values += behavior->current_streams[age_field->stream].stride *
-                          behavior->active_particle_count;
+            PfxFieldBuffer* age_stream = &behavior->current_streams[
+                instruction->arguments.color_lerp.age_field.stream];
+            unsigned char* age_values = age_stream->data +
+                instruction->arguments.color_lerp.age_field.offset;
+            age_values += age_stream->stride * behavior->active_particle_count;
             do_lerp_color(
                 frame_time, behavior->particle_count, &instruction->arguments,
-                current_value, current_stride,
-                age_values,
-                behavior->previous_streams[age_field->stream].stride);
+                current_value, current_stride, age_values, age_stream->stride);
             break;
         }
         case 14: {
-            PfxVmField* age_field =
-                &instruction->arguments.texture_anim.age_field;
             unsigned char* age_values =
-                behavior->current_streams[age_field->stream].data +
-                age_field->offset;
-            age_values += behavior->current_streams[age_field->stream].stride *
-                          behavior->active_particle_count;
+                behavior->current_streams[
+                    instruction->arguments.texture_anim.age_field.stream].data +
+                instruction->arguments.texture_anim.age_field.offset;
+            age_values += behavior->current_streams[
+                instruction->arguments.texture_anim.age_field.stream].stride *
+                behavior->active_particle_count;
             do_texture_anim(
                 frame_time, behavior->particle_count, &instruction->arguments,
-                current_value, current_stride,
-                age_values,
-                behavior->previous_streams[age_field->stream].stride);
+                current_value, current_stride, age_values,
+                behavior->previous_streams[
+                    instruction->arguments.texture_anim.age_field.stream].stride);
             break;
         }
         case 17:
@@ -756,7 +754,10 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
             break;
         }
     }
-    (void)fieldstack_free();
+    if (fieldstack_free() !=
+        (int)(sizeof(fieldstack) / sizeof(fieldstack[0]))) {
+        return;
+    }
 }
 
 void set_vm_field(PfxVmField* field, unsigned int description) {

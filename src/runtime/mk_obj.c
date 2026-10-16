@@ -1983,19 +1983,15 @@ static inline RpMaterial* find_geometry_material_by_id(
     RpMaterial* material;
     unsigned int count;
     unsigned int i;
-    unsigned int offset;
     unsigned int material_id;
 
     count = geometry->matList.numMaterials;
-    offset = 0;
     for (i = 0; i < count; i++) {
-        material =
-            *(RpMaterial**)((char*)geometry->matList.materials + offset);
+        material = geometry->matList.materials[i];
         material_id = MK_MATERIAL_PLUGIN(material)->flags & 0xFFF;
         if (material_id == id) {
             return material;
         }
-        offset += sizeof(material);
     }
     return 0;
 }
@@ -2085,8 +2081,8 @@ static inline float advance_material_fade(struct FadeMaterialPdata* pdata, MkObj
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.11%; 18 amount/material r3/r4 rows remain;
- * trace confirms inline amount versus address temporary; stop at coloring. */
+/* TODO: [near miss] 99.10891%; inline amount/material homes swap;
+ * recover material owner without advancing its load before accumulator update. */
 static float p_fade_material(void) {
     MkObj* obj;
     struct FadeMaterialPdata* pdata;
@@ -2117,12 +2113,10 @@ void obj_for_all_atomics_set_material_alpha(MkObj* obj, int alpha) {
     }
 }
 
-/* TODO: [near miss] 97.45%; material-result r4 coloring and extra move to r29 remain. */
-void obj_set_material_fade(MkObj* obj, unsigned int id, signed char alpha) {
+static inline RpMaterial* find_object_material_by_id(MkObj* obj, unsigned int id) {
     MkPtr* ptr;
     MkSobj* sobj;
     RpMaterial* material;
-    RwRGBA color;
 
     material = 0;
     ptr = first_mkptr(&obj->sobj_list);
@@ -2134,6 +2128,14 @@ void obj_set_material_fade(MkObj* obj, unsigned int id, signed char alpha) {
         }
         ptr = next_mkptr(ptr);
     }
+    return material;
+}
+
+void obj_set_material_fade(MkObj* obj, unsigned int id, signed char alpha) {
+    RpMaterial* material;
+    RwRGBA color;
+
+    material = find_object_material_by_id(obj, id);
     if (material != 0) {
         color.red = alpha;
         color.green = alpha;
@@ -3427,30 +3429,32 @@ static inline unsigned int limb_material_bank_base(MkObj* obj) {
     return 0;
 }
 
-static inline RpMaterial* limb_find_object_material(MkObj* obj, unsigned int id) {
+static inline void limb_show_meat_chunk(MkObj* obj, unsigned int material_id_base,
+                                        int chunk_id) {
     MkPtr* ptr;
     MkSobj* sobj;
     RpMaterial* material;
+    unsigned int material_id = material_id_base + (unsigned int)chunk_id;
 
     material = 0;
     ptr = first_mkptr(&obj->sobj_list);
     while (ptr != 0) {
         sobj = (MkSobj*)ptr->hdr;
-        material = find_geometry_material_by_id(sobj->atomic->geometry, id);
+        material = find_geometry_material_by_id(
+            sobj->atomic->geometry, material_id);
         if (material != 0) {
             break;
         }
         ptr = next_mkptr(ptr);
     }
-    return material;
+    if (material != 0) {
+        show_material(material);
+    }
 }
 
-/* TODO: [near miss] 99.01%; five saved owner homes differ; stop at clean-C coloring ceiling. */
 void limb_sever_show_z_meat_chunks_all(MkObj* obj) {
     unsigned int material_id_base;
-    unsigned int material_id;
     unsigned int chunk_index;
-    RpMaterial* material;
     int chunk_id;
 
     material_id_base = limb_material_bank_base(obj);
@@ -3458,60 +3462,24 @@ void limb_sever_show_z_meat_chunks_all(MkObj* obj) {
     chunk_index = 0;
     while (limb_meat_chunk_list[chunk_index] > -1) {
         chunk_id = limb_meat_chunk_list[chunk_index];
-        material_id = material_id_base + (unsigned int)chunk_id;
-        material = limb_find_object_material(obj, material_id);
-        if (material != 0) {
-            show_material(material);
-        }
+        limb_show_meat_chunk(obj, material_id_base, chunk_id);
         chunk_index++;
     }
 }
 
-static inline void limb_find_geometry_material(
-    RpGeometry* geometry, unsigned int id, RpMaterial** result) {
-    unsigned int count = geometry->matList.numMaterials;
-    unsigned int i;
-    unsigned int material_id;
-
-    for (i = 0; i < count; i++) {
-        *result = geometry->matList.materials[i];
-        material_id = MK_MATERIAL_PLUGIN(*result)->flags & 0xFFF;
-        if (material_id == id) {
-            return;
-        }
-    }
-    *result = 0;
-}
-
-/* TODO: [near miss] 98.25%; result owner recovered; bank coloring and helper-exit branch remain. */
+/* TODO: [near miss] 99.88%; shared per-chunk helper restores owners and CFG;
+ * final bank-plus-ID add operands are reversed; preserve exact show-all sibling. */
 void limb_sever_show_z_meat_chunks(
     MkObj* obj, int limb, int include_children) {
-    MkPtr* ptr;
-    RpMaterial* material;
     unsigned int material_id_base;
-    unsigned int material_id;
     int* material_ids;
     int shown;
 
     shown = 0;
     material_id_base = limb_material_bank_base(obj);
-
     material_ids = limb_meats_mat_id_tbl[limb];
     while (*material_ids != -1) {
-        material_id = (unsigned int)*material_ids + material_id_base;
-        material = 0;
-        ptr = first_mkptr(&obj->sobj_list);
-        while (ptr != 0) {
-            limb_find_geometry_material(
-                ((MkSobj*)ptr->hdr)->atomic->geometry, material_id, &material);
-            if (material != 0) {
-                break;
-            }
-            ptr = next_mkptr(ptr);
-        }
-        if (material != 0) {
-            show_material(material);
-        }
+        limb_show_meat_chunk(obj, material_id_base, *material_ids);
         material_ids++;
         if (shown != 0 && include_children == 0) {
             break;
@@ -3563,8 +3531,6 @@ static void _move_bones_from_obj_to_limbobj(
 
 
 
-/* TODO: [near miss] 99.94624%; six pivot/second-chain matrix register rows;
- * recover the original MAP-backed pivot helper before further coloring trials. */
 MkObj* obj_sever_limb(
     MkObj* obj, int limb, Vec* limb_velocities, int include_children) {
     MkObj* source;
@@ -3574,14 +3540,17 @@ MkObj* obj_sever_limb(
     PlyrInfo* player;
     MkSobj* sobj;
     MkBone* root;
-    MkBone* chain_bone;
-    MkBone* source_bone;
     MkPtr* sobj_ref;
+    RwMatrix* source_matrix;
+    MkBone* source_bone;
+    MkBone* second_source_bone;
+    RwMatrix* second_chain_matrix;
+    MkBone* chain_bone;
+    MkBone* second_chain_bone;
+    RwMatrix* chain_matrix;
     ClothBone* source_cloth;
     ClothBone* chain_cloth_bone;
     MkObj* chain;
-    RwMatrix* source_matrix;
-    RwMatrix* chain_matrix;
     Vec* limb_velocity;
     void* effect;
     Vec root_offset;
@@ -3813,22 +3782,22 @@ MkObj* obj_sever_limb(
                       if (source->bones[23] != 0) {
                         source_matrix = &source->bones[23]->matrix;
                       }
-                      chain_matrix = chain->field_24;
-                      memcpy(chain_matrix, source_matrix, sizeof(RwMatrix));
-                      RwMatrixUpdate(chain_matrix);
+                      second_chain_matrix = chain->field_24;
+                      memcpy(second_chain_matrix, source_matrix, sizeof(RwMatrix));
+                      RwMatrixUpdate(second_chain_matrix);
                       RwFrameUpdateObjects(chain->frame);
                       ft_fake_bone_matcher(chain, severed, 0x17, 0, 0, 0, 1,
                                            0.0f);
                       if (severed->bones[96] != 0) {
                         for (i = 0; i < 6; i++) {
-                          source_bone = source->bones[96 + i];
-                          chain_bone = chain->bones[i + 1];
-                          memcpy(&chain_bone->matrix, &source_bone->matrix,
+                          second_source_bone = source->bones[96 + i];
+                          second_chain_bone = chain->bones[i + 1];
+                          memcpy(&second_chain_bone->matrix,
+                                 &second_source_bone->matrix, sizeof(RwMatrix));
+                          memcpy(second_chain_bone->parent_matrix,
+                                 second_source_bone->original_parent_matrix,
                                  sizeof(RwMatrix));
-                          memcpy(chain_bone->parent_matrix,
-                                 source_bone->original_parent_matrix,
-                                 sizeof(RwMatrix));
-                          chain_cloth_bone = chain_bone->cloth_link;
+                          chain_cloth_bone = second_chain_bone->cloth_link;
                           source_cloth = severed->bones[96 + i]->cloth_link;
                           chain_cloth_bone->world_target.x =
                               source_cloth->world_target.x;
@@ -3869,15 +3838,13 @@ static void scan_tree_to_xfer_bone_tree_from_obj_to_limb_obj(MkObj *source_arg,
 #pragma inline_depth(2)
 static inline void scan_tree_to_xfer_bone_tree_from_obj_to_limb_obj(
     MkObj* source_arg, MkObj* limb_arg, int limb_id) {
-    MkObj* source;
     MkBone* queue[150];
     MkBone* bone;
     unsigned int count;
     unsigned int read_index;
 
-    source = source_arg;
     count = read_index = 0;
-    bone = source->bones[source->fallback_bone_index];
+    bone = source_arg->bones[source_arg->fallback_bone_index];
     queue[count++] = bone;
     bone = bone->root_next;
     while (bone != 0) {
@@ -3902,7 +3869,8 @@ static inline void scan_tree_to_xfer_bone_tree_from_obj_to_limb_obj(
     }
 }
 
-/* TODO: [near miss] 98.22660%; second inline queue scan has GPR-home residue. */
+/* TODO: [near miss] 98.22660%; second recursive BFS owner/count GPR homes differ;
+ * current trace confirms coloring; stop pending a new inline-boundary fact. */
 static void _move_bones_from_obj_to_limbobj(
     MkObj* source_arg, MkObj* limb_arg, int bone_index, int include_children) {
     MkSobj* sobj;

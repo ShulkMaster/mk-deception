@@ -69,8 +69,6 @@ int g_GameLossesInARow;
 
 extern int trial_get_round_length(void);
 extern int pause_player;
-extern void move_player(MkObj* object, Vec* position, Vec* angles);
-extern void show_player(PlyrPdata* player);
 extern void bgnd_swap_level(int level);
 static char timer_string[10];
 GlobalMoveset global_movesets[GLOBAL_MOVESET_COUNT];
@@ -158,12 +156,9 @@ extern void trial_game_init(void);
 extern void show_fighting_style(GlobalMoveset* moveset, int player);
 extern void bleed_startup(void);
 extern void create_wall_monitor(void);
-extern void reset_camera_paths(void);
 extern void screen_engine_cleanup(void);
 extern int go_into_major_pain_please;
 extern int go_into_twitch_death_please;
-extern int p1_profile_status;
-extern int p2_profile_status;
 struct EndingTiming plyr_ending_timings[] = {
     {7, 825.0f, 400.0f, 350.0f, 120.0f, 60.0f, 120.0f, 5.0f, 80.0f},
     {1, 590.0f, 370.0f, 400.0f, 120.0f, 60.0f, 120.0f, 5.0f, 120.0f},
@@ -437,12 +432,9 @@ extern struct KonquestLoadingPdataView* konquest_pdata;
 extern unsigned char konquest_save_data[];
 extern char bgnd_animations[];
 extern int g_big_boss_intro_tap_out_f;
-extern float p_animated_intro_done(void);
-extern float p_attract_camera(void);
 extern float p_ladder_select(void);
 extern float big_boss_taunt_cam_cut(void);
 extern void sidekick_intro_check(void);
-extern int intro_done(void);
 extern void trial_start_new_round(void);
 extern void trial_round_init(void);
 extern void mk_chess_advantage_hud(void);
@@ -973,8 +965,8 @@ static inline int game_count_active_players(void) {
     return count;
 }
 
-/* TODO: [near miss] 99.55%; latch homes, table bases and fade temporaries differ;
- * stop at coloring until new owner or lifetime evidence is available. */
+/* TODO: [near miss] 99.55213%; latch, table and alpha homes remain;
+ * typed latch/original owner propagation needs compiler-pass evidence. */
 void do_win_effect(void) {
     PlyrInfo* victor;
     PlyrInfo* defeated;
@@ -1990,7 +1982,6 @@ static struct LoadingScreenEntry* get_loading_table(void) {
     }
 }
 
-/* TODO: [near miss] 99.85%; final progress scale FPR homes and 0.5f pool entry remain (/ 2.0f form reaches report-exact but drops a retail sdata2 entry). */
 static float p_load_screen(void) {
     ScreenObj* last_image;
     struct LoadScreenPdata* pdata;
@@ -2110,7 +2101,8 @@ static float p_load_screen(void) {
         if (progress > 1.0f) {
             progress = 1.0f;
         }
-        meter->scale_x = (int)(183.0f * progress * 0.5f);
+        progress = 183.0f * progress;
+        meter->scale_x = (int)(progress / 2.0f);
     }
     return 1.0f;
 }

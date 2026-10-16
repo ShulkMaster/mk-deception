@@ -731,8 +731,8 @@ int SBPlayable_Stream::Pause(void) {
     return result;
 }
 
-/* TODO: [near miss] 96.37%; ADPCM dirty-sync snapshots fixed; secondary result copy
- * and loop-publication scheduling/coloring remain. */
+/* TODO: [breakthrough needed] 96.36713%; named secondary cannot join the inline
+ * result; recover query/address and loop-publication owners with the mono gate. */
 void SBPlayable_Stream::iUpdate_AXUser(void) {
     SBPlayable_Stream* stream = this;
     int primary_block;
@@ -1149,8 +1149,8 @@ static inline SPSoundEntry* GetStreamSoundEntry(SPSoundTable* table) {
     return sound;
 }
 
-/* TODO: [near miss] 99.24%; result/stream-loop and voice-address GPR homes remain;
- * preserve lookup ownership and stop at coloring. */
+/* TODO: [near miss] 99.24171%; result/loop and address-publication homes differ;
+ * result stall defeats declaration changes; recover original publication shape. */
 int SBPlayable_Stream::iPlayPrepped(void) {
     int result = -1;
 
@@ -1900,7 +1900,8 @@ int SoundBuffer_Playable::SetCurrentPosition(
     return -1;
 }
 
-/* TODO: [near miss] 98.43%; all operations agree; primary/secondary channel register homes remain. */
+/* TODO: [near miss] 98.43%; loop/sound owners precede voice inline bands;
+ * recover complete voice-configuration ownership across the CG zero. */
 int SoundBuffer_Playable::iPlay(
     unsigned long flags, unsigned long acquire_priority,
     unsigned long active_priority) {

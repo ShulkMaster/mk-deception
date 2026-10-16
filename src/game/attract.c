@@ -349,7 +349,6 @@ static inline int next_unlocked_bio(int* next_index, unsigned int hi,
     }
 }
 
-/* TODO: [near miss] 99.80%; alternate-summary and screen/frame register allocation differ; recover real owner lifetimes. */
 static void atm_bio_screen(void) {
     static int next_bio_screen = -1;
     int bio_index;
@@ -357,6 +356,8 @@ static void atm_bio_screen(void) {
     int unlock_bit;
     int sound_id;
     int match;
+    StringObj* bio_text;
+    int height;
     int frame;
     int pressed;
     int x;
@@ -383,7 +384,7 @@ static void atm_bio_screen(void) {
     use_alt = 0;
     if ((randu0(2U) & 0xFFFFU) != 0) {
         unlock_bit = bio_file_table[next_bio_screen].unlock_bit;
-        if (gp_unlock_bit_set(gp_data.cat8.words[0], gp_data.cat8.words[1], unlock_bit) != 0) {
+        if ((gp_data.cat8.value & (long long)(int)(1U << (unsigned int)unlock_bit)) != 0ull) {
             use_alt = 1;
         }
     }
@@ -425,9 +426,6 @@ static void atm_bio_screen(void) {
     match = find_bio_unlock_index(unlock_bit);
 
     if (match != -1) {
-        StringObj* bio_text;
-        int height;
-
         if (use_alt != 0) {
             text = get_string_by_id(bio_file_table[match].string_id_b | 0x20000);
         } else {

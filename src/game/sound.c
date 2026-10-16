@@ -681,7 +681,8 @@ static inline void unload_mode_bank_list(void)
     }
 }
 
-/* TODO: [near miss] 96.34%; bank address formed before admission (retail lwzx, late add) remains. */
+/* TODO: [breakthrough needed] 96.34241%; bank pointer forms before admission;
+ * CSE-off regresses; recover the original late admission/owner boundary. */
 void setup_sound_bank_list_by_mode(int mode, int transition_mode) {
     if (mode < 0 || mode >= 0xF) {
         return;
@@ -997,22 +998,11 @@ int get_indirect_bank(unsigned int indirect_bank) {
     return bank;
 }
 
-/* TODO: [near miss] 99.13%; canonical response layout verified; bank/handle r4/r5 coloring remains. */
-static void lsba_callbank(_mslAsyncResponse* response) {
-    struct SoundBankCallback* callback = (struct SoundBankCallback*)response;
-    int bank;
+static inline void sound_publish_bank_response(int bank, _mslAsyncResponse* response) {
     mslLoadedBank* handle;
 
-    if (callback == 0) {
-        return;
-    }
-    if (callback->bank_index == 0) {
-        return;
-    }
-
-    bank = *callback->bank_index;
-    handle = callback->response.result;
-    switch (callback->response.status) {
+    handle = response->result;
+    switch (response->status) {
     case 0:
         sbank_data[bank].handle = handle;
         sbank_data[bank].async_state = 0;
@@ -1038,6 +1028,21 @@ static void lsba_callbank(_mslAsyncResponse* response) {
         sbank_data[bank].callback.response.status = 0;
         break;
     }
+}
+
+static void lsba_callbank(_mslAsyncResponse* response) {
+    struct SoundBankCallback* callback = (struct SoundBankCallback*)response;
+    int bank;
+
+    if (callback == 0) {
+        return;
+    }
+    if (callback->bank_index == 0) {
+        return;
+    }
+
+    bank = *callback->bank_index;
+    sound_publish_bank_response(bank, response);
 }
 
 void check_and_load_sound_bank_async(int bank, int slot) {
@@ -1496,16 +1501,52 @@ void snd_death_voice(void) {
     random_voice(0xE);
 }
 
-/* TODO: [near miss] 97.59%; one extra saved GPR (stmw r27) and an extra li 0 in each -1 arm; branch-result coloring remains. */
+#pragma dont_inline reset
+
+static inline MslSoundHandle play_random_sound(
+    int sound_id, float pan, float volume, float pitch) {
+    struct SoundRequest request;
+    MslSoundHandle handle = 0;
+
+    if (sound_id == -1) {
+        return handle;
+    }
+    if (sound_id < 0 || sound_id >= 0x1C0C) {
+        handle = 0;
+    } else {
+        SoundEntry* entry;
+
+        request.sound_id = sound_id;
+        request.volume = volume;
+        request.apply_group_volume = 1;
+        if (snd_calculate_volume(&request)) {
+            if (pan < -2.0f) {
+                pan = -2.0f;
+            }
+            if (pan > 2.0f) {
+                pan = 2.0f;
+            }
+            if (pitch < 0.5f) {
+                pitch = 0.5f;
+            }
+            if (pitch > 1.5f) {
+                pitch = 1.5f;
+            }
+            entry = &mk_sound_table[sound_id];
+            handle = mslBankPlayVolPanPitch(
+                request.bank, entry->bank, entry->sound, entry->field_0c,
+                request.volume, pan, pitch, entry->field_18);
+        }
+    }
+    return handle;
+}
+
 MslSoundHandle pan_vol_pitch_random_snd_req(int group, float pan, float volume, float pitch) {
-    struct SoundRequest single_request;
-    struct SoundRequest alternate_request;
-    struct SoundRequest random_request;
+    int* sounds;
     unsigned char previous;
-    int *sounds;
     int count;
     MslSoundHandle handle = 0;
-    unsigned short choice;
+    int choice;
     int sound_id;
 
     if (group >= 0 && group < 0xB5) {
@@ -1513,155 +1554,39 @@ MslSoundHandle pan_vol_pitch_random_snd_req(int group, float pan, float volume, 
         if (sounds != 0) {
             count = random_sound_request[group].count;
             previous = random_sound_request[group].previous;
-
             switch (count) {
-            case 1: {
-                float play_pan;
-                float play_pitch;
-                MslSoundHandle branch_handle;
-
+            case 1:
                 sound_id = sounds[0];
-                play_pitch = pitch;
-                play_pan = pan;
-                branch_handle = 0;
-                if (sound_id == -1) {
-                    branch_handle = 0;
-                } else {
-                    if (sound_id < 0 || sound_id >= 0x1C0C) {
-                        branch_handle = 0;
-                    } else {
-                        SoundEntry *entry;
-
-                        single_request.sound_id = sound_id;
-                        single_request.volume = volume;
-                        single_request.apply_group_volume = 1;
-                        if (snd_calculate_volume(&single_request)) {
-                            if (play_pan < -2.0f) {
-                                play_pan = -2.0f;
-                            }
-                            if (play_pan > 2.0f) {
-                                play_pan = 2.0f;
-                            }
-                            if (play_pitch < 0.25f) {
-                                play_pitch = 0.25f;
-                            }
-                            if (play_pitch > 4.0f) {
-                                play_pitch = 4.0f;
-                            }
-                            entry = &mk_sound_table[sound_id];
-                            branch_handle = mslBankPlayVolPanPitch(
-                                single_request.bank, entry->bank, entry->sound, entry->field_0c,
-                                single_request.volume, play_pan, play_pitch, entry->field_18);
-                        }
-                    }
-                }
-                handle = branch_handle;
+                handle = play_random_sound(sound_id, pan, volume, pitch);
                 break;
-            }
             case 0:
                 break;
             case 2: {
-                float play_pan;
-                float play_pitch;
-                MslSoundHandle branch_handle;
                 int alternate;
 
                 if (previous >= count) {
                     previous = 0;
                     random_sound_request[group].previous = 0;
                 }
-                play_pitch = pitch;
                 alternate = 1 - previous;
-                play_pan = pan;
                 sound_id = sounds[alternate];
-                branch_handle = 0;
-                if (sound_id == -1) {
-                    branch_handle = 0;
-                } else {
-                    if (sound_id < 0 || sound_id >= 0x1C0C) {
-                        branch_handle = 0;
-                    } else {
-                        SoundEntry *entry;
-
-                        alternate_request.sound_id = sound_id;
-                        alternate_request.volume = volume;
-                        alternate_request.apply_group_volume = 1;
-                        if (snd_calculate_volume(&alternate_request)) {
-                            if (play_pan < -2.0f) {
-                                play_pan = -2.0f;
-                            }
-                            if (play_pan > 2.0f) {
-                                play_pan = 2.0f;
-                            }
-                            if (play_pitch < 0.25f) {
-                                play_pitch = 0.25f;
-                            }
-                            if (play_pitch > 4.0f) {
-                                play_pitch = 4.0f;
-                            }
-                            entry = &mk_sound_table[sound_id];
-                            branch_handle = mslBankPlayVolPanPitch(
-                                alternate_request.bank, entry->bank, entry->sound, entry->field_0c,
-                                alternate_request.volume, play_pan, play_pitch, entry->field_18);
-                        }
-                    }
-                }
+                handle = play_random_sound(sound_id, pan, volume, pitch);
                 random_sound_request[group].previous = alternate;
-                handle = branch_handle;
                 break;
             }
-            default: {
-                float play_pan;
-                float play_pitch;
-                MslSoundHandle branch_handle;
-
+            default:
                 if (previous >= count) {
                     previous = 0;
                     random_sound_request[group].previous = 0;
                 }
-                choice = randu0((unsigned short)(count - 1));
+                choice = randu0((unsigned short)(count - 1)) & 0xFFFF;
                 if (choice >= previous) {
                     choice++;
                 }
-                play_pitch = pitch;
                 sound_id = sounds[choice];
-                play_pan = pan;
-                branch_handle = 0;
-                if (sound_id == -1) {
-                    branch_handle = 0;
-                } else {
-                    if (sound_id < 0 || sound_id >= 0x1C0C) {
-                        branch_handle = 0;
-                    } else {
-                        SoundEntry *entry;
-
-                        random_request.sound_id = sound_id;
-                        random_request.volume = volume;
-                        random_request.apply_group_volume = 1;
-                        if (snd_calculate_volume(&random_request)) {
-                            if (play_pan < -2.0f) {
-                                play_pan = -2.0f;
-                            }
-                            if (play_pan > 2.0f) {
-                                play_pan = 2.0f;
-                            }
-                            if (play_pitch < 0.25f) {
-                                play_pitch = 0.25f;
-                            }
-                            if (play_pitch > 4.0f) {
-                                play_pitch = 4.0f;
-                            }
-                            entry = &mk_sound_table[sound_id];
-                            branch_handle = mslBankPlayVolPanPitch(
-                                random_request.bank, entry->bank, entry->sound, entry->field_0c,
-                                random_request.volume, play_pan, play_pitch, entry->field_18);
-                        }
-                    }
-                }
+                handle = play_random_sound(sound_id, pan, volume, pitch);
                 random_sound_request[group].previous = choice;
-                handle = branch_handle;
                 break;
-            }
             }
         }
     }
@@ -1703,81 +1628,44 @@ float p_random_snd_req_delay(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 93.28%; table LWZX and sentinel branch absent before allocation;
- * recover source/inline boundaries; FPR/GPR coloring remains secondary. */
 MslSoundHandle pan_vol_pitch_random_hit(
     int group, float pan, float volume, float pitch) {
-    struct SoundRequest request;
     MslSoundHandle result = 0;
-    SoundEntry* entry;
+    int sound_id;
     int* sounds;
     int count;
     SoundCallTable* table;
-    SoundCallTable* call;
     unsigned int choice;
-    int sound_id;
 
     if (group >= 0 && group < 0x13) {
         if (mode_of_play == 6) {
             table = pf_hit_call_table;
             sounds = table[group].sounds;
-            call = &table[group];
-            count = call->count;
+            count = table[group].count;
         } else {
             table = hit_call_table;
             sounds = table[group].sounds;
-            call = &table[group];
-            count = call->count;
+            count = table[group].count;
         }
 
         if (sounds != 0 && count > 0) {
             MslSoundHandle handle;
             choice = randu0((unsigned short)count) & 0xFFFF;
-            handle = 0;
             sound_id = sounds[choice];
-            if (sound_id != -1) {
-                if (sound_id < 0 || sound_id >= 0x1C0C) {
-                    handle = 0;
-                } else {
-                    request.sound_id = sound_id;
-                    request.volume = volume;
-                    request.apply_group_volume = 1;
-                    if (snd_calculate_volume(&request)) {
-                        if (pan < -2.0f) {
-                            pan = -2.0f;
-                        }
-                        if (pan > 2.0f) {
-                            pan = 2.0f;
-                        }
-                        if (pitch < 0.5f) {
-                            pitch = 0.5f;
-                        }
-                        if (pitch > 1.5f) {
-                            pitch = 1.5f;
-                        }
-                        entry = &mk_sound_table[sound_id];
-                        handle = mslBankPlayVolPanPitch(
-                            request.bank, entry->bank, entry->sound, entry->field_0c,
-                            request.volume, pan, pitch, entry->field_18);
-                    }
-                }
-            }
+            handle = play_random_sound(sound_id, pan, volume, pitch);
             result = handle;
         }
     }
     return result;
 }
 
-#pragma optimization_level 1
-
-/* TODO: [breakthrough needed] 92.57%; existing O1 scope retains two index shifts;
- * need compiler-stable table lookup and sentinel exit evidence. */
+/* TODO: [near miss] 98.61111%; canonical profile/indexed reads agree;
+ * one extra no-sound reset remains; stop at shared-exit codegen. */
 MslSoundHandle random_hit(int group) {
     struct SoundRequest request;
     int* sounds;
     MslSoundHandle handle = 0;
     SoundCallTable* table;
-    SoundCallTable* call;
     int count;
     unsigned int choice;
     int sound_id;
@@ -1786,13 +1674,11 @@ MslSoundHandle random_hit(int group) {
         if (mode_of_play == 6) {
             table = pf_hit_call_table;
             sounds = table[group].sounds;
-            call = &table[group];
-            count = call->count;
+            count = table[group].count;
         } else {
             table = hit_call_table;
             sounds = table[group].sounds;
-            call = &table[group];
-            count = call->count;
+            count = table[group].count;
         }
 
         if (sounds != 0 && count > 0) {
@@ -1800,7 +1686,7 @@ MslSoundHandle random_hit(int group) {
             handle = 0;
             sound_id = sounds[choice];
             if (sound_id == -1) {
-                return handle;
+                handle = 0;
             } else {
                 if (sound_id < 0 || sound_id >= 0x1C0C) {
                     handle = 0;
@@ -1822,7 +1708,6 @@ MslSoundHandle random_hit(int group) {
     return handle;
 }
 
-#pragma optimization_level 4
 
 int init_sounds(void) {
     current_sound_shuffle_state = 0;
@@ -1836,5 +1721,3 @@ int init_sounds(void) {
     mslSetWavePath(msi, "/cdrom/sndsgc/");
     return 1;
 }
-
-#pragma dont_inline reset

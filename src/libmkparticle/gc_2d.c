@@ -157,9 +157,9 @@ void native2d_instance_geometry(Pfx2dObj* obj) {
     }
 }
 
-/* TODO: [near miss] 88.55%; GPU clear bounds agree; memset argument setup order differs. */
+/* TODO: [near miss] 88.54546%; copy propagation makes the memset address self-based;
+ * ADDI peephole sinks it past both LIs; need a genuine surviving address owner. */
 void native2d_init_object(Pfx2dObj* obj) {
-    /* Clear the GPU vertices, alpha texture pointer and intervening alignment. */
     memset(obj->gpu, 0,
            RW_OFFSET_OF(Pfx2dObj, padB8) - RW_OFFSET_OF(Pfx2dObj, gpu));
 }

@@ -720,8 +720,8 @@ static inline MkBone* matcher_bone_by_index(MkObj* object, unsigned int index) {
     return object->bones[index];
 }
 
-/* TODO: [near miss] 98.50%; bone GPR homes agree; quaternion-compose and
- * weighted-position FP coloring/operand scheduling remain after neutral-subset checks. */
+/* TODO: [near miss] 98.49892%; quaternion CSE/w order survives scalar controls;
+ * recover component/result ownership and weighted-position interference. */
 static float p_bone_matcher(void) {
     BoneMatcherState* matcher = (BoneMatcherState*)apdata;
     MkObj* parent_obj;
@@ -2898,7 +2898,46 @@ void transition_to_anim_script(
 }
 
 
-/* TODO: [near miss] 99.41%; first live object/root bone/rotation homes differ; helper typing cleaned, stop at coloring. */
+static inline void anim_apply_pending_root_transform(MkObj* obj, MKMATRIX* yaw_matrix) {
+    Quat* root_rotation;
+    MkBone* root;
+
+    root = obj->bones[obj->fallback_bone_index];
+
+    if (root != 0 && root->parent_matrix != 0) {
+        Quat correction;
+        Quat old_rotation;
+        Vec adjusted_position;
+        float root_yaw;
+
+        root_rotation = &root->rotation;
+        root_yaw = quat_extract_ang_y(root_rotation);
+
+        obj->ang.y += root_yaw - obj->bone_angle_68;
+        y_angle_to_MKMATRIX(yaw_matrix, root_yaw);
+        v3_x_mat_sub_v3(
+            &adjusted_position,
+            &root->translation.value,
+            yaw_matrix,
+            &obj->pos.value);
+        scale_v3(
+            &obj->pos.value,
+            &adjusted_position,
+            -1.0f);
+        obj->bone_angle_68 = root_yaw;
+        y_angle_to_MKMATRIX(
+            yaw_matrix,
+            obj->bone_angle_64 - root_yaw);
+        if (RtQuatConvertFromMatrix(
+                &correction, yaw_matrix)) {
+            gxQuatCopy(&old_rotation, root_rotation);
+            gxQuatMul(
+                root_rotation, &correction, &old_rotation);
+            gxQuatNorm(root_rotation);
+        }
+    }
+}
+
 int set_anim_script_frame(
     AnimPdata* anim,
     AnimScript* script,
@@ -2954,39 +2993,9 @@ int set_anim_script_frame(
                 obj->hide_flag_bits.bit0 = 1;
             }
             if (obj->flags_0B_bits.root_transform_pending != 0) {
-                MkBone* root = obj->bones[obj->fallback_bone_index];
+                MKMATRIX yaw_matrix;
 
-                if (root != 0 && root->parent_matrix != 0) {
-                    MKMATRIX yaw_matrix;
-                    Vec adjusted_position;
-                    Quat old_rotation;
-                    Quat correction;
-                    Quat* root_rotation = &root->rotation;
-                    float root_yaw = quat_extract_ang_y(root_rotation);
-
-                    obj->ang.y += root_yaw - obj->bone_angle_68;
-                    y_angle_to_MKMATRIX(&yaw_matrix, root_yaw);
-                    v3_x_mat_sub_v3(
-                        &adjusted_position,
-                        &root->translation.value,
-                        &yaw_matrix,
-                        &obj->pos.value);
-                    scale_v3(
-                        &obj->pos.value,
-                        &adjusted_position,
-                        -1.0f);
-                    obj->bone_angle_68 = root_yaw;
-                    y_angle_to_MKMATRIX(
-                        &yaw_matrix,
-                        obj->bone_angle_64 - root_yaw);
-                    if (RtQuatConvertFromMatrix(
-                            &correction, &yaw_matrix)) {
-                        gxQuatCopy(&old_rotation, root_rotation);
-                        gxQuatMul(
-                            root_rotation, &correction, &old_rotation);
-                        gxQuatNorm(root_rotation);
-                    }
-                }
+                anim_apply_pending_root_transform(obj, &yaw_matrix);
                 obj->flags_0B_bits.root_transform_pending = 0;
             }
         }
@@ -3322,7 +3331,8 @@ MkBone* alloc_bone(void) {
     return bone;
 }
 
-/* TODO: [breakthrough] 96.25%; indexed bone publication recovered; cursor operations, owner reload and GPR homes remain. */
+/* TODO: [breakthrough needed] 96.25288%; CommonSubs caches the bone-table root;
+ * retained slot walk adds cursor ops; recover the original reload boundary. */
 static void process_obj_bones(MkObj* obj, int* tags) {
     RpClump* clump = obj->clump;
     RpHAnimHierarchy* found_hierarchy = 0;
@@ -3558,7 +3568,8 @@ static inline void quat_to_normalized_matrix(RwMatrix* matrix, Quat* rotation) {
     matrix->up.x = cross.z - weighted.z;
 }
 
-/* TODO: [breakthrough] 94.74%; parent/head snapshots recovered; unlink guard and quaternion schedule remain. */
+/* TODO: [breakthrough needed] 94.74214%; unlink join and quaternion schedule differ;
+ * weighted/cross ready-list ties need a different dependency graph. */
 static void _bone_make_parents_my_children(MkBone* bone) {
     Vec displacement;
     Quat inverse_rotation __attribute__((aligned(16)));

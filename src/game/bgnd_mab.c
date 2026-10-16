@@ -462,8 +462,8 @@ void debug_create_axis_indicator(PlyrInfo* player, Vec* position) {
     }
 }
 
-/* TODO: [near miss] 98.00%; two unreachable retail branches remain; structured-loop forms are
- * neutral and whole-TU peephole control regresses. */
+/* TODO: [breakthrough needed] 98.00%; two retail branches are absent before PCode;
+ * explicit loop else-return does not recover the original CFG retention. */
 static float p_fish_attack_bloodsplat(void) {
     Vec effect_origin = {0.0f, 1.6f, 0.0f};
     struct MkObjRef splat;
@@ -857,7 +857,8 @@ void start_fish_attack(MkObj* target, int attack_kind, int target_kind) {
     }
 }
 
-/* TODO: [near miss] 99.54%; limb-offset seed uses li instead of mr; inline initialization introduces owner-register regressions. */
+/* TODO: [near miss] 99.53846%; first-loop zero owner misses VN coalescing;
+ * retain LI/MR ceiling until a boundary preserves the exact public initializer. */
 static float p_player_body_explode(void) {
     PlyrInfo* player;
     struct PlayerBodyExplodePdata* pdata;
@@ -1403,7 +1404,8 @@ static float p_cam_bounce_monitor(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.51%; auto-inlined init_plyr_severed_limb_list and the final limb lookup swap r4/r5/r6. */
+/* TODO: [near miss] 99.51136%; initializer/final-limb homes rotate; the final
+ * scheduled block retains separate moving/argument LI owners. */
 void skytemple_player_explode(
     unsigned int player_index, float x, float y, float z) {
     PlyrInfo* player = &g_game_info.plyr1;

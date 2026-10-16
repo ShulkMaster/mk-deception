@@ -160,6 +160,13 @@
     { "name": "mpvumc_BiMakeMb", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_umc.s", "address": "0x80295B90", "size": "0x3F8", "symbols": { "const_mem$89": "const_mem" } },
     { "name": "MPVUMC_SetGqr", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_umc.s", "address": "0x8029680C", "size": "0x28" },
     { "name": "cnvDynamicYcc420plnToArgb8888_Body", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/cft/srcgc/cftyp422_ppc.s", "function": "cnvDynamicYcc420plnToArgb8888", "address": "0x802C0B74", "size": "0x4D4", "text": true, "stack": { "name": "slot", "offset": "0x8", "size": "0x20" } },
-    { "name": "cnvStaticYcc420plnToArgb8888_Body", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/cft/srcgc/cftyp422_ppc.s", "function": "cnvStaticYcc420plnToArgb8888", "address": "0x802C1124", "size": "0x444", "text": true, "stack": { "name": "slot", "offset": "0x8", "size": "0x20" }, "symbols": { "@494": "cft_version_string+0x50" } }
+    { "name": "cnvStaticYcc420plnToArgb8888_Body", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/cft/srcgc/cftyp422_ppc.s", "function": "cnvStaticYcc420plnToArgb8888", "address": "0x802C1124", "size": "0x444", "text": true, "stack": { "name": "slot", "offset": "0x8", "size": "0x20" }, "symbols": { "@494": "cft_version_string+0x50" } },
+    {"name": "UTY_IsTmrVoid_ReadTimeBase", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/uty/uty_tmr.s", "function": "UTY_IsTmrVoid", "address": "0x802B90C0", "size": "0x14", "operands": {"hi": "r3", "tmp": "r0"}, "text": true},
+    {"name": "UTY_GetTmr_ReadTimeBase", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/uty/uty_tmr.s", "function": "UTY_GetTmr", "address": "0x802B9128", "size": "0x14", "operands": {"hi": "r3", "lo": "r4", "hi2": "r0"}, "text": true},
+    {"name": "MPV_Destroy_DcbiLine", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_lib.s", "function": "MPV_Destroy", "address": "0x80290E78", "size": "0x4", "operands": {"p": "r31", "i": "r3"}},
+    {"name": "MPV_Finish_DcbiLine", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_lib.s", "function": "MPV_Finish", "address": "0x80291228", "size": "0x4", "operands": {"p": "r4", "i": "r3"}},
+    {"name": "MPV_Create_DcbiDcbzLine", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_lib.s", "function": "MPV_Create", "address": "0x80291178", "size": "0x8", "operands": {"p": "r4", "i": "r3"}},
+    {"name": "MPV_Init_DcbiDcbzLine", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_lib.s", "function": "MPV_Init", "address": "0x802914CC", "size": "0x8", "operands": {"p": "r29", "i": "r4"}},
+    {"name": "DCT_FsriSetGqr_Block", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/dct/dct_fsri.s", "function": "DCT_FsriSetGqr", "address": "0x80289FD0", "size": "0xC"}
   ]
 }

@@ -23,6 +23,23 @@ Compiler settings (M01, M13, M15, M16):
 Compiler mode across a TU. IF compact saves, `divw`, Boolean lowering repeat
 across TU, REQUIRE sibling evidence + all-function and section baselines.
 
+- Legacy local optimization scope justified by a historical compiler crash:
+  REQUIRE a fresh compile with the current source, headers, and pinned
+  compiler. TRY removing the workaround alone before source tuning; a stale
+  failure does not establish a current mode requirement (`random_hit`). Keep
+  only independently measured cleanup and recheck every sibling/data role;
+  direct indexed record reads may then remove an obsolete row-pointer alias.
+- Explicit helper stays outlined after appending `-inline noauto` to an
+  earlier `-inline off`: REQUIRE the actual call still present and a complete
+  canonical helper with repeated retail expansions. TRY object-only
+  `-inline on,noauto`; `noauto` alone does not re-enable the master switch.
+  Measure mode alone before helper recovery, then recheck every sibling/data
+  section (`gc_generic_render`, `GXColor4u8`).
+  The same gate applies to a complete canonical macro operation recovered as
+  an inline (`destroy_mkptrs`: unlink). A prior outlined-helper failure under
+  master-off does not rule out that owner boundary. Require mode-alone raw
+  neutrality, the retained caller successor copy and every reciprocal store;
+  do not wrap a value copy or enable automatic expansion to force coloring.
 - Repeated optimization options in canonical argv, but retail has invariant
   motion or CTR loops absent before allocation: REQUIRE the compiler's actual
   effective option state, not an assumption about which `-O` wins. TRY a
@@ -108,6 +125,33 @@ across TU, REQUIRE sibling evidence + all-function and section baselines.
   an adjacent call, ours hoists it into a saved reg: same scoped pragma,
   no spelling of the named pool array avoids the CSE (`p_main_menu`,
   `get_modeselect_portrait_list`; user-approved scoped-mode rule).
+- Two old-process null guards surround a retained proc assignment, but the
+  frontend merges the owner with the loaded field before `initial` PCode:
+  REQUIRE both retail guards, the copy between them, and caller pdata storage.
+  TRY scoped `opt_common_subs off` with immediate reset on the unchanged nested
+  source (`puzzle_fighter_display_block_count_msg`). Strip permuter aliases
+  first; declaration order alone cannot restore the missing frontend copy.
+  Compare `initial` and `presched`: with the scoped setting, the second field
+  read can fold into the retained copy between guards; default frontend CSE
+  has already removed that distinction before allocation.
+- Nullable pointer/instance validation shares its owner read into later virtual
+  destruction before `initial` PCode: REQUIRE repeated retail validation and
+  destruction reads, unchanged lazy guards/effects, and native stage evidence.
+  TRY scoped `opt_common_subs off` with immediate push/pop around each complete
+  consumer, including an inlining destructor (`ScreenModel::Dispose`). Measure
+  the whole-unit control first and reject sibling regressions. Initial absence
+  alone does not exclude this setting; it also affects frontend reuse. See the
+  [latch CSE evidence](reports/gc27-latch-cse.md).
+  Keep validation directly in the guard and obtain the destruction receiver
+  from the authoritative owner field (`load_light`). A named validated-result
+  binding can retain a return copy and change simplify stalls/saved homes even
+  when the reload is restored. Require the no-setting control and full native
+  replay; do not solve that copy with aliases or forced lifetimes.
+  If a direct macro guard changes the retail validation diamond, TRY keeping
+  the complete nullable/instance-checked acquisition in an inline operation
+  and consuming its result directly (`CameraDestroy`). Require the original
+  guards, a separate authoritative destruction read and fresh native replay;
+  this does not justify an identity getter or a blanket helper extraction.
 - Multi-row field, retail adds offset to reloaded owner before `stfsx`: typed
   row-array pointer + propagation off (Puzzle crusher).
 - Fixed-count array copy as two advancing pointers, retail one byte
@@ -167,6 +211,22 @@ validation calls.
 
 FP operands + schedule. REQUIRE same math, grouping, rounding.
 
+- Raw width and half-width share one source web but retail has separate
+  load/product homes: REQUIRE the power-of-two scale and unchanged rounded
+  operations. TRY `half_width = width / 2.0f`
+  (`bgnd_place_point_light_for_ticks`). Direct `width * 0.5f` can emit the
+  literal before the width load, while in-place multiplication keeps one
+  owner. Confirm load order, reciprocal literal bytes and operand orientation;
+  coefficient-first retail multiplication may not admit this form. Do not
+  stage the coefficient through a misleading half-width local.
+- Initialized FP accumulator gains an extra copy: REQUIRE retail adds the
+  rounded product before the initialized value, and native snapshots show
+  shared-zero loads becoming a copy that cannot propagate across accumulator
+  redefinitions. TRY `center = delta + center` instead of `center += delta`
+  (`pz_fighter_calculate_start_pos`, partial). Keep the real zero initialization,
+  separate multiply/add rounding and publications. Replacing the operation
+  with a literal-zero expression can delete the required add; a copy-free
+  result still needs independent allocation/scheduling verification.
 - Inverse-sqrt guard differs by CROR or operand reversal: trace unordered
   outcome + negative/zero inputs. `x <= 0` != `!(0 < x)` for NaN; keep retail
   predicate (`normalize_v3`). Refinement: keep rounded product tree, scale
@@ -181,8 +241,29 @@ FP operands + schedule. REQUIRE same math, grouping, rounding.
   FP order + all inverse-sqrt consumers.
 - Swap only commutative operands, or name real factors. Drop temps only
   without reassociation. Keep polynomial-before-sqrt order.
+- Plane-boundary limit/product inline locals rank below their load temps,
+  retail reuses product/input homes: REQUIRE exact replay and unchanged
+  two-product/FMA tree. TRY snapshotting the actual X/Z/offset coefficients
+  before advancing the boundary cursor, then writing dot/limit directly in
+  the predicate (`nav_what_area_is_point_in`). Keep right Z product + left X
+  FMA, ordered comparison, and original offset/margin operand order.
+- Ordered squared-distance/bound compare has reversed operands despite
+  matching arithmetic: REQUIRE the same float tree and false unordered
+  result. TRY squaring the existing radius accumulator before the direct
+  distance `<= radius` test; preserves radius ownership and retail compare
+  operands without a new distance snapshot (`test_collision`).
+- Halfspace projections agree but compare polarity or final load order
+  differs: REQUIRE unchanged FP trees and unordered-inside behavior. TRY
+  naming the quad and sphere projections in retail evaluation order, then
+  direct `sphere_dot > quad_dot` failure and its negation at the final return
+  (`collide_sphere_and_quad`). A predicate inline can instead add Boolean
+  joins; keep the actual shared scratch and normalize calls.
 - Separate single-precision boundaries: name intermediates in eval order
   (`ADX_GetCoefficient`).
+- Reciprocal-normalization numerator/denominator homes differ: REQUIRE the
+  same left-associated component sum and single-precision division. TRY
+  staging the sum in the existing scalar before taking its reciprocal
+  (`obj_spawn_bld`); preserve component-store order.
 - Rounded product before add: explicit float conversion; verify output bits.
 - Mixed fused + separate ops: narrow function-scoped `fp_contract`; lexical
   toggles inside a function may do nothing. Retail `fmuls` + `fadds` where we
@@ -212,6 +293,13 @@ FP operands + schedule. REQUIRE same math, grouping, rounding.
   members. Do not restore hardcoded string-pool offsets to close a separate
   pool mismatch.
 - Check whether negation is in FP before conversion or on the int.
+- Literal zero-minus-coordinate emits negation, while a destructive zero seed
+  adds a copy: REQUIRE retail shares one zero between a real target coordinate
+  subtraction and an orientation compare. TRY a named target coordinate used
+  by both (`pz_fighters_burn_fatality_prep`). GC/2.7 `CExpr_New_ESUB_Node`
+  folds literal-zero subtraction during parsing; later value numbering can
+  copy a mutable zero seed before it is overwritten. Preserve the subtraction,
+  signed-zero behavior and each genuine coordinate use; no dummy zero getter.
 - Fixed-point angle wrap swaps coefficient FPRs: REQUIRE multiply, integer
   conversion, 20-bit mask, float conversion and scale match retail in order.
   TRY naming the integer conversion result, masking it in a separate
@@ -230,7 +318,10 @@ operands.
   return guard. REQUIRE real validity/capacity condition + same-compiler
   reference with this lowering; try guard before forcing dead instr
   (`start_kabal_smoke_pfx` 10-slot emitter capacity; exact
-  `bgnd_append_texture_to_material` same shape).
+  `bgnd_append_texture_to_material` same shape). A two-entry VM field stack
+  can compare free slots with `sizeof(stack) / sizeof(stack[0])` at program
+  exit (`pfxvm_execute_behavior_update`); preserve the real push/pop balance
+  condition instead of adding a dead result sink.
 - `subic`/`subfe` normalizing call result: Boolean local (`opened =
   get_coffin_bit(...) != 0`). `subfic`/`cntlzw`/`srwi` field queries:
   explicit inline success/failure return. Ternary can match standalone but
@@ -283,6 +374,15 @@ width.
   not cached element ptr (`mwPlyGetFxType`).
 - Stack vectors swapping roles: trace each dest through all calls (difference
   vector updated in place into midpoint).
+- Displacement scalarizes but retail stores it in the same stack home later
+  passed as a particle position: REQUIRE identical canonical Vec extent,
+  fully initialized values, disjoint uses and the same real escaping call.
+  TRY one geometric vector workspace for those sequential stages
+  (`pfx_sh_grinder_meat_spew`, partial). Its later escape can retain earlier
+  displacement stores and Y/Z reloads without changing shared math helpers.
+  Trace all uses; do not merge unrelated scalar roles or add a fake escape.
+  A complete nonescaping vector-step inline can still scalarize identically;
+  separately verify pointer spill homes and frame size.
 - Three scalar angle deltas with one ownership/coloring mismatch: REQUIRE
   canonical vector semantics and existing vector-angle operations; TRY one
   `Vec delta` with member accesses, preserving each wrap and FMA in order.
@@ -325,6 +425,19 @@ width.
   the required-center cylinder initializer; `reset_player_collision` needs
   that initial constructor, not a later sphere helper that adds reloads
   after a call. `const T*` alone does not make the pointer immutable.
+  Distinguish a required-center initializer from a nullable public builder;
+  the latter adds a branch and is not an equivalent ownership test. After
+  restoring addressed storage, use the component-store order to reconstruct
+  vector assignments: scheduled arithmetic can run Y before X even when
+  source and surviving target stores are XYZ
+  (`repel_against_global_collision_list`).
+- Scalar completion result remains stack-resident across state callbacks:
+  REQUIRE real entry initialization, per-arm stores and a post-cleanup reload
+  at the same retail slot. TRY a complete state-execution operation with
+  `int* const` result binding (`mwMoviePlayTick`); ordinary pointer/reference
+  output helpers may substitute the address and promote the result. Keep
+  null diagnostics, callback order and final publication at their observed
+  boundaries; no fake escape or volatile spill.
 
 ## M08
 
@@ -373,6 +486,9 @@ Inlined helper's param `const` is irrelevant. Const local copied from plain
 param = plain; `(T*)` cast of const param = const. `stwu` sink form REQUIRE
 leaf, `stwu`-only prologue merged into a single-pred entry block (loop-header
 entry keeps `stwu` first); non-leaf shows only load/store moves.
+`v3_v3_to_quat`: dropping the first unsupported root qualifier restores
+entry `stwu`; dropping the second independently restores input load order.
+Verify mutable callers and all header consumers; no peephole-mode change.
 
 Project prior: Midway game/lib code barely uses `const`. Removing `const`
 closes far more near misses than adding it. Near miss with any `const`
@@ -385,6 +501,9 @@ public APIs keep their documented `const`.
 
 - Coordinate loads moved before intervening stores: compare input qualifier
   with mutable caller objects (Krypt position inputs, Puzzle flesh path).
+  In-place quaternion callers (`out == q1`) also support the root-input check
+  (`gxQuatInterpQuat`); test each input independently and restore neutral
+  qualifiers, preserving the other quaternion's pre-output snapshot.
 - Existing source-level scheduling-off hides the qualifier's load-hoisting
   effect: REQUIRE mutable callers, retail reloads after output stores, and a
   measured canonical-mode control. TRY removing the old scheduling wrapper
@@ -434,6 +553,21 @@ are proven. Shared headers only for proven ownership; unused O0 param takes
 
 - Repeated block: one `static inline` at each repeated site
   (`game_count_active_players`); leave already-exact spelled-out sites.
+- Balance-array base must select before a scaled-index CSE: REQUIRE native
+  replay rules out named declaration order and the complete admission/debit
+  phase preserves signed validation, unsigned indexing and publication order.
+  TRY passing actual arrays to that complete phase (`wager_completed`);
+  propagated arguments can become CSE bases above the index web. Confirm the
+  surviving owner kinds in a fresh capture; a getter or index cast alone is
+  not the same boundary.
+- Packed-header flags and decoded next length swap volatile homes: REQUIRE
+  native capture identifies emission temps, stable pre-publication tag snapshots,
+  and repeated size/flag/footer operations. TRY a complete inline size setter
+  with the real merged length evaluated as its argument (`Block_construct`).
+  The setter owns flag preservation, length publication and conditional footer;
+  scheduling can restore retail order after argument-first emission. Keep a
+  reevaluating macro where the size expression must observe an aliasing store
+  (`merge_previous`); check all coalescing consumers together.
 - Fixed-record search: keep donor element count + induction (SFH 26-record
   helper); one cursor advance per record when retail advances pointer.
 - Helper contracts that closed functions (no emitted helper symbol):
@@ -457,7 +591,11 @@ are proven. Shared headers only for proven ownership; unused O0 param takes
   - time-update helpers with narrowed outputs (`sfadxt_GetTime`)
   - pause-off helper after reset (`SFADXT_Pause`)
 - `dont_inline` scope inherited from scaffolding can force shared helper out
-  of line; test removing it (`sfply_ExecOne`).
+  of line; test removing it (`sfply_ExecOne`). If adjacent wrappers require
+  calls, disable it only around the proven inline helper and consumer, then
+  restore the surrounding mode (`pan_vol_pitch_random_snd_req`). REQUIRE
+  repeated retail bodies/stack slots and unchanged whole-TU consumers; do
+  not remove the broad scope or change unit flags solely for one consumer.
 - Donor version gaps, both ways: don't import donor-only null guards,
   differing signatures, codeless reg pins retail lacks. Retail has guards/fast
   paths/fills donor lacks `[da]`: REQUIRE version marker (mk-da: "HVQM4 1.5"
@@ -470,6 +608,39 @@ are proven. Shared headers only for proven ownership; unused O0 param takes
   inlines 3-instr helper, keeps 26-instr static as call). Compiler 2.7
   ignores `inline_max_auto_size`; `-inline on`/`noauto`/`level=0` don't clear
   base `-inline auto`. Only when retail inlining proves the limit.
+- Inline cost cliff: adding real coordinate/phase ownership outlines a helper.
+  REQUIRE native `can_inline` cost exceeds its measured budget. GC2.7 has a
+  recursive-cost branch at 0x560ce0 (mode byte 0x5ef108, evaluator 0x560fb0,
+  budget 0x5e3ae0) omitted by the current compiler-source reconstruction.
+  It counts statements and expressions including nested inline bodies, and
+  stops once over budget; a rejected cost is only a lower bound. TRY reducing
+  redundant expression work or moving a real phase to the caller, then measure
+  inlining and the whole TU (`mk_chess_spell_hud_show_my_spells`). Nested
+  extraction alone need not reduce cost; do not infer a flag change from this.
+  If a local pragma appears ineffective, REQUIRE native option writes and actual
+  `can_inline`/emission entries: the next function declarator can drain
+  `CInline_DispatchNextDeferredNode` after the restoring pragma was parsed
+  (`mwFileServerNotQueued::queryActive`, diagnosis). Align a scope only with a
+  retail-proven expansion, and recheck every body emitted in that interval;
+  lexical placement alone is insufficient. See the
+  [deferred-policy evidence](reports/mwcc-deferred-inline-policy.md).
+- A non-deleting base-destructor call is rejected solely because its hidden
+  delete branch contains an eligible nested call at zero depth: REQUIRE the
+  exact native root/callee, retail expansion, and failed visibility-only and
+  policy-only controls. TRY the existing inline base body before use plus
+  `inline_bottom_up off` only around the non-template caller; restore `on`
+  immediately (`mwFileDirectoryMountPoint::~mwFileDirectoryMountPoint`).
+  Verify native mode restoration, all consumers and table layout; review mixed
+  emission changes. This does not justify global depth/limit changes or an
+  analogous constructor change: a real nested base-constructor call and loss
+  of its exact standalone body are separate failures.
+- Nested empty destructor layers collapse to a complete-object call, but retail
+  retains inherited guards and a non-deleting base call: REQUIRE the exact
+  chain and native class-qualified deferred-emission trace. TRY a depth change
+  only across that measured pending interval, restoring the canonical limit
+  before ordinary code (`std::priority_queue::~priority_queue`). Protect every
+  emitted body, data role and generated symbol; reject broad depth increases
+  and review address/order changes. See the deferred-policy report above.
 - Repeated macro expansion (list unlink) with volatile coloring rotated,
   macro block locals number lowest: REQUIRE TU allows explicit inlining. TRY
   macro as `static inline` function; params/locals become FE temps, number
@@ -526,6 +697,15 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   measured object pooling policy (`gc_boot_space_check`, NBC table).
   Preserve duplicates through normal compiler reuse; a giant indexed
   literal macro does not recover individual producer ownership.
+- Anonymous pool has an exact prefix but later consumers use early offsets:
+  REQUIRE retail bytes at each missing literal's real consumer and the
+  existing inline's definition/first-use order. TRY recovering those actual
+  literal expressions and placing the complete inline before its consumers
+  (`SpreadSheet_text::FinishSetup`, navigation diagnostic). Compare every
+  function in all three relocation modes and account for every added data
+  byte; an incomplete whole pool can still fail data-value comparison even
+  when each selected string is right. Never insert unused strings or padding.
+  See [the UI pool case](reports/mwcc-deferred-inline-policy.md#ui-string-consumers-and-inline-first-use-order).
 - Named diagnostic pool hoisted across a buffer-return loop: REQUIRE the
   decoded retail literals, complete pool bytes, and the real buffer-base
   owner. TRY compiler-pooled literals and opening the complete validation /
@@ -614,6 +794,14 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   order, operands/args left to right, `?:` and if/else assignment arms before
   the condition (`if (a > 9) g = .5; else g = .25;` -> .5, .25, 9). One
   object per (type, bits): `1.0f` and `1.0` are two.
+- A data-layout diff names a missing terminal `gap_*` object: REQUIRE raw
+  baseline/candidate/retail bytes, section alignment and actual literal
+  offsets. Compare aligned extents before diagnosing a deleted constant.
+  `p_load_screen`'s compiler contributions are both 0x8c bytes; retail adds
+  four zero bytes to its 0x90 extent under alignment 8. A width-derivation
+  candidate restores every literal byte, including 0.5f, while the gap marker
+  still reports absent. Record natural-tail evidence for review; never add
+  synthetic padding or a redundant literal to silence that marker.
 - `-str pool`: offsets in first-encounter order during post-IRO TOC
   expansion, function by function; exact dedupe only, no suffix merge.
   Offset 0 = bare symbol ref, others `base+off` (different tree, can change
@@ -736,6 +924,14 @@ null guard.
 - Vtables emitted at TU end in reverse creation order. Key function creates
   vtable at its compile; none -> weak vtable at first codegen ref (derived
   ctor inlining base ctor, not derived dtor).
+- Outlining an in-class template destructor can restore retail calls while
+  changing key-function and weak-vtable emission (`gcnHostFileHandle`). REQUIRE
+  every consumer checked and the mixed layout change reviewed. Compare each
+  named table's size, raw payload and relocation targets by owning class/slot.
+  Renumbered anonymous member-function tables also need identical payloads,
+  outgoing targets and incoming code roles; equal zero-filled `.data` bytes
+  alone do not verify those tables. Preserve order and link differences in
+  metadata; report-exact callers do not make the whole unit link-exact.
 - extab/extabindex in object `[da]`: REQUIRE ELF section symbols. TRY
   `-Cpp_exceptions on` at lib/object scope. Every function + data exact but
   hash fails on two bytes in `.extab` (uninit record padding): REQUIRE retail

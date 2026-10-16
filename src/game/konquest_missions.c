@@ -159,8 +159,7 @@ struct KonquestMissionState {
     unsigned int script_process_instance;
     MkObj* monk;
     unsigned int monk_instance;
-    AniTextureControl* monk_face_texture;
-    unsigned int monk_face_texture_instance;
+    struct KonquestTextureLatch monk_face_texture;
     PlyrInfo* fight;
     PlyrInfo* drone;
     int num_rounds;
@@ -1019,19 +1018,8 @@ int current_player_is_drone(void) {
 }
 
 static inline void set_monk_lip_synch_texture(KonquestLipSyncPdata* lip) {
-    struct KonquestMissionState* state;
-    AniTextureControl* texture;
-    unsigned int instance;
-
-    state = mission_state;
-    texture = state->monk_face_texture;
-    instance = state->monk_face_texture_instance;
-    lip->texture = texture;
-    lip->texture_instance = instance;
+    lip->texture_latch = mission_state->monk_face_texture;
 }
-
-/* TODO: [breakthrough] 99.62%; lazy face-process validation and texture-pair publication agree;
- * six owner/result register and load-order rows remain. */
 
 void drone_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
     KonquestLipSyncPdata* lip;
@@ -1073,8 +1061,8 @@ void drone_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
             xfer_proc(process, p_animate);
         }
         lip->mode = 3;
-        lip->player_animation = animation;
-        lip->animation_table = plyr_pdata->face_animations;
+        lip->player.animation = animation;
+        lip->player.table = plyr_pdata->face_animations;
         return;
     }
 
@@ -1363,7 +1351,8 @@ void text_window_fade_in(unsigned char ticks) {
     }
 }
 
-/* TODO: [breakthrough needed] 97.03%; fade byte boundaries restored; original latch reload producer and helper homes remain. */
+/* TODO: [breakthrough needed] 97.02676%; five destroy-owner reloads remain;
+ * scoped CSE restores them but disturbs setup-root/frame producers. */
 float p_show_text_window(void) {
     struct KonquestTrialWindowPdata* window =
         (struct KonquestTrialWindowPdata*)apdata;
@@ -1618,7 +1607,8 @@ void trial_show_spoken_text_window(
     }
 }
 
-/* TODO: [near miss] 97.69%; one zero store (top) and the width fctiwz are scheduled differently around the stack round-trip. */
+/* TODO: [near miss] 97.69399%; top STW wins the left-conversion store tie;
+ * integer staging is propagated away; recover a surviving source boundary. */
 void trial_show_text_window(
     int string_id, float x, float y, float scale, int style, int flags) {
     struct KonquestMissionState* state;
@@ -1935,7 +1925,17 @@ void drone_set_position(
     force_midpoint_calculation_update = 1;
 }
 
-/* TODO: [near miss] 98.98%; selectors and waits agree; null-idle guard skips one shared-exit branch. */
+static inline void wait_for_drone_getup(MkProc* process, int* timeout) {
+    if (process == 0) {
+        return;
+    }
+    while (*timeout != 0 && process->entry == getup_from_ground) {
+        _mkproc_sleep_ticks = 1.0f;
+        (*timeout)--;
+        aproc->vtbl->sleep();
+    }
+}
+
 void drone_change_to_style(int player, int style) {
     FighterMirror* fighter;
     int timeout;
@@ -1958,13 +1958,7 @@ void drone_change_to_style(int player, int style) {
     } else {
         idle_process = g_game_info.plyr1.idle_proc;
     }
-    if (idle_process != 0) {
-        while (timeout != 0 && idle_process->entry == getup_from_ground) {
-            _mkproc_sleep_ticks = 1.0f;
-            timeout--;
-            aproc->vtbl->sleep();
-        }
-    }
+    wait_for_drone_getup(idle_process, &timeout);
     while (fighter->style_idx != style && attempts < 5) {
         struct KonquestSwitchPdata* pdata;
         MkProc* process = _create_mkproc_generic_tinystack(
@@ -3923,8 +3917,8 @@ static void trial_load_monk(void) {
         }
         face_texture = konquest_create_monk_face_ani_texture(monk);
         if (face_texture != 0) {
-            mission_state->monk_face_texture = face_texture;
-            mission_state->monk_face_texture_instance = face_texture->instance;
+            mission_state->monk_face_texture.texture = face_texture;
+            mission_state->monk_face_texture.instance = face_texture->instance;
         }
     }
 }

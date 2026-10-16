@@ -277,7 +277,8 @@ void ScreenObject::SetParent(ScreenObject* parent) {
     m_parent = parent;
 }
 
-/* TODO: [near miss] 99.266052%; 16 saved-GPR rows remain in stack/type homes and first created-action copy. */
+/* TODO: [near miss] 99.36%; matched-action home recovered;
+ * split opcode owners still claim stack/event-index homes first. */
 void ScreenObject::ProcessSubActions(ScreenMgr* mgr, const ScreenAction* action,
                                      int match) {
     ScreenEvent* event;
@@ -285,6 +286,7 @@ void ScreenObject::ProcessSubActions(ScreenMgr* mgr, const ScreenAction* action,
     unsigned int eventIndex;
     unsigned int flags;
     unsigned int start;
+    ScreenAction* matched_action;
     unsigned int end;
     unsigned int matchIndex;
     unsigned int actionType;
@@ -296,7 +298,6 @@ void ScreenObject::ProcessSubActions(ScreenMgr* mgr, const ScreenAction* action,
     flags = action->m_flags;
     stack = &mgr->m_actionStack;
 
-    /* Subclass field past ScreenAction (0x3C): clear when next arg is 0x429. */
     if (next != 0 && next->m_arg == SCREEN_ACTION_ELSE) {
         static_cast<ScreenElseAction*>(next)->m_takeElse = 0;
     }
@@ -316,9 +317,9 @@ void ScreenObject::ProcessSubActions(ScreenMgr* mgr, const ScreenAction* action,
                 continue;
             }
             actionType = event->GetAction(matchIndex);
-            ScreenAction* created = ScreenActionStack::CreateAction(actionType);
-            created->Init(event, (int)matchIndex, this, (int)actionType, params, flags);
-            stack->PushAction(created);
+            matched_action = ScreenActionStack::CreateAction(actionType);
+            matched_action->Init(event, (int)matchIndex, this, (int)actionType, params, flags);
+            stack->PushAction(matched_action);
             return;
         }
 

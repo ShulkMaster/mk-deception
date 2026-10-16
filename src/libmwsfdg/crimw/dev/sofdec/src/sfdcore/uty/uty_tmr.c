@@ -1,4 +1,5 @@
 #include "dolphin/types.h"
+#include "runtime/asm_sequences.inc"
 
 #define UTY_BUS_CLOCK (*(u32*)0x800000F8)
 
@@ -13,29 +14,31 @@ u64 UTY_GetTmrUnit(void)
     return utytmr_unit;
 }
 
-/* TODO: [blocked] 44.130436%; retail uses an inline mftb time-base read, which needs explicit assembly authorization. */
 s32 UTY_IsTmrVoid(void)
 {
     if (utytmr_init_cnt > 0 && utytmr_ch != -1) {
-        (void)OSGetTime();
+        register u32 tmp, hi;
+
+        asm { SEQ_UTY_IsTmrVoid_ReadTimeBase(hi, tmp) }
     }
     return utytmr_unit == 1;
 }
 
-/* TODO: [blocked] 58.823530%; retail uses an inline mftb time-base read, which needs explicit assembly authorization. */
 u64 UTY_GetTmr(void)
 {
+    register u32 hi, lo, hi2;
+
     if (utytmr_init_cnt <= 0 || utytmr_ch == -1) {
         return 0;
     }
-    return OSGetTime();
+    asm { SEQ_UTY_GetTmr_ReadTimeBase(hi, lo, hi2) }
+    return ((u64)hi << 32) | lo;
 }
 
-/* TODO: [breakthrough needed] 91.666664%; retail's second post-store reload only
- * matches as a discarded volatile read (RE4 donor local); no consumer found. */
 void UTY_FinishTmr(void)
 {
     utytmr_init_cnt--;
+    utytmr_init_cnt;
     if (utytmr_init_cnt < 0) {
         utytmr_init_cnt = 0;
     }

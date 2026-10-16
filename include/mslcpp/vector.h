@@ -289,8 +289,8 @@ public:
     void init(ForwardIterator first, ForwardIterator last, forward_iterator_tag);
 };
 
-/* TODO: [breakthrough] QueueItem const-range 87.38%; real producer recovered;
- * placement-copy construct remains outlined and source homes/pool addends differ. */
+/* TODO: [breakthrough needed] QueueItem const-range 87.38333%; placement-copy
+ * remains outlined; recover per-consumer inline policy and source/pool homes. */
 template <class T, class Allocator>
 template <class ForwardIterator>
 void __vector_imp<T, Allocator, false>::init(ForwardIterator first, ForwardIterator last,
@@ -338,8 +338,8 @@ __vector_imp<T, Allocator, false>::erase(iterator first, iterator last)
     return first;
 }
 
-/* TODO: [breakthrough] QueueItem 90.53%; direct allocator owner recovered;
- * placement-copy construct remains outlined and string-pool addends differ. */
+/* TODO: [breakthrough needed] QueueItem 90.52778%; placement-copy remains
+ * outlined; recover its instantiation policy while preserving exact getter calls. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::reserve(size_type n)
 {
@@ -359,8 +359,8 @@ void __vector_imp<T, Allocator, false>::reserve(size_type n)
     }
 }
 
-/* TODO: [breakthrough needed] QueueItem 78.10043%, Callback 67.99262%; QueueItem
- * construction exceeds inline cost 515/512; recover its placement-copy producer. */
+/* TODO: [breakthrough needed] QueueItem 78.10043%, Callback 67.99262%; retain
+ * allocator-accessor calls while recovering deferred placement construction. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::insert(iterator position, size_type n,
                                                const value_type& x)

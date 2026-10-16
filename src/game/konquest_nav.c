@@ -91,8 +91,7 @@ static inline struct NavPortalList* nav_get_portals(struct NavArea* area) {
 }
 
 
-static inline int nav_begin_area_search(int startArea) {
-    struct KonquestNavData* nav = konquest_pdata->navData;
+static inline int nav_begin_area_search(struct KonquestNavData* nav, int startArea) {
     int areaCount;
     int i;
 
@@ -119,12 +118,13 @@ static inline int nav_area_contains_point(struct NavArea* area, const Vec* posit
     int i;
 
     for (i = 0; i < area->boundaryCount; i++) {
-        float distance = boundary->z * position->z;
+        float boundaryZ = boundary->z;
         float boundaryX = boundary->x;
-        float limit = 0.35f + boundary->offset;
+        float boundaryOffset = boundary->offset;
 
         boundary++;
-        if (boundaryX * position->x + distance > limit) {
+        if (boundaryX * position->x + boundaryZ * position->z >
+            0.35f + boundaryOffset) {
             return 0;
         }
     }
@@ -145,8 +145,14 @@ static inline int nav_find_area_in_tile(const Vec* position) {
     tile = &konquest_pdata->navTiles[tileIndex];
     while (i < tile->navigationCount) {
         int areaIndex = tile->navigationAreas[areaOffset];
-        struct NavArea* area = nav_get_area(konquest_pdata->navData, areaIndex);
+        int areaCount = konquest_pdata->navData->areaCount;
+        struct NavArea* area;
 
+        if (areaIndex < 0 || areaIndex >= areaCount) {
+            area = 0;
+        } else {
+            area = konquest_pdata->navData->areas[areaIndex];
+        }
         if (nav_area_contains_point(area, position)) {
             return areaIndex;
         }
@@ -156,8 +162,8 @@ static inline int nav_find_area_in_tile(const Vec* position) {
     return -1;
 }
 
-/* TODO: [near miss] 97.64%; portal-entry advance scheduling and delta-X
- * FPR home remain; stop at localized codegen. */
+/* TODO: [near miss] 97.80220%; X displacement agrees; portal-entry ADDI
+ * precedes MTCTR/CMPWI setup; recover the entry-address producer. */
 void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int portalId) {
     struct KonquestPdata* pdata = konquest_pdata;
     struct KonquestNavData* nav = pdata->navData;
@@ -183,6 +189,7 @@ void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int po
     while (remaining > 0) {
         if (portal->adjacentArea == portalId) {
             float dx;
+            float midpointX;
             float dz;
             float normalX;
             float normalZ;
@@ -196,11 +203,12 @@ void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int po
             dz = portal->z;
             normalZ = portal->normalZ;
             quarterLength = 0.25f * length;
-            dx = portal->x;
+            midpointX = portal->x;
             normalX = portal->normalX;
             dz = normalZ * halfLength + dz;
-            dx = normalX * halfLength + dx;
-            dx -= pos->x;
+            midpointX = normalX * halfLength + midpointX;
+            dx = pos->x;
+            dx = midpointX - dx;
             dz -= pos->z;
             side = normalX * dx + normalZ * dz;
 
@@ -221,11 +229,9 @@ void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int po
     }
 }
 
-/* TODO: [near miss] 98.18%; in-place boundary cursor restores portal-tail base;
- * remaining BFS register/address lowering differs. */
 int nav_which_area_is_next(int fromArea, int toArea) {
     int areaCount;
-    struct NavPortalEntry* portal;
+    unsigned char* portalCursor;
     int i;
     int queuedCount;
     int found;
@@ -233,7 +239,7 @@ int nav_which_area_is_next(int fromArea, int toArea) {
     int nextArea;
 
     found = 0;
-    areaCount = nav_begin_area_search(fromArea);
+    areaCount = nav_begin_area_search(konquest_pdata->navData, fromArea);
     if (toArea < 0 || toArea >= areaCount) {
         return -1;
     }
@@ -246,19 +252,19 @@ int nav_which_area_is_next(int fromArea, int toArea) {
     konquest_pdata->areaQueue[queuedCount++] = fromArea;
     while (queuedCount != i && found == 0) {
         struct NavArea* area;
-        struct NavPortalList* portals;
         int portalCount;
         int portalIndex;
         int currentArea;
 
         currentArea = konquest_pdata->areaQueue[i++];
         area = nav_get_area(konquest_pdata->navData, currentArea);
-        portals = nav_get_portals(area);
-        portalCount = portals->count;
-        portal = portals->entries;
+        portalCursor = (unsigned char*)area->boundaries;
+        portalCursor += area->boundaryCount * sizeof(struct NavBoundary);
+        portalCount = ((struct NavPortalList*)portalCursor)->count;
+        portalCursor += sizeof(((struct NavPortalList*)0)->count);
         for (portalIndex = 0; portalIndex < portalCount;
-             portalIndex++, portal++) {
-            nextArea = portal->adjacentArea;
+             portalIndex++, portalCursor += sizeof(struct NavPortalEntry)) {
+            nextArea = ((struct NavPortalEntry*)portalCursor)->adjacentArea;
 
             if (konquest_pdata->areaPredecessors[nextArea] == -1) {
                 konquest_pdata->areaQueue[queuedCount++] = nextArea;
@@ -387,18 +393,19 @@ void nav_get_unit_vector_to_area(int areaIndex, Vec* out, Vec* pos) {
     out->y = 0.0f;
 }
 
-/* TODO: [near miss] 91.67%; FPR coloring plus a joined return where retail splits the returns. */
+/* TODO: [near miss] 97.68519%; packed cursor and split returns agree;
+ * normal/input FPR producer kinds remain; preserve boundary load scheduling. */
 static struct NavArea* unit_vector_to_area(struct NavArea* area, Vec* nearestNormal,
                                     float* nearestDistance,
                                     Vec* farthestNormal,
                                     float* farthestDistance,
                                     Vec* position) {
     int inside;
-    struct NavBoundary* boundary;
+    unsigned char* cursor;
     int i;
     int count;
 
-    boundary = area->boundaries;
+    cursor = (unsigned char*)area->boundaries;
     inside = 1;
     *farthestDistance = 0.0f;
     *nearestDistance = __float_max[0];
@@ -406,13 +413,14 @@ static struct NavArea* unit_vector_to_area(struct NavArea* area, Vec* nearestNor
     farthestNormal->x = farthestNormal->y = farthestNormal->z = 0.0f;
     count = area->boundaryCount;
     for (i = 0; i < count; i++) {
+        struct NavBoundary* boundary = (struct NavBoundary*)cursor;
         float boundaryZ = boundary->z;
         float distance = boundaryZ * position->z;
         float boundaryX = boundary->x;
-        float limit = 0.35f + boundary->offset;
 
-        boundary++;
-        distance = boundaryX * position->x + distance - limit;
+        distance = boundaryX * position->x + distance -
+                   (0.35f + boundary->offset);
+        cursor += sizeof(struct NavBoundary);
 
         if (distance > 0.0f) {
             inside = 0;
@@ -428,17 +436,17 @@ static struct NavArea* unit_vector_to_area(struct NavArea* area, Vec* nearestNor
             }
         }
     }
-    count = ((struct NavPortalList*)boundary)->count;
-    boundary = (struct NavBoundary*)((struct NavPortalList*)boundary)->entries;
-    boundary = (struct NavBoundary*)((struct NavPortalEntry*)boundary + count);
+    count = ((struct NavPortalList*)cursor)->count;
+    cursor += sizeof(((struct NavPortalList*)0)->count);
+    cursor += count * sizeof(struct NavPortalEntry);
     if (inside != 0) {
         return 0;
     }
-    return (struct NavArea*)boundary;
+    return (struct NavArea*)cursor;
 }
 
-/* TODO: [near miss] 97.68%; in-place boundary cursor restores portal-tail base;
- * area-count reload, boundary-test FP homes and portal induction remain. */
+/* TODO: [near miss] 99.59840%; nav/global CSE homes and portal owners remain;
+ * count/entry initializer fixes count but swaps iterator/index; retain direct scan. */
 int nav_what_area_is_point_in(Vec* pos, int hintArea) {
     struct KonquestNavData* nav;
     struct NavArea* area;
@@ -458,14 +466,14 @@ int nav_what_area_is_point_in(Vec* pos, int hintArea) {
     if (nav_area_contains_point(area, pos)) {
         return hintArea;
     }
-    areaCount = nav_begin_area_search(hintArea);
+    areaCount = nav_begin_area_search(nav, hintArea);
     if (areaCount < 0) {
         return -1;
     }
     portals = nav_get_portals(area);
     portal = portals->entries;
     for (portalIndex = 0; portalIndex < portals->count;
-         portalIndex++, portal++) {
+         portal++, portalIndex++) {
         int adjacentAreaIndex = portal->adjacentArea;
         struct NavArea* adjacentArea = nav_get_area(konquest_pdata->navData,
                                              adjacentAreaIndex);
@@ -501,7 +509,8 @@ void konquest_nav_init(void) {
     }
 }
 
-/* TODO: [near miss] 95.81%; shared exits/counting agree; bound copies and induction/FP/GPR setup differ. */
+/* TODO: [near miss] 96.07246%; contour and flag ordering improve;
+ * four bound copies and induction owners remain; original bound order retained. */
 static void setup_per_tile_navigations(void) {
     static int most_navigation_per_tile;
     Vec intersections[15];
@@ -525,10 +534,11 @@ static void setup_per_tile_navigations(void) {
         boundaryCount = area->boundaryCount;
 
         if (boundaryCount <= 15) {
+            int boundaryIndex;
             struct NavBoundary* boundary = area->boundaries;
+            float currentOffset;
             float firstOffset;
             float previousOffset;
-            int boundaryIndex;
 
             previous.x = boundary->x;
             previous.y = 0.0f;
@@ -541,7 +551,6 @@ static void setup_per_tile_navigations(void) {
             boundary++;
             for (boundaryIndex = 1; boundaryIndex < boundaryCount;
                  boundaryIndex++) {
-                float currentOffset;
                 Vec* intersection;
 
                 current.x = boundary->x;
@@ -570,10 +579,10 @@ static void setup_per_tile_navigations(void) {
             float maxX = tile->x + 30.6f;
             float minZ = tile->z - 30.6f;
             float maxZ = tile->z + 30.6f;
-            int allVerticesInsideTile = 1;
             int allLeft = 1;
-            int allRight = 1;
             int allBelow = 1;
+            int allVerticesInsideTile = 1;
+            int allRight = 1;
             int allAbove = 1;
             int allTileCornersInsideArea = 1;
             int boundaryIndex;

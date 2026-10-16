@@ -113,8 +113,8 @@ MkPfx* start_pfx_glass_shards(
     return glass;
 }
 
-/* TODO: [near miss] 98.81536%; setup address schedules before vector offset;
- * small setup block rules out block splitting; need real scheduling evidence. */
+/* TODO: [near miss] 98.81536%; vector multiply waits for the issue unit while
+ * GameInfo address fills the gap; recover original setup dependencies. */
 static float pfx_glass_break_run(void) {
     float moving_damping;
     float resting_damping;

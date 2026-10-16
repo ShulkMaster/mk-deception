@@ -387,24 +387,23 @@ void parse_args(const char* fmt, ...) {
     va_end(ap);
 }
 
-/* TODO: [near miss] 88.61%; relative offset decode agrees;
- * subtraction is hoisted before the limit comparison and uses a separate register. */
+/* TODO: [near miss] 99.44444%; final integer ADD operands remain commuted;
+ * preserve the shared return and canonical base owner while recovering address emission. */
 char* get_script_string_arg(int index) {
     unsigned int value;
     ScriptSlot* script;
-    char* strings;
+    unsigned int strings;
 
     value = current_args[index];
     if (value == 0) {
         return 0;
     }
     script = active_cmdscript->mko;
-    strings = (char*)script->string_base;
-    if (value < (unsigned int)strings) {
-        unsigned int offset = value - 1;
-
+    strings = script->string_base;
+    if (value < strings) {
         if (value < script->string_limit) {
-            return &strings[offset];
+            value -= 1;
+            value += strings;
         }
     }
     return (char*)value;
@@ -565,13 +564,9 @@ void cmdscript_execute(ScriptSlot* slot)
     execute_cmdscript(slot);
 }
 
-/* TODO: [breakthrough needed] 94.44%; attrs index distribution exists in initial
- * pcode; restore indexed load shape and name-add producer order. */
 void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index) {
     ScriptFuncDef* def;
-    unsigned int attrs_id;
     void* attrs_table;
-    char* function_name;
 
     if (active_cmdscript == 0 || func_index > slot->func_count ||
         func_index == 0) {
@@ -579,18 +574,11 @@ void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index) {
     }
     active_cmdscript->mko = slot;
     active_cmdscript->stack_end = active_cmdscript->stack_sp + 1;
-    attrs_id = slot->func_defs[func_index - 1].attrs_id;
-    if (attrs_id != 0) {
-        attrs_table = resolve_table_row(slot, attrs_id);
-    } else {
-        attrs_table = 0;
-    }
+    attrs_table = get_function_attributes_table(slot, func_index);
     active_cmdscript->attrs_table = attrs_table;
     trial_register_script_function(func_index);
     def = &slot->func_defs[func_index - 1];
-    function_name = (char*)slot->string_reloc;
-    function_name += def->name_offset;
-    active_cmdscript->func_name = function_name - 1;
+    active_cmdscript->func_name = script_string(slot, def->name_offset);
     active_cmdscript->continuation = 0;
     active_cmdscript->pc = slot->bytecode + def->code_offset;
     active_cmdscript->prev_pc = active_cmdscript->pc;
@@ -927,15 +915,9 @@ CmdScript* alloc_cmdscript(void) {
     return cs;
 }
 
-/* TODO: [near miss] 99.53%; shared lookup, signed flag, countdown, and rebasing restored;
- * lookup cursor coloring and one string-add operand order remain. */
-void fixup_data_tables(ScriptSlot* slot) {
-    ScriptTableDef* def;
+static inline void fixup_external_data_tables(ScriptSlot* slot) {
     unsigned int table_index;
-
-    if (slot->tables_fixed_up != 0) {
-        return;
-    }
+    ScriptTableDef* def;
 
     for (table_index = 0; table_index < slot->max_table; table_index++) {
         def = &slot->table_defs[table_index];
@@ -947,6 +929,17 @@ void fixup_data_tables(ScriptSlot* slot) {
             def->data_index = (int)table;
         }
     }
+}
+
+void fixup_data_tables(ScriptSlot* slot) {
+    unsigned int table_index;
+    ScriptTableDef* def;
+
+    if (slot->tables_fixed_up != 0) {
+        return;
+    }
+
+    fixup_external_data_tables(slot);
 
     for (table_index = 0; table_index < slot->max_table; table_index++) {
         def = &slot->table_defs[table_index];
@@ -966,11 +959,14 @@ void fixup_data_tables(ScriptSlot* slot) {
 
                 for (column = 0; column < column_count; column++) {
                     switch (column_type[column]) {
-                    case 4:
-                        if (*value != 0) {
-                            *value += slot->string_base - 1;
+                    case 4: {
+                        unsigned int offset = *value;
+                        if (offset != 0) {
+                            offset += slot->string_base;
+                            *value = offset - 1;
                         }
                         break;
+                    }
                     case 0x85:
                         if (*value != 0) {
                             ScriptTableDef* referenced = &slot->table_defs[*value - 1];
@@ -999,14 +995,50 @@ void fixup_data_tables(ScriptSlot* slot) {
     slot->tables_fixed_up = 1;
 }
 
-/* TODO: [near miss] 98.97895%; soft ceiling: inline owner/index GPR rotation and
- * equivalent entry/body loads remain; preserve exact shared unload behavior. */
+static inline void cancel_script_request(ScriptSlotEntry* entry) {
+    if (entry->async_req != 0) {
+        MkProc* saved = 0;
+        if (aproc != 0) {
+            saved = aproc;
+            aproc = 0;
+        }
+        mk_hwfile_cancel(&entry->async_req);
+        if (saved != 0) {
+            aproc = saved;
+        }
+        mk_hwfile_free_request(entry->async_req);
+        entry->async_req = 0;
+    }
+}
+
 void script_system_reset(void) {
+    ScriptSlotEntry* current;
+    ScriptSlot* slot;
     unsigned int i;
 
     for (i = 1; i < SCRIPT_SLOT_COUNT; i++) {
-        unload_script(i);
-        slot_entry_at(i)->state = 0;
+        current = &script_slot_list[i];
+
+        if (current->state == 2 || current->state == 1) {
+            slot = &current->body;
+            if (slot != 0) {
+                ScriptSlotEntry* entry;
+                entry = slot_entry_at(current->body.slot_index);
+                entry->state = 0;
+                cancel_script_request(entry);
+                if (entry->file != 0) {
+                    mk_file_close(entry->file);
+                    entry->file = 0;
+                }
+                entry->file_info = 0;
+                if (current->body.load_buf != 0) {
+                    _mwMemFree(current->body.load_buf, 0, 0);
+                }
+                destroy_list(&slot->pdata_list);
+                memset(slot, 0, sizeof(ScriptSlot));
+            }
+        }
+        current->state = 0;
     }
     init_cmdscript_fields(&global_script_interpreter);
 }
@@ -1021,7 +1053,8 @@ static inline const unsigned int* cmdscript_register_slot(
     return &script->regs[index];
 }
 
-/* TODO: [near miss] 97.89%; slot addressing recovered; argument/shift register staging remains. */
+/* TODO: [near miss] 97.89474%; packed-shift codegen web selects before destination;
+ * complete field-write inline is neutral; recover earlier packed-word ownership. */
 void _set_bit_field(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1044,7 +1077,8 @@ static inline unsigned int* cmdscript_mutable_register_slot(
     return &script->regs[index];
 }
 
-/* TODO: [near miss] 95.94%; slot grouping and in-place extraction agree; stop at register coloring. */
+/* TODO: [near miss] 95.93750%; packed shift stays an emission temp above
+ * both global owners; recover that owner boundary before further coloring. */
 void _get_bit_field(void) {
     unsigned int val;
     unsigned int* args;
@@ -1075,7 +1109,6 @@ void _copy_stream_to_address(void) {
     memcpy(dst, &args[3], size);
 }
 
-/* TODO: [near miss] 99.02%; name tail fixed; pc-block volatile GPR homes (offset/owner r6/r5 vs r5/r4) remain. */
 void _call_script_function(void) {
     unsigned int* args;
     int func_index;
@@ -1089,10 +1122,11 @@ void _call_script_function(void) {
     push_script_stack_frame_inline(1);
     memcpy(active_cmdscript->stack_sp->args, &current_args[2],
            argument_count * sizeof(unsigned int));
+    func_index--;
     slot = active_cmdscript->mko;
-    function = &slot->func_defs[func_index - 1];
-    active_cmdscript->pc = slot->bytecode + function->code_offset;
-    function = &active_cmdscript->mko->func_defs[func_index - 1];
+    active_cmdscript->pc =
+        slot->bytecode + slot->func_defs[func_index].code_offset;
+    function = &active_cmdscript->mko->func_defs[func_index];
     active_cmdscript->func_name =
         &((char*)active_cmdscript->mko->string_reloc)[function->name_offset - 1];
 }
@@ -1495,8 +1529,8 @@ void _copy_column_address_to_register(void) {
     }
 }
 
-/* TODO: [near miss] 93.38%; traced slot-index scheduling and two add encodings differ;
- * neutral combinations and permuter give no clean gain; TU controls regress exact siblings. */
+/* TODO: [near miss] 93.38%; slot-address owner remains below index-load temporaries;
+ * recover its original ownership and the two address-add operands. */
 void _copy_column_to_register(void) {
     unsigned int* args;
     CmdScript* script;

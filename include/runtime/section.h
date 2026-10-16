@@ -38,6 +38,9 @@ int load_art_section_async(int handle, MkFileInfo* info);
 void add_art_section_by_name_async_language(int handle, const char* name);
 void add_art_section_by_name_async(int handle, const char* name);
 int add_art_section_async(int handle, MkFileInfo* info);
+#ifdef __cplusplus
+extern "C"
+#endif
 void unload_section_slot_file(int handle, int file_index);
 #ifdef __cplusplus
 extern "C"
@@ -45,6 +48,9 @@ extern "C"
 void unload_section_slot(int handle);
 int is_section_loading_or_loaded(int handle, MkFileInfo* info);
 SecSlotFileEntry* get_nth_sec_slot_file_from_handle(int handle, int index);
+#ifdef __cplusplus
+extern "C"
+#endif
 int get_slot_file_count(int handle);
 void init_section_system(void);
 int get_current_section_memory_scheme(void);

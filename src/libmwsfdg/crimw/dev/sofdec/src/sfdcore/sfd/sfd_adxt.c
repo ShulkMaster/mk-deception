@@ -617,8 +617,8 @@ static inline int sfadxt_SearchFrmTop(SfdHandle* handle,
     return offset - data;
 }
 
-/* TODO: [near miss] 97.52688%; caller/scan GPR homes remain;
- * canonical scan rank is neutral; donor register pin is forbidden. */
+/* TODO: [near miss] 97.52688%; caller/scan GPR coloring remains;
+ * stop pending new owner or ABI evidence. */
 static void sfadxt_ExcludeHdr(SfdHandle* handle, const unsigned char* data,
                               int size, int* consumed)
 {
@@ -955,8 +955,8 @@ static inline void sfadxt_WriteTotSmpl(SfdHandle* handle)
     }
 }
 
-/* TODO: [near miss] 97.78%; all server operations and CFG agree;
- * handle/result/input-size GPR rotation remains; stop at coloring. */
+/* TODO: [near miss] 97.78409%; 108 register rows, all 264 operations agree;
+ * handle wins the native cost stall; need original lifetime context. */
 static int sfadxt_ExecServerSub(SfdHandle* handle)
 {
     int result;

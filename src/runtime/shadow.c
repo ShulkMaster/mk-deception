@@ -183,7 +183,7 @@ static RwCamera* ShadowCameraSetFrustum(RwCamera* camera, float radius) {
 static RwCamera* ShadowCameraSetLight(RwCamera* camera, RwMatrix* light_matrix) {
     RwFrame* frame;
 
-    frame = rwCameraParentFrame(camera);
+    frame = camera->object.object.parent;
     frame->modelling.right = light_matrix->right;
     frame->modelling.up = light_matrix->up;
     frame->modelling.at = light_matrix->at;
@@ -207,12 +207,11 @@ static RwCamera* ShadowCameraSetCenter(RwCamera* camera, Vec* center) {
 
 int ShadowCameraUpdate_flag;
 
-/* TODO: [near miss] 99.32098%; clear color and camera return match; node/atomic saved registers remain swapped. */
 RwCamera* ShadowCameraUpdate(RwCamera* camera, RpClump* clump, int clear) {
     RwRGBA clear_color = {255, 255, 255, 0};
-    RpAtomic* atomic;
-    RwLLLink* end;
     RwLLLink* node;
+    RwLLLink* end;
+    RpAtomic* atomic;
     RpGeometry* geometry;
     unsigned int saved_flags;
 
@@ -234,7 +233,7 @@ RwCamera* ShadowCameraUpdate(RwCamera* camera, RpClump* clump, int clear) {
         node = clump->atomicList.next;
         end = &clump->atomicList;
         while (node != end) {
-            atomic = rpAtomicFromClumpNode(node);
+            atomic = RW_CONTAINER_OF(node, RpAtomic, inClumpLink);
             if (atomic->object.flags & 4) {
                 geometry = atomic->geometry;
                 saved_flags = geometry->flags;
@@ -353,8 +352,6 @@ static RpAtomic* shadow_getFirstAtomic(RpAtomic* atomic, void* out) {
     return 0;
 }
 
-/* TODO: [near miss] 99.67%; SetLight frame takes r28 (retail r29): ShadowCameraDestroy frame
- * web is coloured first and claims r28; helper object order is the open lead. */
 int init_shadow_system(void) {
     unsigned int resolution;
     unsigned int aa_resolution;
@@ -516,8 +513,6 @@ int UpdateShadowCameraLightSource(const float* angles) {
     return 1;
 }
 
-/* TODO: [near miss] 99.90%; Resample camera/source homes r27/r30 swapped: SetFrustum camera
- * param coalesces with the propagated ShadowCamera load temp (replay: uncoalesced = retail). */
 void UpdateShadow(MkObj* fighter_object, PlyrPdata* owner, MkObj* object) {
     MkObj* fighter;
     RwMatrix* dir_matrix;

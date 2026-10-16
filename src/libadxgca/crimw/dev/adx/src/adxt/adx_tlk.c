@@ -234,8 +234,8 @@ void ADXT_SetTimeOfst(ADXTHandle* handle, s32 offset)
     handle->time_offset = offset;
 }
 
-/* TODO: [blocked] 99.98850%; adxt_time_unit BSS +0x38 vs retail +0x48;
- * recover LOCAL adxt_fileid_buf allocation before the trailing scalars. */
+/* TODO: [breakthrough needed] 99.98850%; deferred BSS order is proven;
+ * recover discarded accessor bodies/pool ownership before changing unit mode. */
 s32 ADXT_DiscardSmpl(ADXTHandle* handle, s32 samples)
 {
     s32 discarded;
@@ -590,8 +590,8 @@ static inline void adxt_GetTimeSfreq2(
     *sample_count += handle->time_offset;
 }
 
-/* TODO: [breakthrough needed] 99.98%; six BSS offsets remain;
- * recover the original file-ID buffer producer; RE4 lacks it. */
+/* TODO: [breakthrough needed] 99.98107%; six BSS offsets remain;
+ * original local file-ID allocation order lacks a supported producer/compiler shape. */
 void ADXT_GetTime(ADXTHandle* handle, s32* sample_count, s32* scale)
 {
     s32 actual_count;

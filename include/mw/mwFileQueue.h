@@ -69,9 +69,12 @@ bool circular_buffer<T, Allocator>::push(T value)
 }
 
 template <class T, class Allocator>
+/* TODO: [breakthrough] Callback front 84.26667%; returned value stages member loads;
+ * four argument stack stores need original copy ownership; array changes regress consumers. */
 T circular_buffer<T, Allocator>::front()
 {
-    return buffer[head];
+    T result = buffer[head];
+    return result;
 }
 
 template <class T, class Allocator>
@@ -133,7 +136,8 @@ class reserve_priority_queue
     typedef std::priority_queue<T, std::vector<T, mwFileMemAllocator<T, 3> >, Compare> base;
 
 public:
-    /* TODO: [near miss] 99.95%; temporary-vector destructor flag is -1, retail passes 0. */
+    /* TODO: [near miss] 99.95000%; temporary cleanup retains flag -1;
+     * body-local depth leaks; recover the original destructor context. */
     reserve_priority_queue(const mwFileMemAllocator<T, 3>& a)
         : base(Compare(), std::vector<T, mwFileMemAllocator<T, 3> >(a))
     {

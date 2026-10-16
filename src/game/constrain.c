@@ -84,8 +84,9 @@ static inline MkObj* constrain_player_object(PlyrInfo* player) {
     return player->slot.mirror_a;
 }
 
-static inline float tightrope_projection(const Vec* position) {
-    return position->x * tightrope_uv.x + position->z * tightrope_uv.z;
+static inline float tightrope_projection(const MkObj* object) {
+    return object->pos.value.x * tightrope_uv.x +
+           object->pos.value.z * tightrope_uv.z;
 }
 
 static inline int object_can_be_repelled(const MkObj* object) {
@@ -100,6 +101,7 @@ static inline int player_ignores_obstacles(const PlyrPdata* player) {
     return player->state_flags.bits.bit3 != 0;
 }
 
+#define CONSTRAIN_ABS(value) ((value) >= 0.0f ? (value) : -(value))
 #define CONSTRAIN_P1_OBJECT (g_game_info.plyr0.slot.mirror_a)
 #define CONSTRAIN_P2_OBJECT (g_game_info.plyr1.slot.mirror_a)
 #define CONSTRAIN_P1_PDATA (g_game_info.plyr0.slot.pdata)
@@ -321,8 +323,8 @@ static inline float constrain_positive_distance(float distance) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 96.92%; retail FP predicates agree; sqrt return copies, stack slots and normalization registers remain. */
-
+/* TODO: [near miss] 97.94175%; normalization/scaled dot now agree;
+ * sqrt return copies and rotated input/estimate stack slots remain. */
 static float dist_from_plyr_pos_to_arena_edge(
     Vec* position, const Vec* direction) {
     float length;
@@ -355,7 +357,8 @@ static float dist_from_plyr_pos_to_arena_edge(
     outward_dot =
         direction->x * (position->x * inverse_length) +
         direction->z * (position->z * inverse_length);
-    if (1.2f * outward_dot >= 1.0f) {
+    outward_dot = 1.2f * outward_dot;
+    if (outward_dot >= 1.0f) {
         distance = -distance;
     }
     return distance;
@@ -572,8 +575,8 @@ static float p_constrain_players(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 98.41%; wall-distance publication and XOR agree;
- * initial object homes, absolute-value and push FPR lowering remain. */
+/* TODO: [near miss] 99.86207%; first IRO CSE hoists shared UV components;
+ * preserve MkObj projection and recover their placement before scheduling. */
 static void repel_players(void) {
     Vec movement_1;
     Vec movement_2;
@@ -597,8 +600,10 @@ static void repel_players(void) {
     repel_distance = repel_check_plyrs();
     repel_strength = 0.75f;
     if (repel_distance) {
-        if (tightrope_projection(&CONSTRAIN_P1_OBJECT->pos.value) >
-            tightrope_projection(&CONSTRAIN_P2_OBJECT->pos.value)) {
+        MkObj* player_1 = CONSTRAIN_P1_OBJECT;
+        MkObj* player_2 = CONSTRAIN_P2_OBJECT;
+        if (tightrope_projection(player_1) >
+            tightrope_projection(player_2)) {
             if (object_can_be_repelled(CONSTRAIN_P1_OBJECT)) {
                 xz_x_v_add_xz(
                     &CONSTRAIN_P1_OBJECT->pos.value, &tightrope_uv,
@@ -625,17 +630,16 @@ static void repel_players(void) {
 
     if (!object_ignores_wall_limits(CONSTRAIN_P1_OBJECT) &&
         !object_ignores_wall_limits(CONSTRAIN_P2_OBJECT)) {
-        projection_1 = tightrope_projection(&CONSTRAIN_P1_OBJECT->pos.value);
-        projection_2 = tightrope_projection(&CONSTRAIN_P2_OBJECT->pos.value);
-        distance = projection_1 - projection_2;
-        distance = distance >= 0.0f ? distance : -distance;
+        projection_1 = tightrope_projection(CONSTRAIN_P1_OBJECT);
+        projection_2 = tightrope_projection(CONSTRAIN_P2_OBJECT);
+        distance = CONSTRAIN_ABS(projection_1 - projection_2);
 
         if (distance > 6.5f) {
             if (!constrain_state.separated) {
                 constrain_state.separated = 1;
                 midpoint = (projection_1 + projection_2) / 2.0f;
-                left_wall = midpoint - distance * 0.5f;
-                right_wall = midpoint + distance * 0.5f;
+                left_wall = midpoint - distance / 2.0f;
+                right_wall = midpoint + distance / 2.0f;
             }
         } else {
             constrain_state.separated = 0;
@@ -683,8 +687,8 @@ static void repel_players(void) {
             direction_1 = -1.0f;
             direction_2 = 1.0f;
         } else {
-            push_1 = left_wall - projection_1;
             push_2 = projection_2 - right_wall;
+            push_1 = left_wall - projection_1;
             direction_1 = 1.0f;
             direction_2 = -1.0f;
         }
@@ -789,7 +793,7 @@ static inline void apply_tightrope_to_players(MkObj* player_1) {
                 &player_1->pos.value, &tightrope_perp_uv, 0.1f - offset);
         }
 
-        player_2 = constrain_player_object(&g_game_info.plyr1);
+        player_2 = g_game_info.plyr1.slot.mirror_a;
         offset =
             xz_dot_xz(&player_2->pos.value, &tightrope_perp_uv) - tightrope_dist;
         if (offset < -0.1f) {
@@ -802,8 +806,6 @@ static inline void apply_tightrope_to_players(MkObj* player_1) {
     }
 }
 
-/* TODO: [near miss] 99.86%; vector publication matches (perp derived from the stored uv);
- * only the saved GPR of the reloaded second player differs (r30 vs retail r31). */
 static void keep_players_on_tightrope(void) {
     MkObj* player_2;
     MkObj* player_1;

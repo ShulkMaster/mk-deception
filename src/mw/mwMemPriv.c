@@ -65,8 +65,8 @@ int privGetAlignFromMwMemFlags(u32 flags) {
     }
 }
 
-/* TODO: [near miss] 94.17%; pointer/mask webs rotate across nine leaf rows;
- * propagation-off control is neutral; stop without new ownership evidence. */
+/* TODO: [near miss] 94.17%; initial PCode merges block start/rounded address;
+ * recover the separate return-address owner before tuning leaf registers. */
 void* privGetBlockFromUsedHdr(MwMemUsedHeader* header) {
     u8* block;
     u32 alignment_mask;

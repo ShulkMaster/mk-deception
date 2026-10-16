@@ -51,35 +51,43 @@ void mkMovieTexPlayerIdleUpdate(void) {
     }
 }
 
-/* TODO: [near miss] 96.83%; loop-local GPR homes and screen-offset zero initialization differ. */
+static inline void mmp_release_player(MkMovieTexPlayer* player) {
+    int screenCount;
+    int screenIndex;
+    void* screenPoly;
+    RwTexture* savedTex;
+    int screenOffset;
+
+    MovieDelete(player->movie);
+    screenCount = player->screen_count;
+    if (screenCount < 1) {
+        screenCount = 1;
+    }
+    for (screenIndex = 0, screenOffset = 0; screenIndex < screenCount;
+         screenIndex++, screenOffset += sizeof(void*)) {
+        screenPoly = *(void**)((char*)player +
+            RW_OFFSET_OF(MkMovieTexPlayer, screen_poly) + screenOffset);
+        savedTex = *(RwTexture**)((char*)player +
+            RW_OFFSET_OF(MkMovieTexPlayer, saved_texture) + screenOffset);
+        RwTexture* tex = GetScreenPolyTexture__FPv(screenPoly);
+        if (tex != savedTex) {
+            SetScreenPolyTexture__FPvP9RwTexture(screenPoly, savedTex);
+        }
+    }
+    MovieDeleteTexture(player->texture);
+    memset(player, 0, sizeof(*player));
+}
+
 void movie_player_reset(void) {
+    MkMovieTexPlayer* player;
     int playerIndex;
 
     playerIndex = 0;
     do {
         if (playerIndex < 2) {
-            MkMovieTexPlayer* player = &_mmp_data[playerIndex];
+            player = &_mmp_data[playerIndex];
             if (player->movie != 0) {
-                int screenCount;
-                int screenIndex;
-                int screenOffset;
-
-                MovieDelete(player->movie);
-                screenCount = player->screen_count;
-                if (screenCount < 1) {
-                    screenCount = 1;
-                }
-                for (screenIndex = 0, screenOffset = 0; screenIndex < screenCount;
-                     screenIndex++, screenOffset += sizeof(void*)) {
-                    void* screenPoly = mmp_screen_poly_at(player, screenOffset);
-                    RwTexture* savedTex = mmp_saved_texture_at(player, screenOffset);
-                    RwTexture* tex = GetScreenPolyTexture__FPv(screenPoly);
-                    if (tex != savedTex) {
-                        SetScreenPolyTexture__FPvP9RwTexture(screenPoly, savedTex);
-                    }
-                }
-                MovieDeleteTexture(player->texture);
-                memset(player, 0, sizeof(*player));
+                mmp_release_player(player);
             }
         }
         playerIndex++;

@@ -5,7 +5,7 @@ static const long AdxQtbl[16] = {
     -8, -7, -6, -5, -4, -3, -2, -1,
 };
 
-int ADX_DecodeSte4AsSte(signed char*, int, short*, short*, short*,
+long ADX_DecodeSte4AsSte(signed char*, long, short*, short*, short*,
                         short*, short, short, short*, short, short);
 int ADX_DecodeSte4AsMono(signed char*, int, short*, short*, short*,
                          short*, short, short, short*, short, short);
@@ -26,8 +26,9 @@ int ADX_DecodeSte4(const signed char* input, int numBlocks,
         randomMultiplier, randomIncrement);
 }
 
-/* TODO: [breakthrough] 85.18% with O4; gain/CTR shape recovered; saved-register and scheduling differences remain. */
-int ADX_DecodeSte4AsSte(signed char* input, int numBlocks,
+/* TODO: [breakthrough] 90.36184%; retained in-place history contributions;
+ * entry widening does not recover coefficient0; resolve conversion ownership. */
+long ADX_DecodeSte4AsSte(signed char* input, long numBlocks,
                         short* outputLeft, short delayLeft[2],
                         short* outputRight, short delayRight[2],
                         short coefficient0, short coefficient1,
@@ -78,8 +79,9 @@ int ADX_DecodeSte4AsSte(signed char* input, int numBlocks,
             leftPacked = input[0];
             rightPacked = input[0x12];
             input++;
+            olderLeft *= coefficient1;
             olderLeft = (leftPacked >> 4) * leftGain +
-                ((coefficient0 * previousLeft + coefficient1 * olderLeft) >> 12);
+                ((coefficient0 * previousLeft + olderLeft) >> 12);
             if (olderLeft > 32767 || olderLeft < -32768) {
                 if (olderLeft < -32768) {
                     olderLeft = -32768;
@@ -87,8 +89,9 @@ int ADX_DecodeSte4AsSte(signed char* input, int numBlocks,
                     olderLeft = 32767;
                 }
             }
+            olderRight *= coefficient1;
             decodedRight = (rightPacked >> 4) * rightGain;
-            decodedRight += (coefficient0 * previousRight + coefficient1 * olderRight) >> 12;
+            decodedRight += (coefficient0 * previousRight + olderRight) >> 12;
             if (decodedRight > 32767 || decodedRight < -32768) {
                 if (decodedRight < -32768) {
                     decodedRight = -32768;
@@ -96,10 +99,10 @@ int ADX_DecodeSte4AsSte(signed char* input, int numBlocks,
                     decodedRight = 32767;
                 }
             }
-            leftPacked = AdxQtbl[leftPacked & 0xF];
             outputLeft[0] = olderLeft;
-            rightPacked = AdxQtbl[rightPacked & 0xF];
+            leftPacked = AdxQtbl[leftPacked & 0xF];
             outputRight[0] = decodedRight;
+            rightPacked = AdxQtbl[rightPacked & 0xF];
             previousLeft = leftPacked * leftGain +
                 ((coefficient0 * olderLeft + coefficient1 * previousLeft) >> 12);
             if (previousLeft > 32767 || previousLeft < -32768) {
@@ -133,14 +136,14 @@ int ADX_DecodeSte4AsSte(signed char* input, int numBlocks,
     return numBlocks;
 }
 
-/* TODO: [breakthrough] 89.04% with O4; gain/CTR shape recovered; register homes and entry scheduling remain. */
+/* TODO: [breakthrough] 92.71277%; in-place high-left history improves predictor
+ * scheduling; header, LCG and mix owners plus entry scheduling remain. */
 int ADX_DecodeSte4AsMono(signed char* input, int numBlocks,
                          short* outputLeft, short delayLeft[2],
                          short* outputRight, short delayRight[2],
                          short coefficient0, short coefficient1,
                          short* randomState, short randomMultiplier,
                          short randomIncrement) {
-    long olderLeft;
     long olderRight;
     long previousRight;
     long previousLeft;
@@ -154,6 +157,7 @@ int ADX_DecodeSte4AsMono(signed char* input, int numBlocks,
     long blockCount;
     long key;
     long sample;
+    long olderLeft;
 
     blockCount = numBlocks / 2;
 
@@ -185,8 +189,9 @@ int ADX_DecodeSte4AsMono(signed char* input, int numBlocks,
             leftPacked = input[0];
             rightPacked = input[0x12];
             input++;
+            olderLeft *= coefficient1;
             olderLeft = (leftPacked >> 4) * leftGain +
-                ((coefficient0 * previousLeft + coefficient1 * olderLeft) >> 12);
+                ((coefficient0 * previousLeft + olderLeft) >> 12);
             if (olderLeft > 32767 || olderLeft < -32768) {
                 if (olderLeft < -32768) {
                     olderLeft = -32768;

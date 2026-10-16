@@ -185,8 +185,8 @@ static inline int mwsffrm_IsPicUsrDat(MwsPlayer* player)
     return player->picture_user_data != 0 ? 1 : 0;
 }
 
-/* TODO: [near miss] 97.66949%; guards/calls/slot stores agree;
- * player/header homes remain; donor dead-guard forcing is forbidden. */
+/* TODO: [near miss] 97.66949%; live retail/m2c confirm guards/calls/stores;
+ * player/header r30/r31 homes differ; donor dead conditional excluded. */
 static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
                                       const void* data, unsigned int size)
 {

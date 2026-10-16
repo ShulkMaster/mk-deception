@@ -348,8 +348,8 @@ void adxt_stat_decinfo(ADXTHandle* handle)
     handle->status = ADXT_STATUS_BUFFERING;
 }
 
-/* TODO: [near miss] 99.95%; callback-visible count snapshots agree;
- * isolated scanned-length LHA/ADD GPR home remains; stop at coloring. */
+/* TODO: [near miss] 99.9465%; count snapshots agree; LHA/ADD r0/r4 coloring
+ * remains; donor register/dead-guard fix is forbidden, awaiting new owner evidence. */
 void adxt_nlp_trap_entry(void* object)
 {
     ADXTHandle* handle = object;

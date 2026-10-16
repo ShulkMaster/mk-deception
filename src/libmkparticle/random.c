@@ -60,6 +60,29 @@ static inline void rnd_normalize(PfxVec3* const output, const PfxVec3* const inp
     output->z = input->z * inverse;
 }
 
+static inline void rnd_normalize_then_scale(
+    PfxVec3* const vector, const float* const scale) {
+    float inverse;
+    float normalized_x;
+    float normalized_y;
+    float normalized_z;
+    float magnitude;
+
+    inverse = rnd_inverse_sqrt(
+        vector->x * vector->x + vector->y * vector->y + vector->z * vector->z);
+    normalized_x = vector->x * inverse;
+    vector->x = normalized_x;
+    normalized_y = vector->y * inverse;
+    vector->y = normalized_y;
+    normalized_z = vector->z * inverse;
+    vector->z = normalized_z;
+
+    magnitude = *scale;
+    vector->x = normalized_x * magnitude;
+    vector->y = normalized_y * magnitude;
+    vector->z = normalized_z * magnitude;
+}
+
 static inline float rnd_length(const PfxVec3* const vector) {
     return rnd_sqrt_table(
         vector->x * vector->x + vector->y * vector->y + vector->z * vector->z);
@@ -152,7 +175,6 @@ void rnd_point_in_disc(PfxVec3* output, const PfxVec3* axis,
     output->z = perpendicular.z * radius;
 }
 
-/* TODO: [near miss] 99.48%; thirteen inverse/sine FPR rows remain; need new normalization-owner evidence. */
 void rnd_point_in_sphere_section(PfxVec3* output, const PfxVec3* axis,
                                  float radius, float radius_spread,
                                  float angle, float angle_spread) {
@@ -174,10 +196,7 @@ void rnd_point_in_sphere_section(PfxVec3* output, const PfxVec3* axis,
     random_vector.y = rnd_between(-1.0f, 1.0f);
     random_vector.z = rnd_between(-1.0f, 1.0f);
     rnd_cross(&perpendicular, &random_vector, axis);
-    rnd_normalize(&perpendicular, &perpendicular);
-    perpendicular.x *= sine;
-    perpendicular.y *= sine;
-    perpendicular.z *= sine;
+    rnd_normalize_then_scale(&perpendicular, &sine);
     output->x = perpendicular.x + axial.x * cosine;
     output->y = perpendicular.y + axial.y * cosine;
     output->z = perpendicular.z + axial.z * cosine;
@@ -202,7 +221,6 @@ void rnd_vector_from_point(PfxVec3* output, const PfxVec3* start,
     output->z = direction.z;
 }
 
-/* TODO: [near miss] 99.36%; stack-resident vectors and separate normalization correction agree; inverse/sine FPR coloring remains. */
 void rnd_bend_vector(PfxVec3* vector, float angle, float angle_spread) {
     PfxVec3 random_vector;
     PfxVec3 perpendicular;
@@ -218,10 +236,7 @@ void rnd_bend_vector(PfxVec3* vector, float angle, float angle_spread) {
     length = rnd_length(vector);
     sine *= length;
     rnd_cross(&perpendicular, &random_vector, vector);
-    rnd_normalize(&perpendicular, &perpendicular);
-    perpendicular.x *= sine;
-    perpendicular.y *= sine;
-    perpendicular.z *= sine;
+    rnd_normalize_then_scale(&perpendicular, &sine);
     vector->x = perpendicular.x + vector->x * cosine;
     vector->y = perpendicular.y + vector->y * cosine;
     vector->z = perpendicular.z + vector->z * cosine;

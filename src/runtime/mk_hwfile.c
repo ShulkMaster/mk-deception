@@ -124,7 +124,8 @@ static inline void hwfile_pool_release(MkHwFileHandlePool* pool,
     }
 }
 
-/* TODO: [near miss] 99.34%; pool scan matches; release pool/index r4/r5 homes remain swapped. */
+/* TODO: [near miss] 99.33628%; release pool/index homes differ;
+ * native kind-change prediction lacks a source producer; stop at coloring. */
 MkHwFileRequest* mk_hwfile_open(const char* path, const char* mode) {
     char path_buffer[256];
     MkHwFileRequest* request;
@@ -244,17 +245,16 @@ int mk_hwfile_tell(MkHwFileRequest* request) {
     return offset;
 }
 
-/* TODO: [near miss] 98.79%; safe-free guard recovered; pool owner and index still use swapped GPRs (r4/r5). */
 static inline void mk_hwfile_free_command_safe(void* command) {
     if (command != 0) {
         mwFileFreeCommand(command);
     }
 }
 
+/* TODO: [near miss] 98.79032%; canonical pool release retains pool-address
+ * CG versus base-CSE/index ownership; recover producer before more coloring. */
 void mk_hwfile_close(MkHwFileRequest* request) {
     void* command;
-    int byte_offset;
-    int index;
 
     if (request != 0) {
         if (request->mwFile != 0 || request->openCommand != 0) {
@@ -268,20 +268,7 @@ void mk_hwfile_close(MkHwFileRequest* request) {
                 mk_hwfile_free_command_safe(request->openCommand);
                 request->openCommand = 0;
             }
-            if (HANDLE_POOL_AVAILABLE(&handle_pool) &&
-                request >= handle_pool.base &&
-                (unsigned char*)request <=
-                    (unsigned char*)handle_pool.base +
-                        handle_pool.handleSize * (handle_pool.count - 1)) {
-                byte_offset = (unsigned char*)request -
-                              (unsigned char*)handle_pool.base;
-                index = byte_offset / handle_pool.handleSize;
-                if (byte_offset - index * handle_pool.handleSize == 0 &&
-                    handle_pool.freelist[index] != 0) {
-                    handle_pool.freelist[index] = 0;
-                    handle_pool.freeCount++;
-                }
-            }
+            hwfile_pool_release(&handle_pool, request);
         }
     }
 }

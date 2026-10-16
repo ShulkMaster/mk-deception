@@ -73,8 +73,8 @@ void ScreenAnimScene::SnapToTime(int time) {
     m_flags &= ~ANIM_SCENE_PLAYING;
 }
 
-/* TODO: [near miss] 99.88%; only dir (retail r24) / effectCount (r25) coloring swapped;
- * declaration order and block scope of either are neutral; stop at coloring. */
+/* TODO: [near miss] 99.87654%; hoisted direction conversion selects before count;
+ * recover the count producer without changing the tally and track owners. */
 void ScreenAnimScene::Process(int dt) {
     AnimDirectionE dir;
     int processed;

@@ -33,6 +33,9 @@ extern int target_game_mode;
  *      include/mw/mwScreenEngineGlue.h, include/runtime/asset.h.
  */
 
+extern int need_to_reload_systemart;
+const char* get_pause_menu_name(void);
+
 float p_pause_menu_switch(void);
 void adjust_screen_reset(void);
 void adjust_screen_position(int direction);

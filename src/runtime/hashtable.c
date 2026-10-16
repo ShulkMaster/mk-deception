@@ -146,7 +146,7 @@ void hashtable_store_with_instance(Hashtable* ht, const char* key, void* value, 
     entry->instance = instance;
 }
 
-static inline int hashtable_initialize_storage(Hashtable* ht,
+static inline void hashtable_initialize_storage(Hashtable* ht,
                                                 unsigned int bucket_count) {
     unsigned int i;
 
@@ -155,13 +155,12 @@ static inline int hashtable_initialize_storage(Hashtable* ht,
     }
     ht->key_storage_used = 0;
     ht->allocation_index = 0;
-    ht->initialized = 1;
-    return 1;
 }
 
-/* TODO: [near miss] 98.29%; storage helper fixes loop setup; final zero
- * register and duplicate success constant remain after honest-form checks. */
-int hashtable_dynamic_init(Hashtable* ht, unsigned int bucket_count, _mwMemHeap* heap) {
+static inline int hashtable_prepare_dynamic_storage(
+    Hashtable* ht, unsigned int bucket_count, _mwMemHeap* heap) {
+    int initialized;
+
     ht->owns_keys = 1;
     ht->key_storage_capacity = bucket_count << 6;
     ht->heap = heap;
@@ -171,7 +170,15 @@ int hashtable_dynamic_init(Hashtable* ht, unsigned int bucket_count, _mwMemHeap*
     ht->buckets = _mwMemMalloc(ht->heap, bucket_count * sizeof(*ht->buckets), 3, 0, 0, 0);
     ht->entry_pool = _mwMemMalloc(ht->heap, ht->capacity * sizeof(*ht->entry_pool), 3, 0, 0, 0);
     if (ht->buckets == 0 || ht->entry_pool == 0 || ht->key_storage == 0) {
-        return 0;
+        initialized = 0;
+    } else {
+        hashtable_initialize_storage(ht, bucket_count);
+        initialized = 1;
+        ht->initialized = initialized;
     }
-    return hashtable_initialize_storage(ht, bucket_count);
+    return initialized;
+}
+
+int hashtable_dynamic_init(Hashtable* ht, unsigned int bucket_count, _mwMemHeap* heap) {
+    return hashtable_prepare_dynamic_storage(ht, bucket_count, heap);
 }

@@ -11,6 +11,7 @@
 #include "runtime/mk_vtbl.h"
 #include "runtime/utils.h"
 #include "runtime/cstdio.h"
+#include "runtime/cstdlib.h"
 #include "game/trial.h"
 #include "game/ejb.h"
 #include "game/plyr.h"
@@ -274,8 +275,6 @@ void eat_switch_edge(int port, int switch_index) {
     }
 }
 
-/* TODO: [near miss] 98.44538%; axis sampling agrees; repeated threshold
- * load and magnitude registers remain; whole-unit CSE-off regresses. */
 int get_stick_pos(int port, int stick, float* horizontal, float* vertical) {
     int x = 0;
     int y = 0;
@@ -291,8 +290,8 @@ int get_stick_pos(int port, int stick, float* horizontal, float* vertical) {
         x = g_game_info.pads[port].stick_axis_1 - 0x7F;
         y = g_game_info.pads[port].stick_axis_0 - 0x7F;
     }
-    if ((x < 0 ? -x : x) < stick_dead_zone) x = 0;
-    if ((y < 0 ? -y : y) < stick_dead_zone) y = 0;
+    if (__abs(x) < stick_dead_zone) x = 0;
+    if (__abs(y) < stick_dead_zone) y = 0;
     if (x < 0) *horizontal = (float)x / 56.0f;
     else *horizontal = (float)x / 56.0f;
     if (y < 0) *vertical = (float)y / 56.0f;
@@ -304,7 +303,8 @@ int get_stick_pos(int port, int stick, float* horizontal, float* vertical) {
     return 1;
 }
 
-/* TODO: [near miss] 97.05%; layout and store order agree; literal/BSS base register rows remain; stop at coloring. */
+/* TODO: [near miss] 97.04546%; label must precede the merged BSS root;
+ * recover producer ownership while retaining the exact record/store layout. */
 void init_switch_log(void) {
     int i;
     for (i = 0; i < 30; i++) {
@@ -329,8 +329,8 @@ void init_switch_log(void) {
     }
 }
 
-/* TODO: [near miss] 94.22%; label and reduced loop-offset homes differ;
- * separate indices and loop-local label regress; retain reset store order. */
+/* TODO: [near miss] 94.22%; named label loses the first register claim to reduced offset;
+ * recover label ownership while preserving reset order. */
 void turn_switch_log_on(void) {
     const char* label;
     int i;
@@ -421,8 +421,8 @@ void log_switch(int player, int switch_index, int tick,
     if (sw_log_on != 0) show_sw_log();
 }
 
-/* TODO: [near miss] 98.93%; CFG, size and clamp shape agree; loop counter/offset/old_proc
- * saved-register homes rotate by one in the practice and pad-log blocks. */
+/* TODO: [near miss] 98.93023%; count/old_proc simplify threshold rotates saved homes;
+ * isolated fade-restart inline regresses; recover cross-loop ownership. */
 void show_sw_log(void) {
     int index;
     int y;
@@ -657,7 +657,8 @@ static inline void scan_switch_sequence(
     execute_scan_sequence_cmd(action, execution_mode);
 }
 
-/* TODO: [near miss] 97.68%; equivalent rejection branches and GPR coloring remain; stop at compiler model. */
+/* TODO: [breakthrough needed] 97.67619%; rejection polarity differs before regalloc;
+ * recover frontend join and independent decoy-selector ownership. */
 void scan_switch_sequences(unsigned int* sequence) {
     struct SwitchLogEntry* switch_log;
     int log_index;

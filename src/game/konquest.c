@@ -37,6 +37,7 @@
 #include "math/mk_math.h"
 #include "game/game_info.h"
 #include "game/konquest.h"
+#include "game/konquest_objects.h"
 #include "game/konquest_time.h"
 #include "game/menu.h"
 #include "platform/display.h"
@@ -165,8 +166,6 @@ struct KonquestDirectionalLightRow {
     float strength;
     char pad08[0x10];
 };
-
-typedef struct KonquestChildObject KonquestChildObject;
 
 struct KonquestTransitionPdata {
     MkHdr hdr;
@@ -802,25 +801,6 @@ struct KonquestPuiDefinition {
 
 typedef char KonquestPuiDefinitionSizeCheck[
     sizeof(KonquestPuiDefinition) == 0x3C ? 1 : -1];
-
-struct KonquestChildObject {
-    MkHdr hdr;
-    struct KonquestUidObject* owner;
-    int matrix_index;
-    union {
-        struct KonquestChildDefinition* definition;
-        struct KonquestSobjBinding* binding;
-        struct KonquestSobjInfo* info;
-    };
-    Vec position;
-    Vec angles;
-    Vec base_position;
-    Vec base_angles;
-    int state;
-    MkHdr* state_object;
-    unsigned int state_object_instance;
-    KonquestWaypoint* path_waypoints;
-};
 
 struct KonquestCollisionDefinition {
     char pad00[0x2C];
@@ -1543,7 +1523,6 @@ static void konquest_update_true_clipped_tiles(void);
 MkObj* get_pickup_object(void);
 void set_monk_position(float x, float y, float z, float angle);
 MkProc* load_hero_model(int animation_script);
-void konquest_open_door_sobj(KonquestChildObject* door, int remain_open);
 static float p_konquest_open_door(void);
 static void remove_collisions_from_tile_and_tile_objects(
     KonquestTileRecord* tile);
@@ -2634,11 +2613,11 @@ static inline void play_pui_effect_now(
     KonquestPuiRuntime* pui, unsigned int handle) {
     struct KonquestChestOwner* owner;
     MkObj* object;
-    MkObj* emitter_object;
     MkSobj* child;
     MkPfx* effect;
     RwSphere sphere;
     unsigned int emitter;
+    MkObj* emitter_object;
 
     object = MK_HDR_LIVE(pui->render_object, pui->render_object_instance);
     owner = konquest_pui_runtime_live_owner(pui);
@@ -3088,6 +3067,16 @@ void konquest_state_init(void) {
     memset(&konquest_save_data, 0, sizeof(konquest_save_data));
 }
 
+static inline MkObj* get_konquest_tiles_obj(void) {
+    struct KonquestPdata* pdata = konquest_pdata;
+    MkObj* object = 0;
+
+    if (pdata != 0) {
+        object = (MkObj*)MK_LIVE(pdata->tile_model.object, pdata->tile_model.instance);
+    }
+    return object;
+}
+
 MkHdr* get_konquest_tile_objects_obj(void) {
     struct KonquestPdata* pdata = konquest_pdata;
     MkHdr* object = 0;
@@ -3116,13 +3105,8 @@ static inline MkSobj* konquest_find_nth_sobj_by_id(MkObj* model, unsigned int id
     return 0;
 }
 
-/* TODO: [near miss] 97.17%; retail keeps model's 0 live in r3 through the tile-model latch (null paths are mr r6,r3). */
 MkSobj* get_tile_sobj_by_id(int id) {
-    MkObj* model = 0;
-
-    if (konquest_pdata != 0) {
-        model = konquest_live_tile_model_object(konquest_pdata);
-    }
+    MkObj* model = get_konquest_tiles_obj();
     if (model == 0) {
         return 0;
     }
@@ -3187,30 +3171,14 @@ void insert_collision_on_proper_tile_list(CollisionObj* object) {
     }
 }
 
-/* TODO: [near miss] 99.73%; pool strings exact; tile loop inits offset with li, retail mr from index. */
-static void load_and_init_konquest_map_specific_data(int region) {
-    MkHdr* process_data;
-    KonquestTileRecord* tile;
-    unsigned int event_count;
+static inline void shadow_exclusion_system_init(void) {
+    int tile_index;
     unsigned int shadow_art;
-    KonquestTime first_event_time;
-
-    load_ssf(konquest_region_data[region].fight_files);
-    if (konquest_editor_mode_on == 0) {
-        initialize_npc_data();
-    }
-    load_binary_data(
-        &sec_konquestdata, &chest_data,
-        konquest_prize_description_block,
-        &konquest_data_loaded, 0x49);
-    load_konquest_tiles();
-    konquest_nav_init();
+    KonquestTileRecord* tile;
 
     shadow_art = get_artid_of_named_item_in_slot(
         0x60029, "SHADOW_COL", 0);
     if (shadow_art != 0) {
-        int tile_index;
-
         for (tile_index = 0;
              tile_index <
              konquest_pdata->tile_width * konquest_pdata->tile_height;
@@ -3226,6 +3194,26 @@ static void load_and_init_konquest_map_specific_data(int region) {
         generate_shadow_collision_objects(0x60029, shadow_art);
         konquest_pdata->base_shadow_strength = 1.0f;
     }
+}
+
+static void load_and_init_konquest_map_specific_data(int region) {
+    MkHdr* process_data;
+    KonquestTileRecord* tile;
+    unsigned int event_count;
+    KonquestTime first_event_time;
+
+    load_ssf(konquest_region_data[region].fight_files);
+    if (konquest_editor_mode_on == 0) {
+        initialize_npc_data();
+    }
+    load_binary_data(
+        &sec_konquestdata, &chest_data,
+        konquest_prize_description_block,
+        &konquest_data_loaded, 0x49);
+    load_konquest_tiles();
+    konquest_nav_init();
+
+    shadow_exclusion_system_init();
 
     if (konquest_editor_mode_on == 0) {
         int tile_count;
@@ -3293,7 +3281,7 @@ static void load_and_init_konquest_map_specific_data(int region) {
         unsigned int index;
         MkProc* proc;
         KonquestPuiEventRow* event;
-        int allocation_size;
+        unsigned int allocation_size;
 
         proc = _create_mkproc_generic_nostack(
             0xA019, 0x1F, p_pui_timed_event_manager,
@@ -5127,7 +5115,6 @@ static RpAtomic* hide_an_atomic(RpAtomic* atomic, void* data) {
     return atomic;
 }
 
-/* TODO: [near miss] 69.57%; operations and size match; scheduling across the two int-to-float conversions and GPR/FPR allocation differ. */
 void set_tile_grid_size(int width, int height) {
     int allocation_size;
     float origin_x;
@@ -5437,12 +5424,12 @@ static void setup_children_sobjs_of_tile_object(
     }
 }
 
-/* TODO: [near miss] 99.40%; only index/SOBJ r27/r29 coloring remains; pool strings exact. */
 void load_tile_objects(struct KonquestTileObjectDefinition* definitions) {
     unsigned int row_count;
     MkObj* model;
-    unsigned int index;
+    MkSobj* object;
     struct KonquestTileObjectDefinition* definition;
+    unsigned int index;
 
     row_count = get_row_count_for_table_by_pointer(
         konquest_pdata->script_owner, definitions);
@@ -5464,8 +5451,6 @@ void load_tile_objects(struct KonquestTileObjectDefinition* definitions) {
         if (definition->uid >= 1000) {
             setup_locator_for_tile_object(definition);
         } else {
-            MkSobj* object;
-
             object = obj_find_child_sobj_by_id(
                 model, definition->uid, 2);
             if (object != 0) {
@@ -5675,7 +5660,8 @@ static inline void get_door_position(KonquestChildObject* door, Vec* position) {
     }
 }
 
-/* TODO: [near miss] 98.20%; recovered door helpers; angle branch and nonvolatile homes remain. */
+/* TODO: [breakthrough needed] 98.19768%; angle guard loses its branch before
+ * allocation; need live guard-copy provenance, then partner/saved ownership. */
 static void generate_door_paths(void) {
     int waypoint_index;
     int generated_count;
@@ -5690,7 +5676,7 @@ static void generate_door_paths(void) {
     }
 
     waypoints = get_mem(
-        konquest_pdata->door_overflow_count * 0x60);
+        konquest_pdata->door_overflow_count * (4 * sizeof(*waypoints)));
     if (konquest_has_list(&konquest_pdata->door_objects)) {
         link = konquest_pdata->door_objects;
         while (link != 0) {
@@ -6222,7 +6208,8 @@ static float p_pui_pfx_sequence(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 98.76%; visibility and sphere order agree; trigger/PUI/attachment saved registers differ, stop at coloring. */
+/* TODO: [near miss] 98.84956%; owner alias pressure remains; early-return
+ * accessor loses retail branch pairs; recover original validation ownership. */
 static void handle_trigger_preprocess(struct KonquestTriggerStruct* trigger) {
     struct KonquestTriggerDefinition* definition;
     KonquestPuiRuntime* pui;
@@ -6515,8 +6502,8 @@ static inline void update_child_object_matrix(
     }
 }
 
-/* TODO: [near miss] 98.69522%; inline sqrt copies/FPR homes remain;
- * complete duration owner regresses; stop at verified inline-return coloring. */
+/* TODO: [near miss] 98.69522%; first/third sqrt return copies remain;
+ * inline result owners need original boundary evidence; stack slot pairs constrain helpers. */
 static void object_transition_to_state(
     KonquestChildObject* record, int state, int play_sound) {
     struct KonquestObjectState* state_data;
@@ -6729,7 +6716,8 @@ static inline void konquest_start_door_proc(KonquestChildObject* door,
     }
 }
 
-/* TODO: [near miss] 97.01%; signed partner-UID load shared; saved-register rotation and enumeration lookup scheduling remain. */
+/* TODO: [near miss] 97.00603%; shared partner UID agrees; search/latch owners
+ * and lookup scheduling still constrain retail saved homes. */
 void konquest_open_door_sobj(
     KonquestChildObject* door, int remain_open) {
     KonquestChildObject* partner;
@@ -6910,8 +6898,8 @@ void konquest_transition_object_to_state(
     }
 }
 
-/* TODO: [near miss] 98.86%; only state-object validity guard r3/r4
- * coloring and one pointer reload remain; stop at coloring. */
+/* TODO: [near miss] 98.85606%; destroy-owner reload remains; scoped CSE fixes
+ * the latch but loses indexed-table stride reuse across rotation. */
 static void object_set_state(KonquestChildObject* record, int state) {
     struct KonquestObjectState* state_data;
     MkHdr* state_object;
@@ -8026,31 +8014,14 @@ static float p_control_konquest_monk(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 94.97%; dust offset corrected to retail -0.05;
- * recover the table-base loop-entry join and bone/effect handle lifetimes. */
-static float p_monk_move(void) {
-    MkObj* hero;
+static inline void run_monk_move_frames(int initial_state)
+{
     struct MonkStateData* state;
     float frame_delta;
-    int initial_state;
     int current_state;
     int animation_complete;
-
-    hero = konquest_pdata->hero_object;
-    initial_state = konquest_pdata->hero_state;
-    hero = MK_HDR_LIVE(hero, konquest_pdata->hero_instance);
-    if (hero == 0) {
-        return -1.0f;
-    }
-
-    hero->hide_flag_bits.pin_animation = 0;
-    konquest_pdata->animation_event_index = 0;
-    if (anim_pdata->animation != monk_state_data[konquest_pdata->hero_state].animation) {
-        transition_to_anim_script(
-            anim_pdata, monk_state_data[konquest_pdata->hero_state].animation, monk_state_data[konquest_pdata->hero_state].transition, 0.1f);
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
+    struct MonkStateData* event_state;
+    AnimPdata* animation;
 
     while (konquest_pdata->hero_state == initial_state) {
         current_state = konquest_pdata->hero_state;
@@ -8060,24 +8031,25 @@ static float p_monk_move(void) {
         advance_anim(anim_pdata);
         pose_anim(anim_pdata, 1);
 
+        animation = anim_pdata;
         current_state = konquest_pdata->hero_state;
-        state = &monk_state_data[current_state];
-        if (state->animation_event_count != 0) {
+        event_state = &monk_state_data[current_state];
+        if (event_state->animation_event_count != 0) {
             frame_delta =
-                anim_pdata->frame -
-                (float)state->animation_event_frames
+                animation->frame -
+                (float)event_state->animation_event_frames
                     [konquest_pdata->animation_event_index];
             if ((frame_delta >= 0.0f ? frame_delta : -frame_delta) <
-                anim_pdata->step) {
+                animation->step) {
                 if (current_state == 2) {
                     random_snd_req(0x85);
                     if (get_game_state() == 0x13 &&
                         konquest_pdata->region_table->effect_bank_name != 0) {
                         MkObj* effect_hero;
-                        Vec bone_offset;
                         Vec effect_position;
-                        unsigned int effect;
+                        Vec bone_offset;
                         int bone;
+                        unsigned int effect;
 
                         effect_hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
@@ -8139,6 +8111,31 @@ static float p_monk_move(void) {
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
     }
+}
+
+/* TODO: [breakthrough] 97.49020%; event snapshots and dust homes agree;
+ * frontend table preheader rotates saved owners; recover original loop entry. */
+static float p_monk_move(void) {
+    MkObj* hero;
+    int initial_state;
+
+    hero = konquest_pdata->hero_object;
+    initial_state = konquest_pdata->hero_state;
+    hero = MK_HDR_LIVE(hero, konquest_pdata->hero_instance);
+    if (hero == 0) {
+        return -1.0f;
+    }
+
+    hero->hide_flag_bits.pin_animation = 0;
+    konquest_pdata->animation_event_index = 0;
+    if (anim_pdata->animation != monk_state_data[konquest_pdata->hero_state].animation) {
+        transition_to_anim_script(
+            anim_pdata, monk_state_data[konquest_pdata->hero_state].animation, monk_state_data[konquest_pdata->hero_state].transition, 0.1f);
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+
+    run_monk_move_frames(initial_state);
 
     aproc->vtbl->jump_sleep(p_control_konquest_monk, 0.0f);
     return 0.0f;
@@ -8760,7 +8757,8 @@ void set_default_konquest_light_values(void) {
 }
 #pragma auto_inline reset
 
-/* TODO: [near miss] 98.43%; previous-row index/float register coloring and retail's dead `b` back to the loop preheader remain. */
+/* TODO: [near miss] 98.43458%; named/CSE index and interpolation homes differ;
+ * frontend lacks retail dead tail; recover original control structure. */
 float p_adjust_directional_light(void) {
     struct KonquestDirectionalLightRow* light_table;
     struct KonquestLightAdjustPdata* pdata;
@@ -9061,8 +9059,8 @@ static inline void adjust_star_dome_for_new_time_of_day(
     set_sobj_alpha(g_game_info.sky, 10, 1, alpha);
 }
 
-/* TODO: [near miss] 95.44%; retail helper boundaries restored;
- * table/last-row and alpha register allocation remains. */
+/* TODO: [near miss] 95.43651%; table/last-row and alpha owners differ;
+ * constant/owner lifetimes remain after interval, loop and binding controls. */
 static float p_adjust_sky(void) {
     struct KonquestSkyRow* sky_table;
     int last_row;
@@ -9097,8 +9095,8 @@ static inline int konquest_find_sky_row(
     return current_index;
 }
 
-/* TODO: [near miss] 99.33%; traced row/color-step allocation differs;
- * retain fused interpolation; new owner/lifetime evidence required. */
+/* TODO: [near miss] 99.32796%; GPR row/hour and FPR rate ownership differ;
+ * retain fused interpolation; original snapshot ownership still needed. */
 static int adjust_sky_for_new_time_of_day(
     struct KonquestSkyRow* sky_table, int last_row) {
     struct KonquestSkyRow* previous_row;
@@ -9216,7 +9214,8 @@ static inline int konquest_find_light_row(
     return current_index;
 }
 
-/* TODO: [near miss] 99.34%; row-pointer GPRs and step FPRs differ (current_color built in a fresh reg). */
+/* TODO: [near miss] 99.33544%; current-color/red-step owners trail temporaries;
+ * retain member base and scalar interpolation; producer boundary unresolved. */
 static int adjust_light_for_new_time_of_day(
     RpLight* light, KonquestLightRow* light_table, int last_row) {
     int current_index;
@@ -9558,8 +9557,8 @@ static void handle_monk_input(void) {
     }
 }
 
-/* TODO: [breakthrough] 99.30%; horizontal direction retains retail y*0;
- * case-2 component scheduling and FPR coloring remain. */
+/* TODO: [near miss] 99.80099%; X result must emit before Z loads;
+ * scalar predicate is neutral; recover plane producer ownership. */
 static int check_additional_trigger_fire_requirements(
     struct KonquestTriggerStruct* owner, MkObj* hero) {
     KonquestTriggerRequirement* requirement;
@@ -9605,22 +9604,27 @@ static int check_additional_trigger_fire_requirements(
     case 2:
         orientation = requirement->orientation;
         if (orientation != 0) {
-            delta_z = requirement->position.z - hero->pos.value.z;
-            delta_x = requirement->position.x - hero->pos.value.x;
-            inverse_length =
-                gxMathFastInvSqrt(delta_x * delta_x + delta_z * delta_z);
-            delta_z *= inverse_length;
-            delta_x *= inverse_length;
+            float oriented_forward_z;
+            float oriented_forward_x;
+            float oriented_delta_x;
+            float oriented_delta_z;
 
-            forward_x = hero->field_24->at.x;
-            forward_z = hero->field_24->at.z;
+            oriented_delta_z = requirement->position.z - hero->pos.value.z;
+            oriented_delta_x = requirement->position.x - hero->pos.value.x;
+            inverse_length =
+                gxMathFastInvSqrt(oriented_delta_x * oriented_delta_x + oriented_delta_z * oriented_delta_z);
+            oriented_delta_x *= inverse_length;
+            oriented_delta_z *= inverse_length;
+
+            oriented_forward_x = hero->field_24->at.x;
+            oriented_forward_z = hero->field_24->at.z;
             inverse_forward_length = gxMathFastInvSqrt(
-                (float)(forward_x * forward_x) +
-                (float)(forward_z * forward_z));
-            normalized_forward_z = forward_z * inverse_forward_length;
-            normalized_forward_x = forward_x * inverse_forward_length;
+                (float)(oriented_forward_x * oriented_forward_x) +
+                (float)(oriented_forward_z * oriented_forward_z));
+            normalized_forward_z = oriented_forward_z * inverse_forward_length;
+            normalized_forward_x = oriented_forward_x * inverse_forward_length;
             facing_angle = gxMathArcCos(
-                delta_x * normalized_forward_x + delta_z * normalized_forward_z);
+                oriented_delta_x * normalized_forward_x + oriented_delta_z * normalized_forward_z);
             if (!(facing_angle >= 0.7853982f)) {
                 direction.y = 0.0f;
                 direction.x = gxMathSin(orientation->angle->angle);
@@ -9708,8 +9712,9 @@ float p_konquest_switch_R1(void) {
 
 static inline int konquest_fire_temporary_triggers(struct KonquestPdata* pdata) {
     MkPtr** trigger_list;
-    MkPtr* link;
+    MkPtr* next;
     struct KonquestTriggerStruct* trigger;
+    MkPtr* link;
     MkObj* hero;
 
     hero = MK_HDR_LIVE(pdata->hero_object, pdata->hero_instance);
@@ -9722,8 +9727,6 @@ static inline int konquest_fire_temporary_triggers(struct KonquestPdata* pdata) 
         while (link != 0) {
             trigger = (struct KonquestTriggerStruct*)link->hdr;
             if (link->instance != trigger->hdr.instance) {
-                MkPtr* next;
-
                 next = link->next;
                 discard_stale_mkptr(link);
                 link = next;
@@ -9780,7 +9783,6 @@ static inline void konquest_handle_interaction_input(void) {
     }
 }
 
-/* TODO: [near miss] 99.59%; NPC/hero homes recovered; fourteen trigger/link register rows remain; stop at coloring. */
 float p_konquest_switch_3(void) {
     struct KonquestSwitchState* input;
     struct KonquestPdata* pdata;
@@ -10088,10 +10090,14 @@ static float p_konquest_inventory(void) {
     return -1.0f;
 }
 
-static inline ScreenObj* load_konquest_map_fade(void) {
-    ScreenObj* fade;
+static inline void place_konquest_map_label(ScreenObj* legend, int string_id, int y) {
+    const char* text;
 
-    fade = load_2d_pfxobj(0, 0x2098, 0x10017, 0, 0x40);
+    text = get_string_by_id(string_id);
+    string_left_xy(0x8314, 0xF, text, legend->x + 0x19, y, 0x20);
+}
+
+static inline void configure_konquest_map_fade(ScreenObj* fade) {
     if (fade != 0) {
         fade->x = -50;
         fade->y = -50;
@@ -10100,22 +10106,14 @@ static inline ScreenObj* load_konquest_map_fade(void) {
         fade->scale_y = 40.0f;
         pfx_2d_obj_set_alpha(fade, 0xFF);
     }
-    return fade;
 }
 
-static inline void place_konquest_map_label(ScreenObj* legend, int string_id, int y) {
-    const char* text;
-
-    text = get_string_by_id(string_id);
-    string_left_xy(0x8314, 0xF, text, legend->x + 0x19, y, 0x20);
-}
-
-/* TODO: [near miss] 99.79%; label placement agrees; legend/fade homes and portal arguments differ. */
+/* TODO: [near miss] 99.98276%; portal slot/OID constant loads tie;
+ * recover argument-emission ownership; all register homes agree. */
 static float p_konquest_map_screen(void) {
     struct KonquestPdata* pdata;
     const MkObj* hero;
     ScreenObj* right_panel;
-    ScreenObj* fade;
     ScreenObj* cursor;
     float map_scale_x;
     float map_scale_z;
@@ -10124,6 +10122,7 @@ static float p_konquest_map_screen(void) {
     int map_center_y;
     int cursor_x;
     int index;
+    ScreenObj* fade;
 
     pdata = konquest_pdata;
     hero = konquest_live_hero(pdata);
@@ -10163,7 +10162,8 @@ static float p_konquest_map_screen(void) {
     right_panel = load_named_2d_pfxobj_xy(
         0x60027, 0x8313, "MAP_LEGEND", 0,
         map_left + 0x200, 0, 0x21);
-    fade = load_konquest_map_fade();
+    fade = load_2d_pfxobj(0, 0x2098, 0x10017, 0, 0x40);
+    configure_konquest_map_fade(fade);
 
     map_center_x = map_left + 0x100;
     map_center_y = screen_height / 2;
@@ -12273,7 +12273,7 @@ static inline int pui_bit_count(struct KonquestPdata* pdata) {
     return pdata->pui_end - pdata->pui_begin - 1;
 }
 
-/* TODO: [near miss] 99.84%; first inventory_index is computed in r5 then copied to r23 in retail (ours computes in r23); coloring only. */
+/* TODO: [near miss] 99.84%; index producer/copy direction remains; membership-query ownership is byte-neutral. */
 static void update_pui_actions(
     KonquestPuiActionBuffer current, KonquestPuiActionBuffer previous) {
     int dynamic_end;
@@ -13163,15 +13163,36 @@ void pui_set_kill_time(
     }
 }
 
-/* TODO: [near miss] 99.09%; mode-4 effect/emitter return copies remain; stop at clean-C lifetime ceiling. */
-void pui_play_pfx(
-    KonquestPuiDefinition* item, int mode, const char* effect_name) {
-    unsigned int emitter;
-    struct KonquestChestOwner* owner;
-    MkObj* object;
+static inline void konquest_pui_restart_effect_at_child(
+    MkObj* object, unsigned int handle) {
+    MkPfx* effect;
     MkObj* emitter_object;
     MkSobj* child;
-    MkPfx* effect;
+    unsigned int emitter;
+
+    effect = pfx_from_handle(handle);
+    emitter = fx_next_emitter(handle);
+    if (emitter != 0) {
+        emitter_object = (MkObj*)pfx_get_emitter_obj(
+            effect, emitter_id_from_handle(emitter));
+        child = obj_find_sobj_by_id(object, 1);
+        emitter_object->pos.value.x =
+            object->pos.value.x + child->pos.x;
+        emitter_object->pos.value.y =
+            object->pos.value.y + child->pos.y;
+        emitter_object->pos.value.z =
+            object->pos.value.z + child->pos.z;
+        update_mkobj(emitter_object);
+        fx_restart_emit(emitter);
+        fx_resume_emit(emitter);
+        return;
+    }
+}
+
+void pui_play_pfx(
+    KonquestPuiDefinition* item, int mode, const char* effect_name) {
+    struct KonquestChestOwner* owner;
+    MkObj* object;
     RwSphere sphere4;
     RwSphere sphere5;
     unsigned int handle;
@@ -13204,23 +13225,8 @@ void pui_play_pfx(
             sphere4.center.z = object->pos.value.z;
             sphere4.radius = radius;
             if (konquest_sphere_visible(&sphere4)) {
-                effect = pfx_from_handle(handle);
-                emitter = fx_next_emitter(handle);
-                if (emitter != 0) {
-                    emitter_object = (MkObj*)pfx_get_emitter_obj(
-                        effect, emitter_id_from_handle(emitter));
-                    child = obj_find_sobj_by_id(object, 1);
-                    emitter_object->pos.value.x =
-                        object->pos.value.x + child->pos.x;
-                    emitter_object->pos.value.y =
-                        object->pos.value.y + child->pos.y;
-                    emitter_object->pos.value.z =
-                        object->pos.value.z + child->pos.z;
-                    update_mkobj(emitter_object);
-                    fx_restart_emit(emitter);
-                    fx_resume_emit(emitter);
-                    return;
-                }
+                konquest_pui_restart_effect_at_child(object, handle);
+                return;
             }
         }
         break;
@@ -13236,23 +13242,8 @@ void pui_play_pfx(
             sphere5.center.z = object->pos.value.z;
             sphere5.radius = radius;
             if (konquest_sphere_visible(&sphere5)) {
-                effect = pfx_from_handle(handle);
-                emitter = fx_next_emitter(handle);
-                if (emitter != 0) {
-                    emitter_object = (MkObj*)pfx_get_emitter_obj(
-                        effect, emitter_id_from_handle(emitter));
-                    child = obj_find_sobj_by_id(object, 1);
-                    emitter_object->pos.value.x =
-                        object->pos.value.x + child->pos.x;
-                    emitter_object->pos.value.y =
-                        object->pos.value.y + child->pos.y;
-                    emitter_object->pos.value.z =
-                        object->pos.value.z + child->pos.z;
-                    update_mkobj(emitter_object);
-                    fx_restart_emit(emitter);
-                    fx_resume_emit(emitter);
-                    return;
-                }
+                konquest_pui_restart_effect_at_child(object, handle);
+                return;
             }
         }
         break;
@@ -13451,8 +13442,8 @@ void pickup_dynamic_pui(KonquestPuiDefinition* item) {
     cmdscript_execute(konquest_pdata->script_owner);
 }
 
-/* TODO: [near miss] 99.4662%; inline lookup result colors before the item argument;
- * only pui/item r30-r31 homes differ; stop at coloring. */
+/* TODO: [near miss] 99.4662%; runtime/result and item home selection remain reversed;
+ * recover a genuine owner boundary; instructions and layout already agree. */
 void pickup_pui(KonquestPuiDefinition* item) {
     KonquestPuiRuntime* pui;
     struct KonquestKoinAwardPdata* award;
@@ -13585,7 +13576,6 @@ void pickup_pui(KonquestPuiDefinition* item) {
     }
 }
 
-/* TODO: [near miss] 99.87%; six case-3 velocity FPR rows remain; need new producer-web evidence. */
 static void setup_konquest_pui(KonquestPuiRuntime* pui) {
     struct KonquestChestOwner* owner;
     MkObj* object;
@@ -13638,9 +13628,11 @@ static void setup_konquest_pui(KonquestPuiRuntime* pui) {
             inverse_length = gxMathFastInvSqrt(x * x + z * z);
             x *= inverse_length;
             z *= inverse_length;
-            object->pos_vel.x = 0.06f * x;
+            x = 0.06f * x;
+            z = 0.06f * z;
+            object->pos_vel.x = x;
             object->pos_vel.y = 0.15f;
-            object->pos_vel.z = 0.06f * z;
+            object->pos_vel.z = z;
             object->gravity = -0.007f;
             object->flags_08_bits.airborne = 1;
             object->flags_08_bits.angular_velocity_enabled = 1;
@@ -14005,16 +13997,16 @@ int is_character_unlocked_in_profile(
     return 0;
 }
 
-/* TODO: [near miss] 99.82%; uppercase read cursor/byte latch register swap remains;
- * complete-pass helper regresses; retain direct loop. */
+/* TODO: [near miss] 99.81557%; named cursor must select before the codegen reload;
+ * separate webs share a color; recover the GC-specific inline uppercase boundary. */
 static void load_art_for_inventory_award(struct KonquestAwardArtPdata* pdata) {
     KonquestPuiDefinition* item;
     ScreenObj* object;
     StringObj* description;
     PfxFontSlot* font;
     const char* art_name;
-    unsigned char* write_cursor;
-    unsigned char* read_cursor;
+    char* write_cursor;
+    char* read_cursor;
     unsigned char character;
     unsigned int table_index;
     unsigned int first;
@@ -14091,7 +14083,7 @@ static void load_art_for_inventory_award(struct KonquestAwardArtPdata* pdata) {
     } else {
         strcpy(text, get_konq_profile_value_item_name(inventory_index));
     }
-    write_cursor = (unsigned char*)text;
+    write_cursor = text;
     read_cursor = write_cursor;
     character = *write_cursor;
     while (character != 0) {
@@ -15140,13 +15132,12 @@ void save_hero_position_and_angle_prior_to_fight(float angle_offset) {
     }
 }
 
-/* TODO: [near miss] 99.88%; fade-in ticks/alpha FPR homes f27/f28 remain swapped. */
 static float p_weather(void) {
     struct KonquestWeatherPdata* pdata;
     MkSobj* weather_object;
     float progress;
-    float ticks;
     float alpha;
+    float ticks;
 
     pdata = (struct KonquestWeatherPdata*)pdata_of_proc(aproc);
     if (pdata == 0) {
@@ -15176,7 +15167,11 @@ static float p_weather(void) {
                 while (ticks < 300.0f) {
                     unhide_sobj(weather_object);
                     progress = ticks / 300.0f;
-                    alpha = progress <= 1.0f ? progress : 1.0f;
+                    if (progress <= 1.0f) {
+                        alpha = progress;
+                    } else {
+                        alpha = 1.0f;
+                    }
                     alpha_object = obj_find_sobj_by_id(g_game_info.sky, 0x3C);
                     if (alpha_object != 0) {
                         if (alpha == 0.0f) {

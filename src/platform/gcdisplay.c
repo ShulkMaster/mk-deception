@@ -227,20 +227,50 @@ static inline void romfont_load_sheet(void* sheet, void* previousSheet, GXTexObj
     }
 }
 
-/* TODO: [near miss] 99.80%; texture-y CSE temporary and upper bound swap r30/r26; stop at coloring. */
+static inline void romfont_draw_glyph(int x, int y, int penX,
+                                      int sheetX, int sheetY, unsigned short cellW) {
+    short x0;
+    short x1;
+    short y0;
+    short y1;
+    int u0;
+    int u1;
+    short v1;
+    int v0;
+
+    x0 = x + penX;
+    x1 = x0 + FontSize;
+    u0 = sheetX;
+    v0 = sheetY;
+    y0 = (short)y - (FontData->ascent * FontSize) / cellW;
+    y1 = (short)y + (FontData->descent * FontSize) / cellW;
+    v1 = v0 + FontData->cellHeight;
+
+    GXBegin(0x80, 0, 4);
+    u1 = u0 + cellW;
+    wgPipe[0] = x0;
+    wgPipe[0] = y0;
+    wgPipe[0] = u0;
+    wgPipe[0] = v0;
+    wgPipe[0] = x1;
+    wgPipe[0] = y0;
+    wgPipe[0] = u1;
+    wgPipe[0] = v0;
+    wgPipe[0] = x1;
+    wgPipe[0] = y1;
+    wgPipe[0] = u1;
+    wgPipe[0] = v1;
+    wgPipe[0] = x0;
+    wgPipe[0] = y1;
+    wgPipe[0] = u0;
+    wgPipe[0] = v1;
+}
+
 int romfont_puts(int x, int y, char* text) {
     int charW;
     void* sheet;
     int sheetX;
     int sheetY;
-    short x1;
-    short x0;
-    short y1;
-    short y0;
-    int u0;
-    int u1;
-    short v1;
-    int v0;
     unsigned short cellW;
     int penX;
     GXTexObj texObj;
@@ -268,32 +298,7 @@ int romfont_puts(int x, int y, char* text) {
         romfont_load_sheet(sheet, LastSheet, &texObj, texMtx);
 
         cellW = FontData->cellWidth;
-        x0 = x + penX;
-        x1 = x0 + FontSize;
-        u0 = sheetX;
-        v0 = sheetY;
-        y0 = (short)y - (FontData->ascent * FontSize) / cellW;
-        y1 = (short)y + (FontData->descent * FontSize) / cellW;
-        v1 = v0 + FontData->cellHeight;
-
-        GXBegin(0x80, 0, 4);
-        u1 = u0 + cellW;
-        wgPipe[0] = x0;
-        wgPipe[0] = y0;
-        wgPipe[0] = u0;
-        wgPipe[0] = v0;
-        wgPipe[0] = x1;
-        wgPipe[0] = y0;
-        wgPipe[0] = u1;
-        wgPipe[0] = v0;
-        wgPipe[0] = x1;
-        wgPipe[0] = y1;
-        wgPipe[0] = u1;
-        wgPipe[0] = v1;
-        wgPipe[0] = x0;
-        wgPipe[0] = y1;
-        wgPipe[0] = u0;
-        wgPipe[0] = v1;
+        romfont_draw_glyph(x, y, penX, sheetX, sheetY, cellW);
 
         penX += FontSpace + (FontSize * charW) / FontData->cellWidth;
     }
@@ -469,14 +474,24 @@ static inline void DrawRectangle(int left, int top, int width, int height, GXCol
     GXSetTevOrder(0, 0, 0, 0xFF);
 }
 
-/* TODO: [near miss] 99.62%; one width-accumulator LI/MR mismatch
- * is introduced by value numbering; new owner evidence needed. */
+static inline char* font_accumulate_glyph_width(char* s, int* width) {
+    int charW;
+    char* next;
+
+    next = OSGetFontWidth(s, &charW);
+    *width += FontSpace + (FontSize * charW) / FontData->cellWidth;
+    return next;
+}
+
 static void render_text(void* text) {
     char* s;
     int msgW;
     int msgH;
     int x;
     int y;
+    int maxW;
+    int lineW;
+    char* width_s;
 
     s = text;
     save_projection_matrix();
@@ -485,7 +500,26 @@ static void render_text(void* text) {
 
     DrawRectangle(0, 0, screen_width, 0x1E0, Black);
 
-    msgW = font_string_width(s);
+    width_s = s;
+    if (FontData == 0) {
+        msgW = 0;
+    } else {
+        lineW = 0;
+        maxW = 0;
+        while (*width_s != '\0') {
+            if (*width_s == '\n') {
+                if (maxW < lineW) {
+                    maxW = lineW;
+                }
+                lineW = 0;
+            }
+            width_s = font_accumulate_glyph_width(width_s, &lineW);
+        }
+        if (maxW < lineW) {
+            maxW = lineW;
+        }
+        msgW = (maxW + 0xF) / 0x10;
+    }
     x = (screen_width - msgW) / 2;
     msgH = font_string_height(s);
     y = (screen_height - msgH) / 2;
@@ -541,8 +575,8 @@ void gc_native_display_pass_to_RW(void) {
     _RwDlDefaultFifo = gc_native_display.fifo;
 }
 
-/* TODO: [near miss] 99.29%; equivalent TV-format dispatch omits retail
- * fallback jump; copy-height ABI and field predicate agree. */
+/* TODO: [breakthrough needed] 99.29487%; initial PCode already folds TV fallback;
+ * recover original frontend dispatch boundary; switch/helper controls exhausted. */
 void gc_native_display_init(void) {
     int tvFormat;
     GXRenderModeObj* mode;
@@ -949,7 +983,8 @@ int gc_prompt_for_refresh_rate(PADStatus* pads)
     return 1;
 }
 
-/* TODO: [near miss] 98.47%; width-loop LI/MR, case masks and y scheduling remain. */
+/* TODO: [breakthrough needed] 98.46561%; presched folds width zero pairs;
+ * y baseline is distributed before initial pcode; caller-owned scans disturb stack slots. */
 static void display_dragon_with_text(void* arg) {
     DragonTextPrompt* prompt = arg;
     int msgW;
@@ -1082,8 +1117,6 @@ static void display_image(void) {
     wgPipe[0] = 0x100;
 }
 
-/* TODO: [near miss] 98.49%; 8x4 tile traversal and instruction order agree;
- * 13 localized GPR operands remain. */
 void tile_image(unsigned char* dest) {
     unsigned char* tmp;
     const unsigned char* image;
@@ -1105,7 +1138,7 @@ void tile_image(unsigned char* dest) {
         output = tmp + output_offset;
         for (pixel = 0; pixel < 0x20; pixel++) {
             int y = tile_y + (pixel / 8);
-            *output++ = tile_source[y * 0x100 + (pixel % 8)];
+            output[pixel] = tile_source[y * 0x100 + (pixel % 8)];
         }
         output_offset += 0x20;
     }

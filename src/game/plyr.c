@@ -132,8 +132,6 @@ extern void init_debug_variables(void);
 extern void pull_bone_hierarchy_mkobj(void* object);
 extern void create_shadow_proc(
     int pid, PlyrPdata* controller, MkObj* source, MkObj* shadow);
-extern MkProc* create_mkproc_headtracking(
-    int pid, MkObj* object, PlyrPdata* target);
 extern void player_initialize_chores(void);
 extern int shadow_bones[37];
 extern float p_plyr_pz_fighter_start(void);
@@ -1039,11 +1037,56 @@ int get_player_number(MkObj* object) {
     return -1;
 }
 
-/* TODO: [near miss] 99.68993%; tracked fighter uses r30 instead of retail r29; all operations agree. */
+static inline void plyr_set_attached_objects_hidden(
+    PlyrPdata* player, int hidden) {
+    MkObj* fighter = MK_HDR_LIVE(player->tracked_obj, player->tracked_obj_instance);
+    MkObj* object;
+    MkPtr* next;
+    MkPtr* link;
+
+    if (fighter != 0) {
+        object = MK_HDR_LIVE(player->aux_weapon_latch.obj, player->aux_weapon_latch.instance);
+        if (object != 0) {
+            if (hidden) {
+                hide_obj(object);
+            } else {
+                unhide_obj(object);
+            }
+        }
+        object = MK_HDR_LIVE(player->mirror_obj.obj, player->mirror_obj.instance);
+        if (object != 0) {
+            if (hidden) {
+                hide_obj(object);
+            } else {
+                unhide_obj(object);
+            }
+        }
+        if (mklist_is_valid(&fighter->list_44)) {
+            link = fighter->list_44;
+            while (link != 0) {
+                if (link->instance != link->hdr->instance) {
+                    next = link->next;
+                    discard_stale_mkptr(link);
+                    link = next;
+                } else {
+                    object = link->hdr->vtbl == MK_VTABLE_ADDRESS(vtbl_mkobj)
+                        ? (MkObj*)link->hdr : 0;
+                    if (object != 0) {
+                        if (hidden) {
+                            hide_obj(object);
+                        } else if (object->oid != 0x1008) {
+                            unhide_obj(object);
+                        }
+                    }
+                    link = link->next;
+                }
+            }
+        }
+    }
+}
+
 void show_player(PlyrPdata* player) {
     MkObj* object;
-    MkPtr* link;
-    MkObj* fighter;
     PlyrInfo* info;
 
     if (player == 0) {
@@ -1058,38 +1101,7 @@ void show_player(PlyrPdata* player) {
         plyr_weapon_show(player, 1, player->mirror_slots);
     }
 
-    fighter = MK_HDR_LIVE(player->tracked_obj, player->tracked_obj_instance);
-
-    if (fighter != 0) {
-        object = MK_HDR_LIVE(player->aux_weapon_latch.obj, player->aux_weapon_latch.instance);
-
-        if (object != 0) {
-            unhide_obj(object);
-        }
-        object = MK_HDR_LIVE(player->mirror_obj.obj, player->mirror_obj.instance);
-
-        if (object != 0) {
-            unhide_obj(object);
-        }
-
-        if (mklist_is_valid(&fighter->list_44)) {
-            link = fighter->list_44;
-            while (link != 0) {
-                if (link->instance != link->hdr->instance) {
-                    MkPtr* next = link->next;
-                    discard_stale_mkptr(link);
-                    link = next;
-                } else {
-                    object = link->hdr->vtbl == MK_VTABLE_ADDRESS(vtbl_mkobj)
-                        ? (MkObj*)link->hdr : 0;
-                    if (object != 0 && object->oid != 0x1008) {
-                        unhide_obj(object);
-                    }
-                    link = link->next;
-                }
-            }
-        }
-    }
+    plyr_set_attached_objects_hidden(player, 0);
 
     info = player->plyr_info;
     if ((g_game_info.section->flags70 & 8) != 0 &&
@@ -1104,11 +1116,8 @@ void show_player(PlyrPdata* player) {
     }
 }
 
-/* TODO: [near miss] 99.66942%; tracked fighter owner uses r30 instead of retail r29. */
 void hide_player(PlyrPdata* player, int hide_weapons) {
     MkObj* object;
-    MkObj* fighter;
-    MkPtr* link;
     int i;
 
     object = MK_HDR_LIVE(player->tracked_obj, player->tracked_obj_instance);
@@ -1123,38 +1132,7 @@ void hide_player(PlyrPdata* player, int hide_weapons) {
         }
     }
 
-    fighter = MK_HDR_LIVE(player->tracked_obj, player->tracked_obj_instance);
-
-    if (fighter != 0) {
-        object = MK_HDR_LIVE(player->aux_weapon_latch.obj, player->aux_weapon_latch.instance);
-
-        if (object != 0) {
-            hide_obj(object);
-        }
-        object = MK_HDR_LIVE(player->mirror_obj.obj, player->mirror_obj.instance);
-
-        if (object != 0) {
-            hide_obj(object);
-        }
-
-        if (mklist_is_valid(&fighter->list_44)) {
-            link = fighter->list_44;
-            while (link != 0) {
-                if (link->instance != link->hdr->instance) {
-                    MkPtr* next = link->next;
-                    discard_stale_mkptr(link);
-                    link = next;
-                } else {
-                    object = link->hdr->vtbl == MK_VTABLE_ADDRESS(vtbl_mkobj)
-                        ? (MkObj*)link->hdr : 0;
-                    if (object != 0) {
-                        hide_obj(object);
-                    }
-                    link = link->next;
-                }
-            }
-        }
-    }
+    plyr_set_attached_objects_hidden(player, 1);
 
     if (player->plyr_info->slot.mirror_b != 0) {
         hide_obj(player->plyr_info->slot.mirror_b);
@@ -1822,8 +1800,8 @@ void delete_player(int player_index) {
         }                                                               \
     } while (0)
 
-/* TODO: [near miss] 98.15%; only the weapon-style loop setup differs: retail zeroes index first,
- * seeds the offset IV with mr r3,r8 and keeps the branchless base; index-first forms go branchy. */
+/* TODO: [breakthrough needed] 98.15286%; shared induction seed provenance remains;
+ * full style-binding owner adds a branch; preserve the retail branchless bank selection. */
 static void setup_plyr_anims(PlyrPdata* pdata) {
     AnimPdata* animation;
     MkObj* object;
@@ -2415,17 +2393,17 @@ static void create_sidekick(int player_index, PlyrInfo* player) {
 
 
 
-/* TODO: [near miss] 99.13%; latch and inverse-sqrt operations agree;
- * twelve planar displacement/opponent-coordinate FPR rows remain. */
 float active_sidekick_swap_from_behind(PlyrPdata* pdata) {
     MkObj* sidekick = MK_HDR_LIVE(pdata->sidekick_obj, pdata->sidekick_instance);
     MkObj* player;
     MkObj* opponent;
-    float opponent_x;
-    float opponent_z;
     float dx;
     float dz;
+    float opponent_x;
+    float opponent_z;
     float inverse_distance;
+    float position_x;
+    float position_z;
 
     if (pdata->plyr_num == 0) {
         destroy_mkprocs_pid(0xC028);
@@ -2439,15 +2417,17 @@ float active_sidekick_swap_from_behind(PlyrPdata* pdata) {
     inverse_distance = gxMathFastInvSqrt(dx * dx + dz * dz);
     dx *= inverse_distance;
     dz *= inverse_distance;
-    dx *= -2.0f;
-    dz *= -2.0f;
-    dx += opponent_x;
-    dz += opponent_z;
+    position_x = dx;
+    position_z = dz;
+    position_x *= -2.0f;
+    position_z *= -2.0f;
+    position_x += opponent_x;
+    position_z += opponent_z;
     active_sidekick_swap(pdata, 1);
     hide_obj(sidekick);
-    plyr_obj->pos.value.x = dx;
+    plyr_obj->pos.value.x = position_x;
     plyr_obj->pos.value.y = g_game_info.field_34;
-    plyr_obj->pos.value.z = dz;
+    plyr_obj->pos.value.z = position_z;
     bgnd_clear_danger_zone_callback(plyr_pdata);
     if (get_current_bgnd() != 2) {
         set_constrain_last_pos_pdata(&his_obj->pos.value);
@@ -2503,8 +2483,8 @@ float active_sidekick_swap_change_style(PlyrPdata* pdata) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 96.11%; pdata/sidekick register homes and saved-state
- * coloring remain; typed saved transform compiles identically. */
+/* TODO: [near miss] 97.99296%; saved step/weight homes fixed;
+ * pdata/sidekick, hide/flags and argument-load scheduling remain. */
 float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     PlyrInfo* player;
     MkObj* sidekick;
@@ -2517,8 +2497,8 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     unsigned int saved_animation_flags;
     int saved_hide_bit;
     float saved_frame;
-    float saved_step;
     float saved_weight;
+    float saved_step;
     Vec saved_position;
     Vec saved_angle;
 

@@ -262,14 +262,16 @@ void discard_mkptrs(MkPtr* head) {
     }
 }
 
-/* TODO: [near miss] 99.19%; successor CSE precedes named unlink locals;
- * eight next/prev register rows remain; stop without new ownership evidence. */
+static inline void unlink_mkptr(MkPtr* ptr) {
+    UNLINK_MKPTR(ptr);
+}
+
 void destroy_mkptrs(MkPtr* head) {
     MkPtr* next;
 
     while (head != 0) {
         next = head->next;
-        UNLINK_MKPTR(head);
+        unlink_mkptr(head);
         MAYBE_DESTROY_OWNED(head);
         RECYCLE_MKPTR(head);
         head = next;

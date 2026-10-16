@@ -904,7 +904,8 @@ void plyr_weapon_hide(PlyrPdata* player, int show_aux,
     }
 }
 
-/* TODO: [near miss] 99.36047%; retail slot reloads restored; first owner/candidate GPR pair differs. */
+/* TODO: [near miss] 99.36047%; named owner must precede split candidate in
+ * coloring; in-place validation loses retail branch; recover original web ownership. */
 void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     MkObj* player_object;
     MkObj* weapon_object;
@@ -941,8 +942,8 @@ void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     }
 }
 
-/* TODO: [near miss] 99.14%; callback/map/position homes agree;
- * bone/cache r25-r27 rotation remains; stop at coloring. */
+/* TODO: [near miss] 99.30556%; map-phase owners restore later chain/child homes;
+ * mapped-bone interference and root/cache coloring remain. */
 void mkobj_update_weapon_trail(MkHdr* hdr) {
     MkObj* weapon;
     int* chain_root;
@@ -979,25 +980,28 @@ void mkobj_update_weapon_trail(MkHdr* hdr) {
     for (map_index = 0;
          map_index < (definition = trail_model->field_5C)->trail_map_count;
          map_index++) {
+        MkBone* mapped_bone;
+        MkBone* mapped_parent;
+
         map = &definition->trail_maps[map_index];
         if (map->enabled == 0) {
             break;
         }
-        trail_bone = trail_model->bones[map->trail_bone_index];
-        if (trail_bone == 0) {
+        mapped_bone = trail_model->bones[map->trail_bone_index];
+        if (mapped_bone == 0) {
             goto invalid_trail;
         }
-        parent_bone = trail_bone->transform_parent;
-        v3_x_mat_add_v3(&trail_bone->parent_matrix->pos_vec,
-                        &trail_bone->translation.value,
-                        &parent_bone->matrix,
-                        &parent_bone->matrix.pos_vec);
-        v3_sub_v3(&trail_bone->parent_matrix->pos_vec,
-                  &trail_bone->parent_matrix->pos_vec,
+        mapped_parent = mapped_bone->transform_parent;
+        v3_x_mat_add_v3(&mapped_bone->parent_matrix->pos_vec,
+                        &mapped_bone->translation.value,
+                        &mapped_parent->matrix,
+                        &mapped_parent->matrix.pos_vec);
+        v3_sub_v3(&mapped_bone->parent_matrix->pos_vec,
+                  &mapped_bone->parent_matrix->pos_vec,
                   trail_position);
-        memcpy(trail_bone->parent_matrix, &parent_bone->matrix,
-               sizeof(*trail_bone->parent_matrix) -
-                   sizeof(trail_bone->parent_matrix->pos_row));
+        memcpy(mapped_bone->parent_matrix, &mapped_parent->matrix,
+               sizeof(*mapped_bone->parent_matrix) -
+                   sizeof(mapped_bone->parent_matrix->pos_row));
     }
     chain_root = definition->trail_chain_roots;
     if (chain_root != 0) {

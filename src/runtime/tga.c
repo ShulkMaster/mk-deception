@@ -43,23 +43,6 @@ typedef char TgaHeaderSizeCheck[sizeof(struct TgaHeader) == 0x12 ? 1 : -1];
 typedef char TgaHeaderValuesSizeCheck[
     sizeof(struct TgaHeaderValues) == 0x30 ? 1 : -1];
 
-static inline void tga_copy_row(unsigned char *destination,
-                                const unsigned char *pixels, int row,
-                                int width) {
-  const unsigned char *source;
-  unsigned char *target;
-  int column;
-
-  for (column = 0; column < width; column++) {
-    source = pixels + (column + row * width) * 4;
-    target = destination + column * 3;
-
-    target[0] = source[2];
-    target[1] = source[1];
-    target[2] = source[0];
-  }
-}
-
 static inline RwImage *tga_write_pixels(MkHwFileRequest *file, RwImage *image,
                                         struct TgaHeaderValues values) {
   int block_bytes;
@@ -69,6 +52,7 @@ static inline RwImage *tga_write_pixels(MkHwFileRequest *file, RwImage *image,
   unsigned char *output;
   int width;
   int rows;
+  int column;
 
   output = get_mem(0x1e00);
   if (output == 0) {
@@ -85,7 +69,11 @@ static inline RwImage *tga_write_pixels(MkHwFileRequest *file, RwImage *image,
     rows = 0;
     do {
       row--;
-      tga_copy_row(destination, pixels, row, values.width);
+      for (column = 0; column < values.width; column++) {
+        destination[column * 3] = pixels[(column + row * values.width) * 4 + 2];
+        destination[column * 3 + 1] = pixels[(column + row * values.width) * 4 + 1];
+        destination[column * 3 + 2] = pixels[(column + row * values.width) * 4];
+      }
       rows++;
       destination += row_bytes;
     } while (rows < 4);
@@ -94,8 +82,8 @@ static inline RwImage *tga_write_pixels(MkHwFileRequest *file, RwImage *image,
   return image;
 }
 
-/* TODO: [near miss] 98.41%; row-loop coloring and one header li order remain;
- * prior honest forms exhausted; stop without new structural evidence. */
+/* TODO: [near miss] 99.02439%; pixel loop agrees; two header instructions swap.
+ * Native schedule ties LI24 and origin-y extraction; stop pending new evidence. */
 RwImage *ImageWriteTGA(RwImage *image, const char *path) {
   RwImage *result;
   MkHwFileRequest *file;

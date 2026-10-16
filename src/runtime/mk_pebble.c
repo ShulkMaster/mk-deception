@@ -25,8 +25,8 @@ void vdestroy_pebble(PebbleData* pebble_data) {
     mkhdr_memfree(&pebble_data->hdr);
 }
 
-/* TODO: [near miss] 98.47%; CFG and stores agree (identity init is RwMatrixSetIdentityMacro); only the
- * loop offset temporaries differ (retail keeps +0xc in r26 and reloads pebbles via r12..r4, ours r4/r31). */
+/* TODO: [breakthrough needed] 98.46716%; direct macro/owner-index initializer have identical colors;
+ * original flag-offset emission ownership needed; matrix pointer snapshot loses retail reloads. */
 PebbleData* create_pebble_userdata(MkSobj* sobj, int count, int user_data_size) {
     RpAtomic* atomic;
     PebbleData* pebble_data;

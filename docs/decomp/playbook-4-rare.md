@@ -121,8 +121,26 @@ joint sweep of recorded neutrals before any soft ceiling.
 - Exemplar: `_mwMemRealloc`: MAP-helper restore (`privGeneralGetHeapFromPtr`
   + `privGetUserSizeFromBlock`) alone byte-identical; `unsigned int copySize`
   alone still off; both -> exact.
+- `ShadowCameraUpdate`: direct canonical container macro alone byte-neutral;
+  node/end/atomic declaration order alone regresses. Together they retain the
+  named atomic owner and restore all three saved homes (H21).
 
 ## N14
+
+- Trace attribution: an instruction absent from both initial and prescheduled
+  PCode need not originate in the frontend. REQUIRE intermediate native pass
+  snapshots before naming the cause. Value numbering can create store-forwarded
+  `FRSP`s that constant propagation turns into copies and copy propagation
+  deletes (`generic_victory_camera`). Inspect the actual producer and surviving
+  copy chain; do not infer a missing cast or add synthetic conversions.
+  GC2.7's native fold at `0x576eb0` checks the unique FPR definition: `LFS`
+  variants, single-precision scalar arithmetic (including fused forms), `FRSP`
+  and `FSQRTS` permit replacing the round with `FMR`; `FMR` itself does not.
+  Consequently, after the first round becomes a copy, a second round reading
+  that copy can survive. REQUIRE the actual definition chain and paired pass
+  snapshots; an extra source copy, cast or aggregate parameter is not justified
+  merely because it might create this chain. The native instruction-flag guard
+  also applies; do not generalize this opcode test to every `FRSP`.
 
 Dead branch-only block to a case body. IF retail has an unreachable `b T`
 between a switch dispatch fall-off and the first arm (`T` = a real arm body)
@@ -169,7 +187,17 @@ Classify, then fix. Commands are repeatable; examples: notes 7060-7062
    appears/disappears there -> optimizer provenance (value numbering, code
    motion, SR): H29, N14; no decl sweep or permuter can change it. Present in
    both -> coloring: step 4.
-4. Real allocator: `PCMIN=250 capf.py SRC OUT.json` (gdb under wibo), `anal.py
+4. Real allocator: first try a no-stall replay from the native GPR trace.
+   Reconstruct entry degree as `len(neighbors)`, clear pushed flag 2, retain
+   coalesced flag 4 and its edges; scan ascending vregs, remove nodes below
+   degree 29 and decrement their neighbors. Require the complete reversed
+   removal order to equal native `coloring_order` before using a graph
+   counterfactual. `handle_trigger_preprocess` reproduces all 105 selected
+   nodes: sweeps 98/5/1/1, with PUI removed last at degree 28 = 12 physical +
+   16 coalesced neighbors. Selection replay must independently reproduce all
+   native colors. A stall, spilled graph, or order mismatch requires entry
+   capture and actual spill costs; never infer them from post-pass degrees.
+   For entry capture: `PCMIN=250 capf.py SRC OUT.json` (gdb under wibo), `anal.py
    OUT.json K PREFIX` where K = the `simplify_entry` dump index whose node
    count equals the trace's (dumps come in build/simplify/rewrite triples).
    `replay mismatch []` first. Map vregs from first definitions in PREFIX.txt:
@@ -177,6 +205,17 @@ Classify, then fix. Commands are repeatable; examples: notes 7060-7062
    params, then expression temps, then SR/CTR regs. Build the per-vreg table
    (our colour vs retail colour), apply simplify/stall/push-tail rules (Hard
    stops), change ONE source fact that moves that node, retrace.
+   One command for steps 1-4 (local tool, ~2 s): `.agent-work/tooling/why.py
+   SYMBOL [--src FILE]` = scratch compile, row diff with source lines, gdb
+   capture (pcode, graphs, colours, every IRO temp's creating pass:
+   `split:<var>`, `cse`, `loop-inv/SR`), per-web ours/retail colour table,
+   exact replay check, pop-order solver per group of differing webs (required
+   flips + source reading), graph what-ifs. `sc.py` = 0.7 s scratch edit loop.
+   Vreg order: params < named (reverse decl) < FE temps in reverse order of
+   joining the function's locals list (split < CSE < loop < `?:` < inliner
+   objects; `@N` is a TU-wide counter, older for objects copied from inline
+   bodies, so compare kinds) < codegen temps (emission order) < BE vregs. "No pop order works" = interference differs (lifetime,
+   call crossing, ABI coalesce), not numbering.
 5. Compiler source for the exact predicate (`~/projects/decomp/mwcc`:
    `ValueNumbering.c`, `CodeGen.c`, `CInline.c`, `IrOptimizer.c`, `IroJump.c`,
    `IROUseDef.c`, `PCodeAssembly.c`), then a one-line micro-TU lab per
@@ -186,6 +225,11 @@ Classify, then fix. Commands are repeatable; examples: notes 7060-7062
    `shlex`); a sibling below 100 shows the same rows in every scratch build
    (read live scores first); `gGPRCoalesceFirst/Last` are not in
    `config/GC_2_7/bindings.json` (infer the window from the vreg table).
+   An explicitly C-spelled encoded identifier can coexist with real C++
+   overloads of its bare name (`HandleAction__20mkScreenEngineClient...`).
+   Do not strip that identifier for native capture: require the full compiler
+   name and verify source lines and instruction extent before using graphs.
+   A short overload capture with poor alignment is not allocator evidence.
 
 ## Hard stops
 
@@ -240,6 +284,12 @@ After the applicable honest source check, stop at:
     variable ownership so a loop's row/column/cell webs are first webs or
     splits in the needed group order. Levers interact through the threshold:
     measure each alone and in the combination.
+    A differing-only pop solver failure does not prove different interference.
+    REQUIRE exact/no-stall replay; TRY an extended scan including unchanged
+    saved-register claimants (`mk_chess_drone_exchange_ai_casting`). Keep every
+    parameter before all locals/temps: an unconstrained solution may violate
+    that ABI numbering band. Report crossings into named/inline/CSE kinds as
+    missing source ownership, not as declaration edits or proof of matching.
   - Named-local rotation (several saved homes permuted, no stall): one
     "first-init order" decl check is not exhaustive. Capture, map vregs to
     names, write retail pop order, invert into per-sweep ascending push order,
@@ -317,6 +367,19 @@ After the applicable honest source check, stop at:
     firstPCode 0x14. Replay simplify/select offline, drop one candidate node,
     compare colours with retail -> names region where source must lose a
     temp. Built-in `debug_listing` is stubbed in this binary.
+    More hooks (sw breakpoints work once a hw bp on `main` 0x4024f0 hits):
+    `COptimizer_Optimize` 0x500420 entry = per-function, `[esp+4]` Object
+    (name: `*(obj+10)` HashNameNode, text at +10); `create_temp_object` ret
+    0x4f5ac5 (`eax` = new `@N` temp, `[esp]` = creating pass:
+    `split_variable_range` = 2nd web, `move_common_sub` = CSE, IroLoop =
+    loop-inv/SR); `setup_inline_locals_and_arguments` 0x5615c0 (`[esp+8]`
+    CInlineInfo: nargs 0, arginfo 2, nlocals 6, localinfo 8; CInlineVar 16
+    bytes, name at 0) and its ret 0x561a0d (new local Objects at
+    `*[0x5e3b5c]`, arg records 12 bytes at `*[0x5e3b58]`) = inline `@N` ->
+    helper local name. PCode `sourceoffset` 0x1c = source line; block
+    execution weight 0x28. Coloring order: FPR class before GPR, so GPR
+    capture sees FPR operands already physical (dump pcode at the first
+    build hook).
 - Volatile rotation under scoped `opt_*` pragma is NOT a stop until H21
   web-kind check + pragma-free H05 mechanism measured
   (`drone_ai_victim_avoid` closed from recorded 99.44 ceiling: `opt_common_subs

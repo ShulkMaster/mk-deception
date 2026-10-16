@@ -335,7 +335,6 @@ void PatchScreenEvent(SEEvent_t* event, unsigned char* base,
     }
 }
 
-/* TODO: [near miss] 96.31%; eight event/child slot-addressing instructions remain. */
 void PatchScreenObject(SEObject_t* obj, unsigned char* base,
                        SEStringTable_t* strings) {
     unsigned int i;
@@ -380,12 +379,12 @@ void PatchScreenObject(SEObject_t* obj, unsigned char* base,
     if (events != 0) {
         i = 0;
         while (i < (unsigned int)events->count) {
-            SEEvent_t*& event = *SEEventPtrSlot(events, i);
-            offset = (unsigned int)event;
+            ScreenEvent** slot = &events->events[i];
+            offset = (unsigned int)events->events[i];
             if (offset != 0) {
-                event = (SEEvent_t*)(offset + (unsigned int)base);
+                *slot = (ScreenEvent*)(offset + (unsigned int)base);
             }
-            PatchScreenEvent(event, base, strings);
+            PatchScreenEvent((SEEvent_t*)*slot, base, strings);
             i += 1;
         }
     }
@@ -395,13 +394,13 @@ void PatchScreenObject(SEObject_t* obj, unsigned char* base,
         i = 0;
 
         while (i < (unsigned int)children->count) {
-            ScreenChildEntry*& child = *ScreenChildEntryPtrSlot(children, i);
-            offset = (unsigned int)child;
+            ScreenChildEntry** slot = &children->entries[i];
+            offset = (unsigned int)children->entries[i];
             if (offset != 0) {
-                child =
+                *slot =
                     (ScreenChildEntry*)(offset + (unsigned int)base);
             }
-            entry = child;
+            entry = *slot;
             if (entry != 0) {
                 tag = entry->typeTag;
                 switch (tag) {
@@ -475,7 +474,6 @@ void PatchAnimEffects(SEAnimEffects_t* effects, unsigned char* base) {
     }
 }
 
-/* TODO: [near miss] 97.60%; three reference-slot addressing instructions remain. */
 void PatchAnims(SEAnimBlock_t* block, unsigned char* base) {
     unsigned int i;
     unsigned int j;
@@ -505,9 +503,10 @@ void PatchAnims(SEAnimBlock_t* block, unsigned char* base) {
         keyList = (SERefTable*)scene->m_elements;
         j = 0;
         while (j < keyList->count) {
+            unsigned int* slot = &keyList->refs[j];
             off = keyList->refs[j];
             if (off != 0) {
-                keyList->refs[j] = off + (unsigned int)base;
+                *slot = off + (unsigned int)base;
             }
             j += 1;
         }
@@ -589,7 +588,6 @@ void ProcessScreenData(Screen*, void* data, unsigned int,
                       SeStringsOf(se));
 }
 
-/* TODO: [near miss] 98.55%; equivalent name-slot address folding remains; recover relocation accessor. */
 int ScreenInstancer::LoadSetData(ScreenSet* set, void* data, unsigned int,
                                  void*) {
     SEScreenSet_t* blob;
@@ -632,8 +630,9 @@ int ScreenInstancer::LoadSetData(ScreenSet* set, void* data, unsigned int,
 
         for (i = 0; i < numScreens; i++) {
             if (needReloc != 0) {
+                char** slot = &blob->names[i];
                 name = blob->names[i];
-                RelocateScreenOffset(blob->names[i], name, (char*)((unsigned int)name + base));
+                RelocateScreenOffset(*slot, name, (char*)((unsigned int)name + base));
             }
 
             screen = &set->m_screens[i];

@@ -198,7 +198,8 @@ static const Vec nb_world_up = {0.0f, 1.0f, 0.0f};
 static const Vec nb_hit_zero = {0.0f, 0.0f, 0.0f};
 static const Vec nb_collision_zero = {0.0f, 0.0f, 0.0f};
 
-/* TODO: [near miss] 98.15%; basis coefficients computed ahead of the momentum stores (no facing reload); residue is stage-2 scheduling order and the FPR rotation it causes. */
+/* TODO: [breakthrough needed] 98.15044%; rebound wins CountScheduled 1 vs 0;
+ * recover the store/side-X dependency graph without altering the two stages. */
 void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     static unsigned int last_sound_time;
     struct NbNpcState* npc;
@@ -386,7 +387,8 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     bgnd_collision_if_enable_col(5, npc_id + 0x12C);
 }
 
-/* TODO: [near miss] 97.73%; momentum blend FPR scheduling and collision_id/player_index r29/r30 coloring differ. */
+/* TODO: [near miss] 97.84585%; 38 momentum FPR/scheduling rows remain;
+ * product propagation and sum ownership remain; in-place sums claim results too early. */
 static void nb_npc_slave_hit_by_plyr(int npc_id) {
     struct NbNpcState* npc;
     Vec target = nb_hit_zero;
@@ -399,19 +401,18 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     float old_x;
     float old_y;
     float old_z;
-    float new_x;
-    float new_y;
-    float new_z;
+    Vec blended_momentum;
     float target_weight;
     float correction_weight;
     float weighted_old;
     float weighted_target;
     float correction;
-    int collision_id;
+    int player_index;
+    unsigned int collision_id;
     int hit_id;
 
     npc = bgnd_fetch_npc(npc_id);
-    collision_id = npc_id + 0x12C;
+    collision_id = npc_id + 0x12CU;
     bgnd_collision_if_disable_col(5, collision_id);
 
     spad_set_vector(0, 0x1A);
@@ -424,7 +425,6 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     spad_set_vector(0, 0x1B);
     hit_id = spad_get_pos(0, 0);
     if ((float)hit_id != previous_hit) {
-        int player_index;
         int power;
 
         if (player_side == 0.0f) {
@@ -468,25 +468,25 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
         weighted_target = target.x * target_weight;
         correction = target.x - old_x;
         correction *= correction_weight;
-        new_x = weighted_old + weighted_target + correction;
+        blended_momentum.x = weighted_old + weighted_target + correction;
         weighted_old = old_y * npc->acceleration_divisor;
         weighted_target = target.y * target_weight;
         correction = target.y - old_y;
         correction *= correction_weight;
-        new_y = weighted_old + weighted_target + correction;
+        blended_momentum.y = weighted_old + weighted_target + correction;
         weighted_old = old_z * npc->acceleration_divisor;
         weighted_target = target.z * target_weight;
         correction = target.z - old_z;
         correction *= correction_weight;
-        new_z = weighted_old + weighted_target + correction;
-        new_x *= inverse_mass;
-        new_y *= inverse_mass;
-        new_z *= inverse_mass;
+        blended_momentum.z = weighted_old + weighted_target + correction;
+        blended_momentum.x *= inverse_mass;
+        blended_momentum.y *= inverse_mass;
+        blended_momentum.z *= inverse_mass;
 
         if ((reaction_fetch_current_flags(player_index) & 0x80) != 0) {
-            new_x = 0.205f * new_x;
-            new_y = 0.2f;
-            new_z = 0.205f * new_z;
+            blended_momentum.x = 0.205f * blended_momentum.x;
+            blended_momentum.y = 0.2f;
+            blended_momentum.z = 0.205f * blended_momentum.z;
             npc->active |= 1;
             npc->swing_angle = 0.02f + frand(0.02f);
         } else if (npc->swing_angle != 0.0f || (unsigned short)randu0(100) < 80) {
@@ -498,25 +498,64 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
 
         snd_req(0x110);
         random_hit(1);
-        npc->momentum.x = new_x;
-        npc->momentum.y = new_y;
-        npc->momentum.z = new_z;
+        npc->momentum.x = blended_momentum.x;
+        npc->momentum.y = blended_momentum.y;
+        npc->momentum.z = blended_momentum.z;
     }
 
     bgnd_collision_if_enable_col(5, collision_id);
 }
 
-/* TODO: [near miss] 98.93%; transfer ABI corrected; direction x/z FPR
- * and camera/npc register roles remain after measured lifetime trials. */
+static inline int nb_npc_side_reaction_is_left(
+    struct NbFighterHurtView* fighter_view, struct NbNpcState* hit) {
+    CameraObj* camera;
+    MkObj* current_object;
+    MkObj* npc_object;
+    int use_left_reaction;
+    float camera_to_player_z;
+    float camera_x;
+    float camera_to_player_x;
+    float camera_to_npc_z;
+    float camera_to_npc_x;
+
+    use_left_reaction = 0;
+    current_object = fighter_view->object_slot->object;
+    plyr_obj = current_object;
+    his_obj = fighter_view->opponent_object;
+    plyr_anim_pdata = &fighter_view->anim_pdata;
+    npc_object = hit->object;
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
+
+    camera_to_npc_z = camera->pos.z - npc_object->pos.value.z;
+    camera_to_player_z = camera->pos.z - current_object->pos.value.z;
+    camera_x = camera->pos.x;
+    camera_to_npc_x = camera_x - npc_object->pos.value.x;
+    camera_to_player_x = camera_x - current_object->pos.value.x;
+    if (camera_to_npc_x * camera_to_npc_x +
+            camera_to_npc_z * camera_to_npc_z >
+        camera_to_player_x * camera_to_player_x +
+            camera_to_player_z * camera_to_player_z) {
+        if (is_my_chest_to_screen() == 0) {
+            use_left_reaction = 1;
+        }
+    } else if (is_my_chest_to_screen() != 0) {
+        use_left_reaction = 1;
+    }
+
+    plyr_obj = 0;
+    his_obj = 0;
+    plyr_anim_pdata = 0;
+
+    return use_left_reaction;
+}
+
 static int nb_npc_hurt_player(
     struct NbNpcState* hit, unsigned int player_index, float impact) {
     MkObj* player_object;
     FighterMirror* fighter;
     struct NbFighterHurtView* fighter_view;
-    CameraObj* camera;
     Vec facing;
-    float direction_x;
-    float direction_z;
+    Vec direction;
     float hit_length_inverse;
     float facing_length_inverse;
     float alignment;
@@ -532,15 +571,15 @@ static int nb_npc_hurt_player(
     random_hit(0xD);
     uv_from_angle_y(&facing, player_object->ang.y);
     hit_length_inverse = gxMathFastInvSqrt(
-        hit->momentum.z * hit->momentum.z +
-        hit->momentum.x * hit->momentum.x);
-    direction_x = hit->momentum.x * hit_length_inverse;
-    direction_z = hit->momentum.z * hit_length_inverse;
+        hit->momentum.x * hit->momentum.x +
+        hit->momentum.z * hit->momentum.z);
+    direction.x = hit->momentum.x * hit_length_inverse;
+    direction.z = hit->momentum.z * hit_length_inverse;
     facing_length_inverse = gxMathFastInvSqrt(
         facing.x * facing.x + facing.z * facing.z);
     facing.x *= facing_length_inverse;
     facing.z *= facing_length_inverse;
-    alignment = direction_x * facing.x + direction_z * facing.z;
+    alignment = direction.x * facing.x + direction.z * facing.z;
 
     if (impact > 0.115f && alignment > 0.7f && alignment < 1.3f) {
         xfer_player_proc_to_script_manual_messaging(
@@ -553,40 +592,7 @@ static int nb_npc_hurt_player(
         return 1;
     }
     if (alignment > -0.45f && alignment < 0.45f) {
-        MkObj* current_object;
-        MkObj* npc_object;
-        int use_left_reaction;
-        float camera_to_npc_x;
-        float camera_to_npc_z;
-        float camera_to_player_x;
-        float camera_to_player_z;
-
-        use_left_reaction = 0;
-        current_object = fighter_view->object_slot->object;
-        plyr_obj = current_object;
-        his_obj = fighter_view->opponent_object;
-        plyr_anim_pdata = &fighter_view->anim_pdata;
-        npc_object = hit->object;
-        camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
-
-        camera_to_npc_z = camera->pos.z - npc_object->pos.value.z;
-        camera_to_player_z = camera->pos.z - current_object->pos.value.z;
-        camera_to_npc_x = camera->pos.x - npc_object->pos.value.x;
-        camera_to_player_x = camera->pos.x - current_object->pos.value.x;
-        if (camera_to_npc_x * camera_to_npc_x +
-                camera_to_npc_z * camera_to_npc_z >
-            camera_to_player_x * camera_to_player_x +
-                camera_to_player_z * camera_to_player_z) {
-            if (is_my_chest_to_screen() == 0) {
-                use_left_reaction = 1;
-            }
-        } else if (is_my_chest_to_screen() != 0) {
-            use_left_reaction = 1;
-        }
-
-        plyr_obj = 0;
-        his_obj = 0;
-        plyr_anim_pdata = 0;
+        int use_left_reaction = nb_npc_side_reaction_is_left(fighter_view, hit);
         if (use_left_reaction != 0) {
             xfer_player_proc_to_script_manual_messaging(
                 fighter, player_object, 0xB);
@@ -602,7 +608,70 @@ static int nb_npc_hurt_player(
     return 0;
 }
 
-/* TODO: [breakthrough needed] 96.59%; recover acceleration aggregate forwarding, duplicate stores and rounding. */
+static inline void nb_apply_tangent_momentum(
+    struct NbNpcState* npc, const Vec* tangent, float speed_squared) {
+    float speed;
+
+    speed = gxMathFastSqrt(speed_squared);
+    if (tangent->x * npc->momentum.x +
+            tangent->y * npc->momentum.y +
+            tangent->z * npc->momentum.z <
+        0.0f) {
+        speed *= -1.0f;
+    }
+    npc->momentum.x = tangent->x * speed;
+    npc->momentum.y = tangent->y * speed;
+    npc->momentum.z = tangent->z * speed;
+}
+
+static inline void nb_get_rope_angle(
+    struct NbNpcState* npc, const Vec* displacement, const Vec* world_up,
+    Vec* angle_vector) {
+    Vec horizontal_direction;
+    float inverse_length;
+    float angle;
+
+    horizontal_direction.x = displacement->x;
+    horizontal_direction.y = 0.0f;
+    horizontal_direction.z = displacement->z;
+    inverse_length = gxMathFastInvSqrt(
+        horizontal_direction.x * horizontal_direction.x +
+        horizontal_direction.y * horizontal_direction.y +
+        horizontal_direction.z * horizontal_direction.z);
+    horizontal_direction.x = horizontal_direction.x * inverse_length;
+    horizontal_direction.y = horizontal_direction.y * inverse_length;
+    horizontal_direction.z = horizontal_direction.z * inverse_length;
+    angle_vector->x =
+        horizontal_direction.y * world_up->z -
+        horizontal_direction.z * world_up->y;
+    angle_vector->y =
+        horizontal_direction.z * world_up->x -
+        horizontal_direction.x * world_up->z;
+    angle_vector->z =
+        horizontal_direction.x * world_up->y -
+        horizontal_direction.y * world_up->x;
+    inverse_length = gxMathFastInvSqrt(
+        angle_vector->x * angle_vector->x +
+        angle_vector->y * angle_vector->y +
+        angle_vector->z * angle_vector->z);
+    angle_vector->x *= inverse_length;
+    angle_vector->y *= inverse_length;
+    angle_vector->z *= inverse_length;
+    angle = gxMathArcCos(-1.0f * displacement->y / npc->rope_length);
+    angle *= 1.25f;
+    if (horizontal_direction.x * displacement->x +
+            horizontal_direction.y * displacement->y +
+            horizontal_direction.z * displacement->z <
+        0.0f) {
+        angle *= -1.0f;
+    }
+    angle_vector->x *= angle;
+    angle_vector->y *= angle;
+    angle_vector->z *= angle;
+}
+
+/* TODO: [breakthrough needed] 97.41940%; single-precision producers fold rounds;
+ * recover the construction/publication boundary behind six missing acceleration stores. */
 static float p_npc_on_pendulum_rope(void) {
     MkObj* object;
     struct NbNpcState* npc;
@@ -612,13 +681,10 @@ static float p_npc_on_pendulum_rope(void) {
     Vec world_up = nb_world_up;
     Vec displacement;
     Vec velocity_direction;
-    Vec horizontal_direction;
     Vec tangent;
     float distance;
     float inverse_length;
     float speed_squared;
-    float speed;
-    float angle;
     float response;
 
     npc = ((struct NbNpcProcPdata*)apdata)->npc;
@@ -661,7 +727,7 @@ static float p_npc_on_pendulum_rope(void) {
             acceleration.y = 0.0f;
             acceleration.x = 0.0f;
             acceleration.y = -npc->acceleration_scale;
-            npc->momentum.x += acceleration.x;
+            npc->momentum.x = acceleration.x + npc->momentum.x;
             npc->momentum.y += acceleration.y;
             npc->momentum.z += acceleration.z;
         } else {
@@ -721,10 +787,10 @@ static float p_npc_on_pendulum_rope(void) {
                 velocity_direction.z = npc->momentum.z * inverse_length;
 
                 cross.x = velocity_direction.y * normal.z - velocity_direction.z * normal.y;
-                cross.z = velocity_direction.x * normal.y - velocity_direction.y * normal.x;
                 cross.y = velocity_direction.z * normal.x - velocity_direction.x * normal.z;
-                tangent.y = cross.z * normal.x - cross.x * normal.z;
+                cross.z = velocity_direction.x * normal.y - velocity_direction.y * normal.x;
                 tangent.x = cross.y * normal.z - cross.z * normal.y;
+                tangent.y = cross.z * normal.x - cross.x * normal.z;
                 tangent.z = cross.x * normal.y - cross.y * normal.x;
                 inverse_length = gxMathFastInvSqrt(
                     tangent.x * tangent.x + tangent.y * tangent.y +
@@ -732,16 +798,7 @@ static float p_npc_on_pendulum_rope(void) {
                 tangent.x *= inverse_length;
                 tangent.y *= inverse_length;
                 tangent.z *= inverse_length;
-                speed = gxMathFastSqrt(speed_squared);
-                if (tangent.x * npc->momentum.x +
-                        tangent.y * npc->momentum.y +
-                        tangent.z * npc->momentum.z <
-                    0.0f) {
-                    speed *= -1.0f;
-                }
-                npc->momentum.x = tangent.x * speed;
-                npc->momentum.y = tangent.y * speed;
-                npc->momentum.z = tangent.z * speed;
+                nb_apply_tangent_momentum(npc, &tangent, speed_squared);
             }
         }
 
@@ -763,43 +820,7 @@ static float p_npc_on_pendulum_rope(void) {
             npc->object->ang.y += npc->swing_angle;
         }
 
-        horizontal_direction.x = displacement.x;
-        horizontal_direction.y = 0.0f;
-        horizontal_direction.z = displacement.z;
-        inverse_length = gxMathFastInvSqrt(
-            horizontal_direction.x * horizontal_direction.x +
-            horizontal_direction.y * horizontal_direction.y +
-            horizontal_direction.z * horizontal_direction.z);
-        horizontal_direction.x = horizontal_direction.x * inverse_length;
-        horizontal_direction.y = horizontal_direction.y * inverse_length;
-        horizontal_direction.z = horizontal_direction.z * inverse_length;
-        angle_vector.x =
-            horizontal_direction.y * world_up.z -
-            horizontal_direction.z * world_up.y;
-        angle_vector.y =
-            horizontal_direction.z * world_up.x -
-            horizontal_direction.x * world_up.z;
-        angle_vector.z =
-            horizontal_direction.x * world_up.y -
-            horizontal_direction.y * world_up.x;
-        inverse_length = gxMathFastInvSqrt(
-            angle_vector.x * angle_vector.x +
-            angle_vector.y * angle_vector.y +
-            angle_vector.z * angle_vector.z);
-        angle_vector.x *= inverse_length;
-        angle_vector.y *= inverse_length;
-        angle_vector.z *= inverse_length;
-        angle = gxMathArcCos(-1.0f * displacement.y / npc->rope_length);
-        angle *= 1.25f;
-        if (horizontal_direction.x * displacement.x +
-                horizontal_direction.y * displacement.y +
-                horizontal_direction.z * displacement.z <
-            0.0f) {
-            angle *= -1.0f;
-        }
-        angle_vector.x *= angle;
-        angle_vector.y *= angle;
-        angle_vector.z *= angle;
+        nb_get_rope_angle(npc, &displacement, &world_up, &angle_vector);
         rotate_xz(&angle_vector, &angle_vector, -1.0f * npc->object->ang.y);
 
         if (angle_vector.x < 0.0f && npc->object->ang.x > 3.1415927f) {
@@ -827,7 +848,8 @@ static float p_npc_on_pendulum_rope(void) {
     }
 }
 
-/* TODO: [near miss] 99.488190%; projection operations agree; acceleration-scale and normal-force FPR homes differ. */
+/* TODO: [near miss] 99.48819%; named scale trails normal-X; Y/Z product homes differ;
+ * recover non-folding products without splitting persistent force owners. */
 static void nb_get_desired_acceleration(
     struct NbNpcState* state, Vec* acceleration, const Vec* surface_normal) {
     float force_z;

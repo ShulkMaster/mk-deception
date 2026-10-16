@@ -1116,7 +1116,8 @@ static inline int coffin_uses_near_tombstone(int index) {
     return 0;
 }
 
-/* TODO: [near miss] 96.56%; PFX owner and loop register coloring plus constant-load scheduling remain. */
+/* TODO: [near miss] 97.15847%; row CSE restores saved homes;
+ * volatile glyph/position owners and FP setup schedule remain; trace those webs. */
 static void set_letter_positions_and_values(PfxVm* pfx) {
     int col;
     int uv_stride;
@@ -1144,19 +1145,17 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
 
     for (row_off = 0; row_off < 4; row_off++) {
         int col_off;
-        int row;
         float z_near;
         float z_far;
-        row = view_row + row_off;
         z_near = s_tomb_z_near + base_z;
         z_far = s_tomb_z_far + base_z;
         for (col_off = 0; col_off < 9; col_off++) {
             int letter_bias;
             opened = get_coffin_bit(
                 krypt_pdata->profile_common->coffin_bits,
-                col_off + (view_col + row * 0x14));
+                col_off + (view_col + (view_row + row_off) * 0x14));
             col = view_col + col_off;
-            coffin_idx = col + row * 0x14;
+            coffin_idx = col + (view_row + row_off) * 0x14;
             letter_bias = opened ? 0x20 : 0;
 
             pos->x = base_x - 0.14f;
@@ -1165,7 +1164,7 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
             if (is_near != 0) pos->z = z_near;
             else pos->z = z_far;
             pos = (Vec*)((char*)pos + pos_stride);
-            *uv = letter_bias + row;
+            *uv = letter_bias + (view_row + row_off);
             uv = (float*)((char*)uv + uv_stride);
 
             pos->x = base_x + 0.14f;
@@ -1183,8 +1182,8 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
     }
 }
 
-/* TODO: [near miss] 98.55%; integer webs now match; only the column-x float setup colors the
- * converted column f1 (retail f4) and schedules the row lfd/z_far fadds one slot later. */
+/* TODO: [near miss] 99.41177%; row-base owner selects below the table-offset CSE;
+ * scalar return/output row helpers do not preserve both homes and schedule. */
 static void set_number_positions_and_values(PfxVm* pfx) {
     Vec* pos;
     float* uv;
@@ -1195,11 +1194,15 @@ static void set_number_positions_and_values(PfxVm* pfx) {
     int row_off;
     int col_off;
     int fill;
+    float origin_x;
     float base_x;
     float base_z;
+    float column_coordinate;
+    float row_coordinate;
     float z_near;
     float z_far;
     int row;
+    int row_base;
     int col;
     int coffin_idx;
     unsigned int cost;
@@ -1216,16 +1219,20 @@ static void set_number_positions_and_values(PfxVm* pfx) {
     pos = pfx_get_field(pfx, -2, 0x100);
     pos_stride = pfx_get_struct_size(pfx, 0x100);
     tombstone_viewport_origin(&view_row, &view_col);
-    base_x = tombstone_col_x(view_col);
-    base_z = tombstone_row_z(view_row);
+    column_coordinate = (float)view_col;
+    row_coordinate = (float)view_row;
+    origin_x = s_tomb_col_spacing * column_coordinate + s_tomb_col_origin;
+    base_x = origin_x;
+    base_z = s_tomb_row_origin - s_tomb_row_spacing * row_coordinate;
 
     for (row_off = 0; row_off < 4; row_off++) {
         row = view_row + row_off;
         z_near = s_tomb_z_near + base_z;
+        row_base = row * 0x14;
         z_far = s_tomb_z_far + base_z;
         for (col_off = 0; col_off < 9; col_off++) {
             col = view_col + col_off;
-            coffin_idx = col + row * 0x14;
+            coffin_idx = col + row_base;
             cost = coffin_data[coffin_idx].cost;
             thousands = cost / 1000;
             hundreds = (cost / 100) - thousands * 10;
@@ -1317,7 +1324,7 @@ static void set_number_positions_and_values(PfxVm* pfx) {
             base_x += s_tomb_col_spacing;
         }
         base_z -= s_tomb_row_spacing;
-        base_x = tombstone_col_x(view_col);
+        base_x = origin_x;
     }
 
     fill = particle;
@@ -1332,11 +1339,17 @@ static void set_number_positions_and_values(PfxVm* pfx) {
     }
 }
 
-/* TODO: [near miss] 96.01797%; row conversion stack order and FPR constant coloring remain. */
+static inline void tombstone_grid_origin(
+    int row, int col, float* x, float* z) {
+    *x = s_tomb_col_spacing * (float)col + s_tomb_col_origin;
+    *z = s_tomb_row_origin - s_tomb_row_spacing * (float)row;
+}
+
 static void set_koin_positions_and_colors(PfxVm* pfx) {
     int pos_stride;
     int view_row;
     int view_col;
+    int row_base;
     int row_off;
     int uv_stride;
     float origin_x;
@@ -1358,17 +1371,17 @@ static void set_koin_positions_and_colors(PfxVm* pfx) {
     pos = pfx_get_field(pfx, -2, 0x100);
     pos_stride = pfx_get_struct_size(pfx, 0x100);
     tombstone_viewport_origin(&view_row, &view_col);
-    base_z = tombstone_row_z(view_row);
-    origin_x = tombstone_col_x(view_col);
+    tombstone_grid_origin(view_row, view_col, &origin_x, &base_z);
     base_x = origin_x;
 
     for (row_off = 0; row_off < 4; row_off++) {
         row = view_row + row_off;
         z_near = s_tomb_koin_z_near + base_z;
+        row_base = row * 0x14;
         z_far = s_tomb_koin_z_far + base_z;
         for (col_off = 0; col_off < 9; col_off++) {
             col = view_col + col_off;
-            coffin_idx = col + row * 0x14;
+            coffin_idx = col + row_base;
             pos->x = base_x;
             pos->y = 2.5f;
             is_near = coffin_uses_near_tombstone(coffin_idx);
@@ -2402,7 +2415,8 @@ static float handle_controller_input(void) {
     }
     return 1.0f;
 }
-/* TODO: [near miss] 99.56%; 33 saved-GPR rows remain; recent latch/const controls exhausted, stop at coloring. */
+/* TODO: [near miss] 99.56%; 33 saved-GPR rows remain at dialog_type's simplify stall;
+ * original copy/lifetime evidence is still missing. */
 static int do_dialog(int dialog_type) {
     int result;
     ScreenObj* dialog_left;

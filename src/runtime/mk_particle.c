@@ -427,7 +427,8 @@ void pfx_bind_emitter_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone) {
     obj_set_bone_calc_world_mat_flag(obj, bone);
 }
 
-/* TODO: [near miss] 88.61%; native matrix selection agrees; bone index is retained before the success branch and callback staging differs. */
+/* TODO: [near miss] 88.61111%; native argument initialization saves bone before the body;
+ * recover a genuine success-arm owner before callback scheduling. */
 void pfx_bind_render_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone) {
     MkBone* bone_mat;
 
@@ -494,8 +495,7 @@ static inline MkObj* pfx_slot_bound_object(const PfxSlot* slot)
     return obj;
 }
 
-/* TODO: [near miss] 99.15%; binding operations agree; stop at bound-object result register coloring. */
-MkObj* pfx_bind_to_new_obj(MkPfx* pfx, int object_type) {
+static inline MkObj* pfx_acquire_bound_object(MkPfx* pfx, int object_type) {
     PfxSlot* slot;
     MkObj* obj;
     PfxEmitter* emitter_vm;
@@ -525,6 +525,10 @@ MkObj* pfx_bind_to_new_obj(MkPfx* pfx, int object_type) {
         }
     }
     return obj;
+}
+
+MkObj* pfx_bind_to_new_obj(MkPfx* pfx, int object_type) {
+    return pfx_acquire_bound_object(pfx, object_type);
 }
 
 static inline void pfx_bind_owned_emitter(MkPfx* pfx, MkObj* obj, int emitter)
@@ -716,7 +720,8 @@ static inline int initialize_pfx_memory(MkPfx* pfx, PfxVm* vm,
     return ready;
 }
 
-/* TODO: [near miss] 99.70%; allocation scratch and emitter-save homes remain. */
+/* TODO: [near miss] 99.69566%; initial pcode already accumulates into allocation size;
+ * count/estimate scratch and saved emitter homes need source-owner evidence. */
 void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_90,
                                   int field_214, int field_a0, PfxInitCb init_cb,
                                   int pid, MkProcEntryFn entry, void** out_pfx) {

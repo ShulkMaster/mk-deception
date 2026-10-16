@@ -285,8 +285,8 @@ static inline void sfmps_ProcPrepSeek(SfdHandle* handle)
     }
 }
 
-/* TODO: [near miss] 99.52%; RE4 shape restored; retail folds the buffer-array base into the
- * ring-size load (add handle,idx*116; lwz 0x1324), which RE4 reaches only via a padded view. */
+/* TODO: [breakthrough needed] 99.52467%; explicit array-base owner survives IRO;
+ * original buffer-root frontend boundary needed for folded load; padded view unsupported. */
 static void sfmps_ProcPrep(SfdHandle* handle)
 {
     MpsHandle* decoder;
@@ -806,8 +806,16 @@ static inline void sfmps_ScanSkip(SfdHandle* handle,
                                   int* copied)
 {
     const unsigned char* cursor = data;
-    int amount = 0;
+    int amount;
 
+    *copied = 0;
+    if (size >= handle->create_config.buffer.ring_alignment + 3 &&
+        sfmps_IsZero((const signed char*)cursor,
+                     handle->create_config.buffer.ring_alignment)) {
+        *copied = handle->create_config.buffer.ring_alignment;
+        return;
+    }
+    amount = 0;
     while (size >= 4) {
         if ((MPS_CheckDelim(cursor) & 0xD0000) != 0) {
             *copied = amount;
@@ -840,8 +848,8 @@ static inline void sfmps_ScanSkip(SfdHandle* handle,
     *copied = amount;
 }
 
-/* TODO: [near miss] 98.92%; work/result homes now retail; ring base still materialized, seek
- * header cursor r21/r22 and IsZero unit-load r3/r4 remain (RE4 needs register/view forms). */
+/* TODO: [near miss] 99.16465%; skip operation consolidated; ring-base addressing
+ * and header/scan register homes remain; need supported owner-shape evidence. */
 static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
                                int size, int* consumed, int* copied,
                                int readable)
@@ -927,14 +935,7 @@ static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
         *consumed = 4;
         work->scan_position = 4;
     } else if (delimiter == 0) {
-        *copied = 0;
-        if (size >= handle->create_config.buffer.ring_alignment + 3 &&
-            sfmps_IsZero((const signed char*)data,
-                         handle->create_config.buffer.ring_alignment)) {
-            *copied = handle->create_config.buffer.ring_alignment;
-        } else {
-            sfmps_ScanSkip(handle, data, size, copied);
-        }
+        sfmps_ScanSkip(handle, data, size, copied);
         *consumed = *copied;
         if (*copied > 0 && work->scan_position >= 0) {
             if (work->scan_position >= handle->create_config.buffer.ring_alignment) {

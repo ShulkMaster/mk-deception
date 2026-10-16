@@ -678,8 +678,7 @@ int pz_finish_him_request(void) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 98.5782%; three retail guard instructions
- * remain; recover the original predicate before toggle_obj_and_ani_flips. */
+/* TODO: [breakthrough needed] 98.5782%; retail flip guard is absent from initial pcode; recover its original predicate or macro. */
 static float pz_fighter_scorpion_attack_start(void) {
     float player_distance = xz_distance_between_players();
     float home_distance =
@@ -1442,13 +1441,12 @@ void pz_fighter_kill_global_projectile(void) {
     }
 }
 
-/* TODO: [near miss] 98.63%; 55 owner/flag register rows remain;
- * operations and CFG agree; need supported owner lifetimes. */
 static float p_pz_fighter_projectile_launcher(void) {
+    MkHdr* saved_pdata;
+    RwFrame* frame;
     struct PuzzleProjectile* projectile = (struct PuzzleProjectile*)apdata;
     int passed_target = 0;
     Vec position;
-    RwFrame* frame;
 
     if ((unsigned int)projectile->state == 2) {
         g_global_projectile = 0;
@@ -1495,7 +1493,7 @@ static float p_pz_fighter_projectile_launcher(void) {
                 passed_target = 1;
             }
             if (passed_target == 1) {
-                MkHdr* saved_pdata = apdata;
+                saved_pdata = apdata;
 
                 apdata = (MkHdr*)projectile->owner;
                 fx_reset(projectile->effect);
@@ -2302,8 +2300,8 @@ void pz_fighter_step_throw_into_check(void) {
     set_both_face_opponent_flags();
 }
 
-/* TODO: [near miss] 96.56%; table-base/index setup differs;
- * restoring local-static ownership changes .data placement. */
+/* TODO: [near miss] 96.55844%; SR index-zero interleaves table materialization;
+ * recover original local-static placement and producer scheduling. */
 void pz_fighter_create_space_between_fighters(void) {
     unsigned short roll = randu0(100);
     float player_distance = xz_distance_between_players();

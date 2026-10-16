@@ -1907,8 +1907,19 @@ static float pz_fighters_grinder_fatality_in_progress(void) {
     return pz_fatality_finish_timed_fatality();
 }
 
-/* TODO: [near miss] 99.90%; operations and callback lifetimes agree;
- * only secondary grinder r29/r30 homes remain; stop at coloring. */
+static inline void publish_initial_grinders(
+    struct PuzzleFighterRenderObject** grinders) {
+    struct PuzzleFighterRenderObject* primary;
+    struct PuzzleFighterRenderObject* secondary;
+
+    primary = grinders[0];
+    g_pz_fighter_fatality_engine.scene_objects[0] = primary;
+    secondary = grinders[1];
+    g_pz_fighter_fatality_engine.scene_objects[1] = secondary;
+    obj_create_sobjs(primary);
+    obj_create_sobjs(secondary);
+}
+
 static float pz_fighter_load_and_place_initial_grinders(void) {
     struct PuzzleEffectBankContext effect_context;
     struct PuzzleFighterRenderObject* grinders[2];
@@ -1941,10 +1952,7 @@ static float pz_fighter_load_and_place_initial_grinders(void) {
         insert_fgnd_mkobj(grinders[i]);
     }
 
-    g_pz_fighter_fatality_engine.scene_objects[0] = grinders[0];
-    g_pz_fighter_fatality_engine.scene_objects[1] = grinders[1];
-    obj_create_sobjs(grinders[0]);
-    obj_create_sobjs(grinders[1]);
+    publish_initial_grinders(grinders);
     g_pz_fighter_fatality_engine.grinder_texture =
         load_tga(0x70036, 0x081E0002);
     controller = 0;
@@ -2959,8 +2967,8 @@ static float p_chomper2_controller(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.80%; initial/preschedule pcode preserves both owners;
- * only Vec-template and player-data r3/r4 allocation differs. */
+/* TODO: [near miss] 99.79798%; Vec-template v32 must emit after player-data
+ * v37; recover a real evaluation boundary before more r3/r4 trials. */
 static float pz_fighter_chomper2_victim_crushed(void) {
     float blood_x;
     float blood_z;
@@ -2988,8 +2996,8 @@ static float pz_fighter_chomper2_victim_crushed(void) {
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.32%; motion-array base and stfsx operand order differ;
- * typed owner/helper forms and propagation control did not close the residue. */
+/* TODO: [near miss] 99.31818%; initial STFSX makes motion the base, forbidding r0;
+ * recover address-operand ownership before allocation. */
 static float pz_fighter_chomper2_actively_fighting(int active) {
     int group;
     float (*motion)[2];
@@ -3383,7 +3391,8 @@ static float pz_fighter_chomper2_unload(void) {
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 95.63%; reset and stride zeros coalesce; motion-row address uses r3 instead of r0. */
+/* TODO: [near miss] 95.625%; second value-numbering pass shares reset zero with
+ * hazard stride; recover distinct reset ownership and indexed-store operands. */
 static void pz_fighter_chomper2_entering_fatality(
     int attacker, int victim) {
     unsigned int i;
@@ -3799,18 +3808,32 @@ static float pz_fighter_objects_falling_actively_fighting(int active) {
     return pz_fatality_set_random_hazard_phase(active);
 }
 
-/* TODO: [near miss] 99.84%; five victim-x/delta-x FPR rows remain;
- * late aggregate flattening is code-neutral and regresses pool layout. */
+static inline float pz_fighter_signed_post_distance(
+    struct PuzzleFighterRenderObject* object, int player, int direction) {
+    float target_z;
+    float target_x;
+    float delta_x;
+    float delta_z;
+
+    pz_fighter_offset_fatality_post(player, &target_x, &target_z);
+    delta_x = target_x - object->position.x;
+    delta_z = target_z - object->position.z;
+    if (target_x < 0.0f) {
+        if (object->position.x < target_x) {
+            direction = -1;
+        }
+    } else if (object->position.x > target_x) {
+        direction = -1;
+    }
+    return direction * ((delta_x * delta_x) + (delta_z * delta_z));
+}
+
 static float pz_fighters_objects_falling_fatality_prep(void) {
     static int one_last_hit = 1;
     static int start_pointing = 1;
     struct PuzzleFighterRenderObject *victim_object;
     struct PuzzleFighterRenderObject *attacker_object;
     float player_distance;
-    float target_x;
-    float target_z;
-    float delta_x;
-    float delta_z;
     float signed_distance;
     int direction;
     int event;
@@ -3827,19 +3850,8 @@ static float pz_fighters_objects_falling_fatality_prep(void) {
 
                 victim_object = pz_fighter_get_player_obj(victim);
                 direction = 1;
-                pz_fighter_offset_fatality_post(victim, &target_x, &target_z);
-
-                delta_x = target_x - victim_object->position.x;
-                delta_z = target_z - victim_object->position.z;
-                if (target_x < 0.0f) {
-                    if (victim_object->position.x < target_x) {
-                        direction = -1;
-                    }
-                } else if (victim_object->position.x > target_x) {
-                    direction = -1;
-                }
-                signed_distance =
-                        direction * ((delta_x * delta_x) + (delta_z * delta_z));
+                signed_distance = pz_fighter_signed_post_distance(
+                    victim_object, victim, direction);
 
                 if (player_distance < 1.5f) {
                     if (signed_distance > 1.0f) {
@@ -4062,8 +4074,8 @@ static float pz_fighters_lightning_preround(void) {
     return pz_fatality_start_preround();
 }
 
-/* TODO: [near miss] 99.66732%; bolt/effect/texture homes remain;
- * canonical one-argument destroy is byte-neutral. */
+/* TODO: [near miss] 99.66732%; snapshot/smoke coalesced degrees and texture claims;
+ * effect-start boundary is neutral; recover creation/retention ownership. */
 static float p_lightning_controller(void) {
     Vec position = {0.0f, 0.0f, 0.0f};
 
@@ -4098,8 +4110,6 @@ static float pz_fighter_lightning_actively_fighting(int active) {
     return pz_fatality_set_random_hazard_phase(active);
 }
 
-/* TODO: [near miss] 99.82%; typed target-position helper removes bare scopes;
- * current-x/delta-x FPR coloring remains after owner/scope/boundary trials. */
 static float pz_fighters_lightning_fatality_prep(void) {
     static int one_last_hit = 1;
     static int start_pointing = 1;
@@ -4107,10 +4117,11 @@ static float pz_fighters_lightning_fatality_prep(void) {
     unsigned int lightning_smoke;
     unsigned int burning_smoke;
     float player_distance;
+    float delta_x;
     float target_x;
     float target_z;
-    float delta_x;
     float delta_z;
+    float victim_x;
     float signed_distance;
     int direction;
     int event;
@@ -4133,13 +4144,14 @@ static float pz_fighters_lightning_fatality_prep(void) {
                 direction = 1;
                 pz_lightning_target_position(victim, &target_x, &target_z);
 
-                delta_x = target_x - victim_object->position.x;
+                victim_x = victim_object->position.x;
+                delta_x = target_x - victim_x;
                 delta_z = target_z - victim_object->position.z;
                 if (target_x < 0.0f) {
-                    if (victim_object->position.x < target_x) {
+                    if (victim_x < target_x) {
                         direction = -1;
                     }
-                } else if (victim_object->position.x > target_x) {
+                } else if (victim_x > target_x) {
                     direction = -1;
                 }
                 signed_distance =
@@ -5010,15 +5022,35 @@ static float r_pz_fighter_summon_burn(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough] 98.52%; effect-block attacker reload restored; distance FPR roles and zero-constant copy remain. */
+static inline float pz_burn_signed_distance(
+    struct PuzzleFighterRenderObject* object, int attacker, int direction) {
+    float target_x;
+    float target_z;
+    float delta_x;
+    float delta_z;
+
+    target_x = screen_width > 650 ?
+        (attacker == 0 ? -2.3f : 2.3f) :
+        (attacker == 0 ? -1.8f : 1.8f);
+
+    delta_x = target_x - object->position.x;
+    target_z = 0.0f;
+    delta_z = target_z - object->position.z;
+    if (target_x < target_z) {
+        if (object->position.x < target_x) {
+            direction = -1;
+        }
+    } else if (object->position.x > target_x) {
+        direction = -1;
+    }
+    return direction * ((delta_x * delta_x) + (delta_z * delta_z));
+}
+
 static float pz_fighters_burn_fatality_prep(void) {
     static int start_burn;
     static int attack_begun;
     struct PuzzleFighterRenderObject* attacker_object;
     struct PuzzleFighterMove* victim_move;
-    float target_x;
-    float delta_x;
-    float delta_z;
     float signed_distance;
     float effect_x;
     int direction;
@@ -5029,22 +5061,8 @@ static float pz_fighters_burn_fatality_prep(void) {
     attacker = g_pz_fighters_engine.fatality_attacker;
     attacker_object = pz_fighter_get_player_obj(attacker);
     direction = 1;
-    target_x = screen_width > 650 ?
-        (attacker == 0 ? -2.3f : 2.3f) :
-        (attacker == 0 ? -1.8f : 1.8f);
-
-    delta_x = target_x - attacker_object->position.x;
-    delta_z = 0.0f;
-    delta_z -= attacker_object->position.z;
-    if (target_x < 0.0f) {
-        if (attacker_object->position.x < target_x) {
-            direction = -1;
-        }
-    } else if (attacker_object->position.x > target_x) {
-        direction = -1;
-    }
-    signed_distance =
-        direction * ((delta_x * delta_x) + (delta_z * delta_z));
+    signed_distance = pz_burn_signed_distance(
+        attacker_object, attacker, direction);
 
     if (start_burn == 0) {
         start_burn = 1;

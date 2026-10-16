@@ -101,7 +101,6 @@ void delete_light_lists(void);
 void cleanup_fight(void);
 void term_collision_system(void);
 void bleed_init(void);
-void initialize_background_danger_zones(void);
 void mslUnDuckAll(_mslSystem* system);
 void init_collision_system(void);
 void pfxscript_initialize(void);
@@ -446,7 +445,8 @@ int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
     return 0;
 }
 
-/* TODO: [near miss] 87.50%; zero tapout argument schedules before movie-ID load. */
+/* TODO: [near miss] 87.50%; pre-RA scheduler fills the movie-ID address-latency slot
+ * with zero tapout; original producer dependency remains unresolved. */
 void screen_engine_play_movie(int index) {
     if (index >= 0xC8) {
         index -= 0xC8;
@@ -898,8 +898,8 @@ void service_game_timers(void) {
     g_game_info.field_20C += 1;
 }
 
-/* TODO: [near miss] 97.95%; loop state and parameter homes differ;
- * current/target math and live-instance latch agree. */
+/* TODO: [near miss] 97.94872%; string parameter must claim before all loop
+ * owners; no local declaration order can cross that ABI owner band. */
 void display_numerical_change(
     StringObj* string, int font, int start, int change,
     int ticks, int acceleration_interval) {
@@ -1750,22 +1750,6 @@ static inline void uv_init_transform_pair(UvScrollControl* ctrl) {
     ctrl->mtx2.flags = ctrl->mtx2.flags | kUvMtxFlags;
 }
 
-static inline void material_apply_scroll_effects(RpMaterial* material) {
-    int effects;
-    RwBlendFunction dst;
-    RwBlendFunction src;
-    effects = RpMatFXMaterialGetEffects(material);
-    if (effects == kMatFxDual) {
-        RwTexture* dual_texture = RpMatFXMaterialGetDualTexture(material);
-        RpMatFXMaterialGetDualBlendModes(material, &src, &dst);
-        RpMatFXMaterialSetEffects(material, kMatFxDualUvTransform);
-        RpMatFXMaterialSetDualBlendModes(material, src, dst);
-        RpMatFXMaterialSetDualTexture(material, dual_texture);
-    } else {
-        RpMatFXMaterialSetEffects(material, kMatFxUvTransform);
-    }
-}
-
 static inline void material_advance_uv_pair(RwV3d* uv, float rateU, float rateV) {
     uv->x = rateU * game_speed + uv->x;
     uv->y = rateV * game_speed + uv->y;
@@ -1895,7 +1879,6 @@ static inline UvScrollControl* create_uv_scroll_control(void) {
     return ctrl;
 }
 
-/* TODO: [near miss] 99.326920%; dual-texture result staging copy remains. */
 UvScrollControl* material_start_uv_scroll(MkObj* owner, RpMaterial* material,
                                           float u1, float v1, float u2,
                                           float v2) {
@@ -1908,11 +1891,24 @@ UvScrollControl* material_start_uv_scroll(MkObj* owner, RpMaterial* material,
     }
     ctrl = create_uv_scroll_control();
     if (ctrl != 0) {
+        int effects;
+        RwBlendFunction src;
+        RwBlendFunction dst;
+
         ctrl->owner = owner;
         ctrl->owner_instance = owner->hdr.instance;
         mk_insert(&ctrl->hdr, &owner->child_list);
         uv_init_transform_pair(ctrl);
-        material_apply_scroll_effects(material);
+        effects = RpMatFXMaterialGetEffects(material);
+        if (effects == kMatFxDual) {
+            RwTexture* dual_texture = RpMatFXMaterialGetDualTexture(material);
+            RpMatFXMaterialGetDualBlendModes(material, &src, &dst);
+            RpMatFXMaterialSetEffects(material, kMatFxDualUvTransform);
+            RpMatFXMaterialSetDualBlendModes(material, src, dst);
+            RpMatFXMaterialSetDualTexture(material, dual_texture);
+        } else {
+            RpMatFXMaterialSetEffects(material, kMatFxUvTransform);
+        }
         ctrl->rateU1 = u1;
         ctrl->rateV1 = v1;
         ctrl->rateU2 = u2;

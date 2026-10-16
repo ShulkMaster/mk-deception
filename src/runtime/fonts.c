@@ -38,22 +38,16 @@ static float fonts_metrics_height(FontMetrics* metrics) {
 
 static int fonts_find_key(const char* keys, char key) {
     int index;
-    const char* walk;
 
-    index = 0;
-    walk = keys;
-    while (*walk != '\0') {
-        if (key == *walk) {
+    for (index = 0; keys[index] != '\0'; index++) {
+        if (key == keys[index]) {
             return index;
         }
-        index++;
-        walk++;
     }
     return -1;
 }
 
 
-/* TODO: [near miss] 99.02%; seven key-search cursor/character register rows remain. */
 void rewrite_button_string(const char* keys, char* text, int swap, int* map) {
     int key_idx;
     int out_bit;
@@ -270,8 +264,8 @@ void update_string_obj_pfx(StringObj* obj, PfxFontSlot* font, const char* text) 
     }
 }
 
-/* TODO: [near miss] 96.50%; table-base and render_y scheduling restored;
- * y_off load and compare move ahead of vertical metrics conversion. */
+/* TODO: [near miss] 96.50%; y_off load/test hoist before vertical conversion;
+ * need the retail table-address/publication dependency; native homes agree. */
 void update_string_obj(StringObj* obj, int font, const char* text) {
     int halign;
     int valign;
@@ -588,8 +582,8 @@ StringObj* string_left_xy(int oid, int font, const char* text, int x, int y, int
     return obj;
 }
 
-/* TODO: [near miss] 98.98%; indexed slot rematerialization recovered;
- * search and load-path register allocation remains. */
+/* TODO: [near miss] 98.98305%; shared loader rotates homes; indexed walk deletes
+ * retail rematerialization; integer handle typing alone is byte-neutral. */
 PfxFontSlot* load_named_font(const char* name) {
     int offset;
     FontTableEntry* walk;

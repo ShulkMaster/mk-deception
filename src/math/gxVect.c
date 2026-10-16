@@ -1,8 +1,6 @@
 #include "math/gxVect.h"
 #include "math/gxMath.h"
 
-static const float _235 = 0.0f;
-
 float gxVectAngleZX(const Vec* v) {
     float lenSq;
     float invLen;
@@ -19,7 +17,7 @@ float gxVectAngleZX(const Vec* v) {
     lenSq = x2 + zz;
     invLen = gxMathFastInvSqrt(lenSq);
     angle = gxMathArcCos(z * invLen);
-    if (v->x < _235) {
+    if (v->x < 0.0f) {
         angle = -angle;
     }
     return angle;

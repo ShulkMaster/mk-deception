@@ -51,8 +51,8 @@ KonquestTimedEvent* npc_which_event_is_more_recent(
     return event_b;
 }
 
-/* TODO: [near miss] 99.74%; six mask-intermediate GPR rows remain;
- * shared accumulation rewrite regresses an exact consumer; stop at coloring. */
+/* TODO: [near miss] 99.74359%; weekday IRO and month codegen owners differ;
+ * no two-edge repair preserves other homes; recover their original producer. */
 static KonquestTimedEvent* which_event_is_more_recent(
     const KonquestTime* current, KonquestTimedEvent* event_a,
     KonquestTimedEvent* event_b) {
@@ -110,8 +110,8 @@ static KonquestTimedEvent* which_event_is_more_recent(
     return event_b;
 }
 
-/* TODO: [near miss] 57.88%; specificity-mask schedule/frame and GPR allocation differ;
- * const checks regress; stop at codegen without a new lifetime hypothesis. */
+/* TODO: [breakthrough needed] 59.40678%; raw B dates extend saved lifetimes;
+ * recover GC mask ownership beyond the verified PS2 accumulation/helper shape. */
 int does_event_a_trump_event_b(
     const KonquestTimedEvent* event_a, const KonquestTimedEvent* event_b) {
     int month_a;
@@ -129,14 +129,14 @@ int does_event_a_trump_event_b(
     month_b = event_b->time.month;
     day_of_week_b = event_b->time.day_of_week;
     day_of_month_b = event_b->time.day_of_month;
-    specificity_a = (event_a->time.year != -1) |
-                    (month_a == -1 ? 0 : 2) |
-                    (day_of_week_a == -1 ? 0 : 4) |
-                    (day_of_month_a == -1 ? 0 : 8);
-    specificity_b = (event_b->time.year != -1) |
-                    (month_b == -1 ? 0 : 2) |
-                    (day_of_week_b == -1 ? 0 : 4) |
-                    (day_of_month_b == -1 ? 0 : 8);
+    specificity_a = ((day_of_month_a == -1 ? 0 : 8) |
+                     (day_of_week_a == -1 ? 0 : 4)) |
+                    ((month_a == -1 ? 0 : 2) |
+                     (event_a->time.year == -1 ? 0 : 1));
+    specificity_b = ((day_of_month_b == -1 ? 0 : 8) |
+                     (day_of_week_b == -1 ? 0 : 4)) |
+                    ((month_b == -1 ? 0 : 2) |
+                     (event_b->time.year == -1 ? 0 : 1));
     if (specificity_a > specificity_b) {
         return 1;
     }

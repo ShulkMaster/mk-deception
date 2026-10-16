@@ -9,6 +9,14 @@
 
 typedef struct StorageProfileSlot StorageProfileSlot;
 
+extern int p1_profile_device;
+extern int p1_profile_slot;
+extern int p1_profile_status;
+extern int p2_profile_device;
+extern int p2_profile_slot;
+extern int p2_profile_status;
+extern int profile_code_state[2];
+
 /*
  * plyrprofile.o - player profiles + memcard boot PPWLS ("what's loaded").
  * Deeper CARD I/O is memcard/gcmcard. Campaign history: docs/campaigns/index.md.

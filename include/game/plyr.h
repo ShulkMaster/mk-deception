@@ -14,6 +14,8 @@ float p_animate_weapon_rest(void);
 void init_plyr_info_struct(PlyrInfo* player);
 void plyr_turn_on_mirrorguy(PlyrInfo* player);
 void plyr_turn_off_mirrorguy(PlyrInfo* player);
+void plyr_turn_on_shadowbox(PlyrInfo* player);
+void plyr_turn_off_shadowbox(PlyrInfo* player);
 int load_plyr_model_async(int player, int char_id, int* flags);
 void set_player_state(PlyrInfo* player, int state);
 
@@ -48,13 +50,17 @@ float player_sleep_forever(void);
 void set_attack_type(int attack_type);
 
 void create_player(int player_index, PlyrInfo* player);
+void show_player(PlyrPdata* player);
+void hide_player(PlyrPdata* player, int hide_weapons);
 void delete_player(int player_index);
 void destroy_mkpdata_plyr(PlyrPdata* pdata);
 void load_aux_weapon(WeaponDefinition* definition);
 void puzzle_fighter_scale(MkObj* object, float scale);
+void move_player(MkObj* object, Vec* position, Vec* angles);
 void move_player_no_constrain_update(
     MkObj* object, Vec* position, Vec* angles);
 void release_other_player(void);
+int check_release_other_player(void);
 MkHdr* plyr_grab_other_flip_states(
     int player_flip, int opponent_flip);
 void rnd_plyrs(void);
@@ -69,5 +75,16 @@ float active_sidekick_swap_from_behind(PlyrPdata* pdata);
 float active_sidekick_swap_from_sky(PlyrPdata* pdata);
 
 extern ScriptSlot* reactions_cmo;
+extern MkHdr* apdata_save;
+extern PlyrPdata* his_pdata;
+extern MkProc* plyr_anim_proc;
+extern int p1_current_switch_bit;
+extern int p1_current_switch_time;
+extern int p1_last_switch_bit;
+extern int p1_last_switch_time;
+extern int p2_current_switch_bit;
+extern int p2_current_switch_time;
+extern int p2_last_switch_bit;
+extern int p2_last_switch_time;
 
 #endif

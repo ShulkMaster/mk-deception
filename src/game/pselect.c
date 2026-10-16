@@ -90,16 +90,16 @@ struct PselectProfileView {
     int bg_team[5];
 };
 
-struct BgPselectCancelTeam {
+struct BgPselectTeamRecord {
     int entries[6];
     RwTexture** colors;
     RwTexture** alphas;
     int focus;
 };
 
-struct BgPselectCancelPdata {
+struct BgPselectTeamPdata {
     MkHdr hdr;
-    struct BgPselectCancelTeam teams[2];
+    struct BgPselectTeamRecord teams[2];
 };
 
 struct BgPselectTeamView {
@@ -527,8 +527,8 @@ static inline int pselect_character_locked_impl(int char_id, int alt_bit) {
     return 1;
 }
 
-/* TODO: [breakthrough] 97.55%; retail table ownership, frame and retained homes recovered;
- * validity branch/join and shift-argument staging need original inline evidence. */
+/* TODO: [near miss] 97.55%; validity result copy/join is absent before allocation;
+ * recover its producer boundary and the early shift-count snapshot. */
 static float p_random_player_select(void) {
     int attempts;
     int slot;
@@ -613,7 +613,6 @@ void wager_cancelled(void) {
     wager_completed_ran = 0;
 }
 
-/* TODO: [near miss] 97.89%; save/refund CFG agrees; refund owners and zero stores use rotated volatile GPRs. */
 static float p_wager_save_profiles(void) {
     int p1_saved;
     int p2_saved;
@@ -624,12 +623,11 @@ static float p_wager_save_profiles(void) {
     if (p1_saved == 0 || p2_saved == 0) {
         int amount = g_game_info.pselect.field_1d8;
         if (amount > 0) {
-            int koin = wager_koin_order[g_game_info.pselect.field_1d4];
+            p1_profile.koins[wager_koin_order[g_game_info.pselect.field_1d4]] += amount;
+            p2_profile.koins[wager_koin_order[g_game_info.pselect.field_1d4]] += amount;
             g_game_info.pselect.field_1d4 = 0;
             g_game_info.pselect.field_1d8 = 0;
             g_game_info.pselect.field_1dc = 0;
-            p1_profile.koins[koin] = p1_profile.koins[koin] + amount;
-            p2_profile.koins[koin] += amount;
             g_game_info.pselect.field_1d0 = 0;
             g_game_info.pselect.field_1e0 = 1;
             g_game_info.pselect.field_1f0 = 1;
@@ -663,11 +661,19 @@ static inline int wager_clamp_bet_to_balances(
     return 0;
 }
 
-/* TODO: [near miss] 99.34%; behavior, CFG and indexed debits agree;
- * koin/first-balance array r7/r8 coloring remains; stop at coloring. */
+static inline void wager_debit_balances(
+    int* p1_koins, int* p2_koins, int koin) {
+    if (wager_clamp_bet_to_balances(p1_koins, p2_koins, koin) == 0) {
+        wager_cancelled();
+        return;
+    }
+
+    p1_koins[koin] -= g_game_info.pselect.field_1d8;
+    p2_koins[koin] -= g_game_info.pselect.field_1d8;
+    proc_create(p_wager_save_profiles, 0x209F);
+}
+
 void wager_completed(void) {
-    int* p1_koins;
-    int* p2_koins;
     int koin;
 
     if (wager_completed_ran != 0) {
@@ -686,16 +692,7 @@ void wager_completed(void) {
         return;
     }
 
-    p1_koins = p1_profile.koins;
-    p2_koins = p2_profile.koins;
-    if (wager_clamp_bet_to_balances(p1_koins, p2_koins, koin) == 0) {
-        wager_cancelled();
-        return;
-    }
-
-    p1_koins[koin] -= g_game_info.pselect.field_1d8;
-    p2_koins[koin] -= g_game_info.pselect.field_1d8;
-    proc_create(p_wager_save_profiles, 0x209F);
+    wager_debit_balances(p1_profile.koins, p2_profile.koins, koin);
 }
 
 int get_current_wager_koin(void) {
@@ -887,11 +884,22 @@ void ck_increment_bet(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 92.96%; strength reduction creates a separate
- * zero index; recover retail accumulator sharing without tying unrelated locals. */
-int ok_to_bring_out_wager_screen(void) {
-    int has_common_koin;
+static inline int wager_profiles_have_common_koin(void) {
+    int has_common_koin = 0;
     int i;
+
+    for (i = 0; i < 6; i++) {
+        unsigned int p1_koins = p1_profile.koins[i];
+        unsigned int p2_koins = p2_profile.koins[i];
+
+        if (p1_koins != 0 && p2_koins != 0) {
+            has_common_koin = 1;
+        }
+    }
+    return has_common_koin;
+}
+
+int ok_to_bring_out_wager_screen(void) {
     int mop;
 
     if (p1_profile_status != 1 || p2_profile_status != 1) {
@@ -905,7 +913,6 @@ int ok_to_bring_out_wager_screen(void) {
         return 0;
     }
 
-    has_common_koin = 0;
     mop = mode_of_play;
     if (mop != 1 && mop != 0) {
         return 0;
@@ -914,15 +921,7 @@ int ok_to_bring_out_wager_screen(void) {
         return 0;
     }
 
-    for (i = 0; i < 6; i++) {
-        unsigned int p1_koins = p1_profile.koins[i];
-        unsigned int p2_koins = p2_profile.koins[i];
-
-        if (p1_koins != 0 && p2_koins != 0) {
-            has_common_koin = 1;
-        }
-    }
-    if (!has_common_koin) {
+    if (!wager_profiles_have_common_koin()) {
         return 0;
     }
     if (g_game_info.pselect.field_1d0 != 0) {
@@ -1028,18 +1027,16 @@ int pselect_bgnd_has_deathtrap(void) {
     return tbl[pos].flags & 1;
 }
 
-/* TODO: [near miss] 96.43%; first balance producer improved; profile/zero register web remains. */
 void ck_restore_kiddy(void) {
     int amount;
 
     amount = g_game_info.pselect.field_1d8;
     if (amount > 0) {
-        int koin = wager_koin_order[g_game_info.pselect.field_1d4];
+        p1_profile.koins[wager_koin_order[g_game_info.pselect.field_1d4]] += amount;
+        p2_profile.koins[wager_koin_order[g_game_info.pselect.field_1d4]] += amount;
         g_game_info.pselect.field_1d4 = 0;
         g_game_info.pselect.field_1d8 = 0;
         g_game_info.pselect.field_1dc = 0;
-        p1_profile.koins[koin] = p1_profile.koins[koin] + amount;
-        p2_profile.koins[koin] += amount;
         g_game_info.pselect.field_1d0 = 0;
         g_game_info.pselect.field_1e0 = 1;
         g_game_info.pselect.field_1f0 = 1;
@@ -1142,7 +1139,8 @@ float p_enter_profile_code(void) {
 }
 
 
-/* TODO: [near miss] 97.91045%; validity join/compare registers remain; return rewrites and whole-TU nopeephole regress callers. */
+/* TODO: [near miss] 97.91045%; recover a genuine validity-result copy across the join;
+ * IRO folds the current branch pair before allocation. */
 int is_char_locked(int char_id, int alt_bit) {
     unsigned long long mask;
     unsigned long long bit;
@@ -1439,34 +1437,79 @@ static inline RwTexture* pselect_load_team_head_alpha(int char_id) {
     return 0;
 }
 
-/* TODO: [near miss] 96.73%; scan returns and screen reloads recovered; team-view CSE and owner/register homes remain. */
-void get_bg_pselect_team_textures(PselectTexOut out, int team) {
-    struct BgPselectPdata* pdata;
-    struct BgPselectTeamView* teamv;
+static inline int bg_team_record_focus_of(struct BgPselectTeamPdata* pdata,
+                                           int team, int char_id) {
     int i;
-    int char_id;
+    int member_count;
+
+    if (pdata == 0) {
+        return -1;
+    }
+    member_count = pdata->teams[team].entries[0] - 1;
+    for (i = 0; i < 5; i++) {
+        if (i >= member_count) {
+            break;
+        }
+        if (pdata->teams[team].entries[i + 1] == char_id) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static inline void pselect_update_team_preview(int player) {
+    struct BgPselectTeamPdata* pdata;
     int sel_pos;
-    int focus_char;
+    int char_id;
     int count;
     RwTexture* tex;
-    struct PselectCharEntry* ent;
+
+    if (pselect_mode != 1) {
+        return;
+    }
+    pdata = get_screen_pdata();
+    if (pdata == 0) {
+        return;
+    }
+    count = pdata->teams[player].entries[0];
+    sel_pos = p2_selbox_pos;
+    if (player == 0) {
+        sel_pos = p1_selbox_pos;
+    }
+    if (pselect_mode == 2) {
+        char_id = pselect_pz_char_tbl[sel_pos].char_id;
+    } else {
+        char_id = pselect_char_tbl[sel_pos].char_id;
+    }
+    if (count > 0 && count <= 5) {
+        tex = load_named_tga_from_slot(PSELECT_SEC_SLOT,
+                                       pselect_char_tbl[sel_pos].head_name);
+        pdata->teams[player].colors[count - 1] = tex;
+    }
+    pdata->teams[player].focus =
+        bg_team_record_focus_of(get_screen_pdata(), player, char_id);
+}
+
+void get_bg_pselect_team_textures(PselectTexOut out, int team) {
+    struct BgPselectTeamPdata* pdata;
+    int i;
+    int char_id;
 
     pdata = get_screen_pdata();
     if (pdata == 0) {
         return;
     }
 
-    teamv = bg_team_view(pdata, team);
-    teamv->colors = out.colors;
-    teamv->alphas = out.alphas;
+    pdata->teams[team].colors = out.colors;
+    pdata->teams[team].alphas = out.alphas;
 
     for (i = 0; i < 5; i++) {
-        if (i > teamv->count - 2) {
+        if (i > pdata->teams[team].entries[0] - 2) {
             out.colors[i] = 0;
             out.alphas[i] = 0;
             continue;
         }
-        char_id = teamv->chars[i];
+        char_id = pdata->teams[team].entries[i + 1];
         if (char_id != 0x2C) {
             out.colors[i] = pselect_load_team_head_color(char_id);
             out.alphas[i] = pselect_load_team_head_alpha(char_id);
@@ -1476,30 +1519,11 @@ void get_bg_pselect_team_textures(PselectTexOut out, int team) {
         }
     }
 
-    if (pselect_mode == 1) {
-        struct BgPselectPdata* preview_pdata;
-
-        preview_pdata = get_screen_pdata();
-        if (preview_pdata == 0) {
-            return;
-        }
-
-        count = bg_team_view(preview_pdata, team)->count;
-        sel_pos = (team == 0) ? p1_selbox_pos : p2_selbox_pos;
-        focus_char = pselect_char_id_at(sel_pos);
-
-        if (count > 0 && count <= 5) {
-            ent = &pselect_char_tbl[sel_pos];
-            tex = load_named_tga_from_slot(PSELECT_SEC_SLOT, ent->head_name);
-            bg_team_view(preview_pdata, team)->colors[count - 1] = tex;
-        }
-
-        bg_team_view(preview_pdata, team)->focus = bg_team_focus_of(get_screen_pdata(), team, focus_char);
-    }
+    pselect_update_team_preview(team);
 }
 
-/* TODO: [near miss] 98.88%; shared validity join differs before allocation;
- * value numbering also merges its zero with the comparison high word. */
+/* TODO: [near miss] 98.88%; validity join is absent from initial pcode;
+ * recover its original predicate boundary before addressing zero sharing. */
 void get_pselect_head_textures(PselectTexOut out) {
     int n;
     int i;
@@ -1606,10 +1630,8 @@ char* pselect_get_player_name(int player) {
     return global_player_data[char_id].name;
 }
 
-/* TODO: [breakthrough needed] 94.48%; initial pcode already caches team owner;
- * canonical-record layout regresses exact siblings; recover retail CSE boundary. */
 void pselect_player_moved(int player) {
-    struct BgPselectPdata* pdata;
+    struct BgPselectTeamPdata* pdata;
     int sel_pos;
     int char_id;
     int count;
@@ -1622,34 +1644,29 @@ void pselect_player_moved(int player) {
     if (pdata == 0) {
         return;
     }
-
-    count = bg_team_view(pdata, player)->count;
+    count = pdata->teams[player].entries[0];
     sel_pos = p2_selbox_pos;
     if (player == 0) {
         sel_pos = p1_selbox_pos;
     }
-
     if (pselect_mode == 2) {
         char_id = pselect_pz_char_tbl[sel_pos].char_id;
     } else {
         char_id = pselect_char_tbl[sel_pos].char_id;
     }
-
     if (count > 0 && count <= 5) {
         tex = load_named_tga_from_slot(PSELECT_SEC_SLOT,
                                        pselect_char_tbl[sel_pos].head_name);
-        bg_team_view(pdata, player)->colors[count - 1] = tex;
+        pdata->teams[player].colors[count - 1] = tex;
     }
-
-    bg_team_view(pdata, player)->focus = bg_team_focus_of(get_screen_pdata(), player,
-                                    char_id);
+    pdata->teams[player].focus =
+        bg_team_record_focus_of(get_screen_pdata(), player, char_id);
 }
 
-/* TODO: [breakthrough needed] 94.48%; count-address and selector-index CSE
- * differ before allocation; recover the original owner/inline boundary. */
+/* TODO: [breakthrough] 96.85567%; canonical count/entry and focus owners agree;
+ * selector-index CSE across texture load still removes branch-local multiplies. */
 void bg_pselect_player_canceled(int player) {
-    struct BgPselectCancelPdata* pdata;
-    int* entries;
+    struct BgPselectTeamPdata* pdata;
     int count;
     int sel_pos;
     int char_id;
@@ -1663,12 +1680,11 @@ void bg_pselect_player_canceled(int player) {
         return;
     }
 
-    entries = pdata->teams[player].entries;
-    count = entries[0];
+    count = pdata->teams[player].entries[0];
     sel_pos = (player == 0) ? p1_selbox_pos : p2_selbox_pos;
 
     if (count >= 1 && count <= 5) {
-        entries[count] = 0x2C;
+        pdata->teams[player].entries[count] = 0x2C;
         tex = load_named_tga_from_slot(PSELECT_SEC_SLOT, STR_HEAD_PROXY);
         pdata->teams[player].colors[count - 1] = tex;
     }
@@ -1678,9 +1694,13 @@ void bg_pselect_player_canceled(int player) {
                                        pselect_char_tbl[sel_pos].head_name);
         pdata->teams[player].colors[count - 2] = tex;
         pdata->teams[player].entries[count - 1] = 0x2C;
-        char_id = pselect_char_id_at(sel_pos);
+        if (pselect_mode == 2) {
+            char_id = pselect_pz_char_tbl[sel_pos].char_id;
+        } else {
+            char_id = pselect_char_tbl[sel_pos].char_id;
+        }
         pdata->teams[player].focus =
-            bg_team_focus_of(get_screen_pdata(), player, char_id);
+            bg_team_record_focus_of(get_screen_pdata(), player, char_id);
     }
 }
 
@@ -1753,8 +1773,8 @@ void resolve_alternate_palettes(PlyrInfo* plyr) {
     }
 }
 
-/* TODO: [near miss] 99.09%; calls, snapshots and output slots agree;
- * codeless validity join and preview-search/address homes remain. */
+/* TODO: [near miss] 99.41989%; canonical preview address agrees; validity
+ * branch producer and preview owner order remain at the documented ceiling. */
 void pselect_player_selected(PlyrInfo* plyr) {
     PlyrInfo* other;
     int* sel_pos;
@@ -1862,13 +1882,13 @@ void pselect_player_selected(PlyrInfo* plyr) {
 
     if (pselect_mode == 1) {
         char_id = pselect_char_id_at(*sel_pos);
-        focus = bg_team_focus_of(get_screen_pdata(),
+        focus = bg_team_record_focus_of(get_screen_pdata(),
                                  plyr->field_04, char_id);
         if (focus >= 0) {
-            struct BgPselectPdata* preview = get_screen_pdata();
+            struct BgPselectTeamPdata* preview = get_screen_pdata();
 
             fire_screen_studio_event(studio_ev, plyr->field_04);
-            bg_team_view(preview, plyr->field_04)->focus = focus;
+            preview->teams[plyr->field_04].focus = focus;
         }
     }
 }
@@ -1965,8 +1985,8 @@ int pselect_get_selbox_pos(int player) {
     return 0;
 }
 
-/* TODO: [breakthrough] 92.53%; scalar table and sparse-mode joins recovered;
- * saved homes and character-validity CFG remain unresolved. */
+/* TODO: [breakthrough needed] 95.98290%; public parameters select after internal owners;
+ * recover the GC operation boundary and shared validity-result copy. */
 void pselect_update_selbox_pos(int player, int new_pos) {
     int* pos_p;
     int cols;
@@ -1975,6 +1995,7 @@ void pselect_update_selbox_pos(int player, int new_pos) {
     int delta;
     int char_id;
     int row2;
+    int second_row_end;
     int abs_delta;
 
     if (player == 0) {
@@ -2006,12 +2027,13 @@ void pselect_update_selbox_pos(int player, int new_pos) {
     char_id = pselect_char_id_at(new_pos);
     row2 = cols * 2;
     delta = new_pos - *pos_p;
+    second_row_end = row2 - 1;
 
     while (is_char_locked(char_id, 0)) {
         if (char_id == 0x20) {
             break;
         }
-        if (delta == 1 && (*pos_p == cols - 1 || *pos_p == row2 - 1 ||
+        if (delta == 1 && (*pos_p == cols - 1 || *pos_p == second_row_end ||
                            *pos_p == cols * 3 - 1)) {
             new_pos = *pos_p - (cols - 1);
             *pos_p = new_pos;
@@ -2028,7 +2050,8 @@ void pselect_update_selbox_pos(int player, int new_pos) {
                 }
             } else if (delta == -1 &&
                        (*pos_p == 0 || *pos_p == cols || *pos_p == row2)) {
-                new_pos = cols + *pos_p - 1;
+                new_pos = cols + *pos_p;
+                new_pos -= 1;
                 *pos_p = new_pos;
             } else {
                 new_pos = *pos_p + delta;
@@ -2067,7 +2090,8 @@ void pselect_update_selbox_pos(int player, int new_pos) {
     fire_screen_studio_event(0x1FA4, player);
 }
 
-/* TODO: [near miss] 98.37%; shared inlined character-validity compare and redundant join branch remain. */
+/* TODO: [near miss] 98.37%; shared validity-result copy/join is absent before allocation;
+ * recover its genuine producer boundary in the common predicate. */
 void check_reset_player_selection(int player, int start_pos) {
     int pos;
     int char_id;
@@ -2109,12 +2133,11 @@ int bg_pselect_get_offender_class(int team) {
 
 #pragma opt_propagation reset
 
-/* TODO: [breakthrough] 91.83%; shared focus bound recovered; team root/index staging and register homes remain. */
 void bg_pselect_set_character(int team) {
-    struct BgPselectPdata* pdata;
-    struct BgPselectTeamView* teamv;
+    struct BgPselectTeamPdata* pdata;
     int sel_pos;
     int char_id;
+    int count;
 
     pdata = get_screen_pdata();
     if (pdata == 0) {
@@ -2125,11 +2148,11 @@ void bg_pselect_set_character(int team) {
     if (team == 0) {
         sel_pos = p1_selbox_pos;
     }
-    teamv = bg_team_view(pdata, team);
-    if (teamv->count >= 1 && teamv->count <= 5) {
+    count = pdata->teams[team].entries[0];
+    if (count >= 1 && count <= 5) {
         char_id = pselect_char_id_at(sel_pos);
-        teamv->chars[teamv->count - 1] = char_id;
-        bg_team_view(pdata, team)->focus = bg_team_focus_of(
+        pdata->teams[team].entries[count] = char_id;
+        pdata->teams[team].focus = bg_team_record_focus_of(
             get_screen_pdata(), team, char_id);
     }
 }
@@ -2158,10 +2181,8 @@ void bg_pselect_set_stage(int team, int stage) {
 
 #pragma opt_propagation reset
 
-/* TODO: [breakthrough needed] 93.50%; copy-owner address is reused before count store;
- * recover retail rematerialization boundary without changing shared team layout. */
 void bg_pselect_save_team(int team) {
-    struct BgPselectPdata* pdata;
+    struct BgPselectTeamPdata* pdata;
     struct PselectProfileView* profile;
     MkHdr* save_pdata;
     MkProc* proc;
@@ -2185,10 +2206,10 @@ void bg_pselect_save_team(int team) {
     }
 
     for (i = 0; i < 5; i++) {
-        profile->bg_team[i] = bg_team_view(pdata, team)->chars[i];
+        profile->bg_team[i] = pdata->teams[team].entries[i + 1];
     }
     profile->bg_team_valid = 1;
-    bg_team_view(pdata, team)->count = 6;
+    pdata->teams[team].entries[0] = 6;
 
     proc = _create_mkproc_generic_bigstack(
         0x902A, 0x1F, p_save_bg_profile, sizeof(struct BgSaveProfilePdata), &save_pdata);
@@ -2222,7 +2243,7 @@ static float p_save_bg_profile(void) {
 }
 
 void bg_pselect_load_team(int team) {
-    struct BgPselectCancelPdata* pdata;
+    struct BgPselectTeamPdata* pdata;
     struct PselectProfileView* profile;
     int i;
 
@@ -2459,8 +2480,6 @@ float p_pz_pselect(void) {
 }
 #pragma opt_common_subs reset
 
-/* TODO: [near miss] 99.21%; sleep and player-selection call shape agree;
- * 23 wager-refund selector/profile/zero register rows remain. */
 float p_pselect(void) {
     GameInfo* gi;
     PlyrInfo* plyr1;
@@ -2574,11 +2593,11 @@ float p_pselect(void) {
                 order = wager_koin_order[gi->pselect.field_1d4];
                 p1_koin = &p1_profile.koins[order];
                 p2_koin = &p2_profile.koins[order];
+                *p1_koin += amount;
+                *p2_koin += amount;
                 gi->pselect.field_1d4 = 0;
                 gi->pselect.field_1d8 = 0;
-                *p1_koin += amount;
                 gi->pselect.field_1dc = 0;
-                *p2_koin += amount;
                 gi->pselect.field_1d0 = 0;
                 gi->pselect.field_1e0 = 1;
                 gi->pselect.field_1f0 = 1;
@@ -2599,7 +2618,8 @@ float p_pselect(void) {
 
 static void init_startup_selboxes(void);
 
-/* TODO: [near miss] 97.37%; separate player search positions agree; shared validity join and unlock-mask GPR homes remain. */
+/* TODO: [near miss] 97.36994%; position/mask and invariant-mode owners differ;
+ * preserve local searches and outlining; recover the shared validity join. */
 static void init_startup_selboxes(void) {
     int max_col;
     int p1_pos;
