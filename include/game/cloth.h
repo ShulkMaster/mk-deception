@@ -21,6 +21,9 @@ struct ClothInitEntry {
 };
 typedef char ClothInitEntrySizeCheck[sizeof(ClothInitEntry) == 0x28 ? 1 : -1];
 
+extern int shadow_bones[37];
+extern MkPtr* weapon_trail_mkobj_list;
+
 void start_cloth_bones(MkObj* object);
 void cloth_bones_init_by_tbl(
     MkObj* object, ClothInitEntry* table, int count);

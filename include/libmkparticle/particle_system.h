@@ -9,7 +9,13 @@ void pfxsystem_frame_begin(void);
 void pfxsystem_skip_render_frame(void);
 void pfxsystem_set_frame_info(int unused0, int unused1, const float* matrix,
                               struct RwCamera* camera);
+#ifdef __cplusplus
+extern "C"
+#endif
 void pfxsystem_widescreen_offset(int x, int y);
+#ifdef __cplusplus
+extern "C"
+#endif
 void get_pfxsystem_widescreen_offset(int* out_x, int* out_y);
 void pfxsystem_init(void);
 void pfxsystem_set_global(int id, float value);

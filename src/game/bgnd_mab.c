@@ -163,12 +163,12 @@ struct YinyangFishPair {
     struct FishObjectLatch* active_fish;
 };
 
-int yy_evil_time_active;
-int yinyang_ok_to_switch;
-int yinyang_good_music_index;
-int yinyang_evil_music_index;
-MslSoundHandle yinyang_current_music;
-static struct MiscBgndData misc_bgnd_data;
+static int yy_evil_time_active;
+static int yinyang_ok_to_switch;
+static int yinyang_good_music_index;
+static int yinyang_evil_music_index;
+static MslSoundHandle yinyang_current_music;
+struct MiscBgndData misc_bgnd_data;
 static CollisionShape fortress_exclusion_zone;
 static struct MkObjRef debug_p2_axis_item;
 static struct MkObjRef debug_p1_axis_item;
@@ -191,9 +191,9 @@ void mkobj_zero_bone_rots(MkObj* object);
 void add_facial_damage(FighterMirror* fighter, float amount);
 extern MkPtr* gusher_list;
 static float p_monitor_objs_sobjs(void);
-void p_statue_xpd_callback(MkSobj* object);
-float p_fish_attack_sounds(void);
-float p_fish_attack(void);
+static void p_statue_xpd_callback(MkSobj* object);
+static float p_fish_attack_sounds(void);
+static float p_fish_attack(void);
 static float p_fish_attack_bloodsplat(void);
 static float p_cam_bounce_monitor(void);
 void bgnd_launch_fx_at_position(
@@ -518,7 +518,7 @@ static inline MkObj* fighter_severed_limb_live_object(
     return object;
 }
 
-float p_fish_attack(void) {
+static float p_fish_attack(void) {
     struct FishAttackPdata* pdata;
     MkObj* fish;
     MkObj* target;
@@ -760,7 +760,7 @@ float p_fish_attack(void) {
     return -1.0f;
 }
 
-float p_fish_attack_scream_sounds(void) {
+static float p_fish_attack_scream_sounds(void) {
     struct FishScreamPdata* pdata = (struct FishScreamPdata*)apdata;
     PlyrInfo* player;
 
@@ -780,7 +780,7 @@ float p_fish_attack_scream_sounds(void) {
     return -1.0f;
 }
 
-float p_fish_attack_sounds(void) {
+static float p_fish_attack_sounds(void) {
     struct FishScreamPdata* scream_pdata;
     int elapsed_ticks;
 
@@ -1192,7 +1192,7 @@ void do_yinyang_statue_explosion(MkHdr* statue) {
     }
 }
 
-void p_statue_xpd_callback(MkSobj* object) {
+static void p_statue_xpd_callback(MkSobj* object) {
     Vec* position;
 
     position = sobj_get_world_pos(object);
@@ -1304,7 +1304,7 @@ static float p_xpd_obj_monitor(void) {
     return -1.0f;
 }
 
-float p_skytemple_bodysplat(void) {
+static float p_skytemple_bodysplat(void) {
     struct MkObjRef splat;
     MkObj* object;
     struct MabGenericPositionPdata* pdata;
@@ -1404,8 +1404,8 @@ static float p_cam_bounce_monitor(void) {
     return -1.0f;
 }
 
-/* TODO: [near miss] 99.51136%; initializer/final-limb homes rotate; the final
- * scheduled block retains separate moving/argument LI owners. */
+/* TODO: [breakthrough needed] 99.51136%; initializer/final-limb homes and
+ * moving-bit/shake LI differ; recover their original shared producer. */
 void skytemple_player_explode(
     unsigned int player_index, float x, float y, float z) {
     PlyrInfo* player = &g_game_info.plyr1;

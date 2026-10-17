@@ -23,8 +23,7 @@ BOOL VMBASEIsPageDirty(u32 virtual_address);
 void VMBASESetPageReferenced(u32 virtual_address, BOOL referenced);
 u32 VMBASEGetVirtualAddrFromPageInMRAM(u32 physical_page);
 BOOL VMBASEIsPageLocked(u32 physical_page);
-/* TODO: [Scope warn] pointer return follows the blocked stub; recover its void retail ABI with the callee. */
-void* __VMBASERestoreExceptionHandlers(void);
+void __VMBASERestoreExceptionHandlers(void);
 void __VMBASERestoreVMRegisters(void);
 void __VMBASEInvalidateLockedPageTable(void);
 

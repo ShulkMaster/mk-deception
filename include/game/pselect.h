@@ -12,7 +12,7 @@ typedef struct PlyrInfo PlyrInfo;
 
 #define PSELECT_SEC_SLOT 0x17006A
 
-extern int pselect_mode;
+
 
 int is_pselect_mode(void);
 int is_char_locked(int char_id, int alt_bit);

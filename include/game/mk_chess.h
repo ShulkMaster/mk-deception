@@ -618,7 +618,7 @@ void mk_chess_set_piece_info(int info, float value);
 float mk_chess_get_piece_info(int info);
 void mk_chess_ani_1_frame(void);
 void mk_chess_piece_match_y_ang_to_anim(void);
-int mk_chess_input_possibile(void);
+
 int mk_chess_return_active_pad(void);
 int mk_chess_allow_cam_control(void);
 int mk_chess_fake_demo_cam(float* camera_speed);

@@ -143,7 +143,6 @@ static float drone_ai_perform_block(void);
 float drone_ai_perform_reversal(void);
 static float jump_towards_opponent_with_attack(void);
 static float jump_away_opponent_with_jexit(void);
-float p_plyr_aux2(void);
 void set_my_secondary_state(int state);
 int drone_ai_attacker_reacting_watcher(void);
 int drone_ai_attacker_defenseless_watcher(void);

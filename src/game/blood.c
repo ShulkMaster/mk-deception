@@ -20,6 +20,11 @@
 #include "math/mk_math.h"
 #include "math/gxMath.h"
 
+static int obj_spawn_bld(
+    MkObj* object, struct BloodVelocityState* previous, int batch_count,
+    struct BloodSpawnStep* step, struct BloodPath* path, int point_index,
+    const Vec* position, unsigned int art_id, struct PlyrPdata* owner);
+
 #define BLOOD_SPLAT_COUNT 24
 
 struct BloodSplat {
@@ -2794,7 +2799,7 @@ static inline MkPfx* blood_find_bound_pfx(
     return 0;
 }
 
-int obj_spawn_bld(
+static int obj_spawn_bld(
     MkObj* object, struct BloodVelocityState* previous, int batch_count,
     struct BloodSpawnStep* step, BloodPath* path, int point_index,
     const Vec* position, unsigned int art_id, PlyrPdata* owner) {

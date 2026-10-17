@@ -198,8 +198,8 @@ static const Vec nb_world_up = {0.0f, 1.0f, 0.0f};
 static const Vec nb_hit_zero = {0.0f, 0.0f, 0.0f};
 static const Vec nb_collision_zero = {0.0f, 0.0f, 0.0f};
 
-/* TODO: [breakthrough needed] 98.15044%; rebound wins CountScheduled 1 vs 0;
- * recover the store/side-X dependency graph without altering the two stages. */
+/* TODO: [breakthrough needed] 98.15044%; side-X priority and coordinate-helper
+ * ownership remain; projection and basis accumulators preserve the wrong order. */
 void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     static unsigned int last_sound_time;
     struct NbNpcState* npc;
@@ -387,8 +387,8 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     bgnd_collision_if_enable_col(5, npc_id + 0x12C);
 }
 
-/* TODO: [near miss] 97.84585%; 38 momentum FPR/scheduling rows remain;
- * product propagation and sum ownership remain; in-place sums claim results too early. */
+/* TODO: [near miss] 99.32806%; weighted-sum schedule agrees; mass-add direction
+ * and FPR homes remain; denominator/reciprocal accumulators rotate earlier values. */
 static void nb_npc_slave_hit_by_plyr(int npc_id) {
     struct NbNpcState* npc;
     Vec target = nb_hit_zero;
@@ -404,7 +404,7 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     Vec blended_momentum;
     float target_weight;
     float correction_weight;
-    float weighted_old;
+    float weighted_sum;
     float weighted_target;
     float correction;
     int player_index;
@@ -464,21 +464,24 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
         inverse_mass = 1.0f / (npc->acceleration_divisor + 1.0f);
         target_weight = 1.0f;
         correction_weight = 0.9f;
-        weighted_old = old_x * npc->acceleration_divisor;
+        weighted_sum = old_x * npc->acceleration_divisor;
         weighted_target = target.x * target_weight;
         correction = target.x - old_x;
+        weighted_sum += weighted_target;
         correction *= correction_weight;
-        blended_momentum.x = weighted_old + weighted_target + correction;
-        weighted_old = old_y * npc->acceleration_divisor;
+        blended_momentum.x = weighted_sum + correction;
+        weighted_sum = old_y * npc->acceleration_divisor;
         weighted_target = target.y * target_weight;
         correction = target.y - old_y;
+        weighted_sum += weighted_target;
         correction *= correction_weight;
-        blended_momentum.y = weighted_old + weighted_target + correction;
-        weighted_old = old_z * npc->acceleration_divisor;
+        blended_momentum.y = weighted_sum + correction;
+        weighted_sum = old_z * npc->acceleration_divisor;
         weighted_target = target.z * target_weight;
         correction = target.z - old_z;
+        weighted_sum += weighted_target;
         correction *= correction_weight;
-        blended_momentum.z = weighted_old + weighted_target + correction;
+        blended_momentum.z = weighted_sum + correction;
         blended_momentum.x *= inverse_mass;
         blended_momentum.y *= inverse_mass;
         blended_momentum.z *= inverse_mass;
@@ -670,8 +673,8 @@ static inline void nb_get_rope_angle(
     angle_vector->z *= angle;
 }
 
-/* TODO: [breakthrough needed] 97.41940%; single-precision producers fold rounds;
- * recover the construction/publication boundary behind six missing acceleration stores. */
+/* TODO: [breakthrough needed] 97.41940%; PS2 also republishes acceleration;
+ * recover the original vector operation behind six missing stores and FRSPs. */
 static float p_npc_on_pendulum_rope(void) {
     MkObj* object;
     struct NbNpcState* npc;
@@ -848,31 +851,36 @@ static float p_npc_on_pendulum_rope(void) {
     }
 }
 
-/* TODO: [near miss] 99.48819%; named scale trails normal-X; Y/Z product homes differ;
- * recover non-folding products without splitting persistent force owners. */
+static inline void nb_scale_desired_force(Vec* force, float scale)
+{
+    force->y *= scale;
+    force->x *= scale;
+    force->z *= scale;
+}
+
 static void nb_get_desired_acceleration(
     struct NbNpcState* state, Vec* acceleration, const Vec* surface_normal) {
-    float force_z;
-    float force_y;
-    float force_x;
+    Vec force;
     float swing_angle;
     float scale;
     float inv_length;
     float squared_length;
     float normal_component;
-    float acceleration_scale;
-    Vec normal_force;
+    Vec normal;
+    float tangent_force_y;
+    float tangent_force_x;
+    float tangent_force_z;
 
-    force_z = 0.0f;
+    force.z = 0.0f;
     acceleration->z = 0.0f;
-    force_y = 0.0f;
-    force_x = 0.0f;
+    force.y = 0.0f;
+    force.x = 0.0f;
     acceleration->y = 0.0f;
     acceleration->x = 0.0f;
     swing_angle = state->phase;
 
     if (state->swing_ticks < 0) {
-        force_y = -1.0f;
+        force.y = -1.0f;
     } else {
         scale = 24.0f * (float)refresh_rate();
         if (scale) {
@@ -880,44 +888,38 @@ static void nb_get_desired_acceleration(
             if (scale > 1.0f) {
                 scale = 1.0f;
             }
-            force_x = scale * gxMathSin(swing_angle);
-            force_z = scale * gxMathCos(swing_angle);
-            force_y = -6.0f;
+            force.x = scale * gxMathSin(swing_angle);
+            force.z = scale * gxMathCos(swing_angle);
+            force.y = -6.0f;
         }
     }
 
     squared_length =
-        force_z * force_z + (force_x * force_x + force_y * force_y);
+        force.z * force.z + (force.x * force.x + force.y * force.y);
     inv_length = gxMathFastInvSqrt(squared_length);
 
-    force_y *= inv_length;
-    force_x *= inv_length;
-    force_z *= inv_length;
-    acceleration_scale = state->acceleration_scale;
-    force_y *= acceleration_scale;
-    force_x *= acceleration_scale;
-    force_z *= acceleration_scale;
+    force.y *= inv_length;
+    force.x *= inv_length;
+    force.z *= inv_length;
+    nb_scale_desired_force(&force, state->acceleration_scale);
 
-    normal_force.x = surface_normal->x;
-    normal_force.y = surface_normal->y;
-    normal_force.z = surface_normal->z;
+    normal.x = surface_normal->x;
+    normal.y = surface_normal->y;
+    normal.z = surface_normal->z;
     normal_component =
-        -(float)(force_z * normal_force.z +
-                 (force_x * normal_force.x + force_y * normal_force.y));
+        -(float)(force.z * normal.z +
+                 (force.x * normal.x + force.y * normal.y));
 
-    normal_force.x *= normal_component;
-    normal_force.y *= normal_component;
-    normal_force.z *= normal_component;
+    tangent_force_x = normal.x * normal_component;
+    tangent_force_y = normal.y * normal_component;
+    tangent_force_z = normal.z * normal_component;
+    tangent_force_x += force.x;
+    tangent_force_y += force.y;
+    tangent_force_z += force.z;
 
-    acceleration->x =
-        (normal_force.x + force_x) /
-        state->acceleration_divisor;
-    acceleration->y =
-        (normal_force.y + force_y) /
-        state->acceleration_divisor;
-    acceleration->z =
-        (normal_force.z + force_z) /
-        state->acceleration_divisor;
+    acceleration->x = tangent_force_x / state->acceleration_divisor;
+    acceleration->y = tangent_force_y / state->acceleration_divisor;
+    acceleration->z = tangent_force_z / state->acceleration_divisor;
 }
 
 void nb_place_slave_in_bgnd(

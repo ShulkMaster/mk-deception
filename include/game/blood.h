@@ -12,10 +12,7 @@ struct BloodSpawnStep;
 struct BloodPath;
 struct PlyrPdata;
 
-int obj_spawn_bld(
-    MkObj* object, struct BloodVelocityState* previous, int batch_count,
-    struct BloodSpawnStep* step, struct BloodPath* path, int point_index,
-    const Vec* position, unsigned int art_id, struct PlyrPdata* owner);
+
 
 void spawn_bld_splat(const char* name, FighterMirror* owner, Vec* position);
 

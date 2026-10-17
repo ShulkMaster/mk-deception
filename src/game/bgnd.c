@@ -42,40 +42,6 @@
 
 #pragma use_lmw_stmw on
 
-extern MkFileEntry beetlelair_file_table[];
-extern MkFileEntry courtyard_file_table[];
-extern MkFileEntry darkprison_file_table[];
-extern MkFileEntry deadpool_file_table[];
-extern MkFileEntry dka_file_table[];
-extern MkFileEntry dragonmountain_file_table[];
-extern MkFileEntry fallingcliff_file_table[];
-extern MkFileEntry fortress_file_table[];
-extern MkFileEntry hellsfoundry_file_table[];
-extern MkFileEntry kangtomb_file_table[];
-extern MkFileEntry kuatanpalace_file_table[];
-extern MkFileEntry livingforest_file_table[];
-extern MkFileEntry lostwarriors_file_table[];
-extern MkFileEntry lower_mines_file_table[];
-extern MkFileEntry netherbelly_file_table[];
-extern MkFileEntry nexus_arena_file_table[];
-extern MkFileEntry portal_file_table[];
-extern MkFileEntry reddragon_file_table[];
-extern MkFileEntry skytemple_file_table[];
-extern MkFileEntry slaughterhouse_file_table[];
-extern MkFileEntry thepit_file_table[];
-extern MkFileEntry yinyang_file_table[];
-extern MkFileEntry ladder_file_table[];
-extern MkFileEntry pz_ladder_file_table[];
-extern MkFileEntry krypt_file_table[];
-extern MkFileEntry kq_er1_fight_file_table[];
-extern MkFileEntry kq_er2_fight_file_table[];
-extern MkFileEntry kq_nr1_fight_file_table[];
-extern MkFileEntry kq_cr1_fight_file_table[];
-extern MkFileEntry kq_ow1_fight_file_table[];
-extern MkFileEntry kq_or1_fight_file_table[];
-extern MkFileEntry kq_ed1_fight_file_table[];
-extern MkFileEntry kq_nx1_fight_file_table[];
-extern MkFileEntry kq_nexus_nis_file_table[];
 
 GlobalBackgroundEntry global_background_data[] = {
     {beetlelair_file_table, "beetlelair.mko", 0x00000012, 0x00000001},
@@ -281,8 +247,6 @@ typedef struct BlBeetleControl {
 } BlBeetleControl;
 typedef char BlBeetleControlSize[
     (sizeof(BlBeetleControl) == 0x78) ? 1 : -1];
-
-static BgndUvScrollControlItem bgnd_uv_scroll_control_item[8];
 
 void bgnd_delete_danger_zone(unsigned int zone_index);
 void bgnd_enable_danger_zone(unsigned int zone_index, int enabled);
@@ -536,7 +500,7 @@ static float p_pebble_burst_monitor(void);
 static float p_pebble_path_monitor(void);
 static float p_crack_placer(void);
 static float p_bgnd_timer_monitor(void);
-static float p_bgnd_script_in_proc(void);
+float p_bgnd_script_in_proc(void);
 static void bgnd_pebble_burst_at(int player, const Vec* position,
                                  unsigned int first, unsigned int end);
 void fx_resume_emit(unsigned int effect);
@@ -552,7 +516,7 @@ MkPfx* find_pfx_by_name(const char* name);
 void move_player(MkObj* object, Vec* position, Vec* angles);
 MkProc* get_player_proc(void* object);
 void run_reaction_cleanup_function(PlyrPdata* player);
-static float bgnd_call_script_function(void);
+float bgnd_call_script_function(void);
 static int launch_sobj_watch_dist_from_orgin(BgndSobjLaunchEntry* entry,
                                               unsigned int distance_squared);
 static int launch_sobj_watch_y_far_down(BgndSobjLaunchEntry* entry,
@@ -567,7 +531,6 @@ extern float fog_density;
 extern float fog_distance;
 extern float fog_color_real[4];
 extern int fog_type;
-extern char bgnd_animations[0x84];
 typedef struct BgndReactionInfo {
     PlyrInfo* player_info;
     int reaction;
@@ -577,8 +540,14 @@ typedef struct BgndReactionInfo {
     int handler_enabled;
 } BgndReactionInfo;
 
-extern BgndReactionInfo g_current_reaction_info;
-extern MkPtr* g_bgnd_collision_to_script_if[8];
+MkObj* g_bgnd_preloaded_models[15];
+MkPtr* g_bgnd_collision_to_script_if[8];
+static unsigned char bgnd_generic_proc_item[0x20] __attribute__((aligned(4)));
+static BgndUvScrollControlItem bgnd_uv_scroll_control_item[8];
+BgndDangerZone bgnd_danger_zones[24];
+BgndReactionInfo g_current_reaction_info;
+Vec g_bgnd_scratch_pad_vectors[9];
+char bgnd_animations[0x84] __attribute__((aligned(4)));
 extern BgndObstacleEventData* g_active_obstacle_event_data;
 extern BgndCollisionItem* g_active_bgnd_col_item;
 extern MkPtr* weapon_trail_light_list;
@@ -590,8 +559,6 @@ extern SlaughterhouseData* g_slaughterhouse_pdata;
 extern BgndPebbleControl* g_current_pebble;
 extern MkSobj* g_active_sobj;
 extern unsigned int g_active_bgnd_danger_zone;
-BgndDangerZone bgnd_danger_zones[24];
-extern MkObj* g_bgnd_preloaded_models[15];
 extern MorphScript linear_slow_script;
 extern MorphScript linear_140_script;
 extern MorphScript linear_240_script;
@@ -603,7 +570,6 @@ extern MkObj* plyr_obj;
 extern void stop_me(void);
 extern float r_call_script_function(void);
 extern int intro_done(void);
-extern Vec g_bgnd_scratch_pad_vectors[9];
 extern MkObj* g_latest_obj_pfx;
 extern BgndSobjLaunchEntry* g_launched_sobj_crossing_plane_pdata;
 extern BgndSobjLaunchEntry* g_active_launched_sobj_pdata;
@@ -704,7 +670,7 @@ void bgnd_level_fatality_end(void);
 void bgnd_level_fatality_start(int player);
 void bgnd_level_transition_end(void);
 void bgnd_level_transition_start(void);
-static int bgnd_cycle_tbl[22] = {
+int bgnd_cycle_tbl[22] = {
     0, 0x13, 0x12, 0xF, 6, 0xB, 0xC, 0xE, 7, 1, 8,
     0x10, 0x14, 0x11, 9, 0x15, 2, 5, 3, 0xD, 0xA, -1
 };
@@ -859,7 +825,7 @@ static inline void sh_launch_fatality_model(MkHdrLatch* latch,
     }
 }
 static void sh_start_fatality_body_parts(PlyrPdata* player);
-static float p_sh_throw_plyr_in_grinder(void);
+float p_sh_throw_plyr_in_grinder(void);
 
 static void sh_update_blood_fall_pebbles(
     PebbleData* pebble_data, int* active_splats, Vec* origin,
@@ -1820,8 +1786,6 @@ void init_bgnd_info_struct(void) {
     g_game_info.field_78 = 0;
     g_game_info.mode_table = 0;
 }
-/* TODO: [breakthrough needed] 97.64873%; pooled BSS lacks generic-proc type;
- * no direct xrefs or cleanup producer found; recover an indexed storage user. */
 int load_background(int bgnd_id) {
     char* art_name;
     int art_id;
@@ -2024,8 +1988,16 @@ static void add_mkx_light_obj_to_bgnd_cleanup_list(MkHdr* header) {
     }
 }
 
-/* TODO: [breakthrough needed] 92.85058%; retail shares the bgnd_animations BSS base;
- * recover pooled ownership and three post-validation owner reloads. */
+static inline MkObj* bgnd_live_primary_weapon(const GlobalMoveset* moveset) {
+    return MK_HDR_LIVE(moveset->primary_weapon, moveset->primary_weapon_instance);
+}
+
+static inline MkObj* bgnd_live_secondary_weapon(const GlobalMoveset* moveset) {
+    return MK_HDR_LIVE(moveset->secondary_weapon, moveset->secondary_weapon_instance);
+}
+
+/* TODO: [breakthrough] 98.95977%; weapon cleanup agrees; camera owner reload
+ * and validation-result boundary plus two zero homes remain. */
 void destroy_background_extras(void) {
     unsigned int index;
     int weapon_index;
@@ -2037,16 +2009,16 @@ void destroy_background_extras(void) {
 
     for (weapon_index = 0; weapon_index < 2; weapon_index++) {
         GlobalMoveset* moveset = &global_movesets[weapon_index + 6];
-        MkObj* object = MK_HDR_LIVE(moveset->primary_weapon, moveset->primary_weapon_instance);
-        if (object != 0) {
+        if (bgnd_live_primary_weapon(moveset) != 0) {
+            MkObj* object = moveset->primary_weapon;
             if (object->hdr.instance != 0) {
                 object->hdr.typed_vtbl->destroy(&object->hdr);
             }
             moveset->primary_weapon = 0;
             moveset->primary_weapon_instance = 0;
         }
-        object = MK_HDR_LIVE(moveset->secondary_weapon, moveset->secondary_weapon_instance);
-        if (object != 0) {
+        if (bgnd_live_secondary_weapon(moveset) != 0) {
+            MkObj* object = moveset->secondary_weapon;
             if (object->hdr.instance != 0) {
                 object->hdr.typed_vtbl->destroy(&object->hdr);
             }
@@ -3035,7 +3007,7 @@ void bgnd_append_texture_to_material(int sobj_id, int material_id,
         }
     }
 }
-static float bgnd_call_script_function(void) {
+float bgnd_call_script_function(void) {
     cmdscript_reset_stack();
     cmdscript_setup_execution(g_game_info.cmdscript, active_cmdscript->unk28);
     call_player_script_function(g_game_info.cmdscript);
@@ -3718,8 +3690,8 @@ float bgnd_current_rx_get_info(int info_id) {
         return 0.0f;
     }
 }
-/* TODO: [breakthrough needed] 98.93%; case-7 event flag initialization
- * contract is unresolved; base/Vec coloring remains; retail leaves event flags unwritten. */
+/* TODO: [breakthrough needed] 98.92857%; case-7 flags have no preceding store;
+ * recover their initialization contract before tuning the base/Vec homes. */
 void bgnd_current_rx_set_info(int info_id, void* script_args, float value) {
     PlyrPdata* player;
 
@@ -5667,10 +5639,6 @@ void bgnd_start_preload_sobj_morph(
         obj_start_morph(g_bgnd_preloaded_models[model_index], sobj_id,
                         &linear_slow_script, flags);
         break;
-    case 1:
-        obj_start_morph(g_bgnd_preloaded_models[model_index], sobj_id,
-                        &cos_script, flags);
-        break;
     case 2:
         obj_start_morph(g_bgnd_preloaded_models[model_index], sobj_id,
                         &linear_140_script, flags);
@@ -5678,6 +5646,10 @@ void bgnd_start_preload_sobj_morph(
     case 3:
         obj_start_morph(g_bgnd_preloaded_models[model_index], sobj_id,
                         &linear_240_script, flags);
+        break;
+    case 1:
+        obj_start_morph(g_bgnd_preloaded_models[model_index], sobj_id,
+                        &cos_script, flags);
         break;
     case 4:
         obj_start_morph(g_bgnd_preloaded_models[model_index], sobj_id,
@@ -6193,8 +6165,8 @@ void bgnd_start_cracks(void) {
         bgnd_reset_crack_pool();
     }
 }
-/* TODO: [near miss] 98.85714%; 22 state-13 FP/call-setup rows remain;
- * zero-spill allocation and failed vector/snapshot controls justify stopping at coloring. */
+/* TODO: [near miss] 99.42857%; angular-call ADDI/MR setup still swaps;
+ * GC2.6 is byte-neutral; recover the original argument-emission boundary. */
 static float p_pebble_path_monitor(void) {
     BgndPebbleMonitor* monitor;
     BgndPebbleControl* pebble;
@@ -6202,12 +6174,8 @@ static float p_pebble_path_monitor(void) {
     BgndPebbleControl* pebbles;
     unsigned int i;
     int any_active;
-    float dx;
-    float dy;
-    float dz;
-    float step_x;
-    float step_y;
-    float step_z;
+    Vec delta;
+    float distance_squared;
 
     monitor = (BgndPebbleMonitor*)pdata_of_proc(aproc);
     collection = (BgndPebbleCollection*)monitor->pebble_data;
@@ -6278,16 +6246,18 @@ static float p_pebble_path_monitor(void) {
             continue;
         }
         if (pebble->state == 13) {
-            dx = pebble->target_position.x - pebble->angles.x;
-            dy = pebble->target_position.y - pebble->angles.y;
-            dz = pebble->target_position.z - pebble->angles.z;
-            step_x = 0.33f * dx;
-            step_y = 0.33f * dy;
-            step_z = 0.33f * dz;
-            pebble->angles.x = step_x + pebble->angles.x;
-            pebble->angles.y = pebble->angles.y + step_y;
-            pebble->angles.z = step_z + pebble->angles.z;
-            if (dz * dz + (dx * dx + dy * dy) < 50.0f) {
+            delta.x = pebble->target_position.x - pebble->angles.x;
+            delta.y = pebble->target_position.y - pebble->angles.y;
+            delta.z = pebble->target_position.z - pebble->angles.z;
+            distance_squared = delta.z * delta.z +
+                               (delta.x * delta.x + delta.y * delta.y);
+            delta.x = 0.33f * delta.x;
+            delta.y = 0.33f * delta.y;
+            delta.z = 0.33f * delta.z;
+            pebble->angles.x = delta.x + pebble->angles.x;
+            pebble->angles.y = delta.y + pebble->angles.y;
+            pebble->angles.z = delta.z + pebble->angles.z;
+            if (distance_squared < 50.0f) {
                 pebble->angles.x = pebble->target_position.x;
                 pebble->angles.y = pebble->target_position.y;
                 pebble->angles.z = pebble->target_position.z;
@@ -6730,8 +6700,8 @@ static inline BgndPebblePlayerData* bgnd_create_pebble_process(
     return result;
 }
 
-/* TODO: [near miss] 99.78022%; eight process zero/result GPR rows remain;
- * recover index/process ownership; caller/reset/const-input controls regress. */
+/* TODO: [near miss] 99.78022%; process selects before the loop index claims r24;
+ * recover genuine process/index ownership without changing the shared zero. */
 BgndPebbleControl* bgnd_create_pebbles_with_sobj(
     MkSobj* object, unsigned int player, int mode, unsigned int count) {
     unsigned int index;
@@ -8708,7 +8678,7 @@ static float p_launch_column_piece(void) {
     float damping;
 
     ticks = 200;
-    damping = pow(0.992, game_speed);
+    damping = pow(0.992f, game_speed);
     data = (BlFinalColumnPieceData*)apdata;
     if (data == 0) {
         return -1.0f;
@@ -8752,7 +8722,7 @@ static float p_launch_final_column_piece(void) {
     float damping;
 
     ticks = 200;
-    damping = pow(0.992, game_speed);
+    damping = pow(0.992f, game_speed);
     data = (BlFinalColumnPieceData*)apdata;
     if (data == 0) {
         return -1.0f;
@@ -9007,8 +8977,8 @@ static float p_beetle_lair_downstairs_wall_break_cam_control(void) {
     target.z = 35.45204f;
     remove_camera_offsets();
     move_to_end_point(&endpoint, &initial_speed, &final_speed, 1, 2.0f);
-    final_speed = 0.07f;
-    initial_speed = 0.01f;
+    final_speed = 0.01f;
+    initial_speed = 0.07f;
 
     while (move_to_end_point(
                &endpoint, &initial_speed, &final_speed, 0, 3.1f) == 0 &&
@@ -9716,8 +9686,8 @@ float r_beetle_lair_transition(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough] 99.67886%; wall-load schedule and impact raw/product owners differ;
- * preserve escaped impact-pointer reloads and scalarized wall vectors. */
+/* TODO: [breakthrough needed] 99.67886%; wall-offset splices and raw/normalized
+ * FP owners remain; preserve reloads and recover arithmetic producer boundaries. */
 static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
     MkObj* player_object;
     MkObj* opponent_object;
@@ -9863,17 +9833,16 @@ void bgnd_reg_col_cb_for_beetle_lair(void) {
 }
 void bgnd_clean_beetlelair(void) { g_bl_beetles = 0; }
 static inline void bl_init_beetle(
-    BlBeetleControl* beetle, Pebble* pebble,
-    Vec* position, float local_scale, int personality,
-    int movement_state, int personality_ticks, float distance_limit_sq,
+    Pebble* pebble, BlBeetleControl* beetle, float x, float y, float z, float distance_limit_sq,
+    int personality, int movement_state, int personality_ticks, float local_scale,
     int transition_ticks, int surface) {
     Vec scale;
     Vec y_axis = {0.0f, 1.0f, 0.0f};
     scale.x = scale.y = scale.z = local_scale;
     beetle->position.x = beetle->position.y = beetle->position.z = 0.0f;
-    beetle->position.x = position->x;
-    beetle->position.y = position->y;
-    beetle->position.z = position->z;
+    beetle->position.x = x;
+    beetle->position.y = y;
+    beetle->position.z = z;
     beetle->movement_target.x = beetle->position.x;
     beetle->movement_target.y = beetle->position.y;
     beetle->movement_target.z = beetle->position.z;
@@ -9898,8 +9867,8 @@ static inline void bl_init_beetle(
                                  beetle->heading_degrees, &scale,
                                  &beetle->position);
 }
-/* TODO: [near miss] 99.72447%; timer/pebble versus constant-base homes remain;
- * recover owners without rotating exact FP homes or axis/scale stack slots. */
+/* TODO: [near miss] 99.93517%; ranges 2/3 duration and pebble owners remain;
+ * preserve early complete sums while recovering their original producer scope. */
 static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
     BlBeetleControl* beetles;
     Vec position;
@@ -9914,8 +9883,9 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
         position.z = 1.99f + sfrand(0.8f);
         position.x = -1.0f + sfrand(0.8f);
         position.y = 0.0f;
-        bl_init_beetle(&beetles[index], &data->pebble_data->pebbles[index], &position, local_scale, 1, 0,
-                       random_ticks, 1.0f, 0, 0);
+        bl_init_beetle(
+            &data->pebble_data->pebbles[index], &beetles[index], position.x, position.y, position.z, 1.0f, 1,
+            0, random_ticks, local_scale, 0, 0);
     }
     for (; index < 9; index++) {
         float local_scale = 1.0f + frand(0.45f);
@@ -9923,8 +9893,9 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
         position.z = 5.0f + sfrand(0.15f);
         position.x = -4.0f + sfrand(0.15f);
         position.y = 0.0f;
-        bl_init_beetle(&beetles[index], &data->pebble_data->pebbles[index], &position, local_scale, 0, 0,
-                       random_ticks, 1.0f, 0, 0);
+        bl_init_beetle(
+            &data->pebble_data->pebbles[index], &beetles[index], position.x, position.y, position.z, 1.0f, 0,
+            0, random_ticks, local_scale, 0, 0);
     }
     for (; index < 21; index++) {
         float local_scale = 1.0f + frand(0.45f);
@@ -9932,8 +9903,9 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
         position.z = 1.99f + sfrand(0.25f);
         position.x = -1.0f + sfrand(0.25f);
         position.y = 0.0f;
-        bl_init_beetle(&beetles[index], &data->pebble_data->pebbles[index], &position, local_scale, 4, 0,
-                       random_ticks, 0.55f, 0, 0);
+        bl_init_beetle(
+            &data->pebble_data->pebbles[index], &beetles[index], position.x, position.y, position.z, 0.55f,
+            4, 0, random_ticks, local_scale, 0, 0);
     }
     for (; index < 23; index++) {
         float local_scale = 1.0f + frand(0.45f);
@@ -9941,8 +9913,9 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
         position.z = sfrand(7.0f);
         position.x = sfrand(7.0f);
         position.y = 0.0f;
-        bl_init_beetle(&beetles[index], &data->pebble_data->pebbles[index], &position, local_scale, 2, 0,
-                       random_ticks, 9.0f, 0, 0);
+        bl_init_beetle(
+            &data->pebble_data->pebbles[index], &beetles[index], position.x, position.y, position.z, 9.0f, 2,
+            0, random_ticks, local_scale, 0, 0);
     }
     for (; index < 27; index++) {
         float position_y;
@@ -9952,17 +9925,20 @@ static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
         position.x = sfrand(2.5f);
         position.y = position_y;
         position.z = 15.17f;
-        bl_init_beetle(&beetles[index], &data->pebble_data->pebbles[index], &position, local_scale, 2, 5,
-                       random_ticks, 9.0f, 0, 1);
+        bl_init_beetle(
+            &data->pebble_data->pebbles[index], &beetles[index], position.x, position.y, position.z, 9.0f, 2,
+            5, random_ticks, local_scale, 0, 1);
     }
     for (; index < 31; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        random_ticks = (unsigned short)randu0(60);
+        unsigned short random_ticks;
+        random_ticks = randu0(60);
         position.z = sfrand(7.0f);
         position.x = sfrand(7.0f);
         position.y = 0.0f;
-        bl_init_beetle(&beetles[index], &data->pebble_data->pebbles[index], &position, local_scale, 3, 0,
-                       random_ticks, 9.0f, 0, 0);
+        bl_init_beetle(
+            &data->pebble_data->pebbles[index], &beetles[index], position.x, position.y, position.z, 9.0f, 3,
+            0, random_ticks, local_scale, 0, 0);
     }
     data->pebble_data->count = 31;
 }
@@ -9971,8 +9947,8 @@ static inline float bl_jittered_scale(float base, float jitter) {
     return base + frand(jitter);
 }
 
-/* TODO: [near miss] 99.79608%; loop-2 tick interference and first/seventh
- * scale-position homes remain; recover their original producer boundary. */
+/* TODO: [near miss] 99.79608%; loop-2 GPR cycle and first/seventh scale/Z homes remain;
+ * original sampling scope is unresolved; preserve verified constructor roles. */
 static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
     BlBeetleControl* beetle;
     BlBeetleControl* beetles;
@@ -9991,8 +9967,9 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         position.y = -10.0f;
         pebble = &data->pebble_data->pebbles[index];
         beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 5, 0,
-                       random_ticks, 1.0f, 0x136, 0);
+        bl_init_beetle(
+            pebble, beetle, position.x, position.y, position.z, 1.0f, 5, 0, random_ticks, local_scale, 0x136,
+            0);
     }
     for (; index < 7; index++) {
         Vec position;
@@ -10002,8 +9979,9 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         position.x = 0.2f + sfrand(0.85f);
         position.y = -9.9f;
         pebble = &data->pebble_data->pebbles[index];
-        bl_init_beetle(&beetles[index], pebble, &position,
-                       local_scale, 2, 0, random_ticks, 0.5f, 0, 0);
+        bl_init_beetle(
+            pebble, &beetles[index], position.x, position.y, position.z, 0.5f, 2, 0, random_ticks,
+            local_scale, 0, 0);
     }
     for (; index < 10; index++) {
         Vec position;
@@ -10015,8 +9993,8 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         position.y = -10.0f;
         pebble = &data->pebble_data->pebbles[index];
         beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 0,
-                       random_ticks, 0.5f, 0, 0);
+        bl_init_beetle(
+            pebble, beetle, position.x, position.y, position.z, 0.5f, 2, 0, random_ticks, local_scale, 0, 0);
     }
     for (; index < 12; index++) {
         Vec position;
@@ -10028,8 +10006,8 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         position.z = 47.9f;
         pebble = &data->pebble_data->pebbles[index];
         beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 5,
-                       random_ticks, 2.0f, 0, 1);
+        bl_init_beetle(
+            pebble, beetle, position.x, position.y, position.z, 2.0f, 2, 5, random_ticks, local_scale, 0, 1);
         beetle->movement_target.x = sfrand(0.5f);
         beetle->movement_target.y = -7.0f + sfrand(1.0f);
         beetle->movement_target.z = 47.9f;
@@ -10044,8 +10022,8 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         position.z = 47.7f;
         pebble = &data->pebble_data->pebbles[index];
         beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 5,
-                       random_ticks, 4.0f, 0, 1);
+        bl_init_beetle(
+            pebble, beetle, position.x, position.y, position.z, 4.0f, 2, 5, random_ticks, local_scale, 0, 1);
         beetle->movement_target.x = 7.6f + sfrand(1.0f);
         beetle->movement_target.y = -7.0f + sfrand(1.0f);
         beetle->movement_target.z = 47.7f;
@@ -10060,8 +10038,8 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         position.z = 47.7f;
         pebble = &data->pebble_data->pebbles[index];
         beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 5,
-                       random_ticks, 4.0f, 0, 1);
+        bl_init_beetle(
+            pebble, beetle, position.x, position.y, position.z, 4.0f, 2, 5, random_ticks, local_scale, 0, 1);
         beetle->movement_target.x = -7.6f + sfrand(1.0f);
         beetle->movement_target.y = -7.0f + sfrand(1.0f);
         beetle->movement_target.z = 47.7f;
@@ -10076,8 +10054,8 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         position.y = -10.0f;
         pebble = &data->pebble_data->pebbles[index];
         beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 6,
-                       random_ticks, 1.5f, 0, 0);
+        bl_init_beetle(
+            pebble, beetle, position.x, position.y, position.z, 1.5f, 2, 6, random_ticks, local_scale, 0, 0);
         beetle->speed_scale = 0.5f + frand(0.25f);
     }
     for (; index < 21; index++) {
@@ -10090,8 +10068,8 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         position.x = 14.3f;
         pebble = &data->pebble_data->pebbles[index];
         beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 7,
-                       random_ticks, 4.0f, 0, 3);
+        bl_init_beetle(
+            pebble, beetle, position.x, position.y, position.z, 4.0f, 2, 7, random_ticks, local_scale, 0, 3);
         beetle->movement_target.x = 14.3f;
         beetle->movement_target.y = -7.0f;
         beetle->movement_target.z = 44.0f;
@@ -10106,8 +10084,8 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         position.x = -14.0f;
         pebble = &data->pebble_data->pebbles[index];
         beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 7,
-                       random_ticks, 4.0f, 0, 4);
+        bl_init_beetle(
+            pebble, beetle, position.x, position.y, position.z, 4.0f, 2, 7, random_ticks, local_scale, 0, 4);
         beetle->movement_target.x = -14.0f;
         beetle->movement_target.y = -7.0f;
         beetle->movement_target.z = 44.0f;
@@ -10122,8 +10100,8 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         position.x = 14.3f;
         pebble = &data->pebble_data->pebbles[index];
         beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 7,
-                       random_ticks, 4.0f, 0, 3);
+        bl_init_beetle(
+            pebble, beetle, position.x, position.y, position.z, 4.0f, 2, 7, random_ticks, local_scale, 0, 3);
         beetle->movement_target.x = 14.3f;
         beetle->movement_target.y = -7.0f;
         beetle->movement_target.z = 23.0f;
@@ -10138,8 +10116,8 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         position.x = -14.0f;
         pebble = &data->pebble_data->pebbles[index];
         beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 7,
-                       random_ticks, 4.0f, 0, 4);
+        bl_init_beetle(
+            pebble, beetle, position.x, position.y, position.z, 4.0f, 2, 7, random_ticks, local_scale, 0, 4);
         beetle->movement_target.x = -14.0f;
         beetle->movement_target.y = -7.0f;
         beetle->movement_target.z = 23.0f;
@@ -10154,8 +10132,8 @@ static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
         position.y = -10.0f;
         pebble = &data->pebble_data->pebbles[index];
         beetle = &beetles[index];
-        bl_init_beetle(beetle, pebble, &position, local_scale, 2, 6,
-                       random_ticks, 1.5f, 0, 0);
+        bl_init_beetle(
+            pebble, beetle, position.x, position.y, position.z, 1.5f, 2, 6, random_ticks, local_scale, 0, 0);
         beetle->speed_scale = 0.5f + frand(0.25f);
     }
     data->pebble_data->count = 10;
@@ -11619,7 +11597,7 @@ static float p_sh_bottom_floor_blood_fall(void) {
         pebbles, &data->active_splats, &data->origin, data->gravity);
     return 1.0f;
 }
-static float p_sh_throw_plyr_in_grinder(void) {
+float p_sh_throw_plyr_in_grinder(void) {
     static float scale = 0.16f;
     Vec target;
     Vec zero_velocity;

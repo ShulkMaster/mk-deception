@@ -1223,7 +1223,8 @@ void bgnd_attach_rope_to_bgnd_obj(
     }
 }
 
-/* TODO: [near miss] 98.81%; typed rope owner and latch agree; process/rope saved-register pair remains. */
+/* TODO: [near miss] 98.81579%; process CSE/rope named homes swap;
+ * PS2 latch agrees; original MAP factory interface remains unresolved. */
 void bgnd_preload_obj_attach_rope(int model_index) {
     MkProc* rope_proc;
     MkObj* model;
@@ -1419,7 +1420,8 @@ static inline void set_bone_world_mat(MkBone* bone, MkObj* model) {
         (Mat33*)model_matrix, &model_matrix->pos_vec);
 }
 
-/* TODO: [near miss] 99.15%; model-owned matrix helper improves coloring; owner GPR webs remain. */
+/* TODO: [near miss] 99.15221%; model/segment/bone homes remain;
+ * recover actual per-pass ownership; frame and operations already agree. */
 static void rope_controller_update(struct RopeControllerData* rope) {
     MkObj* model = rope->model;
     MKMATRIX inverse_model_matrix;

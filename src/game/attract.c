@@ -23,6 +23,7 @@
 #include "runtime/image.h"
 #include "runtime/mk_cmdscript.h"
 #include "runtime/mk_fileinfo.h"
+#include "runtime/mk_fileinfo_bios.h"
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_vtbl.h"
@@ -62,7 +63,7 @@ static const float sleep_ticks_one = 1.0f;
 static const float sleep_ticks_twenty = 20.0f;
 static const float sleep_ticks_neg_one = -1.0f;
 static const float sleep_ticks_one_point_five = 1.5f;
-static const float sleep_ticks_five = 5.0f;
+static const float sleep_ticks_fifteen = 15.0f;
 static const float sleep_ticks_legal = 300.0f;
 static const float sleep_ticks_zero = 0.0f;
 static const float sleep_ticks_bio_tap = 45.0f;
@@ -70,21 +71,17 @@ static const float bio_text_scale_a = 0.42f;
 static const float bio_text_scale_b = 0.92f;
 static const float bio_text_scale_c = 0.8f;
 
-extern struct BioFileEntry bio_file_table[];
-extern const MkFileEntry bios_file_table[];
-extern const MkFileEntry bio_text_file_table[];
 extern MkFileInfo sec_eu_biofont;
 
 extern int b_game_timer_off;
 
-int gap_08_805107B4_sbss;
-int atm_current_page;
-struct AtmObjLatch press_start_item;
-struct AtmObjLatch press_start_proc_item;
+static int atm_current_page;
+static struct AtmObjLatch press_start_item;
+static struct AtmObjLatch press_start_proc_item;
 static MkHdr* atm_flash_pdata;
-int atm_logo_tapped_out;
-int atm_movie_tapped_out;
-int memcard_boot_screen_displayed;
+static int atm_logo_tapped_out;
+static int atm_movie_tapped_out;
+static int memcard_boot_screen_displayed;
 
 extern float p_puzzle_fighter(void);
 extern float p_mk_chess(void);
@@ -109,7 +106,6 @@ static int atm_mkd_logo_tapout(void);
 static int atm_movie_tapout(void);
 
 static void mkproc_sleep(void);
-static void mkproc_jump_sleep(MkProcEntryFn entry);
 
 MkProcEntryFn atm_list[] = {
     (MkProcEntryFn)atm_midway_logo,
@@ -138,6 +134,35 @@ MkProcEntryFn atm_list[] = {
     (MkProcEntryFn)atm_demo_chess,
     (MkProcEntryFn)atm_bio_screen,
     (MkProcEntryFn)atm_demo_puzzle,
+};
+
+struct BioFileEntry bio_file_table[26] = {
+    {&sec_bio_gor_pri, &sec_bio_gor_alt, 0x67, 0x1E, 0x11B, 0x11C},
+    {&sec_bio_ash_pri, &sec_bio_ash_alt, 0x4C, 0x7, 0x9, 0xA},
+    {&sec_bio_sco_pri, &sec_bio_sco_alt, 0x5F, 0x0, 0xB5, 0xB6},
+    {&sec_bio_bar_pri, &sec_bio_bar_alt, 0x4D, 0x1, 0x16, 0x17},
+    {&sec_bio_bor_pri, &sec_bio_bor_alt, 0x4E, 0xA, 0x23, 0x24},
+    {&sec_bio_ken_pri, &sec_bio_ken_alt, 0x56, 0xC, 0x5D, 0x5E},
+    {&sec_bio_dai_pri, &sec_bio_dai_alt, 0x4F, 0x16, 0x2B, 0x2C},
+    {&sec_bio_erm_pri, &sec_bio_erm_alt, 0x51, 0x6, 0x37, 0x38},
+    {&sec_bio_kir_pri, &sec_bio_kir_alt, 0x57, 0x12, 0x67, 0x68},
+    {&sec_bio_sub_pri, &sec_bio_sub_alt, 0x63, 0x3, 0xFC, 0xFD},
+    {&sec_bio_sha_pri, &sec_bio_sha_alt, 0x68, 0x1F, 0x128, 0x129},
+    {&sec_bio_dar_pri, &sec_bio_dar_alt, 0x50, 0x18, 0x110, 0x111},
+    {&sec_bio_hot_pri, &sec_bio_hot_alt, 0x53, 0xB, 0x3E, 0x3F},
+    {&sec_bio_kab_pri, &sec_bio_kab_alt, 0x55, 0x13, 0x53, 0x54},
+    {&sec_bio_liu_pri, &sec_bio_liu_alt, 0x5A, 0x10, 0xF1, 0xF2},
+    {&sec_bio_kob_pri, &sec_bio_kob_alt, 0x58, 0x14, 0x6F, 0x70},
+    {&sec_bio_lim_pri, &sec_bio_lim_alt, 0x59, 0x9, 0x7B, 0x7C},
+    {&sec_bio_shu_pri, &sec_bio_shu_alt, 0x60, 0x19, 0xCC, 0xCD},
+    {&sec_bio_rai_pri, &sec_bio_rai_alt, 0x5E, 0x17, 0xAB, 0xAC},
+    {&sec_bio_mil_pri, &sec_bio_mil_alt, 0x5B, 0x4, 0x8A, 0x8B},
+    {&sec_bio_niw_pri, &sec_bio_niw_alt, 0x5C, 0x5, 0x94, 0x95},
+    {&sec_bio_jad_pri, &sec_bio_jad_alt, 0x54, 0x15, 0x49, 0x4A},
+    {&sec_bio_smo_pri, &sec_bio_smo_alt, 0x66, 0x1B, 0xA2, 0xA3},
+    {&sec_bio_hav_pri, &sec_bio_hav_alt, 0x52, 0xE, 0xBF, 0xC0},
+    {&sec_bio_tan_pri, &sec_bio_tan_alt, 0x64, 0xF, 0x105, 0x106},
+    {&sec_bio_sin_pri, &sec_bio_sin_alt, 0x61, 0x8, 0xDD, 0xDE},
 };
 
 #define ATTRACT_PAGE_SETUP() \
@@ -174,10 +199,6 @@ static int atm_tapout_scan(void);
 
 static void mkproc_sleep(void) {
     aproc->vtbl->sleep();
-}
-
-static void mkproc_jump_sleep(MkProcEntryFn entry) {
-    aproc->vtbl->jump_sleep(entry, sleep_ticks_zero);
 }
 
 static void set_game_info_flag_bit5(int value) {
@@ -274,7 +295,7 @@ static void atm_old_mkda_logo(void) {
 
     ATTRACT_PAGE_SETUP();
     g_game_info.field_1F8 = 0;
-    load_ssf((MkFileEntry*)attract_file_table);
+    load_ssf(attract_file_table);
     load_art_section(0x90046, &sec_attract);
     atm_setup_press_start_flasher();
 
@@ -408,9 +429,9 @@ static void atm_bio_screen(void) {
         }
     }
 
-    load_ssf((MkFileEntry*)bio_text_file_table);
+    load_ssf(bio_text_file_table);
     load_string_bank(0x20000U, &stringBase0[0]);
-    load_ssf((MkFileEntry*)bios_file_table);
+    load_ssf(bios_file_table);
     load_art_section(0x90046, &sec_eu_biofont);
     load_font(0x10);
 
@@ -689,7 +710,7 @@ float p_atm_start_button(void) {
     proc->flags_bits.skip_if_paused = 1;
     pause_procs(1);
     snd_req_vol(0x1AA5, sleep_ticks_one_point_five);
-    _mkproc_sleep_ticks = sleep_ticks_five;
+    _mkproc_sleep_ticks = sleep_ticks_fifteen;
     mkproc_sleep();
     fade_to_black(0xC, 1);
     pause_procs(0);
@@ -758,7 +779,7 @@ float p_attract_mode(void) {
     game->bgnd_id = bgnd_slot;
 
     if (((unsigned int)__cntlzw(memcard_boot_screen_displayed) >> 5) != 0) {
-        load_ssf((MkFileEntry*)attract_file_table);
+        load_ssf(attract_file_table);
         load_art_section_language(SEC_SLOT_HANDLE_ATTRACT_LEGAL, &sec_legal_screen);
 
         if (is_widescreen_mode() != 0) {
