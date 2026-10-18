@@ -448,9 +448,10 @@ def emit_reactions(elf: Elf32) -> dict[str, str]:
         storage = "static " if symbol.bind == 0 and symbol.section_index != 0 else ""
         prototype_lines.append(f"{storage}float {name}(void);")
 
+    storage = "static " if table.bind == 0 else ""
     lines = [
         f"/* Generated from retail reactions.o; {table.size // 20} records. */",
-        "static const ReactionXferAddress tbl_xfer_addresses[] = {",
+        f"{storage}const ReactionXferAddress tbl_xfer_addresses[] = {{",
     ]
     for base in range(table.value, table.value + table.size, 20):
         row = words(rodata[base : base + 20])
@@ -491,14 +492,20 @@ def emit_sound_calls(elf: Elf32) -> str:
             if reloc is not None:
                 referenced.add(reloc.symbol.name)
     lines = ["/* Generated from retail sound.o call-table data. */"]
-    lines.extend(f"extern int {name}[];" for name in sorted(referenced))
+    for name in sorted(referenced):
+        symbol = elf.symbol(name)
+        if symbol.bind == 0:
+            lines.append(f"static int {name}[{symbol.size // 4}];")
+        else:
+            lines.append(f"extern int {name}[];")
     lines.append("")
 
     for symbol in data_symbols + sdata_symbols:
         section = data if symbol.section_index == data.index else sdata
         relocs = data_relocs if section is data else elf.relocations(".sdata")
+        storage = "static " if symbol.bind == 0 else ""
         if symbol.name in SOUND_CALL_TABLES:
-            lines.append(f"SoundCallTable {symbol.name}[{symbol.size // 8}] = {{")
+            lines.append(f"{storage}SoundCallTable {symbol.name}[{symbol.size // 8}] = {{")
             for offset in range(symbol.value, symbol.value + symbol.size, 8):
                 raw = words(section.data[offset : offset + 8])
                 reloc = relocs.get(offset)
@@ -511,7 +518,7 @@ def emit_sound_calls(elf: Elf32) -> str:
                 declaration = "int mk_foot_sound_table[7][4] = {"
             else:
                 declaration = f"int {symbol.name}[{symbol.size // 4}] = {{"
-            lines.append(declaration)
+            lines.append(storage + declaration)
             values = words(section.data[symbol.value : symbol.value + symbol.size])
             lines.append(u32_initializer(values))
         lines.extend(["};", ""])
@@ -576,7 +583,8 @@ def emit_sound_banks(elf: Elf32) -> str:
         lines.append(u32_initializer(values, suffix="U"))
         lines.extend(["};", ""])
 
-    lines.append(f"SoundBankLoadMode bank_load_table[{load_table.size // 20}] = {{")
+    storage = "static " if load_table.bind == 0 else ""
+    lines.append(f"{storage}SoundBankLoadMode bank_load_table[{load_table.size // 20}] = {{")
     for base in range(load_table.value, load_table.value + load_table.size, 20):
         row = words(data.data[base : base + 20])
         list_reloc = relocs.get(base)
