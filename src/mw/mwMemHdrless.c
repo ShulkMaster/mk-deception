@@ -2,22 +2,15 @@
 
 #include "mw/mwMemPriv.h"
 
-/* TODO: [near miss] 99.56522%; IroPropagate folds the block-size snapshot;
- * recover its real owner above the named prefix extent without forcing. */
 void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     MwMemUsedHeader* header;
-    u32 block_size;
-    u32 header_size;
     u8 block_prefix;
     int alignment;
-    MwMemUsedHeader* free_head;
+    MwMemFreeHeader* free_head;
 
     block_prefix = heap->blockPrefixSize;
-    block_size = heap->blockSize;
-    header_size = block_prefix - sizeof(MwMemUsedHeader);
     header = mwMemHeaderBefore(block, block_prefix);
-    header_size = block_size + header_size;
-    header->allocationSize = header_size;
+    header->allocationSize = heap->blockSize + block_prefix - sizeof(MwMemUsedHeader);
     header->prefixSize = 0;
     header->heapIndex = 0;
     header->alignmentPadding = 0;
@@ -27,12 +20,12 @@ void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     privSetBitFromBitFlag(&header->flags, 5);
     free_head = heap->freeList;
     if (free_head == 0) {
-        heap->freeList = header;
+        heap->freeList = (MwMemFreeHeader*)header;
         header->next = 0;
         header->previous = (MwMemUsedHeader*)~(u32)header->next;
     } else {
-        header->next = free_head;
-        heap->freeList = header;
+        header->next = (MwMemUsedHeader*)free_head;
+        heap->freeList = (MwMemFreeHeader*)header;
         header->previous = (MwMemUsedHeader*)~(u32)header->next;
     }
 }
@@ -61,9 +54,9 @@ void* hdrlessHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequest
         return 0;
     }
     allocation_size = block_size + heap->blockPrefixSize;
-    header = heap->freeList;
+    header = (MwMemUsedHeader*)heap->freeList;
     if (header != 0) {
-        heap->freeList = header->next;
+        heap->freeList = (MwMemFreeHeader*)header->next;
         header->previous = 0;
         header->next = 0;
     }
@@ -131,12 +124,12 @@ static inline void hdrlessHeapResetArena(_mwMemHeap* heap) {
         privSetAlignInBitFlag(&header->flags, 4);
         privSetAlignInBitFlag(&header->flags, 0);
         if (heap->freeList == 0) {
-            heap->freeList = header;
+            heap->freeList = (MwMemFreeHeader*)header;
             header->next = 0;
             header->previous = (MwMemUsedHeader*)~(u32)header->next;
         } else {
-            header->next = heap->freeList;
-            heap->freeList = header;
+            header->next = (MwMemUsedHeader*)heap->freeList;
+            heap->freeList = (MwMemFreeHeader*)header;
             header->previous = (MwMemUsedHeader*)~(u32)header->next;
         }
         header = mwMemHeaderAt(header, block_stride);

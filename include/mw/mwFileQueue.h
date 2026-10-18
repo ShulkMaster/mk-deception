@@ -69,8 +69,6 @@ bool circular_buffer<T, Allocator>::push(T value)
 }
 
 template <class T, class Allocator>
-/* TODO: [breakthrough] Callback front 84.26667%; returned value stages member loads;
- * four argument stack stores need original copy ownership; array changes regress consumers. */
 T circular_buffer<T, Allocator>::front()
 {
     T result = buffer[head];

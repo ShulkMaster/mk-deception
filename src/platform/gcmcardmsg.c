@@ -39,34 +39,34 @@ static char message_buf_temp2[0x1e];
 
 int gc_mc_default_name[2] = {0x6a, 0x6b};
 
-int msg_format_confirmation_answer;
-int msg_format_failed_answer;
 int mcard_msg_card_changed_at_format_answer;
-int msg_no_file_answer;
-int msg_card_gone_answer;
-static int msg_card_gone_player;
-int mcard_msg_wrong_device_answer;
-int mcard_msg_mu_removed_answer;
-int mcard_msg_no_cards_at_settings_answer;
-int mcard_msg_no_cards_at_cap_answer;
-int mcard_msg__no_cards_at_boot_answer;
-int mcard_msg_incompatible_card_answer;
-int msg_another_market_answer;
-int msg_sys_corrupt_answer;
-int msg_crc_failure_answer;
-int mcard_msg_card_damaged_answer;
-int mcard_msg_no_space_answer;
 int mcard_msg_confirm_erase_answer;
-int mcard_msg_name_conflict_answer;
-int msg_save_cancelled_answer;
-int msg_profile_reset_confirmation_answer;
 int msg_load_no_card_konq_region_hault_answer;
 static int msg_load_no_card_konq_region_hault_player;
+int msg_profile_reset_confirmation_answer;
 int msg_cant_enter_konquest_answer;
 int msg_save_no_card_konq_region_hault_answer;
 static int msg_save_no_card_konq_region_hault_player;
 int msg_quit_confirmation_answer;
 int msg_save_error_konq_region_answer;
+int mcard_msg_name_conflict_answer;
+int msg_save_cancelled_answer;
+int msg_format_failed_answer;
+int msg_format_confirmation_answer;
+int msg_no_file_answer;
+int msg_card_gone_answer;
+static int msg_card_gone_player;
+int msg_crc_failure_answer;
+int mcard_msg_incompatible_card_answer;
+int mcard_msg_no_space_answer;
+int mcard_msg_wrong_device_answer;
+int mcard_msg_card_damaged_answer;
+int msg_another_market_answer;
+int msg_sys_corrupt_answer;
+int mcard_msg_no_cards_at_cap_answer;
+int mcard_msg_no_cards_at_settings_answer;
+int mcard_msg__no_cards_at_boot_answer;
+int mcard_msg_mu_removed_answer;
 
 static int low_storage_slot_message_done;
 
@@ -149,33 +149,18 @@ static inline int is_hault_message_id(int id) {
 }
 
 static inline void format_no_space_body(int device) {
-    const char* middle;
-    const char* suffix;
-    const char* slotName;
-    const char* detail;
-
-    suffix = nbc_find_text(0x4f, 0);
-    middle = nbc_find_text(0x4e, 0);
-    detail = nbc_find_text(0x4d, 0);
-    slotName = nbc_find_text(gc_mc_default_name[device], 0);
-
     sprintf(message_buffer, STR_MC_FMT_SSSDSDS,
-            nbc_find_text(0x4c, 0), slotName, detail, 1,
-            middle, 0x3a, suffix);
+            nbc_find_text(0x4c, 0),
+            nbc_find_text(gc_mc_default_name[device], 0),
+            nbc_find_text(0x4d, 0), 1, nbc_find_text(0x4e, 0),
+            0x3a, nbc_find_text(0x4f, 0));
     set_memcard_popup_message_body_text(message_buffer);
 }
 
 static inline void format_no_space_options(const char* name) {
-    const char* middle;
-    const char* last;
-    const char* first;
-
-    last = nbc_find_text(0x51, 0);
-    middle = nbc_find_text(0x50, 0);
-    first = nbc_find_text(0x13, 0);
-
     sprintf(message_buffer, STR_MC_FMT_NO_SPACE_OPTS,
-            nbc_find_text(0x12, 0), name, first, middle, last);
+            nbc_find_text(0x12, 0), name, nbc_find_text(0x13, 0),
+            nbc_find_text(0x50, 0), nbc_find_text(0x51, 0));
     set_memcard_popup_message_options_text(message_buffer);
 }
 int gc_no_space_routine(const char* nameOrNull, int device);
@@ -1647,8 +1632,6 @@ void gc_boot_space_check(void) {
     low_storage_slot_message_done = 1;
 }
 
-/* TODO: [near miss] 99.835167%; suffix/middle and options-first homes remain;
- * exact replay rules out order alone; missing copy/owner provenance. */
 int gc_no_space_routine(const char* nameOrNull, int device) {
     const char* name;
     int ret;

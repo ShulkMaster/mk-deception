@@ -53,7 +53,8 @@ void native2d_reset_renderstate(void) {
 }
 
 #pragma optimization_level 2
-/* TODO: [near miss] 97.95%; alpha and Y/FIFO GPR homes differ; stop at coloring. */
+/* TODO: [breakthrough needed] 97.94521%; late MR forwarding changes alpha base;
+ * original pass/FIFO ownership is missing; SDK position helper drops EXTSH. */
 void native2d_draw(Pfx2dObj* obj) {
     int y;
     int x;
@@ -112,15 +113,13 @@ void native2d_draw(Pfx2dObj* obj) {
 }
 
 #pragma optimization_level 4
-/* TODO: [near miss] 99.55%; indexed walks agree; eight reciprocal/extent
- * FP register differences remain; declaration-order trial regresses. */
 void native2d_instance_geometry(Pfx2dObj* obj) {
-    float tex_w;
-    float tex_h;
-    float inv_w;
-    float inv_h;
     float u_scale;
     float v_scale;
+    float inv_w;
+    float inv_h;
+    float tex_w;
+    float tex_h;
     float half;
     int i;
     Pfx2dGpuVtx* gpu_base;
@@ -157,8 +156,8 @@ void native2d_instance_geometry(Pfx2dObj* obj) {
     }
 }
 
-/* TODO: [near miss] 88.54546%; copy propagation makes the memset address self-based;
- * ADDI peephole sinks it past both LIs; need a genuine surviving address owner. */
+/* TODO: [breakthrough needed] 88.54546%; copy folding exposes the ADDI sink;
+ * bounded compiler revisions do not recover the original memset boundary. */
 void native2d_init_object(Pfx2dObj* obj) {
     memset(obj->gpu, 0,
            RW_OFFSET_OF(Pfx2dObj, padB8) - RW_OFFSET_OF(Pfx2dObj, gpu));

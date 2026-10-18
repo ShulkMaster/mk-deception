@@ -5,14 +5,15 @@
 #include <ctype.h>
 #include "runtime/cstring.h"
 
+static HashtableEntry* hashtable_get_bucket(Hashtable* ht, const char* key);
+static void hashtable_store_with_instance(Hashtable* ht, const char* key, void* value, int instance);
+
 void hashtable_foreach(Hashtable* ht, HashtableForeachFn fn) {
-    Hashtable* ht_local;
     unsigned int i;
     HashtableEntry* entry;
 
-    ht_local = ht;
-    for (i = 0; i < (unsigned int)ht_local->bucket_count; i++) {
-        entry = ht_local->buckets[i];
+    for (i = 0; i < (unsigned int)ht->bucket_count; i++) {
+        entry = ht->buckets[i];
         while (entry != 0) {
             fn(entry->value);
             entry = entry->next;
@@ -42,7 +43,7 @@ void* hashtable_get(Hashtable* ht, const char* key) {
     return 0;
 }
 
-HashtableEntry* hashtable_get_bucket(Hashtable* ht, const char* key) {
+static HashtableEntry* hashtable_get_bucket(Hashtable* ht, const char* key) {
     unsigned int high;
     int ch;
     unsigned int hash;
@@ -84,7 +85,7 @@ void hashtable_store(Hashtable* ht, const char* key, void* value) {
     hashtable_store_with_instance(ht, key, value, 0);
 }
 
-void hashtable_store_with_instance(Hashtable* ht, const char* key, void* value, int instance) {
+static void hashtable_store_with_instance(Hashtable* ht, const char* key, void* value, int instance) {
     int ch;
     unsigned int hash;
     unsigned int high;

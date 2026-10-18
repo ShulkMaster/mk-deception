@@ -248,8 +248,8 @@ void update_live_particles(PfxVm* pfx) {
     pfx->transforms[index].live = live;
 }
 
-/* TODO: [breakthrough needed] 98.01%; initial descriptor scan advances a pointer;
- * recover retail base/index addressing without eager per-iteration address addition. */
+/* TODO: [breakthrough needed] 98.01418%; cursor ID scan lacks retail LWZX;
+ * typed/const indexing eagerly forms the record address; original producer missing. */
 void* pfx_get_field(PfxVm* pfx, int index, int field) {
     PfxRuntimeBuffer* buffer;
     PfxFieldDescription* description;
@@ -386,8 +386,8 @@ int pfx_get_struct_size(PfxVm* pfx, int field) {
     }
 }
 
-/* TODO: [breakthrough needed] 96.03%; second fatal null-pointer reload is reused;
- * need alias-boundary evidence for the post-crash_integer-store read. */
+/* TODO: [breakthrough needed] 96.03448%; pointer qualification remains unproven;
+ * recover a donor declaration or a real outside observer/writer. */
 void pfx_halt(const char* message) {
     if (_pfx_config.halt != 0) {
         _pfx_config.halt(message);

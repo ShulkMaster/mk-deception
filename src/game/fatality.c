@@ -46,7 +46,6 @@ extern float xz_distance_between_players(void);
 extern int f_fatality_finished;
 extern float p_animate_and_freeze(void);
 extern float p_idle_camera(void);
-extern MkFileEntry fatalityanims_file_table[];
 extern void unimpale_victim(PlyrPdata* victim);
 extern void reload_fan(PlyrPdata* player);
 extern void run_reaction_cleanup_function(PlyrPdata* player);
@@ -376,8 +375,8 @@ typedef struct FatalityBgndScriptView {
 
 int veil_bones[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 int _veil_flipped_bones[9] = {6, 7, 8, 3, 4, 5, 0, 1, 2};
-static float raiden_lighning_scaler1[3] = {0.5f, 0.5f, 1.0f};
-static float raiden_lighning_scaler2[3] = {0.7f, 0.7f, 1.3f};
+float raiden_lighning_scaler1[3] = {0.5f, 0.5f, 1.0f};
+float raiden_lighning_scaler2[3] = {0.7f, 0.7f, 1.3f};
 extern float raiden_lightning_speed1[2];
 extern float raiden_lightning_sleep1[2];
 extern float raiden_lightning_speed2[2];
@@ -469,7 +468,7 @@ static inline MkObj* fatality_get_severed_limb(
 }
 
 static void start_3d_projectile_iceball(MkProcEntryFn entry);
-float subzero_freeze_victim(void);
+static float subzero_freeze_victim(void);
 int is_weapon_style(PlyrFighterDefinition* fighter);
 void advance_active_moveset(PlyrPdata* player);
 int is_my_chest_to_screen(void);
@@ -483,12 +482,12 @@ FatalityFakeBoneMatcher* ft_fake_bone_matcher(
     const Vec* parent_offset, const Vec* child_offset,
     const Vec* rotation, int mode, float blend);
 static float p_fake_bone_matcher_proc(void);
-float p_obj_grnd_bounce(void);
+static float p_obj_grnd_bounce(void);
 static float p_obj_pos_matcher(void);
-float p_obj_scalar_proc(void);
+static float p_obj_scalar_proc(void);
 float p_bodyslam_bodysplat(void);
 static float p_raiden_lightning_scrolling(void);
-float p_raiden_lightning_flash(void);
+static float p_raiden_lightning_flash(void);
 static float p_raiden_summon_lightning_bolt(void);
 static float p_sd_sonic_waves(void);
 static void sindel_load_projectile_obj_for_sonic_waves(
@@ -534,8 +533,8 @@ float sqrtf(float value);
 static float p_subzero_ice_chunk(void);
 static float p_subzero_iceblock_alpha(void);
 static float p_sz2_iceblock_scalar(void);
-float sz_kill_myself(void);
-float subzero_rx_freeze(void);
+static float sz_kill_myself(void);
+static float subzero_rx_freeze(void);
 void material_set_zbias(RpMaterial* material, float bias);
 
 extern void fx_resume_emit(unsigned int handle);
@@ -548,7 +547,7 @@ extern void reset_effect(const char* name);
         aproc->vtbl->sleep();                          \
     } while (0)
 
-static inline void fatality_prepare_black_fog(GameInfo* game) {
+static inline void fatality_prepare_black_fog(GameInfo* game, float* color) {
     background_color.red = 0;
     game->sky = 0;
     background_color.alpha = 0;
@@ -557,17 +556,17 @@ static inline void fatality_prepare_black_fog(GameInfo* game) {
     fog_on = 1;
     fog_distance = 0.0f;
     fog_type = 1;
-    fog_color_real[3] = 0.0f;
-    fog_color_real[0] = 0.0f;
-    fog_color_real[1] = 0.0f;
-    fog_color_real[2] = 0.0f;
+    color[3] = 0.0f;
+    *color++ = 0.0f;
+    *color++ = 0.0f;
+    *color = 0.0f;
 }
 
 static inline void fatality_fade_and_cleanup(void) {
     float far_clip;
     float step;
 
-    fatality_prepare_black_fog(&g_game_info);
+    fatality_prepare_black_fog(&g_game_info, fog_color_real);
 
     far_clip = Camera->farPlane;
     step = (far_clip - 10.0f) / 30.0f;
@@ -1029,8 +1028,6 @@ static float p_sz2_iceblock_scalar(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 95.23810%; one unreachable default-exit branch remains;
- * early explicit default return is neutral; recover original switch-lowering context. */
 void mks_start_fatality_iceball(int mode) {
     switch (mode) {
     case 0:
@@ -1038,6 +1035,8 @@ void mks_start_fatality_iceball(int mode) {
         break;
     case 1:
         start_3d_projectile_iceball(subzero_freeze_victim);
+        break;
+    case 2:
         break;
     }
 }
@@ -1089,12 +1088,12 @@ static void start_3d_projectile_iceball(MkProcEntryFn entry) {
     }
 }
 
-float subzero_freeze_victim(void) {
+static float subzero_freeze_victim(void) {
     FatalityProjectilePdata* data;
 
     data = (FatalityProjectilePdata*)apdata;
     if (data == 0) {
-        return 0.0f;
+        return -1.0f;
     }
     xfer_proc(fatality_state.victim_proc, subzero_rx_freeze);
     data->max_ticks = 13.0f;
@@ -1103,7 +1102,7 @@ float subzero_freeze_victim(void) {
     return 0.0f;
 }
 
-float sz_kill_myself(void) {
+static float sz_kill_myself(void) {
     FatalityDistancePdataRef data;
     MkVtableMkproc* vtable;
 
@@ -1158,7 +1157,7 @@ float subzero_his_tinkle_snd(void) {
     return 0.0f;
 }
 
-float subzero_rx_freeze(void) {
+static float subzero_rx_freeze(void) {
     MkVtableMkproc* vtable;
 
     freeze_player();
@@ -1559,7 +1558,7 @@ void start_raiden_lightning_scroll(
     }
 }
 
-float p_raiden_lightning_flash(void) {
+static float p_raiden_lightning_flash(void) {
     FatalityLightningFlashPdata* data;
     MkObj* object;
     float range;
@@ -2012,8 +2011,8 @@ MkObj* fatality_boraicho_get_torch(
     return torch;
 }
 
-/* TODO: [near miss] 91.73%; initial literal/player argument emission differs;
- * recover original load-call ownership after complete attachment controls. */
+/* TODO: [breakthrough needed] 91.73077%; literal/player call producers differ;
+ * binding-const controls are neutral; recover original argument ownership. */
 MkObj* fatality_ashrah_get_doll(
     const Vec* parent_offset, const Vec* child_offset,
     const Vec* rotation) {
@@ -2045,7 +2044,7 @@ FatalityState* get_fatality_state_ptr(void) {
     return &fatality_state;
 }
 
-float call_fatality_script_function(void) {
+static float call_fatality_script_function(void) {
     cmdscript_setup_execution(fatality_state.player->cmo, active_cmdscript->unk28);
     cmdscript_execute(fatality_state.player->cmo);
     aproc->vtbl->jump_sleep(player_sleep_forever, 0.0f);
@@ -2381,7 +2380,7 @@ void play_final_fatality_music(void) {
 }
 
 
-float p_fatality_cam(void) {
+static float p_fatality_cam(void) {
     CamVec3 angle;
     CamVec3 position;
 
@@ -2758,7 +2757,7 @@ static inline void fatality_ground_bounce_sound(int count) {
     }
 }
 
-float p_obj_grnd_bounce(void) {
+static float p_obj_grnd_bounce(void) {
     MkObj* object;
     FatalityGroundBouncePdata* data;
 
@@ -2822,7 +2821,7 @@ void start_obj_scalar_proc(
     }
 }
 
-float p_obj_scalar_proc(void) {
+static float p_obj_scalar_proc(void) {
     FatalityObjectScalarPdata* data;
     MkObj* object;
     int active = 0;
@@ -3243,8 +3242,8 @@ static inline void fatality_adjust_to_radius(
 
 }
 
-/* TODO: [breakthrough] 97.99367%; caller exception return and size recovered;
- * radius/partial-square FP owners and negative-admission branch polarity remain. */
+/* TODO: [breakthrough] 98.22785%; radius and attacker X-square/sum owners differ;
+ * retain center-Z/admission; recover Z-product schedule and correction homes. */
 int fat_bgnd_char_setup_radius_check(
     FatalityRadiusCheck* check) {
     Vec attacker_delta;
@@ -3263,9 +3262,8 @@ int fat_bgnd_char_setup_radius_check(
     attacker_delta.x =
         fatality_state.attacker_object->pos.value.x - center_x;
     attacker_distance_sq = attacker_delta.x * attacker_delta.x;
-    center_z = check->center_z;
     attacker_delta.z =
-        fatality_state.attacker_object->pos.value.z - center_z;
+        fatality_state.attacker_object->pos.value.z - (center_z = check->center_z);
     attacker_distance_sq += attacker_delta.z * attacker_delta.z;
     victim_delta.x =
         fatality_state.victim_object->pos.value.x - center_x;
@@ -3299,12 +3297,14 @@ int fat_bgnd_char_setup_radius_check(
         attacker_distance_sq = victim_distance_sq;
     }
     if (radius < 0.0f) {
-        if (!(attacker_distance_sq < radius_sq)) {
-            goto done;
+        if (attacker_distance_sq < radius_sq) {
+            goto adjust;
         }
+        goto done;
     } else if (!(attacker_distance_sq > radius_sq)) {
         goto done;
     }
+adjust:
     if (fatality_state.player->character_id == 0x12 &&
         g_game_info.field_200 == 1 &&
         selected == &victim_delta) {
@@ -3368,13 +3368,13 @@ void set_victim_v3_units_away(float x, float z) {
     his_obj->pos.value.y = original_y;
 }
 
-/* TODO: [near miss] 87.93939%; pre-RA setup scheduling overlaps game base
- * and Camera; recover their original producer ownership. */
+/* TODO: [breakthrough needed] 93.93939%; retain the fog-first cursor;
+ * recover address/zero producers; both color-assignment chains add conversions. */
 void fade_fatality_screen(void) {
     float far_clip;
     float step;
 
-    fatality_prepare_black_fog(&g_game_info);
+    fatality_prepare_black_fog(&g_game_info, fog_color_real);
 
     far_clip = Camera->farPlane;
     step = (far_clip - 10.0f) / 30.0f;
@@ -3388,7 +3388,7 @@ void fade_fatality_screen(void) {
     }
 }
 
-void run_fatality_sequence(
+static void run_fatality_sequence(
     unsigned int main_script, unsigned int victim_script) {
     FatalityBgndScriptView* section_script;
     CmdScript* victim_cmdscript;
@@ -3556,8 +3556,8 @@ static int init_fatality_world(void) {
     return 0;
 }
 
-/* TODO: [near miss] 97.45%; tied fog/world address scheduling and early Camera load;
- * recover original address ownership without changing the verified store order. */
+/* TODO: [near miss] 98.71795%; four codegen address/zero owners and post-RA
+ * float-zero load order remain; recover original emission boundary. */
 float start_suicide(void) {
     FatalityBgndScriptView* section_script;
     unsigned int camera_script;
@@ -3641,8 +3641,8 @@ float start_suicide(void) {
 }
 
 
-/* TODO: [near miss] 96.20953%; fog/world address tie and Camera load across sky store;
- * recover original address-evaluation boundary. */
+/* TODO: [breakthrough] 98.09524%; color cursor restores fog-first order;
+ * remaining address/zero order matches primary; stop at source boundary. */
 float start_2nd_fatality(void) {
     FatalityDefinition* definition;
 
@@ -3669,8 +3669,8 @@ float start_2nd_fatality(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 96.21%; pre-RA scheduling creates the GI/Camera overlap;
- * recover fog-address evaluation order; backend optimizer preserves the input order. */
+/* TODO: [breakthrough] 98.09524%; real color cursor restores fog-first order;
+ * address homes and post-RA zero-load order remain; stop at source boundary. */
 float start_fatality(void) {
     FatalityDefinition* definition;
 

@@ -266,6 +266,62 @@ static inline int axrna_align_transfer_size(int size)
     return (size / 32) * 32;
 }
 
+static inline void axrna_transfer_channels(AXRNAHandle* handle)
+{
+    SJCK input_chunk;
+    SJCK input_remainder;
+    SJCK buffer_chunk;
+    SJCK buffer_remainder;
+    int channel;
+
+    for (channel = 0; channel < handle->num_channels; channel++) {
+        int transfer_size;
+
+        if (handle->voices[channel] == 0 ||
+            handle->transfer_pending[channel] != 0) {
+            continue;
+        }
+        handle->buffers[channel]->interface->get_chunk(
+            handle->buffers[channel], 0, AXRNA_TRANSFER_BYTES,
+            &buffer_chunk);
+        handle->inputs[channel]->interface->get_chunk(
+            handle->inputs[channel], 1, buffer_chunk.len, &input_chunk);
+        transfer_size = buffer_chunk.len;
+        if (input_chunk.len < transfer_size) {
+            transfer_size = input_chunk.len;
+        }
+        transfer_size = axrna_align_transfer_size(transfer_size);
+        SJ_SplitChunk(&buffer_chunk, transfer_size, &buffer_chunk,
+                      &buffer_remainder);
+        handle->buffers[channel]->interface->unget_chunk(
+            handle->buffers[channel], 0, &buffer_remainder);
+        SJ_SplitChunk(&input_chunk, transfer_size, &input_chunk,
+                      &input_remainder);
+        handle->inputs[channel]->interface->unget_chunk(
+            handle->inputs[channel], 1, &input_remainder);
+        if (transfer_size == 0) {
+            return;
+        }
+        if (input_chunk.len != buffer_chunk.len) {
+            while (1) {
+            }
+        }
+        handle->input_chunks[channel] = input_chunk;
+        handle->buffer_chunks[channel] = buffer_chunk;
+        handle->transfer_samples = (unsigned int)transfer_size >> 1;
+        DCFlushRange(handle->input_chunks[channel].data,
+                     handle->input_chunks[channel].len);
+        handle->transfer_pending[channel] = 1;
+        ARQPostRequest(
+            &handle->requests[channel], handle->request_owners[channel], 0,
+            1, (unsigned long)input_chunk.data,
+            (unsigned long)buffer_chunk.data, transfer_size,
+            axrna_end_trans);
+        while (handle->transfer_pending[channel] != 0) {
+        }
+    }
+}
+
 static inline void axrna_flash_channels(AXRNAHandle* handle)
 {
     SJCK flash_chunk;
@@ -303,16 +359,10 @@ static inline void axrna_flash_channels(AXRNAHandle* handle)
     }
 }
 
-/* TODO: [near miss] 98.67924%; transfer index precedes SR pointer selection;
- * complete donor phases regress descriptor slots and flash owner homes. */
+/* TODO: [near miss] 99.55189%; descriptor slots and operations agree;
+ * channel/size register homes swap in both DMA phases; stop at coloring. */
 void AXRNA_ExecHndl(AXRNAHandle* handle)
 {
-    SJCK buffer_remainder;
-    SJCK buffer_chunk;
-    SJCK input_remainder;
-    SJCK input_chunk;
-    int channel;
-
     if (handle == 0) {
         return;
     }
@@ -320,52 +370,7 @@ void AXRNA_ExecHndl(AXRNAHandle* handle)
         axrna_update_play(handle);
     }
     if (axrna_get_transfer_switch(handle) == 1) {
-        for (channel = 0; channel < handle->num_channels; channel++) {
-            int transfer_size;
-
-            if (handle->voices[channel] == 0 ||
-                handle->transfer_pending[channel] != 0) {
-                continue;
-            }
-            handle->buffers[channel]->interface->get_chunk(
-                handle->buffers[channel], 0, AXRNA_TRANSFER_BYTES,
-                &buffer_chunk);
-            handle->inputs[channel]->interface->get_chunk(
-                handle->inputs[channel], 1, buffer_chunk.len, &input_chunk);
-            transfer_size = buffer_chunk.len;
-            if (input_chunk.len < transfer_size) {
-                transfer_size = input_chunk.len;
-            }
-            transfer_size = axrna_align_transfer_size(transfer_size);
-            SJ_SplitChunk(&buffer_chunk, transfer_size, &buffer_chunk,
-                          &buffer_remainder);
-            handle->buffers[channel]->interface->unget_chunk(
-                handle->buffers[channel], 0, &buffer_remainder);
-            SJ_SplitChunk(&input_chunk, transfer_size, &input_chunk,
-                          &input_remainder);
-            handle->inputs[channel]->interface->unget_chunk(
-                handle->inputs[channel], 1, &input_remainder);
-            if (transfer_size == 0) {
-                return;
-            }
-            if (input_chunk.len != buffer_chunk.len) {
-                while (1) {
-                }
-            }
-            handle->input_chunks[channel] = input_chunk;
-            handle->buffer_chunks[channel] = buffer_chunk;
-            handle->transfer_samples = (unsigned int)transfer_size >> 1;
-            DCFlushRange(handle->input_chunks[channel].data,
-                         handle->input_chunks[channel].len);
-            handle->transfer_pending[channel] = 1;
-            ARQPostRequest(
-                &handle->requests[channel], handle->request_owners[channel], 0,
-                1, (unsigned long)input_chunk.data,
-                (unsigned long)buffer_chunk.data, transfer_size,
-                axrna_end_trans);
-            while (handle->transfer_pending[channel] != 0) {
-            }
-        }
+        axrna_transfer_channels(handle);
         return;
     }
     if (axrna_get_play_switch(handle) == 1 &&

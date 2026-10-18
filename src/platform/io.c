@@ -303,8 +303,8 @@ int get_stick_pos(int port, int stick, float* horizontal, float* vertical) {
     return 1;
 }
 
-/* TODO: [near miss] 97.04546%; label must precede the merged BSS root;
- * recover producer ownership while retaining the exact record/store layout. */
+/* TODO: [near miss] 97.04546%; literal and merged-BSS owner order differs;
+ * recover original literal emission; complete reset expansion still rotates homes. */
 void init_switch_log(void) {
     int i;
     for (i = 0; i < 30; i++) {
@@ -421,22 +421,23 @@ void log_switch(int player, int switch_index, int tick,
     if (sw_log_on != 0) show_sw_log();
 }
 
-/* TODO: [near miss] 98.93023%; count/old_proc simplify threshold rotates saved homes;
- * isolated fade-restart inline regresses; recover cross-loop ownership. */
+/* TODO: [near miss] 99.67442%; first practice count controls five residual homes;
+ * recover its original owner boundary; normal panes and second process agree. */
 void show_sw_log(void) {
     int index;
     int y;
     if (mode_of_play == 4) {
-        MkProc* old_proc;
+        MkProc* p1_old_proc;
+        MkProc* p2_old_proc;
         int count;
         del_string_obj_by_id(0x2083);
         index = practice_p1_index;
         y = 0x4B;
         count = 0;
-        old_proc = find_mkproc_pid(0x206C);
-        if (old_proc != 0) {
+        p1_old_proc = find_mkproc_pid(0x206C);
+        if (p1_old_proc != 0) {
             pfx_2d_obj_set_alpha_by_id(0x2083, 0xFF);
-            if (old_proc->instance != 0) old_proc->vtbl->destroy(old_proc);
+            if (p1_old_proc->instance != 0) p1_old_proc->vtbl->destroy(p1_old_proc);
         }
         proc_create(p_switch_log_fadeoff, 0x206C);
         for (; count < 5 && practice_p1_list[index] != -1; count++) {
@@ -448,10 +449,10 @@ void show_sw_log(void) {
         index = practice_p2_index;
         y = 0x4B;
         count = 0;
-        old_proc = find_mkproc_pid(0x206C);
-        if (old_proc != 0) {
+        p2_old_proc = find_mkproc_pid(0x206C);
+        if (p2_old_proc != 0) {
             pfx_2d_obj_set_alpha_by_id(0x2083, 0xFF);
-            if (old_proc->instance != 0) old_proc->vtbl->destroy(old_proc);
+            if (p2_old_proc->instance != 0) p2_old_proc->vtbl->destroy(p2_old_proc);
         }
         proc_create(p_switch_log_fadeoff, 0x206C);
         for (; count < 5 && practice_p2_list[index] != -1; count++) {
@@ -461,49 +462,56 @@ void show_sw_log(void) {
             y += 0x1E;
         }
     } else {
-        int count;
+        int p1_pad_count;
+        int p1_switch_count;
+        int p2_pad_count;
+        int p2_switch_count;
+        int p1_pad_y;
+        int p1_switch_y;
+        int p2_pad_y;
+        int p2_switch_y;
         del_string_obj_by_id(0x2012);
         index = p1_pad_log_index;
-        y = 0x1E;
+        p1_pad_y = 0x1E;
         if (index < 0) index = 0;
-        for (count = 0; count < 4; count++) {
+        for (p1_pad_count = 0; p1_pad_count < 4; p1_pad_count++) {
             if (p1_pad_switch_log[index].label != 0) {
                 string_left_xy(0x2012, 0, p1_pad_switch_log[index].label,
-                               0x14, y, 0);
-                y += 0x19;
+                               0x14, p1_pad_y, 0);
+                p1_pad_y += 0x19;
             }
             if (--index < 0) index = 29;
         }
         index = p1_log_index;
-        y = 0x1E;
+        p1_switch_y = 0x1E;
         if (index < 0) index = 0;
-        for (count = 0; count < 4; count++) {
+        for (p1_switch_count = 0; p1_switch_count < 4; p1_switch_count++) {
             if (p1_switch_log[index].label != 0) {
                 string_left_xy(0x2012, 0, p1_switch_log[index].label,
-                               0xAA, y, 0);
-                y += 0x19;
+                               0xAA, p1_switch_y, 0);
+                p1_switch_y += 0x19;
             }
             if (--index < 0) index = 29;
         }
         index = p2_pad_log_index;
-        y = 0x1E;
+        p2_pad_y = 0x1E;
         if (index < 0) index = 0;
-        for (count = 0; count < 4; count++) {
+        for (p2_pad_count = 0; p2_pad_count < 4; p2_pad_count++) {
             if (p2_pad_switch_log[index].label != 0) {
                 string_left_xy(0x2012, 0, p2_pad_switch_log[index].label,
-                               0x159, y, 0);
-                y += 0x19;
+                               0x159, p2_pad_y, 0);
+                p2_pad_y += 0x19;
             }
             if (--index < 0) index = 29;
         }
         index = p2_log_index;
-        y = 0x1E;
+        p2_switch_y = 0x1E;
         if (index < 0) index = 0;
-        for (count = 0; count < 4; count++) {
+        for (p2_switch_count = 0; p2_switch_count < 4; p2_switch_count++) {
             if (p2_switch_log[index].label != 0) {
                 string_left_xy(0x2012, 0, p2_switch_log[index].label,
-                               0x1EF, y, 0);
-                y += 0x19;
+                               0x1EF, p2_switch_y, 0);
+                p2_switch_y += 0x19;
             }
             if (--index < 0) index = 29;
         }
@@ -602,63 +610,8 @@ static inline void execute_scan_sequence_cmd(unsigned int action,
 
 }
 
-static inline void scan_switch_sequence(
-    const int* requirements, int remaining, struct SwitchLogEntry* switch_log,
-    int history, unsigned int toward, unsigned int away, int max_tick_gap,
-    unsigned int sequence_id, unsigned int action, int execution_mode) {
-    for (; remaining-- > 0;) {
-        struct SwitchLogEntry* entry = &switch_log[history];
-        int expected;
-        int tick_delta;
-
-        if (--history < 0) history = 29;
-        expected = requirements[remaining];
-        switch (expected) {
-        case 0x80000001:
-            if ((unsigned int)entry->switch_index != toward) return;
-            break;
-        case 0x80000002:
-            if ((unsigned int)entry->switch_index != away) return;
-            break;
-        case 0x80000003:
-            if ((unsigned int)entry->switch_index != 0xC) return;
-            break;
-        case 0x80000004:
-            if ((unsigned int)entry->switch_index != 0xE) return;
-            break;
-        default:
-            return;
-        }
-        tick_delta = exec_tick_ctr - entry->tick;
-        if (tick_delta < 0) tick_delta = -tick_delta;
-        if ((unsigned int)tick_delta > (unsigned int)max_tick_gap) return;
-    }
-    if (sequence_id != 0) {
-        if (sequence_id + 0xC0010000 == 0x0000FFFE) {
-            if (mode_of_play == 8 ||
-                !fatality_check_distance(action) ||
-                !get_fatality_available_flag() ||
-                (action == (unsigned int)do_my_fatality &&
-                 !is_special_move_available(plyr_pdata, 0x4243)) ||
-                (action == (unsigned int)do_my_2nd_fatality &&
-                 !is_special_move_available(plyr_pdata, 0x4244)))
-                return;
-        }
-        if (sequence_id + 0xC0010000 == 0x0000FFFD) {
-            if (mode_of_play == 8 ||
-                !get_fatality_available_flag() ||
-                !is_special_move_available(plyr_pdata, 0x4245))
-                return;
-        } else if (is_this_move_disabled_exec(sequence_id)) {
-            return;
-        }
-        action = check_smoke_decoy(check_subzero_decoy(action));
-    }
-    execute_scan_sequence_cmd(action, execution_mode);
-}
-
-/* TODO: [breakthrough needed] 97.67619%; rejection polarity differs before regalloc;
- * recover frontend join and independent decoy-selector ownership. */
+/* TODO: [near miss] 98.40635%; two decrement-order rows and saved-owner topology remain;
+ * recover counter-expression/owner boundaries; bounded replay is inconclusive. */
 void scan_switch_sequences(unsigned int* sequence) {
     struct SwitchLogEntry* switch_log;
     int log_index;
@@ -684,7 +637,8 @@ void scan_switch_sequences(unsigned int* sequence) {
         away = 0xD;
         toward = 0xF;
     }
-    for (sequence_index = 0; sequence_index < 12; sequence_index++) {
+    sequence_index = 0;
+    while (sequence_index < 12) {
         unsigned int sequence_id = sequence[0];
         int timing;
         unsigned int action;
@@ -692,6 +646,7 @@ void scan_switch_sequences(unsigned int* sequence) {
         int max_tick_gap;
         int requirements[30];
         int requirement_count;
+        int history;
 
         if (sequence_id + 0x10000 == 0x0000FFFF) break;
         timing = sequence[1];
@@ -709,9 +664,58 @@ void scan_switch_sequences(unsigned int* sequence) {
             sequence++;
             requirement_count++;
         }
-        scan_switch_sequence(requirements, requirement_count, switch_log,
-                             log_index, toward, away, max_tick_gap,
-                             sequence_id, action, execution_mode);
+        history = log_index;
+        for (; requirement_count-- > 0;) {
+            struct SwitchLogEntry* entry = &switch_log[history];
+            int expected;
+            int tick_delta;
+
+            if (--history < 0) history = 29;
+            expected = requirements[requirement_count];
+            switch (expected) {
+            case 0x80000001:
+                if ((unsigned int)entry->switch_index != toward) goto next_sequence;
+                break;
+            case 0x80000002:
+                if ((unsigned int)entry->switch_index != away) goto next_sequence;
+                break;
+            case 0x80000003:
+                if ((unsigned int)entry->switch_index != 0xC) goto next_sequence;
+                break;
+            case 0x80000004:
+                if ((unsigned int)entry->switch_index != 0xE) goto next_sequence;
+                break;
+            default:
+                goto next_sequence;
+            }
+            tick_delta = exec_tick_ctr - entry->tick;
+            if (tick_delta < 0) tick_delta = -tick_delta;
+            if ((unsigned int)tick_delta > (unsigned int)max_tick_gap) goto next_sequence;
+        }
+        if (sequence_id != 0) {
+            if (sequence_id + 0xC0010000 == 0x0000FFFE) {
+                if (mode_of_play == 8 ||
+                    !fatality_check_distance(action) ||
+                    !get_fatality_available_flag() ||
+                    (action == (unsigned int)do_my_fatality &&
+                     !is_special_move_available(plyr_pdata, 0x4243)) ||
+                    (action == (unsigned int)do_my_2nd_fatality &&
+                     !is_special_move_available(plyr_pdata, 0x4244)))
+                    goto next_sequence;
+            }
+            if (sequence_id + 0xC0010000 == 0x0000FFFD) {
+                if (mode_of_play == 8) goto next_sequence;
+                if (!get_fatality_available_flag()) goto next_sequence;
+                if (!is_special_move_available(plyr_pdata, 0x4245)) goto next_sequence;
+            } else if (is_this_move_disabled_exec(sequence_id)) {
+                goto next_sequence;
+            }
+            action = check_smoke_decoy(check_subzero_decoy(action));
+        }
+        execute_scan_sequence_cmd(action, execution_mode);
+
+    next_sequence:
+        sequence_index++;
     }
 }
 

@@ -53,20 +53,20 @@ unsigned int ScreenIntegerCompare(int lhs, int op, int rhs);
 
 class ScreenVisibleAction : public ScreenAction {
 public:
-    virtual ~ScreenVisibleAction();
+    virtual ~ScreenVisibleAction() {}
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 };
 
 class SetScreenVisibleAction : public ScreenAction {
 public:
-    virtual ~SetScreenVisibleAction();
+    virtual ~SetScreenVisibleAction() {}
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 };
 
 class ScreenElseAction : public ScreenAction {
 public:
     ScreenElseAction() { m_takeElse = 1; }
-    virtual ~ScreenElseAction();
+    virtual ~ScreenElseAction() {}
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 
     unsigned int m_takeElse; /* +0x3C -- 1 until Question clears sibling Else */
@@ -74,38 +74,38 @@ public:
 
 class ScreenQuestionAction : public ScreenAction {
 public:
-    virtual ~ScreenQuestionAction();
+    virtual ~ScreenQuestionAction() {}
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 };
 
 class ScreenEnableAction : public ScreenAction {
 public:
-    virtual ~ScreenEnableAction();
+    virtual ~ScreenEnableAction() {}
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 };
 
 class ScreenUserConfirmAction : public ScreenAction {
 public:
-    virtual ~ScreenUserConfirmAction();
+    virtual ~ScreenUserConfirmAction() {}
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 };
 
 class ScreenSendObjectEventAction : public ScreenAction {
 public:
-    virtual ~ScreenSendObjectEventAction();
+    virtual ~ScreenSendObjectEventAction() {}
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 };
 
 class ScreenSetForwardAction : public ScreenAction {
 public:
-    virtual ~ScreenSetForwardAction();
+    virtual ~ScreenSetForwardAction() {}
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 };
 
 class ScreenBlockEventsUntilAction : public ScreenAction {
 public:
     ScreenBlockEventsUntilAction() { m_elapsed = 0; }
-    virtual ~ScreenBlockEventsUntilAction();
+    virtual ~ScreenBlockEventsUntilAction() {}
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 
     int m_elapsed; /* +0x3C -- ctor zeros; Update adds dt */
@@ -113,7 +113,7 @@ public:
 
 class ScreenSetFocusAction : public ScreenAction {
 public:
-    virtual ~ScreenSetFocusAction();
+    virtual ~ScreenSetFocusAction() {}
     virtual int Update(ScreenMgr* mgr, ScreenActionStack& stack, int dt);
 };
 

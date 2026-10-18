@@ -22,8 +22,8 @@
 
 static float switch_proc_up(void);
 static float switch_proc_down(void);
-float switch_proc_left(void);
-float switch_proc_right(void);
+static float switch_proc_left(void);
+static float switch_proc_right(void);
 
 static void dash_back_check(float direction);
 
@@ -37,7 +37,7 @@ static inline int switch_input_eaten(void) {
     return 0;
 }
 
-static float dispatch_switch(MkProcEntryFn entry) {
+static inline float dispatch_switch(MkProcEntryFn entry) {
     aproc->vtbl->jump_sleep(entry, 0.0f);
     return 0.0f;
 }
@@ -351,8 +351,6 @@ float pad_lup_proc(void) {
     return dispatch_direction(switch_proc_up, p_puzzle_switch_up);
 }
 
-/* TODO: [near miss] 87.78%; unsigned bit-result normalization boundary unresolved;
- * existing complete predicate reuse adds branches; retain direct guarded read. */
 int ck_eat_online_switches(void) {
     if (is_controller_removed()) {
         return 1;
@@ -360,12 +358,12 @@ int ck_eat_online_switches(void) {
     return g_game_info.switch_input_flags.eat_switches != 0;
 }
 
-float switch_proc_right(void) {
+static float switch_proc_right(void) {
     dash_back_check(-1.0f);
     return -1.0f;
 }
 
-float switch_proc_left(void) {
+static float switch_proc_left(void) {
     dash_back_check(1.0f);
     return -1.0f;
 }
@@ -427,7 +425,6 @@ static float switch_proc_down(void) {
     return check_player_duck(switch_pdata->player);
 }
 
-#pragma optimize_for_size on
 #pragma use_lmw_stmw on
 static inline float wait_for_angle_jump(PlyrInfo* player, int scans) {
     for (;;) {
@@ -454,10 +451,8 @@ static inline float wait_for_angle_jump(PlyrInfo* player, int scans) {
 static float switch_proc_up(void) {
     return wait_for_angle_jump(switch_pdata->player, 3);
 }
-#pragma optimize_for_size reset
 #pragma use_lmw_stmw reset
 
-#pragma optimize_for_size on
 #pragma use_lmw_stmw on
 static void dash_back_check(float direction) {
     PlyrInfo* player = switch_pdata->player;
@@ -485,7 +480,6 @@ static void dash_back_check(float direction) {
         plyr_obj = 0;
     }
 }
-#pragma optimize_for_size reset
 #pragma use_lmw_stmw reset
 
 float angle_jump_scan_after_move(void) {

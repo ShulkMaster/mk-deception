@@ -282,8 +282,8 @@ PlyrInfo* get_player_for_port(int port) {
     return player;
 }
 
-/* TODO: [near miss] 91.58537%; computed rows follow base producers;
- * recover original address ownership while preserving shared loop-zero setup. */
+/* TODO: [near miss] 91.58537%; typed copy rows remain CG temporaries above bases;
+ * recover earlier row ownership without changing shared loop-zero setup. */
 void init_player_switch_maps(void) {
     SwitchMapEntry* dest;
     SwitchMapEntry* src;
@@ -896,7 +896,7 @@ static float p_rumble_controller(void) {
         aproc->vtbl->sleep();
         turn_rumble_off(pdata->port);
     }
-    return 0.0f;
+    return -1.0f;
 }
 
 void turn_all_rumble_motors_off(void) {

@@ -277,8 +277,8 @@ void ScreenObject::SetParent(ScreenObject* parent) {
     m_parent = parent;
 }
 
-/* TODO: [near miss] 99.36%; matched-action home recovered;
- * split opcode owners still claim stack/event-index homes first. */
+/* TODO: [near miss] 99.35780%; opcode splits precede event/stack owners;
+ * recover the original FE owner without changing saved snapshots. */
 void ScreenObject::ProcessSubActions(ScreenMgr* mgr, const ScreenAction* action,
                                      int match) {
     ScreenEvent* event;
@@ -345,7 +345,8 @@ void ScreenObject::ProcessSubActions(const ScreenAction* action, int match) {
     ProcessSubActions(mgr, action, match);
 }
 
-/* TODO: [near miss] 99.67%; stack/argument GPR homes swap; seek a supported owner boundary. */
+/* TODO: [near miss] 99.66667%; stack/arg homes swap; guarded stack assignment
+ * extends mgr lifetime and regresses; original owner boundary remains missing. */
 void ScreenObject::ProcessEvent(ScreenMgr* mgr, int eventId, int arg) {
     unsigned int numEvents;
     unsigned int numActions;
@@ -361,7 +362,6 @@ void ScreenObject::ProcessEvent(ScreenMgr* mgr, int eventId, int arg) {
     numEvents = GetNumEvents();
     for (i = 0; i < numEvents; i++) {
         event = GetEvent(i);
-        /* Retail cmpw: eventId vs m_id. */
         if (eventId != event->m_id) {
             continue;
         }

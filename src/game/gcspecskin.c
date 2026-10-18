@@ -205,15 +205,15 @@ void ProcessSpecularity(
     GXSetTevAlphaOp(tev_stage, 0, 0, 0, 1, 0);
 }
 
-/* TODO: [breakthrough needed] 71.08334%; stage count sinks and plugin is an
- * accessor-result owner; recover the joint first-GX setup boundary. */
+/* TODO: [breakthrough needed] 88.33334%; first-GX presence/offset owners differ;
+ * preserve byte narrowing; the original producer boundary is still missing. */
 void CleanupSpecularity(
     RpMaterial* material, RwTexture* base_texture, RwTexture* alpha_texture) {
     SpecularMaterialPluginData* specular;
     GXBool textured;
     int stage_count;
 
-    stage_count = (alpha_texture != 0) + 1;
+    stage_count = alpha_texture != 0 ? 2 : 1;
     textured = base_texture != 0;
     specular = specular_data(material);
 
@@ -941,6 +941,19 @@ static inline void spec_point_metrics(
                         delta->z * delta->z;
 }
 
+static inline GXLightObj* initialize_point_light_geometry(
+    int light_index, const Vec* delta, float inverse_distance) {
+    GXLightObj* light_object = &_RwGCLightObjs[light_index];
+
+    GXInitLightAttn(light_object, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+    GXInitLightPos(
+        light_object,
+        -1048576.0f * -(delta->x * inverse_distance),
+        -1048576.0f * (delta->y * inverse_distance),
+        -1048576.0f * -(delta->z * inverse_distance));
+    return light_object;
+}
+
 static inline void upload_point_light(
     struct SpecLight* light,
     RwGameCubeLightingData* lighting,
@@ -956,13 +969,8 @@ static inline void upload_point_light(
     float color_scale;
 
     light_index = lighting->lightIndex;
-    light_object = &_RwGCLightObjs[light_index];
-    GXInitLightAttn(light_object, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
-    GXInitLightPos(
-        light_object,
-        -1048576.0f * -(delta->x * inverse_distance),
-        -1048576.0f * (delta->y * inverse_distance),
-        -1048576.0f * -(delta->z * inverse_distance));
+    light_object = initialize_point_light_geometry(
+        light_index, delta, inverse_distance);
     color_scale = 255.0f * intensity;
     red = (light->color.red * color_scale);
     green = (light->color.green * color_scale);
@@ -975,6 +983,19 @@ static inline void upload_point_light(
     GXLoadLightObjImm(light_object, 1U << light_index);
     lighting->lightMask |= 1U << lighting->lightIndex;
     lighting->lightIndex++;
+}
+
+static inline GXLightObj* initialize_directional_light_geometry(
+    int light_index, const RwV3d* direction) {
+    GXLightObj* light_object = &_RwGCLightObjs[light_index];
+
+    GXInitLightAttn(light_object, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+    GXInitLightPos(
+        light_object,
+        -1048576.0f * -direction->x,
+        -1048576.0f * direction->y,
+        -1048576.0f * -direction->z);
+    return light_object;
 }
 
 static inline void upload_directional_light(
@@ -996,14 +1017,8 @@ static inline void upload_directional_light(
     RwV3dTransformVector(
         direction, &light_ltm->at, &_RwDlInvCamLTM);
     light_index = lighting->lightIndex;
-    light_object = &_RwGCLightObjs[light_index];
     light = *light_slot;
-    GXInitLightAttn(light_object, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
-    GXInitLightPos(
-        light_object,
-        -1048576.0f * -direction->x,
-        -1048576.0f * direction->y,
-        -1048576.0f * -direction->z);
+    light_object = initialize_directional_light_geometry(light_index, direction);
     color_scale = 255.0f * intensity;
     red = (light->color.red * color_scale);
     green = (light->color.green * color_scale);
@@ -1018,8 +1033,6 @@ static inline void upload_directional_light(
     lighting->lightIndex++;
 }
 
-/* TODO: [near miss] 99.94294%; first point-upload index/object homes differ;
- * original per-expansion ownership is missing; preserve normalization/GXColor slots. */
 static RpAtomic* GCSpecSkinLighting(
     RpAtomic* atomic, RwGameCubeLightingData* lighting) {
     RpMaterial* specular_material;

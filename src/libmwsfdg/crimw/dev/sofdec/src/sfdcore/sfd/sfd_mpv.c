@@ -2254,7 +2254,7 @@ static int sfmpv_ChkBufSiz(SfdHandle* handle,
 }
 
 /* TODO: [near miss] 99.45895%; skip/publication and GOP owners rotate;
- * decision helper exceeds inline cost 512; recover an original ownership boundary. */
+ * complete policy predicates outline; stop until original ownership is recovered. */
 static int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
 {
     SfdMpvFrameWork* work =
@@ -2638,8 +2638,8 @@ static void sfmpv_ErrFn(SfdCallbackObject object, int error)
     }
 }
 
-/* TODO: [near miss] 89.7794%; BSS layout agrees; handle/base/decoder homes
- * and prologue schedule remain; owner-first declaration regresses, stop at coloring. */
+/* TODO: [near miss] 89.77941%; handle's 28-neighbor web selects after the pool;
+ * recover its actual owner/lifetime without register pins or extra reloads. */
 static int SFMPV_Destroy(SfdHandle* handle)
 {
     MPVContext* decoder;

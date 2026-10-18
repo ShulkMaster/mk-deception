@@ -27,13 +27,11 @@ static inline void gxQuatSlerpWeights(float abs_dot, float* first, float* second
     *second = inv_sin * gxMathSin(*second * theta);
 }
 
-/* TODO: [near miss] 99.02778%; magnitude/second-weight homes agree;
- * sign must select before t/theta/inverse-sine; recover its real producer. */
 void gxQuatInterpQuat(Quat* out, Quat* q1, const Quat* q2, float t) {
     float absDot;
     float oneMinusT;
-    float sign;
     float dot;
+    float sign;
     Quat scaled;
 
     if (t < kZero) {

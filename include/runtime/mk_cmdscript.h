@@ -56,7 +56,7 @@ typedef struct ScriptSlot {
 typedef struct ScriptSlotEntry {
     int state;          /* +0x00 0=empty 1=loading 2=ready */
     MkFileInfo* file_info; /* +0x04 */
-    MkFileEntry* file;     /* +0x08 */
+    const MkFileEntry* file;     /* +0x08 */
     void* async_req;    /* +0x0c */
     ScriptSlot body;    /* +0x10 .. +0xA7 */
 } ScriptSlotEntry; /* 0xA8 */
@@ -147,9 +147,12 @@ extern unsigned int* current_args;
 extern CmdScript global_script_interpreter;
 
 void one_shot_script_func(ScriptSlot* script, unsigned int function, int wait);
-float p_run_one_shot_script(void);
+
 void load_string_bank_async(unsigned int bank, char* name);
 void load_string_bank(unsigned int bank, const char* name);
+#ifdef __cplusplus
+extern "C"
+#endif
 char* get_string_by_id(unsigned int id);
 void cmdscript_reset_stack(void);
 void cmdscript_step_backward(void);
@@ -184,10 +187,16 @@ ScriptSlot* cmdscript_loadfile(int slot_index, MkFileInfo* file_info);
 ScriptSlot* cmdscript_finish_load(int slot_index);
 void deactivate_cmdscript(void);
 void activate_cmdscript(void);
+#ifdef __cplusplus
+extern "C"
+#endif
 void set_process_as_scriptable(MkProc* proc);
+#ifdef __cplusplus
+extern "C"
+#endif
 CmdScript* get_cmdscript_for_proc(MkProc* proc);
 CmdScript* alloc_cmdscript(void);
-void fixup_data_tables(ScriptSlot* slot);
+
 void script_system_reset(void);
 void init_cmdscript_system(void);
 

@@ -115,17 +115,16 @@ static inline void hwfile_pool_release(MkHwFileHandlePool* pool,
         (unsigned char*)request <= (unsigned char*)pool->base +
             pool->handleSize * (pool->count - 1)) {
         byte_offset = (unsigned char*)request - (unsigned char*)pool->base;
-        index = byte_offset / pool->handleSize;
-        if (byte_offset % pool->handleSize == 0 &&
-            pool->freelist[index] != 0) {
-            pool->freelist[index] = 0;
-            pool->freeCount++;
+        if (byte_offset % pool->handleSize == 0) {
+            index = byte_offset / pool->handleSize;
+            if (pool->freelist[index] != 0) {
+                pool->freelist[index] = 0;
+                pool->freeCount++;
+            }
         }
     }
 }
 
-/* TODO: [near miss] 99.33628%; release pool/index homes differ;
- * native kind-change prediction lacks a source producer; stop at coloring. */
 MkHwFileRequest* mk_hwfile_open(const char* path, const char* mode) {
     char path_buffer[256];
     MkHwFileRequest* request;
@@ -251,8 +250,6 @@ static inline void mk_hwfile_free_command_safe(void* command) {
     }
 }
 
-/* TODO: [near miss] 98.79032%; canonical pool release retains pool-address
- * CG versus base-CSE/index ownership; recover producer before more coloring. */
 void mk_hwfile_close(MkHwFileRequest* request) {
     void* command;
 

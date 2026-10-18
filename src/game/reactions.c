@@ -274,40 +274,25 @@ static float p_image_fader(void);
 #include "src/game/reactions_table_prototypes.inc"
 #include "src/game/reactions_table.inc"
 
-static inline MkObj* plyr_live_tracked_obj(PlyrPdata* player) {
-    MkObj* object = player->tracked_obj;
-    if (object != 0) {
-        if (object->hdr.instance == player->tracked_obj_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-/* TODO: [near miss] 99.29578%; split object must outrank the second inline
- * pdata argument; recover owner kinds before more r4/r5 trials. */
 void run_reaction_cleanup_function(PlyrPdata* player) {
-    if (player != 0 && player->runtime_data->reaction_cleanup != 0) {
-        PlyrPdata* saved_player;
-        PlyrPdata* saved_opponent;
-        MkObj* saved_object;
-        MkObj* saved_opponent_object;
-        MkObj* object;
-        MkObj* opponent_object;
-        CmdScript* saved_script;
+    CmdScript* saved_script;
+    PlyrPdata* saved_player;
+    PlyrPdata* saved_opponent;
+    MkObj* saved_object;
+    MkObj* saved_opponent_object;
+    MkObj* object;
+    MkObj* opponent_object;
 
+    if (player != 0 && player->runtime_data->reaction_cleanup != 0) {
         saved_player = plyr_pdata;
         saved_opponent = his_pdata;
         plyr_pdata = player;
         saved_object = plyr_obj;
         saved_opponent_object = his_obj;
         his_pdata = player->his_plyr_pdata;
-        object = plyr_live_tracked_obj(player);
+        object = MK_HDR_LIVE(player->tracked_obj, player->tracked_obj_instance);
         plyr_obj = object;
-        opponent_object = plyr_live_tracked_obj(player->his_plyr_pdata);
+        opponent_object = MK_HDR_LIVE(player->his_plyr_pdata->tracked_obj, player->his_plyr_pdata->tracked_obj_instance);
         his_obj = opponent_object;
         if (object == 0 || opponent_object == 0) {
             return;
@@ -379,6 +364,7 @@ static float p_image_fader(void) {
     return -1.0f;
 }
 
+#pragma auto_inline on
 ScreenObj* display_image_by_plyr(
     int slot, const char* image_name, PlyrInfo* source, int unused,
     float y_offset) {
@@ -412,6 +398,7 @@ ScreenObj* display_image_by_plyr(
     }
     return image;
 }
+#pragma auto_inline reset
 
 static inline void reaction_flash_at_height(MkObj* object, float y_offset) {
     unsigned int effect;
@@ -483,59 +470,7 @@ void high_flash_check(void) {
     check_hit_flash(0x1D, 1.7f);
 }
 
-void fight_fx_im_hit_with_breaker_flash(
-    int player,
-    MkObj* object,
-    int bone,
-    int use_bone,
-    void* script_args,
-    float y_offset) {
-    unsigned int effect;
-    Vec position;
-
-    if (player == 0) {
-        effect = fx_by_owner("breaker_hit_fx", 1);
-    } else {
-        effect = fx_by_owner("breaker_hit_fx", 2);
-    }
-    effect = fx_next_emitter(effect);
-    if (use_bone == 0) {
-        get_bone_world_pos(object, 0, &position);
-        position.y = y_offset + g_game_info.field_34;
-    } else {
-        get_bone_world_pos(object, bone, &position);
-    }
-    mk_chess_launch_fx_at_pos_with_obj_emit_based(
-        effect, position.x, position.y, position.z);
-}
-
-void fight_fx_im_hit_flash(
-    int player,
-    MkObj* object,
-    int bone,
-    int use_bone,
-    void* script_args,
-    float y_offset) {
-    unsigned int effect;
-    Vec position;
-
-    if (player == 0) {
-        effect = fx_by_owner("hit_fx", 1);
-    } else {
-        effect = fx_by_owner("hit_fx", 2);
-    }
-    effect = fx_next_emitter(effect);
-    if (use_bone == 0) {
-        get_bone_world_pos(object, 0, &position);
-        position.y = y_offset + g_game_info.field_34;
-    } else {
-        get_bone_world_pos(object, bone, &position);
-    }
-    mk_chess_launch_fx_at_pos_with_obj_emit_based(
-        effect, position.x, position.y, position.z);
-}
-
-void general_flash_fx(
+static inline void fight_fx_flash(
     int player,
     MkObj* object,
     const char* effect_name,
@@ -561,26 +496,53 @@ void general_flash_fx(
         effect, position.x, position.y, position.z);
 }
 
+#pragma auto_inline on
+void fight_fx_im_hit_with_breaker_flash(
+    int player,
+    MkObj* object,
+    int bone,
+    int use_bone,
+    void* script_args,
+    float y_offset) {
+    fight_fx_flash(player, object, "breaker_hit_fx", bone, use_bone, y_offset);
+}
+#pragma auto_inline reset
+
+void fight_fx_im_hit_flash(
+    int player,
+    MkObj* object,
+    int bone,
+    int use_bone,
+    void* script_args,
+    float y_offset) {
+    fight_fx_flash(player, object, "hit_fx", bone, use_bone, y_offset);
+}
+
+void general_flash_fx(
+    int player,
+    MkObj* object,
+    const char* effect_name,
+    int bone,
+    int use_bone,
+    float y_offset) {
+    fight_fx_flash(player, object, effect_name, bone, use_bone, y_offset);
+}
+
 static inline void start_blade_clash_fx(
     PlyrPdata* player, unsigned int effect, MkObj* blade, int bone) {
     MkPfx* particle;
-    WeaponDefinition* weapon;
+    Vec* offset;
 
-    effect = fx_next_emitter(effect);
-    weapon = player->fighter_definition->definition->primary_weapon;
+    offset = &player->fighter_definition->definition->primary_weapon->clash_fx_offset;
     if (effect != 0) {
         particle = pfx_from_emitter(effect);
         pfx_bind_emitter_num_to_obj_bone(
             particle, blade, bone, emitter_id_from_handle(effect));
-        fx_set_param_v3(
-            effect, 0x202, weapon->clash_fx_offset.x,
-            weapon->clash_fx_offset.y, weapon->clash_fx_offset.z);
+        fx_set_param_v3(effect, 0x202, offset->x, offset->y, offset->z);
         fx_resume_emit(effect);
     }
 }
 
-/* TODO: [near miss] 99.57746%; second helper homes swap; third weapon needs
- * interference evidence; retain after native two-stall replay and failed joint solve. */
 void fight_fx_blades_clash(PlyrPdata* player) {
     MkObj* blade;
     unsigned int effect;
@@ -599,18 +561,21 @@ void fight_fx_blades_clash(PlyrPdata* player) {
     } else {
         effect = fx_by_owner("blade_flash", 2);
     }
+    effect = fx_next_emitter(effect);
     start_blade_clash_fx(player, effect, blade, bone);
     if (player_num == 0) {
         effect = fx_by_owner("blade_sparks", 1);
     } else {
         effect = fx_by_owner("blade_sparks", 2);
     }
+    effect = fx_next_emitter(effect);
     start_blade_clash_fx(player, effect, blade, bone);
     if (player_num == 0) {
         effect = fx_by_owner("blade_bouncy_sparks", 1);
     } else {
         effect = fx_by_owner("blade_bouncy_sparks", 2);
     }
+    effect = fx_next_emitter(effect);
     start_blade_clash_fx(player, effect, blade, bone);
 }
 
@@ -653,6 +618,122 @@ static inline void reaction_cleanup_active_player(void) {
             his_obj = saved_opponent_object;
         }
     }
+}
+
+int reaction_xfer_remote(
+    int state_reaction, int reaction, int blocked, int hit_count) {
+    struct ReactionDispatchPair dispatch_pair;
+    CmdScript* cmdscript;
+    MkProc* hold_proc;
+    MkProc* idle_proc;
+    MkObj* object;
+    int force_air;
+    int saved_state;
+    int original_previous_state;
+    int state_for_bgnd;
+
+    object = 0;
+    idle_proc = 0;
+    force_air = 0;
+    state_for_bgnd = plyr_pdata->state;
+    if (plyr_pdata == g_game_info.plyr0.slot.pdata) {
+        object = g_game_info.plyr0.slot.mirror_a;
+        idle_proc = g_game_info.plyr0.idle_proc;
+    } else if (plyr_pdata == g_game_info.plyr1.slot.pdata) {
+        idle_proc = g_game_info.plyr1.idle_proc;
+        object = g_game_info.plyr1.slot.mirror_a;
+    }
+    dispatch_pair = tbl_xfer_addresses[reaction].dispatch;
+    if (reaction == 0x78) {
+        plyr_pdata->breaker_strength--;
+    }
+    if (hit_count != -1 && state_reaction == reaction) {
+        if (hit_count >= 3 &&
+            !(tbl_xfer_addresses[reaction].flags & 0x10)) {
+            force_air = 1;
+        } else if (!(tbl_xfer_addresses[reaction].flags & 0x10)) {
+            force_air = 1;
+        }
+    }
+    if (aproc->pid != 0x1002 && aproc->pid != 0x1001) {
+        return 0;
+    }
+
+    reaction_cleanup_active_player();
+    scale_me_normal();
+    saved_state = plyr_pdata->state;
+    original_previous_state = plyr_pdata->previous_state;
+    plyr_obj->flags_09_bits.wall_restricted = 0;
+    hold_proc = MK_HDR_LIVE(plyr_pdata->hold_proc, plyr_pdata->hold_proc_instance);
+    if (hold_proc != 0) {
+        release_other_player();
+        if (plyr_pdata == g_game_info.plyr0.slot.pdata) {
+            xfer_player_proc(g_game_info.plyr1.idle_proc, p_glitch_to_stance);
+        } else {
+            xfer_player_proc(g_game_info.plyr0.idle_proc, p_glitch_to_stance);
+        }
+    }
+    plyr_anim_pdata->flags |= 0x40;
+    plyr_anim_pdata->step = 1.0f;
+    if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
+        destroy_mkprocs_pid(0x1005);
+    }
+    if (plyr_obj == g_game_info.plyr1.slot.mirror_a) {
+        destroy_mkprocs_pid(0x1006);
+    }
+    if (blocked != 0) {
+        plyr_pdata->his_plyr_pdata->collision_result = 2;
+    } else {
+        plyr_pdata->his_plyr_pdata->collision_result = 1;
+        plyr_pdata->hit_count++;
+    }
+
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    if (force_air != 0 ||
+        (tbl_xfer_addresses[reaction].flags & 2)) {
+        init_air_move_no_aniproc();
+    } else {
+        if (tbl_xfer_addresses[reaction].flags & 1) {
+            init_ground_move_no_aniproc();
+        }
+        if (tbl_xfer_addresses[reaction].flags & 4) {
+            init_3d_move_no_aniproc();
+        }
+    }
+    plyr_pdata->state = saved_state;
+    plyr_pdata->previous_state = original_previous_state;
+    set_my_state(0x600);
+    if (plyr_pdata->state_flags.bits.frozen) {
+        unfreeze_player();
+    }
+    if (state_for_bgnd == 0x4210) {
+        enable_bgnd_obj_repel(plyr_pdata->active_pickup);
+    }
+    if (his_obj != 0 && blocked == 0 &&
+        tbl_xfer_addresses[state_reaction].state == 1) {
+        swap_active_plyr_proc();
+        if (plyr_obj != 0) {
+            face_opponent_now();
+        }
+        swap_active_plyr_proc();
+    }
+    if (reaction >= 0xE6 && reaction <= 0xED) {
+        dispatch_pair = g_loadable_reaction_scripts[reaction - 0xE6].dispatch;
+    }
+
+    cmdscript = get_cmdscript_for_proc(idle_proc);
+    if (dispatch_pair.call_type == 4) {
+        cmdscript->unk28 = (unsigned int)dispatch_pair.entry;
+        xfer_player_proc(idle_proc, r_call_script_function);
+    } else if (dispatch_pair.call_type == 3) {
+        cmdscript->unk28 = (unsigned int)dispatch_pair.entry;
+        xfer_player_proc(idle_proc, r_call_other_player_char_script_function);
+    } else if (dispatch_pair.call_type == 5) {
+        xfer_player_proc_to_script(object, dispatch_pair.entry);
+    } else {
+        xfer_player_proc(idle_proc, dispatch_pair.entry);
+    }
+    return 1;
 }
 
 int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
@@ -1607,55 +1688,13 @@ static float r_block_hit_projectile(void) {
 }
 
 static float r_combo_broken_part2(void) {
-    struct ReactionImageFaderPdata* fader;
-    PlyrInfo* source;
     ScreenObj* image;
-    MkObj* object;
-    unsigned int effect;
     int index;
-    int half_width;
 
-    Vec world_position;
-    Vec bone_offset;
-    Vec hit_position;
-    RwV2d screen_position;
-
-    object = plyr_obj;
-    if (plyr_pdata->plyr_num == 0) {
-        effect = fx_by_owner("breaker_hit_fx", 1);
-    } else {
-        effect = fx_by_owner("breaker_hit_fx", 2);
-    }
-    effect = fx_next_emitter(effect);
-    get_bone_world_pos(object, 0, &hit_position);
-    hit_position.y = 1.7f + g_game_info.field_34;
-    mk_chess_launch_fx_at_pos_with_obj_emit_based(
-        effect, hit_position.x, hit_position.y, hit_position.z);
-
-    source = plyr_pdata->plyr_info;
-    bone_offset = (Vec){0.0f, 0.0f, 0.0f};
-
-    image = load_named_2d_pfxobj(
-        0x10005, 0xC021, "BREAKER", 0, 0x2F);
-    get_bone_offset_world_pos(
-        source->slot.mirror_a, 9, &bone_offset, &world_position);
-    world_position.y = 1.7f + g_game_info.field_34;
-    camera_get_screen_pos_from_world_pos(
-        &world_position, &screen_position);
-    half_width = image->pfx2d->tex_w / 2;
-    image->x = (int)screen_position.x - half_width;
-    image->y = screen_position.y;
-
-    if (_create_mkproc_generic_nostack(
-            0xC02A, 0x1F, p_image_fader,
-            sizeof(struct ReactionImageFaderPdata),
-            (MkHdr**)&fader) != 0) {
-        fader->object = image;
-        fader->object_instance = image->instance;
-        fader->delay = 60;
-        fader->alpha = 0xFF;
-        fader->direction = source->field_04;
-    }
+    fight_fx_im_hit_with_breaker_flash(
+        plyr_pdata->plyr_num, plyr_obj, 0x10, 0, 0, 1.7f);
+    image = display_image_by_plyr(
+        0x10005, "BREAKER", plyr_pdata->plyr_info, 0, 1.7f);
     if (image != 0 && his_pdata->breaker_strength == 0) {
         for (index = 0; index < 4; index++) {
             image->pfx2d->verts[index].r = 0x80;

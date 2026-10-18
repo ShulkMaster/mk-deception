@@ -93,10 +93,10 @@ void start_plyr_attack(float scale);
 void online_combo_record(void);
 int collide_plyr_vs_plyr(void);
 void trial_state_collision_check(int collision_result, int player);
-float p_wall_monitor(void);
+static float p_wall_monitor(void);
 int drone_ai_check_button_press(int button);
 void advance_cur_cmd_idx(void);
-int check_button_and_pad(
+static int check_button_and_pad(
     unsigned int button, unsigned int direction, int pad);
 void advance_my_current_switch(void);
 void random_hit(int group);
@@ -138,9 +138,9 @@ static inline float transfer_roll(MkProcEntryFn entry);
 float back_to_crouch(void);
 static inline void exit_reaction_common(void);
 void myvel_my_angle_y(float angle_offset, float velocity, float vertical);
-float p_force_away(void);
+static float p_force_away(void);
 static void pw_plyr_force(void);
-void ps_plyr_force(void);
+static void ps_plyr_force(void);
 float two_player_animation_blend(
     AniData* animation, float attacker_blend, float victim_blend,
     int attacker_mode, int victim_mode);
@@ -173,25 +173,25 @@ extern int f_fatality_finished;
 extern struct EjbSharedAnimationsView shared_ani;
 
 static void tremor_collision_check(void);
-void scorpion_summon_read(void);
-void scorpion_summon_collide(void);
-void break_point(void);
+static void scorpion_summon_read(void);
+static void scorpion_summon_collide(void);
+static void break_point(void);
 void auto_ani_on(void);
 void disable_both_repel_flags(void);
 static void taunt_raise_my_life_bar(void);
 static void gut_tumble_air_check(void);
 void impale_him(void);
-void fan_lift_prep(void);
+static void fan_lift_prep(void);
 static void wait_for_backland(void);
 static void start_impale_bleeding(void);
 static void subzero_propell_collision(void);
-void disable_supercharge(void);
+static void disable_supercharge(void);
 void slip_voice(void);
 void electric_shaky_voice(void);
-void scorpion_voice_call(void);
-void drift_downwards(void);
-void zero_my_hit_count(void);
-void temp_vomit(void);
+static void scorpion_voice_call(void);
+static void drift_downwards(void);
+static void zero_my_hit_count(void);
+static void temp_vomit(void);
 
 unsigned int scale_script_chargeup[] = {
     0x00840000, 0x3FA00000, 0x3FA00000, 0x3FA00000, 0x40A00000,
@@ -3210,7 +3210,7 @@ void force_away(float force, int duration, float damping, int animation) {
     start_plyr_force(duration, animation, damping);
 }
 
-float p_force_away(void) {
+static float p_force_away(void) {
     int iteration;
 
     _mkproc_sleep_ticks = plyr_force_pdata->delay;
@@ -3255,7 +3255,7 @@ void create_wall_monitor(void) {
         0x1008, 0x1B, p_wall_monitor, 0, 0);
 }
 
-float p_wall_monitor(void) {
+static float p_wall_monitor(void) {
     if (g_game_info.plyr0.slot.mirror_a != 0 &&
         g_game_info.plyr1.slot.mirror_a != 0) {
         if (g_game_info.plyr0.slot.mirror_a
@@ -3274,7 +3274,7 @@ float p_wall_monitor(void) {
     return 1.0f;
 }
 
-void ps_plyr_force(void) {
+static void ps_plyr_force(void) {
     plyr_force_pdata = 0;
     plyr_pdata = 0;
     plyr_obj = 0;
@@ -3507,7 +3507,7 @@ int super_charge_me(void) {
     return 0;
 }
 
-void disable_supercharge(void) {
+static void disable_supercharge(void) {
     if (plyr_pdata->player_slot == 0) {
         plyr_pdata->attack_disable_tick_p1 =
             game_tick_ctr +
@@ -3576,7 +3576,7 @@ int was_button_and_direction(int button, int direction) {
     return check_button_and_pad(button, direction, 1) != 0;
 }
 
-int check_button_and_pad(
+static int check_button_and_pad(
     unsigned int button, unsigned int direction, int pad) {
     int player_state;
     struct SwitchLogEntry* switch_log;
@@ -4068,13 +4068,13 @@ void ejb_call(int index) {
     }
 }
 
-void scorpion_voice_call(void) {
+static void scorpion_voice_call(void) {
     if (plyr_pdata->character_id == 0) {
         snd_req(0x2D3);
     }
 }
 
-void fan_lift_prep(void) {
+static void fan_lift_prep(void) {
 }
 
 static void gut_tumble_air_check(void) {
@@ -4162,14 +4162,14 @@ void impale_him(void) {
     player_impale(source, target);
 }
 
-void temp_vomit(void) {
+static void temp_vomit(void) {
     transition_to_anim_script(
         plyr_anim_pdata, his_pdata->reaction_animation, 0, 0.1f);
     _mkproc_sleep_ticks = 1.0f;
     aproc->vtbl->sleep();
 }
 
-void drift_downwards(void) {
+static void drift_downwards(void) {
     PlyrPdata* pdata;
     MkObj* object;
     MkProc* process;
@@ -4248,7 +4248,7 @@ void auto_ani_on(void) {
     xfer_proc(plyr_anim_proc, p_animate);
 }
 
-void break_point(void) {
+static void break_point(void) {
 }
 
 int player_area_collision_check(
@@ -4273,7 +4273,7 @@ int player_area_collision_check(
     return 0;
 }
 
-void scorpion_summon_collide(void) {
+static void scorpion_summon_collide(void) {
     float delta_x;
     float delta_z;
     int summon_state;
@@ -4297,7 +4297,7 @@ void scorpion_summon_collide(void) {
     }
 }
 
-void scorpion_summon_read(void) {
+static void scorpion_summon_read(void) {
     plyr_pdata->summon_position_x = his_obj->pos.value.x;
     plyr_pdata->summon_position_z = his_obj->pos.value.z;
 }
@@ -4343,7 +4343,7 @@ static void tremor_collision_check(void) {
         0, plyr_obj == g_game_info.plyr0.slot.mirror_a);
 }
 
-void zero_my_hit_count(void) {
+static void zero_my_hit_count(void) {
     plyr_pdata->hit_count = 0;
 }
 

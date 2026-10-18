@@ -36,9 +36,7 @@ typedef void (*HashtableForeachFn)(void* value);
 void hashtable_foreach(Hashtable* ht, HashtableForeachFn fn);
 void hashtable_destroy(Hashtable* ht);
 void* hashtable_get(Hashtable* ht, const char* key);
-HashtableEntry* hashtable_get_bucket(Hashtable* ht, const char* key);
 void hashtable_store(Hashtable* ht, const char* key, void* value);
-void hashtable_store_with_instance(Hashtable* ht, const char* key, void* value, int instance);
 int hashtable_dynamic_init(Hashtable* ht, unsigned int bucket_count,
                            struct _mwMemHeap* heap);
 

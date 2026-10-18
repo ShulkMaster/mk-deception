@@ -9,7 +9,6 @@
 #include "mw/mwMemHeap.h"
 #include "runtime/mk_fileinfo.h"
 
-extern MkFileEntry nameentryart_file_table[];
 extern MkFileInfo sec_title;
 
 static unsigned char icon_buffer[0x1040];
@@ -49,7 +48,7 @@ int update_memory_card_status(const CARDFileInfo* file) {
 }
 
 void load_icon_data(void) {
-    MkFileEntry* file;
+    const MkFileEntry* file;
 
     load_ssf(nameentryart_file_table);
     file = mk_file_open(&sec_title, "rb", (void*)1);

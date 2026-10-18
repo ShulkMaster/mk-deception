@@ -38,6 +38,16 @@
 #include "runtime/utils.h"
 #include "rw/rwresources.h"
 
+static void init_tombstone_koins(void* pfx);
+static void init_tombstone_letters(void* pfx);
+static void init_tombstone_numbers(void* pfx);
+static float p_init_krypt_mode(void);
+static float p_krypt_loop(void);
+static float p_setup_krypt(void);
+static float update_tombstone_koins(void);
+static float update_tombstone_letters(void);
+static float update_tombstone_numbers(void);
+
 int get_menu_mode_sub_var(void);
 int run_ending(int fighter);
 char* get_ending_thumbnail_name(int fighter);
@@ -90,7 +100,6 @@ extern ProfileCommon* p2_profile_common;
 extern void* p1_profile_konquest;
 extern void* p2_profile_konquest;
 extern AnimScript* bgnd_animations[];
-extern MkFileEntry kon_unique_npcs_file_table[];
 extern int konquest_human_bones[];
 extern MkFlippedBoneMap flipped_konquest_human_bones;
 extern char monk_ground_colls[];
@@ -100,10 +109,6 @@ extern MkFileInfo sec_kryptdata;
 extern MkFileInfo sec_krypt_thumbs;
 extern MkFileInfo sec_ending_thumbs;
 extern MkFileInfo sec_eu_biofont;
-extern MkFileEntry krypt_art_file_table[];
-extern MkFileEntry galleryart_file_table[];
-extern MkFileEntry bio_text_file_table[];
-extern MkFileEntry bios_file_table[];
 extern int winner_for_ending;
 
 int koin_position_offsets[6] = {0xE9, -0x8D, -0xE9, -0x2E, 0x2F, 0x8C};
@@ -177,7 +182,7 @@ static int do_dialog(int dialog_type);
 static int deduct_koins(int amount, unsigned int koin_type);
 static void start_opening_coffin_effects(Vec* origin);
 static void update_use_key_string(void);
-float p_fog_follow_camera(void);
+static float p_fog_follow_camera(void);
 
 static inline void mkproc_jump_sleep(MkProcEntryFn entry) {
     aproc->vtbl->jump_sleep(entry, 0.0f);
@@ -609,7 +614,7 @@ static inline void rebase_coffin_strings(char* strings) {
 static inline void krypt_load_gallery_data(void) {
     int stringLength;
     char* strings;
-    MkFileEntry* file;
+    const MkFileEntry* file;
 
     file = mk_file_open_language(&sec_kryptdata, "rb", (void*)1);
     if (file != 0) {
@@ -1024,15 +1029,15 @@ static inline float update_tombstone_common(void (*rebuild)(PfxVm* pfx)) {
     return 1.0f;
 }
 
-float update_tombstone_letters(void) {
+static float update_tombstone_letters(void) {
     return update_tombstone_common(set_letter_positions_and_values);
 }
 
-float update_tombstone_numbers(void) {
+static float update_tombstone_numbers(void) {
     return update_tombstone_common(set_number_positions_and_values);
 }
 
-float update_tombstone_koins(void) {
+static float update_tombstone_koins(void) {
     return update_tombstone_common(set_koin_positions_and_colors);
 }
 
@@ -1068,15 +1073,15 @@ static inline void init_tombstone_common(PfxVm* pfx, int particle_count, float s
     pfx->texture_mode = 0;
 }
 
-void init_tombstone_letters(void* pfx) {
+static void init_tombstone_letters(void* pfx) {
     init_tombstone_common(pfx, 0x48, 0.3f, 0x012a0005, 0x100, 0x20, 0x20, 0x40);
 }
 
-void init_tombstone_numbers(void* pfx) {
+static void init_tombstone_numbers(void* pfx) {
     init_tombstone_common(pfx, 0x90, 0.18f, 0x012a0006, 0x80, 0x20, 0x2a, 0xa);
 }
 
-void init_tombstone_koins(void* pfx) {
+static void init_tombstone_koins(void* pfx) {
     init_tombstone_common(pfx, 0x24, 0.4f, 0x012a0004, 0x80, 0x2a, 0x2a, 0x8);
 }
 
@@ -1101,14 +1106,6 @@ static inline void tombstone_viewport_origin(int* out_row, int* out_col) {
     *out_col = col;
 }
 
-static inline float tombstone_row_z(int row) {
-    return s_tomb_row_origin - s_tomb_row_spacing * (float)row;
-}
-
-static inline float tombstone_col_x(int col) {
-    return s_tomb_col_spacing * (float)col + s_tomb_col_origin;
-}
-
 static inline int coffin_uses_near_tombstone(int index) {
     if (coffin_data[index].coffin_type == 4) {
         return 1;
@@ -1116,12 +1113,9 @@ static inline int coffin_uses_near_tombstone(int index) {
     return 0;
 }
 
-/* TODO: [near miss] 97.15847%; row CSE restores saved homes;
- * volatile glyph/position owners and FP setup schedule remain; trace those webs. */
 static void set_letter_positions_and_values(PfxVm* pfx) {
     int col;
     int uv_stride;
-    float* uv;
     float origin_x;
     float base_x;
     int pos_stride;
@@ -1129,6 +1123,7 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
     int view_col;
     int row_off;
     Vec* pos;
+    float* uv;
     float base_z;
     int opened;
     int coffin_idx;
@@ -1139,9 +1134,9 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
     pos = pfx_get_field(pfx, -2, 0x100);
     pos_stride = pfx_get_struct_size(pfx, 0x100);
     tombstone_viewport_origin(&view_row, &view_col);
-    origin_x = tombstone_col_x(view_col);
+    origin_x = s_tomb_col_spacing * (float)view_col + s_tomb_col_origin;
     base_x = origin_x;
-    base_z = tombstone_row_z(view_row);
+    base_z = s_tomb_row_origin - s_tomb_row_spacing * (float)view_row;
 
     for (row_off = 0; row_off < 4; row_off++) {
         int col_off;
@@ -1156,34 +1151,35 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
                 col_off + (view_col + (view_row + row_off) * 0x14));
             col = view_col + col_off;
             coffin_idx = col + (view_row + row_off) * 0x14;
-            letter_bias = opened ? 0x20 : 0;
+            if (opened) letter_bias = 0x20;
+            else letter_bias = 0;
 
             pos->x = base_x - 0.14f;
             pos->y = 1.9f;
             is_near = coffin_uses_near_tombstone(coffin_idx);
             if (is_near != 0) pos->z = z_near;
             else pos->z = z_far;
-            pos = (Vec*)((char*)pos + pos_stride);
             *uv = letter_bias + (view_row + row_off);
             uv = (float*)((char*)uv + uv_stride);
+            pos = (Vec*)((char*)pos + pos_stride);
 
             pos->x = base_x + 0.14f;
             pos->y = 1.9f;
             if ((unsigned int)coffin_data[coffin_idx].coffin_type == 4U)
                 pos->z = z_near;
             else pos->z = z_far;
-            pos = (Vec*)((char*)pos + pos_stride);
+            base_x += s_tomb_col_spacing;
             *uv = letter_bias + col;
             uv = (float*)((char*)uv + uv_stride);
-            base_x += s_tomb_col_spacing;
+            pos = (Vec*)((char*)pos + pos_stride);
         }
         base_z -= s_tomb_row_spacing;
         base_x = origin_x;
     }
 }
 
-/* TODO: [near miss] 99.41177%; row-base owner selects below the table-offset CSE;
- * scalar return/output row helpers do not preserve both homes and schedule. */
+/* TODO: [near miss] 99.41177%; row-base owner remains below table-offset CSE;
+ * early row-loop zero is neutral; recover original row/index ownership. */
 static void set_number_positions_and_values(PfxVm* pfx) {
     Vec* pos;
     float* uv;
@@ -2415,13 +2411,13 @@ static float handle_controller_input(void) {
     }
     return 1.0f;
 }
-/* TODO: [near miss] 99.56%; 33 saved-GPR rows remain at dialog_type's simplify stall;
- * original copy/lifetime evidence is still missing. */
+/* TODO: [near miss] 99.58334%; 31 saved-GPR rows remain;
+ * dialog-type copy/lifetime ownership is unresolved; stop at coloring. */
 static int do_dialog(int dialog_type) {
     int result;
     ScreenObj* dialog_left;
     ScreenObj* dialog_right;
-    ScreenObj* yes_button;
+    ScreenObj* yes_button = 0;
     ScreenObj* no_button = 0;
     ScreenObj* ok_button;
     ScreenObj* hud_icon_a;
@@ -2430,7 +2426,6 @@ static int do_dialog(int dialog_type) {
     StringObj* dialog_text;
     const char* message;
 
-    yes_button = 0;
     ok_button = 0;
     hud_icon_a = MK_LIVE(krypt_pdata->open_button.obj, krypt_pdata->open_button.obj_instance);
     hud_icon_b = krypt_pdata_live_exit_button_obj(krypt_pdata);
@@ -2885,7 +2880,7 @@ static void position_fire_pots(void) {
     }
 }
 
-float p_fog_follow_camera(void) {
+static float p_fog_follow_camera(void) {
     CameraObj* camera;
     MkObjLatch* pdata;
     MkSobj* fog;
@@ -2964,7 +2959,7 @@ int load_binary_data(
     MkFileInfo* file_info, CoffinEntry** entries, char* strings,
     int* loaded, int entry_count) {
     int strings_size;
-    MkFileEntry* file;
+    const MkFileEntry* file;
     int i;
 
     if (*loaded != 0) {
@@ -3063,7 +3058,7 @@ static void update_use_key_string(void) {
     }
 }
 
-float p_krypt_loop(void) {
+static float p_krypt_loop(void) {
     handle_controller_input();
     if (krypt_pdata->layout_dirty != 0) {
         krypt_pdata->tombstone_hud_ticks = 3;
@@ -3073,9 +3068,9 @@ float p_krypt_loop(void) {
     return 1.0f;
 }
 
-float p_setup_krypt(void) {
+static float p_setup_krypt(void) {
     char* string_pool;
-    MkFileEntry* file;
+    const MkFileEntry* file;
     int file_len;
     int string_len;
     MkObj* light;
@@ -3170,7 +3165,7 @@ float p_setup_krypt(void) {
     return 0.0f;
 }
 
-float p_init_krypt_mode(void) {
+static float p_init_krypt_mode(void) {
     RwResourcesSetArenaSize(0x100000);
     zero_pdata_payload(sizeof(KryptPdata), (MkHdr*)krypt_pdata);
     if (menu_player == 0) {

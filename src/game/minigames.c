@@ -803,7 +803,6 @@ extern PuzzleSuperMoveCheck pz_ai_super_move_table[];
 extern struct PuzzleSuperMoveEntry pz_super_move_table[];
 extern MkFileInfo sec_pz_ending_champion;
 extern MkFileInfo sec_puzzlefighter;
-extern MkFileEntry gameart_file_table[];
 extern MkFileInfo sec_fightingart;
 extern MkFileInfo sec_pz_plyr_art;
 extern int b_game_timer_off;

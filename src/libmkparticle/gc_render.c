@@ -72,15 +72,21 @@ static void gc_set_render_state(BOOL use_alpha_map)
     }
 }
 
-/* These are actual GX FIFO writes, not match-forcing volatile accesses. */
-#define WRITE_VERTEX(p, color, u, v) do { \
-    GXPosition3f32((p).x, (p).y, (p).z); \
-    GXColor4u8((color)->r, (color)->g, (color)->b, (color)->a); \
-    GXTexCoord2f32((u), (v)); \
-} while (0)
+static inline void write_particle_vertex(
+    const PfxVec3* point, PfxColor* color, float u, float v) {
+    int red, green, blue, alpha;
 
-/* TODO: [breakthrough] 95.77995%; canonical vertex FIFO calls recover retained axis X;
- * twelve color masks still fold in backend constant propagation; owner boundary remains. */
+    GXPosition3f32(point->x, point->y, point->z);
+    red = color->r;
+    green = color->g;
+    blue = color->b;
+    alpha = color->a;
+    GXColor4u8(red, green, blue, alpha);
+    GXTexCoord2f32(u, v);
+}
+
+/* TODO: [near miss] 98.56209%; scale/angle result owners rotate saved GPRs;
+ * recover their producer boundary while preserving FP and vertex order. */
 static void gc_generic_render(PfxVm* vm) {
     PfxVec3 axis0, axis1;
     PfxVec3 base1, base0, base_corner;
@@ -191,8 +197,10 @@ static void gc_generic_render(PfxVm* vm) {
             corner.z = 0.5f * (axis1.z - axis0.z);
         }
         if (scales) {
-            float scale = *scales;
-            axis0.x *= scale; axis0.y *= scale; axis0.z *= scale;
+            float scale;
+            axis0.x *= (scale = *scales);
+            axis0.y *= scale;
+            axis0.z *= scale;
             axis1.x *= scale; axis1.y *= scale; axis1.z *= scale;
             corner.x *= scale; corner.y *= scale; corner.z *= scale;
         }
@@ -205,13 +213,13 @@ static void gc_generic_render(PfxVm* vm) {
             point.y += 2.0f * axis0.y;
             point.z = 0.0f;
         }
-        WRITE_VERTEX(point, colors, u, v);
+        write_particle_vertex(&point, colors, u, v);
         point.x -= axis0.x; point.y -= axis0.y; point.z -= axis0.z;
-        WRITE_VERTEX(point, colors, u, bottom);
+        write_particle_vertex(&point, colors, u, bottom);
         point.x += axis1.x; point.y += axis1.y; point.z += axis1.z;
-        WRITE_VERTEX(point, colors, right, bottom);
+        write_particle_vertex(&point, colors, right, bottom);
         point.x += axis0.x; point.y += axis0.y; point.z += axis0.z;
-        WRITE_VERTEX(point, colors, right, v);
+        write_particle_vertex(&point, colors, right, v);
         positions = (PfxVec3*)((unsigned char*)positions + position_stride);
         colors = (PfxColor*)((unsigned char*)colors + color_stride);
         ages = (float*)((unsigned char*)ages + age_stride);

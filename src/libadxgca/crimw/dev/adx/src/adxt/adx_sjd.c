@@ -426,8 +426,8 @@ void ADXSJD_ExecHndl(AdxSjdHandle* handle)
     adxsjd_skip_out(handle);
 }
 
-/* TODO: [near miss] 99.8485%; linked-loop limit/length homes swap r31/r28;
- * complete padding consumer also regresses; recover a genuine length owner. */
+/* TODO: [near miss] 99.84849%; limit/length homes swap r31/r28; canonical
+ * getter is neutral; recover the original length or call-result owner. */
 void adxsjd_decexec_start(AdxSjdHandle* handle)
 {
     AdxBasicDecoderExt* decoder = handle->decoder;

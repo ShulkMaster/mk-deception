@@ -536,8 +536,8 @@ MkPfx* pfx_from_emitter(unsigned int handle) {
     return (MkPfx*)resolved.effect;
 }
 
-/* TODO: [near miss] 97.58%; backend folds generation shift/OR before allocation;
- * recover a supported generation producer boundary; lookup control/homes agree. */
+/* TODO: [near miss] 97.57576%; disjoint-mask scan folds generation shift/OR;
+ * top-byte mask is neutral; recover the original producer boundary. */
 unsigned int fx_by_id(int effect_id, unsigned int owner) {
     struct PfxBankLatch* bank_latch;
     struct PfxScriptEffect* effect;
@@ -669,8 +669,8 @@ static inline struct PfxBank* bank_from_handle(unsigned int handle)
     return bank;
 }
 
-/* TODO: [breakthrough needed] 97.11%; repeated null gate is absent from initial
- * pcode and backend merges generation packing; recover original search producers. */
+/* TODO: [breakthrough needed] 97.11111%; initial search has one post-latch gate;
+ * recover the missing predicate and pre-combine generation-packing producers. */
 unsigned int fx2(unsigned int bank_handle, const char* name) {
     if (bank_handle != 0xDEADBABE) {
         return 0;
@@ -2373,8 +2373,8 @@ static inline unsigned int pfx_alloc_bank(char* name, int effect_count) {
     return pfx_bank_latch_handle(bank_index);
 }
 
-/* TODO: [breakthrough needed] 98.42%; recover owner of retail row-loop zero at stack+0xC;
- * both effect-build callbacks only read/decrement the count at +0x8. */
+/* TODO: [breakthrough needed] 98.42236%; row-loop zero has no proven owner;
+ * verified PS2 counterpart also writes it; recover its original source use. */
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     struct PfxLoadScriptLatch load;
     struct PfxBankLoadRow* rows;
@@ -2960,7 +2960,8 @@ static void bank_run_fx(struct PfxBank* bank) {
     }
 }
 
-/* TODO: [near miss] 96.75%; three-row residue: repeated null edge and shift/or generation packing. */
+/* TODO: [breakthrough needed] 96.75%; original search/packing producers missing;
+ * second null gate is absent before allocation, shift/OR merges in backend. */
 static unsigned int banks_find_owned_fx(
     const char* name, unsigned int owner) {
     struct PfxBankLatch* bank_latch;
@@ -3005,7 +3006,8 @@ static void vdestroy_effectbank(struct PfxBank* bank) {
     mkhdr_memfree(&bank->hdr);
 }
 
-/* TODO: [near miss] 98.80%; retail retains a duplicate post-latch exit; preserve the single honest predicate. */
+/* TODO: [near miss] 98.79518%; GC and PS2 retain the duplicate latch exit;
+ * recover its original validation boundary without adding a redundant guard. */
 static void resolve_pfx_handle(
     int handle, struct PfxResolvedHandle* resolved) {
     struct PfxBankLatch* bank_latch;

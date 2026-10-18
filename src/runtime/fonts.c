@@ -18,8 +18,8 @@ static void delayed_free(void* mem);
 
 static const float kZeroHeight = 0.0f;
 
-static int oid_to_kill_mask;
 static int oid_to_kill;
+static int oid_to_kill_mask;
 
 
 #include "runtime/fonts_data.inc"
@@ -264,8 +264,8 @@ void update_string_obj_pfx(StringObj* obj, PfxFontSlot* font, const char* text) 
     }
 }
 
-/* TODO: [near miss] 96.50%; y_off load/test hoist before vertical conversion;
- * need the retail table-address/publication dependency; native homes agree. */
+/* TODO: [near miss] 96.50%; y_off load/test precedes vertical conversion;
+ * metrics-pointer phase regresses; recover table/publication ownership. */
 void update_string_obj(StringObj* obj, int font, const char* text) {
     int halign;
     int valign;

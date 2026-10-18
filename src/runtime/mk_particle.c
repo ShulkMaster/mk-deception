@@ -403,6 +403,11 @@ void pfx_bind_emitter_num_to_obj_bone(MkPfx* pfx, MkObj* obj, unsigned int bone,
     obj_set_bone_calc_world_mat_flag(obj, bone);
 }
 
+static inline void update_bound_bone_world(MkObj* obj, const int* bone) {
+    calc_bone_world_mat(obj, *bone);
+    obj_set_bone_calc_world_mat_flag(obj, *bone);
+}
+
 void pfx_bind_emitter_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone) {
     PfxSlot* slot;
     PfxEmitter* emitter_vm;
@@ -423,12 +428,9 @@ void pfx_bind_emitter_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone) {
 
     emitter_vm = pfx_get_emitter(pfx_vm(pfx), 0);
     emitter_vm->transform = bone_mat;
-    calc_bone_world_mat(obj, bone);
-    obj_set_bone_calc_world_mat_flag(obj, bone);
+    update_bound_bone_world(obj, &bone);
 }
 
-/* TODO: [near miss] 88.61111%; native argument initialization saves bone before the body;
- * recover a genuine success-arm owner before callback scheduling. */
 void pfx_bind_render_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone) {
     MkBone* bone_mat;
 
@@ -443,8 +445,7 @@ void pfx_bind_render_to_obj_bone(MkPfx* pfx, MkObj* obj, int bone) {
         return;
     }
     pfx->bone_mat = bone_mat;
-    calc_bone_world_mat(obj, bone);
-    obj_set_bone_calc_world_mat_flag(obj, bone);
+    update_bound_bone_world(obj, &bone);
 }
 
 void pfx_bind_emitter_num_to_sobj(MkPfx* pfx, MkSobj* sobj, int flag, int emitter) {
@@ -683,7 +684,7 @@ static inline int initialize_pfx_memory(MkPfx* pfx, PfxVm* vm,
         pad_raw *= sizeof(PfxSlot);
         pad_align = (pad_raw + 0xF) & ~0xF;
         pad_extra = pad_align - pad_raw;
-        alloc_size = (pad_raw + pad_extra) + (est_size + 0x10);
+        alloc_size = 0x10 + pad_raw + pad_extra + est_size;
         mem = get_mem(alloc_size);
         if (mem == 0) {
             ready = 0;
@@ -720,8 +721,8 @@ static inline int initialize_pfx_memory(MkPfx* pfx, PfxVm* vm,
     return ready;
 }
 
-/* TODO: [near miss] 99.69566%; initial pcode already accumulates into allocation size;
- * count/estimate scratch and saved emitter homes need source-owner evidence. */
+/* TODO: [near miss] 99.91304%; only emitter restore r20/r21 remains;
+ * recover its owner while preserving factory locals and failure exits. */
 void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_90,
                                   int field_214, int field_a0, PfxInitCb init_cb,
                                   int pid, MkProcEntryFn entry, void** out_pfx) {

@@ -194,7 +194,7 @@ struct KonquestMissionSaveData {
 
 struct KonquestRegionAsset {
     void* fight_files;
-    MkFileEntry* art_files;
+    const MkFileEntry* art_files;
     char pad08[4];
     char* string_bank;
     char pad10[4];
@@ -456,10 +456,15 @@ static inline void place_frame_piece(
     }
 }
 
-static inline void destroy_screen_latch(struct KonquestScreenLatch* latch) {
-    ScreenObj* object = MK_LIVE(latch->object, latch->instance);
+static inline ScreenObj* screen_latch_live_object(
+    const struct KonquestScreenLatch* latch) {
+    return MK_LIVE(latch->object, latch->instance);
+}
 
-    if (object != 0) {
+static inline void destroy_screen_latch(struct KonquestScreenLatch* latch) {
+    if (screen_latch_live_object(latch) != 0) {
+        ScreenObj* object = latch->object;
+
         if (object->instance != 0) {
             object->typed_vtbl->destroy(object);
         }
@@ -1351,8 +1356,8 @@ void text_window_fade_in(unsigned char ticks) {
     }
 }
 
-/* TODO: [breakthrough needed] 97.02676%; five destroy-owner reloads remain;
- * scoped CSE restores them but disturbs setup-root/frame producers. */
+/* TODO: [breakthrough] 98.78345%; read-only latch validation restores cleanup;
+ * mutable validation loses rereads; recover setup/fade owner order. */
 float p_show_text_window(void) {
     struct KonquestTrialWindowPdata* window =
         (struct KonquestTrialWindowPdata*)apdata;
@@ -1607,8 +1612,6 @@ void trial_show_spoken_text_window(
     }
 }
 
-/* TODO: [near miss] 97.69399%; top STW wins the left-conversion store tie;
- * integer staging is propagated away; recover a surviving source boundary. */
 void trial_show_text_window(
     int string_id, float x, float y, float scale, int style, int flags) {
     struct KonquestMissionState* state;
@@ -1639,17 +1642,19 @@ void trial_show_text_window(
     if (_create_mkproc_generic_bigstack(
             0x9002, aproc->priority + 1, p_show_text_window,
             sizeof(*pdata), (MkHdr**)&pdata) != 0) {
-        int window_width;
+        int left;
+        int width;
 
         zero_pdata_payload(sizeof(*pdata), &pdata->hdr);
-        window_width = screen_width;
         text_window_state = 0;
+        left = (float)screen_width * x;
+        width = (float)screen_width * scale;
         pdata->visible_item_count = 0;
         pdata->top = 0;
-        pdata->left = (float)window_width * x;
+        pdata->left = left;
         pdata->bottom = 480.0f - (480.0f * y);
         pdata->priority = 0x24;
-        pdata->width = (float)window_width * scale;
+        pdata->width = width;
         pdata->prompt_flags = flags | 0x10;
         pdata->font = 6;
         pdata->timeout = -1;

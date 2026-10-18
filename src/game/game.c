@@ -71,8 +71,6 @@ extern int trial_get_round_length(void);
 extern int pause_player;
 extern void bgnd_swap_level(int level);
 static char timer_string[10];
-GlobalMoveset global_movesets[GLOBAL_MOVESET_COUNT];
-GameInfo g_game_info;
 int update_game_timer(void);
 
 struct GameInfoInitFlagBits {
@@ -411,7 +409,6 @@ unsigned int round_numbers_tbl[] = {
     0x00020020, 0x00020021, 0x00020022,
     0x00020023, 0x00020024,
 };
-extern MkFileEntry fatalityanims_file_table[];
 extern void mk_chess_game_just_ended(void);
 extern int trial_end_round(void);
 extern int advance_ladder_position(void);
@@ -443,11 +440,9 @@ extern void big_boss_wait_for_intro(void);
 extern void konquest_transition_from_fight(void);
 extern float mk_chess_transition_from_fight(void);
 extern void player_postround_chores(void);
-extern const MkFileEntry gameart_file_table[];
 extern MkFileInfo sec_fightingart;
 extern void trial_setup_fight(void);
 extern const char* get_pause_menu_name(void);
-extern const MkFileEntry loading_images_file_table[];
 extern int num_files_loaded;
 extern int f_p1_warning_given;
 extern int f_p2_warning_given;
@@ -804,7 +799,7 @@ float p_flash_demo_fight_text(void) {
     return 20.0f;
 }
 
-float p_do_damage_text(void) {
+static float p_do_damage_text(void) {
     int velocity;
     int ticks;
     struct DamageTextPdata* pdata;
@@ -965,8 +960,8 @@ static inline int game_count_active_players(void) {
     return count;
 }
 
-/* TODO: [near miss] 99.55213%; latch, table and alpha homes remain;
- * typed latch/original owner propagation needs compiler-pass evidence. */
+/* TODO: [near miss] 99.58884%; if/else fade-in step keeps all operations;
+ * recover original instance-load ownership and table/alpha register homes. */
 void do_win_effect(void) {
     PlyrInfo* victor;
     PlyrInfo* defeated;
@@ -995,11 +990,11 @@ void do_win_effect(void) {
     fatality_left_latch.instance = 0;
     fatality_left = 0;
     fatality_right_latch.obj = 0;
+    flawless_text_latch.instance = 0;
     winner_text_latch.obj = 0;
     winner_text_latch.instance = 0;
     flawless_text_latch.obj = 0;
     fatality_right_latch.instance = 0;
-    flawless_text_latch.instance = 0;
     fatality_right = 0;
     flawless_text = 0;
     victor = 0;
@@ -1124,8 +1119,11 @@ void do_win_effect(void) {
                 if (fatality_right != 0) {
                     pfx_2d_obj_set_alpha(fatality_right, alpha);
                 }
-                alpha = 0xFF - alpha > 4 ? (unsigned char)(alpha + 4)
-                                  : (unsigned char)0xFF;
+                if (0xFF - alpha > 4) {
+                    alpha += 4;
+                } else {
+                    alpha = 0xFF;
+                }
                 win_effect_sleep(1.0f);
             }
 
@@ -1644,7 +1642,7 @@ int round_over(void) {
     return 0;
 }
 
-void reset_game_timer(void) {
+static void reset_game_timer(void) {
     StringObj* timer;
 
     timer = MK_LIVE((StringObj*)game_timer_item.obj, game_timer_item.obj_instance);
@@ -1850,7 +1848,7 @@ void game_init(void) {
 
 #pragma dont_inline reset
 
-float p_demo_fight_timer(void) {
+static float p_demo_fight_timer(void) {
     _mkproc_sleep_ticks = 2100.0f;
     aproc->vtbl->sleep();
     return -1.0f;
@@ -1999,7 +1997,7 @@ static float p_load_screen(void) {
         int x;
 
         unload_section_slot(pdata->section_slot);
-        load_ssf((MkFileEntry*)loading_images_file_table);
+        load_ssf(loading_images_file_table);
         add_art_section_by_name_async_language(
             pdata->section_slot, "loading_common.sec");
         add_art_section(
@@ -2497,7 +2495,7 @@ float p_game_loop(void) {
 
     if ((mode_of_play == 0 || mode_of_play == 10) &&
         g_game_info.feature_flags.bits.powerbars_locked) {
-        load_ssf((MkFileEntry*)attract_file_table);
+        load_ssf(attract_file_table);
         load_art_section(0x50014, &sec_demo_logo);
         if (get_language() == 3) {
             load_named_2d_pfxobj_xy(
@@ -2795,7 +2793,7 @@ float p_gamelogic(void) {
     if (g_game_info.feature_flags.bits.high_bit) {
         ck_for_controller_removed();
     }
-    load_ssf((MkFileEntry*)gameart_file_table);
+    load_ssf(gameart_file_table);
     load_art_section_language(0x10005, &sec_fightingart);
     load_font(5);
     load_font(4);
@@ -2868,3 +2866,6 @@ void init_game_info_struct(void) {
     ((union GameInfoInitPrefix*)&g_game_info)->word = 0;
     ((union GameInfoInitPrefix*)&g_game_info)->bits.flag_6 = 0;
 }
+
+GameInfo g_game_info;
+GlobalMoveset global_movesets[GLOBAL_MOVESET_COUNT];

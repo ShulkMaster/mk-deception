@@ -175,12 +175,21 @@ MkHdr* pfx_get_emitter_obj(MkPfx* pfx, int index);
 void vdestroy_pfx_clone(PfxClone* clone);
 void vdestroy_pfx(MkPfx* pfx);
 void render_pfx_clone(PfxClone* clone);
+#ifdef __cplusplus
+extern "C"
+#endif
 void render_pfx(MkPfx* pfx);
+#ifdef __cplusplus
+extern "C"
+#endif
 void hide_pfx(MkPfx* pfx, int hide);
 #ifdef __cplusplus
 extern "C"
 #endif
 void pfx_end_batch(void);
+#ifdef __cplusplus
+extern "C"
+#endif
 void pfx_start_batch(void);
 void insert_PFXlist_in_transl_tree(void);
 void set_pfx_texture(PfxVm* vm, int handle, unsigned int art_oid);
@@ -199,6 +208,9 @@ void pfx_bind_render_to_obj(MkPfx* pfx, MkObj* obj, int flag);
 PfxClone* pfx_create_clone(MkPfx* pfx);
 MkPfx* pfx_from_handle(unsigned int handle);
 MkPfx* pfx_from_emitter(unsigned int handle);
+#ifdef __cplusplus
+extern "C"
+#endif
 MkPfx* find_pfx_by_handle(unsigned int handle);
 MkPfx* find_pfx_by_name_by_bankowner(const char* name, unsigned int owner);
 

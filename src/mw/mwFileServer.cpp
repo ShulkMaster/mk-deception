@@ -13,6 +13,11 @@ struct mwFileTypeInfo {
 class mwFileServer;
 class mwFileServerManagerMultiThreaded;
 
+struct mwFileServerEraseRange {
+    mwFileServer** first;
+    mwFileServer** last;
+};
+
 inline void _mwFileNoOp(...)
 {
 }
@@ -376,7 +381,16 @@ void mwFileServerQueued::test()
     shutdown();
 }
 
-/* TODO: [near miss] 99.79%; QueueItem temp and by-value copy use swapped stack slots (0xc/0x18). */
+static inline mwFileServerQueued::QueueItem make_queue_item(
+    mwFileCommand* command, unsigned char priority)
+{
+    mwFileServerQueued::QueueItem item;
+    item.command = command;
+    item.priority = priority;
+    item.sequence = 0;
+    return item;
+}
+
 int mwFileServerQueued::addCommand(mwFileCommand* command, unsigned char priority)
 {
     {
@@ -384,10 +398,7 @@ int mwFileServerQueued::addCommand(mwFileCommand* command, unsigned char priorit
         if (pending == 0) {
             return -4;
         }
-        QueueItem item;
-        item.command = command;
-        item.priority = priority;
-        item.sequence = 0;
+        QueueItem item = make_queue_item(command, priority);
         pending->push(item);
         command->server = this;
     }
@@ -443,8 +454,8 @@ mwFileServerQueued::mwFileServerQueued() : pending(0), active_count(0), servicin
     memset(active, 0, sizeof(active));
 }
 
-/* TODO: [breakthrough needed] 96.52174%; first-result return copy follows
- * its branch; recover the original shared return boundary. */
+/* TODO: [breakthrough needed] 96.52174%; scan-result copy must precede its guard;
+ * preserve both lazy locks and recover original Boolean-result ownership. */
 bool mwFileServerNotQueued::queryActive() const
 {
     bool active;
@@ -637,14 +648,14 @@ mwFileServerManagerMultiThreaded::mwFileServerManagerMultiThreaded()
 {
 }
 
-/* TODO: [near miss] 97.81%; call order recovered; stop at extra endpoint-result temporary. */
 void mwFileServerManagerBase::removeServer(mwFileServer* server)
 {
     mwFileMutexLock lock(mutex);
     server->manager = 0;
-    mwFileServer** erase_end = servers.end();
-    mwFileServer** new_end = std::remove(servers.begin(), servers.end(), server);
-    servers.erase(new_end, erase_end);
+    mwFileServerEraseRange range;
+    range.last = servers.end();
+    range.first = std::remove(servers.begin(), servers.end(), server);
+    servers.erase(range.first, range.last);
 }
 
 void mwFileServerManagerBase::addServer(mwFileServer* server)

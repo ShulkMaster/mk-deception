@@ -183,14 +183,14 @@ struct mslAssetWave {
     mslRelocPtr<char> name;       /* +0x00 */
     unsigned long primary_aram_offset; /* +0x04 */
     unsigned long aram_size;      /* +0x08 */
-    SPSoundTable* sound_table;    /* +0x0C */
+    mslRelocPtr<SPSoundTable> sound_table; /* +0x0C */
     unsigned char pad10[4];
     int resident;                 /* +0x14 */
     int has_secondary;            /* +0x18 */
     mslRelocPtr<char> secondary_name; /* +0x1C */
     unsigned long secondary_aram_offset; /* +0x20 */
     unsigned char pad24[4];
-    SPSoundTable* secondary_sound_table; /* +0x28 */
+    mslRelocPtr<SPSoundTable> secondary_sound_table; /* +0x28 */
     unsigned char pad2C[4];
 }; /* 0x30 */
 

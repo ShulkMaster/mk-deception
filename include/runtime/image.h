@@ -163,7 +163,7 @@ AniTextureControl* attach_wiff_to_atomic_material(
 AniTextureControl* append_wiff_to_clump_material(int slot, unsigned int art_oid, RpClump* clump, const char* tex_name);
 AniTextureControl* append_wiff_to_clump_material_id(int slot, unsigned int art_oid, RpClump* clump, unsigned short material_id);
 
-RpAtomic* AtomicFindAniTexture(RpAtomic* atomic, void* data);
+
 int is_raster_power_of_two(RwRaster* raster);
 ScreenObj* load_wiff_screen_pfxobj(int a, int b, int oid, AniTextureControl** out_atc, int flags, int priority);
 void set_ani_texture_screen_obj(AniTextureControl* atc, ScreenObj* obj);
@@ -181,7 +181,7 @@ int get_ani_texture_numframes(AniTextureControl* atc);
 void stop_ani_texture_control(void);
 void start_ani_texture_control(void);
 AniTextureControl* find_atc_for_atomic_material_id(RpAtomic* atomic, unsigned int material_id);
-float p_animate_textures(void);
+
 AniTextureControl* get_ani_texture_control(void);
 void pull_ani_texture_control(AniTextureControl* atc);
 void insert_ani_texture_control(AniTextureControl* atc);

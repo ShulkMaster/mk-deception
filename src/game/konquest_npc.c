@@ -498,8 +498,6 @@ extern void* Camera;
 static struct KonquestNpcShadows npc_shadows;
 extern struct KonquestAnimations konquest_animations;
 extern struct KonquestNpcStateDef g_event_tbl[8];
-extern MkFileEntry konquest_common_file_table[];
-extern MkFileEntry kon_unique_npcs_file_table[];
 extern MkFileInfo sec_konquest_common_art;
 extern int konquest_npc_bones[];
 extern float __float_max[];
@@ -571,7 +569,7 @@ void add_npc(KonquestNpcData* data);
 int check_skip_conversation_flag(void);
 void snd_stop(unsigned int sound_handle);
 int mslSoundIsValid(unsigned int sound_handle);
-float p_wait_for_dialog(void);
+static float p_wait_for_dialog(void);
 float p_do_lip_synch(void);
 float p_npc_proc(void);
 float p_npc_idle(void);
@@ -638,7 +636,7 @@ static void material_store_texture_pointer(RpMaterial* material);
 static void setup_current_and_next_events(KonquestNpc* npc, int initialize);
 static void npc_check_next_event(KonquestNpc* npc);
 static void npc_setup_path_for_event(
-    KonquestNpc* npc, KonquestTimedEvent* event, int preserve_path);
+    KonquestNpc* npc, const KonquestTimedEvent* event, int preserve_path);
 static inline int npc_animation_is_active(struct KonquestNpcAnimState* state) {
     if (state == 0) {
         return 0;
@@ -1309,7 +1307,7 @@ void initialize_npc_data(void) {
 }
 
 /* TODO: [near miss] 99.94615%; ordered <= return arms remain reversed;
- * range-helper boundaries do not recover retail branch materialization. */
+ * recover frontend return-block layout while preserving the two failure exits. */
 static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
     struct KonquestTileOrigin* tile;
     KonquestNpcData* data;
@@ -2436,8 +2434,8 @@ void npc_shadow_set_light_angle(Vec* angles) {
     npc_shadows.projection.up.z = -projection_z;
 }
 
-/* TODO: [near miss] 99.72826%; atomic and projection/zero-result owner kinds differ;
- * complete phases disturb sqrt slots/frame; original ownership remains unresolved. */
+/* TODO: [near miss] 99.72826%; atomic/input and shared-zero/projection-Y
+ * homes differ; recover original producers while preserving the shared zero. */
 void npc_shadow_update(void) {
     RwRGBA color = {0, 0, 0, 0};
     struct KonquestCameraPositionView* camera =
@@ -2672,10 +2670,8 @@ static int is_this_a_current_event_for_today(
     }
     return 0;
 }
-/* TODO: [near miss] 96.36364%; post-RA path-ID load follows copies/zeros;
- * need a real forwarding dependency; preserve null-path index and post-call reload. */
 static void npc_setup_path_for_event(
-    KonquestNpc* npc, KonquestTimedEvent* event, int preserve_path) {
+    KonquestNpc* npc, const KonquestTimedEvent* event, int preserve_path) {
     KonquestWaypoint* path;
     int table_index = 0;
     int row_count = 0;
@@ -3281,40 +3277,143 @@ void add_npc_list_to_world(int* npc_ids) {
     }
 }
 
-/* TODO: [near miss] 99.77012%; first index remains outside zero sharing;
- * complete manager initialization fixes the copy but rotates slot/process owners. */
-void start_running_npcs(void) {
+static inline void init_npc_model_structure(struct NpcManagerModelSlot* slot) {
+    memset(slot, 0, sizeof(*slot));
+    slot->available = 1;
+}
+
+static inline MkProc* create_npc_manager_process(void) {
     struct NpcManagerPdata* manager;
-    MkProc* manager_proc;
-    MkPtr* link;
-    MkPtr* startup_next;
-    MkPtr* visible_link;
-    KonquestNpc* visible_npc;
-    MkPtr* visible_next;
+    MkProc* proc;
     int index;
 
-    _create_mkproc_generic_nostack(0xA01C, 0x1F, p_update_npc_shadows, 0, 0);
-    manager_proc = find_mkproc_pid(0xA014);
-    if (manager_proc == 0) {
-        manager_proc = _create_mkproc_generic_nostack(
+    proc = find_mkproc_pid(0xA014);
+    if (proc == 0) {
+        proc = _create_mkproc_generic_nostack(
             0xA014, 0x1F, p_npc_manager, sizeof(*manager), (MkHdr**)&manager);
-        if (manager_proc != 0) {
+        if (proc != 0) {
             zero_pdata_payload(sizeof(*manager), (MkHdr*)manager);
             manager->visible_tile_set = konquest_pdata->visible_tile_set;
             manager->nearest_npc_distance = -1.0f;
             for (index = 0; index < 22; index++) {
-                struct NpcManagerModelSlot* slot = &manager->models[index];
-                memset(slot, 0, sizeof(*slot));
-                slot->available = 1;
+                init_npc_model_structure(&manager->models[index]);
             }
             for (index = 0; index < 2; index++) {
-                struct NpcManagerModelSlot* slot = &manager->special_models[index];
-                memset(slot, 0, sizeof(*slot));
-                slot->available = 1;
+                init_npc_model_structure(&manager->special_models[index]);
             }
             npc_manager_pdata = manager;
         }
     }
+    return proc;
+}
+
+static inline void npc_manager_update_potential_npc_list(void) {
+    KonquestNpc* npc;
+    MkPtr* next;
+    MkPtr* link;
+
+    get_visible_tile_set(konquest_pdata->visible_tile_set);
+    discard_list(&konquest_pdata->visible_npc_list);
+    if (mklist_is_valid(&konquest_pdata->npc_list)) {
+        link = konquest_pdata->npc_list;
+        while (link != 0) {
+            npc = (KonquestNpc*)link->hdr;
+            if (link->instance != npc->hdr.instance) {
+                next = link->next;
+                discard_stale_mkptr(link);
+                link = next;
+            } else {
+                struct KonquestTileOrigin* tile =
+                    get_nth_tile_struct(npc->tile_index);
+                if (tile != 0) {
+                    if (tile->loaded != 0) {
+                        mk_insert(
+                            &npc->hdr,
+                            &konquest_pdata->visible_npc_list);
+                    } else if (npc_event_has_active_animation(npc) != 0) {
+                        mk_insert(
+                            &npc->hdr,
+                            &konquest_pdata->visible_npc_list);
+                    } else if (((npc->flags_1C >> 5) & 1) != 0) {
+                        mk_insert(
+                            &npc->hdr,
+                            &konquest_pdata->visible_npc_list);
+                    }
+                }
+                link = link->next;
+            }
+        }
+    }
+}
+
+static inline void npc_cmdscript_setup_execution(
+    ScriptSlot* slot, unsigned int script_function) {
+    if (g_active_npc != 0) {
+        if (g_active_npc->saved_event_script != script_function) {
+            g_active_npc->wait_ticks = 0.0f;
+        }
+        if (g_active_npc->wait_ticks > 0.0f) {
+            ScriptFuncDef* function;
+            unsigned int name_address;
+
+            memcpy(
+                active_cmdscript->stack_mem,
+                g_active_npc->saved_script_state,
+                sizeof(g_active_npc->saved_script_state));
+            function = &slot->func_defs[script_function - 1];
+            name_address = slot->string_reloc;
+            name_address = function->name_offset + name_address;
+            name_address -= 1;
+            active_cmdscript->func_name = (char*)name_address;
+            active_cmdscript->pc =
+                (unsigned int*)g_active_npc->saved_script_position;
+            active_cmdscript->stack_sp =
+                &active_cmdscript->stack_mem[
+                    g_active_npc->saved_script_stack_depth];
+            active_cmdscript->stack_end =
+                active_cmdscript->stack_sp + 1;
+        } else {
+            g_active_npc->saved_event_script = script_function;
+            cmdscript_setup_execution(slot, script_function);
+        }
+    }
+}
+
+static inline void run_npc_startup_scripts(void) {
+    MkPtr* link;
+    MkPtr* next;
+
+    if (mklist_is_valid(&konquest_pdata->npc_list)) {
+        link = konquest_pdata->npc_list;
+        while (link != 0) {
+            KonquestNpc* npc = (KonquestNpc*)link->hdr;
+            if (link->instance != npc->hdr.instance) {
+                next = link->next;
+                discard_stale_mkptr(link);
+                link = next;
+            } else {
+                if (npc->data->events[7].startup_script != 0) {
+                    g_active_npc = npc;
+                    npc_cmdscript_setup_execution(
+                        konquest_pdata->waypoint_script,
+                        npc->data->events[7].startup_script);
+                    cmdscript_execute(
+                        konquest_pdata->waypoint_script);
+                }
+                link = link->next;
+            }
+        }
+    }
+    g_active_npc = 0;
+}
+
+void start_running_npcs(void) {
+    MkProc* manager_proc;
+    MkPtr* next;
+    MkPtr* link;
+
+    _create_mkproc_generic_nostack(0xA01C, 0x1F, p_update_npc_shadows, 0, 0);
+    manager_proc = create_npc_manager_process();
     if (manager_proc != 0) {
         set_process_as_scriptable(manager_proc);
     }
@@ -3324,7 +3423,7 @@ void start_running_npcs(void) {
         while (link != 0) {
             KonquestNpc* npc = (KonquestNpc*)link->hdr;
             if (link->instance != npc->hdr.instance) {
-                MkPtr* next = link->next;
+                next = link->next;
                 discard_stale_mkptr(link);
                 link = next;
             } else {
@@ -3340,95 +3439,9 @@ void start_running_npcs(void) {
         }
     }
 
-    if (mklist_is_valid(&konquest_pdata->npc_list)) {
-        link = konquest_pdata->npc_list;
-        while (link != 0) {
-            KonquestNpc* npc = (KonquestNpc*)link->hdr;
-            if (link->instance != npc->hdr.instance) {
-                startup_next = link->next;
-                discard_stale_mkptr(link);
-                link = startup_next;
-            } else {
-                if (npc->data->events[7].startup_script != 0) {
-                    ScriptSlot* slot;
-                    unsigned int script_function;
-                    g_active_npc = npc;
-                    script_function =
-                        npc->data->events[7].startup_script;
-                    slot = konquest_pdata->waypoint_script;
-                    if (npc != 0) {
-                        if (npc->saved_event_script != script_function) {
-                            npc->wait_ticks = 0.0f;
-                        }
-                        if (g_active_npc->wait_ticks > 0.0f) {
-                            ScriptFuncDef* function;
-                            unsigned int name_address;
-
-                            memcpy(
-                                active_cmdscript->stack_mem,
-                                g_active_npc->saved_script_state,
-                                sizeof(g_active_npc->saved_script_state));
-                            function = &slot->func_defs[script_function - 1];
-                            name_address = slot->string_reloc;
-                            name_address = function->name_offset + name_address;
-                            name_address -= 1;
-                            active_cmdscript->func_name = (char*)name_address;
-                            active_cmdscript->pc = (unsigned int*)
-                                g_active_npc->saved_script_position;
-                            active_cmdscript->stack_sp =
-                                &active_cmdscript->stack_mem[
-                                    g_active_npc->saved_script_stack_depth];
-                            active_cmdscript->stack_end =
-                                active_cmdscript->stack_sp + 1;
-                        } else {
-                            g_active_npc->saved_event_script =
-                                script_function;
-                            cmdscript_setup_execution(
-                                slot, script_function);
-                        }
-                    }
-                    cmdscript_execute(
-                        konquest_pdata->waypoint_script);
-                }
-                link = link->next;
-            }
-        }
-    }
-
-    g_active_npc = 0;
+    run_npc_startup_scripts();
     npc_update(1);
-    get_visible_tile_set(konquest_pdata->visible_tile_set);
-    discard_list(&konquest_pdata->visible_npc_list);
-    if (mklist_is_valid(&konquest_pdata->npc_list)) {
-        visible_link = konquest_pdata->npc_list;
-        while (visible_link != 0) {
-            visible_npc = (KonquestNpc*)visible_link->hdr;
-            if (visible_link->instance != visible_npc->hdr.instance) {
-                visible_next = visible_link->next;
-                discard_stale_mkptr(visible_link);
-                visible_link = visible_next;
-            } else {
-                struct KonquestTileOrigin* tile =
-                    get_nth_tile_struct(visible_npc->tile_index);
-                if (tile != 0) {
-                    if (tile->loaded != 0) {
-                        mk_insert(
-                            &visible_npc->hdr,
-                            &konquest_pdata->visible_npc_list);
-                    } else if (npc_event_has_active_animation(visible_npc) != 0) {
-                        mk_insert(
-                            &visible_npc->hdr,
-                            &konquest_pdata->visible_npc_list);
-                    } else if (((visible_npc->flags_1C >> 5) & 1) != 0) {
-                        mk_insert(
-                            &visible_npc->hdr,
-                            &konquest_pdata->visible_npc_list);
-                    }
-                }
-                visible_link = visible_link->next;
-            }
-        }
-    }
+    npc_manager_update_potential_npc_list();
 }
 
 void add_npc(KonquestNpcData* data) {
@@ -5047,8 +5060,8 @@ static inline int npc_monk_in_greeting_range(KonquestNpc* npc) {
     return 0;
 }
 
-/* TODO: [near miss] 99.84%; direct monk latch aligns; script-wait and
- * waypoint-owner GPR homes remain. */
+/* TODO: [near miss] 99.84271%; wait and waypoint owners differ; joint suspend/save
+ * recovery regresses five exact callers; original shared boundary remains unresolved. */
 void npc_travel_path(
     int destination_type, int destination, int travel_mode) {
     if (g_active_npc == 0) {
@@ -5610,7 +5623,7 @@ void npc_stop_goro_bone_match(void) {
     }
 }
 
-float p_wait_for_dialog(void) {
+static float p_wait_for_dialog(void) {
     KonquestNpc* npc = (KonquestNpc*)apdata;
     AnimPdata* animation;
     MkProc* lip_proc;

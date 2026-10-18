@@ -14,6 +14,9 @@
 #include "runtime/mk_vtbl.h"
 #include "runtime/section.h"
 
+static void fixup_data_tables(ScriptSlot* slot);
+static float p_run_one_shot_script(void);
+
 typedef void (*ScriptBuiltinFn)(void);
 
 extern ScriptBuiltinFn script_callable_function_table[];
@@ -28,28 +31,28 @@ struct CmdScriptProcVtable {
 
 #define CMDSCRIPT_PROC_VTBL(proc_) ((struct CmdScriptProcVtable*)(proc_)->vtbl)
 
-void _set_bit_field(void);
-void _get_bit_field(void);
-void _copy_stream_to_address(void);
-void _call_script_function(void);
-void _load_table_address(void);
-void _unconditional_branch(void);
-void _conditional_branch(void);
-void _compare_float_float(void);
-void _compare_uint_uint(void);
-void _compare_int_int(void);
+static void _set_bit_field(void);
+static void _get_bit_field(void);
+static void _copy_stream_to_address(void);
+static void _call_script_function(void);
+static void _load_table_address(void);
+static void _unconditional_branch(void);
+static void _conditional_branch(void);
+static void _compare_float_float(void);
+static void _compare_uint_uint(void);
+static void _compare_int_int(void);
 static void _combine_float_float(void);
 static void _combine_uint_uint(void);
-void _combine_int_int(void);
-void _copy_register_to_address(void);
-void _copy_column_address_to_register(void);
-void _copy_column_to_register(void);
-void _copy_constant_to_variable(void);
-void _copy_register_to_variable(void);
-void _copy_variable_to_register(void);
-void _copy_register_to_register(void);
-void _copy_constant_to_register(void);
-void _copy_register_to_instruction(void);
+static void _combine_int_int(void);
+static void _copy_register_to_address(void);
+static void _copy_column_address_to_register(void);
+static void _copy_column_to_register(void);
+static void _copy_constant_to_variable(void);
+static void _copy_register_to_variable(void);
+static void _copy_variable_to_register(void);
+static void _copy_register_to_register(void);
+static void _copy_constant_to_register(void);
+static void _copy_register_to_instruction(void);
 
 static ScriptBuiltinFn builtin_script_function_table[22] = {
     _copy_register_to_instruction,
@@ -225,7 +228,7 @@ void one_shot_script_func(ScriptSlot* script, unsigned int function, int wait) {
     }
 }
 
-float p_run_one_shot_script(void) {
+static float p_run_one_shot_script(void) {
     OneShotScriptPdata* pdata;
 
     pdata = (OneShotScriptPdata*)apdata;
@@ -387,8 +390,8 @@ void parse_args(const char* fmt, ...) {
     va_end(ap);
 }
 
-/* TODO: [near miss] 99.44444%; final integer ADD operands remain commuted;
- * preserve the shared return and canonical base owner while recovering address emission. */
+/* TODO: [near miss] 99.44444%; selector forces indexed pair(value, strings);
+ * base-owned/predecrement forms reassociate; recover the original address producer. */
 char* get_script_string_arg(int index) {
     unsigned int value;
     ScriptSlot* script;
@@ -931,7 +934,7 @@ static inline void fixup_external_data_tables(ScriptSlot* slot) {
     }
 }
 
-void fixup_data_tables(ScriptSlot* slot) {
+static void fixup_data_tables(ScriptSlot* slot) {
     unsigned int table_index;
     ScriptTableDef* def;
 
@@ -1053,9 +1056,9 @@ static inline const unsigned int* cmdscript_register_slot(
     return &script->regs[index];
 }
 
-/* TODO: [near miss] 97.89474%; packed-shift codegen web selects before destination;
- * complete field-write inline is neutral; recover earlier packed-word ownership. */
-void _set_bit_field(void) {
+/* TODO: [near miss] 97.89474%; argument-index and packed-shift homes differ;
+ * recover a packed-word lifetime beyond the shared global input captures. */
+static void _set_bit_field(void) {
     unsigned int* args;
     CmdScript* cs;
     unsigned int* dst;
@@ -1079,7 +1082,7 @@ static inline unsigned int* cmdscript_mutable_register_slot(
 
 /* TODO: [near miss] 95.93750%; packed shift stays an emission temp above
  * both global owners; recover that owner boundary before further coloring. */
-void _get_bit_field(void) {
+static void _get_bit_field(void) {
     unsigned int val;
     unsigned int* args;
     CmdScript* cs;
@@ -1096,7 +1099,7 @@ void _get_bit_field(void) {
     *cmdscript_mutable_register_slot(cs, args[1]) = val;
 }
 
-void _copy_stream_to_address(void) {
+static void _copy_stream_to_address(void) {
     unsigned int* args;
     CmdScript* cs;
     void* dst;
@@ -1109,7 +1112,7 @@ void _copy_stream_to_address(void) {
     memcpy(dst, &args[3], size);
 }
 
-void _call_script_function(void) {
+static void _call_script_function(void) {
     unsigned int* args;
     int func_index;
     int argument_count;
@@ -1131,7 +1134,7 @@ void _call_script_function(void) {
         &((char*)active_cmdscript->mko->string_reloc)[function->name_offset - 1];
 }
 
-void _load_table_address(void)
+static void _load_table_address(void)
 {
     unsigned int* args;
     CmdScript* cs;
@@ -1149,7 +1152,7 @@ void _load_table_address(void)
     *destination = (unsigned int)table;
 }
 
-void _unconditional_branch(void) {
+static void _unconditional_branch(void) {
     unsigned int* args;
     CmdScript* cs;
     int rel;
@@ -1162,7 +1165,7 @@ void _unconditional_branch(void) {
     cs->pc = base + rel;
 }
 
-void _conditional_branch(void) {
+static void _conditional_branch(void) {
     CmdScript* cs;
     unsigned int* args;
     int rel;
@@ -1178,7 +1181,7 @@ void _conditional_branch(void) {
     cs->pc = base + rel;
 }
 
-void _compare_float_float(void) {
+static void _compare_float_float(void) {
     unsigned int* args;
     CmdScript* cs;
     CmdScriptReg index;
@@ -1227,7 +1230,7 @@ void _compare_float_float(void) {
     destination->word = result;
 }
 
-void _compare_uint_uint(void) {
+static void _compare_uint_uint(void) {
     unsigned int* args;
     CmdScript* cs;
     CmdScriptReg index;
@@ -1284,7 +1287,7 @@ void _compare_uint_uint(void) {
     destination->word = result;
 }
 
-void _compare_int_int(void) {
+static void _compare_int_int(void) {
     unsigned int* args;
     CmdScript* cs;
     CmdScriptReg index;
@@ -1432,7 +1435,7 @@ static void _combine_uint_uint(void) {
     destination->word = result;
 }
 
-void _combine_int_int(void) {
+static void _combine_int_int(void) {
     unsigned int* args;
     CmdScript* cs;
     CmdScriptReg index;
@@ -1484,7 +1487,7 @@ void _combine_int_int(void) {
     destination->word = result;
 }
 
-void _copy_register_to_address(void) {
+static void _copy_register_to_address(void) {
     unsigned int* args;
     CmdScript* script;
     unsigned int value;
@@ -1501,7 +1504,7 @@ void _copy_register_to_address(void) {
     memcpy((void*)*cmdscript_register_slot(script, destination_index), &value, size);
 }
 
-void _copy_column_address_to_register(void) {
+static void _copy_column_address_to_register(void) {
     CmdScript* script;
     unsigned int* table_slot;
     unsigned int* row_slot;
@@ -1529,9 +1532,9 @@ void _copy_column_address_to_register(void) {
     }
 }
 
-/* TODO: [near miss] 93.38%; slot-address owner remains below index-load temporaries;
- * recover its original ownership and the two address-add operands. */
-void _copy_column_to_register(void) {
+/* TODO: [near miss] 93.37838%; table-slot and index producers still differ;
+ * recover slot ownership and the two address-add operands. */
+static void _copy_column_to_register(void) {
     unsigned int* args;
     CmdScript* script;
     const unsigned int* table_slot;
@@ -1566,7 +1569,7 @@ void _copy_column_to_register(void) {
     }
 }
 
-void _copy_constant_to_variable(void) {
+static void _copy_constant_to_variable(void) {
     unsigned int* args;
     CmdScript* cs;
     unsigned int* stack_words;
@@ -1577,7 +1580,7 @@ void _copy_constant_to_variable(void) {
     stack_words[args[1]] = args[2];
 }
 
-void _copy_register_to_variable(void) {
+static void _copy_register_to_variable(void) {
     CmdScript* script = active_cmdscript;
     int variable_index = current_args[1];
     int register_index = current_args[2];
@@ -1587,12 +1590,12 @@ void _copy_register_to_variable(void) {
     variables[variable_index] = source->word;
 }
 
-void _copy_variable_to_register(void) {
+static void _copy_variable_to_register(void) {
     unsigned int* slot = &active_cmdscript->registers[current_args[1]].word;
     *slot = ((unsigned int*)active_cmdscript->stack_sp)[current_args[2]];
 }
 
-void _copy_register_to_register(void) {
+static void _copy_register_to_register(void) {
     CmdScript* cs;
     unsigned int* source_slot;
     unsigned int* destination_slot;
@@ -1603,12 +1606,12 @@ void _copy_register_to_register(void) {
     *destination_slot = *source_slot;
 }
 
-void _copy_constant_to_register(void) {
+static void _copy_constant_to_register(void) {
     unsigned int* slot = &active_cmdscript->registers[current_args[1]].word;
     *slot = current_args[2];
 }
 
-void _copy_register_to_instruction(void) {
+static void _copy_register_to_instruction(void) {
     unsigned int* args;
     CmdScript* cs;
 

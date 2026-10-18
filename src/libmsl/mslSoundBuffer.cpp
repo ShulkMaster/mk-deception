@@ -76,8 +76,8 @@ public:
     void ResetValues(void);
     int iPlayPrepped(void);
     void iAX_FindNewEndBlock(int block);
-    inline int iAX_GetVoiceBlock(
-        _AXVPB* voice, int channel,
+    inline void iAX_GetVoiceBlock(
+        _AXVPB* voice, int channel, int& block,
         unsigned long* raw_address);
 
     unsigned char ready_to_play;
@@ -232,11 +232,7 @@ static inline void SetVoiceSource(
     _AXVPB* voice, SPSoundEntry* sound, unsigned long frequency,
     int loop) {
     AXVoiceSrc source;
-    unsigned short loop_flag;
-    unsigned short loop_address_hi;
-    unsigned short loop_address_lo;
-    unsigned long end;
-    unsigned long loop_address;
+    AXPBADDR address;
     unsigned long sync;
 
     if (frequency == 0) {
@@ -262,26 +258,29 @@ static inline void SetVoiceSource(
     voice->pb.type = 0;
     sync |= 8;
     voice->sync = sync;
-    loop_flag = 0;
+    address.loopFlag = 0;
     if (loop != 0) {
-        loop_flag = 1;
-        loop_address_hi = sound->current_address >> 16;
-        loop_address_lo = sound->current_address;
+        address.loopFlag = 1;
+        address.loopAddressHi = sound->current_address >> 16;
+        address.loopAddressLo = sound->current_address;
     } else {
-        loop_address_hi = sound->loop_address >> 16;
-        loop_address_lo = sound->loop_address;
+        address.loopAddressHi = sound->loop_address >> 16;
+        address.loopAddressLo = sound->loop_address;
     }
-    end = sound->end_address;
-    loop_address = sound->current_address;
+    address.endAddressHi = sound->end_address >> 16;
+    address.endAddressLo = sound->end_address;
+    address.currentAddressHi = sound->current_address >> 16;
+    address.currentAddressLo = sound->current_address;
+    address.format = 0;
     sync = voice->sync;
-    voice->pb.addr.loopFlag = loop_flag;
-    voice->pb.addr.format = 0;
-    voice->pb.addr.loopAddressHi = loop_address_hi;
-    voice->pb.addr.loopAddressLo = loop_address_lo;
-    voice->pb.addr.endAddressHi = end >> 16;
-    voice->pb.addr.endAddressLo = end;
-    voice->pb.addr.currentAddressHi = loop_address >> 16;
-    voice->pb.addr.currentAddressLo = loop_address;
+    voice->pb.addr.loopFlag = address.loopFlag;
+    voice->pb.addr.format = address.format;
+    voice->pb.addr.loopAddressHi = address.loopAddressHi;
+    voice->pb.addr.loopAddressLo = address.loopAddressLo;
+    voice->pb.addr.endAddressHi = address.endAddressHi;
+    voice->pb.addr.endAddressLo = address.endAddressLo;
+    voice->pb.addr.currentAddressHi = address.currentAddressHi;
+    voice->pb.addr.currentAddressLo = address.currentAddressLo;
     voice->sync = (sync | 0x1000) & 0xFFFE1FFF;
 }
 
@@ -357,16 +356,16 @@ static inline int IsPlaybackLoopRequested(unsigned long flags) {
     return requested;
 }
 
-inline int SBPlayable_Stream::iAX_GetVoiceBlock(
+inline void SBPlayable_Stream::iAX_GetVoiceBlock(
     _AXVPB* voice,
     int channel,
+    int& block,
     unsigned long* raw_address) {
     SBPlayable_Stream* stream =
         this;
     unsigned long address =
         ((unsigned long)voice->pb.addr.currentAddressHi << 16) +
         voice->pb.addr.currentAddressLo;
-    int block;
 
     if (address >= g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start &&
         address <= g_MSL_GCN_ARAM_ZeroBase_ADPCM_End) {
@@ -382,7 +381,6 @@ inline int SBPlayable_Stream::iAX_GetVoiceBlock(
     if (raw_address != 0) {
         *raw_address = address;
     }
-    return block;
 }
 
 static inline void mslSetCurrentVoiceAddress(_AXVPB* voice, unsigned long address) {
@@ -403,7 +401,8 @@ static inline void mslResetVoiceAdpcmHistory(_AXVPB* voice, unsigned short pred_
 }
 
 static inline void mslSetVoiceStreamLoop(_AXVPB* voice,
-    unsigned long address, unsigned char block_header, bool at_stream_end) {
+    unsigned long address, const unsigned char* block_header, bool at_stream_end) {
+    unsigned short pred_scale = *block_header;
     unsigned long sync = voice->sync | 0x4000;
     voice->pb.addr.loopAddressLo = address;
     voice->pb.addr.loopAddressHi = address >> 16;
@@ -411,7 +410,7 @@ static inline void mslSetVoiceStreamLoop(_AXVPB* voice,
         voice->sync = sync;
     }
     sync = voice->sync;
-    voice->pb.adpcmLoop.loop_pred_scale = block_header;
+    voice->pb.adpcmLoop.loop_pred_scale = pred_scale;
     sync |= 0x100000;
     voice->pb.adpcmLoop.loop_yn1 = 0;
     voice->pb.adpcmLoop.loop_yn2 = 0;
@@ -653,8 +652,8 @@ int SBPlayable_Stream::Play(unsigned long flags) {
     return result;
 }
 
-/* TODO: [near miss] 97.00%; interrupt-state/result GPRs and two extra zero
- * loads remain; voice/cache/request teardown and return behavior agree. */
+/* TODO: [near miss] 97.00%; named result blocks two shared null zeros;
+ * recover result/outer critical-section ownership without changing voice teardown. */
 int SBPlayable_Stream::Stop(void) {
     BOOL enabled = OSDisableInterrupts();
     int result = -1;
@@ -731,8 +730,8 @@ int SBPlayable_Stream::Pause(void) {
     return result;
 }
 
-/* TODO: [breakthrough needed] 96.36713%; named secondary cannot join the inline
- * result; recover query/address and loop-publication owners with the mono gate. */
+/* TODO: [near miss] 98.69863%; address-shift and loop-publication homes differ;
+ * original helper ownership remains unresolved. */
 void SBPlayable_Stream::iUpdate_AXUser(void) {
     SBPlayable_Stream* stream = this;
     int primary_block;
@@ -749,16 +748,16 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
         return;
     }
 
-    primary_block = iAX_GetVoiceBlock(
-        stream->voices[0], 0,
+    iAX_GetVoiceBlock(
+        stream->voices[0], 0, primary_block,
         &primary_raw_address);
 
     if (stream->file_entry->has_secondary != 0) {
         unsigned long secondary_raw_address;
 
         channels = 2;
-        secondary_block = iAX_GetVoiceBlock(
-            stream->voices[1], 1,
+        iAX_GetVoiceBlock(
+            stream->voices[1], 1, secondary_block,
             &secondary_raw_address);
     } else {
         channels = 1;
@@ -863,14 +862,14 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
                  (stream->segment_shift + 1)) + 2;
             mslSetVoiceStreamLoop(stream->voices[0],
                 block_address + (stream->cache_buffers[0] << 1),
-                stream->block_headers[0][next_block],
+                &stream->block_headers[0][next_block],
                 stream->ax_end_block == stream->stream_end_block);
             _AXVPB* voice = stream->voices[1];
             if (voice != 0) {
                 mslSetVoiceStreamLoop(voice,
                     block_address + (stream->cache_buffers[1] << 1),
-                    stream->block_headers[1][next_block],
-                    stream->stream_end_block == stream->ax_end_block);
+                    &stream->block_headers[1][next_block],
+                    stream->ax_end_block == stream->stream_end_block);
             }
         }
     }
@@ -1149,8 +1148,8 @@ static inline SPSoundEntry* GetStreamSoundEntry(SPSoundTable* table) {
     return sound;
 }
 
-/* TODO: [near miss] 99.24171%; result/loop and address-publication homes differ;
- * result stall defeats declaration changes; recover original publication shape. */
+/* TODO: [near miss] 99.24171%; result/this cost stalls and branch-local address homes remain;
+ * recover source-setup ownership before changing declaration order. */
 int SBPlayable_Stream::iPlayPrepped(void) {
     int result = -1;
 
@@ -1593,6 +1592,10 @@ int SoundBuffer::SetCurrentPosition(unsigned long position) {
     return -1;
 }
 
+SoundBuffer_Data::~SoundBuffer_Data() {
+    FreeResources();
+}
+
 void SoundBuffer_Data::FreeObject(void) {
     this->FreeResources();
     delete this;
@@ -1900,8 +1903,6 @@ int SoundBuffer_Playable::SetCurrentPosition(
     return -1;
 }
 
-/* TODO: [near miss] 98.43%; loop/sound owners precede voice inline bands;
- * recover complete voice-configuration ownership across the CG zero. */
 int SoundBuffer_Playable::iPlay(
     unsigned long flags, unsigned long acquire_priority,
     unsigned long active_priority) {
@@ -1941,19 +1942,14 @@ int SoundBuffer_Playable::iPlay(
         }
 
         int loop = IsPlaybackLoopRequested(flags);
-        SPSoundEntry* sound = 0;
-        if (this->file_entry->sound_table != 0) {
-            sound =
-                SPGetSoundEntry(this->file_entry->sound_table, 0);
-        }
+        SPSoundEntry* sound =
+            GetStreamSoundEntry(this->file_entry->sound_table);
         SetVoiceSource(
             this->voices[0], sound, this->frequency, loop);
 
-        sound = 0;
         if (this->file_entry->has_secondary != 0) {
-            sound = this->file_entry->secondary_sound_table != 0
-                        ? SPGetSoundEntry(this->file_entry->secondary_sound_table, 0)
-                        : sound;
+            sound = GetStreamSoundEntry(
+                this->file_entry->secondary_sound_table);
             SetVoiceSource(
                 this->voices[1], sound,
                 this->frequency, loop);

@@ -898,8 +898,8 @@ void service_game_timers(void) {
     g_game_info.field_20C += 1;
 }
 
-/* TODO: [near miss] 97.94872%; string parameter must claim before all loop
- * owners; no local declaration order can cross that ABI owner band. */
+/* TODO: [near miss] 97.94872%; string parameter and seven loop owners differ;
+ * verified PS2 keeps the same inline ownership; recover original GC producer. */
 void display_numerical_change(
     StringObj* string, int font, int start, int change,
     int ticks, int acceleration_interval) {

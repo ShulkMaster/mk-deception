@@ -48,7 +48,7 @@ public:
     MSLGCN_ARamBlock* aram_block; /* +0x08 */
     _mslBank* bank;               /* +0x0C */
     _GameCubeFileEntry* file_entry; /* +0x10 */
-    virtual ~SoundBuffer_Data() { FreeResources(); }
+    virtual ~SoundBuffer_Data();
     virtual void FreeObject(void);
     virtual void FreeResources(void);
     virtual int GetNumChannels(void);

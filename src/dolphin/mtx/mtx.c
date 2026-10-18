@@ -2,7 +2,7 @@
 #include "math/gxQuat.h"
 #include "runtime/asm_sequences.inc"
 
-float Unit01[2] = { 0.0f, 1.0f };
+static float Unit01[2] = { 0.0f, 1.0f };
 const float PSMTXOne = 1.0f;
 const float PSMTXZero = 0.0f;
 

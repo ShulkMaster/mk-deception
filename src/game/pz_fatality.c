@@ -1396,7 +1396,7 @@ static inline void pz_launch_grinder_meat_final(void) {
     pz_grinder_create_final_path(&final_position, &final_velocity);
 }
 
-/* TODO: [Scope warn] path_velocity block: branch-entry initializer drops 100% to 86.03%; late component stores to 93.08%. */
+/* TODO: [Scope warn] path_velocity block. */
 static float p_grinder_meat_throw_controller(void) {
     struct PuzzleGrinderMeatController* meat =
         apdata;
@@ -2762,11 +2762,11 @@ static float pz_fighter_load_and_place_initial_chompers(void) {
     return 0.0f;
 }
 
-static inline void reset_chomper_motion(void) {
+static inline void reset_chomper_motion(int object_count) {
     unsigned int group;
     int object;
     for (group = 0; group < 2; group++) {
-        for (object = 0; object < 2; object++) {
+        for (object = 0; object < object_count; object++) {
             g_pz_fighter_fatality_engine.hazard_groups[group].objects[object]->motion = 0.0f;
             g_pz_fighter_fatality_engine.controller->hazard_motion[group][object] = 0.0f;
         }
@@ -2776,7 +2776,7 @@ static inline void reset_chomper_motion(void) {
 static float pz_fighter_chomper_round_over(void) {
     g_pz_fighter_fatality_engine.controller->state = 1;
     g_pz_fighter_fatality_engine.controller->phase = 0;
-    reset_chomper_motion();
+    reset_chomper_motion(2);
     return 0.0f;
 }
 
@@ -2801,7 +2801,7 @@ static void pz_fighter_chomper_entering_fatality(
     g_pz_fighter_fatality_engine.controller->victim_player = victim;
     g_pz_fighter_fatality_engine.controller->phase = 0;
 
-    reset_chomper_motion();
+    reset_chomper_motion(2);
 }
 
 static inline void pz_fighter_chomper2_offset_post(int player, float* post_x, float* post_z) {
@@ -2967,8 +2967,8 @@ static float p_chomper2_controller(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.79798%; Vec-template v32 must emit after player-data
- * v37; recover a real evaluation boundary before more r3/r4 trials. */
+/* TODO: [near miss] 99.79798%; template/player-data emission order swaps r3/r4;
+ * recover the original evaluation boundary before further source trials. */
 static float pz_fighter_chomper2_victim_crushed(void) {
     float blood_x;
     float blood_z;
@@ -2996,21 +2996,10 @@ static float pz_fighter_chomper2_victim_crushed(void) {
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 99.31818%; initial STFSX makes motion the base, forbidding r0;
- * recover address-operand ownership before allocation. */
 static float pz_fighter_chomper2_actively_fighting(int active) {
-    int group;
-    float (*motion)[2];
-
     g_pz_fighter_fatality_engine.controller->phase = active;
     if (active == 0) {
-        for (group = 0; group < 2; group++) {
-            g_pz_fighter_fatality_engine.hazard_groups[group]
-                .objects[0]
-                ->motion = 0.0f;
-            motion = g_pz_fighter_fatality_engine.controller->hazard_motion;
-            motion[group][0] = 0.0f;
-        }
+        reset_chomper_motion(1);
     }
     return 0.0f;
 }
@@ -3368,20 +3357,10 @@ static float pz_fighter_load_and_place_initial_chompers2(void) {
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 93.13%; initial phase/index zero is shared; motion-array base and indexed-store operands remain. */
 static float pz_fighter_chomper2_round_over(void) {
-    int i;
-    float (*motion)[2];
-
-    i = 0;
     g_pz_fighter_fatality_engine.controller->state = 1;
     g_pz_fighter_fatality_engine.controller->phase = 0;
-    for (; i < 2; i++) {
-        g_pz_fighter_fatality_engine.hazard_groups[i].objects[0]->motion =
-            0.0f;
-        motion = g_pz_fighter_fatality_engine.controller->hazard_motion;
-        motion[i][0] = 0.0f;
-    }
+    reset_chomper_motion(1);
     return 0.0f;
 }
 #pragma opt_propagation reset
@@ -3391,13 +3370,8 @@ static float pz_fighter_chomper2_unload(void) {
 }
 
 #pragma opt_propagation off
-/* TODO: [near miss] 95.625%; second value-numbering pass shares reset zero with
- * hazard stride; recover distinct reset ownership and indexed-store operands. */
 static void pz_fighter_chomper2_entering_fatality(
     int attacker, int victim) {
-    unsigned int i;
-
-    i = 0;
     g_pz_fighter_fatality_engine.active_effect = 0;
     g_pz_fighter_fatality_engine.controller->active = 1;
     g_pz_fighter_fatality_engine.controller->state =
@@ -3406,14 +3380,7 @@ static void pz_fighter_chomper2_entering_fatality(
     g_pz_fighter_fatality_engine.controller->victim_player = victim;
     g_pz_fighter_fatality_engine.controller->phase = 0;
 
-    for (; i < 2; i++) {
-        float (*motion)[2];
-
-        g_pz_fighter_fatality_engine.hazard_groups[i].objects[0]->motion =
-            0.0f;
-        motion = g_pz_fighter_fatality_engine.controller->hazard_motion;
-        motion[i][0] = 0.0f;
-    }
+    reset_chomper_motion(1);
 }
 #pragma opt_propagation reset
 

@@ -1,4 +1,4 @@
-static int sfa_init_cnt;
+int sfa_init_cnt;
 
 void SFA_Finish(void) {
     sfa_init_cnt--;

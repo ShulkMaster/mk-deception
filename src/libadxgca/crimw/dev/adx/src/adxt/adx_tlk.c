@@ -1,3 +1,7 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "cri/adx_dcd.h"
 #include "cri/adx_tlk.h"
 #include "cri/sj.h"
@@ -234,8 +238,6 @@ void ADXT_SetTimeOfst(ADXTHandle* handle, s32 offset)
     handle->time_offset = offset;
 }
 
-/* TODO: [breakthrough needed] 99.98850%; deferred BSS order is proven;
- * recover discarded accessor bodies/pool ownership before changing unit mode. */
 s32 ADXT_DiscardSmpl(ADXTHandle* handle, s32 samples)
 {
     s32 discarded;
@@ -590,8 +592,6 @@ static inline void adxt_GetTimeSfreq2(
     *sample_count += handle->time_offset;
 }
 
-/* TODO: [breakthrough needed] 99.98107%; six BSS offsets remain;
- * original local file-ID allocation order lacks a supported producer/compiler shape. */
 void ADXT_GetTime(ADXTHandle* handle, s32* sample_count, s32* scale)
 {
     s32 actual_count;
@@ -992,3 +992,7 @@ ADXTHandle* ADXT_Create(s32 maximum_channels, void* work, s32 work_size)
     ADXCRS_Unlock();
     return handle;
 }
+
+#ifdef __cplusplus
+}
+#endif

@@ -218,6 +218,12 @@ void __VMBASEInitLockedPageTable(void)
 }
 
 
+static inline void vm_base_clear_page_table_entry(u32 byte_offset)
+{
+    ((struct VMPageTableEntry*)((u8*)g_vmBasePageTable + byte_offset))->physical_page =
+        ((struct VMPageTableEntry*)((u8*)g_vmBasePageTable + byte_offset))->virtual_page = 0;
+}
+
 void __VMBASEInitReversePageTable(void)
 {
     g_vmBaseVMReversePageTable = OSGetArenaLo();
@@ -225,24 +231,22 @@ void __VMBASEInitReversePageTable(void)
     __VMBASEInvalidateReversePageTable();
 }
 
-/* TODO: [breakthrough] 79.17%; serial eight-entry clear recovered; size-mode entry/remainder guards remain. */
 void __VMBASEInvalidatePageTable(void)
 {
     BOOL interrupts;
-    u32 i;
+    u32 byte_offset;
 
     interrupts = OSDisableInterrupts();
-    for (i = 0; i != 0x2000; i++) {
-        g_vmBasePageTable[i].virtual_page = 0;
-        g_vmBasePageTable[i].physical_page = 0;
+    for (byte_offset = 0; byte_offset < 0x10000; byte_offset += sizeof(*g_vmBasePageTable)) {
+        vm_base_clear_page_table_entry(byte_offset);
     }
     DCStoreRange(g_vmBasePageTable, 0x2000 * sizeof(*g_vmBasePageTable));
     __VMBASEInvalidateEntireTLB();
     OSRestoreInterrupts(interrupts);
 }
 
-/* TODO: [breakthrough needed] 42.41%; initial pcode already uses indexed stores;
- * recover original grouped-address lowering/compiler context. */
+/* TODO: [breakthrough needed] 42.40741%; native address materialization differs;
+ * removing the earlier asm pragma restoration leaves the whole unit unchanged. */
 void __VMBASEInvalidateLockedPageTable(void)
 {
     u32 i;
@@ -252,14 +256,13 @@ void __VMBASEInvalidateLockedPageTable(void)
     }
 }
 
-/* TODO: [near miss] 97.60%; stride zero and clear zero coalesce before allocation;
- * recover independent loop producers while preserving the serial clear. */
 void __VMBASEInvalidateReversePageTable(void)
 {
-    u32 i;
+    u32 byte_offset;
 
-    for (i = 0; i != 0x1000; i++) {
-        g_vmBaseVMReversePageTable[i] = 0;
+    for (byte_offset = 0; byte_offset != 0x4000;
+         byte_offset += sizeof(*g_vmBaseVMReversePageTable)) {
+        *(u32*)((u8*)g_vmBaseVMReversePageTable + byte_offset) = 0;
     }
 }
 
@@ -336,10 +339,18 @@ void __VMBASEISIServiceException(OSContext* context)
     OSLoadContext(context);
 }
 
-/* TODO: [blocked] 3.89%; patch-slot/cache-barrier assembly recovery is outside automated scope; retain stub pending authorized recovery. */
-void *__VMBASERestoreExceptionHandlers(void)
+/* TODO: [blocked] 61.11111%; two icbi sites await F28 multi-block support
+ * and function-specific authorization; retain the recovered C body. */
+void __VMBASERestoreExceptionHandlers(void)
 {
-    return 0;
+    if (g_baseInitialized == 1) {
+        *(u32*)0x80000300 = *(u32*)__VMBASEDSIExceptionHandler_SetOriginalInstruction;
+        DCFlushRangeNoSync((void*)0x80000300, 4);
+        __sync();
+        *(u32*)0x80000400 = *(u32*)__VMBASEISIExceptionHandler_SetOriginalInstruction;
+        DCFlushRangeNoSync((void*)0x80000400, 4);
+        __sync();
+    }
 }
 
 #pragma push

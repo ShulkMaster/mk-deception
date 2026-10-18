@@ -42,7 +42,7 @@ void move_player_pin(const unsigned char* src, unsigned char* dst);
 extern int menu_player;
 extern char konq_region_data_buffer[];
 
-char player_name[0xB];
+static char player_name[0xB];
 
 static inline void mkproc_sleep(void) {
     aproc->vtbl->sleep();
@@ -79,8 +79,8 @@ int ppwls_input_done;
 static int screen_obj;
 static int position;
 static int number_profiles;
-int select_location_done;
-int pne_char_position;
+static int select_location_done;
+static int pne_char_position;
 static int name_entry_done;
 
 static int first_button_press = 1;
@@ -296,9 +296,8 @@ static inline void delete_selected_profile(void) {
     int ok;
     const char* title;
 
-    device = pos_device;
     slot = pos_slot;
-    if (device >= 0 && device < STORAGE_MAX_DEVICES && slot >= 0 &&
+    if ((device = pos_device) >= 0 && device < STORAGE_MAX_DEVICES && slot >= 0 &&
         slot < STORAGE_MAX_SLOTS) {
         storage = DEVICE_AT(device);
         reset_sg_status(storage, slot);
@@ -338,8 +337,8 @@ static inline void delete_selected_profile(void) {
     }
 }
 
-/* TODO: [breakthrough] 98.65854%; selected-erase phase restores direct load/shared seed;
- * device CSE claims r31 before the buffer base; recover owner kinds and seed order. */
+/* TODO: [near miss] 99.18699%; pre-RA scheduling moves status MR before output addresses;
+ * retain the entry test and recover a supported scheduling boundary. */
 float p_delete_profile(void) {
     int statusChanged;
 
@@ -1482,8 +1481,8 @@ static inline void mark_bitset_locked(
     bits->value &= mask;
 }
 
-/* TODO: [near miss] 98.92857%; nine word/mask codegen pairs emit NOR before load;
- * recover a bit-clear owner that preserves retail operations and switch table. */
+/* TODO: [near miss] 98.92857%; nine word loads need earlier codegen owners
+ * than their complements; scheduled order agrees, source boundary unresolved. */
 void mark_as_locked(PlayerProfile* profile, int category, int character) {
     unsigned long long mask;
     ProfileUnlockBits64* bits;
@@ -2489,7 +2488,7 @@ float p_reset_ppwls_timeout(void) {
         }
     }
     ppwls_input_done = 1;
-    return kZero;
+    return kNegOne;
 }
 
 void reset_ppwls_timeout(void) {
@@ -2563,7 +2562,7 @@ static float p_player_profile_whats_loaded_screen(void) {
     _mkproc_sleep_ticks = kOne;
     mkproc_sleep();
     gamelogic_jump(0, p_atm_loop);
-    return kZero;
+    return kNegOne;
 }
 
 void set_ppwls_input_done(void) {

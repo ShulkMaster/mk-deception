@@ -4,14 +4,14 @@
 #include "dolphin/vm.h"
 #include "runtime/cstdio.h"
 
-static u32* g_baseARAMtoVM;
-static u32* g_baseVMtoARAM;
-static u32 g_totalAllocatedVM;
-static u32 g_nextARAMPageToCheck;
+static u32* g_baseARAMtoVM = 0;
+static u32* g_baseVMtoARAM = 0;
+static u32 g_totalAllocatedVM = 0;
 
 #pragma opt_strength_reduction off
 int VMAlloc(void* virtual_address, u32 size)
 {
+    static u32 g_nextARAMPageToCheck;
     u32 first_aram_page;
     u32 end_aram_page;
     u32 virtual_offset;
@@ -84,28 +84,35 @@ BOOL __VMIsARAMPageDirty(u32 virtual_address)
     return g_baseVMtoARAM[(virtual_address >> 12) & 0x1FFF] >> 31;
 }
 
-/* TODO: [near miss] 68.92857%; preallocation deletes the arena-result copy
- * and shares the clear zero with the generated stride; recover those producers. */
+/* TODO: [near miss] 96.07143%; arena-result copy is removed before publication;
+ * recover an actual source-definition boundary across argument setup. */
 void __VMAllocVirtualToARAMLUT(void)
 {
-    u32 i;
+    u32 byte_offset;
 
     g_baseVMtoARAM = OSGetArenaLo();
     OSSetArenaLo(g_baseVMtoARAM + 0x2000);
-    for (i = 0; i != 0x2000; i++) {
-        g_baseVMtoARAM[i] = 0;
+    for (byte_offset = 0;
+         byte_offset != 0x2000 * sizeof(*g_baseVMtoARAM);
+         byte_offset += sizeof(*g_baseVMtoARAM)) {
+        *(u32*)((u8*)g_baseVMtoARAM + byte_offset) = 0;
     }
 }
 
-/* TODO: [near miss] 98.20%; equality loop restores the retail clear body;
- * CTR/index/zero setup ordering and zero-copy peephole remain. */
+static inline void clear_aram_virtual_mapping(u32 byte_offset)
+{
+    *(u32*)((u8*)g_baseARAMtoVM + byte_offset) = 0;
+}
+
 void __VMAllocARAMToVirtualLUT(void)
 {
-    u32 i;
+    u32 byte_offset;
 
     g_baseARAMtoVM = OSGetArenaLo();
     OSSetArenaLo(g_baseARAMtoVM + 0x1000);
-    for (i = 0; i != 0x1000; i++) {
-        g_baseARAMtoVM[i] = 0;
+    for (byte_offset = 0;
+         byte_offset != 0x1000 * sizeof(*g_baseARAMtoVM);
+         byte_offset += sizeof(*g_baseARAMtoVM)) {
+        clear_aram_virtual_mapping(byte_offset);
     }
 }

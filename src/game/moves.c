@@ -2791,39 +2791,24 @@ void advance_my_current_switch(void) {
     p2_current_switch_time = p2_switch_log[p2_current_log_index].tick;
 }
 
-/* TODO: [breakthrough needed] 89.6875%; operand lowering folds tick displacement
- * into the element load; recover retained field-base address ownership. */
 void update_my_last_switch(void) {
-    unsigned int index;
-    int switch_id;
-    int switch_value;
-
     if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
-        index = p1_log_index;
-        p1_current_log_index = index;
-        switch_value = p1_switch_log[index].tick;
-        switch_id = p1_switch_log[index].switch_index;
-        p1_last_switch_bit = switch_id;
-        p1_last_switch_time = switch_value;
-        p1_current_switch_bit = switch_id;
-        p1_current_switch_time = switch_value;
-        return;
+        p1_current_log_index = p1_log_index;
+        p1_last_switch_bit = p1_switch_log[p1_current_log_index].switch_index;
+        p1_last_switch_time = p1_switch_log[p1_current_log_index].tick;
+        p1_current_switch_bit = p1_switch_log[p1_log_index].switch_index;
+        p1_current_switch_time = p1_switch_log[p1_log_index].tick;
+    } else {
+        p2_current_log_index = p2_log_index;
+        p2_last_switch_bit = p2_switch_log[p2_current_log_index].switch_index;
+        p2_last_switch_time = p2_switch_log[p2_current_log_index].tick;
+        p2_current_switch_bit = p2_switch_log[p2_log_index].switch_index;
+        p2_current_switch_time = p2_switch_log[p2_log_index].tick;
     }
-    index = p2_log_index;
-    p2_current_log_index = index;
-    switch_value = p2_switch_log[index].tick;
-    switch_id = p2_switch_log[index].switch_index;
-    p2_last_switch_bit = switch_id;
-    p2_last_switch_time = switch_value;
-    p2_current_switch_bit = switch_id;
-    p2_current_switch_time = switch_value;
 }
 
-/* TODO: [breakthrough needed] 98.41410%; field-base codegen retains displacement in LWZ;
- * sibling native captures rule out commuted indexing; recover address ownership. */
 static float j_flying_kick2_early(void) {
     MkHdr* object;
-    struct SwitchLogEntry* entry;
     float attack_ticks;
 
     if ((his_pdata->state & 0x400) != 0) {
@@ -2838,23 +2823,7 @@ static float j_flying_kick2_early(void) {
     trial_increment_state_value(plyr_pdata->plyr_num, 5, 0);
     set_my_state(0x3200);
 
-    if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
-        p1_current_log_index = p1_log_index;
-        entry = p1_switch_log;
-        entry += p1_log_index;
-        p1_last_switch_bit = entry->switch_index;
-        p1_last_switch_time = entry->tick;
-        p1_current_switch_bit = entry->switch_index;
-        p1_current_switch_time = entry->tick;
-    } else {
-        p2_current_log_index = p2_log_index;
-        entry = p2_switch_log;
-        entry += p2_log_index;
-        p2_last_switch_bit = entry->switch_index;
-        p2_last_switch_time = entry->tick;
-        p2_current_switch_bit = entry->switch_index;
-        p2_current_switch_time = entry->tick;
-    }
+    update_my_last_switch();
 
     plyr_anim_pdata->flags |= 0x40;
     attack_ticks = 20.5f;
@@ -2904,8 +2873,6 @@ static float j_flying_kick2_early(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 98.74525%; shared tick addressing folds before allocation;
- * recover independent field-base indexing without regressing helper consumers. */
 float j_flying_kick2(void) {
     MkHdr* object;
     float attack_ticks;
@@ -2942,11 +2909,8 @@ float j_flying_kick2(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 98.42795%; codegen retains tick displacement in LWZ;
- * commuted indexing still misses indexed tick load; recover field-base ownership. */
 static float j_flying_kick1_early(void) {
     MkHdr* object;
-    struct SwitchLogEntry* entry;
     float attack_ticks;
 
     if ((his_pdata->state & 0x400) != 0) {
@@ -2959,23 +2923,7 @@ static float j_flying_kick1_early(void) {
     trial_increment_state_value(plyr_pdata->plyr_num, 0x16, 0);
     trial_increment_state_value(plyr_pdata->plyr_num, 5, 0);
     set_my_state(0x3200);
-    if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
-        p1_current_log_index = p1_log_index;
-        entry = p1_switch_log;
-        entry += p1_log_index;
-        p1_last_switch_bit = entry->switch_index;
-        p1_last_switch_time = entry->tick;
-        p1_current_switch_bit = entry->switch_index;
-        p1_current_switch_time = entry->tick;
-    } else {
-        p2_current_log_index = p2_log_index;
-        entry = p2_switch_log;
-        entry += p2_log_index;
-        p2_last_switch_bit = entry->switch_index;
-        p2_last_switch_time = entry->tick;
-        p2_current_switch_bit = entry->switch_index;
-        p2_current_switch_time = entry->tick;
-    }
+    update_my_last_switch();
     plyr_anim_pdata->flags |= 0x40;
     attack_ticks = 20.5f;
     plyr_pdata->shared_attack_until = exec_tick_ctr + (int)attack_ticks;
@@ -3022,8 +2970,6 @@ static float j_flying_kick1_early(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 98.79121%; IRO preserves independent field bases;
- * Operands_Add case 11 drops indexed tick addressing after symbol normalization. */
 float j_flying_kick(void) {
     MkHdr* object;
     float attack_ticks;
@@ -3061,11 +3007,8 @@ float j_flying_kick(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 98.42795%; native Operand_Add case 11 folds +4;
- * recover typed source retaining index-first operands for indexed field loads. */
 static float j_flying_punch_early(void) {
     MkHdr* object;
-    struct SwitchLogEntry* entry;
     float attack_ticks;
 
     if ((his_pdata->state & 0x400) != 0) {
@@ -3078,23 +3021,7 @@ static float j_flying_punch_early(void) {
     trial_increment_state_value(plyr_pdata->plyr_num, 0x16, 0);
     trial_increment_state_value(plyr_pdata->plyr_num, 5, 0);
     set_my_state(0x3200);
-    if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
-        p1_current_log_index = p1_log_index;
-        entry = p1_switch_log;
-        entry += p1_log_index;
-        p1_last_switch_bit = entry->switch_index;
-        p1_last_switch_time = entry->tick;
-        p1_current_switch_bit = entry->switch_index;
-        p1_current_switch_time = entry->tick;
-    } else {
-        p2_current_log_index = p2_log_index;
-        entry = p2_switch_log;
-        entry += p2_log_index;
-        p2_last_switch_bit = entry->switch_index;
-        p2_last_switch_time = entry->tick;
-        p2_current_switch_bit = entry->switch_index;
-        p2_current_switch_time = entry->tick;
-    }
+    update_my_last_switch();
     plyr_anim_pdata->flags |= 0x40;
     attack_ticks = 16.5f;
     plyr_pdata->shared_attack_until = exec_tick_ctr + (int)attack_ticks;
@@ -3141,13 +3068,8 @@ static float j_flying_punch_early(void) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 98.84%; input-log field address CSE remains;
- * typed snapshot boundary is neutral; recover independent indexed field ownership. */
 static float j_flying_punch(void) {
     MkHdr* object;
-    int log_index;
-    int switch_time;
-    int switch_bit;
     float attack_ticks = 9.833333f;
 
     plyr_pdata->attack_counter++;
@@ -3156,25 +3078,7 @@ static float j_flying_punch(void) {
     trial_increment_state_value(plyr_pdata->plyr_num, 0x16, 0);
     trial_increment_state_value(plyr_pdata->plyr_num, 5, 0);
     set_my_state(0x3200);
-    if (plyr_obj == g_game_info.plyr0.slot.mirror_a) {
-        log_index = p1_log_index;
-        p1_current_log_index = log_index;
-        switch_bit = p1_switch_log[log_index].switch_index;
-        switch_time = p1_switch_log[log_index].tick;
-        p1_last_switch_bit = switch_bit;
-        p1_last_switch_time = switch_time;
-        p1_current_switch_bit = switch_bit;
-        p1_current_switch_time = switch_time;
-    } else {
-        log_index = p2_log_index;
-        p2_current_log_index = log_index;
-        switch_bit = p2_switch_log[log_index].switch_index;
-        switch_time = p2_switch_log[log_index].tick;
-        p2_last_switch_bit = switch_bit;
-        p2_last_switch_time = switch_time;
-        p2_current_switch_bit = switch_bit;
-        p2_current_switch_time = switch_time;
-    }
+    update_my_last_switch();
     plyr_pdata->shared_attack_until = exec_tick_ctr + (int)attack_ticks;
     plyr_pdata->attack_counter++;
     plyr_anim_pdata->flags |= 0x40;
@@ -4215,8 +4119,8 @@ void noobsmoke_sidekick_double_charge(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 99.96403%; offset/lateral Y values lack initialization
- * before the vector call; recover defined inputs before the three angle-coloring rows. */
+/* TODO: [breakthrough needed] 99.96403%; offset.y/lateral.y remain unwritten
+ * inputs to the vector callee; recover defined ownership before FPR tuning. */
 static float p_plyr_sidekick_charge(void) {
     float wrapped_angle;
     float position_y;
@@ -4544,8 +4448,8 @@ static inline CmdScript* moves_get_player_script(PlyrPdata* player, MkProc** pla
     return get_cmdscript_for_proc(*player_proc);
 }
 
-/* TODO: [breakthrough] 99.74509%; factory slots and retained owners recovered;
- * process input coalesces with r3 before r30; two scale operand orders remain. */
+/* TODO: [near miss] 99.82353%; process input coalesces with r3 before r30;
+ * recover original raw/result ownership across the script lookup. */
 static float p_plyr_sidekick_switch(void) {
     PlyrPdata* player;
     PlyrInfo* plyr_info;
@@ -4605,8 +4509,10 @@ static float p_plyr_sidekick_switch(void) {
         direction_x * direction_x + direction_z * direction_z);
     direction_x *= inverse_length;
     direction_z *= inverse_length;
-    position_x = direction_x * 2.5f;
-    position_z = direction_z * 2.5f;
+    position_x = direction_x;
+    position_x *= 2.5f;
+    position_z = direction_z;
+    position_z *= 2.5f;
     position_x += player_x;
     position_z += player_z;
     set_root_and_obj_movement_weights(sidekick_anim, 0.0f, object_weight);

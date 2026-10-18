@@ -46,10 +46,10 @@ static const char stringBase0[] =
 
 const int gap_04_80314D64_rodata = 0;
 
-unsigned int nis_event_list[4];
+static unsigned int nis_event_list[4];
 
 int gap_08_80510E74_sbss;
-int nis_wait_override;
+static int nis_wait_override;
 
 extern char bgnd_animations[];
 
@@ -309,10 +309,12 @@ void nis_end(void) {
     destroy_mkprocs_pid(0x900C);
 }
 
-/* TODO: [near miss] 94.00%; CodeGen emits bit selector after address/word;
- * complete word-update inline folds away; original selector ownership needed. */
 void nis_signal_event(int event) {
-    nis_event_list[(unsigned int)event >> 5] |= 1U << (event & 0x1F);
+    int bit_index;
+
+    bit_index = event & 0x1F;
+    event = (unsigned int)event >> 5;
+    nis_event_list[event] |= 1U << bit_index;
 }
 
 #pragma optimize_for_size on

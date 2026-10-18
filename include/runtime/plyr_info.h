@@ -209,8 +209,8 @@ typedef char FighterRuntimeDataSizeCheck[sizeof(FighterRuntimeData) == 0x144 ? 1
 /* global_player_data[] stride 0x10 (movelist_get_character_name). */
 typedef struct GlobalPlayerEntry {
     char* name; /* +0x00 */
-    MkFileEntry* model_files; /* +0x04 */
-    MkFileEntry* alternate_model_files; /* +0x08 */
+    const MkFileEntry* model_files; /* +0x04 */
+    const MkFileEntry* alternate_model_files; /* +0x08 */
     const char* model_script; /* +0x0C */
 } GlobalPlayerEntry; /* 0x10 */
 

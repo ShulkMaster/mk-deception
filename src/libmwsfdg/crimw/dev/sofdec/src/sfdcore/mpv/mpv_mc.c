@@ -3,28 +3,6 @@
 static const MPVMCFunction mpvmc_oneref1p_func_table[4] = {0, 0, 0, 0};
 
 
-static inline void mpvmc_h2_align1_row(const u8* reference, u8* destination)
-{
-    const u32* words = (const u32*)reference;
-    u32 source0 = (words[0] << 8) | (words[1] >> 24);
-    u32 adjacent0 = (words[0] << 16) | (words[1] >> 16);
-    u32 source1 = (words[1] << 8) | reference[8];
-    u32 adjacent1 = (words[1] << 16) | *(const unsigned short*)(reference + 8);
-    ((u32*)destination)[0] = mpvmc_avg_words(source0, adjacent0);
-    ((u32*)destination)[1] = mpvmc_avg_words(source1, adjacent1);
-}
-
-static inline void mpvmc_h2_align2_row(const u8* reference, u8* destination)
-{
-    const u32* words = (const u32*)reference;
-    u32 source0 = (words[0] << 16) | (words[1] >> 16);
-    u32 adjacent0 = (words[0] << 24) | (words[1] >> 8);
-    u32 source1 = (words[1] << 16) | (words[2] >> 16);
-    u32 adjacent1 = (words[1] << 24) | (words[2] >> 8);
-    ((u32*)destination)[0] = mpvmc_avg_words(source0, adjacent0);
-    ((u32*)destination)[1] = mpvmc_avg_words(source1, adjacent1);
-}
-
 static inline void mpvmc_copy_shift1_row(const u8* reference, u8* destination)
 {
     const u32* words = (const u32*)reference;
@@ -98,57 +76,144 @@ void MPVMC08_OneRef4p_TuneC(MPVMCContext* context)
     }
 }
 
-/* TODO: [blocked] 29.78%; vendor bit-insert assembly boundary lacks specific authorization; retain C fallback. */
+/* TODO: [breakthrough needed] 44.91%; packs reach rlwimi in C; retail keeps masks unpropagated (IRO off: side-effect asm stmt or pragma). */
 void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
 {
-    int row;
-    int alignment = (unsigned long)context->reference0 & 3;
-    u32 stride = context->reference_stride;
-    u8* destination = context->destination;
-    const u8* reference = context->reference0;
+    u32 m2;
+    u32 m1;
+    u32 x0;
+    u32 a1, w1;
+    const u8* s = context->reference0;
+    u32* d = (u32*)context->destination;
+    u32 a0, w0;
+    s32 stride = context->reference_stride;
+    u32 x1;
+    s32 i;
 
-    switch (alignment) {
+    m1 = 0xFEFEFEFE;
+    m2 = 0x01010101;
+
+    switch ((u32)s & 3) {
     case 0:
-        for (row = 0; row < 8; row++) {
-            const u32* words = (const u32*)reference;
-            u32 adjacent0 = (words[0] << 8) | (words[1] >> 24);
-            u32 adjacent1 = (words[1] << 8) | reference[8];
-            ((u32*)destination)[0] = mpvmc_avg_words(words[0], adjacent0);
-            ((u32*)destination)[1] = mpvmc_avg_words(words[1], adjacent1);
-            reference += stride;
-            destination += 8;
+        for (i = 0; i < 8; i++) {
+            __dcbt((void*)s, stride);
+            w0 = ((const u32*)s)[0];
+            w1 = ((const u32*)s)[1];
+            a1 = s[8];
+            a0 = (w1 >> 24) | (w0 << 8);
+            a1 = (w1 << 8) | a1;
+            x0 = w0 ^ a0;
+            s += stride;
+            w0 &= a0;
+            x1 = w1 ^ a1;
+            a0 = x0 & m1;
+            x0 &= m2;
+            w1 &= a1;
+            a1 = x1 & m1;
+            x1 &= m2;
+            a0 >>= 1;
+            w0 += x0;
+            a1 >>= 1;
+            w0 += a0;
+            w1 += x1;
+            d[0] = w0;
+            w1 += a1;
+            d[1] = w1;
+            d += 2;
         }
         break;
     case 1:
-        reference -= 1;
-        for (row = 0; row < 4; row++) {
-            mpvmc_h2_align1_row(reference, destination);
-            reference += stride;
-            mpvmc_h2_align1_row(reference, destination + 8);
-            reference += stride;
-            destination += 16;
+        s -= 1;
+        for (i = 0; i < 8; i++) {
+            __dcbt((void*)s, stride);
+            w1 = ((const u32*)s)[1];
+            a0 = ((const u32*)s)[0];
+            a1 = *(const u16*)(s + 8);
+            w0 = w1 >> 24;
+            w0 = __rlwimi(w0, a0, 8, 0, 23);
+            a0 = (w1 & 0xFFFF0000) | (a0 & 0xFFFF);
+            a0 = __rlwinm(a0, 16, 0, 31);
+            a1 = __rlwimi(a1, w1, 16, 0, 15);
+            x0 = w0 ^ a0;
+            w1 <<= 8;
+            w1 = __rlwimi(w1, a1, 24, 24, 31);
+            w0 &= a0;
+            a0 = x0 & m1;
+            x0 &= m2;
+            x1 = w1 ^ a1;
+            w1 &= a1;
+            a1 = x1 & m1;
+            a0 >>= 1;
+            w0 += x0;
+            x1 &= m2;
+            w0 += a0;
+            a1 >>= 1;
+            w1 += x1;
+            d[0] = w0;
+            w1 += a1;
+            s += stride;
+            d[1] = w1;
+            d += 2;
         }
         break;
     case 2:
-        reference -= 2;
-        for (row = 0; row < 4; row++) {
-            mpvmc_h2_align2_row(reference, destination);
-            reference += stride;
-            mpvmc_h2_align2_row(reference, destination + 8);
-            reference += stride;
-            destination += 16;
+        s -= 2;
+        for (i = 0; i < 8; i++) {
+            __dcbt((void*)s, stride);
+            w0 = ((const u32*)s)[0];
+            w1 = ((const u32*)s)[1];
+            x1 = ((const u32*)s)[2];
+            a0 = __rlwimi(w0 << 24, w1, 24, 8, 31);
+            w0 = __rlwimi(w0 << 16, w1, 16, 16, 31);
+            x0 = w0 ^ a0;
+            w0 &= a0;
+            a1 = __rlwimi(w1 << 24, x1, 24, 8, 31);
+            a0 = x0 & m1;
+            w1 = __rlwimi(w1 << 16, x1, 16, 16, 31);
+            x0 &= m2;
+            s += stride;
+            x1 = w1 ^ a1;
+            w1 &= a1;
+            a1 = x1 & m1;
+            a0 >>= 1;
+            w0 += x0;
+            x1 &= m2;
+            w0 += a0;
+            a1 >>= 1;
+            w1 += x1;
+            d[0] = w0;
+            w1 += a1;
+            d[1] = w1;
+            d += 2;
         }
         break;
-    default:
-        reference -= 3;
-        for (row = 0; row < 8; row++) {
-            const u32* words = (const u32*)reference;
-            u32 source0 = (words[0] << 24) | (words[1] >> 8);
-            u32 source1 = (words[1] << 24) | (words[2] >> 8);
-            ((u32*)destination)[0] = mpvmc_avg_words(source0, words[1]);
-            ((u32*)destination)[1] = mpvmc_avg_words(source1, words[2]);
-            reference += stride;
-            destination += 8;
+    case 3:
+        s -= 3;
+        for (i = 0; i < 8; i++) {
+            __dcbt((void*)s, stride);
+            a0 = ((const u32*)s)[1];
+            w0 = __lwbrx((void*)s, 0);
+            w0 = __rlwimi(w0, a0, 24, 8, 31);
+            a1 = ((const u32*)s)[2];
+            x0 = w0 ^ a0;
+            w1 = __rlwimi(a0 << 24, a1, 24, 8, 31);
+            w0 &= a0;
+            a0 = x0 & m1;
+            x0 &= m2;
+            x1 = w1 ^ a1;
+            w1 &= a1;
+            a1 = x1 & m1;
+            a0 >>= 1;
+            w0 += x0;
+            x1 &= m2;
+            w0 += a0;
+            a1 >>= 1;
+            w1 += x1;
+            d[0] = w0;
+            w1 += a1;
+            s += stride;
+            d[1] = w1;
+            d += 2;
         }
         break;
     }

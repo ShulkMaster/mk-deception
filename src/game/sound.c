@@ -76,17 +76,12 @@ struct MslSystemInit {
     unsigned int aram_size;
 };
 
-struct MslInitParam g_initDefault = {sizeof(struct MslInitParam), 1, 3};
-struct MslSystemInit g_sysinitDefault = {sizeof(struct MslSystemInit), 0, 0, 64, 0, 0};
+static struct MslInitParam g_initDefault = {sizeof(struct MslInitParam), 1, 3};
+static struct MslSystemInit g_sysinitDefault = {sizeof(struct MslSystemInit), 0, 0, 64, 0, 0};
 extern SoundBankData sbank_data[];
 extern LoadedSoundBank loaded_sbank_data[];
-extern SoundBankLoadMode bank_load_table[];
 extern int mk_plyr_sound_table[];
 extern int mk_foot_sound_table[7][4];
-extern SoundCallTable foot_call_table[];
-extern SoundCallTable voice_call_table[];
-extern SoundCallTable hit_call_table[];
-extern SoundCallTable pf_hit_call_table[];
 
 #include "src/game/sound_call_tables.inc"
 #include "src/game/sound_bank_data.inc"
@@ -94,7 +89,7 @@ extern SoundCallTable pf_hit_call_table[];
 enum { SOUND_BANK_COUNT = sizeof(sbank_data) / sizeof(sbank_data[0]) };
 
 int can_big_boss_make_special_vo_call(unsigned int cooldown_ticks);
-int snd_calculate_volume(struct SoundRequest* request);
+static int snd_calculate_volume(struct SoundRequest* request);
 
 MslSoundHandle mslBankPlayVol(
     mslLoadedBank* bank, int sound, int field_0c, int priority, float volume,
@@ -126,16 +121,16 @@ void yinyang_finish_music(void);
 void yinyang_stop_music(void);
 void yinyang_start_music(void);
 
-int get_indirect_bank(unsigned int bank);
-void unload_banks_not_on_list(int mode);
-void load_banks_on_list_async(int mode);
-void unload_slots_not_on_list(int slot_list);
+static int get_indirect_bank(unsigned int bank);
+static void unload_banks_not_on_list(int mode);
+static void load_banks_on_list_async(int mode);
+static void unload_slots_not_on_list(int slot_list);
 void mslBankUnLoad(mslLoadedBank* bank);
 float mslGetVol(_mslSystem* system);
 void mslSetVol(_mslSystem* system, float volume);
 _mslSystem* mslInit(struct MslInitParam* init, struct MslSystemInit* system_init);
 int mslSetWavePath(_mslSystem* system, const char* path);
-void check_and_load_sound_bank_async(int bank, int slot);
+static void check_and_load_sound_bank_async(int bank, int slot);
 void* get_konquest_region_table(void);
 static void lsba_callbank(_mslAsyncResponse* response);
 
@@ -631,7 +626,7 @@ static inline int sound_bank_use_count(int bank)
     return count;
 }
 
-static inline void unload_sound_bank(int bank) {
+static inline void unload_sound_bank(long bank) {
     char filename[0x98];
 
     if (bank != -1 && bank >= 0 && bank < SOUND_BANK_COUNT) {
@@ -681,8 +676,6 @@ static inline void unload_mode_bank_list(void)
     }
 }
 
-/* TODO: [breakthrough needed] 96.34241%; bank pointer forms before admission;
- * CSE-off regresses; recover the original late admission/owner boundary. */
 void setup_sound_bank_list_by_mode(int mode, int transition_mode) {
     if (mode < 0 || mode >= 0xF) {
         return;
@@ -756,7 +749,7 @@ static inline void load_sound_bank_and_slot_async(int bank, unsigned int slot) {
     }
 }
 
-void load_banks_on_list_async(int mode) {
+static void load_banks_on_list_async(int mode) {
     unsigned int* banks = bank_load_table[mode].banks;
     int count = bank_load_table[mode].count;
     int i;
@@ -803,8 +796,8 @@ static inline int is_bank_on_list(int bank, int mode) {
     return 0;
 }
 
-void unload_banks_not_on_list(int mode) {
-    int bank;
+static void unload_banks_not_on_list(int mode) {
+    long bank;
 
     for (bank = 0; bank < SOUND_BANK_COUNT; bank++) {
         SoundBankData* bank_data = &sbank_data[bank];
@@ -848,7 +841,7 @@ static inline void unload_sound_bank_slot(int slot) {
     }
 }
 
-void unload_slots_not_on_list(int mode) {
+static void unload_slots_not_on_list(int mode) {
     int slot;
 
     for (slot = 0; slot < 0x1D; slot++) {
@@ -929,7 +922,7 @@ struct KonquestSoundBanks {
     int bank_1;
 };
 
-int get_indirect_bank(unsigned int indirect_bank) {
+static int get_indirect_bank(unsigned int indirect_bank) {
     PlyrPdata* fighter;
     struct KonquestSoundBanks* konquest;
     int bank = -1;
@@ -1045,7 +1038,7 @@ static void lsba_callbank(_mslAsyncResponse* response) {
     sound_publish_bank_response(bank, response);
 }
 
-void check_and_load_sound_bank_async(int bank, int slot) {
+static void check_and_load_sound_bank_async(int bank, int slot) {
     char unload_filename[0x98];
     char load_filename[0x98];
 
@@ -1120,7 +1113,7 @@ struct DelayedSoundPdata {
     int sound_id;
 };
 
-float p_snd_req_delay(void);
+static float p_snd_req_delay(void);
 
 void snd_req_delay(int sound_id, int delay) {
     struct DelayedSoundPdata* pdata;
@@ -1138,7 +1131,7 @@ void snd_req_delay(int sound_id, int delay) {
     }
 }
 
-float p_snd_req_delay(void) {
+static float p_snd_req_delay(void) {
     struct SoundRequest request;
     int sound_id;
 
@@ -1200,11 +1193,11 @@ MslSoundHandle pan_vol_pitch_snd_req(
         if (pan > 2.0f) {
             pan = 2.0f;
         }
-        if (pitch < 0.25f) {
-            pitch = 0.25f;
+        if (pitch < 0.5f) {
+            pitch = 0.5f;
         }
-        if (pitch > 4.0f) {
-            pitch = 4.0f;
+        if (pitch > 1.5f) {
+            pitch = 1.5f;
         }
         entry = &mk_sound_table[sound_id];
         handle = mslBankPlayVolPanPitch(
@@ -1345,7 +1338,7 @@ MslSoundHandle snd_req(int sound_id) {
     return play_sound_vol(sound_id, 1.0f);
 }
 
-int snd_calculate_volume(struct SoundRequest* request) {
+static int snd_calculate_volume(struct SoundRequest* request) {
     int result = 0;
     int sound_id;
     mslLoadedBank* bank;
@@ -1602,7 +1595,7 @@ struct DelayedRandomSoundPdata {
     int group;
 };
 
-float p_random_snd_req_delay(void);
+static float p_random_snd_req_delay(void);
 
 void random_snd_req_delay(int group, int delay) {
     struct DelayedRandomSoundPdata* pdata;
@@ -1617,15 +1610,15 @@ void random_snd_req_delay(int group, int delay) {
     }
 }
 
-float p_random_snd_req_delay(void) {
+static float p_random_snd_req_delay(void) {
     if (aproc->pid != 0x3010) {
-        return 0.0f;
+        return -1.0f;
     }
     if (apdata != 0) {
         pan_vol_pitch_random_snd_req(
             ((struct DelayedRandomSoundPdata*)apdata)->group, 0.0f, 1.0f, 1.0f);
     }
-    return 0.0f;
+    return -1.0f;
 }
 
 MslSoundHandle pan_vol_pitch_random_hit(
@@ -1659,53 +1652,8 @@ MslSoundHandle pan_vol_pitch_random_hit(
     return result;
 }
 
-/* TODO: [near miss] 98.61111%; canonical profile/indexed reads agree;
- * one extra no-sound reset remains; stop at shared-exit codegen. */
 MslSoundHandle random_hit(int group) {
-    struct SoundRequest request;
-    int* sounds;
-    MslSoundHandle handle = 0;
-    SoundCallTable* table;
-    int count;
-    unsigned int choice;
-    int sound_id;
-
-    if (group >= 0 && group < 0x13) {
-        if (mode_of_play == 6) {
-            table = pf_hit_call_table;
-            sounds = table[group].sounds;
-            count = table[group].count;
-        } else {
-            table = hit_call_table;
-            sounds = table[group].sounds;
-            count = table[group].count;
-        }
-
-        if (sounds != 0 && count > 0) {
-            choice = randu0((unsigned short)count) & 0xFFFF;
-            handle = 0;
-            sound_id = sounds[choice];
-            if (sound_id == -1) {
-                handle = 0;
-            } else {
-                if (sound_id < 0 || sound_id >= 0x1C0C) {
-                    handle = 0;
-                } else {
-                    request.sound_id = sound_id;
-                    request.volume = 1.0f;
-                    request.apply_group_volume = 1;
-                    if (snd_calculate_volume(&request)) {
-                        SoundEntry* entry = &mk_sound_table[sound_id];
-                        handle = mslBankPlayVolPanPitch(
-                            request.bank, entry->bank, entry->sound,
-                            entry->field_0c, request.volume, 0.0f, 1.0f,
-                            entry->field_18);
-                    }
-                }
-            }
-        }
-    }
-    return handle;
+    return pan_vol_pitch_random_hit(group, 0.0f, 1.0f, 1.0f);
 }
 
 

@@ -107,7 +107,6 @@ static void trackhead_postsleep(void);
 static void trackhead_prewake(void);
 void mks_start_goro_xtra_weapons(void);
 void limb_sever_show_z_meat_chunks_all(MkObj* obj);
-void limb_sever_hide_z_meat_chunks_all(MkObj* obj);
 int get_player_number(MkObj* obj);
 
 RpAtomic* set_atomic_material_alpha(RpAtomic* atomic, unsigned int alpha);
@@ -2081,8 +2080,8 @@ static inline float advance_material_fade(struct FadeMaterialPdata* pdata, MkObj
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.10891%; inline amount/material homes swap;
- * recover material owner without advancing its load before accumulator update. */
+/* TODO: [near miss] 99.10891%; amount/material homes swap at the late load;
+ * amount capture is neutral; recover owners without moving material acquisition. */
 static float p_fade_material(void) {
     MkObj* obj;
     struct FadeMaterialPdata* pdata;
@@ -3227,7 +3226,7 @@ static RpMaterial* material_null_texture_pointer(
             bump = MatFXGetData(
                 material, rpMATFXEFFECTBUMPMAP);
             bump->bumped_texture = 0;
-            bump->coefficient = 1.0f;
+            bump->coefficient = 0.0f;
         } else if (effect != rpMATFXEFFECTUVTRANSFORM &&
                    effect == rpMATFXEFFECTDUALUVTRANSFORM) {
             dual = MatFXGetData(
@@ -3467,8 +3466,29 @@ void limb_sever_show_z_meat_chunks_all(MkObj* obj) {
     }
 }
 
-/* TODO: [near miss] 99.88%; shared per-chunk helper restores owners and CFG;
- * final bank-plus-ID add operands are reversed; preserve exact show-all sibling. */
+static inline void limb_show_limb_meat_chunk(MkObj* obj, int chunk_id,
+                                             unsigned int material_id_base) {
+    MkPtr* ptr;
+    MkSobj* sobj;
+    RpMaterial* material;
+    unsigned int material_id = (unsigned int)chunk_id + material_id_base;
+
+    material = 0;
+    ptr = first_mkptr(&obj->sobj_list);
+    while (ptr != 0) {
+        sobj = (MkSobj*)ptr->hdr;
+        material = find_geometry_material_by_id(
+            sobj->atomic->geometry, material_id);
+        if (material != 0) {
+            break;
+        }
+        ptr = next_mkptr(ptr);
+    }
+    if (material != 0) {
+        show_material(material);
+    }
+}
+
 void limb_sever_show_z_meat_chunks(
     MkObj* obj, int limb, int include_children) {
     unsigned int material_id_base;
@@ -3479,7 +3499,7 @@ void limb_sever_show_z_meat_chunks(
     material_id_base = limb_material_bank_base(obj);
     material_ids = limb_meats_mat_id_tbl[limb];
     while (*material_ids != -1) {
-        limb_show_meat_chunk(obj, material_id_base, *material_ids);
+        limb_show_limb_meat_chunk(obj, *material_ids, material_id_base);
         material_ids++;
         if (shown != 0 && include_children == 0) {
             break;
@@ -3831,16 +3851,13 @@ MkObj* obj_sever_limb(
 static void xfer_bone_tree_from_obj_to_limb_obj(int bone_index, MkBone *parent,
                                                 MkObj *source_obj,
                                                 MkObj *limb_obj);
-static void scan_tree_to_xfer_bone_tree_from_obj_to_limb_obj(MkObj *source_arg,
-                                                             MkObj *limb_arg,
-                                                             int limb_id);
 
 #pragma inline_depth(2)
 static inline void scan_tree_to_xfer_bone_tree_from_obj_to_limb_obj(
     MkObj* source_arg, MkObj* limb_arg, int limb_id) {
     MkBone* queue[150];
-    MkBone* bone;
     unsigned int count;
+    MkBone* bone;
     unsigned int read_index;
 
     count = read_index = 0;
@@ -3869,8 +3886,6 @@ static inline void scan_tree_to_xfer_bone_tree_from_obj_to_limb_obj(
     }
 }
 
-/* TODO: [near miss] 98.22660%; second recursive BFS owner/count GPR homes differ;
- * current trace confirms coloring; stop pending a new inline-boundary fact. */
 static void _move_bones_from_obj_to_limbobj(
     MkObj* source_arg, MkObj* limb_arg, int bone_index, int include_children) {
     MkSobj* sobj;

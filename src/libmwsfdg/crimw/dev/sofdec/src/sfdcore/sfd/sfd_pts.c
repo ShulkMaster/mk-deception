@@ -30,8 +30,8 @@ int SFPTS_IsPtsQueFull(SfdHandle* handle, int buffer_index)
            handle->buffers[buffer_index].work.ring.pts_queue.capacity;
 }
 
-/* TODO: [near miss] 98.49397%; found-arm copy/join is absent before allocation;
- * structured search/consume boundary restores branches but changes owner order. */
+/* TODO: [breakthrough needed] 98.49397%; found-arm jumps are folded away;
+ * recover the original search/consume index and queue-root ownership. */
 int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
                      unsigned int position, SfdPtsEntry* output)
 {

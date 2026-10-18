@@ -31,8 +31,6 @@ static int states_when_device_error[4] = {3, 4, 6, 7};
 
 static char right_full_card_space_string[0x32];
 static char left_full_card_space_string[0x32];
-ProfileUnlockSummary gp_data;
-StorageDevice storage_status[STORAGE_MAX_DEVICES];
 
 static int format_request_flag[2] = {0, 0};
 static int states_when_device_full[1] = {STORAGE_STATUS_FULL};
@@ -649,7 +647,7 @@ int load_from_memcard_w_error(int device, int mode, void* settings, char* cardNa
 }
 #pragma dont_inline reset
 
-void end_save_message(int mode, int result, int device, int flag) {
+static void end_save_message(int mode, int result, int device, int flag) {
     switch (mode) {
     case 5:
         break;
@@ -833,8 +831,6 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
 }
 
 #pragma dont_inline on
-/* TODO: [breakthrough] 99.91098%; profile-byte owner recovered;
- * mode-range/file-offset homes still swap; recover their source owners. */
 int save_to_memcard_w_error(int device, int mode, const char* title, void* settings, int flag,
                             unsigned int* freeBlocks, int* freeBytes) {
     StorageDevice* dev;
@@ -911,6 +907,7 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                 vtbl = aproc->vtbl;
                 vtbl->sleep();
                 if (result == 0) {
+                    unsigned int fileOffset;
                     int profileByteOffset;
                     int profile;
                     char* regionBuffer = konq_region_data_buffer;
@@ -922,13 +919,14 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
                         profileByteOffset = profile * SAVE_PROFILE_STRIDE;
                         chunk = 0;
                         while (chunk < 8 && result == 0) {
+                            fileOffset = profileByteOffset + chunk * SAVE_CHUNK_SIZE +
+                                         STORAGE_LOAD_SIZE;
                             regionTries = 2;
                             result = 4;
                             while (regionTries-- != 0 && result != 0) {
                                 result = save_to_memcard2(
                                     device, 0,
-                                    profileByteOffset + chunk * SAVE_CHUNK_SIZE +
-                                        STORAGE_LOAD_SIZE, 0,
+                                    fileOffset, 0,
                                     "", "MKD", regionBuffer, SAVE_CHUNK_SIZE,
                                     deviceFreeBlocks, deviceFreeBytes, 0, 0, mode, 0);
                             }
@@ -1049,3 +1047,6 @@ int init_memcard(void) {
 int get_mu_access_progress(void) {
     return mu_access_progress;
 }
+
+StorageDevice storage_status[STORAGE_MAX_DEVICES];
+ProfileUnlockSummary gp_data;

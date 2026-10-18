@@ -765,7 +765,7 @@ void* mwMemHeapStrategyCallback(u32 size, _mwMemHeap* heap, u32 flags,
 }
 
 void mwMemHeapGetMaxFreeBlock(_mwMemHeap* heap, u32* outSize, u32* outCount) {
-    MwMemUsedHeader* freeNode;
+    MwMemFreeHeader* freeNode;
     u32 maxSize;
     u32 count;
 

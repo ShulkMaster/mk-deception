@@ -5,9 +5,9 @@
 
 extern u64 OSGetTime(void);
 
-static s32 utytmr_ch = 0;
-static volatile s32 utytmr_init_cnt = 0;
-static u64 utytmr_unit;
+s32 utytmr_ch = 0;
+volatile s32 utytmr_init_cnt = 0;
+u64 utytmr_unit;
 
 u64 UTY_GetTmrUnit(void)
 {

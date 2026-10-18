@@ -39,40 +39,14 @@ float _mkproc_sleep_ticks = 0.0f;
 MkPtr* active_proc_list = 0;
 int network_pause_procs = 0;
 
-/* TODO: [blocked] 56.43%; retail restores _slpx_sp/_slpx_pc explicitly;
- * process stack-switch assembly requires function-specific authorization. */
-void mkproc_die(void) {
-    if (aproc->destroy_cb != 0) {
-        aproc->destroy_cb();
-        if (aproc->instance == 0) {
-            return;
-        }
-    }
-    aproc_nodestroy = 0;
-    aproc->vtbl->destroy(aproc);
+asm void mkproc_die(void)
+{
+    SEQ_mkproc_die();
 }
 
-/* TODO: [blocked] 72.79%; retail LR/SP context switch needs function-specific assembly authorization. */
-void dispatch_nostack(void) {
-    MkProc* proc = aproc;
-    float sleep_ticks;
-
-    do {
-        sleep_ticks = proc->entry();
-        proc = aproc;
-    } while (sleep_ticks == zero_float);
-    proc->sleep_ticks = sleep_ticks;
-    if (proc->destroy_cb != 0) {
-        proc->destroy_cb();
-        proc = aproc;
-        if (proc->instance == 0) {
-            return;
-        }
-    }
-    if (proc->sleep_ticks < zero_float) {
-        aproc_nodestroy = 0;
-        proc->vtbl->destroy(proc);
-    }
+asm void dispatch_nostack(void)
+{
+    SEQ_dispatch_nostack();
 }
 
 void sleep_nostack(void) {}

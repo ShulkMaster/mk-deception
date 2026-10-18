@@ -387,8 +387,8 @@ void GCNSetupNonRenderwarePipeline(RpClump* clump, MkObj* owner) {
 }
 #pragma pop
 
-/* TODO: [breakthrough needed] 95.78%; BSS order and effect-free guard remain;
- * loop offset is an SR temporary; canonical initializer helper is byte-neutral. */
+/* TODO: [breakthrough needed] 95.77895%; BSS first-reference order and scroll
+ * guard need original source; C++ layout recovery regresses sibling code. */
 static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, MkObj* owner) {
     RpGeometry* geometry;
     MksobjPluginData* atomic_data;

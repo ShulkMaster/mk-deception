@@ -4,6 +4,7 @@
 #include "mw/mwFile.h"
 #include "mslcpp/msl_error.h"
 #include "mslcpp/iterator.h"
+#include "mslcpp/memory.h"
 #include "dolphin/cache.h"
 #include "runtime/cstring.h"
 
@@ -516,13 +517,14 @@ _EmptyMemberOpt<Base, Member>::_EmptyMemberOpt(const _EmptyMemberOpt& other)
 }
 
 template <class T, int Alignment>
-class mwFileMemAllocator {
+class mwFileMemAllocator : public std::allocator<T> {
 public:
     typedef unsigned long size_type;
     typedef T* pointer;
 
     mwFileMemAllocator();
     mwFileMemAllocator(const mwFileMemAllocator&);
+    ~mwFileMemAllocator() {}
 
     pointer allocate(size_type n)
     {
@@ -571,14 +573,13 @@ private:
     T* data_;
 };
 
-/* TODO: [breakthrough needed] 84.33334%; allocator return lifetime agrees;
- * recover tag carrier ownership and range-argument scheduling. */
+/* TODO: [near miss] 99.14815%; five tag-carrier/argument rows remain;
+ * recover dispatch-object transport with the current allocator contract. */
 template <class T, class Traits, class Allocator>
 basic_string<T, Traits, Allocator>::basic_string(const basic_string& str)
     : alloc_(str.alloc_)
 {
-    const Allocator& allocator = get_allocator();
-    init(str.data_, str.data_ + str.size_, allocator, random_access_iterator_tag());
+    init(str.data_, str.data_ + str.size_, get_allocator(), random_access_iterator_tag());
 }
 
 template <class T, class Traits, class Allocator>
@@ -1205,8 +1206,6 @@ const char* gcnHostMountPoint::convertPath(const char* path)
     return full_path.data();
 }
 
-/* TODO: [near miss] 97.16%; allocator ctor return is forwarded as string arg;
- * retail rematerializes its stack address; explicit member init is neutral. */
 gcnHostMountPoint::gcnHostMountPoint(const char* mount_name, mwFileServer& server_ref)
     : mwFileDevicePlugin<gcnHostMountPoint, gcnHostOpenCommand>(mount_name, server_ref)
 {
@@ -1786,7 +1785,8 @@ int gcnHostCloseCommand::serviceState(int state)
 }
 }
 
-/* TODO: [near miss] 99.17% (mwFileGCReadBufferedCommand instance only); this/previous r30/r31 swap, stop at coloring. */
+/* TODO: [near miss] 99.16667% for mwFileGCReadBufferedCommand; this/previous
+ * saved homes swap; loop-local snapshot scope is neutral. */
 template <class T>
 int mwFileCommandPlugin<T>::service()
 {
@@ -2155,7 +2155,8 @@ mwFileAsyncResult mwFileXPCloseCommand<T, H>::getResult() const
     return result;
 }
 
-/* TODO: [near miss] 99.63%; named padding-data snapshot folds away; recover mask/data owner boundary. */
+/* TODO: [near miss] 99.62963%; six mask/data home rows remain;
+ * recover padding ownership; canonical round-up stays out of line. */
 template <class T, class H>
 int mwFileXPCloseCommand<T, H>::handleNotStartedState()
 {
@@ -2397,8 +2398,8 @@ int mwFileXPReadBufferedCommand<T, H>::handleSignalState()
     return mwFileCommandPluginBase::handleSignalState();
 }
 
-/* TODO: [near miss] 97.98561%; aligned-offset pair and fill-size words
- * differ in GPR homes; recover original read-phase ownership. */
+/* TODO: [near miss] 97.98561%; canonical round-up expansion regresses saved
+ * homes; original offset/fill-size ownership remains unresolved. */
 template <class T, class H>
 int mwFileXPReadBufferedCommand<T, H>::handleReadingState()
 {

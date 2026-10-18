@@ -380,8 +380,8 @@ struct KonquestSavedState {
 };
 
 struct KonquestRegionAsset {
-    MkFileEntry* fight_files;
-    MkFileEntry* art_files;
+    const MkFileEntry* fight_files;
+    const MkFileEntry* art_files;
     union {
         const char* script_name;
         const char* map_art_name;
@@ -998,7 +998,7 @@ struct KonquestTextWindowPdata {
 };
 
 struct AgeProgressionEntry {
-    MkFileEntry* file_table;
+    const MkFileEntry* file_table;
     const char* art_section;
     unsigned int first_string_id;
     int first_duration;
@@ -1126,26 +1126,6 @@ extern int pause_player;
 extern unsigned int monk_ground_colls[];
 extern unsigned int monk_laying_on_ground_colls[];
 extern struct KonquestRegionAsset konquest_region_data[9];
-extern MkFileEntry konquest_common_file_table[];
-extern MkFileEntry kon_earthrealm_0_file_table[];
-extern MkFileEntry kon_earthrealm_1_file_table[];
-extern MkFileEntry kon_earthrealm_2_file_table[];
-extern MkFileEntry kon_netherrealm_1_file_table[];
-extern MkFileEntry kon_chaosrealm_1_file_table[];
-extern MkFileEntry kon_outworld_1_file_table[];
-extern MkFileEntry kon_orderrealm_1_file_table[];
-extern MkFileEntry kon_edenia_1_file_table[];
-extern MkFileEntry kon_nexus_1_file_table[];
-extern MkFileEntry kq_er1_fight_file_table[];
-extern MkFileEntry kq_er2_fight_file_table[];
-extern MkFileEntry kq_nr1_fight_file_table[];
-extern MkFileEntry kq_cr1_fight_file_table[];
-extern MkFileEntry kq_ow1_fight_file_table[];
-extern MkFileEntry kq_or1_fight_file_table[];
-extern MkFileEntry kq_ed1_fight_file_table[];
-extern MkFileEntry kq_nx1_fight_file_table[];
-extern MkFileEntry krypt_art_file_table[];
-extern MkFileEntry konquest_pui_award_tgas_file_table[];
 extern MkFileInfo sec_konquest_common_art;
 extern MkFileInfo sec_konquest_monk_anims;
 extern MkFileInfo sec_konquestdata;
@@ -1538,6 +1518,12 @@ void purge_global_collision_list(void);
 void remove_collision_list_from_konquest_shadow_lists(MkHdr* collision_list);
 void insert_collision_list_on_konquest_shadow_lists(MkHdr* collision_list);
 static void show_konquest_object(struct KonquestUidObject* object);
+typedef struct KonquestTransitionMotion {
+    Vec velocity;
+    float remaining_ticks;
+    float length_squared;
+} KonquestTransitionMotion;
+
 static void object_transition_to_state(
     KonquestChildObject* object, int state, int play_sound);
 static void object_set_state(KonquestChildObject* record, int state);
@@ -2467,8 +2453,9 @@ static inline void calc_closest_point_on_line(
     float projection;
     edge_x = end->x - start->x;
     edge_y = end->y - start->y;
+    length_squared = edge_y * edge_y;
     edge_z = end->z - start->z;
-    length_squared = edge_z * edge_z + (edge_x * edge_x + edge_y * edge_y);
+    length_squared = edge_z * edge_z + (edge_x * edge_x + length_squared);
     x_product = (point->x - start->x) * edge_x;
     z_product = (point->z - start->z) * edge_z;
     projection_numerator = x_product + z_product;
@@ -3118,7 +3105,7 @@ MkSobj* get_tile_sobj_by_id(int id) {
 }
 
 void load_konquest_data(void) {
-    MkFileEntry* file;
+    const MkFileEntry* file;
     char* strings;
     int strings_size;
     int i;
@@ -5134,7 +5121,7 @@ static void initialize_tile_patch_sobj(MkSobj* object) {
     sobj_set_priority(object, 9);
 }
 
-/* TODO: [Scope warn] section-context block: hoisting it drops 100% -> 99.95%; context stack homes change. */
+/* TODO: [Scope warn] section-context block. */
 void load_konquest_tiles(void) {
     MkObj* model;
 
@@ -5187,7 +5174,7 @@ void load_konquest_tiles(void) {
         context.bgnd_obj = (MkObj*)tile_objects;
         context.pad = 0;
         save_current_ssf();
-        load_ssf((MkFileEntry*)konquest_common_file_table);
+        load_ssf(konquest_common_file_table);
         active_cmdscript->mko = konquest_pdata->script_owner;
         konquest_pdata->script_owner->load_ctx = &context;
         load_effect_bank("common_pfx.mko");
@@ -6208,8 +6195,8 @@ static float p_pui_pfx_sequence(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 98.84956%; owner alias pressure remains; early-return
- * accessor loses retail branch pairs; recover original validation ownership. */
+/* TODO: [near miss] 98.84956%; validation aliases keep PUI at the simplify
+ * threshold; recover lower alias pressure while preserving both success branches. */
 static void handle_trigger_preprocess(struct KonquestTriggerStruct* trigger) {
     struct KonquestTriggerDefinition* definition;
     KonquestPuiRuntime* pui;
@@ -6502,8 +6489,8 @@ static inline void update_child_object_matrix(
     }
 }
 
-/* TODO: [near miss] 98.69522%; first/third sqrt return copies remain;
- * inline result owners need original boundary evidence; stack slot pairs constrain helpers. */
+/* TODO: [near miss] 99.01395%; retail operations and size agree;
+ * scalarized norm/timer FPR ordering remains; stop at coloring. */
 static void object_transition_to_state(
     KonquestChildObject* record, int state, int play_sound) {
     struct KonquestObjectState* state_data;
@@ -6511,17 +6498,9 @@ static void object_transition_to_state(
     Vec target_angles;
     Vec* angles;
     Vec* base_position;
+    KonquestTransitionMotion position_motion;
+    KonquestTransitionMotion angle_motion;
     float position_speed;
-    float position_ticks;
-    float angle_length_squared;
-    float position_length_squared;
-    float angle_ticks;
-    float position_x;
-    float position_y;
-    float position_z;
-    float angle_x;
-    float angle_y;
-    float angle_z;
     float angle_speed;
     float inverse;
     int enumeration_index;
@@ -6547,24 +6526,25 @@ static void object_transition_to_state(
                       ->enumerations[enumeration_index]
                       .states[state];
     target_position.y = state_data->position.y;
-    target_position.x += base_position->x;
-    target_position.y += base_position->y;
-    target_position.z += base_position->z;
+    target_position.x = base_position->x + target_position.x;
+    target_position.y = base_position->y + target_position.y;
+    target_position.z = base_position->z + target_position.z;
     target_angles.x = record->base_angles.x + state_data->angles.x;
     target_angles.y = record->base_angles.y + state_data->angles.y;
     target_angles.z = record->base_angles.z + state_data->angles.z;
 
-    position_x = target_position.x - record->position.x;
-    position_y = target_position.y - record->position.y;
-    position_z = target_position.z - record->position.z;
-    angle_x = target_angles.x - angles->x;
-    angle_y = target_angles.y - angles->y;
-    angle_z = target_angles.z - angles->z;
+    position_motion.velocity.x = target_position.x - record->position.x;
+    position_motion.velocity.y = target_position.y - record->position.y;
+    position_motion.velocity.z = target_position.z - record->position.z;
+    angle_motion.velocity.x = target_angles.x - angles->x;
+    angle_motion.velocity.y = target_angles.y - angles->y;
+    angle_motion.velocity.z = target_angles.z - angles->z;
 
-    position_length_squared =
-        position_x * position_x + position_y * position_y +
-        position_z * position_z;
-    position_ticks = gxMathFastSqrt(position_length_squared);
+    position_motion.length_squared =
+        position_motion.velocity.x * position_motion.velocity.x +
+        position_motion.velocity.y * position_motion.velocity.y +
+        position_motion.velocity.z * position_motion.velocity.z;
+    position_motion.remaining_ticks = gxMathFastSqrt(position_motion.length_squared);
     state_data = &konquest_pdata->region_table
                       ->enumerations[enumeration_index]
                       .states[state];
@@ -6573,20 +6553,22 @@ static void object_transition_to_state(
         state_data->position_speed.y * state_data->position_speed.y +
         state_data->position_speed.z * state_data->position_speed.z);
     if (position_speed > 0.0f) {
-        position_ticks /= position_speed;
-        position_ticks = floor(position_ticks);
+        position_motion.remaining_ticks /= position_speed;
+        position_motion.remaining_ticks = floor(position_motion.remaining_ticks);
     }
-    inverse = gxMathFastInvSqrt(position_length_squared);
-    position_x *= inverse;
-    position_y *= inverse;
-    position_z *= inverse;
-    position_x *= position_speed;
-    position_y *= position_speed;
-    position_z *= position_speed;
+    inverse = gxMathFastInvSqrt(position_motion.length_squared);
+    position_motion.velocity.x *= inverse;
+    position_motion.velocity.y *= inverse;
+    position_motion.velocity.z *= inverse;
+    position_motion.velocity.x *= position_speed;
+    position_motion.velocity.y *= position_speed;
+    position_motion.velocity.z *= position_speed;
 
-    angle_length_squared =
-        angle_x * angle_x + angle_y * angle_y + angle_z * angle_z;
-    angle_ticks = gxMathFastSqrt(angle_length_squared);
+    angle_motion.length_squared =
+        angle_motion.velocity.x * angle_motion.velocity.x +
+        angle_motion.velocity.y * angle_motion.velocity.y +
+        angle_motion.velocity.z * angle_motion.velocity.z;
+    angle_motion.remaining_ticks = gxMathFastSqrt(angle_motion.length_squared);
     state_data = &konquest_pdata->region_table
                       ->enumerations[enumeration_index]
                       .states[state];
@@ -6595,16 +6577,16 @@ static void object_transition_to_state(
         state_data->angle_speed.y * state_data->angle_speed.y +
         state_data->angle_speed.z * state_data->angle_speed.z);
     if (angle_speed > 0.0f) {
-        angle_ticks /= angle_speed;
-        angle_ticks = floor(angle_ticks);
+        angle_motion.remaining_ticks /= angle_speed;
+        angle_motion.remaining_ticks = floor(angle_motion.remaining_ticks);
     }
-    inverse = gxMathFastInvSqrt(angle_length_squared);
-    angle_x *= inverse;
-    angle_y *= inverse;
-    angle_z *= inverse;
-    angle_x *= angle_speed;
-    angle_y *= angle_speed;
-    angle_z *= angle_speed;
+    inverse = gxMathFastInvSqrt(angle_motion.length_squared);
+    angle_motion.velocity.x *= inverse;
+    angle_motion.velocity.y *= inverse;
+    angle_motion.velocity.z *= inverse;
+    angle_motion.velocity.x *= angle_speed;
+    angle_motion.velocity.y *= angle_speed;
+    angle_motion.velocity.z *= angle_speed;
 
     if (konquest_current_game_mode() != 4 &&
         konquest_pdata->region_table->enumerations[enumeration_index]
@@ -6624,21 +6606,22 @@ static void object_transition_to_state(
         }
     }
 
-    while (position_ticks > 0.0f || angle_ticks > 0.0f) {
+    while (position_motion.remaining_ticks > 0.0f ||
+           angle_motion.remaining_ticks > 0.0f) {
         MKMATRIX* matrix;
         MkSobj* object;
 
-        if (position_ticks > 0.0f) {
-            record->position.x += position_x * game_speed;
-            record->position.y += position_y * game_speed;
-            record->position.z += position_z * game_speed;
-            position_ticks -= game_speed;
+        if (position_motion.remaining_ticks > 0.0f) {
+            record->position.x += position_motion.velocity.x * game_speed;
+            record->position.y += position_motion.velocity.y * game_speed;
+            record->position.z += position_motion.velocity.z * game_speed;
+            position_motion.remaining_ticks -= game_speed;
         }
-        if (angle_ticks > 0.0f) {
-            angles->x += angle_x * game_speed;
-            angles->y += angle_y * game_speed;
-            angles->z += angle_z * game_speed;
-            angle_ticks -= game_speed;
+        if (angle_motion.remaining_ticks > 0.0f) {
+            angles->x += angle_motion.velocity.x * game_speed;
+            angles->y += angle_motion.velocity.y * game_speed;
+            angles->z += angle_motion.velocity.z * game_speed;
+            angle_motion.remaining_ticks -= game_speed;
         }
 
         matrix = 0;
@@ -6716,8 +6699,8 @@ static inline void konquest_start_door_proc(KonquestChildObject* door,
     }
 }
 
-/* TODO: [near miss] 97.00603%; shared partner UID agrees; search/latch owners
- * and lookup scheduling still constrain retail saved homes. */
+/* TODO: [near miss] 97.00603%; search/latch owners retain a 114-GPR graph;
+ * saved-home interference and enumeration-load scheduling remain. */
 void konquest_open_door_sobj(
     KonquestChildObject* door, int remain_open) {
     KonquestChildObject* partner;
@@ -6754,7 +6737,8 @@ void konquest_open_door(int enumeration, int remain_open) {
     }
 }
 
-/* TODO: [near miss] 97.94%; projection and displacement agree; stop at FPR coloring and instruction scheduling. */
+/* TODO: [near miss] 98.01266%; projection load-order ties overlap retail FPR lifetimes;
+ * recover load-emission/CSE ownership before further allocation changes. */
 void turn_to_face_exterior_door(void) {
     float point_delta_x;
     KonquestChildObject* door;
@@ -6898,8 +6882,11 @@ void konquest_transition_object_to_state(
     }
 }
 
-/* TODO: [near miss] 98.85606%; destroy-owner reload remains; scoped CSE fixes
- * the latch but loses indexed-table stride reuse across rotation. */
+static inline MkHdr* konquest_child_live_state_object(
+    const KonquestChildObject* record) {
+    return MK_LIVE(record->state_object, record->state_object_instance);
+}
+
 static void object_set_state(KonquestChildObject* record, int state) {
     struct KonquestObjectState* state_data;
     MkHdr* state_object;
@@ -6916,9 +6903,8 @@ static void object_set_state(KonquestChildObject* record, int state) {
         return;
     }
 
-    state_object = MK_LIVE(record->state_object, record->state_object_instance);
-
-    if (state_object != 0) {
+    if (konquest_child_live_state_object(record) != 0) {
+        state_object = record->state_object;
         if (state_object->instance != 0) {
             state_object->typed_vtbl->destroy(state_object);
         }
@@ -7708,7 +7694,7 @@ static float p_load_hero_art_section(void) {
         add_art_section_by_name_async(slot, section_name);
         wait_for_slot_load(slot);
     } else {
-        load_ssf((MkFileEntry*)konquest_common_file_table);
+        load_ssf(konquest_common_file_table);
         load_art_section_by_name(0xB002A, section_name);
     }
     return -1.0f;
@@ -8113,8 +8099,8 @@ static inline void run_monk_move_frames(int initial_state)
     }
 }
 
-/* TODO: [breakthrough] 97.49020%; event snapshots and dust homes agree;
- * frontend table preheader rotates saved owners; recover original loop entry. */
+/* TODO: [breakthrough needed] 97.49020%; sole outside IRO jump hoists table setup;
+ * guarded-do/for controls fail; original multi-entry or table-producer evidence is missing. */
 static float p_monk_move(void) {
     MkObj* hero;
     int initial_state;
@@ -9060,7 +9046,7 @@ static inline void adjust_star_dome_for_new_time_of_day(
 }
 
 /* TODO: [near miss] 95.43651%; table/last-row and alpha owners differ;
- * constant/owner lifetimes remain after interval, loop and binding controls. */
+ * no independent zero to reorder; original constant/owner lifetimes needed. */
 static float p_adjust_sky(void) {
     struct KonquestSkyRow* sky_table;
     int last_row;
@@ -9096,7 +9082,7 @@ static inline int konquest_find_sky_row(
 }
 
 /* TODO: [near miss] 99.32796%; GPR row/hour and FPR rate ownership differ;
- * retain fused interpolation; original snapshot ownership still needed. */
+ * final-channel staging is neutral; original snapshot ownership still needed. */
 static int adjust_sky_for_new_time_of_day(
     struct KonquestSkyRow* sky_table, int last_row) {
     struct KonquestSkyRow* previous_row;
@@ -9214,8 +9200,8 @@ static inline int konquest_find_light_row(
     return current_index;
 }
 
-/* TODO: [near miss] 99.33544%; current-color/red-step owners trail temporaries;
- * retain member base and scalar interpolation; producer boundary unresolved. */
+/* TODO: [near miss] 99.33544%; three GPR and two FPR owners differ;
+ * final-channel staging is neutral; recover original rate and row owners. */
 static int adjust_light_for_new_time_of_day(
     RpLight* light, KonquestLightRow* light_table, int last_row) {
     int current_index;
@@ -9558,7 +9544,7 @@ static void handle_monk_input(void) {
 }
 
 /* TODO: [near miss] 99.80099%; X result must emit before Z loads;
- * scalar predicate is neutral; recover plane producer ownership. */
+ * verified PS2 keeps the plane inline; original producer ownership remains missing. */
 static int check_additional_trigger_fire_requirements(
     struct KonquestTriggerStruct* owner, MkObj* hero) {
     KonquestTriggerRequirement* requirement;
@@ -10108,8 +10094,8 @@ static inline void configure_konquest_map_fade(ScreenObj* fade) {
     }
 }
 
-/* TODO: [near miss] 99.98276%; portal slot/OID constant loads tie;
- * recover argument-emission ownership; all register homes agree. */
+/* TODO: [near miss] 99.98276%; portal slot/OID LIS tie; retain projected-X
+ * anchor order and recover original argument-emission ownership. */
 static float p_konquest_map_screen(void) {
     struct KonquestPdata* pdata;
     const MkObj* hero;
@@ -10999,7 +10985,7 @@ void display_time_progression_images(int progression) {
     sound = snd_req(0x1AAA);
     load_ssf(entry->file_table);
     load_art_section_by_name(0x60027, entry->art_section);
-    load_ssf((MkFileEntry*)konquest_common_file_table);
+    load_ssf(konquest_common_file_table);
     load_art_section_language(0x60030, &sec_konquest_common_art);
     load_string_bank(
         0x40000, "konquest_info_box_descriptions_eng.mko");
@@ -11411,7 +11397,7 @@ void calc_print_speed_for_nis_dialog(MkProc* dialog, unsigned int ticks) {
     pdata->active = 1;
 }
 
-/* TODO: [Scope warn] delimiter-array block: hoisting its initializer drops 100% -> 96.45%; initialization scheduling changes. */
+/* TODO: [Scope warn] delimiter-array block. */
 static float p_konquest_dialog(void) {
     struct KonquestDialogPdata* pdata;
     char* token;
@@ -12273,7 +12259,8 @@ static inline int pui_bit_count(struct KonquestPdata* pdata) {
     return pdata->pui_end - pdata->pui_begin - 1;
 }
 
-/* TODO: [near miss] 99.84%; index producer/copy direction remains; membership-query ownership is byte-neutral. */
+/* TODO: [near miss] 99.84375%; index producer/copy direction remains;
+ * direct assignment and consumed decrement regress; original producer ownership is missing. */
 static void update_pui_actions(
     KonquestPuiActionBuffer current, KonquestPuiActionBuffer previous) {
     int dynamic_end;
@@ -13442,8 +13429,65 @@ void pickup_dynamic_pui(KonquestPuiDefinition* item) {
     cmdscript_execute(konquest_pdata->script_owner);
 }
 
-/* TODO: [near miss] 99.4662%; runtime/result and item home selection remain reversed;
- * recover a genuine owner boundary; instructions and layout already agree. */
+static inline void player_add_item_to_inventory_inline(KonquestPuiDefinition* item) {
+    int index;
+    unsigned int table_index;
+    int value;
+
+    if (item == 0) {
+        index = -1;
+    } else {
+        table_index =
+            get_table_index_by_pointer(konquest_pdata->script_owner, item);
+        if (table_index <= konquest_pdata->pui_begin ||
+            table_index >= konquest_pdata->pui_end) {
+            index = -1;
+        } else {
+            index = table_index - (konquest_pdata->pui_begin + 1);
+        }
+    }
+    if (index < 0) {
+        return;
+    }
+
+    set_u8_bit(
+        &p1_profile_konquest->raw[0x291], konquest_num_puis(), index, 1);
+    if (item == 0) {
+        return;
+    }
+
+    switch (item->type) {
+    case 3:
+        value = item->value + get_konq_profile_value(7, 0);
+        set_konq_profile_value(7, 0, value);
+        return;
+    case 4:
+        value = item->value + get_konq_profile_value(8, 0);
+        set_konq_profile_value(8, 0, value);
+        return;
+    case 5:
+        value = item->value + get_konq_profile_value(9, 0);
+        set_konq_profile_value(9, 0, value);
+        return;
+    case 6:
+        value = item->value + get_konq_profile_value(10, 0);
+        set_konq_profile_value(10, 0, value);
+        return;
+    case 7:
+        value = item->value + get_konq_profile_value(11, 0);
+        set_konq_profile_value(11, 0, value);
+        return;
+    case 8:
+        value = item->value + get_konq_profile_value(12, 0);
+        set_konq_profile_value(12, 0, value);
+        return;
+    default:
+        return;
+    }
+}
+
+/* TODO: [near miss] 99.4662%; runtime/item homes remain reversed;
+ * shared inventory-add operation is neutral; original lookup ownership unresolved. */
 void pickup_pui(KonquestPuiDefinition* item) {
     KonquestPuiRuntime* pui;
     struct KonquestKoinAwardPdata* award;
@@ -13452,7 +13496,6 @@ void pickup_pui(KonquestPuiDefinition* item) {
     unsigned int table_index;
     unsigned int first;
     int inventory_index;
-    int value;
 
     pui = find_pui_runtime_by_id(item);
     if (pui == 0) {
@@ -13494,52 +13537,7 @@ void pickup_pui(KonquestPuiDefinition* item) {
             inventory_index, 0);
     }
 
-    if (item == 0) {
-        inventory_index = -1;
-    } else {
-        table_index = get_table_index_by_pointer(
-            konquest_pdata->script_owner, item);
-        first = konquest_pdata->pui_begin;
-        if (table_index <= first || table_index >= konquest_pdata->pui_end) {
-            inventory_index = -1;
-        } else {
-            inventory_index = table_index - (first + 1);
-        }
-    }
-    if (inventory_index >= 0) {
-        set_u8_bit(
-            &p1_profile_konquest->raw[0x291],
-            (konquest_pdata->pui_end - konquest_pdata->pui_begin) - 1,
-            inventory_index, 1);
-        if (item != 0) {
-            switch (item->type) {
-            case 3:
-                value = item->value + get_konq_profile_value(7, 0);
-                set_konq_profile_value(7, 0, value);
-                break;
-            case 4:
-                value = item->value + get_konq_profile_value(8, 0);
-                set_konq_profile_value(8, 0, value);
-                break;
-            case 5:
-                value = item->value + get_konq_profile_value(9, 0);
-                set_konq_profile_value(9, 0, value);
-                break;
-            case 6:
-                value = item->value + get_konq_profile_value(10, 0);
-                set_konq_profile_value(10, 0, value);
-                break;
-            case 7:
-                value = item->value + get_konq_profile_value(11, 0);
-                set_konq_profile_value(11, 0, value);
-                break;
-            case 8:
-                value = item->value + get_konq_profile_value(12, 0);
-                set_konq_profile_value(12, 0, value);
-                break;
-            }
-        }
-    }
+    player_add_item_to_inventory_inline(item);
 
     if (item->type >= 3 && item->type <= 8) {
         award = 0;
@@ -13873,60 +13871,7 @@ void player_remove_item_from_inventory(void* item) {
 }
 
 void player_add_item_to_inventory(KonquestPuiDefinition* item) {
-    int index;
-    unsigned int table_index;
-    int value;
-
-    if (item == 0) {
-        index = -1;
-    } else {
-        table_index =
-            get_table_index_by_pointer(konquest_pdata->script_owner, item);
-        if (table_index <= konquest_pdata->pui_begin ||
-            table_index >= konquest_pdata->pui_end) {
-            index = -1;
-        } else {
-            index = table_index - (konquest_pdata->pui_begin + 1);
-        }
-    }
-    if (index < 0) {
-        return;
-    }
-
-    set_u8_bit(
-        &p1_profile_konquest->raw[0x291], konquest_num_puis(), index, 1);
-    if (item == 0) {
-        return;
-    }
-
-    switch (item->type) {
-    case 3:
-        value = item->value + get_konq_profile_value(7, 0);
-        set_konq_profile_value(7, 0, value);
-        return;
-    case 4:
-        value = item->value + get_konq_profile_value(8, 0);
-        set_konq_profile_value(8, 0, value);
-        return;
-    case 5:
-        value = item->value + get_konq_profile_value(9, 0);
-        set_konq_profile_value(9, 0, value);
-        return;
-    case 6:
-        value = item->value + get_konq_profile_value(10, 0);
-        set_konq_profile_value(10, 0, value);
-        return;
-    case 7:
-        value = item->value + get_konq_profile_value(11, 0);
-        set_konq_profile_value(11, 0, value);
-        return;
-    case 8:
-        value = item->value + get_konq_profile_value(12, 0);
-        set_konq_profile_value(12, 0, value);
-        return;
-    default:
-        return;
-    }
+    player_add_item_to_inventory_inline(item);
 }
 
 PuiItem* get_pui_item_at_inv_bit_index(int index) {
@@ -13997,8 +13942,8 @@ int is_character_unlocked_in_profile(
     return 0;
 }
 
-/* TODO: [near miss] 99.81557%; named cursor must select before the codegen reload;
- * separate webs share a color; recover the GC-specific inline uppercase boundary. */
+/* TODO: [near miss] 99.81557%; all seven-live-local scan orders miss cursor/reload
+ * homes; recover the GC-specific inline uppercase ownership boundary. */
 static void load_art_for_inventory_award(struct KonquestAwardArtPdata* pdata) {
     KonquestPuiDefinition* item;
     ScreenObj* object;

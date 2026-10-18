@@ -52,14 +52,14 @@ static unsigned char adxm_stack_safe[0x1000];
 static unsigned char adxm_stack_vsync[0x2000];
 static unsigned char adxm_stack_fs[0x2000];
 static unsigned char adxm_stack_mwidle[0x2000];
-int adxm_safe_act;
-int adxm_safe_end;
-int adxm_mwidle_act;
-int adxm_mwidle_end;
-int adxm_vsync_act;
-int adxm_vsync_end;
-int adxm_fs_act;
-int adxm_fs_end;
+volatile int adxm_safe_act;
+volatile int adxm_safe_end;
+volatile int adxm_mwidle_act;
+volatile int adxm_mwidle_end;
+volatile int adxm_vsync_act;
+volatile int adxm_vsync_end;
+volatile int adxm_fs_act;
+volatile int adxm_fs_end;
 int adxm_set_prio;
 int adxm_cur_prio;
 OSThread adxm_safe_thread;
@@ -220,8 +220,6 @@ void ADXM_SetCbErr(SVMErrorFunction function, void* object)
     SVM_SetCbErr(function, object);
 }
 
-/* TODO: [near miss] 99.91%; li1/li0 swap arises between presched and precolor;
- * parameter copy and all activation stores agree. */
 void ADXM_SetupThrd(ADXMThreadParams* params)
 {
     const char* build = adxgc_build;

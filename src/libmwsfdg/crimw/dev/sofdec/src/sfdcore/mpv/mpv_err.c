@@ -1,7 +1,7 @@
 #include "sofdec/mpv_error.h"
 #include "sofdec/mpv_mc.h"
 
-static MPVErrorInfo mpverrinf;
+MPVErrorInfo mpverrinf;
 int mpverr_work;
 
 int MPVERR_SetCode(MPVContext* handle, int error)

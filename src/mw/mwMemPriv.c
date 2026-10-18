@@ -1,7 +1,5 @@
 #include "mw/mwMemPriv.h"
 
-/* The bitfield view is intentional: retail spills this byte and extracts the
- * low alignment nibble through MWCC's bitfield lowering. */
 typedef union MwMemBlockFlags {
     u8 value;
     struct {
@@ -65,8 +63,8 @@ int privGetAlignFromMwMemFlags(u32 flags) {
     }
 }
 
-/* TODO: [near miss] 94.17%; initial PCode merges block start/rounded address;
- * recover the separate return-address owner before tuning leaf registers. */
+/* TODO: [near miss] 96.25%; final address owner is recovered;
+ * exponent must emit before constant one; named/getter staging folds away. */
 void* privGetBlockFromUsedHdr(MwMemUsedHeader* header) {
     u8* block;
     u32 alignment_mask;
@@ -75,8 +73,8 @@ void* privGetBlockFromUsedHdr(MwMemUsedHeader* header) {
     block = (u8*)(header + 1);
     flags.value = header->flags;
     alignment_mask = (1 << flags.bits.alignment) - 1;
-    block += alignment_mask;
-    return (void*)((u32)block & ~alignment_mask);
+    block = (u8*)(((u32)block + alignment_mask) & ~alignment_mask);
+    return block;
 }
 
 MwMemUsedHeader* privGetUsedHdrFromBlock(void* block) {
@@ -100,10 +98,10 @@ u32 privGetUserSizeFromUsed(const MwMemUsedHeader* header) {
     return size;
 }
 
-void privSetBoundaryTags(MwMemUsedHeader* header) {
-    MwMemUsedHeader** footer;
+void privSetBoundaryTags(MwMemFreeHeader* header) {
+    MwMemFreeHeader** footer;
 
-    footer = (MwMemUsedHeader**)((u8*)header + header->allocationSize + 0xC);
+    footer = (MwMemFreeHeader**)((u8*)header + header->allocationSize + 0xC);
     *footer = header;
     header->flags |= 0x20;
 }

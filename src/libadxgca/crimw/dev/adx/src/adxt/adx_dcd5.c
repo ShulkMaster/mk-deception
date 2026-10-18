@@ -26,8 +26,8 @@ int ADX_DecodeSte4(const signed char* input, int numBlocks,
         randomMultiplier, randomIncrement);
 }
 
-/* TODO: [breakthrough] 90.36184%; retained in-place history contributions;
- * entry widening does not recover coefficient0; resolve conversion ownership. */
+/* TODO: [breakthrough needed] 90.36184%; unsigned PCM publications are neutral;
+ * recover entry coefficient ownership while retaining signed history math. */
 long ADX_DecodeSte4AsSte(signed char* input, long numBlocks,
                         short* outputLeft, short delayLeft[2],
                         short* outputRight, short delayRight[2],
@@ -136,14 +136,16 @@ long ADX_DecodeSte4AsSte(signed char* input, long numBlocks,
     return numBlocks;
 }
 
-/* TODO: [breakthrough] 92.71277%; in-place high-left history improves predictor
- * scheduling; header, LCG and mix owners plus entry scheduling remain. */
+/* TODO: [breakthrough needed] 93.43085%; pre-RA scheduling overlaps count and
+ * older-left history; recover entry ownership while preserving cursor updates. */
 int ADX_DecodeSte4AsMono(signed char* input, int numBlocks,
                          short* outputLeft, short delayLeft[2],
                          short* outputRight, short delayRight[2],
                          short coefficient0, short coefficient1,
                          short* randomState, short randomMultiplier,
                          short randomIncrement) {
+    long predictor_coefficient1 = coefficient1;
+    long predictor_coefficient0 = coefficient0;
     long olderRight;
     long previousRight;
     long previousLeft;
@@ -189,9 +191,9 @@ int ADX_DecodeSte4AsMono(signed char* input, int numBlocks,
             leftPacked = input[0];
             rightPacked = input[0x12];
             input++;
-            olderLeft *= coefficient1;
+            olderLeft *= predictor_coefficient1;
             olderLeft = (leftPacked >> 4) * leftGain +
-                ((coefficient0 * previousLeft + olderLeft) >> 12);
+                ((predictor_coefficient0 * previousLeft + olderLeft) >> 12);
             if (olderLeft > 32767 || olderLeft < -32768) {
                 if (olderLeft < -32768) {
                     olderLeft = -32768;
@@ -200,7 +202,7 @@ int ADX_DecodeSte4AsMono(signed char* input, int numBlocks,
                 }
             }
             mixed = (rightPacked >> 4) * rightGain +
-                ((coefficient0 * previousRight + coefficient1 * olderRight) >> 12);
+                ((predictor_coefficient0 * previousRight + predictor_coefficient1 * olderRight) >> 12);
             if (mixed > 32767 || mixed < -32768) {
                 if (mixed < -32768) {
                     mixed = -32768;
@@ -223,7 +225,7 @@ int ADX_DecodeSte4AsMono(signed char* input, int numBlocks,
             outputLeft[0] = mixed;
 
             previousLeft = leftPacked * leftGain +
-                ((coefficient0 * olderLeft + coefficient1 * previousLeft) >> 12);
+                ((predictor_coefficient0 * olderLeft + predictor_coefficient1 * previousLeft) >> 12);
             if (previousLeft > 0x7FFF || previousLeft < -0x8000) {
                 if (previousLeft < -0x8000) {
                     previousLeft = -0x8000;
@@ -232,7 +234,7 @@ int ADX_DecodeSte4AsMono(signed char* input, int numBlocks,
                 }
             }
             previousRight = rightPacked * rightGain +
-                ((coefficient0 * olderRight + coefficient1 * previousRight) >> 12);
+                ((predictor_coefficient0 * olderRight + predictor_coefficient1 * previousRight) >> 12);
             if (previousRight > 32767 || previousRight < -32768) {
                 if (previousRight < -32768) {
                     previousRight = -32768;

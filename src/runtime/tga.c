@@ -82,8 +82,8 @@ static inline RwImage *tga_write_pixels(MkHwFileRequest *file, RwImage *image,
   return image;
 }
 
-/* TODO: [near miss] 99.02439%; pixel loop agrees; two header instructions swap.
- * Native schedule ties LI24 and origin-y extraction; stop pending new evidence. */
+/* TODO: [near miss] 99.02439%; eligible LI24 loses to origin-Y extraction rank;
+ * missing header-init producer must preserve the frame and sole value copy. */
 RwImage *ImageWriteTGA(RwImage *image, const char *path) {
   RwImage *result;
   MkHwFileRequest *file;

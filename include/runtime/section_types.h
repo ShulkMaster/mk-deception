@@ -90,12 +90,12 @@ typedef void (*SsfReqCompletion)(SsfReq* request);
 struct SsfReq {
     SsfReqLink link;
     void* hwfile;
-    MkFileEntry* file_entry;
+    const MkFileEntry* file_entry;
     unsigned char loading;
     unsigned char queued;
     unsigned char cancelled;
     unsigned char field_0x0F;
-    MkFileEntry* ssf_file;
+    const MkFileEntry* ssf_file;
     SecSlotFileEntry* owner;
     SecSlot* slot;
     int field_0x1C;
