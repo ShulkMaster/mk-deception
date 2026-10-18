@@ -33,10 +33,19 @@ void add_anim_section_by_name_async(int handle, const char* name,
                                     int clear_palette);
 int add_anim_section_async(int handle, MkFileInfo* info, int* palette_table,
                            int allow_duplicate, int clear_palette);
+#ifdef __cplusplus
+extern "C"
+#endif
 void wait_for_slot_load(int handle);
 int load_art_section_async(int handle, MkFileInfo* info);
+#ifdef __cplusplus
+extern "C"
+#endif
 void add_art_section_by_name_async_language(int handle, const char* name);
 void add_art_section_by_name_async(int handle, const char* name);
+#ifdef __cplusplus
+extern "C"
+#endif
 int add_art_section_async(int handle, MkFileInfo* info);
 #ifdef __cplusplus
 extern "C"

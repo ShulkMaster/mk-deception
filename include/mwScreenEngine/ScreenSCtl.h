@@ -187,6 +187,7 @@ public:
     virtual void Decrement(int delta);
     virtual void ScrollInc(int delta);
     virtual void ScrollDec(int delta);
+    void SubmitOption();
 
     GMTextureInfo_t textureInfo;
     ScreenNode** itemNodes;

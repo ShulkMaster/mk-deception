@@ -16,7 +16,7 @@ static SsfReq* sec_slot_file_open_file_async_withcallback(
     SecSlotFileEntry* file, SecSlot* slot, int field_0x1C, MkFileInfo* info,
     void* userdata, int queued, SsfReqCompletion completion);
 static void sec_slot_file_queue_open_callback(void* user,
-                                               MkFileEntry* file_entry,
+                                               const MkFileEntry* file_entry,
                                                int success);
 
 static SsfReq ssf_req_Pool[40];
@@ -33,7 +33,7 @@ static inline void wait_for_async_work(void) {
     }
 }
 
-static inline int is_ssf_request_pending(MkFileEntry* ssf_file) {
+static inline int is_ssf_request_pending(const MkFileEntry* ssf_file) {
     SsfReq* request;
     int found = 0;
 
@@ -86,8 +86,8 @@ static inline SsfReq* dequeue_request(void) {
 static inline void enqueue_request(SsfReq* request, MkFileInfo* info,
                                    void* userdata, SsfReqCompletion completion) {
     SsfReq* next_request;
-    MkFileEntry* previous_ssf;
-    MkFileEntry* requested_ssf;
+    const MkFileEntry* previous_ssf;
+    const MkFileEntry* requested_ssf;
 
     request->ssf_file = get_current_ssf_file();
     previous_ssf = 0;
@@ -274,8 +274,8 @@ static inline void sec_slot_file_close_request(SsfReq* request, SecSlotFileEntry
     }
     if (ssf_req_CurrentItem == request) {
         SsfReq* next_request = ssf_req_Queue.head.next;
-        MkFileEntry* previous_ssf = 0;
-        MkFileEntry* requested_ssf;
+        const MkFileEntry* previous_ssf = 0;
+        const MkFileEntry* requested_ssf;
 
         ssf_req_CurrentItem = 0;
         if (next_request != 0) {
@@ -344,7 +344,7 @@ static SsfReq* sec_slot_file_open_file_async_withcallback(
     return result;
 }
 
-void sec_slot_file_wait_on_ssf(MkFileEntry* ssf_file) {
+void sec_slot_file_wait_on_ssf(const MkFileEntry* ssf_file) {
     while (is_ssf_request_pending(ssf_file) != 0) {
         wait_for_async_work();
     }
@@ -352,8 +352,8 @@ void sec_slot_file_wait_on_ssf(MkFileEntry* ssf_file) {
 
 static inline void start_next_queued_request(void) {
     SsfReq* next_request = ssf_req_Queue.head.next;
-    MkFileEntry* previous_ssf = 0;
-    MkFileEntry* requested_ssf;
+    const MkFileEntry* previous_ssf = 0;
+    const MkFileEntry* requested_ssf;
     ssf_req_CurrentItem = 0;
     if (next_request != 0) {
         SsfReq* following = next_request->link.next;
@@ -383,11 +383,11 @@ static inline void start_next_queued_request(void) {
 }
 
 static void sec_slot_file_queue_open_callback(void* user,
-                                               MkFileEntry* opened_file,
+                                               const MkFileEntry* opened_file,
                                                int success) {
     SsfReq* request = user;
     SecSlotFileEntry* file;
-    MkFileEntry* file_entry = opened_file;
+    const MkFileEntry* file_entry = opened_file;
 
     request->loading = 0;
     if (request->cancelled != 0) {

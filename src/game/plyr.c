@@ -99,7 +99,7 @@ static inline int set_plyr_anim_script_frame(
     unsigned int flags, float frame) {
     return set_anim_script_frame(animation, script, flags, frame);
 }
-extern float p_baraka_blades_controller(void);
+static float p_baraka_blades_controller(void);
 extern int get_current_bgnd(void);
 extern void clear_my_face_opponent_flag(void);
 extern int is_weapon_style(PlyrFighterDefinition* style);
@@ -135,57 +135,6 @@ extern void create_shadow_proc(
 extern void player_initialize_chores(void);
 extern int shadow_bones[37];
 extern float p_plyr_pz_fighter_start(void);
-
-#define DECLARE_PLAYER_FILES(name_)           \
-    extern MkFileEntry name_##_file_table[];  \
-    extern MkFileEntry name_##_alt_file_table[]
-
-DECLARE_PLAYER_FILES(scorpion);
-DECLARE_PLAYER_FILES(baraka);
-DECLARE_PLAYER_FILES(noob);
-DECLARE_PLAYER_FILES(subzero);
-DECLARE_PLAYER_FILES(mileena);
-DECLARE_PLAYER_FILES(nightwolf);
-DECLARE_PLAYER_FILES(ermac);
-DECLARE_PLAYER_FILES(ashrah);
-DECLARE_PLAYER_FILES(sindel);
-DECLARE_PLAYER_FILES(limei);
-DECLARE_PLAYER_FILES(boraicho);
-DECLARE_PLAYER_FILES(hotaru);
-DECLARE_PLAYER_FILES(kenshi);
-DECLARE_PLAYER_FILES(smoke);
-DECLARE_PLAYER_FILES(skab);
-DECLARE_PLAYER_FILES(tanya);
-DECLARE_PLAYER_FILES(liukang);
-DECLARE_PLAYER_FILES(kira);
-DECLARE_PLAYER_FILES(kabal);
-DECLARE_PLAYER_FILES(kobra);
-DECLARE_PLAYER_FILES(jade);
-DECLARE_PLAYER_FILES(dairou);
-DECLARE_PLAYER_FILES(raiden);
-DECLARE_PLAYER_FILES(cassius);
-DECLARE_PLAYER_FILES(shujinko);
-DECLARE_PLAYER_FILES(noobsmoke);
-DECLARE_PLAYER_FILES(goro);
-DECLARE_PLAYER_FILES(shaokahn);
-DECLARE_PLAYER_FILES(mkda_jax);
-
-extern MkFileEntry liukang_ghost_file_table[];
-extern MkFileEntry shujinko_13_file_table[];
-extern MkFileEntry freak_file_table[];
-extern MkFileEntry dragonking_file_table[];
-extern MkFileEntry mkda_rayden_file_table[];
-extern MkFileEntry mkda_quanchi_file_table[];
-extern MkFileEntry mkda_kunglao_file_table[];
-extern MkFileEntry mkda_cage_file_table[];
-extern MkFileEntry mkda_sonya_file_table[];
-extern MkFileEntry mkda_nitara_file_table[];
-extern MkFileEntry mkda_shang_file_table[];
-extern MkFileEntry mkda_frost_file_table[];
-extern MkFileEntry mkda_kitana_file_table[];
-extern MkFileEntry mkda_drahmin_file_table[];
-
-#undef DECLARE_PLAYER_FILES
 
 GlobalPlayerEntry global_player_data[44] = {
     {"SCORPION", scorpion_file_table, scorpion_alt_file_table,
@@ -342,7 +291,6 @@ static inline MkObj* resolve_player_object(
     return object;
 }
 
-static float p_plyr_aux2(void);
 
 int fetch_shujinko_special_number_for(unsigned int move_id);
 
@@ -858,7 +806,7 @@ void start_baraka_blades_monitor(void) {
     }
 }
 
-float p_baraka_blades_controller(void) {
+static float p_baraka_blades_controller(void) {
     struct BarakaBladesPdata* blades = (struct BarakaBladesPdata*)apdata;
     MkBone* blade;
     float value;
@@ -1190,7 +1138,8 @@ void xfer_player_proc(MkProc* proc, MkProcEntryFn entry) {
     xfer_proc(proc, entry);
 }
 
-/* TODO: [near miss] 99.37%; retail loads pdata before *flags; flag load hoists above first pdata load. */
+/* TODO: [near miss] 99.37143%; initial pdata/flags loads tie;
+ * recover pdata-first production while keeping three out-slot reloads. */
 int load_plyr_model_async(int player, int char_id, int* flags) {
     struct LoadPlyrModelPdata* pdata;
     int pid;
@@ -1216,7 +1165,7 @@ static float p_load_plyr_model_async(void) {
     int language;
     unsigned int alternate;
     const char* model_script;
-    MkFileEntry* model_files;
+    const MkFileEntry* model_files;
     ScriptSlot* script;
     FighterRuntimeData* data;
     const char* art_section;
@@ -1429,7 +1378,7 @@ void pw_plyr(void) {
     pw_plyr_inline();
 }
 
-static float p_plyr_aux(void) {
+float p_plyr_aux(void) {
     if (aproc->pid == 0x100A) {
         if (g_game_info.plyr1.slot.mirror_a == 0) {
             return 1.0f;
@@ -1443,7 +1392,7 @@ static float p_plyr_aux(void) {
     return 0.0f;
 }
 
-static float p_plyr_aux2(void) {
+float p_plyr_aux2(void) {
     if (plyr_pdata->postround_value != 0.0f &&
         (g_game_info.flags & 1) == 0 &&
         !g_game_info.pause_flag_bits.fatality_window) {
@@ -1800,13 +1749,17 @@ void delete_player(int player_index) {
         }                                                               \
     } while (0)
 
-/* TODO: [breakthrough needed] 98.15286%; shared induction seed provenance remains;
- * full style-binding owner adds a branch; preserve the retail branchless bank selection. */
+static inline void bind_player_movesets(PlyrPdata* pdata, int moveset_base) {
+    int index;
+
+    for (index = 0; index < sizeof(pdata->weapon_styles) / sizeof(pdata->weapon_styles[0]); index++) {
+        pdata->weapon_styles[index] = &global_movesets[index + moveset_base];
+    }
+}
+
 static void setup_plyr_anims(PlyrPdata* pdata) {
     AnimPdata* animation;
     MkObj* object;
-    int moveset_base;
-    int index;
     int mode;
     int load_signs;
 
@@ -1838,11 +1791,8 @@ static void setup_plyr_anims(PlyrPdata* pdata) {
         BIND_GORO_ANIM(3);
     }
 
-    moveset_base = pdata == g_game_info.plyr0.slot.pdata ? 0 : 3;
-    for (index = 0; index < sizeof(pdata->weapon_styles) / sizeof(pdata->weapon_styles[0]); index++) {
-        pdata->weapon_styles[index] =
-            &global_movesets[index + moveset_base];
-    }
+    bind_player_movesets(pdata,
+                         pdata == g_game_info.plyr0.slot.pdata ? 0 : 3);
     load_player_style_scripts(pdata);
     advance_active_moveset(pdata);
 
@@ -2483,8 +2433,8 @@ float active_sidekick_swap_change_style(PlyrPdata* pdata) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 97.99296%; saved step/weight homes fixed;
- * pdata/sidekick, hide/flags and argument-load scheduling remain. */
+/* TODO: [near miss] 97.99296%; pdata/sidekick and hide/flags homes differ;
+ * recover copy ownership and early hide-extract scheduling. */
 float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     PlyrInfo* player;
     MkObj* sidekick;
@@ -2764,7 +2714,7 @@ void rnd_plyrs(void) {
     resolve_alternate_palettes(&g_game_info.plyr1);
 }
 
-static const Vec minigame_sd_bid[11] = {
+const Vec minigame_sd_bid[11] = {
     {0.5243f, 0.34789f, 0.5243f},
     {0.55431f, 0.2401f, 0.55431f},
     {0.87393f, 0.57632f, 0.87393f},

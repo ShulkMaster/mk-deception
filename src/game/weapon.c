@@ -82,14 +82,14 @@ int goro_gauntlets_weapon_bones[2] = {1, 0};
 int goro_gauntlets_trail_bones[2] = {0x2001, 0};
 WeaponDefinition goro_gauntlets_weapon_desc_lr = {
     "WEAPON", goro_gauntlets_weapon_bones,
-    0x54, {-0.12f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {-1.5707964f, 0.0f, 0.0f},
+    0x54, {-0.12f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, -1.5707964f, 0.0f},
     "WEAPON_TR", goro_gauntlets_trail_bones, 3,
     goro_gauntlets_trail_anchors, goro_gauntlets_trail_tails, 0,
     0, {0.15f, 0.0f, 0.0f}, 0.4f, 0x4d, {0.0f, -0.2f, 0.5f}, 0,
 };
 WeaponDefinition goro_gauntlets_weapon_desc_ll = {
     "WEAPON", goro_gauntlets_weapon_bones,
-    0x47, {0.12f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.5707964f, 0.0f, 0.0f},
+    0x47, {0.12f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.5707964f, 0.0f},
     "WEAPON_TR", goro_gauntlets_trail_bones, 3,
     goro_gauntlets_trail_anchors, goro_gauntlets_trail_tails, 0,
     0, {0.15f, 0.0f, 0.0f}, 0.4f, 0x4d, {0.0f, -0.2f, 0.5f}, 0,
@@ -904,8 +904,8 @@ void plyr_weapon_hide(PlyrPdata* player, int show_aux,
     }
 }
 
-/* TODO: [near miss] 99.36047%; named owner must precede split candidate in
- * coloring; in-place validation loses retail branch; recover original web ownership. */
+/* TODO: [near miss] 99.36047%; first latch r6/r7 swap remains;
+ * named slots versus split candidate needs genuine ownership evidence. */
 void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     MkObj* player_object;
     MkObj* weapon_object;
@@ -942,17 +942,15 @@ void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     }
 }
 
-/* TODO: [near miss] 99.30556%; map-phase owners restore later chain/child homes;
- * mapped-bone interference and root/cache coloring remain. */
 void mkobj_update_weapon_trail(MkHdr* hdr) {
     MkObj* weapon;
-    int* chain_root;
+    MkBone* parent_bone;
     WeaponDefinition* definition;
     RwMatrix* weapon_matrix;
     RwMatrix* trail_matrix;
     WeaponTrailMap* map;
     MkBone* child_bone;
-    MkBone* parent_bone;
+    int* chain_root;
     MkBone* trail_bone;
     MkObj* trail_model = (MkObj*)hdr;
     RwMatrix* trail_cache;
@@ -962,7 +960,6 @@ void mkobj_update_weapon_trail(MkHdr* hdr) {
     Vec child_direction;
     Quat rotation;
     MKMATRIX rotation_matrix;
-    RwMatrix* child_matrix;
     int map_index;
 
     weapon = MK_HDR_LIVE((MkObj*)trail_model->parent_hdr, trail_model->parent_inst);
@@ -980,8 +977,8 @@ void mkobj_update_weapon_trail(MkHdr* hdr) {
     for (map_index = 0;
          map_index < (definition = trail_model->field_5C)->trail_map_count;
          map_index++) {
-        MkBone* mapped_bone;
         MkBone* mapped_parent;
+        MkBone* mapped_bone;
 
         map = &definition->trail_maps[map_index];
         if (map->enabled == 0) {
@@ -1013,6 +1010,7 @@ void mkobj_update_weapon_trail(MkHdr* hdr) {
             chain_root++;
 
             do {
+                RwMatrix* child_matrix;
                 child_bone = trail_bone;
                 trail_bone = trail_bone->transform_parent;
                 child_matrix = child_bone->parent_matrix;

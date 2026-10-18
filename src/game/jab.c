@@ -121,13 +121,13 @@ float skeleton_radius_table[12] = {
     0.12f, 0.14f, 0.14f, 0.14f, 0.14f, 0.14f,
 };
 
-int g_kabal_dash_react_pfx_handles[9] = {
+static int g_kabal_dash_react_pfx_handles[9] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 
 static MkPfx* p_grinder_crush_blood_pfx;
 static MkPfx* p_grinder_crush_chunks_pfx;
-PlyrPdata* g_plyr_pdata;
+static PlyrPdata* g_plyr_pdata;
 static float grinder_meat_size = 0.3f;
 
 struct FlashScreenPdata {
@@ -758,9 +758,21 @@ static inline void kabal_dash_react_pfx_stop(void) {
     g_plyr_pdata = 0;
 }
 
-static inline void kabal_dash_react_pfx_start(PlyrPdata* opponent_data) {
+static inline void jab_start_kabal_react_fx(void) {
     unsigned int effect_handle;
+    PlyrPdata* opponent_data;
 
+    if (plyr_obj == 0) {
+        return;
+    }
+    opponent_data = get_his_plyr_pdata();
+    if (opponent_data == 0 || opponent_data->character_id != 0x13) {
+        return;
+    }
+    if (_create_mkproc_generic_nostack(
+            0xA026, 0x2E, p_kabal_dash_react_pfx, 0, 0) == 0) {
+        return;
+    }
     g_plyr_pdata = get_my_plyr_pdata();
     effect_handle = fx_by_owner(
         "kabal_dash_react", pfx_plyr_bankowner(opponent_data->plyr_info));
@@ -800,14 +812,46 @@ static inline void kabal_dash_react_pfx_start(PlyrPdata* opponent_data) {
         plyr_obj, 0x10);
 }
 
-/* TODO: [near miss] 99.93243%; tracked snapshot34 needs CG50+ producer order;
- * named/inline reorders cannot supply it; recover the pre-creation owner. */
-void bulvan_function(int command) {
-    PlyrPdata* opponent_data;
-    MkPfx* smoke;
-    MkPfx* lift_smoke;
-    MkObj* tracked_object;
+static inline void jab_kill_kabal_react_fx(void) {
     MkProc* process;
+
+    process = find_mkproc_pid(0xA026);
+    if (process != 0 && process->instance != 0) {
+        ((MkHdr*)process)->typed_vtbl->destroy((MkHdr*)process);
+    }
+    kabal_dash_react_pfx_stop();
+}
+
+static inline void start_kenshi_lift_smoke(float field_29C, float field_2A0) {
+    MkPfx* lift_smoke;
+
+    create_pfx(
+        0xA00C, 0xA015, pfx_kenshi_lift_smoke, &lift_smoke,
+        &jab_pfx_table[2], "C - Kenshi Lift Smoke");
+    if (lift_smoke != 0) {
+        set_pfx_texture(
+            (PfxVm*)&lift_smoke->matrix, 0x10005, 0x20038);
+        pfx_texture_animate(
+            (PfxVm*)&lift_smoke->matrix, 0x40, 0x10, 0x10, 0x10, 4.0f);
+        pfx_bind_emitter_to_obj_bone(lift_smoke, plyr_obj, 0);
+        lift_smoke->emitter_enabled = 0;
+        pfx_get_emitter((PfxVm*)&lift_smoke->matrix, 0)->birth_rate = 24.0f;
+        lift_smoke->field_90 = 0xA8;
+        lift_smoke->depth_bias = -50.0f;
+        lift_smoke->field_298 = 50.0f;
+        lift_smoke->field_29C = field_29C;
+        lift_smoke->field_2A0 = field_2A0;
+        lift_smoke->effect_state = 0;
+        lift_smoke->tracked_object = plyr_obj;
+        lift_smoke->tracked_object_instance = plyr_obj->hdr.instance;
+    }
+}
+
+/* TODO: [near miss] 99.93243%; pre-creation snapshot uses r28 instead of r29;
+ * recover its scalar producer while preserving all post-creation consumers. */
+void bulvan_function(int command) {
+    MkPfx* smoke;
+    MkObj* tracked_object;
 
     switch (command) {
     case 1:
@@ -832,49 +876,15 @@ void bulvan_function(int command) {
         break;
 
     case 0:
-        create_pfx(
-            0xA00C, 0xA015, pfx_kenshi_lift_smoke, &lift_smoke,
-            &jab_pfx_table[2], "C - Kenshi Lift Smoke");
-        if (lift_smoke != 0) {
-            set_pfx_texture(
-                (PfxVm*)&lift_smoke->matrix, 0x10005, 0x20038);
-            pfx_texture_animate(
-                (PfxVm*)&lift_smoke->matrix, 0x40, 0x10, 0x10, 0x10, 4.0f);
-            pfx_bind_emitter_to_obj_bone(lift_smoke, plyr_obj, 0);
-            lift_smoke->emitter_enabled = 0;
-            pfx_get_emitter((PfxVm*)&lift_smoke->matrix, 0)->birth_rate = 24.0f;
-            lift_smoke->field_90 = 0xA8;
-            lift_smoke->depth_bias = -50.0f;
-            lift_smoke->field_298 = 50.0f;
-            lift_smoke->field_29C = 7.0f;
-            lift_smoke->field_2A0 = 0.0f;
-            lift_smoke->effect_state = 0;
-            lift_smoke->tracked_object = plyr_obj;
-            lift_smoke->tracked_object_instance = plyr_obj->hdr.instance;
-        }
+        start_kenshi_lift_smoke(7.0f, 0.0f);
         break;
 
     case 2:
-        if (plyr_obj == 0) {
-            break;
-        }
-        opponent_data = get_his_plyr_pdata();
-        if (opponent_data == 0 || opponent_data->character_id != 0x13) {
-            break;
-        }
-        if (_create_mkproc_generic_nostack(
-                0xA026, 0x2E, p_kabal_dash_react_pfx, 0, 0) == 0) {
-            break;
-        }
-        kabal_dash_react_pfx_start(opponent_data);
+        jab_start_kabal_react_fx();
         break;
 
     case 3:
-        process = find_mkproc_pid(0xA026);
-        if (process != 0 && process->instance != 0) {
-            ((MkHdr*)process)->typed_vtbl->destroy((MkHdr*)process);
-        }
-        kabal_dash_react_pfx_stop();
+        jab_kill_kabal_react_fx();
         break;
 
     case 4:
@@ -995,8 +1005,8 @@ void sh_spawn_grinder_crush_pfx(void) {
     }
 }
 
-/* TODO: [near miss] 92.24773%; ground FPRs and color-tail lifetime recovered;
- * pre-RA index hoisting overlaps the color base; cursor homes/scheduling remain. */
+/* TODO: [breakthrough needed] 92.24773%; index zero fills a multiply/queue wait;
+ * recover original setup dependencies that separate index and color-base lifetimes. */
 float pfx_sh_grinder_crush_chunks(void) {
     MkHdr* emitter_object;
     Vec* source_velocities;
@@ -1162,7 +1172,8 @@ float pfx_sh_grinder_crush_chunks(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 97.33334%; mutable Vec and player-owner types recovered; two setup-exit branches remain. */
+/* TODO: [breakthrough needed] 97.33334%; reachable publication jump and orphan exit remain;
+ * recover their source boundary; shared blood-wrapper evidence rules out a plain void helper. */
 void sh_start_grinder_crush_chunks(Vec* position, PlyrPdata* player) {
     MkPfx* effect;
     Vec* emitter_position;
@@ -1399,8 +1410,8 @@ float pfx_sh_grinder_crush_blood(void) {
     return 1.0f;
 }
 
-/* TODO: [breakthrough needed] 97.22%; retail setup-exit blocks absent before backend;
- * recover the pre-IRO inline-return boundary without adding dead branches. */
+/* TODO: [breakthrough needed] 97.22222%; retail setup-exit pair remains;
+ * ordinary inline return is removed by IRO; recover a surviving source boundary. */
 void sh_start_grinder_crush_blood(Vec* position) {
     MkPfx* effect;
     MkObj* emitter_object;
@@ -1450,8 +1461,8 @@ void sh_start_grinder_chunk_spew(Vec* position, PlyrPdata* player) {
     }
 }
 
-/* TODO: [breakthrough] 97.70763%; shared geometric workspace restores displacement stores;
- * duplicate timer/scale homes and random-result narrowing remain. */
+/* TODO: [breakthrough needed] 97.70763%; timer/scale base spill ownership is missing;
+ * preserve the shared vector and recover duplicate homes plus random narrowing. */
 float pfx_sh_grinder_meat_spew(void) {
     float* destination_angles;
     PfxEmitter* emitter;
@@ -1678,8 +1689,8 @@ void sh_start_grinder_meat_spew(Vec* position, PlyrPdata* player) {
     }
 }
 
-/* TODO: [breakthrough needed] 97.65010%; pooled-base v74 and particle owners
- * claim wrong homes; recover codegen ownership before declaration tuning. */
+/* TODO: [breakthrough needed] 97.65010%; pooled-root/acquisition-copy homes differ;
+ * recover their original creation boundary; the retained graph has no spills. */
 float pfx_react_falling_attach_smoke_to_bones_proc(void) {
     PfxVm* vm;
     PfxEmitter* emitter;
@@ -1898,8 +1909,8 @@ float pfx_react_falling_attach_smoke_to_bones_proc(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 97.55654%; field/table GPR homes and latch-copy join remain;
- * bone-placement extraction retains the early table claim and rotates later owners. */
+/* TODO: [near miss] 97.55654%; getter copy is killed by source-scale advance;
+ * one round has no stalls/spills; original acquisition owners remain missing. */
 float pfx_kenshi_lift_smoke(void) {
     float* destination_scales;
     PfxEmitter* emitter;

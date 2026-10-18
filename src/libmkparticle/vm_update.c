@@ -206,27 +206,42 @@ static void do_copy_from_table_float(int count, PfxSpawnTable* table,
     }
 }
 
-static inline void pfx_wrapbox_point(PfxVec3* const output,
-                                     PfxVec3* const input,
-                                     const PfxVec3* minimum,
-                                     const PfxVec3* size,
-                                     const PfxVec3* inverse_size)
+static inline void pfx_wrapbox_displace(PfxVec3* const output,
+                                        PfxVec3* const input,
+                                        const PfxVec3* size,
+                                        float x, float y, float z)
 {
-    float x = minimum->x - input->x;
-    float y = minimum->y - input->y;
-    float z = minimum->z - input->z;
-    x *= inverse_size->x;
-    y *= inverse_size->y;
-    z *= inverse_size->z;
-    x = ceil(x);
-    y = ceil(y);
-    z = ceil(z);
     x *= size->x;
     y *= size->y;
     z *= size->z;
     output->x = x + input->x;
     output->y = y + input->y;
     output->z = z + input->z;
+}
+
+static inline void pfx_wrapbox_point(PfxVec3* const output,
+                                     PfxVec3* const input,
+                                     const PfxVec3* minimum,
+                                     const PfxVec3* size,
+                                     const PfxVec3* inverse_size)
+{
+    float z;
+    float cells_y;
+    float cells_z;
+    float x;
+    float y;
+    float cells_x;
+
+    x = minimum->x - input->x;
+    y = minimum->y - input->y;
+    z = minimum->z - input->z;
+    x *= inverse_size->x;
+    y *= inverse_size->y;
+    z *= inverse_size->z;
+    cells_x = ceil(x);
+    cells_y = ceil(y);
+    cells_z = ceil(z);
+    pfx_wrapbox_displace(output, input, size, cells_x, cells_y, cells_z);
 }
 
 static inline void pfx_wrapbox_center(PfxVec3* const output,
@@ -241,8 +256,6 @@ static inline void pfx_wrapbox_center(PfxVec3* const output,
     output->z += matrix->elements[3][2];
 }
 
-/* TODO: [near miss] 99.58580%; distinct products sink in IroPropagate;
- * compound scaling stays split/coalesced; recover original phase ownership. */
 static void do_wrapbox(int count, unsigned char* source,
                        unsigned char* destination, int stride,
                        PfxUpdateArguments* arguments)
@@ -511,8 +524,8 @@ static void do_assign_constant_v3(unsigned char* destination, int stride,
     }
 }
 
-/* TODO: [near miss] 99.69%; named address accumulators hide retail short owners;
- * recover pointer-expression destinations before tuning row registers. */
+/* TODO: [near miss] 99.69299%; early named pointer destinations hide retail
+ * intermediate owners; recover the producer without reassociating adds. */
 void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
 {
     int current_stride;

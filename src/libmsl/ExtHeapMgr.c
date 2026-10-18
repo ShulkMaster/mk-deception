@@ -1,6 +1,10 @@
 #include "msl/ExtHeapMgr.h"
 #include "runtime/cstring.h"
 
+static unsigned long ExternalHeap_AlignAlloc(
+    ExternalHeap* heap, unsigned long size,
+    int alignment);
+
 static void ExternalHeap_MutexNullFunc(void* mutex);
 static int KeyCompareBlocksByAddress(
     const void* key, const RedBlackNode* node);
@@ -115,7 +119,7 @@ unsigned long ExternalHeap_Alloc(
     return address;
 }
 
-unsigned long ExternalHeap_AlignAlloc(
+static unsigned long ExternalHeap_AlignAlloc(
     ExternalHeap* heap, unsigned long size, int alignment) {
     ExternalHeapBlock* candidate;
     ExternalHeapBlock* prefix_block;

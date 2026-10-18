@@ -316,15 +316,20 @@ float dist_behind_me(void) {
     return distance;
 }
 
-static inline float constrain_positive_distance(float distance) {
+static inline float constrain_ray_circle_distance(
+    float length, float projection) {
+    float radicand;
+    float distance;
+
+    radicand = 144.0f - (length * length - projection * projection);
+    distance =
+        (radicand > 0.0f ? gxMathFastSqrt(radicand) : 0.0f) - projection;
     if (distance > 0.0f) {
         return distance;
     }
     return 0.0f;
 }
 
-/* TODO: [near miss] 97.94175%; normalization/scaled dot now agree;
- * sqrt return copies and rotated input/estimate stack slots remain. */
 static float dist_from_plyr_pos_to_arena_edge(
     Vec* position, const Vec* direction) {
     float length;
@@ -336,19 +341,8 @@ static float dist_from_plyr_pos_to_arena_edge(
     if (length >= 12.0f) {
         distance = 0.0f;
     } else {
-        float radicand;
-        float along_ray;
-        float root;
-
-        root = 0.0f;
-        along_ray =
-            direction->x * position->x + direction->z * position->z;
-        radicand =
-            144.0f - (length * length - along_ray * along_ray);
-        if (radicand > 0.0f) {
-            root = gxMathFastSqrt(radicand);
-        }
-        distance = constrain_positive_distance(root - along_ray);
+        distance = constrain_ray_circle_distance(
+            length, direction->x * position->x + direction->z * position->z);
     }
 
     inverse_length =
@@ -575,8 +569,6 @@ static float p_constrain_players(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.86207%; first IRO CSE hoists shared UV components;
- * preserve MkObj projection and recover their placement before scheduling. */
 static void repel_players(void) {
     Vec movement_1;
     Vec movement_2;
@@ -602,8 +594,9 @@ static void repel_players(void) {
     if (repel_distance) {
         MkObj* player_1 = CONSTRAIN_P1_OBJECT;
         MkObj* player_2 = CONSTRAIN_P2_OBJECT;
-        if (tightrope_projection(player_1) >
-            tightrope_projection(player_2)) {
+        projection_1 = tightrope_projection(player_1);
+        projection_2 = tightrope_projection(player_2);
+        if (projection_1 > projection_2) {
             if (object_can_be_repelled(CONSTRAIN_P1_OBJECT)) {
                 xz_x_v_add_xz(
                     &CONSTRAIN_P1_OBJECT->pos.value, &tightrope_uv,

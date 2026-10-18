@@ -114,8 +114,8 @@ float j_getup_sit_12(void);
 float j_getup_sit_6(void);
 float j_blend_to_stance_in_x(void);
 float j_blend_to_fstance_in_x(void);
-float j_sleep_forever(void);
-float j_call_player_script_function(void);
+static float j_sleep_forever(void);
+static float j_call_player_script_function(void);
 float j_getup_front_6(void);
 float j_getup_front_10(void);
 float joy_dash_back(void);
@@ -824,7 +824,7 @@ void pz_fighter_attack(
 void attack_opponent_with(
     AniData* animation, struct MovesAttackInfo* attack, int reaction);
 void advance_my_moveset(void);
-float j_call_player_script_function(void);
+static float j_call_player_script_function(void);
 int was_i_hit_x_times(int hit_count);
 int was_button_and_direction(int button, int direction);
 void glitch_to_ani_frame(void* animation, int flags,
@@ -2263,26 +2263,26 @@ float two_player_animation_match_attacker(
 void* get_function_attributes_table(struct ScriptDistanceSlot*, int);
 void trial_register_script_function(unsigned int);
 
-void _script_hang(void) {
+static void _script_hang(void) {
 }
 
-void _stop_usec_timer(void) {
+static void _stop_usec_timer(void) {
     stop_usec_timer(0);
     printf("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui");
 }
 
-void _start_usec_timer(void) {
+static void _start_usec_timer(void) {
     start_usec_timer(0);
 }
 
-void _obj_setup_for_animation(void) {
+static void _obj_setup_for_animation(void) {
     obj_setup_for_animation(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                             ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                             ((struct ScriptRawArgs*)current_args)->slots[2].pointer,
                             ((struct ScriptRawArgs*)current_args)->slots[3].pointer);
 }
 
-void _npc_set_anim_proc(void) {
+static void _npc_set_anim_proc(void) {
     int function_index;
 
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x12,
@@ -2291,7 +2291,7 @@ void _npc_set_anim_proc(void) {
         (MkProcEntryFn)script_callable_function_table[function_index - 1]);
 }
 
-void _animate_obj(void) {
+static void _animate_obj(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
     MkObj* object = args->slots[0].pointer;
     AnimScript* script = get_animation(args->slots[1].i);
@@ -2303,7 +2303,7 @@ void _animate_obj(void) {
         args->slots[5].f, args->slots[6].i);
 }
 
-void _start_gusher(void) {
+static void _start_gusher(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -2314,7 +2314,7 @@ void _start_gusher(void) {
         (Vec*)args->slots[4].i);
 }
 
-void _plyr_spawn_his_anim_limb(void) {
+static void _plyr_spawn_his_anim_limb(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
     AniData* animation = get_animation(args->slots[3].i);
 
@@ -2327,14 +2327,14 @@ void _plyr_spawn_his_anim_limb(void) {
             args->slots[6].f);
 }
 
-void _xfer_proc(void) {
+static void _xfer_proc(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
 
     xfer_proc(args->slots[0].pointer,
               (MkProcEntryFn)(script_callable_function_table + args->slots[1].i)[-1]);
 }
 
-void _transition_to_anim_script_frame(void) {
+static void _transition_to_anim_script_frame(void) {
     struct ScriptTransitionFrameArgs* args = (struct ScriptTransitionFrameArgs*)current_args;
     AnimPdata* animation = args->animation;
     AnimScript* script = get_animation(args->animation_id);
@@ -2346,7 +2346,7 @@ void _transition_to_anim_script_frame(void) {
             args->frame);
 }
 
-void _two_player_animation_blend(void) {
+static void _two_player_animation_blend(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
     AniData* animation = get_animation(args->slots[0].i);
 
@@ -2356,7 +2356,7 @@ void _two_player_animation_blend(void) {
         args->slots[3].i, args->slots[4].i);
 }
 
-void _set_anim_script(void) {
+static void _set_anim_script(void) {
     struct ScriptRawArgs* args;
     AnimPdata* animation;
     AnimScript* script;
@@ -2368,7 +2368,7 @@ void _set_anim_script(void) {
         ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _anim_pdata_for_proc(void) {
+static void _anim_pdata_for_proc(void) {
     void* pdata;
 
     pdata = 0;
@@ -2378,7 +2378,7 @@ void _anim_pdata_for_proc(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = pdata;
 }
 
-void _set_bonematcher_flag(void) {
+static void _set_bonematcher_flag(void) {
     struct ScriptFlagWordView* object;
     int shift;
 
@@ -2391,7 +2391,7 @@ void _set_bonematcher_flag(void) {
     }
 }
 
-void _get_bonematcher_flag(void) {
+static void _get_bonematcher_flag(void) {
     struct ScriptFlagArgs* args;
     int shift;
 
@@ -2402,11 +2402,11 @@ void _get_bonematcher_flag(void) {
         (args->object->flags & (1U << shift)) != 0;
 }
 
-void _update_mkobj(void) {
+static void _update_mkobj(void) {
     update_mkobj(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _get_plyr_pdata_flag(void) {
+static void _get_plyr_pdata_flag(void) {
     struct ScriptRawArgs* args;
     PlyrPdata* pdata;
     int shift;
@@ -2419,7 +2419,7 @@ void _get_plyr_pdata_flag(void) {
         (pdata->state_flags.raw_word & (1U << shift)) != 0;
 }
 
-void _set_obj_flag(void) {
+static void _set_obj_flag(void) {
     struct ScriptFlagWordView* object;
     int shift;
 
@@ -2432,7 +2432,7 @@ void _set_obj_flag(void) {
     }
 }
 
-void _get_obj_flag(void) {
+static void _get_obj_flag(void) {
     struct ScriptFlagArgs* args;
     int shift;
 
@@ -2443,7 +2443,7 @@ void _get_obj_flag(void) {
         (args->object->flags & (1U << shift)) != 0;
 }
 
-void _get_limb_obj(void) {
+static void _get_limb_obj(void) {
     struct GetLimbObjArgs* args = (struct GetLimbObjArgs*)current_args;
     unsigned int bone_index = args->bone_index;
     LimbRuntime* runtime = args->runtime;
@@ -2462,7 +2462,7 @@ static inline MkHdr* script_live_item_object(const struct ScriptObjectRef* ref) 
     return 0;
 }
 
-void _destroy_item_obj(void) {
+static void _destroy_item_obj(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
     struct ScriptObjectRef* ref = args->slots[0].pointer;
 
@@ -2477,7 +2477,7 @@ void _destroy_item_obj(void) {
     }
 }
 
-void _init_item_obj(void) {
+static void _init_item_obj(void) {
     int* item;
 
     item = *(int**)(current_args + 4);
@@ -2485,7 +2485,7 @@ void _init_item_obj(void) {
     item[1] = 0;
 }
 
-void _ck_item_obj(void) {
+static void _ck_item_obj(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
     struct ScriptObjectRef* ref = args->slots[0].pointer;
     MkHdr* object = MK_LIVE(ref->object, ref->instance);
@@ -2493,7 +2493,7 @@ void _ck_item_obj(void) {
     ((struct ScriptPointerResult*)active_cmdscript)->value = object;
 }
 
-void _insert_item_obj(void) {
+static void _insert_item_obj(void) {
     int* item;
     int* object;
 
@@ -2503,12 +2503,12 @@ void _insert_item_obj(void) {
     item[1] = object[1];
 }
 
-void _get_new_mkobj(void) {
+static void _get_new_mkobj(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         get_mkobj_frame(((struct ScriptRawArgs*)current_args)->slots[0].i, 0);
 }
 
-void _nis_init(void) {
+static void _nis_init(void) {
     struct ScriptActiveState* script;
     int arg0;
     int arg1;
@@ -2519,11 +2519,11 @@ void _nis_init(void) {
     nis_init(script->state, arg0, arg1);
 }
 
-void _clear_fight_hud(void) {
+static void _clear_fight_hud(void) {
     setup_screen_for_fatality();
 }
 
-void _drone_blend_to_ani(void) {
+static void _drone_blend_to_ani(void) {
     int sp10;
     int spC;
     float sp8;
@@ -2534,7 +2534,7 @@ void _drone_blend_to_ani(void) {
     drone_blend_to_ani(animation, spC, sp8);
 }
 
-void _camera_set_target(void) {
+static void _camera_set_target(void) {
     Vec angle;
 
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1B,
@@ -2542,7 +2542,7 @@ void _camera_set_target(void) {
     set_camera_target_angle(&angle);
 }
 
-void _camera_set_destination(void) {
+static void _camera_set_destination(void) {
     Vec position;
 
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1B,
@@ -2550,7 +2550,7 @@ void _camera_set_destination(void) {
     set_camera_destination(&position);
 }
 
-void _trial_add_required_attack_nohit(void) {
+static void _trial_add_required_attack_nohit(void) {
     struct TrialRequiredAttackArgs* args;
 
     args = (struct TrialRequiredAttackArgs*)current_args;
@@ -2558,7 +2558,7 @@ void _trial_add_required_attack_nohit(void) {
                               args->count, 0);
 }
 
-void _trial_add_required_attack(void) {
+static void _trial_add_required_attack(void) {
     struct TrialRequiredAttackArgs* args;
 
     args = (struct TrialRequiredAttackArgs*)current_args;
@@ -2566,11 +2566,11 @@ void _trial_add_required_attack(void) {
                               args->count, 2);
 }
 
-void _pz_fighter_should_continue_move(void) {
+static void _pz_fighter_should_continue_move(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = (g_pz_fighters_engine.fighter_move.policy_flags >> 2) & 1;
 }
 
-void _set_background_color(void) {
+static void _set_background_color(void) {
     struct BackgroundColorArgs* args;
 
     args = (struct BackgroundColorArgs*)current_args;
@@ -2580,7 +2580,7 @@ void _set_background_color(void) {
                          (unsigned char)args->alpha);
 }
 
-void _camera_init_animation(void) {
+static void _camera_init_animation(void) {
     int animation_id;
     AniData* animation;
 
@@ -2590,7 +2590,7 @@ void _camera_init_animation(void) {
     camera_init_animation(animation, p_animated_intro_done);
 }
 
-void _camera_set_angle(void) {
+static void _camera_set_angle(void) {
     Vec angle;
 
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1B,
@@ -2598,7 +2598,7 @@ void _camera_set_angle(void) {
     set_camera_angle(&angle);
 }
 
-void _camera_set_position(void) {
+static void _camera_set_position(void) {
     Vec position;
 
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1B,
@@ -2606,14 +2606,14 @@ void _camera_set_position(void) {
     set_camera_position(&position);
 }
 
-void _set_move_pz_attributes_to(void) {
+static void _set_move_pz_attributes_to(void) {
     int sp8;
 
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x21, &sp8);
     ((struct ScriptCommandView*)active_cmdscript)->move_attributes = sp8;
 }
 
-void _get_current_player_number(void) {
+static void _get_current_player_number(void) {
     if ((plyr_pdata)->plyr_num == 1) {
         ((struct ScriptRawResult*)active_cmdscript)->value.i = 1;
     } else {
@@ -2621,7 +2621,7 @@ void _get_current_player_number(void) {
     }
 }
 
-void _randu0(void) {
+static void _randu0(void) {
     struct ScriptSingleIntArgs* args;
     struct ScriptIntResult* script;
     unsigned short value;
@@ -2632,7 +2632,7 @@ void _randu0(void) {
     script->value = value;
 }
 
-void _my_attack_hit(void) {
+static void _my_attack_hit(void) {
     struct ScriptIntResult* script;
     PlyrPdata* player;
 
@@ -2646,7 +2646,7 @@ void _my_attack_hit(void) {
     script->value = 0;
 }
 
-void _pz_fighter_startup_attack(void) {
+static void _pz_fighter_startup_attack(void) {
     struct ScriptRawArgs* args;
     ((struct ScriptCommandView*)active_cmdscript)->animation =
         get_animation(((struct ScriptRawArgs*)current_args)->slots[0].i);
@@ -2675,7 +2675,7 @@ static inline void script_distance_branch(unsigned int function_index) {
             [ACTIVE_DISTANCE_SCRIPT->slot->functions[function_index].name_offset - 1];
 }
 
-void _pz_fighter_distance_check_wo_super_check(void) {
+static void _pz_fighter_distance_check_wo_super_check(void) {
     int result = pz_fighter_distance_check_wo_super_check();
 
     if (result == 1) {
@@ -2685,7 +2685,7 @@ void _pz_fighter_distance_check_wo_super_check(void) {
     }
 }
 
-void _pz_fighter_distance_check(void) {
+static void _pz_fighter_distance_check(void) {
     int result = pz_fighter_distance_check();
 
     if (result == 1) {
@@ -2695,7 +2695,7 @@ void _pz_fighter_distance_check(void) {
     }
 }
 
-void _pz_fighter_set_y_constrain(void) {
+static void _pz_fighter_set_y_constrain(void) {
     struct PzConstrainArgs* args;
 
     args = (struct PzConstrainArgs*)current_args;
@@ -2703,7 +2703,7 @@ void _pz_fighter_set_y_constrain(void) {
                                args->value);
 }
 
-void _pz_fighter_attack(void) {
+static void _pz_fighter_attack(void) {
     struct ScriptAttackArgs* args;
     struct ScriptCommandView* script;
     void* animation;
@@ -2719,7 +2719,7 @@ void _pz_fighter_attack(void) {
                       args->arg3);
 }
 
-void _exit_attack_with(void) {
+static void _exit_attack_with(void) {
     plyr_pdata->script_exit_value_int =
         CURRENT_EXIT_ARGS->exit_value;
     plyr_pdata->script_exit_args[0] =
@@ -2736,7 +2736,7 @@ void _exit_attack_with(void) {
     ACTIVE_SCRIPT_EXIT->state = 2;
 }
 
-void _attack_opponent_with(void) {
+static void _attack_opponent_with(void) {
     struct ScriptAttackArgs* args;
     struct ScriptCommandView* script;
     void* animation;
@@ -2752,10 +2752,10 @@ void _attack_opponent_with(void) {
                          args->arg3);
 }
 
-void _drone_combo(void) {
+static void _drone_combo(void) {
 }
 
-void _check_his_state(void) {
+static void _check_his_state(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
     unsigned int function_index;
     function_index = args->slots[1].u;
@@ -2766,14 +2766,14 @@ void _check_his_state(void) {
     script_distance_branch(function_index);
 }
 
-void _drone_xfer_him(void) {
+static void _drone_xfer_him(void) {
     reaction_xfer_him_nohit(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _drone_super_combo(void) {
+static void _drone_super_combo(void) {
 }
 
-void _xfer_camera(void) {
+static void _xfer_camera(void) {
     int function_index;
     int reset_projection;
 
@@ -2784,7 +2784,7 @@ void _xfer_camera(void) {
         reset_projection);
 }
 
-void _camera_set_movement_focus(void) {
+static void _camera_set_movement_focus(void) {
     switch (((struct ScriptRawArgs*)current_args)->slots[0].i) {
     case 0:
         camera_set_movement_focus_obj(g_game_info.plyr0.slot.mirror_a);
@@ -2801,7 +2801,7 @@ void _camera_set_movement_focus(void) {
     }
 }
 
-void _camera_setup_for_custom_orbit_to_relative_point(void) {
+static void _camera_setup_for_custom_orbit_to_relative_point(void) {
     struct ScriptNpcCameraArgs* args = (struct ScriptNpcCameraArgs*)current_args;
     KonquestNpcData* data = args->npc_data;
     struct ScriptNpcHandle* npc;
@@ -2842,7 +2842,7 @@ void _camera_setup_for_custom_orbit_to_relative_point(void) {
     }
 }
 
-void _camera_set_position_relative_to_npc(void) {
+static void _camera_set_position_relative_to_npc(void) {
     struct ScriptNpcCameraArgs* args = (struct ScriptNpcCameraArgs*)current_args;
     KonquestNpcData* data = args->npc_data;
     struct ScriptNpcHandle* npc;
@@ -2869,7 +2869,7 @@ void _camera_set_position_relative_to_npc(void) {
     }
 }
 
-void _camera_setup_for_tracking_npc(void) {
+static void _camera_setup_for_tracking_npc(void) {
     struct ScriptNpcCameraArgs* args = (struct ScriptNpcCameraArgs*)current_args;
     KonquestNpcData* data = args->npc_data;
     struct ScriptNpcHandle* npc;
@@ -2894,7 +2894,7 @@ void _camera_setup_for_tracking_npc(void) {
     }
 }
 
-void _camera_setup_for_orbiting_npc(void) {
+static void _camera_setup_for_orbiting_npc(void) {
     struct ScriptNpcCameraArgs* args = (struct ScriptNpcCameraArgs*)current_args;
     KonquestNpcData* data = args->npc_data;
     float speed = args->orbit_speed;
@@ -2922,12 +2922,12 @@ void _camera_setup_for_orbiting_npc(void) {
     }
 }
 
-void _camera_set_lookat_focus_obj(void) {
+static void _camera_set_lookat_focus_obj(void) {
     camera_set_lookat_focus(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _camera_set_lookat_focus(void) {
+static void _camera_set_lookat_focus(void) {
     switch (((struct ScriptRawArgs*)current_args)->slots[0].i) {
     case 0:
         camera_set_lookat_focus(g_game_info.plyr0.slot.mirror_a);
@@ -2944,7 +2944,7 @@ void _camera_set_lookat_focus(void) {
     }
 }
 
-void _camera_set_lookat_offset_obj_rel(void) {
+static void _camera_set_lookat_offset_obj_rel(void) {
     struct ScriptRawArgs* args;
     Vec offset;
 
@@ -2955,7 +2955,7 @@ void _camera_set_lookat_offset_obj_rel(void) {
     camera_set_lookat_offset_obj_rel(&offset, current_args);
 }
 
-void _camera_set_lookat_offset(void) {
+static void _camera_set_lookat_offset(void) {
     struct ScriptRawArgs* args;
     Vec offset;
 
@@ -2966,7 +2966,7 @@ void _camera_set_lookat_offset(void) {
     camera_set_lookat_offset(&offset);
 }
 
-void _camera_set_movement_offset_obj_rel(void) {
+static void _camera_set_movement_offset_obj_rel(void) {
     struct ScriptRawArgs* args;
     Vec offset;
 
@@ -2977,7 +2977,7 @@ void _camera_set_movement_offset_obj_rel(void) {
     camera_set_movement_offset_obj_rel(&offset, current_args);
 }
 
-void _camera_set_movement_offset(void) {
+static void _camera_set_movement_offset(void) {
     struct ScriptRawArgs* args;
     Vec offset;
 
@@ -2988,7 +2988,7 @@ void _camera_set_movement_offset(void) {
     camera_set_movement_offset(&offset);
 }
 
-void _if_switching_to(void) {
+static void _if_switching_to(void) {
     PlyrPdata* player = plyr_pdata;
     int command = ((struct ScriptRawArgs*)current_args)->slots[0].i;
     int style = player->player_slot + 1;
@@ -3014,7 +3014,7 @@ void _if_switching_to(void) {
     ((struct ScriptCommandView*)active_cmdscript)->result = 0;
 }
 
-void _branch_next_style(void) {
+static void _branch_next_style(void) {
     struct ScriptSingleIntArgs* args;
     union ScriptResultRef script;
 
@@ -3028,7 +3028,7 @@ void _branch_next_style(void) {
     script.command->state = 2;
 }
 
-void _true_branch_next_sidekick_style(void) {
+static void _true_branch_next_sidekick_style(void) {
     struct ScriptSingleIntArgs* args;
     union ScriptResultRef script;
 
@@ -3044,7 +3044,7 @@ void _true_branch_next_sidekick_style(void) {
     script.command->state = 2;
 }
 
-void _true_branch_next_style(void) {
+static void _true_branch_next_style(void) {
     struct ScriptSingleIntArgs* args;
     union ScriptResultRef script;
 
@@ -3061,7 +3061,7 @@ void _true_branch_next_style(void) {
     }
 }
 
-void _was_i_hit_x_times(void) {
+static void _was_i_hit_x_times(void) {
     struct ScriptSingleIntArgs* args;
     struct ScriptCommandView* script;
     int result;
@@ -3072,7 +3072,7 @@ void _was_i_hit_x_times(void) {
     script->result = result;
 }
 
-void _ani_col_abort(void) {
+static void _ani_col_abort(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -3082,7 +3082,7 @@ void _ani_col_abort(void) {
         args->slots[6].i);
 }
 
-void _was_button_and_direction(void) {
+static void _was_button_and_direction(void) {
     struct ScriptTwoIntArgs* args;
     struct ScriptCommandView* script;
     int result;
@@ -3094,46 +3094,46 @@ void _was_button_and_direction(void) {
     script->result = result;
 }
 
-void _hit_branch(void) {
+static void _hit_branch(void) {
     if (plyr_pdata->collision_result == 1) {
         script_distance_branch(((struct ScriptRawArgs*)current_args)->slots[0].u);
     }
 }
 
-void _block_branch(void) {
+static void _block_branch(void) {
     if (plyr_pdata->collision_result == 2) {
         script_distance_branch(((struct ScriptRawArgs*)current_args)->slots[0].u);
     }
 }
 
-void _miss_branch(void) {
+static void _miss_branch(void) {
     if (plyr_pdata->collision_result == 0) {
         script_distance_branch(((struct ScriptRawArgs*)current_args)->slots[0].u);
     }
 }
 
-void _disable_grounding(void) {
+static void _disable_grounding(void) {
     ((struct ScriptGroundObjView*)plyr_obj)->launched = 0;
 }
 
-void _set_player_hiframe(void) {
+static void _set_player_hiframe(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_anim_hiframe(args->slots[0].f);
 }
 
-void _set_player_movement_weight(void) {
+static void _set_player_movement_weight(void) {
     ((AnimPdata*)plyr_anim_pdata)->weight =
         ((struct ScriptRawArgs*)current_args)->slots[0].f;
 }
 
-void _set_player_step(void) {
+static void _set_player_step(void) {
     ((AnimPdata*)plyr_anim_pdata)->step =
         ((struct ScriptRawArgs*)current_args)->slots[0].f;
 }
 
-void _newani_to_frame_x(void) {
+static void _newani_to_frame_x(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -3145,7 +3145,7 @@ void _newani_to_frame_x(void) {
         args->slots[4].f, args->slots[5].i);
 }
 
-void _blend_to_ani_inout(void) {
+static void _blend_to_ani_inout(void) {
     struct ScriptRawArgs* args;
     struct ScriptCommandView* script;
 
@@ -3160,7 +3160,7 @@ void _blend_to_ani_inout(void) {
         args->slots[3].f, args->slots[4].f);
 }
 
-void _glitch_to_ani_frame(void) {
+static void _glitch_to_ani_frame(void) {
     struct ScriptAnimationArgs* args;
     struct ScriptCommandView* script;
     void* animation;
@@ -3175,7 +3175,7 @@ void _glitch_to_ani_frame(void) {
                         args, args->frame);
 }
 
-void _blend_to_ani_frame(void) {
+static void _blend_to_ani_frame(void) {
     struct ScriptAnimationArgs* args;
     struct ScriptCommandView* script;
     void* animation;
@@ -3190,7 +3190,7 @@ void _blend_to_ani_frame(void) {
                        args->frame, args->blend);
 }
 
-void _glitch_him_to_ani(void) {
+static void _glitch_him_to_ani(void) {
     PlyrPdata* opponent;
     MkProc* proc;
     AnimPdata* pdata;
@@ -3207,7 +3207,7 @@ void _glitch_him_to_ani(void) {
     }
 }
 
-void _glitch_to_ani(void) {
+static void _glitch_to_ani(void) {
     struct ScriptAnimationArgs* args;
     struct ScriptCommandView* script;
     void* animation;
@@ -3221,7 +3221,7 @@ void _glitch_to_ani(void) {
     glitch_to_ani(script->animation, args->flags);
 }
 
-void _enable_grounding(void) {
+static void _enable_grounding(void) {
     struct ScriptGroundObjView* player;
     MkHdr* object;
 
@@ -3234,50 +3234,50 @@ void _enable_grounding(void) {
     ground_me(object);
 }
 
-void _was_button_pressed(void) {
+static void _was_button_pressed(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         was_button_pressed(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _am_i_airborn(void) {
+static void _am_i_airborn(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = am_i_airborn();
 }
 
-void _am_i_blocking(void) {
+static void _am_i_blocking(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = am_i_blocking();
 }
 
-void _is_his_chest_to_screen(void) {
+static void _is_his_chest_to_screen(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_his_chest_to_screen();
 }
 
-void _is_my_chest_to_screen(void) {
+static void _is_my_chest_to_screen(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_my_chest_to_screen();
 }
 
-void _am_i_on_the_left2(void) {
+static void _am_i_on_the_left2(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         am_i_on_the_left2(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                           ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _am_i_on_the_left(void) {
+static void _am_i_on_the_left(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = am_i_on_the_left();
 }
 
-void _is_he_flipped(void) {
+static void _is_he_flipped(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_he_flipped();
 }
 
-void _am_i_flipped_or_turned(void) {
+static void _am_i_flipped_or_turned(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = am_i_flipped_or_turned();
 }
 
-void _am_i_flipped(void) {
+static void _am_i_flipped(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = am_i_flipped();
 }
 
-void _lower_mines_ani_to_point(void) {
+static void _lower_mines_ani_to_point(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -3290,7 +3290,7 @@ void _lower_mines_ani_to_point(void) {
         args->slots[7].f, args->slots[8].pointer, args->slots[9].u);
 }
 
-void _launch_n_land_ani(void) {
+static void _launch_n_land_ani(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -3303,7 +3303,7 @@ void _launch_n_land_ani(void) {
         args->slots[7].f);
 }
 
-void _attack_to_frame_x(void) {
+static void _attack_to_frame_x(void) {
     struct ScriptRawArgs* args;
     ((struct ScriptCommandView*)active_cmdscript)->animation =
         get_animation(((struct ScriptRawArgs*)current_args)->slots[0].i);
@@ -3314,7 +3314,7 @@ void _attack_to_frame_x(void) {
         args->slots[5].u, args->slots[6].u, args->slots[7].i);
 }
 
-void _two_player_animation_match_attacker(void) {
+static void _two_player_animation_match_attacker(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -3322,7 +3322,7 @@ void _two_player_animation_match_attacker(void) {
     two_player_animation_match_attacker(((struct ScriptCommandView*)active_cmdscript)->animation, ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _two_player_animation_flip(void) {
+static void _two_player_animation_flip(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -3330,7 +3330,7 @@ void _two_player_animation_flip(void) {
     two_player_animation_flip(((struct ScriptCommandView*)active_cmdscript)->animation, ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _two_player_animation(void) {
+static void _two_player_animation(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -3338,15 +3338,15 @@ void _two_player_animation(void) {
     two_player_animation(((struct ScriptCommandView*)active_cmdscript)->animation, ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _is_fast_getup(void) {
+static void _is_fast_getup(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_fast_getup();
 }
 
-void _disable_impale_check(void) {
+static void _disable_impale_check(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = disable_impale_check();
 }
 
-void _blend_to_ani(void) {
+static void _blend_to_ani(void) {
     struct ScriptAnimationArgs* args;
     struct ScriptCommandView* script;
     void* animation;
@@ -3363,7 +3363,7 @@ void _blend_to_ani(void) {
         args->frame);
 }
 
-void _exit_react(void) {
+static void _exit_react(void) {
     CURRENT_PLAYER_PDATA->script_exit_value_int = CURRENT_EXIT_ARGS->exit_value;
     CURRENT_PLAYER_PDATA->script_exit_args[0] = CURRENT_EXIT_ARGS->exit_arg0;
     CURRENT_PLAYER_PDATA->input_unlock_tick = CURRENT_EXIT_ARGS->input_unlock_tick;
@@ -3374,7 +3374,7 @@ void _exit_react(void) {
     ACTIVE_SCRIPT_EXIT->state = 2;
 }
 
-void _exit_6(void) {
+static void _exit_6(void) {
     CURRENT_PLAYER_PDATA->script_exit_value_int = CURRENT_EXIT_ARGS->exit_value;
     CURRENT_PLAYER_PDATA->script_exit_args[0] = CURRENT_EXIT_ARGS->exit_arg0;
     CURRENT_PLAYER_PDATA->input_unlock_tick = CURRENT_EXIT_ARGS->input_unlock_tick;
@@ -3385,7 +3385,7 @@ void _exit_6(void) {
     ACTIVE_SCRIPT_EXIT->state = 2;
 }
 
-void _exit_float_int(void) {
+static void _exit_float_int(void) {
     ACTIVE_SCRIPT_EXIT->exit =
         exit_table[((struct ExitFloatIntArgs*)current_args)->exit_index];
     CURRENT_PLAYER_PDATA->summon_position_x =
@@ -3395,30 +3395,30 @@ void _exit_float_int(void) {
     ACTIVE_SCRIPT_EXIT->state = 2;
 }
 
-void _script_exit(void) {
+static void _script_exit(void) {
     ACTIVE_SCRIPT_EXIT->exit =
         exit_table[((struct ScriptRawArgs*)current_args)->slots[0].i];
     ACTIVE_SCRIPT_EXIT->state = 2;
 }
 
-void _script_return(void) {
+static void _script_return(void) {
     ((struct ScriptCommandView*)active_cmdscript)->exit = 0;
     ((struct ScriptCommandView*)active_cmdscript)->state = 2;
 }
 
-void _print_v(void) {
+static void _print_v(void) {
 }
 
-void _print_f(void) {
+static void _print_f(void) {
 }
 
-void _print_i(void) {
+static void _print_i(void) {
 }
 
-void _print_s(void) {
+static void _print_s(void) {
 }
 
-void _gosub(void) {
+static void _gosub(void) {
     unsigned int function_index;
     const struct ScriptDistanceFuncDef* function;
 
@@ -3433,17 +3433,17 @@ void _gosub(void) {
         &((char*)ACTIVE_DISTANCE_SCRIPT->slot->string_relocation)[function->name_offset - 1];
 }
 
-void _branch(void) {
+static void _branch(void) {
     script_distance_branch(((struct ScriptRawArgs*)current_args)->slots[0].u);
 }
 
-void _true_branch(void) {
+static void _true_branch(void) {
     if (((struct ScriptCommandView*)active_cmdscript)->result != 0) {
         script_distance_branch(((struct ScriptRawArgs*)current_args)->slots[0].u);
     }
 }
 
-void _true_xfer_him(void) {
+static void _true_xfer_him(void) {
     int condition = ((struct ScriptRawResult*)active_cmdscript)->value.i;
     void* reaction = ((struct ScriptRawArgs*)current_args)->slots[0].pointer;
 
@@ -3452,7 +3452,7 @@ void _true_xfer_him(void) {
     }
 }
 
-void _script_sleep(void) {
+static void _script_sleep(void) {
     int ticks;
 
     parse_args("Elapsed time: %d\n\0u\0uu\0iuf\0fff\0i\0v\0ui" + 0x1F,
@@ -3461,14 +3461,14 @@ void _script_sleep(void) {
     aproc->vtbl->sleep();
 }
 
-float j_sleep_forever(void) {
+static float j_sleep_forever(void) {
     for (;;) {
         _mkproc_sleep_ticks = 60.0f;
         aproc->vtbl->sleep();
     }
 }
 
-float j_call_player_script_function(void) {
+static float j_call_player_script_function(void) {
     ScriptSlot* slot;
 
     pw_plyr();
@@ -3524,35 +3524,35 @@ void* get_animation(int animation_id) {
     return animations[animation_id];
 }
 
-void _tag_team_activate_player(void) {
+static void _tag_team_activate_player(void) {
     tag_team_activate_player(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                              ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _load_and_set_refl_on_weapon(void) {
+static void _load_and_set_refl_on_weapon(void) {
     load_and_set_refl_on_weapon();
 }
 
-void _advance_active_moveset(void) {
+static void _advance_active_moveset(void) {
     advance_active_moveset(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _get_active_moveset_from_pdata(void) {
+static void _get_active_moveset_from_pdata(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         get_active_moveset_from_pdata(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _fx_transfer(void) {
+static void _fx_transfer(void) {
     fx_transfer(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _bgnd_force_specularity_off_for_material(void) {
+static void _bgnd_force_specularity_off_for_material(void) {
     bgnd_force_specularity_off_for_material(
         ((struct ScriptRawArgs*)current_args)->slots[0].u,
         ((struct ScriptRawArgs*)current_args)->slots[1].u);
 }
 
-void _bgnd_sobj_set_texture_kl_values(void) {
+static void _bgnd_sobj_set_texture_kl_values(void) {
     bgnd_sobj_set_texture_kl_values(((struct ScriptRawArgs*)current_args)->slots[0].u,
                                     ((struct ScriptRawArgs*)current_args)->slots[1].i,
                                     ((struct ScriptRawArgs*)current_args)->slots[2].i,
@@ -3560,65 +3560,65 @@ void _bgnd_sobj_set_texture_kl_values(void) {
                                     ((struct ScriptRawArgs*)current_args)->slots[4].i);
 }
 
-void _debug_print_message(void) {
+static void _debug_print_message(void) {
     get_script_string_arg(1);
     debug_print_message();
 }
 
-void _fxsys_set(void) {
+static void _fxsys_set(void) {
     fxsys_set(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _fxsys_set_v3(void) {
+static void _fxsys_set_v3(void) {
     fxsys_set_v3(((struct ScriptRawArgs*)current_args)->slots[0].i,
                  ((struct ScriptRawArgs*)current_args)->slots[1].f,
                  ((struct ScriptRawArgs*)current_args)->slots[2].f,
                  ((struct ScriptRawArgs*)current_args)->slots[3].f);
 }
 
-void _fx_bind_render_to_sobj(void) {
+static void _fx_bind_render_to_sobj(void) {
     fx_bind_render_to_sobj(((struct ScriptRawArgs*)current_args)->slots[0].i,
                            ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _fx_bind_emitter_to_obj_bone(void) {
+static void _fx_bind_emitter_to_obj_bone(void) {
     fx_bind_emitter_to_obj_bone(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                 ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                                 ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _fx_bind_render_to_obj_bone(void) {
+static void _fx_bind_render_to_obj_bone(void) {
     fx_bind_render_to_obj_bone(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                                ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _fx_disable_ztest(void) {
+static void _fx_disable_ztest(void) {
     fx_disable_ztest(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _fx_set_render_priority(void) {
+static void _fx_set_render_priority(void) {
     fx_set_render_priority(((struct ScriptRawArgs*)current_args)->slots[0].i,
                            ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _fx_hide(void) {
+static void _fx_hide(void) {
     fx_hide(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _fx_get_v3(void) {
+static void _fx_get_v3(void) {
     fx_get_v3(((struct ScriptRawArgs*)current_args)->slots[0].i,
               ((struct ScriptRawArgs*)current_args)->slots[1].i,
               ((struct ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
-void _fx_set(void) {
+static void _fx_set(void) {
     fx_set(((struct ScriptRawArgs*)current_args)->slots[0].i,
            ((struct ScriptRawArgs*)current_args)->slots[1].i,
            ((struct ScriptRawArgs*)current_args)->slots[2].f);
 }
 
-void _fx_set_param_v3(void) {
+static void _fx_set_param_v3(void) {
     fx_set_param_v3(((struct ScriptRawArgs*)current_args)->slots[0].i,
                     ((struct ScriptRawArgs*)current_args)->slots[1].i,
                     ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -3626,67 +3626,67 @@ void _fx_set_param_v3(void) {
                     ((struct ScriptRawArgs*)current_args)->slots[4].f);
 }
 
-void _enable_profiling(void) {
+static void _enable_profiling(void) {
     enable_profiling(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _kill_on_y_less_than_field(void) {
+static void _kill_on_y_less_than_field(void) {
     kill_on_y_less_than_field(((struct ScriptRawArgs*)current_args)->slots[0].i,
                               ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _change_on_y_less_than_field(void) {
+static void _change_on_y_less_than_field(void) {
     change_on_y_less_than_field(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                 ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _change_on_y_less(void) {
+static void _change_on_y_less(void) {
     change_on_y_less(((struct ScriptRawArgs*)current_args)->slots[0].i,
                      ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _change_on_less(void) {
+static void _change_on_less(void) {
     change_on_less(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _change_on_greater(void) {
+static void _change_on_greater(void) {
     change_on_greater(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _kill_roundrobin(void) {
+static void _kill_roundrobin(void) {
     kill_roundrobin(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _kill_percent(void) {
+static void _kill_percent(void) {
     kill_percent(((struct ScriptRawArgs*)current_args)->slots[0].f);
 }
 
-void _kill_on_greater(void) {
+static void _kill_on_greater(void) {
     kill_on_greater(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _udpate_roundrobin(void) {
+static void _udpate_roundrobin(void) {
     udpate_roundrobin(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _update_assign(void) {
+static void _update_assign(void) {
     update_assign(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _update_attract(void) {
+static void _update_attract(void) {
     update_attract(((struct ScriptRawArgs*)current_args)->slots[0].i,
                    ((struct ScriptRawArgs*)current_args)->slots[1].i,
                    ((struct ScriptRawArgs*)current_args)->slots[2].f);
 }
 
-void _update_bounce(void) {
+static void _update_bounce(void) {
     update_bounce(((struct ScriptRawArgs*)current_args)->slots[0].i,
                   ((struct ScriptRawArgs*)current_args)->slots[1].i,
                   ((struct ScriptRawArgs*)current_args)->slots[2].i,
                   ((struct ScriptRawArgs*)current_args)->slots[3].f);
 }
 
-void _update_texanim_hold(void) {
+static void _update_texanim_hold(void) {
     update_texanim_hold(((struct ScriptRawArgs*)current_args)->slots[0].i,
                         ((struct ScriptRawArgs*)current_args)->slots[1].i,
                         ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -3694,7 +3694,7 @@ void _update_texanim_hold(void) {
                         ((struct ScriptRawArgs*)current_args)->slots[4].i);
 }
 
-void _update_texanim(void) {
+static void _update_texanim(void) {
     update_texanim(((struct ScriptRawArgs*)current_args)->slots[0].i,
                    ((struct ScriptRawArgs*)current_args)->slots[1].i,
                    ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -3702,7 +3702,7 @@ void _update_texanim(void) {
                    ((struct ScriptRawArgs*)current_args)->slots[4].i);
 }
 
-void _update_lerp_color(void) {
+static void _update_lerp_color(void) {
     update_lerp_color(((struct ScriptRawArgs*)current_args)->slots[0].i,
         ((struct ScriptRawArgs*)current_args)->slots[1].i,
         ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -3711,7 +3711,7 @@ void _update_lerp_color(void) {
         ((struct ScriptRawArgs*)current_args)->slots[5].pointer);
 }
 
-void _update_fade_alpha2(void) {
+static void _update_fade_alpha2(void) {
     update_fade_alpha2(((struct ScriptRawArgs*)current_args)->slots[0].i,
         ((struct ScriptRawArgs*)current_args)->slots[1].i,
         ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -3720,21 +3720,21 @@ void _update_fade_alpha2(void) {
         ((struct ScriptRawArgs*)current_args)->slots[5].i);
 }
 
-void _update_fade_alpha(void) {
+static void _update_fade_alpha(void) {
     update_fade_alpha(((struct ScriptRawArgs*)current_args)->slots[0].i,
                       ((struct ScriptRawArgs*)current_args)->slots[1].i,
                       ((struct ScriptRawArgs*)current_args)->slots[2].f,
                       ((struct ScriptRawArgs*)current_args)->slots[3].f);
 }
 
-void _update_mul_scalar(void) {
+static void _update_mul_scalar(void) {
     update_mul_scalar(((struct ScriptRawArgs*)current_args)->slots[0].i,
                       ((struct ScriptRawArgs*)current_args)->slots[1].f,
                       ((struct ScriptRawArgs*)current_args)->slots[2].f,
                       ((struct ScriptRawArgs*)current_args)->slots[3].f);
 }
 
-void _update_wrapbox(void) {
+static void _update_wrapbox(void) {
     update_wrapbox(((struct ScriptRawArgs*)current_args)->slots[0].i,
                    ((struct ScriptRawArgs*)current_args)->slots[1].f,
                    ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -3742,95 +3742,95 @@ void _update_wrapbox(void) {
                    ((struct ScriptRawArgs*)current_args)->slots[4].f);
 }
 
-void _update_add_constant(void) {
+static void _update_add_constant(void) {
     update_add_constant(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _update_add_constant_v3(void) {
+static void _update_add_constant_v3(void) {
     update_add_constant_v3(((struct ScriptRawArgs*)current_args)->slots[0].i,
                            ((struct ScriptRawArgs*)current_args)->slots[1].f,
                            ((struct ScriptRawArgs*)current_args)->slots[2].f,
                            ((struct ScriptRawArgs*)current_args)->slots[3].f);
 }
 
-void _update_copy(void) {
+static void _update_copy(void) {
     update_copy(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _update_add(void) {
+static void _update_add(void) {
     update_add(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _initial_multiply_float(void) {
+static void _initial_multiply_float(void) {
     initial_multiply_float(((struct ScriptRawArgs*)current_args)->slots[0].i,
                            ((struct ScriptRawArgs*)current_args)->slots[1].f,
                            ((struct ScriptRawArgs*)current_args)->slots[2].f);
 }
 
-void _initial_set_float(void) {
+static void _initial_set_float(void) {
     initial_set_float(((struct ScriptRawArgs*)current_args)->slots[0].i,
                       ((struct ScriptRawArgs*)current_args)->slots[1].f,
                       ((struct ScriptRawArgs*)current_args)->slots[2].f);
 }
 
-void _initial_add_v3(void) {
+static void _initial_add_v3(void) {
     initial_add_v3(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _initial_divert(void) {
+static void _initial_divert(void) {
     initial_divert(((struct ScriptRawArgs*)current_args)->slots[0].i,
                    ((struct ScriptRawArgs*)current_args)->slots[1].f,
                    ((struct ScriptRawArgs*)current_args)->slots[2].f);
 }
 
-void _initial_reflect(void) {
+static void _initial_reflect(void) {
     initial_reflect(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _set_cycle_emission(void) {
+static void _set_cycle_emission(void) {
     set_cycle_emission(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _set_cycle_length(void) {
+static void _set_cycle_length(void) {
     set_cycle_length(((struct ScriptRawArgs*)current_args)->slots[0].f,
                      ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _fx_reset_emit(void) {
+static void _fx_reset_emit(void) {
     fx_reset_emit(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _fx_pause_emit(void) {
+static void _fx_pause_emit(void) {
     fx_pause_emit(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _fx_resume_emit(void) {
+static void _fx_resume_emit(void) {
     fx_resume_emit(((struct ScriptRawArgs*)current_args)->slots[0].u);
 }
 
-void _fx_next_emitter(void) {
+static void _fx_next_emitter(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         fx_next_emitter(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _fx_reset(void) {
+static void _fx_reset(void) {
     fx_reset(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _fx_restart_emit(void) {
+static void _fx_restart_emit(void) {
     fx_restart_emit(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _reset_effect(void) {
+static void _reset_effect(void) {
     get_script_string_arg(1);
     reset_effect();
 }
 
-void _resume_effect(void) {
+static void _resume_effect(void) {
     resume_effect(get_script_string_arg(1));
 }
 
-void _spawn_color(void) {
+static void _spawn_color(void) {
     spawn_color(((struct ScriptRawArgs*)current_args)->slots[0].i,
                 ((struct ScriptRawArgs*)current_args)->slots[1].i,
                 ((struct ScriptRawArgs*)current_args)->slots[2].i,
@@ -3838,44 +3838,44 @@ void _spawn_color(void) {
                 ((struct ScriptRawArgs*)current_args)->slots[4].i);
 }
 
-void _spawn_random_size(void) {
+static void _spawn_random_size(void) {
     spawn_random_size(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _set_growth_coefficient(void) {
+static void _set_growth_coefficient(void) {
     set_growth_coefficient(((struct ScriptRawArgs*)current_args)->slots[0].f);
 }
 
-void _set_drag_coefficient(void) {
+static void _set_drag_coefficient(void) {
     set_drag_coefficient(((struct ScriptRawArgs*)current_args)->slots[0].f);
 }
 
-void _set_rotation(void) {
+static void _set_rotation(void) {
     set_rotation(((struct ScriptRawArgs*)current_args)->slots[0].f, ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _kill_at_plane(void) {
+static void _kill_at_plane(void) {
     kill_at_plane(((struct ScriptRawArgs*)current_args)->slots[0].f);
 }
 
-void _emit_constant_rate(void) {
+static void _emit_constant_rate(void) {
     emit_constant_rate();
 }
 
-void _emit_roundrobin_mechanism(void) {
+static void _emit_roundrobin_mechanism(void) {
     emit_roundrobin_mechanism(((struct ScriptRawArgs*)current_args)->slots[0].i,
                               ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _emit_value_i(void) {
+static void _emit_value_i(void) {
     emit_value_i(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _emit_value(void) {
+static void _emit_value(void) {
     emit_value(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _emit_from_pos_clamp_y(void) {
+static void _emit_from_pos_clamp_y(void) {
     emit_from_pos_clamp_y(((struct ScriptRawArgs*)current_args)->slots[0].i,
                           ((struct ScriptRawArgs*)current_args)->slots[1].i,
                           ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -3886,7 +3886,7 @@ void _emit_from_pos_clamp_y(void) {
                           ((struct ScriptRawArgs*)current_args)->slots[7].f);
 }
 
-void _emit_from_pos(void) {
+static void _emit_from_pos(void) {
     emit_from_pos(((struct ScriptRawArgs*)current_args)->slots[0].i,
                   ((struct ScriptRawArgs*)current_args)->slots[1].i,
                   ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -3896,7 +3896,7 @@ void _emit_from_pos(void) {
                   ((struct ScriptRawArgs*)current_args)->slots[6].f);
 }
 
-void _emit_spherical_section(void) {
+static void _emit_spherical_section(void) {
     emit_spherical_section(((struct ScriptRawArgs*)current_args)->slots[0].i,
                            ((struct ScriptRawArgs*)current_args)->slots[1].f,
                            ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -3907,33 +3907,33 @@ void _emit_spherical_section(void) {
                            ((struct ScriptRawArgs*)current_args)->slots[7].f);
 }
 
-void _emit_spherical_from_boundary(void) {
+static void _emit_spherical_from_boundary(void) {
     emit_spherical_from_boundary(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                  ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _emit_spherical(void) {
+static void _emit_spherical(void) {
     emit_spherical(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _texture_animation_with_vsize(void) {
+static void _texture_animation_with_vsize(void) {
     texture_animation_with_vsize(((struct ScriptRawArgs*)current_args)->slots[0].f,
                                  ((struct ScriptRawArgs*)current_args)->slots[1].f,
                                  ((struct ScriptRawArgs*)current_args)->slots[2].i,
                                  ((struct ScriptRawArgs*)current_args)->slots[3].f);
 }
 
-void _texture_animation(void) {
+static void _texture_animation(void) {
     texture_animation(((struct ScriptRawArgs*)current_args)->slots[0].f,
         ((struct ScriptRawArgs*)current_args)->slots[1].i,
         ((struct ScriptRawArgs*)current_args)->slots[2].f);
 }
 
-void _emission_duration(void) {
+static void _emission_duration(void) {
     emission_duration(((struct ScriptRawArgs*)current_args)->slots[0].f);
 }
 
-void _emit_cylindrical(void) {
+static void _emit_cylindrical(void) {
     emit_cylindrical(((struct ScriptRawArgs*)current_args)->slots[0].i,
                      ((struct ScriptRawArgs*)current_args)->slots[1].f,
                      ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -3944,7 +3944,7 @@ void _emit_cylindrical(void) {
                      ((struct ScriptRawArgs*)current_args)->slots[7].f);
 }
 
-void _emit_cartesian(void) {
+static void _emit_cartesian(void) {
     emit_cartesian(((struct ScriptRawArgs*)current_args)->slots[0].i,
                    ((struct ScriptRawArgs*)current_args)->slots[1].f,
                    ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -3954,7 +3954,7 @@ void _emit_cartesian(void) {
                    ((struct ScriptRawArgs*)current_args)->slots[6].f);
 }
 
-void _emit_disc2(void) {
+static void _emit_disc2(void) {
     emit_disc2(((struct ScriptRawArgs*)current_args)->slots[0].i,
                ((struct ScriptRawArgs*)current_args)->slots[1].f,
                ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -3963,7 +3963,7 @@ void _emit_disc2(void) {
                ((struct ScriptRawArgs*)current_args)->slots[5].f);
 }
 
-void _emit_disc(void) {
+static void _emit_disc(void) {
     emit_disc(((struct ScriptRawArgs*)current_args)->slots[0].i,
               ((struct ScriptRawArgs*)current_args)->slots[1].f,
               ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -3971,26 +3971,26 @@ void _emit_disc(void) {
               ((struct ScriptRawArgs*)current_args)->slots[4].f);
 }
 
-void _emit_cuboid(void) {
+static void _emit_cuboid(void) {
     emit_cuboid(((struct ScriptRawArgs*)current_args)->slots[0].i,
                 ((struct ScriptRawArgs*)current_args)->slots[1].f,
                 ((struct ScriptRawArgs*)current_args)->slots[2].f,
                 ((struct ScriptRawArgs*)current_args)->slots[3].f);
 }
 
-void _emit_from_point(void) {
+static void _emit_from_point(void) {
     emit_from_point(((struct ScriptRawArgs*)current_args)->slots[0].f,
                     ((struct ScriptRawArgs*)current_args)->slots[1].f,
                     ((struct ScriptRawArgs*)current_args)->slots[2].f);
 }
 
-void _emit_uv(void) {
+static void _emit_uv(void) {
     emit_uv(((struct ScriptRawArgs*)current_args)->slots[0].i,
             ((struct ScriptRawArgs*)current_args)->slots[1].f,
             ((struct ScriptRawArgs*)current_args)->slots[2].f);
 }
 
-void _emit_color(void) {
+static void _emit_color(void) {
     emit_color(((struct ScriptRawArgs*)current_args)->slots[0].i,
                ((struct ScriptRawArgs*)current_args)->slots[1].i,
                ((struct ScriptRawArgs*)current_args)->slots[2].i,
@@ -3998,283 +3998,283 @@ void _emit_color(void) {
                ((struct ScriptRawArgs*)current_args)->slots[4].i);
 }
 
-void _emit_in_range(void) {
+static void _emit_in_range(void) {
     emit_in_range(((struct ScriptRawArgs*)current_args)->slots[0].i,
                   ((struct ScriptRawArgs*)current_args)->slots[1].f,
                   ((struct ScriptRawArgs*)current_args)->slots[2].f);
 }
 
-void _fx_by_owner(void) {
+static void _fx_by_owner(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         fx_by_owner(get_script_string_arg(1), ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _fx2(void) {
+static void _fx2(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         fx2(((struct ScriptRawArgs*)current_args)->slots[0].i, get_script_string_arg(2));
 }
 
-void _fx(void) {
+static void _fx(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = fx(get_script_string_arg(1));
 }
 
-void _set_vertex_color(void) {
+static void _set_vertex_color(void) {
     set_vertex_color(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _set_light(void) {
+static void _set_light(void) {
     set_light(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _set_aspect_ratio(void) {
+static void _set_aspect_ratio(void) {
     set_aspect_ratio(((struct ScriptRawArgs*)current_args)->slots[0].f, ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _set_bounding_radius(void) {
+static void _set_bounding_radius(void) {
     set_bounding_radius(((struct ScriptRawArgs*)current_args)->slots[0].f);
 }
 
-void _create_y_mirror_effect(void) {
+static void _create_y_mirror_effect(void) {
     create_y_mirror_effect(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _z_bias(void) {
+static void _z_bias(void) {
     z_bias(((struct ScriptRawArgs*)current_args)->slots[0].f);
 }
 
-void _particle_size(void) {
+static void _particle_size(void) {
     particle_size(((struct ScriptRawArgs*)current_args)->slots[0].f);
 }
 
-void _face_y(void) {
+static void _face_y(void) {
     face_y();
 }
 
-void _set_decal_plane(void) {
+static void _set_decal_plane(void) {
     set_decal_plane(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _create_multiemit_parametric_fx(void) {
+static void _create_multiemit_parametric_fx(void) {
     create_multiemit_parametric_fx(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                                    get_script_string_arg(2),
                                    ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _create_parametric_fx(void) {
+static void _create_parametric_fx(void) {
     create_parametric_fx(((struct ScriptRawArgs*)current_args)->slots[0].pointer, get_script_string_arg(2));
 }
 
-void _create_multiemit_step_fx(void) {
+static void _create_multiemit_step_fx(void) {
     create_multiemit_step_fx((struct PfxStepEffectDescription*)((struct ScriptRawArgs*)current_args)->slots[0].i,
                              get_script_string_arg(2),
                              ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _create_step_fx(void) {
+static void _create_step_fx(void) {
     create_step_fx((struct PfxStepEffectDescription*)((struct ScriptRawArgs*)current_args)->slots[0].i, get_script_string_arg(2));
 }
 
-void _bind_to_bone(void) {
+static void _bind_to_bone(void) {
     bind_to_bone(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _create_step_effect(void) {
+static void _create_step_effect(void) {
     create_step_effect(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _parametric_update(void) {
+static void _parametric_update(void) {
     parametric_update(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _dist_xz_to_xz(void) {
+static void _dist_xz_to_xz(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f =
         dist_xz_to_xz(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                       ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _v3_to_xz_ang(void) {
+static void _v3_to_xz_ang(void) {
     v3_to_xz_ang(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _v3_to_xy_ang(void) {
+static void _v3_to_xy_ang(void) {
     v3_to_xy_ang(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _length_v3(void) {
+static void _length_v3(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f =
         length_v3(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _rotate_xz(void) {
+static void _rotate_xz(void) {
     rotate_xz(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
               ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
               ((struct ScriptRawArgs*)current_args)->slots[2].f);
 }
 
-void _gxMathArcCos(void) {
+static void _gxMathArcCos(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f =
         gxMathArcCos(((struct ScriptRawArgs*)current_args)->slots[0].f);
 }
 
-void _gxMathSin(void) {
+static void _gxMathSin(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f =
         gxMathSin(((struct ScriptRawArgs*)current_args)->slots[0].f);
 }
 
-void _gxMathCos(void) {
+static void _gxMathCos(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f =
         gxMathCos(((struct ScriptRawArgs*)current_args)->slots[0].f);
 }
 
-void _uv_v3_to_v3_dist(void) {
+static void _uv_v3_to_v3_dist(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f =
         uv_v3_to_v3_dist(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                          ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                          ((struct ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
-void _xz_dot_xz(void) {
+static void _xz_dot_xz(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f =
         xz_dot_xz(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _YXZ_angles_to_quat(void) {
+static void _YXZ_angles_to_quat(void) {
     YXZ_angles_to_quat(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                        ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _obj_get_bone_rot_quat(void) {
+static void _obj_get_bone_rot_quat(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         obj_get_bone_rot_quat(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                               ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _uv_from_angle_y(void) {
+static void _uv_from_angle_y(void) {
     uv_from_angle_y(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _xz_to_y_ang(void) {
+static void _xz_to_y_ang(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f =
         xz_to_y_ang(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _xz_unit_vector(void) {
+static void _xz_unit_vector(void) {
     xz_unit_vector(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                    ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                    ((struct ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
-void _v3_dot_v3(void) {
+static void _v3_dot_v3(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f =
         v3_dot_v3(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _zero_v3(void) {
+static void _zero_v3(void) {
     zero_v3(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _normalize_v3(void) {
+static void _normalize_v3(void) {
     normalize_v3(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _scale_v3(void) {
+static void _scale_v3(void) {
     scale_v3(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
              ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
              ((struct ScriptRawArgs*)current_args)->slots[2].f);
 }
 
-void _v3_add_v3_scaled(void) {
+static void _v3_add_v3_scaled(void) {
     v3_add_v3_scaled(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                      ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                      ((struct ScriptRawArgs*)current_args)->slots[2].pointer,
                      ((struct ScriptRawArgs*)current_args)->slots[3].f);
 }
 
-void _v3_add_v3(void) {
+static void _v3_add_v3(void) {
     v3_add_v3(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
               ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
               ((struct ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
-void _v3_sub_v3(void) {
+static void _v3_sub_v3(void) {
     v3_sub_v3(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
               ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
               ((struct ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
-void _v3_x_mat(void) {
+static void _v3_x_mat(void) {
     v3_x_mat(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
              ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
              ((struct ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
-void _mkobj_get_matrix_pos(void) {
+static void _mkobj_get_matrix_pos(void) {
     mkobj_get_matrix_pos(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                          ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _mkobj_get_matrix_right(void) {
+static void _mkobj_get_matrix_right(void) {
     mkobj_get_matrix_right(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                            ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _mkobj_get_matrix_at(void) {
+static void _mkobj_get_matrix_at(void) {
     mkobj_get_matrix_at(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                         ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _mkobj_get_matrix(void) {
+static void _mkobj_get_matrix(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         mkobj_get_matrix(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _plyr_in_spin_react(void) {
+static void _plyr_in_spin_react(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         plyr_in_spin_react(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _force_calc_bone_world_mat(void) {
+static void _force_calc_bone_world_mat(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         force_calc_bone_world_mat(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                                   ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _obj_set_sobj_pos(void) {
+static void _obj_set_sobj_pos(void) {
     obj_set_sobj_pos(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                      ((struct ScriptRawArgs*)current_args)->slots[1].i,
                      ((struct ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
-void _get_bone_relative_pos(void) {
+static void _get_bone_relative_pos(void) {
     get_bone_relative_pos(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                           ((struct ScriptRawArgs*)current_args)->slots[1].i,
                           ((struct ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
-void _get_bone_offset_world_pos(void) {
+static void _get_bone_offset_world_pos(void) {
     get_bone_offset_world_pos(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                               ((struct ScriptRawArgs*)current_args)->slots[1].i,
                               ((struct ScriptRawArgs*)current_args)->slots[2].pointer,
                               ((struct ScriptRawArgs*)current_args)->slots[3].pointer);
 }
 
-void _get_bone_world_pos(void) {
+static void _get_bone_world_pos(void) {
     get_bone_world_pos(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                        ((struct ScriptRawArgs*)current_args)->slots[1].i,
                        ((struct ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
-void _bone_matcher_child_set_offset(void) {
+static void _bone_matcher_child_set_offset(void) {
     bone_matcher_child_set_offset(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                                   ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _bone_matcher_parent_set_offset(void) {
+static void _bone_matcher_parent_set_offset(void) {
     bone_matcher_parent_set_offset(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                                    ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _start_bone_matcher(void) {
+static void _start_bone_matcher(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         start_bone_matcher(
             ((struct ScriptRawArgs*)current_args)->slots[0].pointer,
@@ -4284,307 +4284,307 @@ void _start_bone_matcher(void) {
             ((struct ScriptRawArgs*)current_args)->slots[4].f);
 }
 
-void _obj_get_ang_vel(void) {
+static void _obj_get_ang_vel(void) {
     obj_get_ang_vel(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                     ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _obj_set_ang_vel(void) {
+static void _obj_set_ang_vel(void) {
     obj_set_ang_vel(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                     ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _obj_set_pos_vel(void) {
+static void _obj_set_pos_vel(void) {
     obj_set_pos_vel(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                     ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _obj_get_pos_vel(void) {
+static void _obj_get_pos_vel(void) {
     obj_get_pos_vel(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                     ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _plyr_pdata_is_alt_costume(void) {
+static void _plyr_pdata_is_alt_costume(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = plyr_pdata_is_alt_costume(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _plyr_pdata_get_previous_state(void) {
+static void _plyr_pdata_get_previous_state(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = plyr_pdata_get_previous_state(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _plyr_pdata_get_state(void) {
+static void _plyr_pdata_get_state(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = plyr_pdata_get_state(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _plyr_pdata_get_pchr(void) {
+static void _plyr_pdata_get_pchr(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = plyr_pdata_get_pchr(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _plyr_pdata_sidekick_active(void) {
+static void _plyr_pdata_sidekick_active(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = plyr_pdata_sidekick_active(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _plyr_pdata_get_plyr_num(void) {
+static void _plyr_pdata_get_plyr_num(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = plyr_pdata_get_plyr_num(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _plyr_pdata_get_cmo(void) {
+static void _plyr_pdata_get_cmo(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = plyr_pdata_get_cmo(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _plyr_pdata_get_sidekick_obj(void) {
+static void _plyr_pdata_get_sidekick_obj(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         plyr_pdata_get_sidekick_obj(
             ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _plyr_pdata_get_his_obj(void) {
+static void _plyr_pdata_get_his_obj(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = plyr_pdata_get_his_obj(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _plyr_pdata_get_plyr_obj(void) {
+static void _plyr_pdata_get_plyr_obj(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = plyr_pdata_get_plyr_obj(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _plyr_pdata_get_his_plyr_pdata(void) {
+static void _plyr_pdata_get_his_plyr_pdata(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         plyr_pdata_get_his_plyr_pdata(
             ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _plyr_pdata_get_plyr_info(void) {
+static void _plyr_pdata_get_plyr_info(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         plyr_pdata_get_plyr_info(
             ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _plyr_anim_get_frame(void) {
+static void _plyr_anim_get_frame(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f = plyr_anim_get_frame(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _get_my_plyr_anim_pdata(void) {
+static void _get_my_plyr_anim_pdata(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         get_my_plyr_anim_pdata();
 }
 
-void _get_my_plyr_pdata(void) {
+static void _get_my_plyr_pdata(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = get_my_plyr_pdata();
 }
 
-void _get_his_plyr_pdata(void) {
+static void _get_his_plyr_pdata(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = get_his_plyr_pdata();
 }
 
-void _get_plyr_obj_plyr_num(void) {
+static void _get_plyr_obj_plyr_num(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = get_plyr_obj_plyr_num(
         ((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _get_my_sidekick_obj(void) {
+static void _get_my_sidekick_obj(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = get_my_sidekick_obj();
 }
 
-void _get_my_plyr_obj(void) {
+static void _get_my_plyr_obj(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = get_my_plyr_obj();
 }
 
-void _get_his_plyr_obj(void) {
+static void _get_his_plyr_obj(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = get_his_plyr_obj();
 }
 
-void _get_plyr_info(void) {
+static void _get_plyr_info(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = get_plyr_info();
 }
 
-void _obj_find_sobj_by_id(void) {
+static void _obj_find_sobj_by_id(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         obj_find_sobj_by_id(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                             ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _obj_set_light_flag(void) {
+static void _obj_set_light_flag(void) {
     obj_set_light_flag(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _sobj_get_ang(void) {
+static void _sobj_get_ang(void) {
     sobj_get_ang(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                  ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _sobj_get_ang_vel(void) {
+static void _sobj_get_ang_vel(void) {
     sobj_get_ang_vel(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                      ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _sobj_set_ang_vel(void) {
+static void _sobj_set_ang_vel(void) {
     sobj_set_ang_vel(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                      ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _sobj_set_ang(void) {
+static void _sobj_set_ang(void) {
     sobj_set_ang(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                  ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _sobj_get_pos_vel(void) {
+static void _sobj_get_pos_vel(void) {
     sobj_get_pos_vel(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                      ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _sobj_set_pos_vel(void) {
+static void _sobj_set_pos_vel(void) {
     sobj_set_pos_vel(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                      ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _sobj_get_pos(void) {
+static void _sobj_get_pos(void) {
     sobj_get_pos(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                  ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _sobj_set_pos(void) {
+static void _sobj_set_pos(void) {
     sobj_set_pos(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                  ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _obj_get_ang(void) {
+static void _obj_get_ang(void) {
     obj_get_ang(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                 ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _obj_set_ang(void) {
+static void _obj_set_ang(void) {
     obj_set_ang(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                 ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _obj_get_pos(void) {
+static void _obj_get_pos(void) {
     obj_get_pos(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                 ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _obj_set_pos(void) {
+static void _obj_set_pos(void) {
     obj_set_pos(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                 ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _obj_set_ground_colls_y(void) {
+static void _obj_set_ground_colls_y(void) {
     obj_set_ground_colls_y(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                            ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _obj_set_ground_colls(void) {
+static void _obj_set_ground_colls(void) {
     obj_set_ground_colls(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                          ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _konquest_load_interior_art(void) {
+static void _konquest_load_interior_art(void) {
     konquest_load_interior_art();
 }
 
-void _konquest_start_nis_anims_load(void) {
+static void _konquest_start_nis_anims_load(void) {
     konquest_start_nis_anims_load(
         get_script_string_arg(1), get_script_string_arg(2));
 }
 
-void _konquest_nis_anims_loaded(void) {
+static void _konquest_nis_anims_loaded(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = konquest_nis_anims_loaded();
 }
 
-void _konquest_nis_end(void) {
+static void _konquest_nis_end(void) {
     konquest_nis_end();
 }
 
-void _konquest_nis_init(void) {
+static void _konquest_nis_init(void) {
     konquest_nis_init(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _nis_wait_for_region_load(void) {
+static void _nis_wait_for_region_load(void) {
     nis_wait_for_region_load();
 }
 
-void _wait_for_region_load(void) {
+static void _wait_for_region_load(void) {
     wait_for_region_load();
 }
 
-void _nis_register_participant(void) {
+static void _nis_register_participant(void) {
     nis_register_participant(((struct ScriptRawArgs*)current_args)->slots[0].i,
                              ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _nis_set_wait_override(void) {
+static void _nis_set_wait_override(void) {
     nis_set_wait_override(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _nis_show_cancel_message(void) {
+static void _nis_show_cancel_message(void) {
     nis_show_cancel_message();
 }
 
-void _nis_scene_done(void) {
+static void _nis_scene_done(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = nis_scene_done();
 }
 
-void _nis_end(void) {
+static void _nis_end(void) {
     nis_end();
 }
 
-void _nis_wait_for_event(void) {
+static void _nis_wait_for_event(void) {
     nis_wait_for_event(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _nis_signal_event(void) {
+static void _nis_signal_event(void) {
     nis_signal_event(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _get_fatality_state_ptr(void) {
+static void _get_fatality_state_ptr(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         get_fatality_state_ptr();
 }
 
-void _animpdata_ani_to_frame_x_with_flag_check(void) {
+static void _animpdata_ani_to_frame_x_with_flag_check(void) {
     animpdata_ani_to_frame_x_with_flag_check(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                                              ((struct ScriptRawArgs*)current_args)->slots[1].f,
                                              ((struct ScriptRawArgs*)current_args)->slots[2].i,
                                              ((struct ScriptRawArgs*)current_args)->slots[3].i);
 }
 
-void _mkscripts_set_anim_check_flag(void) {
+static void _mkscripts_set_anim_check_flag(void) {
     mkscripts_set_anim_check_flag(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                                   ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _mkscripts_mkobj_insert_mkobj_cleanuplist(void) {
+static void _mkscripts_mkobj_insert_mkobj_cleanuplist(void) {
     mkscripts_mkobj_insert_mkobj_cleanuplist(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer,
         ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _mkscripts_destroy_gusher(void) {
+static void _mkscripts_destroy_gusher(void) {
     mkscripts_destroy_gusher(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _mkscripts_destroy_fk_bonematcher(void) {
+static void _mkscripts_destroy_fk_bonematcher(void) {
     mkscripts_destroy_fk_bonematcher(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _mkscripts_destroy_bonematcher(void) {
+static void _mkscripts_destroy_bonematcher(void) {
     mkscripts_destroy_bonematcher(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _dkp_check_plyr_state_for_grab(void) {
+static void _dkp_check_plyr_state_for_grab(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         dkp_check_plyr_state_for_grab(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _start_prison_grab_proc(void) {
+static void _start_prison_grab_proc(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         start_prison_grab_proc(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                ((struct ScriptRawArgs*)current_args)->slots[1].i,
@@ -4592,52 +4592,52 @@ void _start_prison_grab_proc(void) {
                                ((struct ScriptRawArgs*)current_args)->slots[3].f);
 }
 
-void _done_prison_grab_proc(void) { done_prison_grab_proc(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _done_prison_grab_proc(void) { done_prison_grab_proc(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _kill_spear(void) { kill_spear(); }
+static void _kill_spear(void) { kill_spear(); }
 
-void _xfer_spearproc_to_retract(void) { xfer_spearproc_to_retract(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
+static void _xfer_spearproc_to_retract(void) { xfer_spearproc_to_retract(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
-void _destroy_spearproc_bonematcher(void) { destroy_spearproc_bonematcher(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
+static void _destroy_spearproc_bonematcher(void) { destroy_spearproc_bonematcher(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
-void _insert_mkobj_spearproc_parentobjitem(void) {
+static void _insert_mkobj_spearproc_parentobjitem(void) {
     insert_mkobj_spearproc_parentobjitem(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer,
         ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _get_spearobj_from_spearproc(void) {
+static void _get_spearobj_from_spearproc(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         get_spearobj_from_spearproc(
             ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _fire_sc_spear(void) {
+static void _fire_sc_spear(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         fire_sc_spear(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
                       ((struct ScriptRawArgs*)current_args)->slots[2].i, ((struct ScriptRawArgs*)current_args)->slots[3].i,
                       ((struct ScriptRawArgs*)current_args)->slots[4].i, ((struct ScriptRawArgs*)current_args)->slots[5].i);
 }
 
-void _subzero_start_ice_chunks(void) { subzero_start_ice_chunks(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _subzero_start_ice_chunks(void) { subzero_start_ice_chunks(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _subzero_start_iceman(void) {
+static void _subzero_start_iceman(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = subzero_start_iceman();
 }
 
-void _subzero_start_iceblock(void) {
+static void _subzero_start_iceblock(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = subzero_start_iceblock();
 }
 
-void _sindel_scream_react_sound_start(void) { sindel_scream_react_sound_start(); }
+static void _sindel_scream_react_sound_start(void) { sindel_scream_react_sound_start(); }
 
-void _sindel_sonic_sounds(void) { sindel_sonic_sounds(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].i); }
+static void _sindel_sonic_sounds(void) { sindel_sonic_sounds(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].i); }
 
-void _sindel_sonic_waves(void) {
+static void _sindel_sonic_waves(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = sindel_sonic_waves(((struct ScriptRawArgs*)current_args)->slots[0].f);
 }
 
-void _start_raiden_lightning_scroll(void) {
+static void _start_raiden_lightning_scroll(void) {
     start_raiden_lightning_scroll(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                   ((struct ScriptRawArgs*)current_args)->slots[1].f,
                                   ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -4645,54 +4645,54 @@ void _start_raiden_lightning_scroll(void) {
                                   ((struct ScriptRawArgs*)current_args)->slots[4].i);
 }
 
-void _ft_raiden_summon_lightning_bolt(void) {
+static void _ft_raiden_summon_lightning_bolt(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         ft_raiden_summon_lightning_bolt(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                         ((struct ScriptRawArgs*)current_args)->slots[1].i,
                                         get_script_string_arg(3));
 }
 
-void _kill_raiden_summon_lightning_bolt(void) { kill_raiden_summon_lightning_bolt(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
+static void _kill_raiden_summon_lightning_bolt(void) { kill_raiden_summon_lightning_bolt(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
-void _fix_axe_angle(void) { fix_axe_angle(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
+static void _fix_axe_angle(void) { fix_axe_angle(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
-void _ft_mileena_start_veil_ripoff(void) { ft_mileena_start_veil_ripoff(); }
+static void _ft_mileena_start_veil_ripoff(void) { ft_mileena_start_veil_ripoff(); }
 
-void _fat_goro_fold_arms(void) {
+static void _fat_goro_fold_arms(void) {
     fat_goro_fold_arms(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
                        ((struct ScriptRawArgs*)current_args)->slots[2].f, ((struct ScriptRawArgs*)current_args)->slots[3].i);
 }
 
-void _fatality_boraicho_get_jug(void) {
+static void _fatality_boraicho_get_jug(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         fatality_boraicho_get_jug(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                   ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _fatality_boraicho_light_fart_torch(void) {
+static void _fatality_boraicho_light_fart_torch(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.u =
         fatality_boraicho_light_fart_torch(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _fatality_boraicho_get_torch(void) {
+static void _fatality_boraicho_get_torch(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         fatality_boraicho_get_torch(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                     ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _show_baraka_one_blade_only(void) {
+static void _show_baraka_one_blade_only(void) {
     show_baraka_one_blade_only(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _fatality_ashrah_get_doll(void) {
+static void _fatality_ashrah_get_doll(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         fatality_ashrah_get_doll(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                  ((struct ScriptRawArgs*)current_args)->slots[1].i,
                                  ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _fire_multi_emitter_pfx_via_tbl(void) {
+static void _fire_multi_emitter_pfx_via_tbl(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
     char* name = get_script_string_arg(1);
     fire_multi_emitter_pfx_via_tbl(
@@ -4700,64 +4700,64 @@ void _fire_multi_emitter_pfx_via_tbl(void) {
         args->slots[2].pointer, args->slots[3].pointer);
 }
 
-void _pfxhandle_spawn_at_bid_next_bind_render(void) {
+static void _pfxhandle_spawn_at_bid_next_bind_render(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.u =
         pfxhandle_spawn_at_bid_next_bind_render(((struct ScriptRawArgs*)current_args)->slots[0].u,
                                                 ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                                                 ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _pfxhandle_bgnd_spawn_at_sobj_id(void) {
+static void _pfxhandle_bgnd_spawn_at_sobj_id(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.u =
         pfxhandle_bgnd_spawn_at_sobj_id(get_script_string_arg(1),
                                         ((struct ScriptRawArgs*)current_args)->slots[1].u);
 }
 
-void _pfxhandle_spawn_at_bid(void) {
+static void _pfxhandle_spawn_at_bid(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
     char* name = get_script_string_arg(1);
     ((struct ScriptRawResult*)active_cmdscript)->value.u =
         pfxhandle_spawn_at_bid(name, args->slots[1].pointer, args->slots[2].i);
 }
 
-void _pfxhandle_spawn_at_bid_next(void) {
+static void _pfxhandle_spawn_at_bid_next(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.u =
         pfxhandle_spawn_at_bid_next(((struct ScriptRawArgs*)current_args)->slots[0].u,
                                     ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                                     ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _pfx_spawn_at_bid(void) {
+static void _pfx_spawn_at_bid(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
     char* name = get_script_string_arg(1);
 
     pfx_spawn_at_bid(name, args->slots[1].i, args->slots[2].i);
 }
 
-void _limb_sever_throw_away(void) {
+static void _limb_sever_throw_away(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         limb_sever_throw_away(((struct ScriptRawArgs*)current_args)->slots[0].i,
                               ((struct ScriptRawArgs*)current_args)->slots[1].i,
                               ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _auto_calc_limbobj_bone_world_pos(void) {
+static void _auto_calc_limbobj_bone_world_pos(void) {
     auto_calc_limbobj_bone_world_pos(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer,
         ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _limb_sever_show_z_meat_chunks(void) {
+static void _limb_sever_show_z_meat_chunks(void) {
     limb_sever_show_z_meat_chunks(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                                   ((struct ScriptRawArgs*)current_args)->slots[1].i,
                                   ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _limb_sever_show_z_meat_chunks_all(void) { limb_sever_show_z_meat_chunks_all(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
+static void _limb_sever_show_z_meat_chunks_all(void) { limb_sever_show_z_meat_chunks_all(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
-void _limb_sever_show_z_meat_chunks_all_plyr_num(void) { limb_sever_show_z_meat_chunks_all_plyr_num(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _limb_sever_show_z_meat_chunks_all_plyr_num(void) { limb_sever_show_z_meat_chunks_all_plyr_num(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _limb_sever_explode_apart_plyr_num(void) {
+static void _limb_sever_explode_apart_plyr_num(void) {
     limb_sever_explode_apart_plyr_num(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                       ((struct ScriptRawArgs*)current_args)->slots[1].f,
                                       ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -4765,14 +4765,14 @@ void _limb_sever_explode_apart_plyr_num(void) {
                                       ((struct ScriptRawArgs*)current_args)->slots[4].i);
 }
 
-void _reset_blood_decals(void) { reset_blood_decals(); }
+static void _reset_blood_decals(void) { reset_blood_decals(); }
 
-void _destroy_gore2_obj(void) {
+static void _destroy_gore2_obj(void) {
     destroy_gore2_obj(((struct ScriptRawArgs*)current_args)->slots[0].i,
                      ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _attach_gore2_obj(void) {
+static void _attach_gore2_obj(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         attach_gore2_obj(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                         ((struct ScriptRawArgs*)current_args)->slots[1].i,
@@ -4781,7 +4781,7 @@ void _attach_gore2_obj(void) {
                         ((struct ScriptRawArgs*)current_args)->slots[4].pointer);
 }
 
-void _start_gore2_pebbles(void) {
+static void _start_gore2_pebbles(void) {
     struct Gore2PebbleArgs* args;
 
     args = (struct Gore2PebbleArgs*)current_args;
@@ -4799,7 +4799,7 @@ void _start_gore2_pebbles(void) {
         args->bounce_count);
 }
 
-void _start_bodyslam_bodysplat(void) {
+static void _start_bodyslam_bodysplat(void) {
     start_bodyslam_bodysplat(((struct ScriptRawArgs*)current_args)->slots[0].f,
                              ((struct ScriptRawArgs*)current_args)->slots[1].f,
                              ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -4807,7 +4807,7 @@ void _start_bodyslam_bodysplat(void) {
                              ((struct ScriptRawArgs*)current_args)->slots[4].f);
 }
 
-void _load_cloth_boned_model(void) {
+static void _load_cloth_boned_model(void) {
     struct ScriptRawArgs* args;
     const char* name;
 
@@ -4820,74 +4820,74 @@ void _load_cloth_boned_model(void) {
             args->slots[5].i, args->slots[6].i);
 }
 
-void _fatality_explode_victim(void) {
+static void _fatality_explode_victim(void) {
     fatality_explode_victim(((struct ScriptRawArgs*)current_args)->slots[0].i,
                             ((struct ScriptRawArgs*)current_args)->slots[1].f,
                             ((struct ScriptRawArgs*)current_args)->slots[2].f);
 }
 
-void _kill_gusher(void) { kill_gusher(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _kill_gusher(void) { kill_gusher(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _start_sweat_particles_scripts(void) { start_sweat_particles_scripts(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i); }
+static void _start_sweat_particles_scripts(void) { start_sweat_particles_scripts(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i); }
 
-void _start_blood_particles_scripts(void) {
+static void _start_blood_particles_scripts(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.u =
         start_blood_particles_scripts(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                       ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _start_sweat_particles(void) {
+static void _start_sweat_particles(void) {
     start_sweat_particles(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
                           ((struct ScriptRawArgs*)current_args)->slots[2].i, ((struct ScriptRawArgs*)current_args)->slots[3].i);
 }
 
-void _start_blood_particles(void) {
+static void _start_blood_particles(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         start_blood_particles(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
                               ((struct ScriptRawArgs*)current_args)->slots[2].i, ((struct ScriptRawArgs*)current_args)->slots[3].i);
 }
 
-void _mks_spawn_blood_pool_at_bid(void) {
+static void _mks_spawn_blood_pool_at_bid(void) {
     mks_spawn_blood_pool_at_bid(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
                                 ((struct ScriptRawArgs*)current_args)->slots[2].i, ((struct ScriptRawArgs*)current_args)->slots[3].i);
 }
 
-void _spawn_blood_pool_at_bid(void) {
+static void _spawn_blood_pool_at_bid(void) {
     spawn_blood_pool_at_bid(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
                             ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _spawn_bld_splat(void) {
+static void _spawn_bld_splat(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
     char* name = get_script_string_arg(1);
 
     spawn_bld_splat(name, args->slots[1].pointer, args->slots[2].pointer);
 }
 
-void _plyr_weapon2_release(void) {
+static void _plyr_weapon2_release(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         plyr_weapon2_release(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _plyr_weapon_release(void) {
+static void _plyr_weapon_release(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         plyr_weapon_release(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _bone_matcher_reset_dest_mat_rot(void) { bone_matcher_reset_dest_mat_rot(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i); }
+static void _bone_matcher_reset_dest_mat_rot(void) { bone_matcher_reset_dest_mat_rot(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i); }
 
-void _bone_matcher_set_ang_pos(void) {
+static void _bone_matcher_set_ang_pos(void) {
     bone_matcher_set_ang_pos(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
                              ((struct ScriptRawArgs*)current_args)->slots[2].i, ((struct ScriptRawArgs*)current_args)->slots[3].i,
                              ((struct ScriptRawArgs*)current_args)->slots[4].i, ((struct ScriptRawArgs*)current_args)->slots[5].i);
 }
 
-void _weapon_bm_ignore(void) {
+static void _weapon_bm_ignore(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         weapon_bm_ignore(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _regrab_weapon(void) {
+static void _regrab_weapon(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         regrab_weapon(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                       ((struct ScriptRawArgs*)current_args)->slots[2].pointer, ((struct ScriptRawArgs*)current_args)->slots[3].i,
@@ -4895,82 +4895,82 @@ void _regrab_weapon(void) {
                       ((struct ScriptRawArgs*)current_args)->slots[6].pointer);
 }
 
-void _weapon_reflection_show_hide(void) {
+static void _weapon_reflection_show_hide(void) {
     weapon_reflection_show_hide(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].i,
                                 ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _show_single_weapon(void) {
+static void _show_single_weapon(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         show_single_weapon(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _clone_my_weapon(void) {
+static void _clone_my_weapon(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         clone_my_weapon(
             ((struct ScriptRawArgs*)current_args)->slots[0].pointer,
             ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _clone_weapon_to_secondary(void) {
+static void _clone_weapon_to_secondary(void) {
     clone_weapon_to_secondary(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer,
         ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _advance_to_weapon_style(void) { advance_to_weapon_style(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _advance_to_weapon_style(void) { advance_to_weapon_style(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _is_weapon_style(void) {
+static void _is_weapon_style(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_weapon_style(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _am_i_female(void) {
+static void _am_i_female(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = am_i_female(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _sobj_set_bounding_sphere_radius(void) {
+static void _sobj_set_bounding_sphere_radius(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f =
         sobj_set_bounding_sphere_radius(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                                         ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _sobj_get_bounding_sphere_radius(void) {
+static void _sobj_get_bounding_sphere_radius(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f =
         sobj_get_bounding_sphere_radius(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _play_his_snd_req(void) {
+static void _play_his_snd_req(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = play_his_snd_req(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _play_his_random_voice(void) {
+static void _play_his_random_voice(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = play_his_random_voice(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _obj_unhide_material_by_id(void) {
+static void _obj_unhide_material_by_id(void) {
     obj_unhide_material_by_id(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _obj_hide_material_by_id(void) {
+static void _obj_hide_material_by_id(void) {
     obj_hide_material_by_id(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _bm_force_fake_child_bid(void) {
+static void _bm_force_fake_child_bid(void) {
     bm_force_fake_child_bid(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _fat_bgnd_char_setup_radius_check(void) {
+static void _fat_bgnd_char_setup_radius_check(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         fat_bgnd_char_setup_radius_check(
             ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _set_victim_v3_units_away(void) {
+static void _set_victim_v3_units_away(void) {
     set_victim_v3_units_away(((struct ScriptRawArgs*)current_args)->slots[0].f,
                              ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _reset_fake_bone_matcher(void) {
+static void _reset_fake_bone_matcher(void) {
     struct FakeBoneMatcherResetArgs* args;
 
     args = (struct FakeBoneMatcherResetArgs*)current_args;
@@ -4984,7 +4984,7 @@ void _reset_fake_bone_matcher(void) {
         args->blend);
 }
 
-void _ft_fake_bone_matcher(void) {
+static void _ft_fake_bone_matcher(void) {
     struct FakeBoneMatcherArgs* args;
     struct ScriptPointerResult* result;
     MkHdr* matcher;
@@ -5003,25 +5003,25 @@ void _ft_fake_bone_matcher(void) {
     result->value = matcher;
 }
 
-void _get_game_state(void) {
+static void _get_game_state(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_game_state();
 }
 
-void _fatality_release_other_player(void) { fatality_release_other_player(); }
+static void _fatality_release_other_player(void) { fatality_release_other_player(); }
 
-void _get_level_fatality_done_flag_state(void) {
+static void _get_level_fatality_done_flag_state(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         get_level_fatality_done_flag_state();
 }
 
-void _set_level_fatality_done_flag_state(void) { set_level_fatality_done_flag_state(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _set_level_fatality_done_flag_state(void) { set_level_fatality_done_flag_state(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _limb_sever_destroy_existing_attach_proc(void) {
+static void _limb_sever_destroy_existing_attach_proc(void) {
     limb_sever_destroy_existing_attach_proc(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                             ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _limb_sever_bone_attach(void) {
+static void _limb_sever_bone_attach(void) {
     struct LimbBoneAttachArgs* args;
 
     args = (struct LimbBoneAttachArgs*)current_args;
@@ -5036,7 +5036,7 @@ void _limb_sever_bone_attach(void) {
         args->include_children);
 }
 
-void _limb_sever_pop_head_up(void) {
+static void _limb_sever_pop_head_up(void) {
     struct PopHeadArgs* args;
     struct ScriptPointerResult* result;
     MkHdr* head;
@@ -5052,20 +5052,20 @@ void _limb_sever_pop_head_up(void) {
     result->value = head;
 }
 
-void _mks_limb_sever(void) {
+static void _mks_limb_sever(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         mks_limb_sever(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
                        ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _limb_sever_find_existing_update_proc(void) {
+static void _limb_sever_find_existing_update_proc(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         limb_sever_find_existing_update_proc(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                               ((struct ScriptRawArgs*)current_args)->slots[1].i,
                                               ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _limb_sever_set_motion(void) {
+static void _limb_sever_set_motion(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -5076,56 +5076,56 @@ void _limb_sever_set_motion(void) {
         args->slots[9].i, args->slots[10].i);
 }
 
-void _limb_sever_update_slide_end_coeff(void) { limb_sever_update_slide_end_coeff(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
+static void _limb_sever_update_slide_end_coeff(void) { limb_sever_update_slide_end_coeff(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
 
-void _proc_of_anim_pdata(void) {
+static void _proc_of_anim_pdata(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = proc_of_anim_pdata(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _set_pdata_anim_step(void) { set_pdata_anim_step(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
+static void _set_pdata_anim_step(void) { set_pdata_anim_step(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
 
-void _puzzle_fighter_scale(void) { puzzle_fighter_scale(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
+static void _puzzle_fighter_scale(void) { puzzle_fighter_scale(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
 
-void _plyr_turn_on_shadowbox(void) { plyr_turn_on_shadowbox(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
+static void _plyr_turn_on_shadowbox(void) { plyr_turn_on_shadowbox(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
-void _plyr_turn_off_shadowbox(void) {
+static void _plyr_turn_off_shadowbox(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     plyr_turn_off_shadowbox(args->slots[0].pointer);
 }
 
-void _plyr_turn_on_mirrorguy(void) { plyr_turn_on_mirrorguy(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
+static void _plyr_turn_on_mirrorguy(void) { plyr_turn_on_mirrorguy(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
-void _plyr_turn_off_mirrorguy(void) {
+static void _plyr_turn_off_mirrorguy(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     plyr_turn_off_mirrorguy(args->slots[0].pointer);
 }
 
-void _animpdata_ani_to_blend_frame(void) { animpdata_ani_to_blend_frame(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
+static void _animpdata_ani_to_blend_frame(void) { animpdata_ani_to_blend_frame(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
 
-void _animpdata_ani_to_end_at1(void) { animpdata_ani_to_end_at1(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
+static void _animpdata_ani_to_end_at1(void) { animpdata_ani_to_end_at1(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
-void _animpdata_ani_to_end(void) { animpdata_ani_to_end(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
+static void _animpdata_ani_to_end(void) { animpdata_ani_to_end(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
-void _animpdata_ani_x_more_frames(void) { animpdata_ani_x_more_frames(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
+static void _animpdata_ani_x_more_frames(void) { animpdata_ani_x_more_frames(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
 
-void _animpdata_ani_loop_more_frames(void) { animpdata_ani_loop_more_frames(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
+static void _animpdata_ani_loop_more_frames(void) { animpdata_ani_loop_more_frames(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
 
-void _animpdata_ani_to_frame_x(void) { animpdata_ani_to_frame_x(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
+static void _animpdata_ani_to_frame_x(void) { animpdata_ani_to_frame_x(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
 
-void _mks_animpdata_set_cur_frame(void) { mks_animpdata_set_cur_frame(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
+static void _mks_animpdata_set_cur_frame(void) { mks_animpdata_set_cur_frame(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
 
-void _animpdata_ani_1_frame(void) { animpdata_ani_1_frame(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
+static void _animpdata_ani_1_frame(void) { animpdata_ani_1_frame(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
-void _check_to_register_miss(void) { check_to_register_miss(); }
+static void _check_to_register_miss(void) { check_to_register_miss(); }
 
-void _auto_ani_off(void) { auto_ani_off(); }
+static void _auto_ani_off(void) { auto_ani_off(); }
 
-void _ncs_bgnd_preload_named_model(void) {
+static void _ncs_bgnd_preload_named_model(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -5137,146 +5137,146 @@ void _ncs_bgnd_preload_named_model(void) {
             args->slots[6].pointer);
 }
 
-void _ncs_dkp_camera_konqchar_show_hide_alpha(void) {
+static void _ncs_dkp_camera_konqchar_show_hide_alpha(void) {
     ncs_dkp_camera_konqchar_show_hide_alpha(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                             ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _ncs_camera_wall_show_hide_alpha(void) {
+static void _ncs_camera_wall_show_hide_alpha(void) {
     ncs_camera_wall_show_hide_alpha(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _ncs_bgnd_OBSTACLE_EVENT_get_plyr_pdata(void) {
+static void _ncs_bgnd_OBSTACLE_EVENT_get_plyr_pdata(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         ncs_bgnd_OBSTACLE_EVENT_get_plyr_pdata();
 }
 
-void _ncs_bgnd_nuke_collision_to_script_interface(void) { ncs_bgnd_nuke_collision_to_script_interface(); }
+static void _ncs_bgnd_nuke_collision_to_script_interface(void) { ncs_bgnd_nuke_collision_to_script_interface(); }
 
-void _retrieve_bgnd_obj(void) {
+static void _retrieve_bgnd_obj(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = retrieve_bgnd_obj();
 }
 
-void _fkbm_obj_face_obj(void) {
+static void _fkbm_obj_face_obj(void) {
     fkbm_obj_face_obj(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
                       ((struct ScriptRawArgs*)current_args)->slots[2].i, ((struct ScriptRawArgs*)current_args)->slots[3].i,
                       ((struct ScriptRawArgs*)current_args)->slots[4].i);
 }
 
-void _obj_grnd_bounce(void) {
+static void _obj_grnd_bounce(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     obj_grnd_bounce(args->slots[0].pointer, args->slots[1].pointer, args->slots[2].f, args->slots[3].f, args->slots[4].i, args->slots[5].f);
 }
 
-void _start_obj_scalar_proc(void) {
+static void _start_obj_scalar_proc(void) {
     start_obj_scalar_proc(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                           ((struct ScriptRawArgs*)current_args)->slots[2].pointer, ((struct ScriptRawArgs*)current_args)->slots[3].pointer);
 }
 
-void _obj_match_obj_pos(void) {
+static void _obj_match_obj_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     obj_match_obj_pos(args->slots[0].pointer, args->slots[1].pointer, args->slots[2].f, args->slots[3].i);
 }
 
-void _insert_particle_mkobj(void) {
+static void _insert_particle_mkobj(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         insert_particle_mkobj(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _mkobj_pos_pos_dot_normal_xz(void) {
+static void _mkobj_pos_pos_dot_normal_xz(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f =
         mkobj_pos_pos_dot_normal_xz(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                                     ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                                     ((struct ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
-void _obj_get_bid_for_tid(void) {
+static void _obj_get_bid_for_tid(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         obj_get_bid_for_tid(
             ((struct ScriptRawArgs*)current_args)->slots[0].pointer,
             ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _obj_create_sobjs_by_id(void) {
+static void _obj_create_sobjs_by_id(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         obj_create_sobjs_by_id(
             ((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _unhide_sobj_by_sobj_id(void) {
+static void _unhide_sobj_by_sobj_id(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         unhide_sobj_by_sobj_id(
             ((struct ScriptRawArgs*)current_args)->slots[0].pointer,
             ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _hide_sobj_by_sobj_id(void) {
+static void _hide_sobj_by_sobj_id(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         hide_sobj_by_sobj_id(
             ((struct ScriptRawArgs*)current_args)->slots[0].pointer,
             ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _sobj_set_priority(void) { sobj_set_priority(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i); }
+static void _sobj_set_priority(void) { sobj_set_priority(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i); }
 
-void _unhide_sobj(void) { unhide_sobj(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _unhide_sobj(void) { unhide_sobj(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _hide_sobj(void) { hide_sobj(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _hide_sobj(void) { hide_sobj(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _unhide_obj(void) { unhide_obj(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _unhide_obj(void) { unhide_obj(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _hide_obj(void) { hide_obj(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _hide_obj(void) { hide_obj(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _pfx_plyr_bankowner(void) {
+static void _pfx_plyr_bankowner(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         pfx_plyr_bankowner(((struct ScriptRawArgs*)current_args)->slots[0].i);
 }
 
-void _ncs_script_debug_quickie(void) {
+static void _ncs_script_debug_quickie(void) {
     ncs_script_debug_quickie(((struct ScriptRawArgs*)current_args)->slots[0].i,
                              ((struct ScriptRawArgs*)current_args)->slots[1].f,
                              ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _get_inverse_game_speed(void) {
+static void _get_inverse_game_speed(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f = get_inverse_game_speed();
 }
 
-void _ck_rumble_controller(void) {
+static void _ck_rumble_controller(void) {
     ck_rumble_controller(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
                          ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _check_for_green_light(void) { ((struct ScriptRawResult*)active_cmdscript)->value.i = check_for_green_light(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _check_for_green_light(void) { ((struct ScriptRawResult*)active_cmdscript)->value.i = check_for_green_light(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _check_for_red_light(void) { ((struct ScriptRawResult*)active_cmdscript)->value.i = check_for_red_light(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _check_for_red_light(void) { ((struct ScriptRawResult*)active_cmdscript)->value.i = check_for_red_light(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _ck_put_weapon_away(void) { ck_put_weapon_away(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _ck_put_weapon_away(void) { ck_put_weapon_away(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _find_obj_by_id(void) { ((struct ScriptRawResult*)active_cmdscript)->value.pointer = find_obj_by_id(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _find_obj_by_id(void) { ((struct ScriptRawResult*)active_cmdscript)->value.pointer = find_obj_by_id(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _yinyang_reset_music_index(void) { yinyang_reset_music_index(); }
+static void _yinyang_reset_music_index(void) { yinyang_reset_music_index(); }
 
-void _yinyang_play_evil_tune(void) { yinyang_play_evil_tune(); }
+static void _yinyang_play_evil_tune(void) { yinyang_play_evil_tune(); }
 
-void _yinyang_play_good_tune(void) { yinyang_play_good_tune(); }
+static void _yinyang_play_good_tune(void) { yinyang_play_good_tune(); }
 
-void _dist_v3_to_v3(void) {
+static void _dist_v3_to_v3(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f =
         dist_v3_to_v3(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _is_point_in_fortress_exclusion_zone(void) {
+static void _is_point_in_fortress_exclusion_zone(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
         is_point_in_fortress_exclusion_zone(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-void _fortress_setup_exclusion_zone(void) {
+static void _fortress_setup_exclusion_zone(void) {
     fortress_setup_exclusion_zone(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                   ((struct ScriptRawArgs*)current_args)->slots[1].f,
                                   ((struct ScriptRawArgs*)current_args)->slots[2].f,
@@ -5284,25 +5284,25 @@ void _fortress_setup_exclusion_zone(void) {
                                   ((struct ScriptRawArgs*)current_args)->slots[4].f);
 }
 
-void _set_evil_swap_status(void) { set_evil_swap_status(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _set_evil_swap_status(void) { set_evil_swap_status(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _ok_to_do_evil_swap(void) {
+static void _ok_to_do_evil_swap(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = ok_to_do_evil_swap();
 }
 
-void _set_evil_condition(void) { set_evil_condition(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _set_evil_condition(void) { set_evil_condition(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _yy_is_evil_time_active(void) {
+static void _yy_is_evil_time_active(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = yy_is_evil_time_active();
 }
 
-void _bgnd_make_object_transl(void) { bgnd_make_object_transl(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _bgnd_make_object_transl(void) { bgnd_make_object_transl(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
-void _are_death_traps_on(void) {
+static void _are_death_traps_on(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = are_death_traps_on();
 }
 
-void _get_string_by_id(void) {
+static void _get_string_by_id(void) {
     struct ScriptSingleIntArgs* args;
     struct ScriptStringResult* result;
     char* string;
@@ -5313,28 +5313,28 @@ void _get_string_by_id(void) {
     result->value = string;
 }
 
-void _ending_show_text(void) {
+static void _ending_show_text(void) {
     struct ScriptTwoIntArgs* args;
 
     args = (struct ScriptTwoIntArgs*)current_args;
     ending_show_text(args->first, args->second);
 }
 
-void _ending_show_image(void) {
+static void _ending_show_image(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     ending_show_image(args->value);
 }
 
-void _cam_set_intro_cam_speed(void) {
+static void _cam_set_intro_cam_speed(void) {
     struct ScriptSingleFloatArgs* args;
 
     args = (struct ScriptSingleFloatArgs*)current_args;
     cam_set_intro_cam_speed(args->value);
 }
 
-void _midpoint_v3(void) {
+static void _midpoint_v3(void) {
     struct ScriptThreeVecArgs* args;
 
     args = (struct ScriptThreeVecArgs*)current_args;
@@ -5342,7 +5342,7 @@ void _midpoint_v3(void) {
                 args->second);
 }
 
-void _sobj_get_world_pos(void) {
+static void _sobj_get_world_pos(void) {
     struct ScriptSobjArgs* args;
     struct ScriptVecResult* result;
     Vec* position;
@@ -5353,7 +5353,7 @@ void _sobj_get_world_pos(void) {
     result->value = position;
 }
 
-void _get_point_on_circle(void) {
+static void _get_point_on_circle(void) {
     struct ScriptCircleArgs* args;
 
     args = (struct ScriptCircleArgs*)current_args;
@@ -5361,7 +5361,7 @@ void _get_point_on_circle(void) {
                         args->angle, args->out);
 }
 
-void _cut_player_in_half(void) {
+static void _cut_player_in_half(void) {
     struct ScriptObjectArgs* args;
     struct ScriptPointerResult* result;
     MkHdr* upper_body;
@@ -5372,7 +5372,7 @@ void _cut_player_in_half(void) {
     result->value = upper_body;
 }
 
-void _is_plyr_airborn(void) {
+static void _is_plyr_airborn(void) {
     struct ScriptAirborneArgs* args;
     struct ScriptIntResult* result;
     int airborne;
@@ -5383,7 +5383,7 @@ void _is_plyr_airborn(void) {
     result->value = airborne;
 }
 
-void _get_offset_of_closest_fence_section(void) {
+static void _get_offset_of_closest_fence_section(void) {
     struct ScriptFenceArgs* args;
     struct ScriptIntResult* result;
     int offset;
@@ -5396,7 +5396,7 @@ void _get_offset_of_closest_fence_section(void) {
     result->value = offset;
 }
 
-void _find_mkproc_pid(void) {
+static void _find_mkproc_pid(void) {
     struct ScriptSingleIntArgs* args;
     struct ScriptProcResult* result;
     MkProc* proc;
@@ -5407,7 +5407,7 @@ void _find_mkproc_pid(void) {
     result->value = proc;
 }
 
-void _start_fish_attack(void) {
+static void _start_fish_attack(void) {
     struct ScriptFishAttackArgs* args;
 
     args = (struct ScriptFishAttackArgs*)current_args;
@@ -5415,11 +5415,11 @@ void _start_fish_attack(void) {
                       args->flags);
 }
 
-void _is_timer_off(void) {
+static void _is_timer_off(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_timer_off();
 }
 
-void _hide_sobj_if_camera_is_in_rectangle(void) {
+static void _hide_sobj_if_camera_is_in_rectangle(void) {
     struct ScriptCameraRectangleArgs* args;
 
     args = (struct ScriptCameraRectangleArgs*)current_args;
@@ -5429,7 +5429,7 @@ void _hide_sobj_if_camera_is_in_rectangle(void) {
         args->max_x, args->max_z);
 }
 
-void _hide_sobj_if_camera_is_in_cylinder(void) {
+static void _hide_sobj_if_camera_is_in_cylinder(void) {
     struct ScriptCameraCylinderArgs* args;
 
     args = (struct ScriptCameraCylinderArgs*)current_args;
@@ -5438,7 +5438,7 @@ void _hide_sobj_if_camera_is_in_cylinder(void) {
         args->radius, args->height);
 }
 
-void _turn_off_sobj_if_camera_is_in_rectangle(void) {
+static void _turn_off_sobj_if_camera_is_in_rectangle(void) {
     struct ScriptCameraRectangleArgs* args;
 
     args = (struct ScriptCameraRectangleArgs*)current_args;
@@ -5448,7 +5448,7 @@ void _turn_off_sobj_if_camera_is_in_rectangle(void) {
         args->max_x, args->max_z);
 }
 
-void _turn_off_sobj_if_camera_is_in_cylinder(void) {
+static void _turn_off_sobj_if_camera_is_in_cylinder(void) {
     struct ScriptCameraCylinderArgs* args;
 
     args = (struct ScriptCameraCylinderArgs*)current_args;
@@ -5457,40 +5457,40 @@ void _turn_off_sobj_if_camera_is_in_cylinder(void) {
         args->radius, args->height);
 }
 
-void _debug_create_axis_indicator(void) {
+static void _debug_create_axis_indicator(void) {
     struct ScriptAxisArgs* args;
 
     args = (struct ScriptAxisArgs*)current_args;
     debug_create_axis_indicator(args->player, args->axis);
 }
 
-void _bgnd_level_fatality_end(void) {
+static void _bgnd_level_fatality_end(void) {
     bgnd_level_fatality_end();
 }
 
-void _bgnd_level_fatality_start(void) {
+static void _bgnd_level_fatality_start(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     bgnd_level_fatality_start(args->value);
 }
 
-void _bgnd_level_transition_end(void) {
+static void _bgnd_level_transition_end(void) {
     bgnd_level_transition_end();
 }
 
-void _bgnd_level_transition_start(void) {
+static void _bgnd_level_transition_start(void) {
     bgnd_level_transition_start();
 }
 
-void _do_lightning_strike(void) {
+static void _do_lightning_strike(void) {
     struct ScriptLightningArgs* args;
 
     args = (struct ScriptLightningArgs*)current_args;
     do_lightning_strike(args->owner, args->position);
 }
 
-void _obj_set_sobj_alpha(void) {
+static void _obj_set_sobj_alpha(void) {
     struct ScriptSobjAlphaArgs* args;
 
     args = (struct ScriptSobjAlphaArgs*)current_args;
@@ -5498,7 +5498,7 @@ void _obj_set_sobj_alpha(void) {
                        args->alpha);
 }
 
-void _obj_for_all_atomics_set_material_alpha(void) {
+static void _obj_for_all_atomics_set_material_alpha(void) {
     struct ScriptObjectIntArgs* args;
 
     args = (struct ScriptObjectIntArgs*)current_args;
@@ -5506,7 +5506,7 @@ void _obj_for_all_atomics_set_material_alpha(void) {
                                            args->value);
 }
 
-void _get_volume_from_distance(void) {
+static void _get_volume_from_distance(void) {
     struct ScriptVolumeArgs* args;
     struct ScriptFloatResult* result;
     float volume;
@@ -5519,7 +5519,7 @@ void _get_volume_from_distance(void) {
     result->value = volume;
 }
 
-void _get_pan_value(void) {
+static void _get_pan_value(void) {
     struct ScriptFloatPointerArgs* args;
     struct ScriptFloatResult* result;
     float pan;
@@ -5530,11 +5530,11 @@ void _get_pan_value(void) {
     result->value = pan;
 }
 
-void _mab_test(void) {
+static void _mab_test(void) {
     mab_test();
 }
 
-void _player_body_explode(void) {
+static void _player_body_explode(void) {
     struct ScriptBodyExplodeArgs* args;
 
     args = (struct ScriptBodyExplodeArgs*)current_args;
@@ -5543,14 +5543,14 @@ void _player_body_explode(void) {
                         args->velocity);
 }
 
-void _bgnd_clear_danger_zone_callback(void) {
+static void _bgnd_clear_danger_zone_callback(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     bgnd_clear_danger_zone_callback((PlyrPdata*)args->value);
 }
 
-void _yinyang_set_bad_fish_hide_flag(void) {
+static void _yinyang_set_bad_fish_hide_flag(void) {
     struct ScriptFishFlagArgs* args;
 
     args = (struct ScriptFishFlagArgs*)current_args;
@@ -5559,7 +5559,7 @@ void _yinyang_set_bad_fish_hide_flag(void) {
         args->count);
 }
 
-void _yinyang_set_good_fish_hide_flag(void) {
+static void _yinyang_set_good_fish_hide_flag(void) {
     struct ScriptFishFlagArgs* args;
 
     args = (struct ScriptFishFlagArgs*)current_args;
@@ -5568,28 +5568,28 @@ void _yinyang_set_good_fish_hide_flag(void) {
         args->count);
 }
 
-void _yinyang_make_fish_jump(void) {
+static void _yinyang_make_fish_jump(void) {
     struct ScriptTwoIntArgs* args;
 
     args = (struct ScriptTwoIntArgs*)current_args;
     yinyang_make_fish_jump(args->first, args->second);
 }
 
-void _destroy_mkobjs_oid(void) {
+static void _destroy_mkobjs_oid(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     destroy_mkobjs_oid(args->value);
 }
 
-void _do_yinyang_statue_explosion(void) {
+static void _do_yinyang_statue_explosion(void) {
     struct ScriptObjectArgs* args;
 
     args = (struct ScriptObjectArgs*)current_args;
     do_yinyang_statue_explosion(args->object);
 }
 
-void _obj_add_to_skinned_obj_light_list_with_ambient(void) {
+static void _obj_add_to_skinned_obj_light_list_with_ambient(void) {
     struct ScriptLightListArgs* args;
 
     args = (struct ScriptLightListArgs*)current_args;
@@ -5597,7 +5597,7 @@ void _obj_add_to_skinned_obj_light_list_with_ambient(void) {
         args->object, args->light);
 }
 
-void _obj_change_to_bgnd_obj_light_list(void) {
+static void _obj_change_to_bgnd_obj_light_list(void) {
     struct ScriptLightListArgs* args;
 
     args = (struct ScriptLightListArgs*)current_args;
@@ -5605,7 +5605,7 @@ void _obj_change_to_bgnd_obj_light_list(void) {
                                       args->light);
 }
 
-void _obj_change_to_skinned_obj_light_list(void) {
+static void _obj_change_to_skinned_obj_light_list(void) {
     struct ScriptLightListArgs* args;
 
     args = (struct ScriptLightListArgs*)current_args;
@@ -5613,29 +5613,29 @@ void _obj_change_to_skinned_obj_light_list(void) {
                                          args->light);
 }
 
-void _yinyang_stop_lensflare(void) {
+static void _yinyang_stop_lensflare(void) {
     yinyang_stop_lensflare();
 }
 
-void _yinyang_start_lensflare(void) {
+static void _yinyang_start_lensflare(void) {
     yinyang_start_lensflare();
 }
 
-void _misc_data_set_test_float(void) {
+static void _misc_data_set_test_float(void) {
     struct ScriptSingleFloatArgs* args;
 
     args = (struct ScriptSingleFloatArgs*)current_args;
     misc_data_set_test_float(args->value);
 }
 
-void _misc_data_set_test_u32(void) {
+static void _misc_data_set_test_u32(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     misc_data_set_test_u32(args->value);
 }
 
-void _obj_set_sobj_priority(void) {
+static void _obj_set_sobj_priority(void) {
     struct ScriptSobjAlphaArgs* args;
 
     args = (struct ScriptSobjAlphaArgs*)current_args;
@@ -5644,14 +5644,14 @@ void _obj_set_sobj_priority(void) {
                           args->alpha);
 }
 
-void _sobj_disable_blending(void) {
+static void _sobj_disable_blending(void) {
     struct ScriptSobjArgs* args;
 
     args = (struct ScriptSobjArgs*)current_args;
     sobj_disable_blending(args->value);
 }
 
-void _obj_first_sobj(void) {
+static void _obj_first_sobj(void) {
     struct ScriptMkObjArgs* args;
     struct ScriptSobjResult* result;
     struct SObj* object;
@@ -5662,35 +5662,35 @@ void _obj_first_sobj(void) {
     result->value = object;
 }
 
-void _pebble_turn_culling_off(void) {
+static void _pebble_turn_culling_off(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     pebble_turn_culling_off(args->value);
 }
 
-void _pebble_turn_culling_on(void) {
+static void _pebble_turn_culling_on(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     pebble_turn_culling_on(args->value);
 }
 
-void _pebble_unhide_me(void) {
+static void _pebble_unhide_me(void) {
     struct ScriptTwoIntArgs* args;
 
     args = (struct ScriptTwoIntArgs*)current_args;
     pebble_unhide_me(args->first, args->second);
 }
 
-void _pebble_hide_me(void) {
+static void _pebble_hide_me(void) {
     struct ScriptTwoIntArgs* args;
 
     args = (struct ScriptTwoIntArgs*)current_args;
     pebble_hide_me(args->first, args->second);
 }
 
-void _pebble_setup_bounce_props(void) {
+static void _pebble_setup_bounce_props(void) {
     struct ScriptPebbleBounceArgs* args;
 
     args = (struct ScriptPebbleBounceArgs*)current_args;
@@ -5699,7 +5699,7 @@ void _pebble_setup_bounce_props(void) {
         args->velocity, args->flags);
 }
 
-void _pebble_set_ang_vel(void) {
+static void _pebble_set_ang_vel(void) {
     struct ScriptPebbleVecArgs* args;
 
     args = (struct ScriptPebbleVecArgs*)current_args;
@@ -5707,7 +5707,7 @@ void _pebble_set_ang_vel(void) {
                        args->value);
 }
 
-void _pebble_set_ang(void) {
+static void _pebble_set_ang(void) {
     struct ScriptPebbleVecArgs* args;
 
     args = (struct ScriptPebbleVecArgs*)current_args;
@@ -5715,7 +5715,7 @@ void _pebble_set_ang(void) {
                    args->value);
 }
 
-void _pebble_set_scale(void) {
+static void _pebble_set_scale(void) {
     struct ScriptPebbleVecArgs* args;
 
     args = (struct ScriptPebbleVecArgs*)current_args;
@@ -5723,7 +5723,7 @@ void _pebble_set_scale(void) {
                      args->value);
 }
 
-void _pebble_set_vel(void) {
+static void _pebble_set_vel(void) {
     struct ScriptPebbleVecArgs* args;
 
     args = (struct ScriptPebbleVecArgs*)current_args;
@@ -5731,7 +5731,7 @@ void _pebble_set_vel(void) {
                    args->value);
 }
 
-void _pebble_set_pos(void) {
+static void _pebble_set_pos(void) {
     struct ScriptPebbleVecArgs* args;
 
     args = (struct ScriptPebbleVecArgs*)current_args;
@@ -5739,35 +5739,35 @@ void _pebble_set_pos(void) {
                    args->value);
 }
 
-void _destroy_mkobj(void) {
+static void _destroy_mkobj(void) {
     struct ScriptMkObjArgs* args;
 
     args = (struct ScriptMkObjArgs*)current_args;
     destroy_mkobj(args->object);
 }
 
-void _obj_turn_gravity_off(void) {
+static void _obj_turn_gravity_off(void) {
     struct ScriptMkObjArgs* args;
 
     args = (struct ScriptMkObjArgs*)current_args;
     obj_turn_gravity_off(args->object);
 }
 
-void _obj_set_gravity(void) {
+static void _obj_set_gravity(void) {
     struct ScriptMkObjFloatArgs* args;
 
     args = (struct ScriptMkObjFloatArgs*)current_args;
     obj_set_gravity(args->object, args->value);
 }
 
-void _insert_fgnd_mkobj(void) {
+static void _insert_fgnd_mkobj(void) {
     struct ScriptMkObjArgs* args;
 
     args = (struct ScriptMkObjArgs*)current_args;
     insert_fgnd_mkobj(args->object);
 }
 
-void _get_player_number(void) {
+static void _get_player_number(void) {
     struct ScriptMkObjArgs* args;
     struct ScriptIntResult* result;
     int player;
@@ -5778,7 +5778,7 @@ void _get_player_number(void) {
     result->value = player;
 }
 
-void _load_named_model_for_player(void) {
+static void _load_named_model_for_player(void) {
     struct ScriptLoadPlayerModelArgs* args;
     struct ScriptMkObjResult* result;
     char* name;
@@ -5794,7 +5794,7 @@ void _load_named_model_for_player(void) {
     result->value = object;
 }
 
-void _load_named_model_from_slot(void) {
+static void _load_named_model_from_slot(void) {
     struct ScriptLoadSlotModelArgs* saved;
     struct ScriptLoadSlotModelArgs* current;
     struct ScriptMkObjResult* result;
@@ -5811,7 +5811,7 @@ void _load_named_model_from_slot(void) {
     result->value = object;
 }
 
-void _script_fabs(void) {
+static void _script_fabs(void) {
     struct ScriptSingleFloatArgs* args;
     struct ScriptFloatResult* result;
     float value;
@@ -5822,14 +5822,14 @@ void _script_fabs(void) {
     result->value = value;
 }
 
-void _set_obj_light_flags(void) {
+static void _set_obj_light_flags(void) {
     struct ScriptObjectIntArgs* args;
 
     args = (struct ScriptObjectIntArgs*)current_args;
     set_obj_light_flags(args->object, args->value);
 }
 
-void _set_obj_ang(void) {
+static void _set_obj_ang(void) {
     struct ScriptMkObjVecArgs* args;
 
     args = (struct ScriptMkObjVecArgs*)current_args;
@@ -5837,7 +5837,7 @@ void _set_obj_ang(void) {
                 args->y, args->z);
 }
 
-void _set_obj_pos(void) {
+static void _set_obj_pos(void) {
     struct ScriptMkObjVecArgs* args;
 
     args = (struct ScriptMkObjVecArgs*)current_args;
@@ -5845,21 +5845,21 @@ void _set_obj_pos(void) {
                 args->y, args->z);
 }
 
-void _bgnd_unhide_sobj_list(void) {
+static void _bgnd_unhide_sobj_list(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     bgnd_unhide_sobj_list((unsigned int*)args->value);
 }
 
-void _bgnd_hide_sobj_list(void) {
+static void _bgnd_hide_sobj_list(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     bgnd_hide_sobj_list((unsigned int*)args->value);
 }
 
-void _random_percent(void) {
+static void _random_percent(void) {
     struct ScriptSingleFloatArgs* args;
     struct ScriptIntResult* result;
     int value;
@@ -5870,7 +5870,7 @@ void _random_percent(void) {
     result->value = value;
 }
 
-void _bgnd_sobj_start_morph(void) {
+static void _bgnd_sobj_start_morph(void) {
     struct ScriptMorphArgs* args;
 
     args = (struct ScriptMorphArgs*)current_args;
@@ -5878,40 +5878,40 @@ void _bgnd_sobj_start_morph(void) {
                           args->script_id, args->flags);
 }
 
-void _delete_screen_obj_oid(void) {
+static void _delete_screen_obj_oid(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     delete_screen_obj_oid(args->value);
 }
 
-void _reset_collision_system(void) {
+static void _reset_collision_system(void) {
     reset_collision_system();
 }
 
-void _pos_cam_for_current_level(void) {
+static void _pos_cam_for_current_level(void) {
     pos_cam_for_current_level();
 }
 
-void _reset_severed_limbs(void) {
+static void _reset_severed_limbs(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     reset_severed_limbs(args->value);
 }
 
-void _move_plyrs_to_round_start(void) {
+static void _move_plyrs_to_round_start(void) {
     move_plyrs_to_round_start();
 }
 
-void _set_far_clip_plane(void) {
+static void _set_far_clip_plane(void) {
     struct ScriptSingleFloatArgs* args;
 
     args = (struct ScriptSingleFloatArgs*)current_args;
     set_far_clip_plane(args->value);
 }
 
-void _skytemple_player_explode(void) {
+static void _skytemple_player_explode(void) {
     struct ScriptSkytempleExplodeArgs* args;
 
     args = (struct ScriptSkytempleExplodeArgs*)current_args;
@@ -5920,30 +5920,30 @@ void _skytemple_player_explode(void) {
         args->y, args->z);
 }
 
-void _skytemple_make_scream_sound(void) {
+static void _skytemple_make_scream_sound(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     skytemple_make_scream_sound(args->value);
 }
 
-void _turn_controllers_on(void) {
+static void _turn_controllers_on(void) {
     turn_controllers_on();
 }
 
-void _turn_controllers_off(void) {
+static void _turn_controllers_off(void) {
     turn_controllers_off();
 }
 
-void _bgnd_clear_face_opponent_flags(void) {
+static void _bgnd_clear_face_opponent_flags(void) {
     bgnd_clear_face_opponent_flags();
 }
 
-void _mab_script_trace_func(void) {
+static void _mab_script_trace_func(void) {
     mab_script_trace_func(get_script_string_arg(1));
 }
 
-void _skytemple_arrange_fence_pebbles_around_pos(void) {
+static void _skytemple_arrange_fence_pebbles_around_pos(void) {
     struct ScriptPebbleArrangeArgs* args;
 
     args = (struct ScriptPebbleArrangeArgs*)current_args;
@@ -5952,7 +5952,7 @@ void _skytemple_arrange_fence_pebbles_around_pos(void) {
         args->position);
 }
 
-void _skytemple_set_fence_pebble_vel(void) {
+static void _skytemple_set_fence_pebble_vel(void) {
     struct ScriptPebbleVelocityArgs* args;
 
     args = (struct ScriptPebbleVelocityArgs*)current_args;
@@ -5962,11 +5962,11 @@ void _skytemple_set_fence_pebble_vel(void) {
         args->z);
 }
 
-void _scripted_camera_script_exit(void) {
+static void _scripted_camera_script_exit(void) {
     scripted_camera_script_exit();
 }
 
-void _bgnd_launch_fx_at_sobj_pos(void) {
+static void _bgnd_launch_fx_at_sobj_pos(void) {
     struct ScriptNamedSobjFxArgs* args;
     char* name;
 
@@ -5976,7 +5976,7 @@ void _bgnd_launch_fx_at_sobj_pos(void) {
                                args->y_offset);
 }
 
-void _bgnd_get_first_shape_center_for_obstacle_id(void) {
+static void _bgnd_get_first_shape_center_for_obstacle_id(void) {
     struct ScriptTwoIntArgs* args;
     struct ScriptIntResult* result;
     int found;
@@ -5988,14 +5988,14 @@ void _bgnd_get_first_shape_center_for_obstacle_id(void) {
     result->value = found;
 }
 
-void _misc_data_set_obj_ptr1(void) {
+static void _misc_data_set_obj_ptr1(void) {
     struct ScriptMkObjArgs* args;
 
     args = (struct ScriptMkObjArgs*)current_args;
     misc_data_set_obj_ptr1(args->object);
 }
 
-void _misc_data_get_obj_ptr1(void) {
+static void _misc_data_get_obj_ptr1(void) {
     struct ScriptMkObjResult* result;
     MkObj* object;
 
@@ -6004,14 +6004,14 @@ void _misc_data_get_obj_ptr1(void) {
     result->value = object;
 }
 
-void _misc_data_set_col_obj_id2(void) {
+static void _misc_data_set_col_obj_id2(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     misc_data_set_col_obj_id2(args->value);
 }
 
-void _misc_data_get_col_obj_id2(void) {
+static void _misc_data_get_col_obj_id2(void) {
     struct ScriptIntResult* result;
     int object_id;
 
@@ -6020,14 +6020,14 @@ void _misc_data_get_col_obj_id2(void) {
     result->value = object_id;
 }
 
-void _misc_data_set_col_obj_id(void) {
+static void _misc_data_set_col_obj_id(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     misc_data_set_col_obj_id(args->value);
 }
 
-void _misc_data_get_col_obj_id(void) {
+static void _misc_data_get_col_obj_id(void) {
     struct ScriptIntResult* result;
     int object_id;
 
@@ -6036,7 +6036,7 @@ void _misc_data_get_col_obj_id(void) {
     result->value = object_id;
 }
 
-void _bgnd_fetch_obj(void) {
+static void _bgnd_fetch_obj(void) {
     struct ScriptSingleIntArgs* args;
     struct ScriptMkObjResult* result;
     MkObj* object;
@@ -6047,7 +6047,7 @@ void _bgnd_fetch_obj(void) {
     result->value = object;
 }
 
-void _bgnd_swap_textures_tbl(void) {
+static void _bgnd_swap_textures_tbl(void) {
     struct ScriptSwapTextureTableArgs* args;
 
     args = (struct ScriptSwapTextureTableArgs*)current_args;
@@ -6055,7 +6055,7 @@ void _bgnd_swap_textures_tbl(void) {
                            args->frame);
 }
 
-void _bgnd_swap_textures(void) {
+static void _bgnd_swap_textures(void) {
     struct ScriptSwapTextureArgs* args;
 
     args = (struct ScriptSwapTextureArgs*)current_args;
@@ -6064,7 +6064,7 @@ void _bgnd_swap_textures(void) {
                        args->frame);
 }
 
-void _bgnd_append_texture_to_material_tbl(void) {
+static void _bgnd_append_texture_to_material_tbl(void) {
     struct ScriptAppendTextureTableArgs* args;
 
     args = (struct ScriptAppendTextureTableArgs*)current_args;
@@ -6072,7 +6072,7 @@ void _bgnd_append_texture_to_material_tbl(void) {
         args->entries);
 }
 
-void _bgnd_append_texture_to_material(void) {
+static void _bgnd_append_texture_to_material(void) {
     struct ScriptAppendTextureArgs* args;
 
     args = (struct ScriptAppendTextureArgs*)current_args;
@@ -6081,7 +6081,7 @@ void _bgnd_append_texture_to_material(void) {
         get_script_string_arg(3), args->texture_slot);
 }
 
-void _bgnd_light_set_color(void) {
+static void _bgnd_light_set_color(void) {
     struct ScriptLightColorArgs* args;
 
     args = (struct ScriptLightColorArgs*)current_args;
@@ -6089,7 +6089,7 @@ void _bgnd_light_set_color(void) {
                          args->green, args->blue);
 }
 
-void _bgnd_get_float(void) {
+static void _bgnd_get_float(void) {
     struct ScriptSingleIntArgs* args;
     struct ScriptFloatResult* result;
     float value;
@@ -6100,7 +6100,7 @@ void _bgnd_get_float(void) {
     result->value = value;
 }
 
-void _bgnd_get_u32(void) {
+static void _bgnd_get_u32(void) {
     struct ScriptSingleIntArgs* args;
     struct ScriptIntResult* result;
     unsigned int value;
@@ -6111,7 +6111,7 @@ void _bgnd_get_u32(void) {
     result->value = value;
 }
 
-void _bgnd_get_int(void) {
+static void _bgnd_get_int(void) {
     struct ScriptSingleIntArgs* args;
     struct ScriptIntResult* result;
     int value;
@@ -6122,31 +6122,31 @@ void _bgnd_get_int(void) {
     result->value = value;
 }
 
-void _mks_start_fatality_iceball(void) {
+static void _mks_start_fatality_iceball(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     mks_start_fatality_iceball(args->value);
 }
 
-void _send_speedup_msg(void) {
+static void _send_speedup_msg(void) {
 }
 
-void _mks_debug_display_cloth_ontop(void) {
+static void _mks_debug_display_cloth_ontop(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     mks_debug_display_cloth_ontop(args->value);
 }
 
-void _start_bow(void) {
+static void _start_bow(void) {
     struct ScriptIntFloatArgs* args;
 
     args = (struct ScriptIntFloatArgs*)current_args;
     start_bow(args->integer, args->floating);
 }
 
-void _get_bid_with_flip(void) {
+static void _get_bid_with_flip(void) {
     struct ScriptObjectIntArgs* args;
     struct ScriptIntResult* result;
     int bone_id;
@@ -6158,28 +6158,28 @@ void _get_bid_with_flip(void) {
     result->value = bone_id;
 }
 
-void _start_plyr_attack(void) {
+static void _start_plyr_attack(void) {
     struct ScriptSingleFloatArgs* args;
 
     args = (struct ScriptSingleFloatArgs*)current_args;
     start_plyr_attack(args->value);
 }
 
-void _set_active_projectile_upward_attack(void) {
+static void _set_active_projectile_upward_attack(void) {
     struct ScriptVecPointerArgs* args;
 
     args = (struct ScriptVecPointerArgs*)current_args;
     set_active_projectile_upward_attack(args->vector);
 }
 
-void _set_active_add_ang_y(void) {
+static void _set_active_add_ang_y(void) {
     struct ScriptSingleFloatArgs* args;
 
     args = (struct ScriptSingleFloatArgs*)current_args;
     set_active_add_ang_y(args->value);
 }
 
-void _set_active_projectile_random_rot(void) {
+static void _set_active_projectile_random_rot(void) {
     struct ScriptVecValueArgs* args;
 
     args = (struct ScriptVecValueArgs*)current_args;
@@ -6187,14 +6187,14 @@ void _set_active_projectile_random_rot(void) {
         args->x, args->y, args->z);
 }
 
-void _set_active_projectile_dn_sound(void) {
+static void _set_active_projectile_dn_sound(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     set_active_projectile_dn_sound(args->value);
 }
 
-void _set_active_projectile_sound(void) {
+static void _set_active_projectile_sound(void) {
     struct ScriptThreeIntArgs* args;
 
     args = (struct ScriptThreeIntArgs*)current_args;
@@ -6202,7 +6202,7 @@ void _set_active_projectile_sound(void) {
                                 args->third);
 }
 
-void _set_active_projectile_random_pos(void) {
+static void _set_active_projectile_random_pos(void) {
     struct ScriptVecValueArgs* args;
 
     args = (struct ScriptVecValueArgs*)current_args;
@@ -6210,35 +6210,35 @@ void _set_active_projectile_random_pos(void) {
         args->x, args->y, args->z);
 }
 
-void _set_active_projectile_velocity_damp(void) {
+static void _set_active_projectile_velocity_damp(void) {
     struct ScriptVecPointerArgs* args;
 
     args = (struct ScriptVecPointerArgs*)current_args;
     set_active_projectile_velocity_damp(args->vector);
 }
 
-void _set_active_projectile_target_pos(void) {
+static void _set_active_projectile_target_pos(void) {
     struct ScriptVecPointerArgs* args;
 
     args = (struct ScriptVecPointerArgs*)current_args;
     set_active_projectile_target_pos(args->vector);
 }
 
-void _set_active_projectile_max_ticks(void) {
+static void _set_active_projectile_max_ticks(void) {
     struct ScriptSingleIntArgs* args;
 
     args = (struct ScriptSingleIntArgs*)current_args;
     set_active_projectile_max_ticks(args->value);
 }
 
-void _set_active_projectile_p_handler(void) {
+static void _set_active_projectile_p_handler(void) {
     struct ScriptEntryArgs* args;
 
     args = (struct ScriptEntryArgs*)current_args;
     set_active_projectile_p_handler((MkProcEntryFn)args->entry);
 }
 
-void _set_active_projectile_target_ground(void) {
+static void _set_active_projectile_target_ground(void) {
     struct ScriptVecValueArgs* args;
 
     args = (struct ScriptVecValueArgs*)current_args;
@@ -6246,39 +6246,39 @@ void _set_active_projectile_target_ground(void) {
         args->x, args->y, args->z);
 }
 
-void _set_active_projectile_velocity(void) {
+static void _set_active_projectile_velocity(void) {
     struct ScriptVecPointerArgs* args;
 
     args = (struct ScriptVecPointerArgs*)current_args;
     set_active_projectile_velocity(args->vector);
 }
 
-void _active_projectile_setup_done(void) {
+static void _active_projectile_setup_done(void) {
     active_projectile_setup_done();
 }
 
-void _set_active_projectile_hit_gnd_script(void) {
+static void _set_active_projectile_hit_gnd_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_active_projectile_hit_gnd_script(args->slots[0].u);
 }
 
-void _set_active_projectile_end_script(void) {
+static void _set_active_projectile_end_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_active_projectile_end_script(args->slots[0].u);
 }
 
-void _set_active_projectile_hit_script(void) {
+static void _set_active_projectile_hit_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_active_projectile_hit_script(args->slots[0].u);
 }
 
-void _set_active_projectile_impale_info(void) {
+static void _set_active_projectile_impale_info(void) {
     struct ScriptTwoPointerArgs* args;
 
     args = (struct ScriptTwoPointerArgs*)current_args;
@@ -6287,11 +6287,11 @@ void _set_active_projectile_impale_info(void) {
         args->second);
 }
 
-void _set_active_projectile_not_duckable(void) {
+static void _set_active_projectile_not_duckable(void) {
     set_active_projectile_not_duckable();
 }
 
-void _set_active_projectile_rx_info(void) {
+static void _set_active_projectile_rx_info(void) {
     struct ScriptReactionArgs* args;
 
     args = (struct ScriptReactionArgs*)current_args;
@@ -6300,7 +6300,7 @@ void _set_active_projectile_rx_info(void) {
         args->strength);
 }
 
-void _start_projectile_from_plyr_bone(void) {
+static void _start_projectile_from_plyr_bone(void) {
     struct ScriptStartProjectileArgs* args;
     struct ScriptMkObjResult* result;
     MkObj* projectile;
@@ -6316,14 +6316,14 @@ void _start_projectile_from_plyr_bone(void) {
     result->value = projectile;
 }
 
-void _run_reaction_cleanup_function(void) {
+static void _run_reaction_cleanup_function(void) {
     struct ScriptPlyrPdataArgs* args;
 
     args = (struct ScriptPlyrPdataArgs*)current_args;
     run_reaction_cleanup_function(args->player);
 }
 
-void _reaction_xfer_him(void) {
+static void _reaction_xfer_him(void) {
     struct ScriptReactionArgs* args;
     struct ScriptIntResult* result;
     int transferred;
@@ -6336,7 +6336,7 @@ void _reaction_xfer_him(void) {
     result->value = transferred;
 }
 
-void _mks_set_cb1_wind_normal(void) {
+static void _mks_set_cb1_wind_normal(void) {
     struct ScriptVecValueArgs* args;
 
     args = (struct ScriptVecValueArgs*)current_args;
@@ -6344,7 +6344,7 @@ void _mks_set_cb1_wind_normal(void) {
         args->x, args->y, args->z);
 }
 
-void _mks_bgnd_start_wind(void) {
+static void _mks_bgnd_start_wind(void) {
     struct ScriptVecValueArgs* args;
 
     args = (struct ScriptVecValueArgs*)current_args;
@@ -6352,7 +6352,7 @@ void _mks_bgnd_start_wind(void) {
                         args->z);
 }
 
-void _mks_npc_build_bones_tbl(void) {
+static void _mks_npc_build_bones_tbl(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -6360,7 +6360,7 @@ void _mks_npc_build_bones_tbl(void) {
         args->slots[0].i, args->slots[1].pointer);
 }
 
-void _mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(void) {
+static void _mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(void) {
     struct ScriptPlyrPdataArgs* args;
 
     args = (struct ScriptPlyrPdataArgs*)current_args;
@@ -6368,7 +6368,7 @@ void _mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(void) {
         args->player);
 }
 
-void _mks_xfer_collision_info_plyr_to_bgnd_script(void) {
+static void _mks_xfer_collision_info_plyr_to_bgnd_script(void) {
     struct ScriptPlyrEntryArgs* args;
 
     args = (struct ScriptPlyrEntryArgs*)current_args;
@@ -6376,7 +6376,7 @@ void _mks_xfer_collision_info_plyr_to_bgnd_script(void) {
         args->player, args->entry);
 }
 
-void _mks_xfer_collision_info_plyr_to_script(void) {
+static void _mks_xfer_collision_info_plyr_to_script(void) {
     struct ScriptEntryPlayerArgs* args;
 
     args = (struct ScriptEntryPlayerArgs*)current_args;
@@ -6384,7 +6384,7 @@ void _mks_xfer_collision_info_plyr_to_script(void) {
         args->entry, args->player);
 }
 
-void _resume_effect_at_plyr_num_bid(void) {
+static void _resume_effect_at_plyr_num_bid(void) {
     struct ScriptResumeEffectArgs* args;
 
     args = (struct ScriptResumeEffectArgs*)current_args;
@@ -6394,7 +6394,7 @@ void _resume_effect_at_plyr_num_bid(void) {
         args->blood_required);
 }
 
-void _resume_effect_at_obj_bid(void) {
+static void _resume_effect_at_obj_bid(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -6404,7 +6404,7 @@ void _resume_effect_at_obj_bid(void) {
         args->slots[4].i);
 }
 
-void _mks_start_gusher(void) {
+static void _mks_start_gusher(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -6416,83 +6416,83 @@ void _mks_start_gusher(void) {
             args->slots[6].f, args->slots[7].f);
 }
 
-void _mks_victim_bleed(void) {
+static void _mks_victim_bleed(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_victim_bleed(args->slots[0].i, args->slots[1].i);
 }
 
-void _mks_plyr_stop(void) {
+static void _mks_plyr_stop(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_plyr_stop(args->slots[0].i);
 }
 
-void _mks_set_plyr_to_center_ang_offset(void) {
+static void _mks_set_plyr_to_center_ang_offset(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_set_plyr_to_center_ang_offset(args->slots[0].i, args->slots[1].f);
 }
 
-void _mks_bgnd_cam_offset_away(void) {
+static void _mks_bgnd_cam_offset_away(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_bgnd_cam_offset_away(args->slots[0].f, args->slots[1].f);
 }
 
-void _mks_bgnd_pfx_bind_to_sobj(void) {
+static void _mks_bgnd_pfx_bind_to_sobj(void) {
     mks_bgnd_pfx_bind_to_sobj(
         get_script_string_arg(1),
         ((struct ScriptRawArgs*)current_args)->slots[1].u);
 }
 
-void _mks_set_update_delay(void) {
+static void _mks_set_update_delay(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_set_update_delay(args->slots[0].i, args->slots[1].i);
 }
 
-void _mks_removehide_by_group(void) {
+static void _mks_removehide_by_group(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_removehide_by_group(args->slots[0].i, args->slots[1].i);
 }
 
-void _mks_blend_start_update_by_group(void) {
+static void _mks_blend_start_update_by_group(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_blend_start_update_by_group(args->slots[0].i, args->slots[1].i);
 }
 
-void _mks_shadow_scale(void) {
+static void _mks_shadow_scale(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_shadow_scale(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f);
 }
 
-void _mks_gravity_update_by_group(void) {
+static void _mks_gravity_update_by_group(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_gravity_update_by_group(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f, args->slots[4].f, args->slots[5].f);
 }
 
-void _mks_away_vel_update_by_group(void) {
+static void _mks_away_vel_update_by_group(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_away_vel_update_by_group(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f, args->slots[4].f);
 }
 
-void _mks_set_rotate_update_by_group(void) {
+static void _mks_set_rotate_update_by_group(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -6502,7 +6502,7 @@ void _mks_set_rotate_update_by_group(void) {
         args->slots[4].f, args->slots[5].i);
 }
 
-void _mks_set_sin_update_by_group(void) {
+static void _mks_set_sin_update_by_group(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -6513,43 +6513,43 @@ void _mks_set_sin_update_by_group(void) {
         args->slots[9].i);
 }
 
-void _bgnd_init_timers(void) {
+static void _bgnd_init_timers(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_init_timers(args->slots[0].i);
 }
 
-void _bgnd_obj_insert_obj_ctrl_section(void) {
+static void _bgnd_obj_insert_obj_ctrl_section(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_obj_insert_obj_ctrl_section(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_insert_obj_ctrl_section(void) {
+static void _bgnd_insert_obj_ctrl_section(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_insert_obj_ctrl_section(args->slots[0].i, args->slots[1].i);
 }
 
-void _destroy_sobj_ctrl_proc(void) {
+static void _destroy_sobj_ctrl_proc(void) {
     destroy_sobj_ctrl_proc();
 }
 
-void _start_sobj_ctrl_proc(void) {
+static void _start_sobj_ctrl_proc(void) {
     start_sobj_ctrl_proc();
 }
 
-void _set_active_projectile_collision_info(void) {
+static void _set_active_projectile_collision_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_active_projectile_collision_info(args->slots[0].f, args->slots[1].i, args->slots[2].f, args->slots[3].f);
 }
 
-void _set_active_projectile_tracking_light(void) {
+static void _set_active_projectile_tracking_light(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -6557,225 +6557,225 @@ void _set_active_projectile_tracking_light(void) {
         set_active_projectile_tracking_light(args->slots[0].pointer);
 }
 
-void _set_active_projectile_continue_thru_hit(void) {
+static void _set_active_projectile_continue_thru_hit(void) {
     set_active_projectile_continue_thru_hit();
 }
 
-void _set_active_projectile_3d_track(void) {
+static void _set_active_projectile_3d_track(void) {
     set_active_projectile_3d_track();
 }
 
-void _set_active_projectile_2d_track(void) {
+static void _set_active_projectile_2d_track(void) {
     set_active_projectile_2d_track();
 }
 
-void _set_active_projectile_velocity_to_hit_gnd(void) {
+static void _set_active_projectile_velocity_to_hit_gnd(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_active_projectile_velocity_to_hit_gnd(args->slots[0].f);
 }
 
-void _get_projectile_script_velocity(void) {
+static void _get_projectile_script_velocity(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     get_projectile_script_velocity(args->slots[0].pointer);
 }
 
-void _get_projectile_script_last_pos(void) {
+static void _get_projectile_script_last_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     get_projectile_script_last_pos(args->slots[0].pointer);
 }
 
-void _get_projectile_script_plyr_pdata(void) {
+static void _get_projectile_script_plyr_pdata(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = get_projectile_script_plyr_pdata();
 }
 
-void _get_projectile_his_plyr_num(void) {
+static void _get_projectile_his_plyr_num(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_projectile_his_plyr_num();
 }
 
-void _get_projectile_script_plyr_num(void) {
+static void _get_projectile_script_plyr_num(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_projectile_script_plyr_num();
 }
 
-void _mks_get_victim_to_tr_dot(void) {
+static void _mks_get_victim_to_tr_dot(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = mks_get_victim_to_tr_dot(args->slots[0].i);
 }
 
-void _ani_x_more_frames(void) {
+static void _ani_x_more_frames(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ani_x_more_frames(current_args, args->slots[0].f);
 }
 
-void _bgnd_npc_set_ani_speed(void) {
+static void _bgnd_npc_set_ani_speed(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_npc_set_ani_speed(args->slots[0].i, args->slots[1].f);
 }
 
-void _mks_npc_disable_ground_y_all_cloth_bones(void) {
+static void _mks_npc_disable_ground_y_all_cloth_bones(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_npc_disable_ground_y_all_cloth_bones(args->slots[0].i);
 }
 
-void _mks_npc_set_ground_y_all_cloth_bones(void) {
+static void _mks_npc_set_ground_y_all_cloth_bones(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_npc_set_ground_y_all_cloth_bones(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _mks_npc_cb1_eq_cloth_bone(void) {
+static void _mks_npc_cb1_eq_cloth_bone(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_npc_cb1_eq_cloth_bone(args->slots[0].i, args->slots[1].i);
 }
 
-void _mks_npc_cc1_eq_insert_cloth_coll(void) {
+static void _mks_npc_cc1_eq_insert_cloth_coll(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_npc_cc1_eq_insert_cloth_coll(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
 }
 
-void _mks_npc_set_target(void) {
+static void _mks_npc_set_target(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_npc_set_target(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _mks_npc_cloth_bones_init_by_tbl(void) {
+static void _mks_npc_cloth_bones_init_by_tbl(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_npc_cloth_bones_init_by_tbl(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _mks_npc_start_cloth_bones(void) {
+static void _mks_npc_start_cloth_bones(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_npc_start_cloth_bones(args->slots[0].i);
 }
 
-void _bgnd_attach_rope_to_bgnd_obj(void) {
+static void _bgnd_attach_rope_to_bgnd_obj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_attach_rope_to_bgnd_obj(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _bgnd_detach_rope(void) {
+static void _bgnd_detach_rope(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_detach_rope(args->slots[0].i);
 }
 
-void _start_rope_proc(void) {
+static void _start_rope_proc(void) {
     start_rope_proc();
 }
 
-void _bgnd_preload_obj_attach_rope(void) {
+static void _bgnd_preload_obj_attach_rope(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_preload_obj_attach_rope(args->slots[0].i);
 }
 
-void _bgnd_hide_preload_obj(void) {
+static void _bgnd_hide_preload_obj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_hide_preload_obj(args->slots[0].i);
 }
 
-void _bgnd_unhide_preload_obj(void) {
+static void _bgnd_unhide_preload_obj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_unhide_preload_obj(args->slots[0].i);
 }
 
-void _load_bgnd_style(void) {
+static void _load_bgnd_style(void) {
     const char* name = get_script_string_arg(2);
 
     load_bgnd_style(((struct ScriptRawArgs*)current_args)->slots[0].i,
                     name, current_args);
 }
 
-void _mks_set_cb1_target_bone_cb2(void) {
+static void _mks_set_cb1_target_bone_cb2(void) {
     mks_set_cb1_target_bone_cb2();
 }
 
-void _mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(void) {
+static void _mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(args->slots[0].i, args->slots[1].f, args->slots[2].i, args->slots[3].f, args->slots[4].i, args->slots[5].f, args->slots[6].i, args->slots[7].f);
 }
 
-void _mks_debug_display_cloth_coll_plane(void) {
+static void _mks_debug_display_cloth_coll_plane(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_debug_display_cloth_coll_plane(current_args, args->slots[0].f);
 }
 
-void _mks_debug_display_cloth_coll_cyl(void) {
+static void _mks_debug_display_cloth_coll_cyl(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_debug_display_cloth_coll_cyl(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _mks_cc1_set_coll_fnc_eq_cloth_coll_vector_cyl(void) {
+static void _mks_cc1_set_coll_fnc_eq_cloth_coll_vector_cyl(void) {
     mks_cc1_set_coll_fnc_eq_cloth_coll_vector_cyl();
 }
 
-void _collision_result_dont_care(void) {
+static void _collision_result_dont_care(void) {
     collision_result_dont_care();
 }
 
-void _clear_collision_result(void) {
+static void _clear_collision_result(void) {
     clear_collision_result();
 }
 
-void _wait_for_collision_result(void) {
+static void _wait_for_collision_result(void) {
 }
 
-void _reaction_sync_advance(void) {
+static void _reaction_sync_advance(void) {
 }
 
-void _plyr_set_gravity(void) {
+static void _plyr_set_gravity(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     plyr_set_gravity(current_args, args->slots[0].f);
 }
 
-void _plyr_scale_pos_vel(void) {
+static void _plyr_scale_pos_vel(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     plyr_scale_pos_vel(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _animpdata_get_anim_hiframe(void) {
+static void _animpdata_get_anim_hiframe(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -6783,22 +6783,22 @@ void _animpdata_get_anim_hiframe(void) {
         animpdata_get_anim_hiframe(args->slots[0].pointer);
 }
 
-void _plyr_get_anim_hiframe(void) {
+static void _plyr_get_anim_hiframe(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f = plyr_get_anim_hiframe();
 }
 
-void _plyr_get_anim_frame(void) {
+static void _plyr_get_anim_frame(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f = plyr_get_anim_frame();
 }
 
-void _plyr_set_vel_xz_y(void) {
+static void _plyr_set_vel_xz_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     plyr_set_vel_xz_y(current_args, args->slots[0].f, args->slots[1].f);
 }
 
-void _player_area_collision_check(void) {
+static void _player_area_collision_check(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -6807,118 +6807,118 @@ void _player_area_collision_check(void) {
         args->slots[3].f, args->slots[4].i);
 }
 
-void _single_frame_collision_check(void) {
+static void _single_frame_collision_check(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = single_frame_collision_check(args->slots[0].i, args->slots[1].f, args->slots[2].f, args->slots[3].i, args->slots[4].i, args->slots[5].f);
 }
 
-void _is_he_airborn(void) {
+static void _is_he_airborn(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_he_airborn();
 }
 
-void _auto_ani_on(void) {
+static void _auto_ani_on(void) {
     auto_ani_on();
 }
 
-void _mks_obj_enable_update_cloth(void) {
+static void _mks_obj_enable_update_cloth(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_obj_enable_update_cloth(args->slots[0].i, args->slots[1].i);
 }
 
-void _mks_bgnd_obj_enable_cloth_update(void) {
+static void _mks_bgnd_obj_enable_cloth_update(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_bgnd_obj_enable_cloth_update(args->slots[0].i, args->slots[1].i);
 }
 
-void _start_special_weapon_monitor(void) {
+static void _start_special_weapon_monitor(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     start_special_weapon_monitor(args->slots[0].i);
 }
 
-void _xz_distance_between_players(void) {
+static void _xz_distance_between_players(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f = xz_distance_between_players();
 }
 
-void _start_scorpion_teleport_scale(void) {
+static void _start_scorpion_teleport_scale(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     start_scorpion_teleport_scale(current_args, args->slots[0].f, args->slots[1].f);
 }
 
-void _blast_effect_at_plyr(void) {
+static void _blast_effect_at_plyr(void) {
     blast_effect_at_plyr();
 }
 
-void _configure_iceball(void) {
+static void _configure_iceball(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     configure_iceball(args->slots[0].i);
 }
 
-void _scorpion_teleport_position(void) {
+static void _scorpion_teleport_position(void) {
     scorpion_teleport_position();
 }
 
-void _kenshi_teleport_position(void) {
+static void _kenshi_teleport_position(void) {
     kenshi_teleport_position();
 }
 
-void _start_shadow_watcher(void) {
+static void _start_shadow_watcher(void) {
     start_shadow_watcher();
 }
 
-void _update_my_last_switch(void) {
+static void _update_my_last_switch(void) {
     update_my_last_switch();
 }
 
-void _local_collision_allowed_plyr_pdata(void) {
+static void _local_collision_allowed_plyr_pdata(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = local_collision_allowed_plyr_pdata();
 }
 
-void _kill_plyr_life(void) {
+static void _kill_plyr_life(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     kill_plyr_life(args->slots[0].i);
 }
 
-void _is_local_plyr(void) {
+static void _is_local_plyr(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_local_plyr();
 }
 
-void _is_reaction_xfer_him_allowed(void) {
+static void _is_reaction_xfer_him_allowed(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_reaction_xfer_him_allowed();
 }
 
-void _throw_spear(void) {
+static void _throw_spear(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f = throw_spear();
 }
 
-void _pan_vol_pitch_snd_req(void) {
+static void _pan_vol_pitch_snd_req(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     pan_vol_pitch_snd_req(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _force_ai_style(void) {
+static void _force_ai_style(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     force_ai_style(args->slots[0].i);
 }
 
-void _xfer_player_proc_to_script(void) {
+static void _xfer_player_proc_to_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -6926,159 +6926,159 @@ void _xfer_player_proc_to_script(void) {
         (MkObj*)args->slots[0].i, args->slots[1].i);
 }
 
-void _start_subzero_decoy(void) {
+static void _start_subzero_decoy(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     start_subzero_decoy(current_args, args->slots[0].f);
 }
 
-void _jmt_debug_script(void) {
+static void _jmt_debug_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     jmt_debug_script(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
 }
 
-void _can_fallingcliff_fall(void) {
+static void _can_fallingcliff_fall(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = can_fallingcliff_fall();
 }
 
-void _get_online_evil_state(void) {
+static void _get_online_evil_state(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = 0;
 }
 
-void _send_yinyang_evil_msg(void) {
+static void _send_yinyang_evil_msg(void) {
 }
 
-void _set_remote_plyr_online_pos(void) {
+static void _set_remote_plyr_online_pos(void) {
 }
 
-void _enable_no_sync_anim_f(void) {
+static void _enable_no_sync_anim_f(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     enable_no_sync_anim_f(args->slots[0].i);
 }
 
-void _enable_no_adjustment_f(void) {
+static void _enable_no_adjustment_f(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     enable_no_adjustment_f(args->slots[0].i);
 }
 
-void _get_exec_tick_ctr(void) {
+static void _get_exec_tick_ctr(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_exec_tick_ctr();
 }
 
-void _set_cliff_watcher_round(void) {
+static void _set_cliff_watcher_round(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_cliff_watcher_round(args->slots[0].i);
 }
 
-void _get_cliff_watcher_round(void) {
+static void _get_cliff_watcher_round(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_cliff_watcher_round();
 }
 
-void _clear_cliff_data(void) {
+static void _clear_cliff_data(void) {
     clear_cliff_data();
 }
 
-void _start_cliff_watcher(void) {
+static void _start_cliff_watcher(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     start_cliff_watcher(current_args, args->slots[0].f);
 }
 
-void _get_cliff_data(void) {
+static void _get_cliff_data(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_cliff_data();
 }
 
-void _destroy_kabal_smoke(void) {
+static void _destroy_kabal_smoke(void) {
     destroy_kabal_smoke();
 }
 
-void _start_kabal_smoke(void) {
+static void _start_kabal_smoke(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     start_kabal_smoke(current_args, args->slots[0].f);
 }
 
-void _kobra_teleport_position(void) {
+static void _kobra_teleport_position(void) {
     kobra_teleport_position();
 }
 
-void _mileena_sky_set_position(void) {
+static void _mileena_sky_set_position(void) {
     mileena_sky_set_position();
 }
 
-void _disable_mileena_collisions(void) {
+static void _disable_mileena_collisions(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     disable_mileena_collisions(args->slots[0].i);
 }
 
-void _switch_plyr_positions(void) {
+static void _switch_plyr_positions(void) {
     switch_plyr_positions();
 }
 
-void _kabal_collision_control_victim(void) {
+static void _kabal_collision_control_victim(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     kabal_collision_control_victim(args->slots[0].i);
 }
 
-void _gusher_destroy_list(void) {
+static void _gusher_destroy_list(void) {
     gusher_destroy_list();
 }
 
-void _cloth_change_ground_plane_for(void) {
+static void _cloth_change_ground_plane_for(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     cloth_change_ground_plane_for(current_args, args->slots[0].f);
 }
 
-void _set_constrain_last_pos_pdata(void) {
+static void _set_constrain_last_pos_pdata(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_constrain_last_pos_pdata(args->slots[0].pointer);
 }
 
-void _get_current_bgnd(void) {
+static void _get_current_bgnd(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_current_bgnd();
 }
 
-void _damage_player(void) {
+static void _damage_player(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     damage_player(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _flying_collision(void) {
+static void _flying_collision(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     flying_collision(args->slots[0].i, args->slots[1].f, args->slots[2].f, args->slots[3].i, args->slots[4].i, args->slots[5].f, args->slots[6].f, args->slots[7].f, args->slots[8].f, args->slots[9].f);
 }
 
-void _player_area_collision_ticks(void) {
+static void _player_area_collision_ticks(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     player_area_collision_ticks(args->slots[0].f, args->slots[1].f, args->slots[2].i, args->slots[3].f, args->slots[4].i, args->slots[5].f);
 }
 
-void _get_adjusted_speed(void) {
+static void _get_adjusted_speed(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -7086,35 +7086,35 @@ void _get_adjusted_speed(void) {
         get_adjusted_speed(args->slots[0].f, args->slots[1].f);
 }
 
-void _adjust_kabal_position(void) {
+static void _adjust_kabal_position(void) {
     adjust_kabal_position();
 }
 
-void _is_drone(void) {
+static void _is_drone(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_drone();
 }
 
-void _release_both_players(void) {
+static void _release_both_players(void) {
     release_both_players();
 }
 
-void _remove_impaled_projectiles(void) {
+static void _remove_impaled_projectiles(void) {
     remove_impaled_projectiles();
 }
 
-void _online_sync_reset(void) {
+static void _online_sync_reset(void) {
     online_sync_reset();
 }
 
-void _advance_my_sidekick_from_behind_with_moveset(void) {
+static void _advance_my_sidekick_from_behind_with_moveset(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = advance_my_sidekick_from_behind_with_moveset();
 }
 
-void _kill_ermac_eyes(void) {
+static void _kill_ermac_eyes(void) {
     kill_ermac_eyes();
 }
 
-void _check_for_online_condition(void) {
+static void _check_for_online_condition(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -7122,22 +7122,22 @@ void _check_for_online_condition(void) {
         check_for_online_condition(args->slots[0].pointer);
 }
 
-void _increment_taunts_performed(void) {
+static void _increment_taunts_performed(void) {
     increment_taunts_performed();
 }
 
-void _get_taunts_performed(void) {
+static void _get_taunts_performed(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_taunts_performed();
 }
 
-void _mk_chess_fetch_bp_num_based_on_pchr_num(void) {
+static void _mk_chess_fetch_bp_num_based_on_pchr_num(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = mk_chess_fetch_bp_num_based_on_pchr_num(args->slots[0].i);
 }
 
-void _bgnd_fx_get_binded_obj(void) {
+static void _bgnd_fx_get_binded_obj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -7145,7 +7145,7 @@ void _bgnd_fx_get_binded_obj(void) {
         bgnd_fx_get_binded_obj(args->slots[0].i);
 }
 
-void _bgnd_enable_obj_pos_and_ang_setting(void) {
+static void _bgnd_enable_obj_pos_and_ang_setting(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -7154,87 +7154,87 @@ void _bgnd_enable_obj_pos_and_ang_setting(void) {
         args->slots[2].pointer);
 }
 
-void _mk_chess_fetch_active_defined_team(void) {
+static void _mk_chess_fetch_active_defined_team(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = mk_chess_fetch_active_defined_team();
 }
 
-void _mk_chess_fetch_active_defined_teams_class(void) {
+static void _mk_chess_fetch_active_defined_teams_class(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = mk_chess_fetch_active_defined_teams_class(args->slots[0].i);
 }
 
-void _mk_chess_air_move(void) {
+static void _mk_chess_air_move(void) {
     mk_chess_air_move();
 }
 
-void _mk_chess_active_piece_near_edge(void) {
+static void _mk_chess_active_piece_near_edge(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = mk_chess_active_piece_near_edge();
 }
 
-void _courtyard_start_lensflare(void) {
+static void _courtyard_start_lensflare(void) {
     courtyard_start_lensflare();
 }
 
-void _mk_chess_queue_up_piece_event(void) {
+static void _mk_chess_queue_up_piece_event(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_queue_up_piece_event(args->slots[0].i, args->slots[1].i);
 }
 
-void _mk_chess_piece_set_state(void) {
+static void _mk_chess_piece_set_state(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_piece_set_state(args->slots[0].i);
 }
 
-void _mk_chess_shifter_switch(void) {
+static void _mk_chess_shifter_switch(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_shifter_switch(args->slots[0].i, args->slots[1].i, args->slots[2].f, args->slots[3].f);
 }
 
-void _mk_chess_blend_to_my_cell_pos(void) {
+static void _mk_chess_blend_to_my_cell_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_blend_to_my_cell_pos(args->slots[0].f);
 }
 
-void _mk_chess_snap_to_my_cell_now(void) {
+static void _mk_chess_snap_to_my_cell_now(void) {
     mk_chess_snap_to_my_cell_now();
 }
 
-void _mk_chess_xfer_piece_from_scripts(void) {
+static void _mk_chess_xfer_piece_from_scripts(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = mk_chess_xfer_piece_from_scripts(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _mk_chess_piece_die(void) {
+static void _mk_chess_piece_die(void) {
     mk_chess_piece_die();
 }
 
-void _mk_chess_launch_special_fx(void) {
+static void _mk_chess_launch_special_fx(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_launch_special_fx(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _mk_chess_set_piece_info(void) {
+static void _mk_chess_set_piece_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_set_piece_info(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _mk_chess_launch_fx_at_active_piece_with_offset(void) {
+static void _mk_chess_launch_fx_at_active_piece_with_offset(void) {
     struct ScriptRawArgs* args;
     const char* effect_name;
 
@@ -7245,133 +7245,133 @@ void _mk_chess_launch_fx_at_active_piece_with_offset(void) {
         args->slots[3].f);
 }
 
-void _mk_chess_spell_rescue_current_target(void) {
+static void _mk_chess_spell_rescue_current_target(void) {
     mk_chess_spell_rescue_current_target();
 }
 
-void _mk_chess_get_piece_info(void) {
+static void _mk_chess_get_piece_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = mk_chess_get_piece_info(args->slots[0].i);
 }
 
-void _mk_chess_piece_temporarily_gone(void) {
+static void _mk_chess_piece_temporarily_gone(void) {
     mk_chess_piece_temporarily_gone();
 }
 
-void _mk_chess_launch_up(void) {
+static void _mk_chess_launch_up(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_launch_up(current_args, args->slots[0].f, args->slots[1].f);
 }
 
-void _mk_chess_spell_get_target_health(void) {
+static void _mk_chess_spell_get_target_health(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = mk_chess_spell_get_target_health(args->slots[0].i);
 }
 
-void _mk_chess_spell_move_target_from_temp_area_to(void) {
+static void _mk_chess_spell_move_target_from_temp_area_to(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_spell_move_target_from_temp_area_to(args->slots[0].i);
 }
 
-void _mk_chess_spell_move_target_to_temp_area(void) {
+static void _mk_chess_spell_move_target_to_temp_area(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_spell_move_target_to_temp_area(args->slots[0].i);
 }
 
-void _mk_chess_spell_target_add_access_restrictions(void) {
+static void _mk_chess_spell_target_add_access_restrictions(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_spell_target_add_access_restrictions(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i);
 }
 
-void _mk_chess_spell_has_completed_but_wait_for_fight(void) {
+static void _mk_chess_spell_has_completed_but_wait_for_fight(void) {
     mk_chess_spell_has_completed_but_wait_for_fight();
 }
 
-void _mk_chess_spell_force_fight(void) {
+static void _mk_chess_spell_force_fight(void) {
     mk_chess_spell_force_fight();
 }
 
-void _mk_chess_spell_is_this_a_forced_fight(void) {
+static void _mk_chess_spell_is_this_a_forced_fight(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = mk_chess_spell_is_this_a_forced_fight();
 }
 
-void _mk_chess_spell_kill_target(void) {
+static void _mk_chess_spell_kill_target(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_spell_kill_target(args->slots[0].i);
 }
 
-void _mk_chess_spell_move_target_to_target(void) {
+static void _mk_chess_spell_move_target_to_target(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_spell_move_target_to_target(args->slots[0].i, args->slots[1].i);
 }
 
-void _mk_chess_spell_set_target_health(void) {
+static void _mk_chess_spell_set_target_health(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_spell_set_target_health(args->slots[0].i, args->slots[1].f);
 }
 
-void _mk_chess_spell_get_target_max_health(void) {
+static void _mk_chess_spell_get_target_max_health(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = mk_chess_spell_get_target_max_health(args->slots[0].i);
 }
 
-void _mk_chess_spell_show_target_portrait(void) {
+static void _mk_chess_spell_show_target_portrait(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_spell_show_target_portrait(args->slots[0].i);
 }
 
-void _mk_chess_spell_has_completed(void) {
+static void _mk_chess_spell_has_completed(void) {
     mk_chess_spell_has_completed();
 }
 
-void _mk_chess_make_spellcaster(void) {
+static void _mk_chess_make_spellcaster(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_make_spellcaster(args->slots[0].pointer);
 }
 
-void _mk_chess_set_piece_event_script(void) {
+static void _mk_chess_set_piece_event_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_set_piece_event_script(args->slots[0].i, args->slots[1].i);
 }
 
-void _mk_chess_piece_test_and_set_timer(void) {
+static void _mk_chess_piece_test_and_set_timer(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = mk_chess_piece_test_and_set_timer(args->slots[0].i, args->slots[1].i);
 }
 
-void _mk_chess_deactivate_my_properties(void) {
+static void _mk_chess_deactivate_my_properties(void) {
     mk_chess_deactivate_my_properties();
 }
 
-void _mk_chess_ani_until_reached_destination(void) {
+static void _mk_chess_ani_until_reached_destination(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -7380,32 +7380,32 @@ void _mk_chess_ani_until_reached_destination(void) {
         args->slots[3].f, args->slots[4].f, args->slots[5].i);
 }
 
-void _mk_chess_rotate_towards_cell(void) {
+static void _mk_chess_rotate_towards_cell(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_rotate_towards_cell(args->slots[0].f, args->slots[1].f, args->slots[2].f, args->slots[3].i, args->slots[4].f);
 }
 
-void _mk_chess_request_piece_script_for_action(void) {
+static void _mk_chess_request_piece_script_for_action(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = mk_chess_request_piece_script_for_action(args->slots[0].i);
 }
 
-void _mk_chess_piece_is_idle(void) {
+static void _mk_chess_piece_is_idle(void) {
     mk_chess_piece_is_idle();
 }
 
-void _mk_chess_put_active_piece_at_cell(void) {
+static void _mk_chess_put_active_piece_at_cell(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_put_active_piece_at_cell(args->slots[0].f, args->slots[1].f, args->slots[2].i);
 }
 
-void _mk_chess_launch_n_land_ani_with_xz(void) {
+static void _mk_chess_launch_n_land_ani_with_xz(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -7417,99 +7417,99 @@ void _mk_chess_launch_n_land_ani_with_xz(void) {
         args->slots[12].u);
 }
 
-void _mk_chess_stop_me(void) {
+static void _mk_chess_stop_me(void) {
     mk_chess_stop_me();
 }
 
-void _mk_chess_get_piece_event_data(void) {
+static void _mk_chess_get_piece_event_data(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = mk_chess_get_piece_event_data(args->slots[0].i);
 }
 
-void _bgnd_active_sobj_no_ztest(void) {
+static void _bgnd_active_sobj_no_ztest(void) {
     bgnd_active_sobj_no_ztest();
 }
 
-void _mk_chess_set_cell_offset(void) {
+static void _mk_chess_set_cell_offset(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_set_cell_offset(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _mk_chess_force_away(void) {
+static void _mk_chess_force_away(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_force_away(args->slots[0].f, args->slots[1].i, args->slots[2].f, args->slots[3].i);
 }
 
-void _mk_chess_add_movement_skill(void) {
+static void _mk_chess_add_movement_skill(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_add_movement_skill(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i);
 }
 
-void _mk_chess_define_class_initial_power(void) {
+static void _mk_chess_define_class_initial_power(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_define_class_initial_power(current_args, args->slots[0].f);
 }
 
-void _mk_chess_activate_my_properties(void) {
+static void _mk_chess_activate_my_properties(void) {
     mk_chess_activate_my_properties();
 }
 
-void _mk_chess_wait_until_attack_cam_closes_in(void) {
+static void _mk_chess_wait_until_attack_cam_closes_in(void) {
     mk_chess_wait_until_attack_cam_closes_in();
 }
 
-void _mk_chess_snd_request(void) {
+static void _mk_chess_snd_request(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_snd_request(args->slots[0].i);
 }
 
-void _mk_chess_dont_constrain_piece(void) {
+static void _mk_chess_dont_constrain_piece(void) {
     mk_chess_dont_constrain_piece();
 }
 
-void _mk_chess_piece_match_y_ang_to_anim(void) {
+static void _mk_chess_piece_match_y_ang_to_anim(void) {
     mk_chess_piece_match_y_ang_to_anim();
 }
 
-void _mk_chess_check_glitch_into_stance(void) {
+static void _mk_chess_check_glitch_into_stance(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = mk_chess_check_glitch_into_stance();
 }
 
-void _mk_chess_set_glitch_stance_flag(void) {
+static void _mk_chess_set_glitch_stance_flag(void) {
     mk_chess_set_glitch_stance_flag();
 }
 
-void _mk_chess_glitch_to_ani_frame(void) {
+static void _mk_chess_glitch_to_ani_frame(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_glitch_to_ani_frame(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f);
 }
 
-void _mk_chess_set_ani_speed(void) {
+static void _mk_chess_set_ani_speed(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_set_ani_speed(current_args, args->slots[0].f);
 }
 
-void _bgnd_add_fx_to_hide(void) {
+static void _bgnd_add_fx_to_hide(void) {
     bgnd_add_fx_to_hide(get_script_string_arg(1));
 }
 
-void _mk_chess_place_special_cell_at(void) {
+static void _mk_chess_place_special_cell_at(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -7519,256 +7519,256 @@ void _mk_chess_place_special_cell_at(void) {
         args->slots[6].f, args->slots[7].i);
 }
 
-void _mk_chess_piece_event_from_script(void) {
+static void _mk_chess_piece_event_from_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_piece_event_from_script(args->slots[0].i);
 }
 
-void _mk_chess_blend_to_desired_cell_position_setting(void) {
+static void _mk_chess_blend_to_desired_cell_position_setting(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_blend_to_desired_cell_position_setting(current_args, args->slots[0].f);
 }
 
-void _mk_chess_blend_into_cell_orgin_in_x_frames_by_caller(void) {
+static void _mk_chess_blend_into_cell_orgin_in_x_frames_by_caller(void) {
     mk_chess_blend_into_cell_orgin_in_x_frames_by_caller();
 }
 
-void _mk_chess_set_obj_move_weight(void) {
+static void _mk_chess_set_obj_move_weight(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_set_obj_move_weight(current_args, args->slots[0].f);
 }
 
-void _mk_chess_snap_into_cell_orgin_over_x_frames(void) {
+static void _mk_chess_snap_into_cell_orgin_over_x_frames(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_snap_into_cell_orgin_over_x_frames(args->slots[0].f);
 }
 
-void _mk_chess_check_snap_into_stance(void) {
+static void _mk_chess_check_snap_into_stance(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = mk_chess_check_snap_into_stance();
 }
 
-void _mk_chess_snap_to_stance(void) {
+static void _mk_chess_snap_to_stance(void) {
     mk_chess_snap_to_stance();
 }
 
-void _mk_chess_blend_to_ani_frame(void) {
+static void _mk_chess_blend_to_ani_frame(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_blend_to_ani_frame(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f, args->slots[4].f);
 }
 
-void _mk_chess_blend_to_normal_stance(void) {
+static void _mk_chess_blend_to_normal_stance(void) {
     mk_chess_blend_to_normal_stance();
 }
 
-void _mk_chess_set_normal_stance_script(void) {
+static void _mk_chess_set_normal_stance_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_set_normal_stance_script(args->slots[0].i);
 }
 
-void _bgnd_kill_fx(void) {
+static void _bgnd_kill_fx(void) {
     bgnd_kill_fx(get_script_string_arg(1));
 }
 
-void _bgnd_no_z_test(void) {
+static void _bgnd_no_z_test(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_no_z_test(args->slots[0].i);
 }
 
-void _bgnd_get_active_sobj_pos(void) {
+static void _bgnd_get_active_sobj_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_get_active_sobj_pos((Vec*)args->slots[0].i);
 }
 
-void _mk_chess_set_piece_state(void) {
+static void _mk_chess_set_piece_state(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_set_piece_state(args->slots[0].i);
 }
 
-void _mk_chess_set_piece_type_as(void) {
+static void _mk_chess_set_piece_type_as(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_set_piece_type_as(args->slots[0].i, args->slots[1].i);
 }
 
-void _mk_chess_blend_into_cell_orgin_in_x_frames(void) {
+static void _mk_chess_blend_into_cell_orgin_in_x_frames(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_blend_into_cell_orgin_in_x_frames(args->slots[0].f);
 }
 
-void _mk_chess_ani_loop_more_frames(void) {
+static void _mk_chess_ani_loop_more_frames(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_ani_loop_more_frames(current_args, args->slots[0].f);
 }
 
-void _mk_chess_ani_idle(void) {
+static void _mk_chess_ani_idle(void) {
     mk_chess_ani_idle();
 }
 
-void _mk_chess_ani_to_blend_frame(void) {
+static void _mk_chess_ani_to_blend_frame(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_ani_to_blend_frame(current_args, args->slots[0].f);
 }
 
-void _mk_chess_ani_to_end(void) {
+static void _mk_chess_ani_to_end(void) {
     mk_chess_ani_to_end();
 }
 
-void _mk_chess_ani_1_frame(void) {
+static void _mk_chess_ani_1_frame(void) {
     mk_chess_ani_1_frame();
 }
 
-void _mk_chess_ani_to_frame_x(void) {
+static void _mk_chess_ani_to_frame_x(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_ani_to_frame_x(current_args, args->slots[0].f);
 }
 
-void _mk_chess_blend_to_ani(void) {
+static void _mk_chess_blend_to_ani(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_blend_to_ani(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f);
 }
 
-void _mk_chess_init_piece(void) {
+static void _mk_chess_init_piece(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_init_piece(args->slots[0].i, args->slots[1].i);
 }
 
-void _mk_chess_load_chess_table(void) {
+static void _mk_chess_load_chess_table(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mk_chess_load_chess_table(args->slots[0].pointer);
 }
 
-void _bgnd_enable_wall_hider(void) {
+static void _bgnd_enable_wall_hider(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_enable_wall_hider(args->slots[0].i);
 }
 
-void _bgnd_npc_set_pos_y(void) {
+static void _bgnd_npc_set_pos_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_npc_set_pos_y(args->slots[0].i, args->slots[1].f);
 }
 
-void _bgnd_npc_set_pos_vel_heading(void) {
+static void _bgnd_npc_set_pos_vel_heading(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_npc_set_pos_vel_heading(args->slots[0].i, args->slots[1].f);
 }
 
-void _bgnd_npc_set_pos_vel(void) {
+static void _bgnd_npc_set_pos_vel(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_npc_set_pos_vel(args->slots[0].i, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _bgnd_npc_get_ang_y(void) {
+static void _bgnd_npc_get_ang_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_npc_get_ang_y(args->slots[0].i);
 }
 
-void _bgnd_npc_adjust_y_ang(void) {
+static void _bgnd_npc_adjust_y_ang(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_npc_adjust_y_ang(args->slots[0].i, args->slots[1].f);
 }
 
-void _bgnd_npc_get_pos(void) {
+static void _bgnd_npc_get_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_npc_get_pos(args->slots[0].i, args->slots[1].pointer);
 }
 
-void _bgnd_npc_get_aux_int_data(void) {
+static void _bgnd_npc_get_aux_int_data(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = bgnd_npc_get_aux_int_data(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_npc_start_ani(void) {
+static void _bgnd_npc_start_ani(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_npc_start_ani(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].f, args->slots[4].f);
 }
 
-void _bgnd_npc_set_aux_int_data(void) {
+static void _bgnd_npc_set_aux_int_data(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_npc_set_aux_int_data(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _bgnd_add_scripted_brains_to_npc(void) {
+static void _bgnd_add_scripted_brains_to_npc(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_add_scripted_brains_to_npc(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_npc_set_y_ang(void) {
+static void _bgnd_npc_set_y_ang(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_npc_set_y_ang(args->slots[0].i, args->slots[1].f);
 }
 
-void _bgnd_npc_like_plyr(void) {
+static void _bgnd_npc_like_plyr(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_npc_like_plyr(args->slots[0].i);
 }
 
-void _bgnd_npc_set_scale(void) {
+static void _bgnd_npc_set_scale(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_npc_set_scale(args->slots[0].i, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _bgnd_create_named_npc_in_slot(void) {
+static void _bgnd_create_named_npc_in_slot(void) {
     struct ScriptRawArgs* current;
     struct ScriptRawArgs* saved;
     const char* name;
@@ -7781,65 +7781,65 @@ void _bgnd_create_named_npc_in_slot(void) {
         saved->slots[3].i);
 }
 
-void _bgnd_npc_set_pos(void) {
+static void _bgnd_npc_set_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_npc_set_pos(args->slots[0].i, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _danger_zone_eligible_on(void) {
+static void _danger_zone_eligible_on(void) {
     danger_zone_eligible_on();
 }
 
-void _bgnd_get_exec_tick_ctr(void) {
+static void _bgnd_get_exec_tick_ctr(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = bgnd_get_exec_tick_ctr();
 }
 
-void _start_sobj_launch_monitor(void) {
+static void _start_sobj_launch_monitor(void) {
     start_sobj_launch_monitor();
 }
 
-void _start_chunk_launch_monitor(void) {
+static void _start_chunk_launch_monitor(void) {
     start_chunk_launch_monitor();
 }
 
-void _snd_req_delay(void) {
+static void _snd_req_delay(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     snd_req_delay(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_set_material_color(void) {
+static void _bgnd_set_material_color(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_material_color(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i, args->slots[4].i, args->slots[5].i);
 }
 
-void _bgnd_set_fx_ang_y(void) {
+static void _bgnd_set_fx_ang_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_fx_ang_y(current_args, args->slots[0].f);
 }
 
-void _bgnd_launch_plyr_blood_fx(void) {
+static void _bgnd_launch_plyr_blood_fx(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_launch_plyr_blood_fx(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_sobj_set_priority(void) {
+static void _bgnd_sobj_set_priority(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_sobj_set_priority(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_pfxhandle_spawn_at_bid(void) {
+static void _bgnd_pfxhandle_spawn_at_bid(void) {
     struct ScriptRawArgs* args;
     const char* effect_name;
 
@@ -7851,7 +7851,7 @@ void _bgnd_pfxhandle_spawn_at_bid(void) {
             args->slots[2].i);
 }
 
-void _bgnd_launch_fx_at_bid_of_mkobj(void) {
+static void _bgnd_launch_fx_at_bid_of_mkobj(void) {
     struct ScriptRawArgs* args;
     const char* effect_name;
 
@@ -7862,55 +7862,55 @@ void _bgnd_launch_fx_at_bid_of_mkobj(void) {
         args->slots[2].i);
 }
 
-void _bgnd_launch_fx_at_plyr_bid(void) {
+static void _bgnd_launch_fx_at_plyr_bid(void) {
     bgnd_launch_fx_at_plyr_bid(
         get_script_string_arg(1),
         ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _cam_set_intro_cam_pause_ticks(void) {
+static void _cam_set_intro_cam_pause_ticks(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     cam_set_intro_cam_pause_ticks(args->slots[0].f);
 }
 
-void _bgnd_collision_if_monitor_col_as(void) {
+static void _bgnd_collision_if_monitor_col_as(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_collision_if_monitor_col_as(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i);
 }
 
-void _bgnd_pebble_burst_set_end_state(void) {
+static void _bgnd_pebble_burst_set_end_state(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_pebble_burst_set_end_state(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i);
 }
 
-void _bgnd_pebble_change_current_end_behavior(void) {
+static void _bgnd_pebble_change_current_end_behavior(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_pebble_change_current_end_behavior(args->slots[0].i);
 }
 
-void _bgnd_pebble_burst_set_value(void) {
+static void _bgnd_pebble_burst_set_value(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_pebble_burst_set_value(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i, current_args, args->slots[4].f, args->slots[5].f, args->slots[6].f, args->slots[7].f, args->slots[8].f, args->slots[9].f);
 }
 
-void _bgnd_pebble_burst_set_value_min_max(void) {
+static void _bgnd_pebble_burst_set_value_min_max(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_pebble_burst_set_value_min_max(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i, current_args, args->slots[4].f, args->slots[5].f);
 }
 
-void _bgnd_pebble_change_current_behavior_to_bounce(void) {
+static void _bgnd_pebble_change_current_behavior_to_bounce(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -7920,21 +7920,21 @@ void _bgnd_pebble_change_current_behavior_to_bounce(void) {
         args->slots[6].i, args->slots[7].i);
 }
 
-void _bgnd_start_preload_sobj_morph(void) {
+static void _bgnd_start_preload_sobj_morph(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_start_preload_sobj_morph(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i);
 }
 
-void _bgnd_start_preload_sobj_uv_scroll(void) {
+static void _bgnd_start_preload_sobj_uv_scroll(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_start_preload_sobj_uv_scroll(args->slots[0].i, args->slots[1].i, args->slots[2].f, args->slots[3].f, args->slots[4].f, args->slots[5].f);
 }
 
-void _bgnd_launch_fx_at_active_sobj_pos_with_offset(void) {
+static void _bgnd_launch_fx_at_active_sobj_pos_with_offset(void) {
     struct ScriptRawArgs* args;
     const char* effect_name;
 
@@ -7945,54 +7945,54 @@ void _bgnd_launch_fx_at_active_sobj_pos_with_offset(void) {
         args->slots[3].f);
 }
 
-void _bgnd_active_sobj_no_zwrite(void) {
+static void _bgnd_active_sobj_no_zwrite(void) {
     bgnd_active_sobj_no_zwrite();
 }
 
-void _bgnd_set_active_sobj_zoffset(void) {
+static void _bgnd_set_active_sobj_zoffset(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_active_sobj_zoffset(current_args, args->slots[0].f);
 }
 
-void _face_point(void) {
+static void _face_point(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     face_point(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _share_my_attack_info(void) {
+static void _share_my_attack_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     share_my_attack_info(current_args, args->slots[0].f, args->slots[1].f);
 }
 
-void _ani_with_pos(void) {
+static void _ani_with_pos(void) {
     ani_with_pos();
 }
 
-void _ani_no_pos(void) {
+static void _ani_no_pos(void) {
     ani_no_pos();
 }
 
-void _bgnd_pebble_burst_at_pebble_pos(void) {
+static void _bgnd_pebble_burst_at_pebble_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_pebble_burst_at_pebble_pos(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _bgnd_pebble_burst_at_pos(void) {
+static void _bgnd_pebble_burst_at_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_pebble_burst_at_pos(args->slots[0].i, args->slots[1].i, args->slots[2].i, current_args, args->slots[3].f, args->slots[4].f, args->slots[5].f);
 }
 
-void _nb_place_slave_in_bgnd(void) {
+static void _nb_place_slave_in_bgnd(void) {
     struct ScriptPlaceSlaveArgs* args;
     const char* name;
 
@@ -8006,109 +8006,109 @@ void _nb_place_slave_in_bgnd(void) {
         args->acceleration_divisor, args->acceleration_scale, args->field_8C);
 }
 
-void _nb_npc_slave_plyr_process_collision(void) {
+static void _nb_npc_slave_plyr_process_collision(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     nb_npc_slave_plyr_process_collision(args->slots[0].u);
 }
 
-void _bgnd_collision_if_enable_col(void) {
+static void _bgnd_collision_if_enable_col(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_collision_if_enable_col(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_collision_if_disable_col(void) {
+static void _bgnd_collision_if_disable_col(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_collision_if_disable_col(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_pebble_simple_launch_at_time(void) {
+static void _bgnd_pebble_simple_launch_at_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_pebble_simple_launch_at_time(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i);
 }
 
-void _bgnd_pebble_set_current_pebble(void) {
+static void _bgnd_pebble_set_current_pebble(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_pebble_set_current_pebble(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_remove_cracks(void) {
+static void _bgnd_remove_cracks(void) {
     bgnd_remove_cracks();
 }
 
-void _bgnd_pebble_rand_scale(void) {
+static void _bgnd_pebble_rand_scale(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_pebble_rand_scale(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f);
 }
 
-void _bgnd_pebble_burst_at_chunk_pos(void) {
+static void _bgnd_pebble_burst_at_chunk_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_pebble_burst_at_chunk_pos(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _bgnd_unhide_pebbles(void) {
+static void _bgnd_unhide_pebbles(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_unhide_pebbles(args->slots[0].i);
 }
 
-void _bgnd_hide_pebbles(void) {
+static void _bgnd_hide_pebbles(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_hide_pebbles(args->slots[0].i);
 }
 
-void _spad_set_heading_vector_to(void) {
+static void _spad_set_heading_vector_to(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     spad_set_heading_vector_to(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f);
 }
 
-void _degrees_to_rad(void) {
+static void _degrees_to_rad(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = degrees_to_rad(current_args, args->slots[0].f);
 }
 
-void _rad_to_degrees(void) {
+static void _rad_to_degrees(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = rad_to_degrees(current_args, args->slots[0].f);
 }
 
-void _bgnd_pebble_set_current_info(void) {
+static void _bgnd_pebble_set_current_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_pebble_set_current_info(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _bgnd_pebble_fetch_current_info(void) {
+static void _bgnd_pebble_fetch_current_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_pebble_fetch_current_info(args->slots[0].i);
 }
 
-void _bgnd_pebble_change_current_behavior(void) {
+static void _bgnd_pebble_change_current_behavior(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -8118,21 +8118,21 @@ void _bgnd_pebble_change_current_behavior(void) {
         args->slots[6].i, args->slots[7].i);
 }
 
-void _bgnd_init_pebbles(void) {
+static void _bgnd_init_pebbles(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_init_pebbles(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _bgnd_pebble_gravity(void) {
+static void _bgnd_pebble_gravity(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_pebble_gravity(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _get_sobj_pebble_obj(void) {
+static void _get_sobj_pebble_obj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -8140,7 +8140,7 @@ void _get_sobj_pebble_obj(void) {
         get_sobj_pebble_obj((MkSobj*)args->slots[0].i);
 }
 
-void _get_general_pebble_data(void) {
+static void _get_general_pebble_data(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -8148,14 +8148,14 @@ void _get_general_pebble_data(void) {
         get_general_pebble_data(args->slots[0].pointer);
 }
 
-void _ncs_create_pebble_monitor_proc(void) {
+static void _ncs_create_pebble_monitor_proc(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = ncs_create_pebble_monitor_proc(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i);
 }
 
-void _ncs_set_pebble_pos(void) {
+static void _ncs_set_pebble_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -8164,28 +8164,28 @@ void _ncs_set_pebble_pos(void) {
         (Vec*)args->slots[2].i);
 }
 
-void _ncs_create_pebbles_with_sobj(void) {
+static void _ncs_create_pebbles_with_sobj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = ncs_create_pebbles_with_sobj(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_create_pebbles_with_sobj(void) {
+static void _bgnd_create_pebbles_with_sobj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = bgnd_create_pebbles_with_sobj(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i);
 }
 
-void _bgnd_create_pebbles(void) {
+static void _bgnd_create_pebbles(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_create_pebbles(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i, args->slots[4].i);
 }
 
-void _bgnd_pebble_launch_at_time(void) {
+static void _bgnd_pebble_launch_at_time(void) {
     struct ScriptRawArgs* args;
     float sp8;
 
@@ -8199,51 +8199,51 @@ void _bgnd_pebble_launch_at_time(void) {
         args->slots[12].i);
 }
 
-void _bgnd_jtb_debug_info(void) {
+static void _bgnd_jtb_debug_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_jtb_debug_info(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _get_game_speed(void) {
+static void _get_game_speed(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f = get_game_speed();
 }
 
-void _get_soul_sine(void) {
+static void _get_soul_sine(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = get_soul_sine(args->slots[0].i);
 }
 
-void _bgnd_set_active_sobj_ang(void) {
+static void _bgnd_set_active_sobj_ang(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_active_sobj_ang(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _build_sine_table_for_scripts(void) {
+static void _build_sine_table_for_scripts(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = build_sine_table_for_scripts();
 }
 
-void _bgnd_is_active_sobj_hidden(void) {
+static void _bgnd_is_active_sobj_hidden(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = bgnd_is_active_sobj_hidden();
 }
 
-void _bgnd_set_fx_ang_dir_to_i_vector(void) {
+static void _bgnd_set_fx_ang_dir_to_i_vector(void) {
     bgnd_set_fx_ang_dir_to_i_vector();
 }
 
-void _bgnd_set_active_sobj_in_obj(void) {
+static void _bgnd_set_active_sobj_in_obj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_active_sobj_in_obj(args->slots[0].i, args->slots[1].i);
 }
 
-void _pfxhandle_bgnd_spawn_at_position(void) {
+static void _pfxhandle_bgnd_spawn_at_position(void) {
     struct ScriptRawArgs* args;
     const char* effect_name;
 
@@ -8255,13 +8255,13 @@ void _pfxhandle_bgnd_spawn_at_position(void) {
             args->slots[3].f);
 }
 
-void _bgnd_launch_fx_to_sobj(void) {
+static void _bgnd_launch_fx_to_sobj(void) {
     bgnd_launch_fx_to_sobj(
         get_script_string_arg(1),
         ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _bgnd_launch_fx_at_position(void) {
+static void _bgnd_launch_fx_at_position(void) {
     struct ScriptRawArgs* args;
     const char* effect_name;
 
@@ -8272,519 +8272,519 @@ void _bgnd_launch_fx_at_position(void) {
         args->slots[3].f);
 }
 
-void _bgnd_set_sobj_launch_params_exact(void) {
+static void _bgnd_set_sobj_launch_params_exact(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_sobj_launch_params_exact(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f, args->slots[4].f, args->slots[5].f, args->slots[6].f, args->slots[7].f);
 }
 
-void _load_script_as_reaction(void) {
+static void _load_script_as_reaction(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     load_script_as_reaction(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_collision_if_rx_override(void) {
+static void _bgnd_collision_if_rx_override(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_collision_if_rx_override(args->slots[0].i);
 }
 
-void _set_background_obstacle_disable_flag(void) {
+static void _set_background_obstacle_disable_flag(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_background_obstacle_disable_flag(args->slots[0].i, args->slots[1].i);
 }
 
-void _set_background_obstacle_repel_flag(void) {
+static void _set_background_obstacle_repel_flag(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_background_obstacle_repel_flag(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_collison_if_monitor_col(void) {
+static void _bgnd_collison_if_monitor_col(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_collison_if_monitor_col(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i, args->slots[4].i, args->slots[5].i, args->slots[6].i);
 }
 
-void _bgnd_collison_if_set_info(void) {
+static void _bgnd_collison_if_set_info(void) {
     bgnd_collison_if_set_info();
 }
 
-void _bgnd_collison_if_set_return_result(void) {
+static void _bgnd_collison_if_set_return_result(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_collison_if_set_return_result(args->slots[0].i);
 }
 
-void _bgnd_collison_if_to_scripts_activate(void) {
+static void _bgnd_collison_if_to_scripts_activate(void) {
     bgnd_collison_if_to_scripts_activate();
 }
 
-void _initialize_background_danger_zones(void) {
+static void _initialize_background_danger_zones(void) {
     initialize_background_danger_zones();
 }
 
-void _spad_xz_cos_two_vectors(void) {
+static void _spad_xz_cos_two_vectors(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = spad_xz_cos_two_vectors(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_timer_get_tick_count(void) {
+static void _bgnd_timer_get_tick_count(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = bgnd_timer_get_tick_count(args->slots[0].i);
 }
 
-void _spad_xz_length_vector(void) {
+static void _spad_xz_length_vector(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = spad_xz_length_vector(args->slots[0].i);
 }
 
-void _bgnd_current_rx_set_info(void) {
+static void _bgnd_current_rx_set_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_current_rx_set_info(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _bgnd_current_rx_get_info(void) {
+static void _bgnd_current_rx_get_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_current_rx_get_info(args->slots[0].i);
 }
 
-void _bgnd_setup_rx_handler(void) {
+static void _bgnd_setup_rx_handler(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_setup_rx_handler(args->slots[0].i);
 }
 
-void _bgnd_start_timer(void) {
+static void _bgnd_start_timer(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_start_timer(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _bgnd_kill_all_launched_sobjs(void) {
+static void _bgnd_kill_all_launched_sobjs(void) {
     bgnd_kill_all_launched_sobjs();
 }
 
-void _jump_towards_opponent_bgnd_transition(void) {
+static void _jump_towards_opponent_bgnd_transition(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f = jump_towards_opponent_bgnd_transition();
 }
 
-void _allow_shard_pfx_now(void) {
+static void _allow_shard_pfx_now(void) {
     allow_shard_pfx_now();
 }
 
-void _kill_shard_pfx_now(void) {
+static void _kill_shard_pfx_now(void) {
     kill_shard_pfx_now();
 }
 
-void _bgnd_set_fx_z_offset(void) {
+static void _bgnd_set_fx_z_offset(void) {
     const char* name = get_script_string_arg(1);
 
     bgnd_set_fx_z_offset(name,
         ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _bgnd_force_plyr_ground_plane(void) {
+static void _bgnd_force_plyr_ground_plane(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_force_plyr_ground_plane(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _bgnd_set_launch_velocity_based_on_sobj_pos(void) {
+static void _bgnd_set_launch_velocity_based_on_sobj_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_launch_velocity_based_on_sobj_pos(args->slots[0].i, args->slots[1].i, args->slots[2].i, current_args, args->slots[3].f, args->slots[4].f);
 }
 
-void _bgnd_update_active_mksobj(void) {
+static void _bgnd_update_active_mksobj(void) {
     bgnd_update_active_mksobj();
 }
 
-void _bgnd_shadow_control(void) {
+static void _bgnd_shadow_control(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_shadow_control(args->slots[0].i);
 }
 
-void _bgnd_set_plyr_gravity(void) {
+static void _bgnd_set_plyr_gravity(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_plyr_gravity(current_args, args->slots[0].f);
 }
 
-void _bgnd_move_player(void) {
+static void _bgnd_move_player(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_move_player(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _spad_sub_vectors(void) {
+static void _spad_sub_vectors(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     spad_sub_vectors(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _bgnd_act_at_time(void) {
+static void _bgnd_act_at_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_act_at_time(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f, args->slots[4].f);
 }
 
-void _bgnd_xfer_attacker(void) {
+static void _bgnd_xfer_attacker(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_xfer_attacker(args->slots[0].i);
 }
 
-void _spad_get_pos(void) {
+static void _spad_get_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = spad_get_pos(args->slots[0].i, args->slots[1].i);
 }
 
-void _sfrand(void) {
+static void _sfrand(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = sfrand(current_args, args->slots[0].f);
 }
 
-void _spad_add_vector(void) {
+static void _spad_add_vector(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     spad_add_vector(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _bgnd_launch_fx_at_plyr_pos_and_y(void) {
+static void _bgnd_launch_fx_at_plyr_pos_and_y(void) {
     bgnd_launch_fx_at_plyr_pos_and_y(
         get_script_string_arg(1),
         ((struct ScriptRawArgs*)current_args)->slots[1].f);
 }
 
-void _bgnd_start_cracks(void) {
+static void _bgnd_start_cracks(void) {
     bgnd_start_cracks();
 }
 
-void _bgnd_init_cracks(void) {
+static void _bgnd_init_cracks(void) {
     bgnd_init_cracks();
 }
 
-void _bgnd_place_crack_when_plyr_hits_ground(void) {
+static void _bgnd_place_crack_when_plyr_hits_ground(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_place_crack_when_plyr_hits_ground(args->slots[0].i);
 }
 
-void _plyr_get_pos(void) {
+static void _plyr_get_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = plyr_get_pos(args->slots[0].i);
 }
 
-void _bgnd_clean_up_floor(void) {
+static void _bgnd_clean_up_floor(void) {
     bgnd_clean_up_floor();
 }
 
-void _bgnd_allow_dirty_floor(void) {
+static void _bgnd_allow_dirty_floor(void) {
     bgnd_allow_dirty_floor();
 }
 
-void _cam_recalc_midpoint(void) {
+static void _cam_recalc_midpoint(void) {
     cam_recalc_midpoint();
 }
 
-void _camera_get_pos(void) {
+static void _camera_get_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = camera_get_pos(args->slots[0].i);
 }
 
-void _camera_set_movement_offset_explicit(void) {
+static void _camera_set_movement_offset_explicit(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_movement_offset_explicit(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _bgnd_force_ground_to(void) {
+static void _bgnd_force_ground_to(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_force_ground_to(current_args, args->slots[0].f);
 }
 
-void _camera_set_lookat_offset_explicit(void) {
+static void _camera_set_lookat_offset_explicit(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_lookat_offset_explicit(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _bgnd_run_camera_script(void) {
+static void _bgnd_run_camera_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_run_camera_script(args->slots[0].i, args->slots[1].i);
 }
 
-void _spad_set_y_angle_plus_offset_from_xz_vector(void) {
+static void _spad_set_y_angle_plus_offset_from_xz_vector(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     spad_set_y_angle_plus_offset_from_xz_vector(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _spad_set_vector_setting(void) {
+static void _spad_set_vector_setting(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     spad_set_vector_setting(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _bgnd_process_active_sobj_info(void) {
+static void _bgnd_process_active_sobj_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_process_active_sobj_info(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f);
 }
 
-void _bgnd_blood_control(void) {
+static void _bgnd_blood_control(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_blood_control(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
 }
 
-void _delete_obstacle_from_background_by_id(void) {
+static void _delete_obstacle_from_background_by_id(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     delete_obstacle_from_background_by_id(args->slots[0].i);
 }
 
-void _bgnd_make_displayed_item_pickupable_at_active_sobj_pos(void) {
+static void _bgnd_make_displayed_item_pickupable_at_active_sobj_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_make_displayed_item_pickupable_at_active_sobj_pos(args->slots[0].i);
 }
 
-void _bgnd_reset_sobj(void) {
+static void _bgnd_reset_sobj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_reset_sobj(args->slots[0].i);
 }
 
-void _restart_effect(void) {
+static void _restart_effect(void) {
     get_script_string_arg(1);
     restart_effect();
 }
 
-void _bgnd_set_active_sobj_rop(void) {
+static void _bgnd_set_active_sobj_rop(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_active_sobj_rop(args->slots[0].i);
 }
 
-void _bgnd_set_active_sobj_scale(void) {
+static void _bgnd_set_active_sobj_scale(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_active_sobj_scale(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _bgnd_set_active_sobj_pos(void) {
+static void _bgnd_set_active_sobj_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_active_sobj_pos(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _bgnd_set_active_sobj_pos_vel(void) {
+static void _bgnd_set_active_sobj_pos_vel(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_active_sobj_pos_vel(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _bgnd_apply_active_sobj_pos_vel_drag(void) {
+static void _bgnd_apply_active_sobj_pos_vel_drag(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_apply_active_sobj_pos_vel_drag(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _int_to_float(void) {
+static void _int_to_float(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = int_to_float(args->slots[0].i);
 }
 
-void _float_to_int(void) {
+static void _float_to_int(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = float_to_int(current_args, args->slots[0].f);
 }
 
-void _bgnd_set_sobj_launch_params(void) {
+static void _bgnd_set_sobj_launch_params(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_sobj_launch_params(args->slots[0].i, args->slots[1].i, args->slots[2].i, current_args, args->slots[3].f, args->slots[4].f, args->slots[5].f, args->slots[6].f, args->slots[7].f, args->slots[8].f, args->slots[9].f);
 }
 
-void _spad_scale_vector(void) {
+static void _spad_scale_vector(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     spad_scale_vector(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
 }
 
-void _spad_set_vector_y(void) {
+static void _spad_set_vector_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     spad_set_vector_y(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _bgnd_process_collision_info(void) {
+static void _bgnd_process_collision_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_process_collision_info(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f, args->slots[4].f, args->slots[5].f, args->slots[6].f, args->slots[7].f, args->slots[8].f);
 }
 
-void _bgnd_takeover_plyr(void) {
+static void _bgnd_takeover_plyr(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_takeover_plyr(args->slots[0].pointer);
 }
 
-void _spad_norm_vector(void) {
+static void _spad_norm_vector(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     spad_norm_vector(args->slots[0].i);
 }
 
-void _spad_rotate_xz_vector(void) {
+static void _spad_rotate_xz_vector(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     spad_rotate_xz_vector(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _spad_xz_dot_xz(void) {
+static void _spad_xz_dot_xz(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = spad_xz_dot_xz(args->slots[0].i, args->slots[1].i);
 }
 
-void _spad_set_vector(void) {
+static void _spad_set_vector(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     spad_set_vector(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_launch_sobj(void) {
+static void _bgnd_launch_sobj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_launch_sobj(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i, args->slots[4].i, args->slots[5].i, args->slots[6].f, args->slots[7].i);
 }
 
-void _bgnd_set_collision_plane_for_launched_sobj(void) {
+static void _bgnd_set_collision_plane_for_launched_sobj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_collision_plane_for_launched_sobj(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _bgnd_set_kill_plane_for_launched_sobj(void) {
+static void _bgnd_set_kill_plane_for_launched_sobj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_kill_plane_for_launched_sobj(args->slots[0].i);
 }
 
-void _bgnd_fade_object(void) {
+static void _bgnd_fade_object(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_fade_object(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _bgnd_get_sobj_ang_y(void) {
+static void _bgnd_get_sobj_ang_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_get_sobj_ang_y(args->slots[0].i);
 }
 
-void _bgnd_rotate_xz_about_orgin_active_sobj(void) {
+static void _bgnd_rotate_xz_about_orgin_active_sobj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_rotate_xz_about_orgin_active_sobj(args->slots[0].f);
 }
 
-void _bgnd_hide_active_sobj(void) {
+static void _bgnd_hide_active_sobj(void) {
     bgnd_hide_active_sobj();
 }
 
-void _bgnd_unhide_active_sobj(void) {
+static void _bgnd_unhide_active_sobj(void) {
     bgnd_unhide_active_sobj();
 }
 
-void _bgnd_set_active_sobj(void) {
+static void _bgnd_set_active_sobj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_active_sobj(args->slots[0].i);
 }
 
-void _bgnd_chunk_explosion_match_velocity_with_params(void) {
+static void _bgnd_chunk_explosion_match_velocity_with_params(void) {
     struct ScriptRawArgs* args;
     char* shard_name;
     float velocity_scale;
@@ -8802,22 +8802,22 @@ void _bgnd_chunk_explosion_match_velocity_with_params(void) {
         args->slots[6].i, args->slots[7].i);
 }
 
-void _bgnd_restore_player(void) {
+static void _bgnd_restore_player(void) {
     bgnd_restore_player();
 }
 
-void _dont_fence_plyr_in(void) {
+static void _dont_fence_plyr_in(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     dont_fence_plyr_in(args->slots[0].i);
 }
 
-void _bgnd_launch_plyr_up_and_forward_running(void) {
+static void _bgnd_launch_plyr_up_and_forward_running(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = bgnd_launch_plyr_up_and_forward_running();
 }
 
-void _bgnd_launch_plyr_up_and_forward(void) {
+static void _bgnd_launch_plyr_up_and_forward(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -8827,7 +8827,7 @@ void _bgnd_launch_plyr_up_and_forward(void) {
         args->slots[6].i);
 }
 
-void _bgnd_register_danger_zone_callback(void) {
+static void _bgnd_register_danger_zone_callback(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -8835,80 +8835,80 @@ void _bgnd_register_danger_zone_callback(void) {
         (PlyrPdata*)args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_swap_level(void) {
+static void _bgnd_swap_level(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_swap_level(args->slots[0].i);
 }
 
-void _bgnd_clean_beetlelair(void) {
+static void _bgnd_clean_beetlelair(void) {
     bgnd_clean_beetlelair();
 }
 
-void _start_bl_beetles_live_top_floor(void) {
+static void _start_bl_beetles_live_top_floor(void) {
     start_bl_beetles_live_top_floor();
 }
 
-void _pz_fighter_allow_easy_continuation(void) {
+static void _pz_fighter_allow_easy_continuation(void) {
     pz_fighter_allow_easy_continuation();
 }
 
-void _pz_fighter_reset_continuation(void) {
+static void _pz_fighter_reset_continuation(void) {
     pz_fighter_reset_continuation();
 }
 
-void _pz_fighter_disallow_continuation(void) {
+static void _pz_fighter_disallow_continuation(void) {
     pz_fighter_disallow_continuation();
 }
 
-void _pz_fighter_allow_continuation(void) {
+static void _pz_fighter_allow_continuation(void) {
     pz_fighter_allow_continuation();
 }
 
-void _bgnd_add_new_normal_check_for_hider(void) {
+static void _bgnd_add_new_normal_check_for_hider(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_add_new_normal_check_for_hider(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _bgnd_remove_wall_from_hider(void) {
+static void _bgnd_remove_wall_from_hider(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_remove_wall_from_hider(args->slots[0].i);
 }
 
-void _bgnd_add_wall_to_hide(void) {
+static void _bgnd_add_wall_to_hide(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_add_wall_to_hide(args->slots[0].i);
 }
 
-void _bgnd_add_wall_to_unhide(void) {
+static void _bgnd_add_wall_to_unhide(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_add_wall_to_unhide(args->slots[0].i);
 }
 
-void _bgnd_start_wall_hider(void) {
+static void _bgnd_start_wall_hider(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_start_wall_hider(args->slots[0].i);
 }
 
-void _bgnd_turn_off_backface_culling(void) {
+static void _bgnd_turn_off_backface_culling(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_turn_off_backface_culling(args->slots[0].i);
 }
 
-void _bgnd_sobj_cam_frustum_test_into_transparent(void) {
+static void _bgnd_sobj_cam_frustum_test_into_transparent(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -8916,7 +8916,7 @@ void _bgnd_sobj_cam_frustum_test_into_transparent(void) {
         args->slots[0].i, args->slots[1].f, args->slots[2].f);
 }
 
-void _obj_sobj_cam_frustum_test_into_transparent(void) {
+static void _obj_sobj_cam_frustum_test_into_transparent(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -8925,7 +8925,7 @@ void _obj_sobj_cam_frustum_test_into_transparent(void) {
         args->slots[2].f, args->slots[3].f);
 }
 
-void _bgnd_sobj_cam_volume_test_steer_over(void) {
+static void _bgnd_sobj_cam_volume_test_steer_over(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -8933,28 +8933,28 @@ void _bgnd_sobj_cam_volume_test_steer_over(void) {
         args->slots[0].i, args->slots[1].f, args->slots[2].f);
 }
 
-void _bgnd_rotate_sobj(void) {
+static void _bgnd_rotate_sobj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_rotate_sobj(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _bgnd_set_wall_hide_distance(void) {
+static void _bgnd_set_wall_hide_distance(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_wall_hide_distance(current_args, args->slots[0].f);
 }
 
-void _bgnd_set_new_ground_plane(void) {
+static void _bgnd_set_new_ground_plane(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_new_ground_plane(current_args, args->slots[0].f);
 }
 
-void _bgnd_place_weapon_at_position(void) {
+static void _bgnd_place_weapon_at_position(void) {
     struct ScriptPlaceWeaponArgs* args = (struct ScriptPlaceWeaponArgs*)current_args;
 
     bgnd_place_weapon_at_position(
@@ -8971,56 +8971,56 @@ void _bgnd_place_weapon_at_position(void) {
         args->collision_center.z, args->permanent);
 }
 
-void _bgnd_clean_slaughterhouse(void) {
+static void _bgnd_clean_slaughterhouse(void) {
     bgnd_clean_slaughterhouse();
 }
 
-void _bgnd_sh_level_2(void) {
+static void _bgnd_sh_level_2(void) {
     bgnd_sh_level_2();
 }
 
-void _bgnd_sh_level_1(void) {
+static void _bgnd_sh_level_1(void) {
     bgnd_sh_level_1();
 }
 
-void _bgnd_start_sh_fx(void) {
+static void _bgnd_start_sh_fx(void) {
     bgnd_start_sh_fx();
 }
 
-void _pz_fighter_reaction_xfer_him(void) {
+static void _pz_fighter_reaction_xfer_him(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     pz_fighter_reaction_xfer_him(args->slots[0].i);
 }
 
-void _pz_fighter_function(void) {
+static void _pz_fighter_function(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     pz_fighter_function(args->slots[0].i);
 }
 
-void _pz_fighter_fetch_distance_to_center_pos(void) {
+static void _pz_fighter_fetch_distance_to_center_pos(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f = pz_fighter_fetch_distance_to_center_pos();
 }
 
-void _set_anim_hiframe(void) {
+static void _set_anim_hiframe(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_anim_hiframe(args->slots[0].f);
 }
 
-void _bgnd_reg_col_cb_for_beetle_lair(void) {
+static void _bgnd_reg_col_cb_for_beetle_lair(void) {
     bgnd_reg_col_cb_for_beetle_lair();
 }
 
-void _pz_fighter_wipe_blood_off_hands(void) {
+static void _pz_fighter_wipe_blood_off_hands(void) {
     pz_fighter_wipe_blood_off_hands();
 }
 
-void _bgnd_get_preload_obj(void) {
+static void _bgnd_get_preload_obj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9028,7 +9028,7 @@ void _bgnd_get_preload_obj(void) {
         bgnd_get_preload_obj(args->slots[0].i);
 }
 
-void _bgnd_preload_named_model(void) {
+static void _bgnd_preload_named_model(void) {
     const char* model_name;
 
     model_name = get_script_string_arg(1);
@@ -9037,166 +9037,166 @@ void _bgnd_preload_named_model(void) {
             model_name, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-void _sobj_set_alpha(void) {
+static void _sobj_set_alpha(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     sobj_set_alpha(args->slots[0].i, args->slots[1].i);
 }
 
-void _obj_get_scale(void) {
+static void _obj_get_scale(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     obj_get_scale(args->slots[0].i, args->slots[1].i);
 }
 
-void _obj_set_scale(void) {
+static void _obj_set_scale(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     obj_set_scale(args->slots[0].pointer, args->slots[1].pointer);
 }
 
-void _bgnd_sobj_set_ani_framerate(void) {
+static void _bgnd_sobj_set_ani_framerate(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_sobj_set_ani_framerate(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
 }
 
-void _bgnd_sobj_set_ani_frame(void) {
+static void _bgnd_sobj_set_ani_frame(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_sobj_set_ani_frame(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _bgnd_sobj_set_alpha(void) {
+static void _bgnd_sobj_set_alpha(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_sobj_set_alpha(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_sobj_set_rel_pos(void) {
+static void _bgnd_sobj_set_rel_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_sobj_set_rel_pos(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _bgnd_sobj_set_ang(void) {
+static void _bgnd_sobj_set_ang(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_sobj_set_ang(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _bgnd_sobj_get_ang(void) {
+static void _bgnd_sobj_get_ang(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_sobj_get_ang(args->slots[0].i, (Vec*)args->slots[1].i);
 }
 
-void _bgnd_sobj_set_pos_vel(void) {
+static void _bgnd_sobj_set_pos_vel(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_sobj_set_pos_vel(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _bgnd_sobj_set_pos(void) {
+static void _bgnd_sobj_set_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_sobj_set_pos(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _bgnd_sobj_get_z_pos(void) {
+static void _bgnd_sobj_get_z_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_sobj_get_z_pos(args->slots[0].i);
 }
 
-void _bgnd_sobj_get_y_pos(void) {
+static void _bgnd_sobj_get_y_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_sobj_get_y_pos(args->slots[0].i);
 }
 
-void _bgnd_sobj_get_x_pos(void) {
+static void _bgnd_sobj_get_x_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_sobj_get_x_pos(args->slots[0].i);
 }
 
-void _bgnd_unhide_sobj_and_children(void) {
+static void _bgnd_unhide_sobj_and_children(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_unhide_sobj_and_children(args->slots[0].i);
 }
 
-void _bgnd_hide_sobj_and_children(void) {
+static void _bgnd_hide_sobj_and_children(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_hide_sobj_and_children(args->slots[0].i);
 }
 
-void _bgnd_unhide_sobj(void) {
+static void _bgnd_unhide_sobj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_unhide_sobj(args->slots[0].i);
 }
 
-void _bgnd_hide_sobj(void) {
+static void _bgnd_hide_sobj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_hide_sobj(args->slots[0].i);
 }
 
-void _head_tracking_on(void) {
+static void _head_tracking_on(void) {
     head_tracking_on();
 }
 
-void _head_tracking_off(void) {
+static void _head_tracking_off(void) {
     head_tracking_off();
 }
 
-void _load_aux_weapon(void) {
+static void _load_aux_weapon(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     load_aux_weapon(args->slots[0].pointer);
 }
 
-void _ani_loop_more_frames(void) {
+static void _ani_loop_more_frames(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ani_loop_more_frames(args->slots[0].f);
 }
 
-void _ani_1_frame(void) {
+static void _ani_1_frame(void) {
     ani_1_frame();
 }
 
-void _pz_fighter_force_reaction_in_ticks(void) {
+static void _pz_fighter_force_reaction_in_ticks(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     pz_fighter_force_reaction_in_ticks(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_replace_tex_with_wiff_and_ani(void) {
+static void _bgnd_replace_tex_with_wiff_and_ani(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9206,14 +9206,14 @@ void _bgnd_replace_tex_with_wiff_and_ani(void) {
         args->slots[4].i);
 }
 
-void _bgnd_pulsate_object_with_caps_and_scale(void) {
+static void _bgnd_pulsate_object_with_caps_and_scale(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_pulsate_object_with_caps_and_scale(args->slots[0].i, args->slots[1].i, args->slots[2].f, args->slots[3].i, args->slots[4].f, args->slots[5].i, args->slots[6].i, args->slots[7].f, args->slots[8].f, args->slots[9].f, args->slots[10].f, args->slots[11].f, args->slots[12].f);
 }
 
-void _bgnd_pulsate_object_with_caps(void) {
+static void _bgnd_pulsate_object_with_caps(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9223,63 +9223,63 @@ void _bgnd_pulsate_object_with_caps(void) {
         args->slots[6].i);
 }
 
-void _bgnd_pulsate_object(void) {
+static void _bgnd_pulsate_object(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_pulsate_object(args->slots[0].i, args->slots[1].i, args->slots[2].f, args->slots[3].i, args->slots[4].f);
 }
 
-void _bgnd_turn_on_backface_culling(void) {
+static void _bgnd_turn_on_backface_culling(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_turn_on_backface_culling(args->slots[0].i);
 }
 
-void _bgnd_no_z_write(void) {
+static void _bgnd_no_z_write(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_no_z_write(args->slots[0].i);
 }
 
-void _frand(void) {
+static void _frand(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = frand(current_args, args->slots[0].f);
 }
 
-void _plyr_start_script_in_plyr_pdata_proc(void) {
+static void _plyr_start_script_in_plyr_pdata_proc(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     plyr_start_script_in_plyr_pdata_proc(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _plyr_start_script_in_proc(void) {
+static void _plyr_start_script_in_proc(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     plyr_start_script_in_proc(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_always_face_y(void) {
+static void _bgnd_always_face_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_always_face_y(args->slots[0].i);
 }
 
-void _bgnd_apply_zoffset(void) {
+static void _bgnd_apply_zoffset(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_apply_zoffset(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _bgnd_start_sobj_uv_scroll(void) {
+static void _bgnd_start_sobj_uv_scroll(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9290,30 +9290,30 @@ void _bgnd_start_sobj_uv_scroll(void) {
         args->slots[5].i);
 }
 
-void _bgnd_create_sobjs(void) {
+static void _bgnd_create_sobjs(void) {
     bgnd_create_sobjs();
 }
 
-void _sobj_no_zwrite(void) {
+static void _sobj_no_zwrite(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     sobj_no_zwrite(args->slots[0].pointer);
 }
 
-void _register_baraka_cb_functions(void) {
+static void _register_baraka_cb_functions(void) {
     register_baraka_cb_functions();
 }
 
-void _start_baraka_blades_monitor(void) {
+static void _start_baraka_blades_monitor(void) {
     start_baraka_blades_monitor();
 }
 
-void _start_baraka_jaw_monitor(void) {
+static void _start_baraka_jaw_monitor(void) {
     start_baraka_jaw_monitor();
 }
 
-void _pz_fighter_inline_force_away_with_ani(void) {
+static void _pz_fighter_inline_force_away_with_ani(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9322,119 +9322,119 @@ void _pz_fighter_inline_force_away_with_ani(void) {
         args->slots[2].f, args->slots[3].u);
 }
 
-void _suspend_in_midair(void) {
+static void _suspend_in_midair(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     suspend_in_midair(current_args, args->slots[0].f);
 }
 
-void _snd_major_hit_voice(void) {
+static void _snd_major_hit_voice(void) {
     snd_major_hit_voice();
 }
 
-void _pz_fighter_shaking(void) {
+static void _pz_fighter_shaking(void) {
     pz_fighter_shaking();
 }
 
-void _pz_fighter_create_space_between_fighters(void) {
+static void _pz_fighter_create_space_between_fighters(void) {
     pz_fighter_create_space_between_fighters();
 }
 
-void _pz_fighter_force_repel_during_attack(void) {
+static void _pz_fighter_force_repel_during_attack(void) {
     pz_fighter_force_repel_during_attack();
 }
 
-void _pz_fighter_dont_fudge_desired_distance(void) {
+static void _pz_fighter_dont_fudge_desired_distance(void) {
     pz_fighter_dont_fudge_desired_distance();
 }
 
-void _pz_fighter_check_to_toggle_obj_and_ani_flips(void) {
+static void _pz_fighter_check_to_toggle_obj_and_ani_flips(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     pz_fighter_check_to_toggle_obj_and_ani_flips(args->slots[0].i);
 }
 
-void _pz_fighter_move_into_fighting_position(void) {
+static void _pz_fighter_move_into_fighting_position(void) {
     pz_fighter_move_into_fighting_position();
 }
 
-void _pz_fighter_release_other_player(void) {
+static void _pz_fighter_release_other_player(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     pz_fighter_release_other_player(args->slots[0].i);
 }
 
-void _pz_fighter_step_throw_into_check(void) {
+static void _pz_fighter_step_throw_into_check(void) {
     pz_fighter_step_throw_into_check();
 }
 
-void _pz_fighter_check_breakout(void) {
+static void _pz_fighter_check_breakout(void) {
     pz_fighter_check_breakout();
 }
 
-void _pz_fighter_long_exit(void) {
+static void _pz_fighter_long_exit(void) {
     pz_fighter_long_exit();
 }
 
-void _pz_fighter_exit(void) {
+static void _pz_fighter_exit(void) {
     pz_fighter_exit();
 }
 
-void _pz_fighter_register_move(void) {
+static void _pz_fighter_register_move(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     pz_fighter_register_move(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i, args->slots[4].i);
 }
 
-void _get_my_particle_player_bank_num(void) {
+static void _get_my_particle_player_bank_num(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_my_particle_player_bank_num();
 }
 
-void _flash_hit_at_bid_with_y(void) {
+static void _flash_hit_at_bid_with_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     flash_hit_at_bid_with_y(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _flash_hit_at_bid(void) {
+static void _flash_hit_at_bid(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     flash_hit_at_bid(args->slots[0].i);
 }
 
-void _fight_fx_im_hit_flash(void) {
+static void _fight_fx_im_hit_flash(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     fight_fx_im_hit_flash(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i, current_args, args->slots[4].f);
 }
 
-void _launch_fx_at_pos_with_obj(void) {
+static void _launch_fx_at_pos_with_obj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = launch_fx_at_pos_with_obj(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _low_flash_check(void) {
+static void _low_flash_check(void) {
     low_flash_check();
 }
 
-void _medium_flash_check(void) {
+static void _medium_flash_check(void) {
     medium_flash_check();
 }
 
-void _high_flash_check(void) {
+static void _high_flash_check(void) {
     high_flash_check();
 }
 
-void _bgnd_place_point_light_for_ticks(void) {
+static void _bgnd_place_point_light_for_ticks(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
 
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
@@ -9443,70 +9443,70 @@ void _bgnd_place_point_light_for_ticks(void) {
             args->slots[2].f, args->slots[3].i);
 }
 
-void _bgnd_delete_danger_zone(void) {
+static void _bgnd_delete_danger_zone(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_delete_danger_zone(args->slots[0].i);
 }
 
-void _bgnd_set_active_danger_zone(void) {
+static void _bgnd_set_active_danger_zone(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_active_danger_zone(args->slots[0].i);
 }
 
-void _bgnd_set_danger_zone_radius(void) {
+static void _bgnd_set_danger_zone_radius(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_danger_zone_radius(args->slots[0].f);
 }
 
-void _bgnd_set_viewing_of_danger_zones(void) {
+static void _bgnd_set_viewing_of_danger_zones(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_viewing_of_danger_zones(args->slots[0].i);
 }
 
-void _bgnd_set_danger_zone_y_angle(void) {
+static void _bgnd_set_danger_zone_y_angle(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_danger_zone_y_angle(args->slots[0].f);
 }
 
-void _bgnd_set_danger_zone_depth(void) {
+static void _bgnd_set_danger_zone_depth(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_danger_zone_depth(args->slots[0].f);
 }
 
-void _bgnd_set_danger_zone_width(void) {
+static void _bgnd_set_danger_zone_width(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_danger_zone_width(args->slots[0].f);
 }
 
-void _bgnd_set_danger_zone_center_position(void) {
+static void _bgnd_set_danger_zone_center_position(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_set_danger_zone_center_position(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _bgnd_enable_danger_zone(void) {
+static void _bgnd_enable_danger_zone(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_enable_danger_zone(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_create_danger_zone(void) {
+static void _bgnd_create_danger_zone(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9515,70 +9515,70 @@ void _bgnd_create_danger_zone(void) {
                             args->slots[4].i);
 }
 
-void _bgnd_place_object_at_position(void) {
+static void _bgnd_place_object_at_position(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_place_object_at_position(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i, args->slots[4].i);
 }
 
-void _do_i_have_life_left(void) {
+static void _do_i_have_life_left(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = do_i_have_life_left();
 }
 
-void _hide_player(void) {
+static void _hide_player(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     hide_player(args->slots[0].pointer, args->slots[1].i);
 }
 
-void _setup_for_flip_ani(void) {
+static void _setup_for_flip_ani(void) {
     setup_for_flip_ani();
 }
 
-void _get_victory_flip_flags(void) {
+static void _get_victory_flip_flags(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_victory_flip_flags();
 }
 
-void _obj_set_z_offsets(void) {
+static void _obj_set_z_offsets(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     obj_set_z_offsets(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _get_my_plyr_num(void) {
+static void _get_my_plyr_num(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_my_plyr_num();
 }
 
-void _do_victory_camera(void) {
+static void _do_victory_camera(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     do_victory_camera(args->slots[0].pointer);
 }
 
-void _unfreeze_player(void) {
+static void _unfreeze_player(void) {
     unfreeze_player();
 }
 
-void _turn_into_energy_player(void) {
+static void _turn_into_energy_player(void) {
     turn_into_energy_player();
 }
 
-void _is_blood_disabled(void) {
+static void _is_blood_disabled(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_blood_disabled();
 }
 
-void _plyr_get_f_constrained(void) {
+static void _plyr_get_f_constrained(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = plyr_get_f_constrained(args->slots[0].i);
 }
 
-void _move_player(void) {
+static void _move_player(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9586,14 +9586,14 @@ void _move_player(void) {
                 args->slots[2].pointer);
 }
 
-void _face_ang_from_pos_to_him(void) {
+static void _face_ang_from_pos_to_him(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     face_ang_from_pos_to_him(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _move_player_no_constrain_update(void) {
+static void _move_player_no_constrain_update(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9602,42 +9602,42 @@ void _move_player_no_constrain_update(void) {
                                    args->slots[2].pointer);
 }
 
-void _show_player(void) {
+static void _show_player(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     show_player(args->slots[0].pointer);
 }
 
-void _plyr_invulnerable_to_projectiles(void) {
+static void _plyr_invulnerable_to_projectiles(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     plyr_invulnerable_to_projectiles(args->slots[0].i, args->slots[1].i);
 }
 
-void _active_sidekick_swap_from_behind(void) {
+static void _active_sidekick_swap_from_behind(void) {
     struct ScriptPlyrPdataArgs* args;
 
     args = (struct ScriptPlyrPdataArgs*)current_args;
     active_sidekick_swap_from_behind(args->player);
 }
 
-void _active_sidekick_swap_from_sky(void) {
+static void _active_sidekick_swap_from_sky(void) {
     struct ScriptPlyrPdataArgs* args;
 
     args = (struct ScriptPlyrPdataArgs*)current_args;
     active_sidekick_swap_from_sky(args->player);
 }
 
-void _active_sidekick_swap_change_style(void) {
+static void _active_sidekick_swap_change_style(void) {
     struct ScriptPlyrPdataArgs* args;
 
     args = (struct ScriptPlyrPdataArgs*)current_args;
     active_sidekick_swap_change_style(args->player);
 }
 
-void _is_sidekick_active(void) {
+static void _is_sidekick_active(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9645,7 +9645,7 @@ void _is_sidekick_active(void) {
         is_sidekick_active(args->slots[0].pointer);
 }
 
-void _taunt_increase_life(void) {
+static void _taunt_increase_life(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9654,11 +9654,11 @@ void _taunt_increase_life(void) {
             args->slots[0].f, args->slots[1].f);
 }
 
-void _get_collision_result(void) {
+static void _get_collision_result(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_collision_result();
 }
 
-void _general_flash_fx(void) {
+static void _general_flash_fx(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9668,11 +9668,11 @@ void _general_flash_fx(void) {
         args->slots[4].i, args->slots[5].f);
 }
 
-void _get_kombat_difficulty(void) {
+static void _get_kombat_difficulty(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_kombat_difficulty();
 }
 
-void _uv_my_angle_y(void) {
+static void _uv_my_angle_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9680,7 +9680,7 @@ void _uv_my_angle_y(void) {
         args->slots[0].pointer, args->slots[1].f);
 }
 
-void _obj_set_flipped_bones(void) {
+static void _obj_set_flipped_bones(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9688,56 +9688,56 @@ void _obj_set_flipped_bones(void) {
         args->slots[0].pointer, args->slots[1].pointer);
 }
 
-void _run_camera_script(void) {
+static void _run_camera_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     run_camera_script(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _am_i_airborn_check_in_reaction(void) {
+static void _am_i_airborn_check_in_reaction(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = am_i_airborn_check_in_reaction();
 }
 
-void _obj_enable_grounding(void) {
+static void _obj_enable_grounding(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     obj_enable_grounding(args->slots[0].i);
 }
 
-void _camera_idle(void) {
+static void _camera_idle(void) {
     camera_idle();
 }
 
-void _drone_ai_increase_big_boss_stage(void) {
+static void _drone_ai_increase_big_boss_stage(void) {
     struct ScriptPlyrPdataArgs* args;
 
     args = (struct ScriptPlyrPdataArgs*)current_args;
     drone_ai_increase_big_boss_stage(args->player);
 }
 
-void _pz_finish_him_request(void) {
+static void _pz_finish_him_request(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = pz_finish_him_request();
 }
 
-void _pz_fighter_create_space_between_fighters_for_special_moves(void) {
+static void _pz_fighter_create_space_between_fighters_for_special_moves(void) {
     pz_fighter_create_space_between_fighters_for_special_moves();
 }
 
-void _freeze_player(void) {
+static void _freeze_player(void) {
     freeze_player();
 }
 
-void _get_his_previous_state(void) {
+static void _get_his_previous_state(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_his_previous_state();
 }
 
-void _get_his_secondary_state(void) {
+static void _get_his_secondary_state(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_his_secondary_state();
 }
 
-void _pebble_get_pos(void) {
+static void _pebble_get_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9745,37 +9745,37 @@ void _pebble_get_pos(void) {
                    (Vec*)args->slots[2].i);
 }
 
-void _is_big_boss(void) {
+static void _is_big_boss(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_big_boss(args->slots[0].i);
 }
 
-void _is_load_meter_active(void) {
+static void _is_load_meter_active(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_load_meter_active();
 }
 
-void _plyr_snd_req_no_plyr_proc(void) {
+static void _plyr_snd_req_no_plyr_proc(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.u = plyr_snd_req_no_plyr_proc(args->slots[0].pointer, args->slots[1].i);
 }
 
-void _noobsmoke_sidekick_double_charge(void) {
+static void _noobsmoke_sidekick_double_charge(void) {
     noobsmoke_sidekick_double_charge();
 }
 
-void _noobsmoke_sidekick_projectile(void) {
+static void _noobsmoke_sidekick_projectile(void) {
     noobsmoke_sidekick_projectile();
 }
 
-void _forced_step_forward(void) {
+static void _forced_step_forward(void) {
     forced_step_forward();
 }
 
-void _start_projectile_from_sidekick_bone(void) {
+static void _start_projectile_from_sidekick_bone(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
     MkObj* projectile = start_projectile_from_sidekick_bone(
         args->slots[0].i, args->slots[1].pointer, get_script_string_arg(3),
@@ -9784,37 +9784,37 @@ void _start_projectile_from_sidekick_bone(void) {
     ((struct ScriptMkObjResult*)active_cmdscript)->value = projectile;
 }
 
-void _noobsmoke_fire_projectile_request(void) {
+static void _noobsmoke_fire_projectile_request(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = noobsmoke_fire_projectile_request();
 }
 
-void _smoke_victory_entrance(void) {
+static void _smoke_victory_entrance(void) {
     smoke_victory_entrance();
 }
 
-void _noob_victory_entrance(void) {
+static void _noob_victory_entrance(void) {
     noob_victory_entrance();
 }
 
-void _sidekick_switch_style_swap(void) {
+static void _sidekick_switch_style_swap(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     sidekick_switch_style_swap(args->slots[0].f, args->slots[1].u);
 }
 
-void _dk_voice_call(void) {
+static void _dk_voice_call(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     dk_voice_call(args->slots[0].i, args->slots[1].i);
 }
 
-void _dk_taunt_at_screen(void) {
+static void _dk_taunt_at_screen(void) {
     dk_taunt_at_screen();
 }
 
-void _special_move_cam_setup2(void) {
+static void _special_move_cam_setup2(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9825,14 +9825,14 @@ void _special_move_cam_setup2(void) {
         args->slots[9].pointer);
 }
 
-void _rd_set_impact_vector(void) {
+static void _rd_set_impact_vector(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     rd_set_impact_vector(current_args, args->slots[0].f);
 }
 
-void _get_plyr_pdata_plyr_num(void) {
+static void _get_plyr_pdata_plyr_num(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9840,7 +9840,7 @@ void _get_plyr_pdata_plyr_num(void) {
         get_plyr_pdata_plyr_num(args->slots[0].i);
 }
 
-void _is_special_move_available(void) {
+static void _is_special_move_available(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -9850,179 +9850,179 @@ void _is_special_move_available(void) {
             args->slots[1].i);
 }
 
-void _retract_spear_from_camera(void) {
+static void _retract_spear_from_camera(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     retract_spear_from_camera(args->slots[0].pointer);
 }
 
-void _fire_spear_at_camera(void) {
+static void _fire_spear_at_camera(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = fire_spear_at_camera(args->slots[0].i, args->slots[1].i);
 }
 
-void _kick_the_camera(void) {
+static void _kick_the_camera(void) {
     kick_the_camera();
 }
 
-void _random_dk_foot(void) {
+static void _random_dk_foot(void) {
     random_dk_foot();
 }
 
-void _stop_vomit_slip_sound(void) {
+static void _stop_vomit_slip_sound(void) {
     stop_vomit_slip_sound();
 }
 
-void _drone_ai_should_ermac_fly_kick(void) {
+static void _drone_ai_should_ermac_fly_kick(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = drone_ai_should_ermac_fly_kick();
 }
 
-void _drone_ai_should_ermac_ground_slam(void) {
+static void _drone_ai_should_ermac_ground_slam(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = drone_ai_should_ermac_ground_slam();
 }
 
-void _clear_his_f_constrained(void) {
+static void _clear_his_f_constrained(void) {
     clear_his_f_constrained();
 }
 
-void _idle_his_anim_proc(void) {
+static void _idle_his_anim_proc(void) {
     idle_his_anim_proc();
 }
 
-void _set_active_projectile_block_script(void) {
+static void _set_active_projectile_block_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_active_projectile_block_script(args->slots[0].i);
 }
 
-void _bgnd_get_obj_pointer(void) {
+static void _bgnd_get_obj_pointer(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = bgnd_get_obj_pointer(args->slots[0].i);
 }
 
-void _bgnd_get_anim_info(void) {
+static void _bgnd_get_anim_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_get_anim_info(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
 }
 
-void _is_character_unlocked_in_profile(void) {
+static void _is_character_unlocked_in_profile(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_character_unlocked_in_profile(args->slots[0].i, args->slots[1].i);
 }
 
-void _mini_mission_inactive(void) {
+static void _mini_mission_inactive(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mini_mission_inactive(args->slots[0].i);
 }
 
-void _mini_mission_completed(void) {
+static void _mini_mission_completed(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mini_mission_completed(args->slots[0].i);
 }
 
-void _start_mini_mission(void) {
+static void _start_mini_mission(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     start_mini_mission(args->slots[0].i);
 }
 
-void _is_mini_mission_started(void) {
+static void _is_mini_mission_started(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_mini_mission_started(args->slots[0].i);
 }
 
-void _is_mini_mission_active(void) {
+static void _is_mini_mission_active(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_mini_mission_active(args->slots[0].i);
 }
 
-void _is_mini_mission_completed(void) {
+static void _is_mini_mission_completed(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_mini_mission_completed(args->slots[0].i);
 }
 
-void _player_add_item_to_inventory(void) {
+static void _player_add_item_to_inventory(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     player_add_item_to_inventory(args->slots[0].i);
 }
 
-void _player_remove_item_from_inventory(void) {
+static void _player_remove_item_from_inventory(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     player_remove_item_from_inventory(args->slots[0].i);
 }
 
-void _player_has_item(void) {
+static void _player_has_item(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = player_has_item(args->slots[0].i);
 }
 
-void _add_to_konq_profile_value(void) {
+static void _add_to_konq_profile_value(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     add_to_konq_profile_value(args->slots[0].i, args->slots[1].i);
 }
 
-void _get_last_character_trained_with(void) {
+static void _get_last_character_trained_with(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_last_character_trained_with();
 }
 
-void _set_last_character_trained_with(void) {
+static void _set_last_character_trained_with(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_last_character_trained_with(args->slots[0].i);
 }
 
-void _get_konq_profile_value(void) {
+static void _get_konq_profile_value(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_konq_profile_value(args->slots[0].i, args->slots[1].i);
 }
 
-void _set_konq_profile_value(void) {
+static void _set_konq_profile_value(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_konq_profile_value(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _set_pui_status(void) {
+static void _set_pui_status(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_pui_status(args->slots[0].pointer, args->slots[1].i);
 }
 
-void _get_pui_status(void) {
+static void _get_pui_status(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10030,21 +10030,21 @@ void _get_pui_status(void) {
         get_pui_status(args->slots[0].pointer);
 }
 
-void _hf_bgnd_set_in_setup_zone(void) {
+static void _hf_bgnd_set_in_setup_zone(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     hf_bgnd_set_in_setup_zone(args->slots[0].i, args->slots[1].i);
 }
 
-void _hf_bgnd_set_smasher_mode(void) {
+static void _hf_bgnd_set_smasher_mode(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     hf_bgnd_set_smasher_mode(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_set_player_shadow_ground_plane(void) {
+static void _bgnd_set_player_shadow_ground_plane(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10052,38 +10052,38 @@ void _bgnd_set_player_shadow_ground_plane(void) {
         args->slots[0].i, args->slots[1].f);
 }
 
-void _bgnd_end_the_game_and_restart(void) {
+static void _bgnd_end_the_game_and_restart(void) {
     bgnd_end_the_game_and_restart();
 }
 
-void _bgnd_pfx_resume_effect(void) {
+static void _bgnd_pfx_resume_effect(void) {
     bgnd_pfx_resume_effect(get_script_string_arg(1));
 }
 
-void _bgnd_pfx_reset_effect(void) {
+static void _bgnd_pfx_reset_effect(void) {
     bgnd_pfx_reset_effect(get_script_string_arg(1));
 }
 
-void _bgnd_reset_players_animation_height(void) {
+static void _bgnd_reset_players_animation_height(void) {
     bgnd_reset_players_animation_height();
 }
 
-void _nbc_script_debug_point(void) {
+static void _nbc_script_debug_point(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     nbc_script_debug_point(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
 }
 
-void _bgnd_unhide_mirror_guys(void) {
+static void _bgnd_unhide_mirror_guys(void) {
     bgnd_unhide_mirror_guys();
 }
 
-void _bgnd_hide_mirror_guys(void) {
+static void _bgnd_hide_mirror_guys(void) {
     bgnd_hide_mirror_guys();
 }
 
-void _bgnd_set_sobj_uv_scroll_abs_values(void) {
+static void _bgnd_set_sobj_uv_scroll_abs_values(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10093,7 +10093,7 @@ void _bgnd_set_sobj_uv_scroll_abs_values(void) {
         args->slots[4].i);
 }
 
-void _bgnd_set_sobj_uv_scroll_rate_values(void) {
+static void _bgnd_set_sobj_uv_scroll_rate_values(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10103,18 +10103,18 @@ void _bgnd_set_sobj_uv_scroll_rate_values(void) {
         args->slots[4].i);
 }
 
-void _bgnd_init_all_uv_scroll_w_control(void) {
+static void _bgnd_init_all_uv_scroll_w_control(void) {
     bgnd_init_all_uv_scroll_w_control();
 }
 
-void _bgnd_destroy_sobj_uv_scroll_w_control(void) {
+static void _bgnd_destroy_sobj_uv_scroll_w_control(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_destroy_sobj_uv_scroll_w_control(args->slots[0].i);
 }
 
-void _bgnd_start_sobj_uv_scroll_w_control(void) {
+static void _bgnd_start_sobj_uv_scroll_w_control(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10126,136 +10126,136 @@ void _bgnd_start_sobj_uv_scroll_w_control(void) {
             args->slots[6].i);
 }
 
-void _sh_lower_level_pebble_unhide(void) {
+static void _sh_lower_level_pebble_unhide(void) {
     sh_lower_level_pebble_unhide();
 }
 
-void _sh_lower_level_pebble_hide(void) {
+static void _sh_lower_level_pebble_hide(void) {
     sh_lower_level_pebble_hide();
 }
 
-void _bgnd_get_camera_z_pos(void) {
+static void _bgnd_get_camera_z_pos(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_get_camera_z_pos();
 }
 
-void _bgnd_get_camera_y_angle(void) {
+static void _bgnd_get_camera_y_angle(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_get_camera_y_angle();
 }
 
-void _bgnd_delete_proc_by_id(void) {
+static void _bgnd_delete_proc_by_id(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_delete_proc_by_id(args->slots[0].i);
 }
 
-void _bgnd_start_script_in_proc_bigstack(void) {
+static void _bgnd_start_script_in_proc_bigstack(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_start_script_in_proc_bigstack(args->slots[0].i, args->slots[1].i);
 }
 
-void _bgnd_start_script_in_proc(void) {
+static void _bgnd_start_script_in_proc(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bgnd_start_script_in_proc(args->slots[0].i, args->slots[1].i);
 }
 
-void _npc_run_shove_animation(void) {
+static void _npc_run_shove_animation(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_run_shove_animation(args->slots[0].i);
 }
 
-void _npc_shove_reaction_standard_shutdown(void) {
+static void _npc_shove_reaction_standard_shutdown(void) {
     npc_shove_reaction_standard_shutdown();
 }
 
-void _npc_shove_reaction_standard_setup(void) {
+static void _npc_shove_reaction_standard_setup(void) {
     npc_shove_reaction_standard_setup();
 }
 
-void _npc_punch_reaction_standard_shutdown(void) {
+static void _npc_punch_reaction_standard_shutdown(void) {
     npc_punch_reaction_standard_shutdown();
 }
 
-void _npc_prepare_for_unconscious_state(void) {
+static void _npc_prepare_for_unconscious_state(void) {
     npc_prepare_for_unconscious_state();
 }
 
-void _npc_punch_reaction_standard_setup(void) {
+static void _npc_punch_reaction_standard_setup(void) {
     npc_punch_reaction_standard_setup();
 }
 
-void _npc_get_collision_direction_in_script(void) {
+static void _npc_get_collision_direction_in_script(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = npc_get_collision_direction_in_script();
 }
 
-void _npc_punch_reaction_check_data(void) {
+static void _npc_punch_reaction_check_data(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = npc_punch_reaction_check_data();
 }
 
-void _npc_run_punch_animation(void) {
+static void _npc_run_punch_animation(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_run_punch_animation(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i, current_args, args->slots[4].f);
 }
 
-void _npc_snap_to_face_monk(void) {
+static void _npc_snap_to_face_monk(void) {
     npc_snap_to_face_monk();
 }
 
-void _interior_exit_button_script(void) {
+static void _interior_exit_button_script(void) {
     interior_exit_button_script();
 }
 
-void _get_ir_cam_ang_z(void) {
+static void _get_ir_cam_ang_z(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = get_ir_cam_ang_z(args->slots[0].i);
 }
 
-void _get_ir_cam_ang_y(void) {
+static void _get_ir_cam_ang_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = get_ir_cam_ang_y(args->slots[0].i);
 }
 
-void _get_ir_cam_ang_x(void) {
+static void _get_ir_cam_ang_x(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = get_ir_cam_ang_x(args->slots[0].i);
 }
 
-void _get_ir_cam_pos_z(void) {
+static void _get_ir_cam_pos_z(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = get_ir_cam_pos_z(args->slots[0].i);
 }
 
-void _get_ir_cam_pos_y(void) {
+static void _get_ir_cam_pos_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = get_ir_cam_pos_y(args->slots[0].i);
 }
 
-void _get_ir_cam_pos_x(void) {
+static void _get_ir_cam_pos_x(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.f = get_ir_cam_pos_x(args->slots[0].i);
 }
 
-void _start_konquest_interior(void) {
+static void _start_konquest_interior(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10269,127 +10269,127 @@ void _start_konquest_interior(void) {
         args->slots[6].i);
 }
 
-void _refresh_rate(void) {
+static void _refresh_rate(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = refresh_rate();
 }
 
-void _show_shujinko_unlock_screen(void) {
+static void _show_shujinko_unlock_screen(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     show_shujinko_unlock_screen(args->slots[0].i);
 }
 
-void _trial_register_special_move(void) {
+static void _trial_register_special_move(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_register_special_move(args->slots[0].i);
 }
 
-void _trial_invisible_callback(void) {
+static void _trial_invisible_callback(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = trial_invisible_callback(args->slots[0].i);
 }
 
-void _trial_set_special_restrictions(void) {
+static void _trial_set_special_restrictions(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_set_special_restrictions(args->slots[0].i);
 }
 
-void _drone_set_handicap(void) {
+static void _drone_set_handicap(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     drone_set_handicap(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _drone_start_bleeding(void) {
+static void _drone_start_bleeding(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     drone_start_bleeding(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _drone_set_damage_multiplier(void) {
+static void _drone_set_damage_multiplier(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     drone_set_damage_multiplier(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _release_kamidogu(void) {
+static void _release_kamidogu(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     release_kamidogu(args->slots[0].i, args->slots[1].i);
 }
 
-void _start_constrain_proc(void) {
+static void _start_constrain_proc(void) {
     start_constrain_proc();
 }
 
-void _credits_add_text(void) {
+static void _credits_add_text(void) {
     credits_add_text(
         get_script_string_arg(1), get_script_string_arg(2),
         ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-void _trial_state_collision_check(void) {
+static void _trial_state_collision_check(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_state_collision_check(args->slots[0].i, args->slots[1].i);
 }
 
-void _trial_debug_mission_list(void) {
+static void _trial_debug_mission_list(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_debug_mission_list(args->slots[0].i);
 }
 
-void _trial_get_background_root(void) {
+static void _trial_get_background_root(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = trial_get_background_root();
 }
 
-void _build_bones_tbl(void) {
+static void _build_bones_tbl(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = build_bones_tbl(args->slots[0].pointer, args->slots[1].pointer);
 }
 
-void _play_background_music(void) {
+static void _play_background_music(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     play_background_music(args->slots[0].i);
 }
 
-void _give_koin_award(void) {
+static void _give_koin_award(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     give_koin_award(args->slots[0].i, args->slots[1].i);
 }
 
-void _konquest_run_ending(void) {
+static void _konquest_run_ending(void) {
     konquest_run_ending();
 }
 
-void _trial_set_round_health_restoration(void) {
+static void _trial_set_round_health_restoration(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_set_round_health_restoration(current_args, args->slots[0].f);
 }
 
-void _camera_set_anim_aux_data(void) {
+static void _camera_set_anim_aux_data(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10397,29 +10397,29 @@ void _camera_set_anim_aux_data(void) {
         args->slots[0].pointer);
 }
 
-void _trial_mirror_anims_if_needed(void) {
+static void _trial_mirror_anims_if_needed(void) {
     trial_mirror_anims_if_needed();
 }
 
-void _current_player_is_drone(void) {
+static void _current_player_is_drone(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = current_player_is_drone();
 }
 
-void _drone_apply_damage(void) {
+static void _drone_apply_damage(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     drone_apply_damage(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _drone_set_special_directions(void) {
+static void _drone_set_special_directions(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     drone_set_special_directions(args->slots[0].i, args->slots[1].i);
 }
 
-void _drone_set_position(void) {
+static void _drone_set_position(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10427,28 +10427,28 @@ void _drone_set_position(void) {
                        args->slots[2].f, args->slots[3].f);
 }
 
-void _drone_set_health(void) {
+static void _drone_set_health(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     drone_set_health(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _drone_do_special_move(void) {
+static void _drone_do_special_move(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     drone_do_special_move(args->slots[0].i, args->slots[1].i);
 }
 
-void _drone_change_to_style(void) {
+static void _drone_change_to_style(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     drone_change_to_style(args->slots[0].i, args->slots[1].i);
 }
 
-void _drone_lip_synch(void) {
+static void _drone_lip_synch(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10456,14 +10456,14 @@ void _drone_lip_synch(void) {
                     args->slots[1].pointer);
 }
 
-void _trial_show_monk(void) {
+static void _trial_show_monk(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_show_monk(args->slots[0].i);
 }
 
-void _show_text(void) {
+static void _show_text(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10473,39 +10473,39 @@ void _show_text(void) {
         args->slots[6].i, args->slots[7].i);
 }
 
-void _trial_set_next_mission(void) {
+static void _trial_set_next_mission(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_set_next_mission(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i, args->slots[4].i, args->slots[5].i, args->slots[6].i, args->slots[7].i);
 }
 
-void _trial_setup_nis_scene(void) {
+static void _trial_setup_nis_scene(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_setup_nis_scene(args->slots[0].i);
 }
 
-void _drone_set_anim_step(void) {
+static void _drone_set_anim_step(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     drone_set_anim_step(current_args, args->slots[0].f);
 }
 
-void _drone_face_monk(void) {
+static void _drone_face_monk(void) {
     drone_face_monk();
 }
 
-void _drone_set_script(void) {
+static void _drone_set_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     drone_set_script(args->slots[0].i, args->slots[1].i);
 }
 
-void _trial_do_dialog(void) {
+static void _trial_do_dialog(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10516,32 +10516,32 @@ void _trial_do_dialog(void) {
         args->slots[6].i);
 }
 
-void _drone_set_difficulty_level(void) {
+static void _drone_set_difficulty_level(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     drone_set_difficulty_level(args->slots[0].i);
 }
 
-void _drone_dispatch_switches(void) {
+static void _drone_dispatch_switches(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     drone_dispatch_switches(args->slots[0].i);
 }
 
-void _drone_set_switch_state(void) {
+static void _drone_set_switch_state(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     drone_set_switch_state(args->slots[0].i, args->slots[1].i);
 }
 
-void _trial_restart_round(void) {
+static void _trial_restart_round(void) {
     trial_restart_round();
 }
 
-void _trial_start_countdown(void) {
+static void _trial_start_countdown(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10550,31 +10550,31 @@ void _trial_start_countdown(void) {
                           args->slots[2].f);
 }
 
-void _trial_set_move_message(void) {
+static void _trial_set_move_message(void) {
     trial_set_move_message(
         get_script_string_arg(1), get_script_string_arg(2));
 }
 
-void _trial_set_next_setup_function(void) {
+static void _trial_set_next_setup_function(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_set_next_setup_function(args->slots[0].i);
 }
 
-void _trial_set_combo_requirement(void) {
+static void _trial_set_combo_requirement(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_set_combo_requirement(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _trial_add_required_sequence(void) {
+static void _trial_add_required_sequence(void) {
     trial_add_required_sequence(
         get_script_string_arg(1), get_script_string_arg(2));
 }
 
-void _trial_setup_onscreen_display_items(void) {
+static void _trial_setup_onscreen_display_items(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10583,21 +10583,21 @@ void _trial_setup_onscreen_display_items(void) {
         get_script_string_arg(3));
 }
 
-void _trial_add_success_condition(void) {
+static void _trial_add_success_condition(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_add_success_condition(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _trial_set_type(void) {
+static void _trial_set_type(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_set_type(args->slots[0].i);
 }
 
-void _trial_show_spoken_text_window(void) {
+static void _trial_show_spoken_text_window(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10612,7 +10612,7 @@ void _trial_show_spoken_text_window(void) {
                                   args->slots[8].i);
 }
 
-void _trial_show_text_window(void) {
+static void _trial_show_text_window(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10621,35 +10621,35 @@ void _trial_show_text_window(void) {
         args->slots[3].f, args->slots[4].i, args->slots[5].i);
 }
 
-void _trial_set_ending_functions(void) {
+static void _trial_set_ending_functions(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_set_ending_functions(args->slots[0].i, args->slots[1].i);
 }
 
-void _trial_set_tick_function(void) {
+static void _trial_set_tick_function(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_set_tick_function(args->slots[0].i);
 }
 
-void _trial_set_round_timer(void) {
+static void _trial_set_round_timer(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_set_round_timer(args->slots[0].i);
 }
 
-void _trial_set_num_rounds(void) {
+static void _trial_set_num_rounds(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     trial_set_num_rounds(args->slots[0].i);
 }
 
-void _konquest_map_setup_fight(void) {
+static void _konquest_map_setup_fight(void) {
     struct ScriptRawArgs* args;
     const char* arena_name;
 
@@ -10662,14 +10662,14 @@ void _konquest_map_setup_fight(void) {
         args->slots[6].i, args->slots[7].i, arena_name);
 }
 
-void _initialize_clone_lights(void) {
+static void _initialize_clone_lights(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     initialize_clone_lights(args->slots[0].i);
 }
 
-void _jab_spawn_point_light_at_world_pos(void) {
+static void _jab_spawn_point_light_at_world_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10678,36 +10678,36 @@ void _jab_spawn_point_light_at_world_pos(void) {
             args->slots[0].pointer, args->slots[1].pointer);
 }
 
-void _jab_attach_point_light_to_obj_bone(void) {
+static void _jab_attach_point_light_to_obj_bone(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = jab_attach_point_light_to_obj_bone(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _jab_flash_screen(void) {
+static void _jab_flash_screen(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     jab_flash_screen(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f);
 }
 
-void _jab_stop_dragon_king_shake(void) {
+static void _jab_stop_dragon_king_shake(void) {
     jab_stop_dragon_king_shake();
 }
 
-void _jab_shake_dragon_king(void) {
+static void _jab_shake_dragon_king(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     jab_shake_dragon_king(current_args, args->slots[0].f, args->slots[1].f);
 }
 
-void _fade_fatality_screen(void) {
+static void _fade_fatality_screen(void) {
     fade_fatality_screen();
 }
 
-void _jab_attach_wiff_to_sobj(void) {
+static void _jab_attach_wiff_to_sobj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10717,64 +10717,64 @@ void _jab_attach_wiff_to_sobj(void) {
         args->slots[4].i, args->slots[5].f, args->slots[6].i);
 }
 
-void _jab_destroy_drink_obj_in_hand(void) {
+static void _jab_destroy_drink_obj_in_hand(void) {
     jab_destroy_drink_obj_in_hand();
 }
 
-void _jab_attach_drink_obj_to_hand(void) {
+static void _jab_attach_drink_obj_to_hand(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     jab_attach_drink_obj_to_hand(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _jab_face_obj(void) {
+static void _jab_face_obj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     jab_face_obj(args->slots[0].pointer, args->slots[1].pointer);
 }
 
-void _obj_scale_over_time(void) {
+static void _obj_scale_over_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     obj_scale_over_time(args->slots[0].pointer, args->slots[1].pointer, args->slots[2].f);
 }
 
-void _jab_release_jade_boomerang(void) {
+static void _jab_release_jade_boomerang(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     jab_release_jade_boomerang(args->slots[0].i);
 }
 
-void _jab_start_jade_boomerang_throw(void) {
+static void _jab_start_jade_boomerang_throw(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     jab_start_jade_boomerang_throw(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
 }
 
-void _jab_setup_kiss_emitter_obj(void) {
+static void _jab_setup_kiss_emitter_obj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     jab_setup_kiss_emitter_obj(args->slots[0].pointer);
 }
 
-void _kill_konquest_dialog_procs(void) {
+static void _kill_konquest_dialog_procs(void) {
     kill_konquest_dialog_procs();
 }
 
-void _hero_turn_to_face_position(void) {
+static void _hero_turn_to_face_position(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     hero_turn_to_face_position(args->slots[0].i);
 }
 
-void _attach_pfx_to_object(void) {
+static void _attach_pfx_to_object(void) {
     struct ScriptRawArgs* args;
     const char* effect_name;
 
@@ -10785,51 +10785,51 @@ void _attach_pfx_to_object(void) {
         args->slots[2].pointer);
 }
 
-void _npc_hide_skip_message(void) {
+static void _npc_hide_skip_message(void) {
     npc_hide_skip_message();
 }
 
-void _npc_show_skip_message(void) {
+static void _npc_show_skip_message(void) {
     npc_show_skip_message();
 }
 
-void _konquest_hero_portal_in(void) {
+static void _konquest_hero_portal_in(void) {
     konquest_hero_portal_in();
 }
 
-void _konquest_set_current_portal_uid(void) {
+static void _konquest_set_current_portal_uid(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     konquest_set_current_portal_uid(args->slots[0].i);
 }
 
-void _npc_sleep_until_model_loaded(void) {
+static void _npc_sleep_until_model_loaded(void) {
     npc_sleep_until_model_loaded();
 }
 
-void _set_konquest_weather(void) {
+static void _set_konquest_weather(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_konquest_weather(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _set_age_progression(void) {
+static void _set_age_progression(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_age_progression(args->slots[0].i);
 }
 
-void _display_time_progression_images(void) {
+static void _display_time_progression_images(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     display_time_progression_images(args->slots[0].i);
 }
 
-void _konquest_use_portal(void) {
+static void _konquest_use_portal(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10838,36 +10838,36 @@ void _konquest_use_portal(void) {
         args->slots[3].f, args->slots[4].f, args->slots[5].i);
 }
 
-void _konquest_teleport_hero_to_location(void) {
+static void _konquest_teleport_hero_to_location(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     konquest_teleport_hero_to_location(args->slots[0].pointer);
 }
 
-void _show_fight_message(void) {
+static void _show_fight_message(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     show_fight_message(args->slots[0].i);
 }
 
-void _npc_start_blood_fall(void) {
+static void _npc_start_blood_fall(void) {
     npc_start_blood_fall();
 }
 
-void _npc_get_obj(void) {
+static void _npc_get_obj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = npc_get_obj(args->slots[0].i);
 }
 
-void _get_hero_state(void) {
+static void _get_hero_state(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_hero_state();
 }
 
-void _interaction_cam_set_target_info(void) {
+static void _interaction_cam_set_target_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10877,111 +10877,111 @@ void _interaction_cam_set_target_info(void) {
         args->slots[6].i);
 }
 
-void _set_movement_npc(void) {
+static void _set_movement_npc(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_movement_npc(args->slots[0].i);
 }
 
-void _set_look_at_npc(void) {
+static void _set_look_at_npc(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_look_at_npc(args->slots[0].i);
 }
 
-void _get_krypt_anim_pdata(void) {
+static void _get_krypt_anim_pdata(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_krypt_anim_pdata();
 }
 
-void _get_krypt_character_obj(void) {
+static void _get_krypt_character_obj(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_krypt_character_obj();
 }
 
-void _get_krypt_current_column(void) {
+static void _get_krypt_current_column(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_krypt_current_column();
 }
 
-void _get_krypt_current_row(void) {
+static void _get_krypt_current_row(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_krypt_current_row();
 }
 
-void _transition_to_krypt_character_anim_script(void) {
+static void _transition_to_krypt_character_anim_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     transition_to_krypt_character_anim_script(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _set_krypt_character_anim_script(void) {
+static void _set_krypt_character_anim_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_krypt_character_anim_script(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
 }
 
-void _set_krypt_character_previous_root_angle(void) {
+static void _set_krypt_character_previous_root_angle(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_krypt_character_previous_root_angle(current_args, args->slots[0].f);
 }
 
-void _set_krypt_character_angle(void) {
+static void _set_krypt_character_angle(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_krypt_character_angle(current_args, args->slots[0].f);
 }
 
-void _set_krypt_character_pos(void) {
+static void _set_krypt_character_pos(void) {
     struct ScriptPointerArgs* args;
 
     args = (struct ScriptPointerArgs*)current_args;
     set_krypt_character_pos(args->value);
 }
 
-void _load_krypt_character(void) {
+static void _load_krypt_character(void) {
     ((struct ScriptMkObjResult*)active_cmdscript)->value =
         load_krypt_character(get_script_string_arg(1));
 }
 
-void _npc_start_fx_at_his_position(void) {
+static void _npc_start_fx_at_his_position(void) {
     npc_start_fx_at_his_position(
         ((struct ScriptRawArgs*)current_args)->slots[0].pointer,
         get_script_string_arg(2),
         ((struct ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
-void _npc_start_fx_at_position(void) {
+static void _npc_start_fx_at_position(void) {
     npc_start_fx_at_position(
         get_script_string_arg(1),
         ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _hero_start_fx_at_position(void) {
+static void _hero_start_fx_at_position(void) {
     hero_start_fx_at_position(
         get_script_string_arg(1),
         ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-void _set_hero_position_relative_to_chest(void) {
+static void _set_hero_position_relative_to_chest(void) {
     set_hero_position_relative_to_chest();
 }
 
-void _get_pickup_object(void) {
+static void _get_pickup_object(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = get_pickup_object();
 }
 
-void _set_reference_pui(void) {
+static void _set_reference_pui(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_reference_pui(args->slots[0].pointer);
 }
 
-void _open_chest_and_give_item_to_player(void) {
+static void _open_chest_and_give_item_to_player(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10989,7 +10989,7 @@ void _open_chest_and_give_item_to_player(void) {
         args->slots[0].pointer, args->slots[1].pointer);
 }
 
-void _open_chest_and_unlock_kontent(void) {
+static void _open_chest_and_unlock_kontent(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -10997,7 +10997,7 @@ void _open_chest_and_unlock_kontent(void) {
         args->slots[0].pointer, args->slots[1].i);
 }
 
-void _give_krypt_key_to_player(void) {
+static void _give_krypt_key_to_player(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -11005,62 +11005,62 @@ void _give_krypt_key_to_player(void) {
         args->slots[0].pointer, args->slots[1].i);
 }
 
-void _give_reward_to_player(void) {
+static void _give_reward_to_player(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     give_reward_to_player(args->slots[0].pointer);
 }
 
-void _npc_play_two_player_one_shot_anims(void) {
+static void _npc_play_two_player_one_shot_anims(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_play_two_player_one_shot_anims(args->slots[0].i, args->slots[1].i);
 }
 
-void _npc_assign_door_path(void) {
+static void _npc_assign_door_path(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_assign_door_path(args->slots[0].i, args->slots[1].i);
 }
 
-void _npc_assign_path_to_him(void) {
+static void _npc_assign_path_to_him(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_assign_path_to_him(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i);
 }
 
-void _npc_assign_path(void) {
+static void _npc_assign_path(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_assign_path(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _npc_open_door_at_waypoint(void) {
+static void _npc_open_door_at_waypoint(void) {
     npc_open_door_at_waypoint();
 }
 
-void _setup_vomit_slip_sound(void) {
+static void _setup_vomit_slip_sound(void) {
     setup_vomit_slip_sound();
 }
 
-void _nis_remove_non_participants(void) {
+static void _nis_remove_non_participants(void) {
     nis_remove_non_participants();
 }
 
-void _set_camera_to_look_at_hero(void) {
+static void _set_camera_to_look_at_hero(void) {
     set_camera_to_look_at_hero();
 }
 
-void _npc_reset_my_timed_events(void) {
+static void _npc_reset_my_timed_events(void) {
     npc_reset_my_timed_events();
 }
 
-void _konquest_setup_pui_particle(void) {
+static void _konquest_setup_pui_particle(void) {
     struct ScriptRawArgs* args;
     char* owner;
 
@@ -11069,115 +11069,115 @@ void _konquest_setup_pui_particle(void) {
     konquest_setup_pui_particle(owner, args->slots[1].i);
 }
 
-void _npc_wait_for_wake_up(void) {
+static void _npc_wait_for_wake_up(void) {
     npc_wait_for_wake_up();
 }
 
-void _npc_set_wake_up_time(void) {
+static void _npc_set_wake_up_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_wake_up_time(args->slots[0].i, args->slots[1].i);
 }
 
-void _save_hero_position_and_angle_prior_to_fight(void) {
+static void _save_hero_position_and_angle_prior_to_fight(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     save_hero_position_and_angle_prior_to_fight(current_args, args->slots[0].f);
 }
 
-void _npc_set_my_conversation_counter(void) {
+static void _npc_set_my_conversation_counter(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_my_conversation_counter(args->slots[0].i);
 }
 
-void _npc_set_his_conversation_counter(void) {
+static void _npc_set_his_conversation_counter(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_his_conversation_counter(args->slots[0].i, args->slots[1].i);
 }
 
-void _npc_set_my_punch_counter(void) {
+static void _npc_set_my_punch_counter(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_my_punch_counter(args->slots[0].i);
 }
 
-void _npc_set_his_punch_counter(void) {
+static void _npc_set_his_punch_counter(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_his_punch_counter(args->slots[0].i, args->slots[1].i);
 }
 
-void _stop_chest_camera_script(void) {
+static void _stop_chest_camera_script(void) {
     stop_chest_camera_script();
 }
 
-void _konquest_run_camera_script(void) {
+static void _konquest_run_camera_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     konquest_run_camera_script(args->slots[0].i, args->slots[1].i);
 }
 
-void _set_hero_punched_ground_collisions(void) {
+static void _set_hero_punched_ground_collisions(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_hero_punched_ground_collisions(args->slots[0].i);
 }
 
-void _restore_hero_grounding(void) {
+static void _restore_hero_grounding(void) {
     restore_hero_grounding();
 }
 
-void _suspend_hero_grounding(void) {
+static void _suspend_hero_grounding(void) {
     suspend_hero_grounding();
 }
 
-void _start_hero_collisions(void) {
+static void _start_hero_collisions(void) {
     start_hero_collisions();
 }
 
-void _stop_hero_collisions(void) {
+static void _stop_hero_collisions(void) {
     stop_hero_collisions();
 }
 
-void _add_hours_to_time(void) {
+static void _add_hours_to_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     add_hours_to_time(args->slots[0].i, args->slots[1].i);
 }
 
-void _add_days_to_time(void) {
+static void _add_days_to_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     add_days_to_time(args->slots[0].i, args->slots[1].i);
 }
 
-void _add_months_to_time(void) {
+static void _add_months_to_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     add_months_to_time(args->slots[0].i, args->slots[1].i);
 }
 
-void _add_years_to_time(void) {
+static void _add_years_to_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     add_years_to_time(args->slots[0].i, args->slots[1].i);
 }
 
-void _pui_play_pfx_sequence(void) {
+static void _pui_play_pfx_sequence(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -11187,7 +11187,7 @@ void _pui_play_pfx_sequence(void) {
         (KonquestPuiPfxSequenceRow*)args->slots[2].i);
 }
 
-void _pui_play_pfx(void) {
+static void _pui_play_pfx(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -11197,7 +11197,7 @@ void _pui_play_pfx(void) {
         get_script_string_arg(3));
 }
 
-void _pui_set_kill_time(void) {
+static void _pui_set_kill_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -11206,47 +11206,47 @@ void _pui_set_kill_time(void) {
         args->slots[2].i);
 }
 
-void _pui_set_color(void) {
+static void _pui_set_color(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     pui_set_color(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i, args->slots[4].i);
 }
 
-void _pui_delay_spawn(void) {
+static void _pui_delay_spawn(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     pui_delay_spawn(args->slots[0].pointer, args->slots[1].f);
 }
 
-void _transition_to_region(void) {
+static void _transition_to_region(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     transition_to_region(args->slots[0].i);
 }
 
-void _get_previous_konquest_region_number(void) {
+static void _get_previous_konquest_region_number(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_previous_konquest_region_number();
 }
 
-void _set_konquest_region_number(void) {
+static void _set_konquest_region_number(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_konquest_region_number(args->slots[0].i);
 }
 
-void _npc_play_teleported_sound(void) {
+static void _npc_play_teleported_sound(void) {
     npc_play_teleported_sound();
 }
 
-void _konquest_hide_damashi(void) {
+static void _konquest_hide_damashi(void) {
     konquest_hide_damashi();
 }
 
-void _konquest_start_damashi(void) {
+static void _konquest_start_damashi(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -11256,11 +11256,11 @@ void _konquest_start_damashi(void) {
             args->slots[2].f);
 }
 
-void _konquest_camera_return_to_normal(void) {
+static void _konquest_camera_return_to_normal(void) {
     konquest_camera_return_to_normal();
 }
 
-void _display_konquest_text(void) {
+static void _display_konquest_text(void) {
     struct ScriptRawArgs* args;
     float left_fraction;
     float bottom_fraction;
@@ -11280,93 +11280,93 @@ void _display_konquest_text(void) {
             string_id, prompt_flags);
 }
 
-void _hero_stop_moving(void) {
+static void _hero_stop_moving(void) {
     hero_stop_moving();
 }
 
-void _set_monk_age(void) {
+static void _set_monk_age(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_monk_age(args->slots[0].i);
 }
 
-void _get_monk_age(void) {
+static void _get_monk_age(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_monk_age();
 }
 
-void _change_monk_age(void) {
+static void _change_monk_age(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     change_monk_age(args->slots[0].i);
 }
 
-void _hero_handle_conversation(void) {
+static void _hero_handle_conversation(void) {
     hero_handle_conversation();
 }
 
-void _nis_clear_event_list(void) {
+static void _nis_clear_event_list(void) {
     nis_clear_event_list();
 }
 
-void _npc_switch_camera_focus(void) {
+static void _npc_switch_camera_focus(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_switch_camera_focus(args->slots[0].i);
 }
 
-void _npc_at_waypoint_set_flags(void) {
+static void _npc_at_waypoint_set_flags(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_at_waypoint_set_flags(args->slots[0].i, args->slots[1].i);
 }
 
-void _kill_dynamic_pui(void) {
+static void _kill_dynamic_pui(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     kill_dynamic_pui((void*)args->slots[0].i);
 }
 
-void _spawn_dynamic_pui_critical(void) {
+static void _spawn_dynamic_pui_critical(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = spawn_dynamic_pui_critical(args->slots[0].i);
 }
 
-void _spawn_dynamic_pui(void) {
+static void _spawn_dynamic_pui(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = spawn_dynamic_pui(args->slots[0].i);
 }
 
-void _kill_pui(void) {
+static void _kill_pui(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     kill_pui((KonquestPuiDefinition*)args->slots[0].i);
 }
 
-void _pickup_dynamic_pui(void) {
+static void _pickup_dynamic_pui(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     pickup_dynamic_pui((KonquestPuiDefinition*)args->slots[0].i);
 }
 
-void _pickup_pui(void) {
+static void _pickup_pui(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     pickup_pui((KonquestPuiDefinition*)args->slots[0].i);
 }
 
-void _spawn_pui(void) {
+static void _spawn_pui(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -11375,7 +11375,7 @@ void _spawn_pui(void) {
         args->slots[1].i, args->slots[2].i);
 }
 
-void _attach_pfx_to_object_by_uid(void) {
+static void _attach_pfx_to_object_by_uid(void) {
     struct ScriptRawArgs* current;
     struct ScriptRawArgs* saved;
     const char* effect_name;
@@ -11389,168 +11389,168 @@ void _attach_pfx_to_object_by_uid(void) {
         saved->slots[3].i);
 }
 
-void _add_trigger_list_to_world(void) {
+static void _add_trigger_list_to_world(void) {
     add_trigger_list_to_world();
 }
 
-void _npc_sleep(void) {
+static void _npc_sleep(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_sleep(current_args, args->slots[0].f);
 }
 
-void _npc_get_punch_count(void) {
+static void _npc_get_punch_count(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = npc_get_punch_count();
 }
 
-void _npc_get_conversation_count(void) {
+static void _npc_get_conversation_count(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = npc_get_conversation_count();
 }
 
-void _konquest_passed_last_mission(void) {
+static void _konquest_passed_last_mission(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = konquest_passed_last_mission();
 }
 
-void _konquest_transition_object_to_state(void) {
+static void _konquest_transition_object_to_state(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     konquest_transition_object_to_state(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _npc_fire_trigger(void) {
+static void _npc_fire_trigger(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_fire_trigger(args->slots[0].i);
 }
 
-void _konquest_open_door(void) {
+static void _konquest_open_door(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     konquest_open_door(args->slots[0].i, args->slots[1].i);
 }
 
-void _get_active_npc_data(void) {
+static void _get_active_npc_data(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_active_npc_data();
 }
 
-void _npc_glitch_him_to_ani(void) {
+static void _npc_glitch_him_to_ani(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_glitch_him_to_ani(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _npc_glitch_to_ani(void) {
+static void _npc_glitch_to_ani(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_glitch_to_ani(args->slots[0].i, args->slots[1].i);
 }
 
-void _npc_ani_1_frame(void) {
+static void _npc_ani_1_frame(void) {
     npc_ani_1_frame();
 }
 
-void _npc_set_random_dialog_and_anim_sequence(void) {
+static void _npc_set_random_dialog_and_anim_sequence(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_random_dialog_and_anim_sequence(args->slots[0].i, args->slots[1].i);
 }
 
-void _npc_play_random_dialog_sequence(void) {
+static void _npc_play_random_dialog_sequence(void) {
     npc_play_random_dialog_sequence();
 }
 
-void _npc_play_dialog_and_anim_sequence(void) {
+static void _npc_play_dialog_and_anim_sequence(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_play_dialog_and_anim_sequence(args->slots[0].i, args->slots[1].i);
 }
 
-void _play_beam_advance_sound(void) {
+static void _play_beam_advance_sound(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     play_beam_advance_sound(args->slots[0].i);
 }
 
-void _show_objective_arrow_and_beam(void) {
+static void _show_objective_arrow_and_beam(void) {
     show_objective_arrow_and_beam();
 }
 
-void _hide_objective_arrow_and_beam(void) {
+static void _hide_objective_arrow_and_beam(void) {
     hide_objective_arrow_and_beam();
 }
 
-void _npc_attack(void) {
+static void _npc_attack(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_attack(args->slots[0].i, args->slots[1].i);
 }
 
-void _npc_change_path_speed(void) {
+static void _npc_change_path_speed(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_change_path_speed(args->slots[0].f);
 }
 
-void _npc_set_pinanim_flag(void) {
+static void _npc_set_pinanim_flag(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_pinanim_flag(args->slots[0].i);
 }
 
-void _npc_set_ani_frame(void) {
+static void _npc_set_ani_frame(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_ani_frame(args->slots[0].f);
 }
 
-void _npc_set_my_ground_level(void) {
+static void _npc_set_my_ground_level(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_my_ground_level(current_args, args->slots[0].f);
 }
 
-void _turn_to_face_interior_door(void) {
+static void _turn_to_face_interior_door(void) {
     turn_to_face_interior_door();
 }
 
-void _turn_to_face_exterior_door(void) {
+static void _turn_to_face_exterior_door(void) {
     turn_to_face_exterior_door();
 }
 
-void _start_subobject_pulsing_effect(void) {
+static void _start_subobject_pulsing_effect(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     start_subobject_pulsing_effect(args->slots[0].i);
 }
 
-void _resume_hero_state_process(void) {
+static void _resume_hero_state_process(void) {
     resume_hero_state_process();
 }
 
-void _suspend_hero_state_process(void) {
+static void _suspend_hero_state_process(void) {
     suspend_hero_state_process();
 }
 
-void _idle_hero_anim_proc(void) {
+static void _idle_hero_anim_proc(void) {
     idle_hero_anim_proc();
 }
 
-void _transition_hero_to_anim_script(void) {
+static void _transition_hero_to_anim_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -11559,223 +11559,223 @@ void _transition_hero_to_anim_script(void) {
         args->slots[2].f, args->slots[3].f);
 }
 
-void _close_exterior_doors(void) {
+static void _close_exterior_doors(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     close_exterior_doors(args->slots[0].i, args->slots[1].i);
 }
 
-void _get_doors_for_exterior(void) {
+static void _get_doors_for_exterior(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_doors_for_exterior();
 }
 
-void _get_building_id_for_exterior(void) {
+static void _get_building_id_for_exterior(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_building_id_for_exterior();
 }
 
-void _npc_set_ani_flags(void) {
+static void _npc_set_ani_flags(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_ani_flags(args->slots[0].i);
 }
 
-void _npc_blend_to_ani_string(void) {
+static void _npc_blend_to_ani_string(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_blend_to_ani_string(args->slots[0].i);
 }
 
-void _npc_set_gravity(void) {
+static void _npc_set_gravity(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_gravity(current_args, args->slots[0].f);
 }
 
-void _remove_npc_list(void) {
+static void _remove_npc_list(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     remove_npc_list(args->slots[0].i);
 }
 
-void _setup_interior_fighting_arena(void) {
+static void _setup_interior_fighting_arena(void) {
     setup_interior_fighting_arena();
 }
 
-void _npc_get_his_flag_state(void) {
+static void _npc_get_his_flag_state(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = npc_get_his_flag_state(args->slots[0].i, args->slots[1].i);
 }
 
-void _npc_get_flag_state(void) {
+static void _npc_get_flag_state(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = npc_get_flag_state(args->slots[0].i);
 }
 
-void _npc_set_his_flags(void) {
+static void _npc_set_his_flags(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_his_flags(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _npc_ignore_his_events(void) {
+static void _npc_ignore_his_events(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_ignore_his_events(args->slots[0].i, args->slots[1].i);
 }
 
-void _npc_ignore_events(void) {
+static void _npc_ignore_events(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_ignore_events(args->slots[0].i);
 }
 
-void _npc_set_flags(void) {
+static void _npc_set_flags(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_flags(args->slots[0].i, args->slots[1].i);
 }
 
-void _npc_enable_event(void) {
+static void _npc_enable_event(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_enable_event(args->slots[0].i, args->slots[1].i);
 }
 
-void _npc_enable_his_event(void) {
+static void _npc_enable_his_event(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_enable_his_event(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _npc_set_dialog_anim(void) {
+static void _npc_set_dialog_anim(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_dialog_anim(args->slots[0].i);
 }
 
-void _npc_turn_and_face_next_waypoint(void) {
+static void _npc_turn_and_face_next_waypoint(void) {
     npc_turn_and_face_next_waypoint();
 }
 
-void _npc_turn_and_face_player(void) {
+static void _npc_turn_and_face_player(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_turn_and_face_player(args->slots[0].i);
 }
 
-void _set_interaction_camera_script(void) {
+static void _set_interaction_camera_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_interaction_camera_script(args->slots[0].pointer);
 }
 
-void _npc_play_conversation_part(void) {
+static void _npc_play_conversation_part(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_play_conversation_part(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _conversation_term(void) {
+static void _conversation_term(void) {
     conversation_term();
 }
 
-void _conversation_init(void) {
+static void _conversation_init(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     conversation_init(args->slots[0].i);
 }
 
-void _konquest_end_npc_interaction(void) {
+static void _konquest_end_npc_interaction(void) {
     konquest_end_npc_interaction();
 }
 
-void _konquest_end_npc_nis(void) {
+static void _konquest_end_npc_nis(void) {
     konquest_end_npc_nis();
 }
 
-void _konquest_start_npc_nis(void) {
+static void _konquest_start_npc_nis(void) {
     konquest_start_npc_nis();
 }
 
-void _start_character_separation_process(void) {
+static void _start_character_separation_process(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     start_character_separation_process(args->slots[0].f);
 }
 
-void _konquest_start_npc_interaction(void) {
+static void _konquest_start_npc_interaction(void) {
     konquest_start_npc_interaction();
 }
 
-void _remove_widescreen_bars(void) {
+static void _remove_widescreen_bars(void) {
     remove_widescreen_bars();
 }
 
-void _add_widescreen_bars(void) {
+static void _add_widescreen_bars(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     add_widescreen_bars(args->slots[0].f);
 }
 
-void _npc_take_control_of_him(void) {
+static void _npc_take_control_of_him(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_take_control_of_him(args->slots[0].i, args->slots[1].i);
 }
 
-void _konquest_fade_hud(void) {
+static void _konquest_fade_hud(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     konquest_fade_hud(args->slots[0].i);
 }
 
-void _konquest_hide_hud(void) {
+static void _konquest_hide_hud(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     konquest_hide_hud(args->slots[0].i);
 }
 
-void _konquest_show_hud(void) {
+static void _konquest_show_hud(void) {
     konquest_show_hud();
 }
 
-void _display_konquest_title(void) {
+static void _display_konquest_title(void) {
     display_konquest_title();
 }
 
-void _enable_attached_sound_by_uid(void) {
+static void _enable_attached_sound_by_uid(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     enable_attached_sound_by_uid(args->slots[0].i, args->slots[1].i);
 }
 
-void _attach_sound_to_object_by_uid(void) {
+static void _attach_sound_to_object_by_uid(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -11784,29 +11784,29 @@ void _attach_sound_to_object_by_uid(void) {
         args->slots[3].f, args->slots[4].i, args->slots[5].i);
 }
 
-void _start_konquest_ambient_sounds(void) {
+static void _start_konquest_ambient_sounds(void) {
     start_konquest_ambient_sounds();
 }
 
-void _stop_konquest_ambient_sounds(void) {
+static void _stop_konquest_ambient_sounds(void) {
     stop_konquest_ambient_sounds();
 }
 
-void _npc_set_my_movement_weight(void) {
+static void _npc_set_my_movement_weight(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_my_movement_weight(current_args, args->slots[0].f, args->slots[1].f);
 }
 
-void _npc_set_ani_speed(void) {
+static void _npc_set_ani_speed(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_ani_speed(args->slots[0].f);
 }
 
-void _bgnd_start_sobj_uv_scroll_tbl(void) {
+static void _bgnd_start_sobj_uv_scroll_tbl(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -11814,47 +11814,47 @@ void _bgnd_start_sobj_uv_scroll_tbl(void) {
         (BgndUvScrollEntry*)args->slots[0].i);
 }
 
-void _npc_set_snap_to_ground(void) {
+static void _npc_set_snap_to_ground(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_snap_to_ground(args->slots[0].i);
 }
 
-void _npc_stop_goro_bone_match(void) {
+static void _npc_stop_goro_bone_match(void) {
     npc_stop_goro_bone_match();
 }
 
-void _npc_start_goro_bone_match(void) {
+static void _npc_start_goro_bone_match(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_start_goro_bone_match(args->slots[0].i);
 }
 
-void _npc_ani_for_x_ticks(void) {
+static void _npc_ani_for_x_ticks(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_ani_for_x_ticks(args->slots[0].i);
 }
 
-void _npc_ani_to_blend_frame(void) {
+static void _npc_ani_to_blend_frame(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_ani_to_blend_frame(current_args, args->slots[0].f);
 }
 
-void _start_time_passing(void) {
+static void _start_time_passing(void) {
     start_time_passing();
 }
 
-void _stop_time_passing(void) {
+static void _stop_time_passing(void) {
     stop_time_passing();
 }
 
-void _get_tile_sobj_by_id(void) {
+static void _get_tile_sobj_by_id(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -11862,104 +11862,104 @@ void _get_tile_sobj_by_id(void) {
         get_tile_sobj_by_id(args->slots[0].i);
 }
 
-void _get_konquest_tile_objects_obj(void) {
+static void _get_konquest_tile_objects_obj(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         get_konquest_tile_objects_obj();
 }
 
-void _get_current_time(void) {
+static void _get_current_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     get_current_time(args->slots[0].pointer);
 }
 
-void _set_current_time(void) {
+static void _set_current_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_current_time(args->slots[0].pointer);
 }
 
-void _npc_restart_his_normal_behavior(void) {
+static void _npc_restart_his_normal_behavior(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_restart_his_normal_behavior(args->slots[0].i);
 }
 
-void _npc_set_his_ang_y(void) {
+static void _npc_set_his_ang_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_his_ang_y(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _npc_set_my_ang_y(void) {
+static void _npc_set_my_ang_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_my_ang_y(current_args, args->slots[0].f);
 }
 
-void _npc_set_his_world_pos(void) {
+static void _npc_set_his_world_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_his_world_pos(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _npc_set_my_world_pos(void) {
+static void _npc_set_my_world_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_my_world_pos(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _npc_set_my_pos(void) {
+static void _npc_set_my_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_set_my_pos(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _restore_collision_volume_on_object_with_uid(void) {
+static void _restore_collision_volume_on_object_with_uid(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     restore_collision_volume_on_object_with_uid(args->slots[0].i);
 }
 
-void _remove_collision_volume_on_object_with_uid(void) {
+static void _remove_collision_volume_on_object_with_uid(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     remove_collision_volume_on_object_with_uid(args->slots[0].i);
 }
 
-void _restore_collision_volume_on_object(void) {
+static void _restore_collision_volume_on_object(void) {
     restore_collision_volume_on_object();
 }
 
-void _remove_collision_volume_on_object(void) {
+static void _remove_collision_volume_on_object(void) {
     remove_collision_volume_on_object();
 }
 
-void _npc_ani_to_frame_x(void) {
+static void _npc_ani_to_frame_x(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_ani_to_frame_x(current_args, args->slots[0].f);
 }
 
-void _konquest_transition_to_fight(void) {
+static void _konquest_transition_to_fight(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     konquest_transition_to_fight(args->slots[0].i);
 }
 
-void _attach_wiff_to_konquest_object_by_uid(void) {
+static void _attach_wiff_to_konquest_object_by_uid(void) {
     struct ScriptRawArgs* args;
     char* name;
 
@@ -11969,128 +11969,128 @@ void _attach_wiff_to_konquest_object_by_uid(void) {
         args->slots[0].i, name, args->slots[2].f);
 }
 
-void _set_konquest_object_render_order_priority_by_uid(void) {
+static void _set_konquest_object_render_order_priority_by_uid(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_konquest_object_render_order_priority_by_uid(args->slots[0].i, args->slots[1].i);
 }
 
-void _disable_konquest_object_zwrite_by_uid(void) {
+static void _disable_konquest_object_zwrite_by_uid(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     disable_konquest_object_zwrite_by_uid(args->slots[0].i);
 }
 
-void _set_konquest_object_face_y_by_uid(void) {
+static void _set_konquest_object_face_y_by_uid(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_konquest_object_face_y_by_uid(args->slots[0].i);
 }
 
-void _unhide_konquest_object_by_uid(void) {
+static void _unhide_konquest_object_by_uid(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     unhide_konquest_object_by_uid(args->slots[0].i);
 }
 
-void _hide_konquest_object_by_uid(void) {
+static void _hide_konquest_object_by_uid(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     hide_konquest_object_by_uid(args->slots[0].i);
 }
 
-void _konquest_fade_from_black(void) {
+static void _konquest_fade_from_black(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     konquest_fade_from_black(args->slots[0].i, args->slots[1].i);
 }
 
-void _konquest_fade_to_black(void) {
+static void _konquest_fade_to_black(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     konquest_fade_to_black(args->slots[0].i, args->slots[1].i);
 }
 
-void _npc_lip_synch(void) {
+static void _npc_lip_synch(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_lip_synch(args->slots[0].i, args->slots[1].i);
 }
 
-void _npc_ani_to_end(void) {
+static void _npc_ani_to_end(void) {
     npc_ani_to_end();
 }
 
-void _npc_wait_for_state_change(void) {
+static void _npc_wait_for_state_change(void) {
     npc_wait_for_state_change();
 }
 
-void _npc_blend_to_ani_with_offset(void) {
+static void _npc_blend_to_ani_with_offset(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_blend_to_ani_with_offset(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f);
 }
 
-void _npc_blend_to_ani(void) {
+static void _npc_blend_to_ani(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_blend_to_ani(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f);
 }
 
-void _npc_face_current_waypoint_angle(void) {
+static void _npc_face_current_waypoint_angle(void) {
     npc_face_current_waypoint_angle();
 }
 
-void _npc_travel_to_world_position(void) {
+static void _npc_travel_to_world_position(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_travel_to_world_position(args->slots[0].i, args->slots[1].i);
 }
 
-void _npc_travel_path_anim_override(void) {
+static void _npc_travel_path_anim_override(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_travel_path_anim_override(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i);
 }
 
-void _npc_travel_path(void) {
+static void _npc_travel_path(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     npc_travel_path(args->slots[0].i, args->slots[1].i, args->slots[2].i);
 }
 
-void _npc_stand_still(void) {
+static void _npc_stand_still(void) {
     npc_stand_still();
 }
 
-void _add_npc_list_to_world(void) {
+static void _add_npc_list_to_world(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     add_npc_list_to_world(args->slots[0].i);
 }
 
-void _fire_trigger(void) {
+static void _fire_trigger(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     fire_trigger(args->slots[0].pointer);
 }
 
-void _set_monk_position(void) {
+static void _set_monk_position(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -12098,14 +12098,14 @@ void _set_monk_position(void) {
                       args->slots[2].f, args->slots[3].f);
 }
 
-void _load_tile_objects(void) {
+static void _load_tile_objects(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     load_tile_objects(args->slots[0].i);
 }
 
-void _trigger_set_time_for_enable(void) {
+static void _trigger_set_time_for_enable(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -12115,14 +12115,14 @@ void _trigger_set_time_for_enable(void) {
         args->slots[3].i);
 }
 
-void _enable_trigger(void) {
+static void _enable_trigger(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     enable_trigger(args->slots[0].pointer, args->slots[1].i);
 }
 
-void _assign_obj_to_trigger(void) {
+static void _assign_obj_to_trigger(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -12130,7 +12130,7 @@ void _assign_obj_to_trigger(void) {
         args->slots[0].i, args->slots[1].pointer);
 }
 
-void _add_object_to_tile(void) {
+static void _add_object_to_tile(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -12141,175 +12141,175 @@ void _add_object_to_tile(void) {
         args->slots[6].f);
 }
 
-void _set_tile_visibility(void) {
+static void _set_tile_visibility(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_tile_visibility(args->slots[0].i, args->slots[1].i);
 }
 
-void _set_tile_grid_size(void) {
+static void _set_tile_grid_size(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_tile_grid_size(args->slots[0].i, args->slots[1].i);
 }
 
-void _mks_start_axis_indicator_p_axis_track_bone_world_mat(void) {
+static void _mks_start_axis_indicator_p_axis_track_bone_world_mat(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_start_axis_indicator_p_axis_track_bone_world_mat(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_abs(void) {
+static void _mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_abs(void) {
     mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_abs();
 }
 
-void _mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_inside(void) {
+static void _mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_inside(void) {
     mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_inside();
 }
 
-void _mks_ccp1_insert_cb1(void) {
+static void _mks_ccp1_insert_cb1(void) {
     mks_ccp1_insert_cb1();
 }
 
-void _mks_cc1_insert_cb1(void) {
+static void _mks_cc1_insert_cb1(void) {
     mks_cc1_insert_cb1();
 }
 
-void _mks_ccp1_eq_insert_cloth_coll_plane(void) {
+static void _mks_ccp1_eq_insert_cloth_coll_plane(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_ccp1_eq_insert_cloth_coll_plane(args->slots[0].i, args->slots[1].f, args->slots[2].f, args->slots[3].f, args->slots[4].f);
 }
 
-void _mks_cc1_expand_cyl(void) {
+static void _mks_cc1_expand_cyl(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_cc1_expand_cyl(current_args, args->slots[0].f, args->slots[1].f);
 }
 
-void _mks_cc1_eq_insert_cloth_coll(void) {
+static void _mks_cc1_eq_insert_cloth_coll(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_cc1_eq_insert_cloth_coll(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _mks_cb1_set_scale(void) {
+static void _mks_cb1_set_scale(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_cb1_set_scale(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _mks_cb1_set_coll_offset(void) {
+static void _mks_cb1_set_coll_offset(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_cb1_set_coll_offset(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _mks_cb1_set_coll_offset_xz(void) {
+static void _mks_cb1_set_coll_offset_xz(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_cb1_set_coll_offset_xz(current_args, args->slots[0].f, args->slots[1].f);
 }
 
-void _mks_cb1_add_coll_pt(void) {
+static void _mks_cb1_add_coll_pt(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_cb1_add_coll_pt(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _mks_cb1_set_ground_y(void) {
+static void _mks_cb1_set_ground_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_cb1_set_ground_y(current_args, args->slots[0].f);
 }
 
-void _mks_set_ground_y_all_cloth_bones(void) {
+static void _mks_set_ground_y_all_cloth_bones(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_set_ground_y_all_cloth_bones(current_args, args->slots[0].f);
 }
 
-void _mks_insert_cloth_force_bones(void) {
+static void _mks_insert_cloth_force_bones(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_insert_cloth_force_bones(args->slots[0].f, args->slots[1].f);
 }
 
-void _mks_cb2_eq_cloth_bone(void) {
+static void _mks_cb2_eq_cloth_bone(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_cb2_eq_cloth_bone(args->slots[0].i);
 }
 
-void _mks_cb1_eq_cloth_bone(void) {
+static void _mks_cb1_eq_cloth_bone(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_cb1_eq_cloth_bone(args->slots[0].i);
 }
 
-void _mks_mat_id_set_zbias(void) {
+static void _mks_mat_id_set_zbias(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_mat_id_set_zbias(args->slots[0].i, args->slots[1].f);
 }
 
-void _mks_cloth_bones_init_by_tbl(void) {
+static void _mks_cloth_bones_init_by_tbl(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_cloth_bones_init_by_tbl(args->slots[0].pointer, args->slots[1].i);
 }
 
-void _mks_start_goro_arms_fixup(void) {
+static void _mks_start_goro_arms_fixup(void) {
     mks_start_goro_arms_fixup();
 }
 
-void _mks_set_flipped_bones(void) {
+static void _mks_set_flipped_bones(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     mks_set_flipped_bones(args->slots[0].pointer);
 }
 
-void _is_he_blocking(void) {
+static void _is_he_blocking(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = is_he_blocking();
 }
 
-void _set_ani_speed_miss_hit(void) {
+static void _set_ani_speed_miss_hit(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_ani_speed_miss_hit(current_args, args->slots[0].f, args->slots[1].f);
 }
 
-void _set_block_requirement(void) {
+static void _set_block_requirement(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_block_requirement(args->slots[0].i);
 }
 
-void _special_move_cam_end(void) {
+static void _special_move_cam_end(void) {
     special_move_cam_end();
 }
 
-void _special_move_cam_setup(void) {
+static void _special_move_cam_setup(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -12319,39 +12319,39 @@ void _special_move_cam_setup(void) {
         args->slots[6].i, args->slots[7].i);
 }
 
-void _whoosh_fx(void) {
+static void _whoosh_fx(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     whoosh_fx(args->slots[0].i);
 }
 
-void _drone_super_combo_refresh(void) {
+static void _drone_super_combo_refresh(void) {
     drone_super_combo_refresh();
 }
 
-void _set_attackers_attack_region(void) {
+static void _set_attackers_attack_region(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_attackers_attack_region(args->slots[0].i);
 }
 
-void _set_attack_type(void) {
+static void _set_attack_type(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_attack_type(args->slots[0].i);
 }
 
-void _got_hit_fx(void) {
+static void _got_hit_fx(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     got_hit_fx(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i, args->slots[4].i, args->slots[5].f, args->slots[6].i);
 }
 
-void _camera_set_animation_parent_position(void) {
+static void _camera_set_animation_parent_position(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -12359,7 +12359,7 @@ void _camera_set_animation_parent_position(void) {
         args->slots[0].pointer);
 }
 
-void _camera_set_animation_parent_angle(void) {
+static void _camera_set_animation_parent_angle(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -12367,157 +12367,157 @@ void _camera_set_animation_parent_angle(void) {
         args->slots[0].pointer, args->slots[1].i);
 }
 
-void _cam_set_ground_plane(void) {
+static void _cam_set_ground_plane(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     cam_set_ground_plane(args->slots[0].f);
 }
 
-void _set_camera_velocity(void) {
+static void _set_camera_velocity(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_camera_velocity(args->slots[0].pointer);
 }
 
-void _get_camera_velocity(void) {
+static void _get_camera_velocity(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     get_camera_velocity(args->slots[0].pointer);
 }
 
-void _set_camera_angle(void) {
+static void _set_camera_angle(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_camera_angle(args->slots[0].pointer);
 }
 
-void _get_camera_angle(void) {
+static void _get_camera_angle(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     get_camera_angle(args->slots[0].pointer);
 }
 
-void _set_camera_position(void) {
+static void _set_camera_position(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_camera_position(args->slots[0].pointer);
 }
 
-void _get_camera_position(void) {
+static void _get_camera_position(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     get_camera_position(args->slots[0].pointer);
 }
 
-void _fade_from_white(void) {
+static void _fade_from_white(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     fade_from_white(args->slots[0].i, args->slots[1].i);
 }
 
-void _fade_to_white(void) {
+static void _fade_to_white(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     fade_to_white(args->slots[0].i, args->slots[1].i);
 }
 
-void _fade_from_black(void) {
+static void _fade_from_black(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     fade_from_black(args->slots[0].i, args->slots[1].i);
 }
 
-void _fade_to_black(void) {
+static void _fade_to_black(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     fade_to_black(args->slots[0].i, args->slots[1].i);
 }
 
-void _turn_camera_off(void) {
+static void _turn_camera_off(void) {
     turn_camera_off();
 }
 
-void _turn_camera_on(void) {
+static void _turn_camera_on(void) {
     turn_camera_on();
 }
 
-void _camera_run_animation(void) {
+static void _camera_run_animation(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_run_animation(args->slots[0].i);
 }
 
-void _camera_set_speed_scalar(void) {
+static void _camera_set_speed_scalar(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_speed_scalar(args->slots[0].f);
 }
 
-void _camera_get_victim(void) {
+static void _camera_get_victim(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = camera_get_victim();
 }
 
-void _camera_set_victim(void) {
+static void _camera_set_victim(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_victim(args->slots[0].pointer);
 }
 
-void _camera_get_attacker(void) {
+static void _camera_get_attacker(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = camera_get_attacker();
 }
 
-void _camera_set_attacker(void) {
+static void _camera_set_attacker(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_attacker(args->slots[0].pointer);
 }
 
-void _camera_special_function(void) {
+static void _camera_special_function(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_special_function(args->slots[0].i);
 }
 
-void _camera_setup_tightrope_angle_offset(void) {
+static void _camera_setup_tightrope_angle_offset(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_setup_tightrope_angle_offset(current_args, args->slots[0].f, args->slots[1].f);
 }
 
-void _camera_setup_radial_position(void) {
+static void _camera_setup_radial_position(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_setup_radial_position(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _camera_unpause_player(void) {
+static void _camera_unpause_player(void) {
     camera_unpause_player();
 }
 
-void _camera_pause_player(void) {
+static void _camera_pause_player(void) {
     camera_pause_player();
 }
 
-void _camera_setup_radial_sweep(void) {
+static void _camera_setup_radial_sweep(void) {
     struct ScriptRawArgs* args;
     float sp8;
 
@@ -12526,28 +12526,28 @@ void _camera_setup_radial_sweep(void) {
     camera_setup_radial_sweep(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f, args->slots[3].f, args->slots[4].f, args->slots[5].f, args->slots[6].f, args->slots[7].f, sp8);
 }
 
-void _camera_set_movement_focus_obj(void) {
+static void _camera_set_movement_focus_obj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_movement_focus_obj((MkObj*)args->slots[0].i);
 }
 
-void _camera_set_custom_camera_movement_flag(void) {
+static void _camera_set_custom_camera_movement_flag(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_custom_camera_movement_flag(args->slots[0].i);
 }
 
-void _camera_set_radial_movement(void) {
+static void _camera_set_radial_movement(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_radial_movement(args->slots[0].i);
 }
 
-void _camera_set_center_of_rotation(void) {
+static void _camera_set_center_of_rotation(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -12555,125 +12555,125 @@ void _camera_set_center_of_rotation(void) {
         args->slots[0].pointer);
 }
 
-void _camera_set_travel_time(void) {
+static void _camera_set_travel_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_travel_time(args->slots[0].f);
 }
 
-void _camera_set_rotation_direction(void) {
+static void _camera_set_rotation_direction(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_rotation_direction(args->slots[0].i);
 }
 
-void _camera_set_final_speed(void) {
+static void _camera_set_final_speed(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_final_speed(args->slots[0].f);
 }
 
-void _camera_set_initial_speed(void) {
+static void _camera_set_initial_speed(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_initial_speed(args->slots[0].f);
 }
 
-void _camera_set_rotation_rate(void) {
+static void _camera_set_rotation_rate(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_rotation_rate(args->slots[0].f);
 }
 
-void _camera_set_movement_rate(void) {
+static void _camera_set_movement_rate(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_movement_rate(args->slots[0].f);
 }
 
-void _camera_get_mirror_flag(void) {
+static void _camera_get_mirror_flag(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = camera_get_mirror_flag();
 }
 
-void _camera_set_check_konquest_collisions_flag(void) {
+static void _camera_set_check_konquest_collisions_flag(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_check_konquest_collisions_flag(args->slots[0].i);
 }
 
-void _camera_set_glitch_flag(void) {
+static void _camera_set_glitch_flag(void) {
     camera_set_glitch_flag();
 }
 
-void _camera_set_look_mode(void) {
+static void _camera_set_look_mode(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_look_mode(args->slots[0].i);
 }
 
-void _camera_set_movement_mode(void) {
+static void _camera_set_movement_mode(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_set_movement_mode(args->slots[0].i);
 }
 
-void _camera_wait_for_pos_move_done(void) {
+static void _camera_wait_for_pos_move_done(void) {
     camera_wait_for_pos_move_done();
 }
 
-void _camera_wait_for_ang_move_done(void) {
+static void _camera_wait_for_ang_move_done(void) {
     camera_wait_for_ang_move_done();
 }
 
-void _camera_wait_for_pos_and_ang_move_done(void) {
+static void _camera_wait_for_pos_and_ang_move_done(void) {
     camera_wait_for_pos_and_ang_move_done();
 }
 
-void _find_best_conversation_camera_position(void) {
+static void _find_best_conversation_camera_position(void) {
     find_best_conversation_camera_position();
 }
 
-void _camera_check_reverse_move_offset(void) {
+static void _camera_check_reverse_move_offset(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     camera_check_reverse_move_offset(args->slots[0].i, args->slots[1].i);
 }
 
-void _camera_is_pos_move_done(void) {
+static void _camera_is_pos_move_done(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = camera_is_pos_move_done();
 }
 
-void _camera_is_ang_move_done(void) {
+static void _camera_is_ang_move_done(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = camera_is_ang_move_done();
 }
 
-void _camera_reset_ang_done_flag(void) {
+static void _camera_reset_ang_done_flag(void) {
     camera_reset_ang_done_flag();
 }
 
-void _camera_reset_pos_done_flag(void) {
+static void _camera_reset_pos_done_flag(void) {
     camera_reset_pos_done_flag();
 }
 
-void _init_scripted_camera(void) {
+static void _init_scripted_camera(void) {
     init_scripted_camera();
 }
 
-void _get_intro_camera_path(void) {
+static void _get_intro_camera_path(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = get_intro_camera_path();
 }
 
-void _ani_to_frame_x_col(void) {
+static void _ani_to_frame_x_col(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -12683,144 +12683,144 @@ void _ani_to_frame_x_col(void) {
         args->slots[6].i);
 }
 
-void _if_collision_autoface_him(void) {
+static void _if_collision_autoface_him(void) {
     if_collision_autoface_him();
 }
 
-void _if_collision_autoface_me(void) {
+static void _if_collision_autoface_me(void) {
     if_collision_autoface_me();
 }
 
-void _bulvan_function(void) {
+static void _bulvan_function(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     bulvan_function(args->slots[0].i);
 }
 
-void _set_his_damage_multiplier(void) {
+static void _set_his_damage_multiplier(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_his_damage_multiplier(current_args, args->slots[0].f);
 }
 
-void _adjust_his_damage_multiplier(void) {
+static void _adjust_his_damage_multiplier(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     adjust_his_damage_multiplier(current_args, args->slots[0].f);
 }
 
-void _adjust_my_damage_multiplier(void) {
+static void _adjust_my_damage_multiplier(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     adjust_my_damage_multiplier(current_args, args->slots[0].f);
 }
 
-void _advance_my_moveset(void) {
+static void _advance_my_moveset(void) {
     advance_my_moveset();
 }
 
-void _disable_my_attacks(void) {
+static void _disable_my_attacks(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     disable_my_attacks(args->slots[0].i);
 }
 
-void _wall_eligible_off(void) {
+static void _wall_eligible_off(void) {
     wall_eligible_off();
 }
 
-void _wall_eligible_on(void) {
+static void _wall_eligible_on(void) {
     wall_eligible_on();
 }
 
-void _face_bleed_me(void) {
+static void _face_bleed_me(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     face_bleed_me(args->slots[0].i);
 }
 
-void _air_collision_pause(void) {
+static void _air_collision_pause(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     air_collision_pause(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f);
 }
 
-void _player_impale(void) {
+static void _player_impale(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     player_impale(args->slots[0].pointer, args->slots[1].pointer);
 }
 
-void _plyr_weapon_grab(void) {
+static void _plyr_weapon_grab(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     plyr_weapon_grab(args->slots[0].i, args->slots[1].i);
 }
 
-void _weapon_trail_off(void) {
+static void _weapon_trail_off(void) {
     weapon_trail_off();
 }
 
-void _weapon_trail_on(void) {
+static void _weapon_trail_on(void) {
     weapon_trail_on();
 }
 
-void _set_ani_weight(void) {
+static void _set_ani_weight(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_ani_weight(args->slots[0].f);
 }
 
-void _front_rollup_check(void) {
+static void _front_rollup_check(void) {
     front_rollup_check();
 }
 
-void _disable_joy_temp(void) {
+static void _disable_joy_temp(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     disable_joy_temp(args->slots[0].i);
 }
 
-void _disable_blocking(void) {
+static void _disable_blocking(void) {
     disable_blocking();
 }
 
-void _enable_his_blocking(void) {
+static void _enable_his_blocking(void) {
     enable_his_blocking();
 }
 
-void _match_my_ypos_with_his(void) {
+static void _match_my_ypos_with_his(void) {
     match_my_ypos_with_his();
 }
 
-void _slamdown_reaction_max_hit_rules(void) {
+static void _slamdown_reaction_max_hit_rules(void) {
     slamdown_reaction_max_hit_rules();
 }
 
-void _popup_reaction_max_hit_rules(void) {
+static void _popup_reaction_max_hit_rules(void) {
     popup_reaction_max_hit_rules();
 }
 
-void _back_rollup_check_reverse(void) {
+static void _back_rollup_check_reverse(void) {
     back_rollup_check_reverse();
 }
 
-void _back_rollup_check(void) {
+static void _back_rollup_check(void) {
     back_rollup_check();
 }
 
-void _force_forward(void) {
+static void _force_forward(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -12828,143 +12828,143 @@ void _force_forward(void) {
                   args->slots[2].f, args->slots[3].i);
 }
 
-void _ejb_call(void) {
+static void _ejb_call(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ejb_call(args->slots[0].i);
 }
 
-void _myvel_my_angle_y(void) {
+static void _myvel_my_angle_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     myvel_my_angle_y(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _rotate_towards_him(void) {
+static void _rotate_towards_him(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     rotate_towards_him(args->slots[0].f);
 }
 
-void _disable_both_repel_flags(void) {
+static void _disable_both_repel_flags(void) {
     disable_both_repel_flags();
 }
 
-void _wait_to_land(void) {
+static void _wait_to_land(void) {
     wait_to_land();
 }
 
-void _player_feet_land_chores(void) {
+static void _player_feet_land_chores(void) {
     player_feet_land_chores();
 }
 
-void _set_my_float_1(void) {
+static void _set_my_float_1(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_my_float_1(current_args, args->slots[0].f);
 }
 
-void _release_other_player(void) {
+static void _release_other_player(void) {
     release_other_player();
 }
 
-void _ejb_too_close_repell(void) {
+static void _ejb_too_close_repell(void) {
     ejb_too_close_repell();
 }
 
-void _ejb_release_other_player(void) {
+static void _ejb_release_other_player(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ejb_release_other_player(args->slots[0].i);
 }
 
-void _damage_him(void) {
+static void _damage_him(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     damage_him(current_args, args->slots[0].f);
 }
 
-void _damage_me(void) {
+static void _damage_me(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     damage_me(current_args, args->slots[0].f);
 }
 
-void _enable_all_my_blocking(void) {
+static void _enable_all_my_blocking(void) {
     enable_all_my_blocking();
 }
 
-void _turn_me_pi(void) {
+static void _turn_me_pi(void) {
     turn_me_pi();
 }
 
-void _disable_this_move_exec(void) {
+static void _disable_this_move_exec(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     disable_this_move_exec(args->slots[0].i, args->slots[1].i);
 }
 
-void _set_both_face_opponent_flags(void) {
+static void _set_both_face_opponent_flags(void) {
     set_both_face_opponent_flags();
 }
 
-void _clear_both_face_opponent_flags(void) {
+static void _clear_both_face_opponent_flags(void) {
     clear_both_face_opponent_flags();
 }
 
-void _clear_my_face_opponent_flag(void) {
+static void _clear_my_face_opponent_flag(void) {
     clear_my_face_opponent_flag();
 }
 
-void _super_charge_me(void) {
+static void _super_charge_me(void) {
     super_charge_me();
 }
 
-void _step_throw_outof_retract(void) {
+static void _step_throw_outof_retract(void) {
     step_throw_outof_retract();
 }
 
-void _step_throw_into_check(void) {
+static void _step_throw_into_check(void) {
     step_throw_into_check();
 }
 
-void _add_facial_damage(void) {
+static void _add_facial_damage(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     add_facial_damage(current_args, args->slots[0].f);
 }
 
-void _random_voice_him(void) {
+static void _random_voice_him(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     random_voice_him(args->slots[0].i);
 }
 
-void _set_my_damage_multiplier(void) {
+static void _set_my_damage_multiplier(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_my_damage_multiplier(current_args, args->slots[0].f);
 }
 
-void _disable_attack5(void) {
+static void _disable_attack5(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     disable_attack5(args->slots[0].i);
 }
 
-void _special_move_cam_him(void) {
+static void _special_move_cam_him(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
@@ -12974,354 +12974,354 @@ void _special_move_cam_him(void) {
         args->slots[6].i, args->slots[7].i);
 }
 
-void _plyr_rotate_obj_y180(void) {
+static void _plyr_rotate_obj_y180(void) {
     plyr_rotate_obj_y180();
 }
 
-void _check_for_combo_message(void) {
+static void _check_for_combo_message(void) {
     check_for_combo_message();
 }
 
-void _myvel_his_angle_y(void) {
+static void _myvel_his_angle_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     myvel_his_angle_y(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _stop_me(void) {
+static void _stop_me(void) {
     stop_me();
 }
 
-void _myvel_his_angle_y_inout(void) {
+static void _myvel_his_angle_y_inout(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     myvel_his_angle_y_inout(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _wait_for_slot_load(void) {
+static void _wait_for_slot_load(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     wait_for_slot_load(args->slots[0].i);
 }
 
-void _get_mode_of_play(void) {
+static void _get_mode_of_play(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i = get_mode_of_play();
 }
 
-void _destroy_mkprocs_pid(void) {
+static void _destroy_mkprocs_pid(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     destroy_mkprocs_pid(args->slots[0].i);
 }
 
-void _kill_lip_sync_procs(void) {
+static void _kill_lip_sync_procs(void) {
     kill_lip_sync_procs();
 }
 
-void _plyr_snd_req(void) {
+static void _plyr_snd_req(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = plyr_snd_req(args->slots[0].i);
 }
 
-void _random_hit(void) {
+static void _random_hit(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = random_hit(args->slots[0].i);
 }
 
-void _random_hit_n_voice(void) {
+static void _random_hit_n_voice(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     random_hit_n_voice(args->slots[0].i, args->slots[1].i);
 }
 
-void _shake_hit_voice(void) {
+static void _shake_hit_voice(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     shake_hit_voice(args->slots[0].i, args->slots[1].f, args->slots[2].i, args->slots[3].i);
 }
 
-void _pan_vol_pitch_random_snd_req(void) {
+static void _pan_vol_pitch_random_snd_req(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = pan_vol_pitch_random_snd_req(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _snd_stop(void) {
+static void _snd_stop(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     snd_stop(args->slots[0].i);
 }
 
-void _random_foot(void) {
+static void _random_foot(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = random_foot(args->slots[0].i);
 }
 
-void _random_voice(void) {
+static void _random_voice(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = random_voice(args->slots[0].i);
 }
 
-void _pan_vol_snd_req(void) {
+static void _pan_vol_snd_req(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = pan_vol_snd_req(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f);
 }
 
-void _pan_vol_pitch_random_hit(void) {
+static void _pan_vol_pitch_random_hit(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = pan_vol_pitch_random_hit(args->slots[0].i, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
-void _random_snd_req_delay(void) {
+static void _random_snd_req_delay(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     random_snd_req_delay(args->slots[0].i, args->slots[1].i);
 }
 
-void _random_snd_req(void) {
+static void _random_snd_req(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = random_snd_req(args->slots[0].i);
 }
 
-void _set_snd_vol(void) {
+static void _set_snd_vol(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_snd_vol(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
 }
 
-void _snd_req_vol(void) {
+static void _snd_req_vol(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = snd_req_vol(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _snd_req(void) {
+static void _snd_req(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ((struct ScriptRawResult*)active_cmdscript)->value.i = snd_req(args->slots[0].i);
 }
 
-void _ani_to_fall_to_frame(void) {
+static void _ani_to_fall_to_frame(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ani_to_fall_to_frame(args->slots[0].f, args->slots[1].i, args->slots[2].f);
 }
 
-void _shake_camera(void) {
+static void _shake_camera(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     shake_camera(args->slots[0].i, current_args, args->slots[1].f);
 }
 
-void _force_away(void) {
+static void _force_away(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     force_away(args->slots[0].f, args->slots[1].i, args->slots[2].f, args->slots[3].i);
 }
 
-void _play_sound_2(void) {
+static void _play_sound_2(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     play_sound_2(args->slots[0].i, args->slots[1].i);
 }
 
-void _ani_through_end(void) {
+static void _ani_through_end(void) {
     ani_through_end();
 }
 
-void _ani_to_end(void) {
+static void _ani_to_end(void) {
     ani_to_end();
 }
 
-void _face_opponent_180(void) {
+static void _face_opponent_180(void) {
     face_opponent_180();
 }
 
-void _face_opponent_now(void) {
+static void _face_opponent_now(void) {
     face_opponent_now();
 }
 
-void _hit_START_chores(void) {
+static void _hit_START_chores(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     hit_START_chores(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f);
 }
 
-void _land_chores(void) {
+static void _land_chores(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     land_chores(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f);
 }
 
-void _launch_me_up(void) {
+static void _launch_me_up(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     launch_me_up(args->slots[0].f, args->slots[1].f);
 }
 
-void _tightrope_restrictions_off(void) {
+static void _tightrope_restrictions_off(void) {
     tightrope_restrictions_off();
 }
 
-void _tightrope_restrictions_on(void) {
+static void _tightrope_restrictions_on(void) {
     tightrope_restrictions_on();
 }
 
-void _init_3d_move_no_aniproc(void) {
+static void _init_3d_move_no_aniproc(void) {
     init_3d_move_no_aniproc();
 }
 
-void _init_3d_move_no_face(void) {
+static void _init_3d_move_no_face(void) {
     init_3d_move_no_face();
 }
 
-void _init_3d_move(void) {
+static void _init_3d_move(void) {
     init_3d_move();
 }
 
-void _end_air_move(void) {
+static void _end_air_move(void) {
     end_air_move();
 }
 
-void _init_air_move_no_aniproc(void) {
+static void _init_air_move_no_aniproc(void) {
     init_air_move_no_aniproc();
 }
 
-void _init_air_move(void) {
+static void _init_air_move(void) {
     init_air_move();
 }
 
-void _init_still_move(void) {
+static void _init_still_move(void) {
     init_still_move();
 }
 
-void _init_ground_move_no_aniproc(void) {
+static void _init_ground_move_no_aniproc(void) {
     init_ground_move_no_aniproc();
 }
 
-void _init_ground_move(void) {
+static void _init_ground_move(void) {
     init_ground_move();
 }
 
-void _init_move(void) {
+static void _init_move(void) {
     init_move();
 }
 
-void _set_ani_speed(void) {
+static void _set_ani_speed(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_ani_speed(args->slots[0].f);
 }
 
-void _set_my_secondary_state(void) {
+static void _set_my_secondary_state(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_my_secondary_state(args->slots[0].i);
 }
 
-void _set_my_state(void) {
+static void _set_my_state(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     set_my_state(args->slots[0].i);
 }
 
-void _back_to_normal(void) {
+static void _back_to_normal(void) {
     back_to_normal();
 }
 
-void _if_collision_slow_ani_x(void) {
+static void _if_collision_slow_ani_x(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     if_collision_slow_ani_x(current_args, args->slots[0].f, args->slots[1].f);
 }
 
-void _slow_ani_end(void) {
+static void _slow_ani_end(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     slow_ani_end(current_args, args->slots[0].f);
 }
 
-void _slow_ani_x_if_miss(void) {
+static void _slow_ani_x_if_miss(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     slow_ani_x_if_miss(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
-void _slow_ani_x(void) {
+static void _slow_ani_x(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     slow_ani_x(args->slots[0].f, args->slots[1].f);
 }
 
-void _ani_to_blend_frame(void) {
+static void _ani_to_blend_frame(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ani_to_blend_frame(args->slots[0].f);
 }
 
-void _ani_to_frame_x(void) {
+static void _ani_to_frame_x(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ani_to_frame_x(args->slots[0].f);
 }
 
-void _ani_to_frame_x_aniproc(void) {
+static void _ani_to_frame_x_aniproc(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ani_to_frame_x_aniproc(current_args, args->slots[0].f);
 }
 
-void _ani_to_frame_sound(void) {
+static void _ani_to_frame_sound(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
     ani_to_frame_sound(args->slots[0].f, args->slots[1].f, args->slots[2].i);
 }
 
-void _blend_to_stance(void) {
+static void _blend_to_stance(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;

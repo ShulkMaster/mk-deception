@@ -1,3 +1,4 @@
+/* BUILD: -str reuse,pool,readonly. */
 #include "game/pselect.h"
 #include "game/game.h"
 #include "game/controller.h"
@@ -143,11 +144,11 @@ unsigned int get_next_bgnd(void);
 void ck_do_profile_save(void);
 void refresh_active_screen(void);
 void refresh_screen_by_name(char* name);
-void check_reset_player_selection(int player, int start_pos);
+static void check_reset_player_selection(int player, int start_pos);
 int check_for_winner(void);
 void wager_cancelled(void);
 int get_current_wager_koin(void);
-float p_enter_profile_code(void);
+static float p_enter_profile_code(void);
 void snd_req_delay(int sound_id, int delay);
 
 static float p_load_alternate_body(void);
@@ -183,117 +184,117 @@ struct ChessDefInfo {
 extern struct ChessDefInfo g_chess_definition_info;
 float p_mk_chess(void);
 
-int pselect_mode;
-int p1_selbox_start_pos;
-int p2_selbox_start_pos;
-int p1_selbox_pos;
-int p2_selbox_pos;
-RwTexture* p1_alternate;
-RwTexture* p2_alternate;
-RwTexture* p1_alternate_alpha;
-RwTexture* p2_alternate_alpha;
-int name_sound_state;
-int background_selbox_pos;
-int name_sound_active;
+static int pselect_mode;
+static int p1_selbox_start_pos;
+static int p2_selbox_start_pos;
+static int p1_selbox_pos;
+static int p2_selbox_pos;
+static RwTexture* p1_alternate;
+static RwTexture* p2_alternate;
+static RwTexture* p1_alternate_alpha;
+static RwTexture* p2_alternate_alpha;
+static int name_sound_state;
+static int background_selbox_pos;
+static int name_sound_active;
 int psel_p1_handicap;
 int psel_p2_handicap;
-int wager_completed_ran;
-int f_arena_select_active;
+static int wager_completed_ran;
+static int f_arena_select_active;
 
 static const float sleep_ticks_one = 1.0f;
 static const float sleep_ticks_neg_one = -1.0f;
 static const float sleep_ticks_name = 120.0f;
-#include "game/pselect_stringBase0.inc"
+
 
 int wager_koin_order[6] = {5, 4, 3, 2, 1, 0};
 
 struct PselectBgndEntry pselect_bgnd_tbl[22] = {
-    {0, &stringBase0[0x0], 6},
-    {19, &stringBase0[0xB], 7},
-    {18, &stringBase0[0x19], 7},
-    {21, &stringBase0[0x27], 1},
-    {17, &stringBase0[0x33], 6},
-    {14, &stringBase0[0x41], 2},
-    {8, &stringBase0[0x51], 3},
-    {6, &stringBase0[0x5D], 1},
-    {12, &stringBase0[0x67], 3},
-    {2, &stringBase0[0x78], 3},
-    {13, &stringBase0[0x83], 3},
-    {5, &stringBase0[0x8D], 2},
-    {9, &stringBase0[0x98], 4},
-    {1, &stringBase0[0xA5], 0},
-    {16, &stringBase0[0xB3], 0},
-    {20, &stringBase0[0xBE], 1},
-    {3, &stringBase0[0xC9], 1},
-    {7, &stringBase0[0xD6], 1},
-    {10, &stringBase0[0xE3], 1},
-    {11, &stringBase0[0xEE], 0},
-    {4, &stringBase0[0xF9], 1},
-    {15, &stringBase0[0x101], 1},
+    {0, "BGS_BEETLE", 6},
+    {19, "BGS_SLAUGHTER", 7},
+    {18, "BGS_SKYTEMPLE", 7},
+    {21, "BGS_YINYANG", 1},
+    {17, "BGS_REDDRAGON", 6},
+    {14, "BGS_NETHERBELLY", 2},
+    {8, "BGS_FOUNDRY", 3},
+    {6, "BGS_CLIFF", 1},
+    {12, "BGS_LOSTWARRIORS", 3},
+    {2, "BGS_PRISON", 3},
+    {13, "BGS_MINES", 3},
+    {5, "BGS_DRAGON", 2},
+    {9, "BGS_KANGTOMB", 4},
+    {1, "BGS_COURTYARD", 0},
+    {16, "BGS_PORTAL", 0},
+    {20, "BGS_THEPIT", 1},
+    {3, "BGS_DEADPOOL", 1},
+    {7, "BGS_FORTRESS", 1},
+    {10, "BGS_KUATAN", 1},
+    {11, "BGS_FOREST", 0},
+    {4, "BGS_DKA", 1},
+    {15, "BGS_NEXUS", 1},
 };
 
 struct PselectBgndEntry bg_pselect_bgnd_table[5] = {
-    {20, &stringBase0[0xBE], 0},
-    {16, &stringBase0[0xB3], 0},
-    {3, &stringBase0[0xC9], 0},
-    {1, &stringBase0[0xA5], 0},
-    {11, &stringBase0[0xEE], 0},
+    {20, "BGS_THEPIT", 0},
+    {16, "BGS_PORTAL", 0},
+    {3, "BGS_DEADPOOL", 0},
+    {1, "BGS_COURTYARD", 0},
+    {11, "BGS_FOREST", 0},
 };
 
 struct PselectBgndEntry pz_pselect_bgnd_table[6] = {
-    {0, &stringBase0[0x10B], 0},
-    {9, &stringBase0[0x11C], 0},
-    {19, &stringBase0[0x12B], 0},
-    {8, &stringBase0[0x140], 0},
-    {21, &stringBase0[0x153], 0},
-    {18, &stringBase0[0x161], 0},
+    {0, "PZ_BG_BEETLELAIR", 0},
+    {9, "PZ_BG_KANGTOMB", 0},
+    {19, "PZ_BG_SLAUGHTERHOUSE", 0},
+    {8, "PZ_BG_HELLSFOUNDRY", 0},
+    {21, "PZ_BG_YINYANG", 0},
+    {18, "PZ_BG_SKYTEMPLE", 0},
 };
 
-#define PSELECT_STRING(offset) ((char*)&stringBase0[offset])
+
 
 struct PselectCharEntry pselect_char_tbl[27] = {
-    {12, 86, PSELECT_STRING(0x171), PSELECT_STRING(0x17D), PSELECT_STRING(0x190), PSELECT_STRING(0x19C), PSELECT_STRING(0x1B0), PSELECT_STRING(0x1B2), PSELECT_STRING(0x1BA), PSELECT_STRING(0x1BF)},
-    {21, 84, PSELECT_STRING(0x1C6), PSELECT_STRING(0x1D0), PSELECT_STRING(0x1E1), PSELECT_STRING(0x1EB), PSELECT_STRING(0x1FD), PSELECT_STRING(0x1FF), PSELECT_STRING(0x206), PSELECT_STRING(0x20F)},
-    {0, 95, PSELECT_STRING(0x217), PSELECT_STRING(0x217), PSELECT_STRING(0x225), PSELECT_STRING(0x233), PSELECT_STRING(0x249), PSELECT_STRING(0x24B), PSELECT_STRING(0x253), PSELECT_STRING(0x25B)},
-    {4, 91, PSELECT_STRING(0x265), PSELECT_STRING(0x217), PSELECT_STRING(0x272), PSELECT_STRING(0x27F), PSELECT_STRING(0x249), PSELECT_STRING(0x294), PSELECT_STRING(0x29F), PSELECT_STRING(0x2AA)},
-    {30, 103, PSELECT_STRING(0x2AE), PSELECT_STRING(0x2AE), PSELECT_STRING(0x2B8), PSELECT_STRING(0x2C2), PSELECT_STRING(0x2D4), PSELECT_STRING(0x2D6), PSELECT_STRING(0x2DD), PSELECT_STRING(0x2E4)},
-    {1, 77, PSELECT_STRING(0x2F1), PSELECT_STRING(0x217), PSELECT_STRING(0x2FD), PSELECT_STRING(0x309), PSELECT_STRING(0x2D4), PSELECT_STRING(0x31D), PSELECT_STRING(0x323), PSELECT_STRING(0x32C)},
-    {3, 99, PSELECT_STRING(0x333), PSELECT_STRING(0x217), PSELECT_STRING(0x340), PSELECT_STRING(0x34D), PSELECT_STRING(0x1B0), PSELECT_STRING(0x362), PSELECT_STRING(0x36B), PSELECT_STRING(0x372)},
-    {14, 82, PSELECT_STRING(0x37D), PSELECT_STRING(0x388), PSELECT_STRING(0x399), PSELECT_STRING(0x3A4), PSELECT_STRING(0x1FD), PSELECT_STRING(0x3B7), PSELECT_STRING(0x3BD), PSELECT_STRING(0x3C9)},
-    {8, 97, PSELECT_STRING(0x3D6), PSELECT_STRING(0x3E2), PSELECT_STRING(0x3F5), PSELECT_STRING(0x401), PSELECT_STRING(0x2D4), PSELECT_STRING(0x415), PSELECT_STRING(0x41F), PSELECT_STRING(0x42A)},
-    {23, 94, PSELECT_STRING(0x432), PSELECT_STRING(0x43E), PSELECT_STRING(0x451), PSELECT_STRING(0x45D), PSELECT_STRING(0x1B0), PSELECT_STRING(0x471), PSELECT_STRING(0x47B), PSELECT_STRING(0x483)},
-    {11, 83, PSELECT_STRING(0x489), PSELECT_STRING(0x495), PSELECT_STRING(0x4A8), PSELECT_STRING(0x4B4), PSELECT_STRING(0x4C8), PSELECT_STRING(0x4CA), PSELECT_STRING(0x4D6), PSELECT_STRING(0x4DD)},
-    {19, 85, PSELECT_STRING(0x4E6), PSELECT_STRING(0x4F1), PSELECT_STRING(0x503), PSELECT_STRING(0x50E), PSELECT_STRING(0x249), PSELECT_STRING(0x521), PSELECT_STRING(0x529), PSELECT_STRING(0x532)},
-    {6, 81, PSELECT_STRING(0x53E), PSELECT_STRING(0x217), PSELECT_STRING(0x549), PSELECT_STRING(0x554), PSELECT_STRING(0x1B0), PSELECT_STRING(0x567), PSELECT_STRING(0x571), PSELECT_STRING(0x57E)},
-    {32, 19, PSELECT_STRING(0x582), PSELECT_STRING(0x582), PSELECT_STRING(0x58E), PSELECT_STRING(0x4B4), PSELECT_STRING(0x59A), PSELECT_STRING(0x59A), PSELECT_STRING(0x59A), PSELECT_STRING(0x59A)},
-    {5, 92, PSELECT_STRING(0x59C), PSELECT_STRING(0x217), PSELECT_STRING(0x5AB), PSELECT_STRING(0x5BA), PSELECT_STRING(0x1B0), PSELECT_STRING(0x5D1), PSELECT_STRING(0x5DA), PSELECT_STRING(0x5E6)},
-    {10, 78, PSELECT_STRING(0x5F0), PSELECT_STRING(0x217), PSELECT_STRING(0x5FE), PSELECT_STRING(0x60C), PSELECT_STRING(0x1B0), PSELECT_STRING(0x622), PSELECT_STRING(0x627), PSELECT_STRING(0x634)},
-    {27, 102, PSELECT_STRING(0x63C), PSELECT_STRING(0x64B), PSELECT_STRING(0x661), PSELECT_STRING(0x670), PSELECT_STRING(0x1FD), PSELECT_STRING(0x687), PSELECT_STRING(0x695), PSELECT_STRING(0x6A4)},
-    {15, 100, PSELECT_STRING(0x6A6), PSELECT_STRING(0x6B1), PSELECT_STRING(0x6C3), PSELECT_STRING(0x6CE), PSELECT_STRING(0x1FD), PSELECT_STRING(0x6E1), PSELECT_STRING(0x6EC), PSELECT_STRING(0x6F6)},
-    {25, 96, PSELECT_STRING(0x701), PSELECT_STRING(0x70F), PSELECT_STRING(0x724), PSELECT_STRING(0x732), PSELECT_STRING(0x1FD), PSELECT_STRING(0x748), PSELECT_STRING(0x74F), PSELECT_STRING(0x75C)},
-    {9, 89, PSELECT_STRING(0x769), PSELECT_STRING(0x774), PSELECT_STRING(0x786), PSELECT_STRING(0x791), PSELECT_STRING(0x249), PSELECT_STRING(0x7A4), PSELECT_STRING(0x7AC), PSELECT_STRING(0x7B9)},
-    {7, 76, PSELECT_STRING(0x7C4), PSELECT_STRING(0x217), PSELECT_STRING(0x7CF), PSELECT_STRING(0x7DB), PSELECT_STRING(0x1FD), PSELECT_STRING(0x7EF), PSELECT_STRING(0x7F9), PSELECT_STRING(0x800)},
-    {22, 79, PSELECT_STRING(0x806), PSELECT_STRING(0x812), PSELECT_STRING(0x825), PSELECT_STRING(0x831), PSELECT_STRING(0x1FD), PSELECT_STRING(0x845), PSELECT_STRING(0x84F), PSELECT_STRING(0x857)},
-    {31, 104, PSELECT_STRING(0x862), PSELECT_STRING(0x862), PSELECT_STRING(0x871), PSELECT_STRING(0x880), PSELECT_STRING(0x249), PSELECT_STRING(0x896), PSELECT_STRING(0x89E), PSELECT_STRING(0x8A5)},
-    {20, 88, PSELECT_STRING(0x8B2), PSELECT_STRING(0x8BD), PSELECT_STRING(0x8CF), PSELECT_STRING(0x8DA), PSELECT_STRING(0x4C8), PSELECT_STRING(0x8ED), PSELECT_STRING(0x8F8), PSELECT_STRING(0x903)},
-    {24, 80, PSELECT_STRING(0x90F), PSELECT_STRING(0x91C), PSELECT_STRING(0x932), PSELECT_STRING(0x93F), PSELECT_STRING(0x1FD), PSELECT_STRING(0x954), PSELECT_STRING(0x95F), PSELECT_STRING(0x967)},
-    {18, 87, PSELECT_STRING(0x971), PSELECT_STRING(0x97B), PSELECT_STRING(0x98C), PSELECT_STRING(0x996), PSELECT_STRING(0x1FD), PSELECT_STRING(0x9A8), PSELECT_STRING(0x9B0), PSELECT_STRING(0x9B6)},
-    {16, 90, PSELECT_STRING(0x9C3), PSELECT_STRING(0x9D0), PSELECT_STRING(0x9E4), PSELECT_STRING(0x9F1), PSELECT_STRING(0x1FD), PSELECT_STRING(0xA06), PSELECT_STRING(0xA0E), PSELECT_STRING(0xA17)},
+    {12, 86, "HEAD_KENSHI", "HEAD_KENSHI_LOCKED", "BODY_KENSHI", "body_kenshi_alt.sec", "4", "TAI CHI", "JUDO", "KATANA"},
+    {21, 84, "HEAD_JADE", "HEAD_JADE_LOCKED", "BODY_JADE", "body_jade_alt.sec", "5", "FAN ZI", "KUO SHOU", "BOJUTSU"},
+    {0, 95, "HEAD_SCORPION", "HEAD_SCORPION", "BODY_SCORPION", "body_scorpion_alt.sec", "2", "HAPKIDO", "MOI FAH", "MUGAI RYU"},
+    {4, 91, "HEAD_MILEENA", "HEAD_SCORPION", "BODY_MILEENA", "body_mileena_alt.sec", "2", "YING YEUNG", "MIAN CHUAN", "SAI"},
+    {30, 103, "HEAD_GORO", "HEAD_GORO", "BODY_GORO", "body_goro_alt.sec", "3", "SHOKAN", "KUATAN", "DRAGON FANGS"},
+    {1, 77, "HEAD_BARAKA", "HEAD_SCORPION", "BODY_BARAKA", "body_baraka_alt.sec", "3", "SILAT", "HUNG GAR", "BLADES"},
+    {3, 99, "HEAD_SUBZERO", "HEAD_SCORPION", "BODY_SUBZERO", "body_subzero_alt.sec", "4", "SHOTOKAN", "DRAGON", "KORI BLADE"},
+    {14, 82, "HEAD_HAVIK", "HEAD_SKAB_LOCKED", "BODY_HAVIK", "body_havik_alt.sec", "5", "SNAKE", "TANG SOO DO", "MORNING STAR"},
+    {8, 97, "HEAD_SINDEL", "HEAD_SINDEL_LOCKED", "BODY_SINDEL", "body_sindel_alt.sec", "3", "ZHA CHUAN", "FU JOW PAI", "KWAN DO"},
+    {23, 94, "HEAD_RAIDEN", "HEAD_RAIDEN_LOCKED", "BODY_RAIDEN", "body_raiden_alt.sec", "4", "NAN CHUAN", "JUJUTSU", "STAFF"},
+    {11, 83, "HEAD_HOTARU", "HEAD_HOTARU_LOCKED", "BODY_HOTARU", "body_hotaru_alt.sec", "1", "BA SHAN FAN", "PI GUA", "NAGINATA"},
+    {19, 85, "HEAD_KABAL", "HEAD_KABAL_LOCKED", "BODY_KABAL", "body_kabal_alt.sec", "2", "SUN BIN", "GOJU RYU", "HOOK SWORDS"},
+    {6, 81, "HEAD_ERMAC", "HEAD_SCORPION", "BODY_ERMAC", "body_ermac_alt.sec", "4", "HUA CHUAN", "CHOY LEE FUT", "AXE"},
+    {32, 19, "HEAD_RANDOM", "HEAD_RANDOM", "BODY_RANDOM", "body_hotaru_alt.sec", "?", "?", "?", "?"},
+    {5, 92, "HEAD_NIGHTWOLF", "HEAD_SCORPION", "BODY_NIGHTWOLF", "body_nightwolf_alt.sec", "4", "VAL TUDO", "TAE KWAN DO", "TOMAHAWKS"},
+    {10, 78, "HEAD_BORAICHO", "HEAD_SCORPION", "BODY_BORAICHO", "body_boraicho_alt.sec", "4", "SUMO", "DRUNKEN FIST", "JOJUTSU"},
+    {27, 102, "HEAD_SMOKENOOB", "HEAD_SMOKENOOB_LOCKED", "BODY_SMOKENOOB", "body_smokenoob_alt.sec", "5", "NOOB - MONKEY", "SMOKE - MI TZU", " "},
+    {15, 100, "HEAD_TANYA", "HEAD_TANYA_LOCKED", "BODY_TANYA", "body_tanya_alt.sec", "5", "ZI RAN MEN", "YUE CHUAN", "KOBU JUTSU"},
+    {25, 96, "HEAD_SHUJINKO", "HEAD_SHUJINKO_LOCKED", "BODY_SHUJINKO", "body_shujinko_alt.sec", "5", "MANTIS", "SHAOLIN FIST", "DAN TIEN DAO"},
+    {9, 89, "HEAD_LIMEI", "HEAD_LIMEI_LOCKED", "BODY_LIMEI", "body_limei_alt.sec", "2", "MI ZONG", "LUI HE BA FA", "KUNLUN DAO"},
+    {7, 76, "HEAD_ASHRA", "HEAD_SCORPION", "BODY_ASHRAH", "body_ashrah_alt.sec", "5", "CHOU JAIO", "BA GUA", "KRISS"},
+    {22, 79, "HEAD_DAIROU", "HEAD_DAIROU_LOCKED", "BODY_DAIROU", "body_dairou_alt.sec", "5", "WING CHUN", "ESCRIMA", "AUTUMN DAO"},
+    {31, 104, "HEAD_SHAO_KAHN", "HEAD_SHAO_KAHN", "BODY_SHAO_KAHN", "body_shaokahn_alt.sec", "2", "TAI TZU", "LUI HE", "WRATH HAMMER"},
+    {20, 88, "HEAD_KOBRA", "HEAD_KOBRA_LOCKED", "BODY_KOBRA", "body_kobra_alt.sec", "1", "SHORIN RYU", "KICKBOXING", "KALI STICKS"},
+    {24, 80, "HEAD_DARRIUS", "HEAD_SHINJINKO_LOCKED", "BODY_DARRIUS", "body_darrius_alt.sec", "5", "SHINTO RYU", "LEOPARD", "GAUNTLETS"},
+    {18, 87, "HEAD_KIRA", "HEAD_KIRA_LOCKED", "BODY_KIRA", "body_kira_alt.sec", "5", "XING YI", "KENPO", "DRAGON TEETH"},
+    {16, 90, "HEAD_LIUKANG", "HEAD_LIUKANG_LOCKED", "BODY_LIUKANG", "body_liukang_alt.sec", "5", "JUN FAN", "PAO CHUI", "NUNCHAKU"},
 };
 
 struct PselectCharEntry pselect_pz_char_tbl[12] = {
-    {0, 95, PSELECT_STRING(0xA20), PSELECT_STRING(0xA20), PSELECT_STRING(0xA31), 0, PSELECT_STRING(0xA42), PSELECT_STRING(0xA49), 0, 0},
-    {1, 77, PSELECT_STRING(0xA56), PSELECT_STRING(0xA56), PSELECT_STRING(0xA65), 0, PSELECT_STRING(0xA74), PSELECT_STRING(0xA7A), 0, 0},
-    {5, 92, PSELECT_STRING(0xA86), PSELECT_STRING(0xA86), PSELECT_STRING(0xA98), 0, PSELECT_STRING(0xAAA), PSELECT_STRING(0xAB8), 0, 0},
-    {6, 81, PSELECT_STRING(0xACC), PSELECT_STRING(0xACC), PSELECT_STRING(0xADA), 0, PSELECT_STRING(0xAE8), PSELECT_STRING(0xAF1), 0, 0},
-    {8, 97, PSELECT_STRING(0xB00), PSELECT_STRING(0xB00), PSELECT_STRING(0xB0F), 0, PSELECT_STRING(0xB1E), PSELECT_STRING(0xB26), 0, 0},
-    {3, 99, PSELECT_STRING(0xB34), PSELECT_STRING(0xB34), PSELECT_STRING(0xB44), 0, PSELECT_STRING(0xB54), PSELECT_STRING(0xB5B), 0, 0},
-    {10, 78, PSELECT_STRING(0xB68), PSELECT_STRING(0xB79), PSELECT_STRING(0xB91), 0, PSELECT_STRING(0xBA2), PSELECT_STRING(0xBAB), 0, 0},
-    {12, 86, PSELECT_STRING(0xBBA), PSELECT_STRING(0xBC9), PSELECT_STRING(0xBDF), 0, PSELECT_STRING(0xBEE), PSELECT_STRING(0xBF8), 0, 0},
-    {4, 91, PSELECT_STRING(0xC08), PSELECT_STRING(0xC18), PSELECT_STRING(0xC2F), 0, PSELECT_STRING(0xC3F), PSELECT_STRING(0xC45), 0, 0},
-    {21, 84, PSELECT_STRING(0xC51), PSELECT_STRING(0xC5E), PSELECT_STRING(0xC72), 0, PSELECT_STRING(0xC7F), PSELECT_STRING(0xC85), 0, 0},
-    {19, 85, PSELECT_STRING(0xC91), PSELECT_STRING(0xC9F), PSELECT_STRING(0xCB4), 0, PSELECT_STRING(0xCC2), PSELECT_STRING(0xCCD), 0, 0},
-    {23, 94, PSELECT_STRING(0xCDE), PSELECT_STRING(0xCED), PSELECT_STRING(0xD03), 0, PSELECT_STRING(0xD12), PSELECT_STRING(0xD18), 0, 0},
+    {0, 95, "PZ_HEAD_SCORPION", "PZ_HEAD_SCORPION", "SCORPION_PZ_BODY", 0, "JUMBLE", "JUMBLE_RIGHT", 0, 0},
+    {1, 77, "PZ_HEAD_BARAKA", "PZ_HEAD_BARAKA", "BARAKA_PZ_BODY", 0, "EDGER", "EDGER_RIGHT", 0, 0},
+    {5, 92, "PZ_HEAD_NIGHTWOLF", "PZ_HEAD_NIGHTWOLF", "NIGHTWOLF_PZ_BODY", 0, "BREAKERBUSTER", "BREAKERBUSTER_RIGHT", 0, 0},
+    {6, 81, "PZ_HEAD_ERMAC", "PZ_HEAD_ERMAC", "ERMAC_PZ_BODY", 0, "LEVITATE", "LEVITATE_RIGHT", 0, 0},
+    {8, 97, "PZ_HEAD_SINDEL", "PZ_HEAD_SINDEL", "SINDEL_PZ_BODY", 0, "ARRANGE", "ARRANGE_RIGHT", 0, 0},
+    {3, 99, "PZ_HEAD_SUBZERO", "PZ_HEAD_SUBZERO", "SUBZERO_PZ_BODY", 0, "FREEZE", "FREEZE_RIGHT", 0, 0},
+    {10, 78, "PZ_HEAD_BORAICHO", "PZ_HEAD_BORAICHO_LOCKED", "BORAICHO_PZ_BODY", 0, "COLLAPSE", "COLLAPSE_RIGHT", 0, 0},
+    {12, 86, "PZ_HEAD_KENSHI", "PZ_HEAD_KENSHI_LOCKED", "KENSHI_PZ_BODY", 0, "INVISIBLE", "INVISIBLE_RIGHT", 0, 0},
+    {4, 91, "PZ_HEAD_MILEENA", "PZ_HEAD_MILEENA_LOCKED", "MILEENA_PZ_BODY", 0, "DRILL", "DRILL_RIGHT", 0, 0},
+    {21, 84, "PZ_HEAD_JADE", "PZ_HEAD_JADE_LOCKED", "JADE_PZ_BODY", 0, "STACK", "STACK_RIGHT", 0, 0},
+    {19, 85, "PZ_HEAD_KABAL", "PZ_HEAD_KABAL_LOCKED", "KABAL_PZ_BODY", 0, "DOUBLEBOMB", "DOUBLEBOMB_RIGHT", 0, 0},
+    {23, 94, "PZ_HEAD_RAIDEN", "PZ_HEAD_RAIDEN_LOCKED", "RAIDEN_PZ_BODY", 0, "STORM", "STORM_RIGHT", 0, 0},
 };
 
 struct LightDefAmbient pselect_ambient = {
@@ -308,16 +309,16 @@ static int rnd_sleep_tbl[19] = {
     8, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 10, 10, 15, 20, 30, 40, -1
 };
 
-#define STR_P_SELECT (&stringBase0[0xD24])
-#define STR_P_PRACTICE (&stringBase0[0xD3D])
-#define STR_PZ_SELECT (&stringBase0[0xD58])
-#define STR_BG_SELECT (&stringBase0[0xD7F])
-#define STR_HEAD_PROXY (&stringBase0[0xDA2])
-#define STR_SELECTING_FMT (&stringBase0[0xDAD])
-#define STR_BODY_ALT (&stringBase0[0xDC0])
-#define STR_BG_ART (&stringBase0[0xDC9])
-#define STR_PZ_ART (&stringBase0[0xDDC])
-#define STR_PSELECT_ART (&stringBase0[0xDEF])
+#define STR_P_SELECT "common/p_select/p_select"
+#define STR_P_PRACTICE "common/p_select/p_practice"
+#define STR_PZ_SELECT "common/puzzle_fighter/pf_player_select"
+#define STR_BG_SELECT "common/board_game/bg_player_select"
+#define STR_HEAD_PROXY "HEAD_PROXY"
+#define STR_SELECTING_FMT "Selecting %s (%d)\n"
+#define STR_BODY_ALT "BODY_ALT"
+#define STR_BG_ART "bg_pselect_art.sec"
+#define STR_PZ_ART "pz_pselect_art.sec"
+#define STR_PSELECT_ART "pselect_art.sec"
 
 #define PSELECT_ALT_SLOT_P1 0x17006B
 #define PSELECT_ALT_SLOT_P2 0x17006C
@@ -527,8 +528,8 @@ static inline int pselect_character_locked_impl(int char_id, int alt_bit) {
     return 1;
 }
 
-/* TODO: [near miss] 97.55%; validity result copy/join is absent before allocation;
- * recover its producer boundary and the early shift-count snapshot. */
+/* TODO: [near miss] 97.55396%; shared range-result join and early shift-count owner differ;
+ * recover the original predicate boundary; preserve current allocation. */
 static float p_random_player_select(void) {
     int attempts;
     int slot;
@@ -837,7 +838,8 @@ void ck_decrement_bet(void) {
     }
 }
 
-/* TODO: [near miss] 99.40860%; soft ceiling: nine affordability GPR rows remain; preserve lazy profile checks and output-slot ABI. */
+/* TODO: [near miss] 99.40860%; balance/amount producers remain reversed;
+ * verified PS2 inlines the same checks; recover their original ownership boundary. */
 void ck_increment_bet(void) {
     MkProc* proc;
     MkHdr* pdata;
@@ -1071,7 +1073,7 @@ void pselect_start_code_entry(int player, int port) {
     profile_code_state[player] = 0;
 }
 
-float p_enter_profile_code(void) {
+static float p_enter_profile_code(void) {
     ProfileCodePdata* pdata;
     int player;
     int port;
@@ -1139,8 +1141,8 @@ float p_enter_profile_code(void) {
 }
 
 
-/* TODO: [near miss] 97.91045%; recover a genuine validity-result copy across the join;
- * IRO folds the current branch pair before allocation. */
+/* TODO: [near miss] 97.91045%; unsigned64 validity-result ownership and join differ;
+ * preserve signed-ID ABI and recover the common predicate producer. */
 int is_char_locked(int char_id, int alt_bit) {
     unsigned long long mask;
     unsigned long long bit;
@@ -1522,8 +1524,8 @@ void get_bg_pselect_team_textures(PselectTexOut out, int team) {
     pselect_update_team_preview(team);
 }
 
-/* TODO: [near miss] 98.88%; validity join is absent from initial pcode;
- * recover its original predicate boundary before addressing zero sharing. */
+/* TODO: [near miss] 98.88000%; shared validity join differs before allocation;
+ * recover the unsigned64 predicate boundary, then zero sharing. */
 void get_pselect_head_textures(PselectTexOut out) {
     int n;
     int i;
@@ -1663,8 +1665,8 @@ void pselect_player_moved(int player) {
         bg_team_record_focus_of(get_screen_pdata(), player, char_id);
 }
 
-/* TODO: [breakthrough] 96.85567%; canonical count/entry and focus owners agree;
- * selector-index CSE across texture load still removes branch-local multiplies. */
+/* TODO: [breakthrough needed] 96.85567%; selector product stays live across
+ * head-texture load; recover the branch-local multiplication producer. */
 void bg_pselect_player_canceled(int player) {
     struct BgPselectTeamPdata* pdata;
     int count;
@@ -1773,8 +1775,8 @@ void resolve_alternate_palettes(PlyrInfo* plyr) {
     }
 }
 
-/* TODO: [near miss] 99.41989%; canonical preview address agrees; validity
- * branch producer and preview owner order remain at the documented ceiling. */
+/* TODO: [near miss] 99.41989%; shared range-result join and preview owner order differ;
+ * canonical preview address agrees; recover the predicate producer. */
 void pselect_player_selected(PlyrInfo* plyr) {
     PlyrInfo* other;
     int* sel_pos;
@@ -1893,14 +1895,12 @@ void pselect_player_selected(PlyrInfo* plyr) {
     }
 }
 
-/* TODO: [breakthrough needed] 94.02%; initial pcode shares BODY_ALT across calls;
- * recover retail address rematerialization without changing the string pool. */
 static float p_load_alternate_body(void) {
     struct AltBodyPdata* pdata;
-    int slot;
     RwTexture** color_out;
-    RwTexture** alpha_out;
     char* sec_name;
+    int slot;
+    RwTexture** alpha_out;
 
     pdata = (struct AltBodyPdata*)apdata;
     if (pdata->player == 0) {
@@ -1915,7 +1915,7 @@ static float p_load_alternate_body(void) {
         slot = PSELECT_ALT_SLOT_P2;
     }
 
-    load_ssf((MkFileEntry*)pselect_file_table);
+    load_ssf(pselect_file_table);
     unload_section_slot(slot);
     add_art_section_by_name_async(slot, sec_name);
     wait_for_slot_load(slot);
@@ -1985,8 +1985,8 @@ int pselect_get_selbox_pos(int player) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 95.98290%; public parameters select after internal owners;
- * recover the GC operation boundary and shared validity-result copy. */
+/* TODO: [breakthrough needed] 95.98290%; public/internal owner order and range-result join differ;
+ * recover the GC operation boundary and unsigned64 predicate producer. */
 void pselect_update_selbox_pos(int player, int new_pos) {
     int* pos_p;
     int cols;
@@ -2090,9 +2090,9 @@ void pselect_update_selbox_pos(int player, int new_pos) {
     fire_screen_studio_event(0x1FA4, player);
 }
 
-/* TODO: [near miss] 98.37%; shared validity-result copy/join is absent before allocation;
- * recover its genuine producer boundary in the common predicate. */
-void check_reset_player_selection(int player, int start_pos) {
+/* TODO: [near miss] 98.37209%; shared unsigned64 validity-result ownership/join differ;
+ * recover the original producer before IroJump folding. */
+static void check_reset_player_selection(int player, int start_pos) {
     int pos;
     int char_id;
 
@@ -2304,7 +2304,7 @@ float p_bg_pselect(void) {
     pdata->focus1 = -1;
 
     unload_section_slot(PSELECT_SEC_SLOT);
-    load_ssf((MkFileEntry*)pselect_file_table);
+    load_ssf(pselect_file_table);
     load_art_section_by_name(PSELECT_SEC_SLOT, STR_BG_ART);
     load_screen(STR_BG_SELECT, PSELECT_SEC_SLOT, &pdata->hdr, 0);
     turn_camera_on();
@@ -2396,7 +2396,7 @@ float p_pz_pselect(void) {
     push_game_state(4);
 
     unload_section_slot(PSELECT_SEC_SLOT);
-    load_ssf((MkFileEntry*)pselect_file_table);
+    load_ssf(pselect_file_table);
     add_art_section_by_name_async_language(PSELECT_SEC_SLOT, STR_PZ_ART);
     preload_screen_data(STR_PZ_SELECT, PSELECT_SEC_SLOT);
     load_screen(STR_PZ_SELECT, PSELECT_SEC_SLOT, 0, 0);
@@ -2502,7 +2502,7 @@ float p_pselect(void) {
         disable_all_ports_but_me((&g_game_info.plyr0)[menu_player].pad_index);
     }
 
-    load_ssf((MkFileEntry*)pselect_file_table);
+    load_ssf(pselect_file_table);
     load_art_section_by_name(PSELECT_SEC_SLOT, STR_PSELECT_ART);
 
     if (mode_of_play == 4) {
@@ -2618,8 +2618,8 @@ float p_pselect(void) {
 
 static void init_startup_selboxes(void);
 
-/* TODO: [near miss] 97.36994%; position/mask and invariant-mode owners differ;
- * preserve local searches and outlining; recover the shared validity join. */
+/* TODO: [near miss] 97.36994%; shared range-result join and position/mask owners differ;
+ * preserve local searches and outlining; recover predicate ownership. */
 static void init_startup_selboxes(void) {
     int max_col;
     int p1_pos;

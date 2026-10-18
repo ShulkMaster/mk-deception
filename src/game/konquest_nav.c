@@ -393,8 +393,8 @@ void nav_get_unit_vector_to_area(int areaIndex, Vec* out, Vec* pos) {
     out->y = 0.0f;
 }
 
-/* TODO: [near miss] 97.68519%; packed cursor and split returns agree;
- * normal/input FPR producer kinds remain; preserve boundary load scheduling. */
+/* TODO: [near miss] 98.05556%; scalar plane fields retain all operations;
+ * six FPR owners still cross scalarized/named/codegen creation bands. */
 static struct NavArea* unit_vector_to_area(struct NavArea* area, Vec* nearestNormal,
                                     float* nearestDistance,
                                     Vec* farthestNormal,
@@ -414,24 +414,27 @@ static struct NavArea* unit_vector_to_area(struct NavArea* area, Vec* nearestNor
     count = area->boundaryCount;
     for (i = 0; i < count; i++) {
         struct NavBoundary* boundary = (struct NavBoundary*)cursor;
-        float boundaryZ = boundary->z;
-        float distance = boundaryZ * position->z;
-        float boundaryX = boundary->x;
+        struct NavBoundary plane;
+        float distance;
 
-        distance = boundaryX * position->x + distance -
-                   (0.35f + boundary->offset);
+        plane.z = boundary->z;
+        distance = plane.z * position->z;
+        plane.x = boundary->x;
+        plane.offset = boundary->offset;
+        distance = plane.x * position->x + distance -
+                   (0.35f + plane.offset);
         cursor += sizeof(struct NavBoundary);
 
         if (distance > 0.0f) {
             inside = 0;
             if (distance > *farthestDistance) {
-                farthestNormal->x = boundaryX;
-                farthestNormal->z = boundaryZ;
+                farthestNormal->x = plane.x;
+                farthestNormal->z = plane.z;
                 *farthestDistance = distance;
             }
             if (distance < *nearestDistance) {
-                nearestNormal->x = boundaryX;
-                nearestNormal->z = boundaryZ;
+                nearestNormal->x = plane.x;
+                nearestNormal->z = plane.z;
                 *nearestDistance = distance;
             }
         }
@@ -509,16 +512,100 @@ void konquest_nav_init(void) {
     }
 }
 
-/* TODO: [near miss] 96.07246%; contour and flag ordering improve;
- * four bound copies and induction owners remain; original bound order retained. */
+static inline void calc_tile_points(struct NavTile* tile, Vec* corners) {
+    float minZ;
+    float minX;
+    float maxZ;
+    float maxX;
+
+    minX = tile->x - 30.6f;
+    maxX = tile->x + 30.6f;
+    minZ = tile->z - 30.6f;
+    maxZ = tile->z + 30.6f;
+
+    corners[0].x = minX;
+    corners[0].y = 0.0f;
+    corners[0].z = minZ;
+    corners[1].x = minX;
+    corners[1].y = 0.0f;
+    corners[1].z = maxZ;
+    corners[2].x = maxX;
+    corners[2].y = 0.0f;
+    corners[2].z = maxZ;
+    corners[3].x = maxX;
+    corners[3].y = 0.0f;
+    corners[3].z = minZ;
+}
+
+static inline struct NavBoundary* calculate_vertices_of_nav_area(
+    struct NavArea* area, Vec* intersections, int* boundaryCount) {
+    Vec previous;
+    Vec first;
+    Vec current;
+    int outputIndex;
+    struct NavBoundary* boundary;
+    int boundaryIndex;
+    float firstOffset;
+    float currentOffset;
+    float previousOffset;
+
+    *boundaryCount = area->boundaryCount;
+    outputIndex = 1;
+    if (*boundaryCount > 15) {
+        return 0;
+    }
+
+    boundary = area->boundaries;
+    previous.x = boundary->x;
+    previous.y = 0.0f;
+    previous.z = boundary->z;
+    previousOffset = boundary->offset;
+    first.x = previous.x;
+    first.y = previous.y;
+    first.z = previous.z;
+    firstOffset = previousOffset;
+    boundary++;
+    for (boundaryIndex = 1; boundaryIndex < *boundaryCount; boundaryIndex++) {
+        Vec* intersection;
+
+        current.x = boundary->x;
+        current.y = 0.0f;
+        current.z = boundary->z;
+        currentOffset = boundary->offset;
+        boundary++;
+        intersection = intersections;
+        intersection += outputIndex++;
+        intersect_xz_lines(&previous, &current, intersection,
+                           previousOffset, currentOffset);
+        previous.x = current.x;
+        previous.y = current.y;
+        previous.z = current.z;
+        previousOffset = currentOffset;
+    }
+    intersect_xz_lines(&previous, &first, &intersections[0],
+                       previousOffset, firstOffset);
+    return boundary;
+}
+
+static inline void add_nav_area_to_tile(
+    struct NavTile* tile, int areaIndex, int* most_navigation_per_tile) {
+    if (tile->navigationCount < 70) {
+        tile->navigationAreas[tile->navigationCount] = areaIndex;
+        tile->navigationCount++;
+        if (tile->navigationCount > *most_navigation_per_tile) {
+            *most_navigation_per_tile = tile->navigationCount;
+        }
+    }
+}
+
+/* TODO: [near miss] 99.31884%; 42 GPR rows remain in area/tile/index and flag homes;
+ * vertex and inside flag owners agree; original root ownership is missing. */
 static void setup_per_tile_navigations(void) {
     static int most_navigation_per_tile;
+    int cornerIndex;
     Vec intersections[15];
     Vec tileCorners[4];
     int cornerOutside[4];
-    Vec current;
-    Vec first;
-    Vec previous;
     int areaCount;
     int areaIndex;
     int boundaryCount;
@@ -531,92 +618,48 @@ static void setup_per_tile_navigations(void) {
     for (; areaIndex < areaCount; areaIndex++) {
         struct NavArea* area = nav_get_area(konquest_pdata->navData, areaIndex);
 
-        boundaryCount = area->boundaryCount;
-
-        if (boundaryCount <= 15) {
-            int boundaryIndex;
-            struct NavBoundary* boundary = area->boundaries;
-            float currentOffset;
-            float firstOffset;
-            float previousOffset;
-
-            previous.x = boundary->x;
-            previous.y = 0.0f;
-            previous.z = boundary->z;
-            previousOffset = boundary->offset;
-            first.x = previous.x;
-            first.y = previous.y;
-            first.z = previous.z;
-            firstOffset = previousOffset;
-            boundary++;
-            for (boundaryIndex = 1; boundaryIndex < boundaryCount;
-                 boundaryIndex++) {
-                Vec* intersection;
-
-                current.x = boundary->x;
-                current.y = 0.0f;
-                current.z = boundary->z;
-                currentOffset = boundary->offset;
-                boundary++;
-                intersection = intersections;
-                intersection += boundaryIndex;
-                intersect_xz_lines(&previous, &current,
-                                   intersection,
-                                   previousOffset, currentOffset);
-                previous.x = current.x;
-                previous.y = current.y;
-                previous.z = current.z;
-                previousOffset = currentOffset;
-            }
-            intersect_xz_lines(&previous, &first, &intersections[0],
-                               previousOffset, firstOffset);
-        }
+        calculate_vertices_of_nav_area(area, intersections, &boundaryCount);
 
         tileIndex = 0;
         while (tileIndex < tileCount) {
             struct NavTile* tile = &konquest_pdata->navTiles[tileIndex];
-            float minX = tile->x - 30.6f;
-            float maxX = tile->x + 30.6f;
-            float minZ = tile->z - 30.6f;
-            float maxZ = tile->z + 30.6f;
-            int allLeft = 1;
-            int allBelow = 1;
+            float minX;
+            float maxX;
+            float minZ;
+            float maxZ;
             int allVerticesInsideTile = 1;
+            int allLeft = 1;
             int allRight = 1;
             int allAbove = 1;
+            int allBelow = 1;
             int allTileCornersInsideArea = 1;
             int boundaryIndex;
             int vertexIndex;
             struct NavBoundary* boundary;
 
-            tileCorners[0].x = minX;
-            tileCorners[0].y = 0.0f;
-            tileCorners[0].z = minZ;
-            tileCorners[1].x = minX;
-            tileCorners[1].y = 0.0f;
-            tileCorners[1].z = maxZ;
-            tileCorners[2].x = maxX;
-            tileCorners[2].y = 0.0f;
-            tileCorners[2].z = maxZ;
-            tileCorners[3].x = maxX;
-            tileCorners[3].y = 0.0f;
-            tileCorners[3].z = minZ;
+            calc_tile_points(tile, tileCorners);
+            minX = tileCorners[0].x;
+            maxX = tileCorners[2].x;
+            minZ = tileCorners[0].z;
+            maxZ = tileCorners[1].z;
 
             for (vertexIndex = 0; vertexIndex < boundaryCount; vertexIndex++) {
-                if (intersections[vertexIndex].x < minX) {
+                Vec* vertex = &intersections[vertexIndex];
+
+                if (vertex->x < minX) {
                     allRight = 0;
                     allVerticesInsideTile = 0;
-                } else if (intersections[vertexIndex].x > maxX) {
+                } else if (vertex->x > maxX) {
                     allLeft = 0;
                     allVerticesInsideTile = 0;
                 } else {
                     allLeft = 0;
                     allRight = 0;
                 }
-                if (intersections[vertexIndex].z < minZ) {
+                if (vertex->z < minZ) {
                     allAbove = 0;
                     allVerticesInsideTile = 0;
-                } else if (intersections[vertexIndex].z > maxZ) {
+                } else if (vertex->z > maxZ) {
                     allBelow = 0;
                     allVerticesInsideTile = 0;
                 } else {
@@ -627,28 +670,25 @@ static void setup_per_tile_navigations(void) {
 
             if (!(allLeft || allRight || allBelow || allAbove)) {
                 if (allVerticesInsideTile) {
-                    if (tile->navigationCount < 70) {
-                        tile->navigationAreas[tile->navigationCount] = areaIndex;
-                        tile->navigationCount++;
-                        if (tile->navigationCount > most_navigation_per_tile) {
-                            most_navigation_per_tile = tile->navigationCount;
-                        }
-                    }
+                    add_nav_area_to_tile(tile, areaIndex, &most_navigation_per_tile);
                 } else {
                     boundary = area->boundaries;
                     for (boundaryIndex = 0; boundaryIndex < boundaryCount;
                          boundaryIndex++) {
-                        float boundaryX = boundary->x;
-                        float boundaryZ = boundary->z;
-                        float boundaryOffset = boundary->offset;
+                        Vec boundaryNormal;
+                        float boundaryOffset;
                         int allCornersOutside = 1;
                         int allCornersInside = 1;
                         int tileCorner;
 
+                        boundaryNormal.x = boundary->x;
+                        boundaryNormal.y = 0.0f;
+                        boundaryNormal.z = boundary->z;
+                        boundaryOffset = boundary->offset;
                         boundary++;
                         for (tileCorner = 0; tileCorner < 4; tileCorner++) {
-                            float planeDistance = boundaryX * tileCorners[tileCorner].x +
-                                                  boundaryZ * tileCorners[tileCorner].z;
+                            float planeDistance = boundaryNormal.x * tileCorners[tileCorner].x +
+                                                  boundaryNormal.z * tileCorners[tileCorner].z;
 
                             if (planeDistance > boundaryOffset) {
                                 cornerOutside[tileCorner] = 1;
@@ -664,7 +704,6 @@ static void setup_per_tile_navigations(void) {
                         }
                         if (!allCornersInside) {
                             int previousCorner = 3;
-                            int cornerIndex;
 
                             for (cornerIndex = 0; cornerIndex < 4;
                                  cornerIndex++) {
@@ -712,17 +751,7 @@ static void setup_per_tile_navigations(void) {
                                         crosses ^= 1;
                                     }
                                     if (crosses) {
-                                        if (tile->navigationCount < 70) {
-                                            tile->navigationAreas
-                                                [tile->navigationCount] =
-                                                areaIndex;
-                                            tile->navigationCount++;
-                                            if (tile->navigationCount >
-                                                most_navigation_per_tile) {
-                                                most_navigation_per_tile =
-                                                    tile->navigationCount;
-                                            }
-                                        }
+                                        add_nav_area_to_tile(tile, areaIndex, &most_navigation_per_tile);
                                         goto next_tile;
                                     }
                                 }
@@ -732,16 +761,7 @@ static void setup_per_tile_navigations(void) {
                     }
 
                     if (allTileCornersInsideArea) {
-                        if (tile->navigationCount < 70) {
-                            tile->navigationAreas[tile->navigationCount] =
-                                areaIndex;
-                            tile->navigationCount++;
-                            if (tile->navigationCount >
-                                most_navigation_per_tile) {
-                                most_navigation_per_tile =
-                                    tile->navigationCount;
-                            }
-                        }
+                        add_nav_area_to_tile(tile, areaIndex, &most_navigation_per_tile);
                     }
                 }
             }

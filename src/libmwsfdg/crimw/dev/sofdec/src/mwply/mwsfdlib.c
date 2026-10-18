@@ -135,8 +135,8 @@ static void mwsflib_LscErrFunc(void* object, const char* message)
     MWSFSVM_Error(message);
 }
 
-/* TODO: [breakthrough] 99.2513%; retail initializer/literal owners restored;
- * nested parameter-copy ownership still lacks the retail destination copy. */
+/* TODO: [breakthrough needed] 99.25134%; first IRO copy pass merges the nested
+ * destination formal; recover its original type/availability boundary. */
 void mwPlyInitSfdFx(MwsInitParam* parameter)
 {
     MwsInitParam local;

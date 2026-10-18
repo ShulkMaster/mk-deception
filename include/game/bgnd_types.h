@@ -79,7 +79,7 @@ typedef struct BgndDataTable {
 typedef BgndDataTable ArtSection;
 
 typedef struct GlobalBackgroundEntry {
-    void* ssf_entry; /* +0x00 */
+    const struct MkFileEntry* ssf_entry; /* +0x00 */
     char* script_name; /* +0x04 */
     int field8;        /* +0x08 */
     unsigned int flags; /* +0x0C - bit3 konquest / bit4 krypt mode gates */

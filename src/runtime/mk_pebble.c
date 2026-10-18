@@ -25,8 +25,8 @@ void vdestroy_pebble(PebbleData* pebble_data) {
     mkhdr_memfree(&pebble_data->hdr);
 }
 
-/* TODO: [breakthrough needed] 98.46716%; direct macro/owner-index initializer have identical colors;
- * original flag-offset emission ownership needed; matrix pointer snapshot loses retail reloads. */
+/* TODO: [near miss] 98.46716%; flag-offset/base-reload creation order remains;
+ * direct/indexed helper and full named-owner controls are exhausted. */
 PebbleData* create_pebble_userdata(MkSobj* sobj, int count, int user_data_size) {
     RpAtomic* atomic;
     PebbleData* pebble_data;

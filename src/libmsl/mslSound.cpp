@@ -1,3 +1,6 @@
+/* BUILD: -str reuse,pool,readonly. */
+/* TODO: [review] 27 stripped-function literal records are reconstruction artifacts;
+ * their pointers occupy .sdata; missing function bodies remain unrecovered. */
 #include "msl/mslBank.h"
 
 #include "msl/mslsupport.h"
@@ -11,46 +14,10 @@ static void mslSoundDeactivate(_mslSound* sound, int immediate);
 extern mslRuntimeSound* currentUpdateSound;
 
 
-static const char stringBase0[] =
-     "Error!  Out of sound resources (MSL_MAX_SOUNDS=%d).\n\0"
-     "mslSoundGetName %x has no cmd list!\n\0"
-     "mslSoundIsPlaying: NULL sound\n\0"
-     "Track %d failed to play next in Q; skipping\n\0"
-     "WARNING: Not unusing mbs in mslSoundDeactivate.\n\0"
-     "PlayUnPrep: NULL sound pointer.\n\0"
-     "PlayUnPrep: INVALID sound ID %08x.\n\0"
-     "PlayAfterPrep: NULL sound pointer.\n\0"
-     "PlayAfterPrep: INVALID sound ID %08x.\n\0"
-     "Can't find any free MSL tracks\n\0"
-     "sound->track larger than number of tracks in mslInit: %d > %d\n\0"
-     "SoundKick error: invalid sound pointer\n\0"
-     "SoundKick error: invalid sound ID %08x.\n\0"
-     "Kick'd on invalid track %d\n\0"
-     "MSL: wave %s not found in sound unload\n\0"
-     "Problem!  wave use count < 0\n\0"
-     "Can't find wave %s!\n\0"
-     "Unable to load wave: [%08x]\n\0"
-     "Unable to load wave: [%s]\n\0"
-     "mslSoundLoad: Wave Copy Failed\n\0"
-     "%s failed (%s == %08x).\n\0"
-    "mslSoundSetDuckPitch\0"
-     "WRAPPED_ARG\0"
-    "mslSoundSetDuckPan\0"
-    "mslSoundSetDuckVol\0"
-    "mslSoundSetPitch\0"
-     "mslSoundSetPan\0"
-     "mslSoundSetVol\0"
-    "mslSoundGetDuckPitch\0"
-    "mslSoundGetDuckPan\0"
-    "mslSoundGetDuckVol\0"
-    "mslSoundGetPitch\0"
-    "mslSoundGetPan\0"
-    "mslSoundGetVol\0"
-    "mslSoundGetName\0"
-    "mslSoundUnPause\0"
-    "mslSoundPause\0"
-     "mslSoundStop\0"
-    "mslSoundIsPlaying";
+static const char* s_mslSoundGetResourceError =
+    "Error!  Out of sound resources (MSL_MAX_SOUNDS=%d).\n";
+static const char* s_mslSoundGetNameMissingCommands =
+    "mslSoundGetName %x has no cmd list!\n";
 
 extern "C" int mslSoundIsValid(unsigned long handle) {
     _ListNode* node = ListNodeFind(&g_listPoolSound, handle);
@@ -83,7 +50,6 @@ static inline int mslSoundIsPlaying(mslRuntimeSound* sound) {
     return is_playing;
 }
 
-/* TODO: [near miss] 97.47%; body agrees; two decoded-equal diagnostic pool-address addis remain. */
 extern "C" void mslUpdateTracks(_mslSystem* system) {
     unsigned long track_index;
     int saved_guard;
@@ -229,7 +195,7 @@ static void mslSoundDeactivate(_mslSound* sound, int immediate) {
         if (bank_sound != 0) {
             mslBankSoundUnUse(bank_sound);
         } else {
-            mslDebugPrintf(&stringBase0[0xA6]);
+            mslDebugPrintf("WARNING: Not unusing mbs in mslSoundDeactivate.\n");
         }
     }
 }
@@ -240,7 +206,7 @@ void _mslSoundUnPause(_mslSound* sound) {
     int is_playing;
 
     if (runtime_sound == 0) {
-        mslDebugPrintf(&stringBase0[0x5A]);
+        mslDebugPrintf("mslSoundIsPlaying: NULL sound\n");
         is_playing = 0;
     } else if ((runtime_sound->flags & 0x8000) != 0) {
         is_playing = 1;
@@ -284,7 +250,7 @@ void _mslSoundPause(_mslSound* sound) {
     int is_playing;
 
     if (runtime_sound == 0) {
-        mslDebugPrintf(&stringBase0[0x5A]);
+        mslDebugPrintf("mslSoundIsPlaying: NULL sound\n");
         is_playing = 0;
     } else if ((runtime_sound->flags & 0x8000) != 0) {
         is_playing = 1;
@@ -308,6 +274,25 @@ void _mslSoundPause(_mslSound* sound) {
     }
 }
 
+static const char* s_mslSoundPlayUnPrepNull =
+    "PlayUnPrep: NULL sound pointer.\n";
+static const char* s_mslSoundPlayUnPrepInvalid =
+    "PlayUnPrep: INVALID sound ID %08x.\n";
+static const char* s_mslSoundPlayAfterPrepNull =
+    "PlayAfterPrep: NULL sound pointer.\n";
+static const char* s_mslSoundPlayAfterPrepInvalid =
+    "PlayAfterPrep: INVALID sound ID %08x.\n";
+static const char* s_mslSoundPlayAfterPrepNoTrack =
+    "Can't find any free MSL tracks\n";
+static const char* s_mslSoundPlayAfterPrepTrackRange =
+    "sound->track larger than number of tracks in mslInit: %d > %d\n";
+static const char* s_mslSoundKickNull =
+    "SoundKick error: invalid sound pointer\n";
+static const char* s_mslSoundKickInvalid =
+    "SoundKick error: invalid sound ID %08x.\n";
+static const char* s_mslSoundKickTrackRange =
+    "Kick'd on invalid track %d\n";
+
 static inline int select_sound_track(mslRuntimeSound* sound, unsigned long play_flags) {
     if (sound->track == -1) {
         int track;
@@ -319,12 +304,12 @@ static inline int select_sound_track(mslRuntimeSound* sound, unsigned long play_
             }
         }
         if (sound->track == -1) {
-            mslDebugPrintf(&stringBase0[0x167]);
+            mslDebugPrintf("Can't find any free MSL tracks\n");
             return -1;
         }
     } else {
         if (sound->system->track_count <= (unsigned long)sound->track) {
-            mslDebugPrintf(&stringBase0[0x187],
+            mslDebugPrintf("sound->track larger than number of tracks in mslInit: %d > %d\n",
                 sound->track, sound->system->track_count);
             return -1;
         }
@@ -593,8 +578,6 @@ extern "C" void mslSoundUncommit(_mslSound* sound) {
     }
 }
 
-/* TODO: [breakthrough needed] 97.85%; string pooling restores diagnostic
- * instructions; reconcile mixed TU pool layout before changing its mode. */
 extern "C" int mslSoundUnLoad(_mslSound* sound) {
     mslRuntimeSound* runtime_sound = (mslRuntimeSound*)sound;
     mslCmdItem* command;
@@ -659,13 +642,9 @@ static inline void mslCmdsRollback(
 
     for (i = 0; i < definition->command_count; i++, command++) {
         if (command->type == 1 && command->attached_wave != 0) {
-            unsigned char release_base = 0;
-
-            if (command->attached_wave != 0) {
-                if ((command->attached_wave->flags & 0x40) == 0) {
-                    release_base = 1;
-                }
-            }
+            unsigned char release_base =
+                command->attached_wave != 0 &&
+                (command->attached_wave->flags & 0x40) == 0;
 
             mslWaveUnCopy(system, command->attached_wave);
             command->attached_wave = 0;
@@ -717,7 +696,7 @@ extern "C" _ListNode* mslSoundNew(_mslSystem* system, int unused) {
 
     if (node == 0) {
         mslDebugPrintf(
-            &stringBase0[0x00],
+            "Error!  Out of sound resources (MSL_MAX_SOUNDS=%d).\n",
             0x708);
     }
     mslSoundInit(node, system);
@@ -725,8 +704,6 @@ extern "C" _ListNode* mslSoundNew(_mslSystem* system, int unused) {
 }
 
 
-/* TODO: [near miss] 97.78%; rollback diagnostics need pooled stringBase0
- * literals (TU data layout); release_base colors r25 vs retail r26. */
 extern "C" int mslCmdsLoad(
     _mslSystem* system, mslLoadedBank* bank,
     mslBankSoundDefinition* definition, unsigned long flags) {
@@ -742,7 +719,7 @@ extern "C" int mslCmdsLoad(
 
             if (bank_wave == 0) {
                 mslDebugPrintf(
-                    &stringBase0[0x279], command->source.pointer);
+                    "Can't find wave %s!\n", command->source.pointer);
                 _MSL_GCN_BREAK();
                 mslCmdsRollback(system, bank, definition);
                 _MSL_GCN_BREAK();
@@ -768,11 +745,11 @@ extern "C" int mslCmdsLoad(
                     if ((bank_wave->name.offset & 0xf0000000) ==
                         0x20000000) {
                         mslDebugPrintf(
-                            &stringBase0[0x28E],
+                            "Unable to load wave: [%08x]\n",
                             bank_wave->name.offset);
                     } else {
                         mslDebugPrintf(
-                            &stringBase0[0x2AB],
+                            "Unable to load wave: [%s]\n",
                             bank_wave->name.pointer);
                     }
                     _MSL_GCN_BREAK();
@@ -793,7 +770,7 @@ extern "C" int mslCmdsLoad(
                 _MSL_GCN_BREAK();
                 mslCmdsRollback(system, bank, definition);
                 _MSL_GCN_BREAK();
-                mslDebugPrintf(&stringBase0[0x2C6]);
+                mslDebugPrintf("mslSoundLoad: Wave Copy Failed\n");
                 return 0;
             }
             command->attached_wave->command_value =
@@ -824,13 +801,26 @@ extern "C" _mslSound* mslSoundLoad(
     return (_mslSound*)result;
 }
 
+static const char* s_mslSoundSetDuckPitchFormat =
+    "%s failed (%s == %08x).\n";
+static const char* s_mslSoundSetDuckPitchName =
+    "mslSoundSetDuckPitch";
+static const char* s_mslSoundSetDuckPitchArgument =
+    "WRAPPED_ARG";
+static const char* s_mslSoundSetDuckPanName =
+    "mslSoundSetDuckPan";
+static const char* s_mslSoundSetDuckVolName =
+    "mslSoundSetDuckVol";
+static const char* s_mslSoundSetPitchName =
+    "mslSoundSetPitch";
+
 extern "C" void mslSoundSetPan(unsigned long handle, float pan) {
     _ListNode* node = ListNodeFind(&g_listPoolSound, handle);
 
     if (node == 0) {
         mslDebugPrintf(
-            &stringBase0[0x2E6], &stringBase0[0x357],
-            &stringBase0[0x314], handle);
+            "%s failed (%s == %08x).\n", "mslSoundSetPan",
+            "WRAPPED_ARG", handle);
     } else {
         ((mslRuntimeSound*)ListNodeData(0, node))->pan = pan;
     }
@@ -841,22 +831,44 @@ extern "C" void mslSoundSetVol(unsigned long handle, float volume) {
 
     if (node == 0) {
         mslDebugPrintf(
-            &stringBase0[0x2E6], &stringBase0[0x366],
-            &stringBase0[0x314], handle);
+            "%s failed (%s == %08x).\n", "mslSoundSetVol",
+            "WRAPPED_ARG", handle);
     } else {
         ((mslRuntimeSound*)ListNodeData(0, node))->volume = volume;
     }
 }
+
+static const char* s_mslSoundGetDuckPitchName =
+    "mslSoundGetDuckPitch";
+static const char* s_mslSoundGetDuckPanName =
+    "mslSoundGetDuckPan";
+static const char* s_mslSoundGetDuckVolName =
+    "mslSoundGetDuckVol";
+static const char* s_mslSoundGetPitchName =
+    "mslSoundGetPitch";
+static const char* s_mslSoundGetPanName =
+    "mslSoundGetPan";
+static const char* s_mslSoundGetVolName =
+    "mslSoundGetVol";
+static const char* s_mslSoundGetNameName =
+    "mslSoundGetName";
+static const char* s_mslSoundUnPauseName =
+    "mslSoundUnPause";
+static const char* s_mslSoundPauseName =
+    "mslSoundPause";
 
 extern "C" void mslSoundStop(unsigned long handle) {
     _ListNode* node = ListNodeFind(&g_listPoolSound, handle);
 
     if (node == 0) {
         mslDebugPrintf(
-            &stringBase0[0x2E6], &stringBase0[0x40D],
-            &stringBase0[0x314], handle);
+            "%s failed (%s == %08x).\n", "mslSoundStop",
+            "WRAPPED_ARG", handle);
     } else {
         mslSoundDeactivate(
             (_mslSound*)ListNodeData(0, node), 1);
     }
 }
+
+static const char* s_mslSoundIsPlayingName =
+    "mslSoundIsPlaying";

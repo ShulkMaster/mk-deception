@@ -109,8 +109,8 @@ const struct LensFlareDefinition courtyard_lens_data[] = {
     { 0.75f, &fx_string_base[134] }, { 1.0f, &fx_string_base[145] },
     { 0.0f, 0 },
 };
-static float lensflare_proc2(void);
-static float lensflare_proc(void);
+float lensflare_proc2(void);
+float lensflare_proc(void);
 static float fighting_style_sign_proc(void);
 
 struct FightingStyleSignPdata {
@@ -267,9 +267,26 @@ static inline int lensflare_sun_blocked(
     return blocked;
 }
 
-/* TODO: [near miss] 98.37209%; obstruction cursor/index now agree;
- * display FP homes and independent fabs/fneg scheduling remain. */
-static float lensflare_proc2(void) {
+static inline float lensflare_opacity(float horizontal, float vertical) {
+    double horizontal_abs;
+    double vertical_abs;
+    float alpha_value;
+
+    vertical_abs = __fabs(vertical);
+    horizontal_abs = __fabs(horizontal);
+    if (horizontal_abs >= vertical_abs) {
+        alpha_value = 0.75f *
+            (1.0f - (horizontal >= 0.0f ? horizontal : -horizontal)) + 0.25f;
+    } else {
+        alpha_value = 0.75f *
+            (1.0f - (vertical >= 0.0f ? vertical : -vertical)) + 0.25f;
+    }
+    return 255.0f * alpha_value;
+}
+
+/* TODO: [near miss] 99.65116%; angle/negation/absolute and 255/bias FPR
+ * owners rotate; recover original producers before further allocation work. */
+float lensflare_proc2(void) {
     int index;
     struct LensflarePdata* pdata;
     CameraObj* camera;
@@ -279,8 +296,6 @@ static float lensflare_proc2(void) {
     Vec direction;
     float horizontal;
     float vertical;
-    double horizontal_abs;
-    double vertical_abs;
     float alpha_value;
     int screen_y;
 
@@ -311,8 +326,6 @@ static float lensflare_proc2(void) {
         !lensflare_sun_blocked(&pdata->obstructions, pdata->obstruction_count)) {
         horizontal = angles.y / 0.69813f;
         vertical = angles.x / 0.69813f;
-        horizontal_abs = __fabs(horizontal);
-        vertical_abs = __fabs(vertical);
         for (index = 0; index < flare_data.count; index++) {
             int screen_x;
             flare = &flare_data.entries[index];
@@ -329,14 +342,7 @@ static float lensflare_proc2(void) {
                 object->x = screen_x;
                 object->y = screen_y;
             }
-            if (horizontal_abs >= vertical_abs) {
-                alpha_value = 0.75f *
-                    (1.0f - (horizontal >= 0.0f ? horizontal : -horizontal)) + 0.25f;
-            } else {
-                alpha_value = 0.75f *
-                    (1.0f - (vertical >= 0.0f ? vertical : -vertical)) + 0.25f;
-            }
-            alpha_value = 255.0f * alpha_value;
+            alpha_value = lensflare_opacity(horizontal, vertical);
             object = flare->object;
             object->pfx2d->verts[0].a = alpha_value;
             object->pfx2d->verts[1].a = alpha_value;
@@ -359,7 +365,7 @@ static float lensflare_proc2(void) {
     return 1.0f;
 }
 
-static float lensflare_proc(void) {
+float lensflare_proc(void) {
     struct LensflarePdata* pdata;
     ScreenObj* object;
     struct LensFlareEntry* flare;

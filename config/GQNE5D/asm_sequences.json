@@ -57,6 +57,8 @@
     { "name": "local_stack_bigstack", "address": "0x80024578", "size": "0x1C" },
     { "name": "jump_sleep_bigstack", "address": "0x80024594", "size": "0x1C" },
     { "name": "mkproc_dispatch", "address": "0x800245B0", "size": "0x1F0" },
+    { "name": "dispatch_nostack", "address": "0x80023FBC", "size": "0x88" },
+    { "name": "mkproc_die", "address": "0x80023F68", "size": "0x54" },
     { "name": "DCEnable", "assembly": "os.a/OSCache.s", "address": "0x801D6E84", "size": "0x14" },
     { "name": "DCInvalidateRange", "assembly": "os.a/OSCache.s", "address": "0x801D6E98", "size": "0x2C" },
     { "name": "DCFlushRange", "assembly": "os.a/OSCache.s", "address": "0x801D6EC4", "size": "0x30" },

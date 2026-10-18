@@ -79,7 +79,8 @@ void RNARES_Finish(void)
     }
 }
 
-/* TODO: [near miss] 97.98%; offset/0x1000 r4/r5 exchange remains; stop at coloring. */
+/* TODO: [near miss] 97.97872%; offset/half-size r4/r5 exchange remains;
+ * no genuine size owner beyond the rejected donor pin; stop at coloring. */
 void RNARES_Init(void)
 {
     u32 offset;

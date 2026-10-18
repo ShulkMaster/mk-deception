@@ -33,7 +33,7 @@ void* privGetBlockFromUsedHdr(MwMemUsedHeader* header);
 MwMemUsedHeader* privGetUsedHdrFromBlock(void* block);
 u32 privGetStatSizeFromUsed(const MwMemUsedHeader* header);
 u32 privGetUserSizeFromUsed(const MwMemUsedHeader* header);
-void privSetBoundaryTags(MwMemUsedHeader* header);
+void privSetBoundaryTags(MwMemFreeHeader* header);
 int privIsAlignValid(int alignment);
 void privUpdateStatsRemoveMemory(_mwMemHeap* heap, u32 size);
 void privUpdateStatsAddMemory(_mwMemHeap* heap, u32 size);

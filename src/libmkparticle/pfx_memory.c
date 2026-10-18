@@ -16,7 +16,6 @@ int pfx_estimate_render_size(PfxVm* vm)
     int index;
     PfxConfig* config;
     PfxFieldDefinition* field_table;
-    PfxFieldDefinition* field;
 
     size = 0;
     index = 0;
@@ -25,12 +24,11 @@ int pfx_estimate_render_size(PfxVm* vm)
     while (index < _num_render_fields) {
         int flags = vm->flags_0x1D4;
 
-        field = &field_table[index];
-        if ((flags & field->flag) != 0) {
-            if (field->flag == 0x100) {
+        if ((flags & field_table[index].flag) != 0) {
+            if (field_table[index].flag == 0x100) {
                 size += 0x10;
             } else {
-                size += get_size(field->type);
+                size += get_size(field_table[index].type);
             }
             size = (size + config->align_add) & ~config->align_mask;
         }
@@ -72,8 +70,6 @@ void pfx_particle_set_memory(PfxParticleMemory* particle,
     particle->user_data_size = estimate->particle_user_data_size;
 }
 
-/* TODO: [breakthrough needed] 98.23%; compact saves agree; initial IR
- * reassociates the parametric-size term after the remaining size sum. */
 void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
                        PfxBuildInfo* build)
 {
@@ -142,7 +138,7 @@ void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
         estimate->emitter_count = build->emitter_count;
     }
 
-    estimate->size = estimate->parametric_memory_size +
+    estimate->size = 0x10 + estimate->parametric_memory_size +
                      estimate->emitter_user_data_size +
                      estimate->name_size +
                      estimate->behavior_memory_size +
@@ -151,13 +147,13 @@ void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
                      estimate->metrics_memory_size +
                      estimate->emitter_user_data_block_size +
                      estimate->particle_user_data_size * pfx->particle_capacity +
-                     estimate->runtime_buffers_size + 0x10;
+                     estimate->runtime_buffers_size;
 }
 
 #pragma push
 #pragma optimize_for_size on
-/* TODO: [near miss] 98.73%; by-value field-set records and frame agree;
- * address/descriptor setup order remains; exhaustive call staging is neutral. */
+/* TODO: [near miss] 98.73418%; hidden aggregate-result force precedes the
+ * descriptor load; recover the original argument owner without new records. */
 void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
 {
     unsigned char* cursor;

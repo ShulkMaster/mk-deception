@@ -12,15 +12,25 @@ typedef void *(*MwMemStrategyCallback)(u32 size, _mwMemHeap *heap, u32 flags,
                                       MwMemMallocRequest *request);
 
 /** Normal/fixed allocation header. Retail layout: 0x10 bytes. */
-typedef struct MwMemUsedHeader {
-  struct MwMemUsedHeader *previous; /**< Retail offset 0x00. */
-  struct MwMemUsedHeader *next;     /**< Retail offset 0x04. */
+typedef struct _memUsedHdr {
+  struct _memUsedHdr *previous; /**< Retail offset 0x00. */
+  struct _memUsedHdr *next;     /**< Retail offset 0x04. */
   u32 allocationSize;               /**< Retail offset 0x08. */
   u8 prefixSize;                    /**< Retail offset 0x0C. */
   u8 heapIndex;                     /**< Retail offset 0x0D; owning heap index. */
   u8 flags;                         /**< Retail offset 0x0E. */
   u8 alignmentPadding;              /**< Retail offset 0x0F; byte before user block. */
 } MwMemUsedHeader;
+
+typedef struct _memFreeHdr {
+  struct _memFreeHdr *previous;
+  struct _memFreeHdr *next;
+  u32 allocationSize;
+  u8 prefixSize;
+  u8 heapIndex;
+  u8 flags;
+  u8 alignmentPadding;
+} MwMemFreeHeader;
 
 #define MW_MEM_HEAP_MAGIC_VALID 0xBEABBEAB
 #define MW_MEM_HEAP_MAGIC_FREED 0xDDDDDDDD
@@ -156,8 +166,8 @@ struct _mwMemHeap {
   _mwMemHeap *listPrev;       /**< Retail offset 0x00. */
   _mwMemHeap *listNext;       /**< Retail offset 0x04. */
   MwMemUsedHeader *usedList;  /**< Retail offset 0x08. */
-  MwMemUsedHeader *freeList;  /**< Retail offset 0x0C. */
-  MwMemUsedHeader *freeTail;  /**< Retail offset 0x10. */
+  MwMemFreeHeader *freeList;  /**< Retail offset 0x0C. */
+  MwMemFreeHeader *freeTail;  /**< Retail offset 0x10. */
   int strategy;               /**< Retail offset 0x14. */
   MwMemStrategyCallback strategyCallback; /**< Retail offset 0x18. */
   u32 magic;                  /**< Retail offset 0x1C. */
@@ -195,6 +205,8 @@ struct _mwMemHeap {
   void *originalBuffer;       /**< Retail offset 0x7C; unaligned backing allocation. */
 };
 
+typedef char MwMemFreeHeaderSizeCheck[
+    sizeof(MwMemFreeHeader) == 0x10 ? 1 : -1];
 typedef char MwMemUsedHeaderSizeCheck[
     sizeof(MwMemUsedHeader) == 0x10 ? 1 : -1];
 typedef char MwMemHeapCreateParamsSizeCheck[

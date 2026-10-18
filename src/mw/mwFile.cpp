@@ -315,8 +315,8 @@ extern "C" int mwFileOpenModeToFlags(const char* mode)
 
 extern "C" void mwFileGetDefaultInitParam(mwFileInitParam*);
 
-/* TODO: [breakthrough needed] 95.12195%; recover the original tracking-init
- * producer for the unreachable diagnostic at +0x60; all live paths agree. */
+/* TODO: [breakthrough needed] 95.12195%; +0x60 diagnostic has no live edge;
+ * original disabled-tracking producer is unproved by the PS2 counterpart. */
 extern "C" int mwFileInit(mwFileInitParam* parameters)
 {
     mwFileInitParam default_parameters;

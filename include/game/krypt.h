@@ -123,9 +123,9 @@ typedef struct KryptPdata {
 
 /* Mode shell */
 float p_krypt_mode(void);
-float p_init_krypt_mode(void);
-float p_setup_krypt(void);
-float p_krypt_loop(void);
+
+
+
 
 /* Kontent gallery */
 void hide_kontent_bio_text(void);
@@ -155,12 +155,12 @@ void move_picture_to_camera(KryptScreenObjLatch* picture_latch);
 void remove_prize_description(void);
 MkObj* load_krypt_character(char* character_name);
 void set_pebble_positions_for_row(int row, int start_col, int count, Vec* origin);
-void init_tombstone_letters(void* pfx);
-void init_tombstone_numbers(void* pfx);
-void init_tombstone_koins(void* pfx);
-float update_tombstone_letters(void);
-float update_tombstone_numbers(void);
-float update_tombstone_koins(void);
+
+
+
+
+
+
 
 /* Thin showcase getters (Cluster B; Agent B may deepen) */
 void* get_krypt_anim_pdata(void);

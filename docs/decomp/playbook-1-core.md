@@ -48,7 +48,8 @@ mk-da symbols). Recheck under GC/2.7 before relying on it for game/CRI code.
 - Never land: `register`, fake `volatile`, dead sinks, empty arms, invented
   fields/lifetimes/padding, wrong prototypes, undefined returns, asm,
   `(void)param`, bare `{ }` (no `if`/loop/`else` owner) to scope a local,
-  copy of in-scope value, reuse of unrelated variable, local redeclaration
+  copy of in-scope value (sole exception: retail-IR-proven second web, H06),
+  reuse of unrelated variable, local redeclaration
   where real header exists. `goto` only per AGENTS.md exception. Real MMIO
   stays `volatile`.
 
@@ -78,6 +79,10 @@ mk-da symbols). Recheck under GC/2.7 before relying on it for game/CRI code.
 - Finish: quality pass, full `ninja`, SHA-1, progress, `git diff --check`,
   status. Report report-exact vs data-value-exact vs link-exact; disclose
   nonmatching fallbacks.
+- Shared main-tree builds use `build/.decompstudio-build.lock`, the Studio
+  server's lock. Hold it across Ninja and the checksum check, for example
+  `flock -w 900 build/.decompstudio-build.lock sh -c 'ninja && build/tools/dtk shasum -c config/GQNE5D/build.sha1'`.
+  A separate `/tmp` lock does not serialize the server's build.
 
 Several rules apply: H02 owner/layout -> H11 joins -> M01 TU mode -> one H15
 lifetime insight. ABI/width/effect-order evidence overrides order. Check
@@ -87,6 +92,39 @@ Tools:
 
 - Ghidra MCP: verify project, select program explicitly. Pseudocode looks
   unrelated -> compare raw bytes and ELF symbol bounds.
+- Native C++ capture: require class-qualified method ownership and matching
+  instruction extent. Bare `Update` can select another class's method
+  (`ScreenQuestionAction` versus `ScreenElseAction`); low alignment is not
+  allocation evidence. Constructors/destructors need the same owner check.
+  Pass the selected occurrence/backend run to auxiliary graph reports too;
+  the raw multi-function capture can explain another method's webs.
+  An encoded-looking identifier may be an explicit C-linkage name, not a
+  C++ method: resolve it against the fresh object's nonempty ELF symbol and
+  observed compiler names before demangling (`Render__10ScreenPolyFP16ScreenRenderInfo`).
+  Prefer the exact spelling; if an initial guessed capture selected another
+  function, discard it and recapture. Require matching symbol extent, reject
+  ambiguous plain aliases, and remove stale objects before validating identity.
+  For a bare IRO display name, bind its native Object/namespace owner to the
+  same Object at optimizer handoff and an actually returned compiler linkage
+  (`SpreadSheet_text::Update`). Require a unique qualified source definition,
+  exact nonempty ELF extent and ordinary/observed whole-object equality; never
+  call the mangler to manufacture identity. See
+  shared notes 9242 and 9243 for the verified qualified IRO identity checks.
+- Reordered integer products: positional register votes can pair different
+  values even when opcodes agree (`ADX_DecodeSte4AsMono`). Establish the
+  product inputs independently from ABI/load evidence, then compare bounded
+  straight-line expression producers. Keep subtraction/shift kinds ordered,
+  reject effects or interior control-flow entries, and leave duplicate
+  expressions ambiguous. A conditional producer correspondence is not a
+  native-vreg mapping or proof that register ordering can realize retail.
+  For native binding, trace one allocation-build basic-block window from
+  independently established vreg values and retain each use's definition.
+  Match unique value trees and operand values, including commuted inputs;
+  never majority-vote conflicting target colors. After binding, check actual
+  interference: the pre-RA scheduler can overlap a rounded count with a
+  history load that retail places later, preventing their shared register.
+  Inspect the delaying copies and native availability decisions before
+  changing declarations or introducing an aggregate.
 - mwcc_trace (GC2.7 regalloc/inline/pcode): callable via DecompStudio
   `submit` even when the tool catalog omits it; full command + reading guide
   = tier 4 Trace procedure.
@@ -107,6 +145,7 @@ Tools:
 | Missing/extra reload of global or owner | H05, M12 |
 | Retail keeps value/address source recomputes, or reverse | H06 |
 | Retail derives value in the register it loaded into | H26 |
+| Signed-conversion stack roles rotate; viewport math/casts already agree | H26, M03 |
 | Home swap, decl sweeps neutral, single-use selector/index/latch local | H28 |
 | Load/store/pointer-advance order differs, same ops | H27, H14 |
 | Call args from one value computed in other order | H15, H16 |

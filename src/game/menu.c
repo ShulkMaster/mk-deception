@@ -703,7 +703,7 @@ void controller_setup_p1_state(int enabled) {
     }
 }
 
-float p_controller_config(void) {
+static float p_controller_config(void) {
     PlyrInfo* p1;
     PlyrInfo* p2;
     MkProc* proc;
@@ -802,7 +802,7 @@ float p_controller_config(void) {
     return sleep_ticks_neg_one;
 }
 
-float p_version_code(void) {
+static float p_version_code(void) {
     struct VersionCodePdata* pdata;
     StringObj* text;
 
@@ -829,7 +829,7 @@ float p_version_code(void) {
     return sleep_ticks_neg_one;
 }
 
-float p_game_options(void) {
+static float p_game_options(void) {
     GameSettings saved_settings;
     struct VersionCodePdata* version_pdata;
     struct OptionsSoundPdata* sound_pdata;
@@ -872,7 +872,7 @@ float p_game_options(void) {
     return sleep_ticks_neg_one;
 }
 
-float p_pause_menu(void) {
+static float p_pause_menu(void) {
     MkProcEntryFn next_proc;
     struct PauseMenuPdata* pdata;
     MkVtableMkproc* vtbl;
@@ -1183,7 +1183,7 @@ float p_main_menu(void) {
         portrait = 0;
     }
 
-    load_ssf((MkFileEntry*)msel_art_file_table);
+    load_ssf(msel_art_file_table);
     add_art_section_by_name_async(0x90046, portrait_list[portrait & 0xFFFF].sec_name);
 
     watcherPdata = 0;

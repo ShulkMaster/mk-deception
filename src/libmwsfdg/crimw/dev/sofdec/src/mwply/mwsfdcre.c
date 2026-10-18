@@ -1,4 +1,5 @@
 #include "cri/sj.h"
+#include "sofdec/mws_alloc.h"
 #include "sofdec/mws_sound.h"
 #include "sofdec/mws_create.h"
 #include "cri/adxt_internal.h"
@@ -13,8 +14,6 @@ typedef struct MW_PLY_OBJ {
     struct MwsPlayerInterface* interface;
 } MW_PLY_OBJ;
 typedef MW_PLY_OBJ* MWPLY;
-typedef void* (*MwsMallocFn)(void*, int);
-typedef void (*MwsFreeFn)(void*, void*);
 
 
 typedef struct MwsPictureUserConfig {
@@ -404,8 +403,8 @@ void mwSfdDestroy(MWPLY handle)
     MWSFCRE_DestroySfd(player);
 }
 
-/* TODO: [near miss] 97.76836%; live retail/m2c confirm allocation/rollback; saved homes and
- * equivalent pool relocations remain; donor asm pins excluded. */
+/* TODO: [near miss] 97.76836%; retained allocation owners rotate;
+ * recover coupled source ownership while preserving exact MallocRfb. */
 static int mwsfcre_MallocCompoWork(MwsPlayer* player)
 {
     const MwsCreateParams* create = &player->create;
@@ -779,8 +778,8 @@ static inline void* mwsfcre_MallocX(MwsPlayer* player, int size)
     return mwsfcre_Alloc(player, size);
 }
 
-/* TODO: [breakthrough needed] 99.78355%; two switch exits vanish in IRO;
- * original arm evidence is missing, and the donor asm stand-in is inadmissible. */
+/* TODO: [breakthrough needed] 99.78355%; two switch-tree branches are missing;
+ * recover the original file-type case set or meaningful arm boundary. */
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
                                     MwsCreateParams* params)
 {

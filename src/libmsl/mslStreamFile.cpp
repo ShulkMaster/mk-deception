@@ -209,8 +209,8 @@ extern "C" int mslStreamFile_ReturnBuffer(void* buffer) {
     return mslDSB_ReturnBufferAndService(buffer);
 }
 
-/* TODO: [near miss] 99.80769%; tail-load CG69 and null-link CG71 homes swap;
- * exact native replay needs earlier null production; recover append ownership. */
+/* TODO: [near miss] 99.80769%; tail/null codegen owners remain reversed;
+ * guarded free-head captures are neutral; recover the original append boundary. */
 extern "C" mslStreamFileRequest* mslStreamFile_QueueRequest(
     _mwFile* file, unsigned long offset, unsigned long size, int priority,
     mslStreamFileCallback callback, void* callback_data) {

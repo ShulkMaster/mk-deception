@@ -265,7 +265,8 @@ void CFT_Ycc420plnToArgb8888(
     }
 }
 
-/* TODO: [near miss] 99.64%; cursor setup scheduling remains; stop to preserve verified .bss table layout. */
+/* TODO: [near miss] 99.64179%; link-data requests fix table placement;
+ * recover the earlier converter's real table-reference boundary. */
 void CFT_Ycc420plnToArgb8888Init(void)
 {
     s32 i;

@@ -185,8 +185,8 @@ static inline int mwsffrm_IsPicUsrDat(MwsPlayer* player)
     return player->picture_user_data != 0 ? 1 : 0;
 }
 
-/* TODO: [near miss] 97.66949%; live retail/m2c confirm guards/calls/stores;
- * player/header r30/r31 homes differ; donor dead conditional excluded. */
+/* TODO: [near miss] 97.66949%; header enters allocation before player;
+ * full local-order controls fail; recover a real lifetime/ABI boundary. */
 static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
                                       const void* data, unsigned int size)
 {

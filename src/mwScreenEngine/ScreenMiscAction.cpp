@@ -132,7 +132,8 @@ int ScreenElseAction::Update(ScreenMgr*, ScreenActionStack&,
 
 #pragma push
 #pragma optimization_level 2
-/* TODO: [near miss] 98.79%; owner rotation reduced; case-constant staging and remaining value GPR pairs differ. */
+/* TODO: [near miss] 99.60784%; value homes now agree;
+ * case index/call-argument constants remain scheduled in reverse order. */
 int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack&,
                                  int) {
     ScreenParams* params;
@@ -140,9 +141,9 @@ int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack&,
     int arg;
     unsigned int paramIndex;
     int lhs;
-    unsigned int matched;
-    int exclude;
     int i;
+    int exclude;
+    unsigned int matched;
 
     params = m_params;
     m_alive = 0;
@@ -202,8 +203,9 @@ int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack&,
         return 1;
     }
 
+    int rhs;
     int op = params->GetInt(paramIndex++);
-    int rhs = params->GetInt(paramIndex++);
+    rhs = params->GetInt(paramIndex++);
 
     if (arg == kArgQuestionAllStages) {
         exclude = params->GetInt(paramIndex);
@@ -276,8 +278,8 @@ int ScreenEnableAction::Update(ScreenMgr* mgr, ScreenActionStack&,
     return 1;
 }
 
-/* TODO: [near miss] 98.20755%; this/manager/params and scalar saved-register homes differ;
- * branch scoping and scalar declaration order do not close the residue. */
+/* TODO: [near miss] 98.20755%; CInline substitutes incoming this directly;
+ * original owner boundary is missing; keep raw Boolean staging. */
 int ScreenUserConfirmAction::Update(ScreenMgr* mgr, ScreenActionStack&,
                                     int) {
     ScreenParams* params;
@@ -458,25 +460,3 @@ int ScreenSetFocusAction::Update(ScreenMgr* mgr, ScreenActionStack&,
     m_yield = 0;
     return 1;
 }
-
-
-
-ScreenSetFocusAction::~ScreenSetFocusAction() {}
-
-ScreenBlockEventsUntilAction::~ScreenBlockEventsUntilAction() {}
-
-ScreenSetForwardAction::~ScreenSetForwardAction() {}
-
-ScreenSendObjectEventAction::~ScreenSendObjectEventAction() {}
-
-ScreenUserConfirmAction::~ScreenUserConfirmAction() {}
-
-ScreenEnableAction::~ScreenEnableAction() {}
-
-ScreenQuestionAction::~ScreenQuestionAction() {}
-
-ScreenElseAction::~ScreenElseAction() {}
-
-SetScreenVisibleAction::~SetScreenVisibleAction() {}
-
-ScreenVisibleAction::~ScreenVisibleAction() {}

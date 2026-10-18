@@ -46,6 +46,30 @@ Peephole/CSE/scheduler residue. REQUIRE tested TU hypothesis. Test exact
 option in scratch; no per-function exceptions during fixed-TU-setting work;
 no flags masking wrong source.
 
+A ready load issues late: REQUIRE actual incoming DAG edges, selector priority
+branches and issue-check results before blaming aliasing. A load with no
+predecessors can lose priority while eligible, then fail a later same-cycle
+check after another instruction occupies its unit or fills the queue
+(`nb_npc_slave_plyr_process_collision`,
+[evidence](reports/gc27-issue-unit-state.md)). TRY only a source ownership change
+supported by that distinction; an observed delay alone does not justify an
+invented dependency or address escape.
+
+An unchanged opcode count or zero peephole-rule return is not an unchanged
+instruction: REQUIRE paired native operands and the actual store/scan path.
+The GC2.7 late MR-base arm can rewrite a load and return zero
+(`native2d_draw`). Check its exclusive producer-to-consumer source-write
+interval; do not infer an unobserved flag or liveness gate from another rule.
+
+A post-allocation schedule would repair an order but the compiler retains it:
+REQUIRE paired native merger/scheduler entries, block flags and actual block
+calls. An early merged block may keep `fScheduled` through late peephole work
+and be skipped by the second scheduler. TRY only a genuine source operation
+that changes predecessor shape or later invalidates the flag. An ordinary
+preheader or declaration does not request assembly-entry protection; verify
+flag values and writers against the pinned binary (`p_delete_profile`,
+shared note 9266).
+
 Compiler revision hypothesis: keep recovered command, separate scratch
 outputs, pinned-revision control, compare text bytes + every function/data
 result. Byte-identical output rules out those revisions for that source +
@@ -108,8 +132,9 @@ leave target bytes identical (objdump hash of symbol, not equal score) |
 REQUIRE each edit alone passes honesty filter; CFG/ABI/layout right | TRY
 joint sweep of recorded neutrals before any soft ceiling.
 
-- Never drop byte-neutral edit silently: history `kind: "neutral"`, exact
-  edit + base rev. Sources: ng `alternatives` scoring = base, MAP-evidenced
+- Never drop byte-neutral edit silently: history `kind: "experiment"`, label
+  it neutral and record exact edit + base rev. Sources: ng `alternatives`
+  scoring = base, MAP-evidenced
   helper restores, decl/type/statement-order flips, neutral seeds. Equal
   score + different bytes -> pool too, marked.
 - Neutral alone != evidence against edit. Can shift vreg numbering, inline
@@ -127,6 +152,23 @@ joint sweep of recorded neutrals before any soft ceiling.
 
 ## N14
 
+- One indexed-address ADD is commuted, with every register home correct:
+  REQUIRE native observation of the actual inline helper's parsing as well
+  as the caller's initial PCode and address descriptor. GC2.7
+  `add_pointer_offset` builds pointer-left `EADD(pointer, index * sizeof(row))`
+  directly; observing `optimizecomm` only in the caller misses that producer
+  (`obj_bld_surface_build_polys`). TRY preserving the complete typed nested
+  subscript at the load: `triangles[triangle_index][corner]` instead of a cached
+  row pointer. In `CreatePoly`, reading `vert_map[n]` directly inside each
+  position/UV/color subscript instead of caching its value likewise recovers
+  retail indexed loads. Native selector traces distinguish the latter case:
+  the cached index materializes three source address pairs before applying
+  member offsets; direct subscripts retain those pairs for indexed loads.
+  Require supported arrays, a stable mapping, unchanged access/store order and
+  a whole-unit comparison. Reversed subscript spelling and declaration changes
+  do not address this producer; do not cast array pointers to integers or add
+  artificial copies to force operand order.
+
 - Trace attribution: an instruction absent from both initial and prescheduled
   PCode need not originate in the frontend. REQUIRE intermediate native pass
   snapshots before naming the cause. Value numbering can create store-forwarded
@@ -142,11 +184,24 @@ joint sweep of recorded neutrals before any soft ceiling.
   merely because it might create this chain. The native instruction-flag guard
   also applies; do not generalize this opcode test to every `FRSP`.
 
+- Missing byte masks after unique byte loads: REQUIRE the actual live producer
+  and rewrite order, not just initial PCode. GC2.7 `GetKind2` can fold an inner
+  u8 mask to `MR` and leave an outer mask because it does not chase that copy.
+  A qualified input view may also introduce address CSEs; mask recovery alone
+  does not justify qualification. Recover genuine component capture and the
+  byte API boundary; reject artificial casts/copies or added uses. Candidate
+  evidence and limits: [byte-mask provenance](reports/gc27-byte-mask-provenance.md)
+  (`gc_generic_render`, partial; no exactness claim).
+
 Dead branch-only block to a case body. IF retail has an unreachable `b T`
 between a switch dispatch fall-off and the first arm (`T` = a real arm body)
-and ours lacks it | REQUIRE mwcc_trace `initial` pcode (or capture `list.py`)
-lacks the block with current source | TRY nothing in honest C: classify
-`soft_ceiling` with the pcode evidence. Do not request asm.
+and ours lacks it | REQUIRE the original selector case set and the native
+switch-range lowering before attributing it to a missing arm statement.
+`Switch.c` can create such a block from a same-label range subtree; a later
+dead-compare removal and branch threading can leave the orphan. Recover case
+values from retail, callers, vendor constants or a verified counterpart, then
+measure H10. A synthetic high case proves the mechanism, not the original
+case value. Never add an unsupported case just to create the branch.
 
 - Mechanism (GC2.7 `-O>=1`): frontend keeps `case 4: ...` as label + goto;
   IRO folds it (`IroJump.c chain_label` retargets label->goto, `IRO_RemoveLabels`
@@ -155,14 +210,20 @@ lacks the block with current source | TRY nothing in honest C: classify
   Only `IROLinearAsm` is exempt from both. Backend deletes only dead register
   defs and coalesced copies; a copy in the arm (`x = param`) survives IRO but
   emits `mr`; a separate-arm constant emits a real `li`. Backend
-  `optimize_branches` threads `b`-only blocks and never deletes orphans, so
-  the orphan exists only if a statement that emits no code survived IRO.
+  `optimize_branches` threads `b`-only blocks and never deletes orphans.
+  This explains the closed arm-payload controls; it does not rule out an
+  orphan produced by the backend's switch case-range tree itself.
 - Empty-label / `case N: break;` trial (H10/H11 backend half) is folded by IRO
   at every level >= 1; `#pragma optimization_level` is the full `-opt level`.
   Only a self-copy `asm { mr x,x }` survives (RE4 CRI pass 66 uses it):
   forbidden here, it is a compiler-quirk stand-in, not retail asm.
-- Exemplar ceiling: `mwsfcre_CreateSfd` (99.78, 2 rows, 3696 B): dead `b` at
-  +0x598 / +0xaac from the case-4-first arm of `mwsfcre_UsesAudio`.
+- Exemplar unresolved case set: `mwsfcre_CreateSfd` (99.78, 2 rows, 3696 B):
+  orphan `b` at physical +0x598 / +0xab0 (the aligned diff can show +0xaac).
+  A native synthetic classifier reproduces the dispatch by adding a high
+  default-labelled case, but the inspected Sofdec headers and older PS2
+  vendor object do not establish that case. Stop until the original case set
+  or a meaningful arm boundary is recovered; do not request asm. See the
+  [Sofdec evidence report](reports/sofdec-audio-switch-ceiling.md#case-range-tree-reassessment).
 
 ## Trace procedure
 
@@ -311,8 +372,14 @@ After the applicable honest source check, stop at:
     an `li`/`lis` remat web) + sum w*(write 1; -1 for remat def or arg-init),
     w = 8 per enclosing loop (1 under `,s`). `addi` off a `lis` vreg is NOT
     remat. Coalesced nodes cost 0. Ties -> highest vreg. Nodes made by an
-    earlier spill round never picked; reload temps are new top vregs
+    earlier spill round get finite FLT_MAX priority; reload temps are new top vregs
     (`pfx_glass_break_run`: captured costs = model on 133 webs).
+  - IF simplification stalls or multiple allocation rounds appear, REQUIRE
+    actual failed-coloring flags and the ordered spill/rebuild chain; TRY
+    diagnosing the first failing round before interpreting the final graph.
+    A stall choice need not spill (`pfx_sh_grinder_meat_spew`); baseline replay
+    alone does not validate changed-graph predictions. Native evidence:
+    [GC2.7 spill rounds](reports/gc27-spill-rounds.md).
   - Spill set right, slots/colours wrong: spilled named locals get own slots
     in ascending vreg = reverse decl order. Read decl order of spilled locals
     from retail slot offsets; split decls from assignments to realise it

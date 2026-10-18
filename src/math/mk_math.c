@@ -92,8 +92,8 @@ void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float 
 }
 #pragma pop
 
-/* TODO: [breakthrough needed] 94.82758%; frontend cost 3/1 swaps triple products;
- * recover geometry owners while preserving the retail FPR save set. */
+/* TODO: [breakthrough needed] 94.91380%; triple-product parse swaps remain;
+ * original geometry/inverse-root boundary must retain the 0x70 frame. */
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, const Vec* cylAxis,
                          float radius, float* tNear, float* tFar) {
     float nx = dir->y * cylAxis->z - dir->z * cylAxis->y;
@@ -106,9 +106,7 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
     float invLen = gxMathFastSqrt(lenN);
     float dist;
     int hit;
-    float fx;
-    float fy;
-    float fz;
+    Vec vector;
     float lenQ;
     float invQ;
     float tMid;
@@ -120,12 +118,12 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
     if (invLen < kTiny) {
         dist = ox * cylAxis->x + oy * cylAxis->y + oz * cylAxis->z;
         dist = -dist;
-        fy = cylAxis->y * dist;
-        fx = cylAxis->x * dist;
-        fz = cylAxis->z * dist;
-        oy = fy + oy;
-        ox = fx + ox;
-        oz = fz + oz;
+        vector.y = cylAxis->y * dist;
+        vector.x = cylAxis->x * dist;
+        vector.z = cylAxis->z * dist;
+        oy = vector.y + oy;
+        ox = vector.x + ox;
+        oz = vector.z + oz;
         lenO = ox * ox + oy * oy + oz * oz;
         dist = gxMathFastSqrt(lenO);
         *tNear = kHugeNeg;
@@ -143,19 +141,19 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
     }
     hit = (dist <= radius);
     if (hit) {
-        fx = ny * cylAxis->z - nz * cylAxis->y;
-        fy = nz * cylAxis->x - nx * cylAxis->z;
-        fz = nx * cylAxis->y - ny * cylAxis->x;
-        lenQ = fx * fx + fy * fy + fz * fz;
+        vector.x = ny * cylAxis->z - nz * cylAxis->y;
+        vector.y = nz * cylAxis->x - nx * cylAxis->z;
+        vector.z = nx * cylAxis->y - ny * cylAxis->x;
+        lenQ = vector.x * vector.x + vector.y * vector.y + vector.z * vector.z;
         tMid = -((oy * cylAxis->z - oz * cylAxis->y) * nx +
                  (oz * cylAxis->x - ox * cylAxis->z) * ny +
                  (ox * cylAxis->y - oy * cylAxis->x) * nz);
         tMid = invLen * tMid;
         invQ = mk_inv_sqrt(lenQ);
-        fy *= invQ;
-        fx *= invQ;
-        fz *= invQ;
-        denom = dir->x * fx + dir->y * fy + dir->z * fz;
+        vector.y *= invQ;
+        vector.x *= invQ;
+        vector.z *= invQ;
+        denom = dir->x * vector.x + dir->y * vector.y + dir->z * vector.z;
         halfChord = radius * radius - dist * dist;
         halfChord = gxMathFastSqrt(halfChord);
         chordOffset = halfChord / denom;
@@ -711,15 +709,23 @@ void quat_to_mat(MKMATRIX* out, const Quat* q) {
 static inline void yxz_trig_to_matrix(
     const float* cx, const float* sx, const float* cy, const float* sy,
     const float* cz, const float* sz, MKMATRIX* m) {
-    float cycz;
     float cysz;
+    float cycz;
     float sysz;
     float czsy;
+    float product_sy;
+    float product_sz;
+    float product_cz;
+    float product_cy;
 
-    cycz = *cy * *cz;
-    cysz = *cy * *sz;
-    czsy = *cz * *sy;
-    sysz = *sy * *sz;
+    product_cy = *cy;
+    product_cz = *cz;
+    product_sz = *sz;
+    product_sy = *sy;
+    cycz = product_cy * product_cz;
+    cysz = product_cy * product_sz;
+    czsy = product_cz * product_sy;
+    sysz = product_sy * product_sz;
     m->right.x = *sx * sysz + cycz;
     m->right.y = *cx * *sz;
     m->right.z = cysz * *sx - czsy;
@@ -732,8 +738,29 @@ static inline void yxz_trig_to_matrix(
     m->flags = 3;
 }
 
-/* TODO: [near miss] 99.17%; sz CSE and sysz/czsy inline owners differ;
- * recover compatible lifetimes for the shared rotation operation. */
+static inline void yxz_trig_values_to_matrix(
+    float cx, float sx, float cy, float sy, float cz, float sz, MKMATRIX* m) {
+    float cycz;
+    float cysz;
+    float czsy;
+    float sysz;
+
+    cycz = cy * cz;
+    cysz = cy * sz;
+    czsy = cz * sy;
+    sysz = sy * sz;
+    m->right.x = sx * sysz + cycz;
+    m->right.y = cx * sz;
+    m->right.z = cysz * sx - czsy;
+    m->up.x = sx * czsy - cysz;
+    m->up.y = cx * cz;
+    m->up.z = sx * cycz + sysz;
+    m->at.x = sy * cx;
+    m->at.y = -sx;
+    m->at.z = cy * cx;
+    m->flags = 3;
+}
+
 void YXZ_angles_to_quat(const Vec* angles, Quat* out) {
     float sy;
     float cy;
@@ -746,7 +773,7 @@ void YXZ_angles_to_quat(const Vec* angles, Quat* out) {
     gxMathCosSin(&cx, &sx, angles->x);
     gxMathCosSin(&cy, &sy, angles->y);
     gxMathCosSin(&cz, &sz, angles->z);
-    yxz_trig_to_matrix(&cx, &sx, &cy, &sy, &cz, &sz, &m);
+    yxz_trig_values_to_matrix(cx, sx, cy, sy, cz, sz, &m);
     RtQuatConvertFromMatrix(out, &m);
 }
 
@@ -798,8 +825,6 @@ void ZYX_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
     RwMatrixTranslate(m, &saved, 2);
 }
 
-/* TODO: [near miss] 99.53%; sy CSE and cysz inline product homes differ;
- * recover actual load/product lifetime in the shared rotation. */
 void YXZ_angles_to_MKMATRIX(const Vec* angles, MKMATRIX* m) {
     float cz;
     float sz;

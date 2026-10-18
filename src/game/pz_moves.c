@@ -1391,10 +1391,10 @@ float pz_fighter_showoff_warmup2(void) {
 float pz_fighter_showoff_warmup1(void) {
     face_opponent_now();
     xfer_proc(plyr_anim_proc, p_anim_idle);
-    set_ani_weight(0.5f);
+    set_ani_weight(0.55f);
     blend_to_ani(pz_shared_ani.showoff_warmup1, 3, 0.1f);
-    set_ani_speed(0.2f);
-    ani_to_blend_frame(1.0f);
+    set_ani_speed(0.6f);
+    ani_to_blend_frame(20.0f);
     blend_to_stance(0.1f);
     aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
@@ -1403,10 +1403,10 @@ float pz_fighter_showoff_warmup1(void) {
 float pz_fighter_active_warmup2(void) {
     face_opponent_now();
     xfer_proc(plyr_anim_proc, p_anim_idle);
-    set_ani_weight(0.5f);
+    set_ani_weight(0.55f);
     blend_to_ani(pz_shared_ani.active_warmup2, 3, 0.1f);
-    set_ani_speed(0.2f);
-    ani_to_blend_frame(1.0f);
+    set_ani_speed(0.6f);
+    ani_to_blend_frame(20.0f);
     blend_to_stance(0.1f);
     aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
@@ -1415,10 +1415,10 @@ float pz_fighter_active_warmup2(void) {
 float pz_fighter_active_warmup1(void) {
     face_opponent_now();
     xfer_proc(plyr_anim_proc, p_anim_idle);
-    set_ani_weight(0.5f);
+    set_ani_weight(0.55f);
     blend_to_ani(pz_shared_ani.active_warmup1, 3, 0.1f);
-    set_ani_speed(0.2f);
-    ani_to_blend_frame(1.0f);
+    set_ani_speed(0.6f);
+    ani_to_blend_frame(20.0f);
     blend_to_stance(0.1f);
     aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
@@ -1429,8 +1429,8 @@ float pz_fighter_bow_warmup(void) {
     xfer_proc(plyr_anim_proc, p_anim_idle);
     blend_to_ani(pz_shared_ani.bow_warmup, 3, 0.1f);
     set_ani_speed(1.25f);
-    ani_to_blend_frame(1.0f);
-    blend_to_stance(0.15f);
+    ani_to_blend_frame(20.0f);
+    blend_to_stance(0.05f);
     aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
@@ -2832,7 +2832,7 @@ static float r_pz_fighter_feet3_swept_out(void) {
     got_hit_fx(2, 7, 0, 0, 0, 0.0f, 0x10);
     plyr_obj->flags_09_bits.face_opponent = 0;
     plyr_obj->flags_09_bits.tightrope_restricted = 0;
-    pz_fighter_set_y_constrain(plyr_obj, 1, 0.0f);
+    pz_fighter_set_y_constrain(plyr_obj, 1, 0.3f);
     blend_to_ani_INOUT(
         shared_ani.swept_out, shared_ani.swept_in,
         0.2f, 1.0f, 0.8f);

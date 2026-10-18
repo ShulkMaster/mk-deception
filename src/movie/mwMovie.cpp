@@ -9,6 +9,7 @@
 #include "runtime/cstdarg.h"
 #include "runtime/cstdio.h"
 #include "runtime/cstring.h"
+#include "sofdec/mws_alloc.h"
 
 struct MwsPlayer;
 
@@ -136,8 +137,6 @@ void ADXM_ShutdownThrd(void);
 void ADXM_SetCbErr(void (*callback)(void*, char*), void* object);
 void mwPlyInitSfdFx(MwsInitParam*);
 void mwPlyFinishSfdFx(void);
-void mwPlySetMallocFn(void* (*malloc_fn)(void*, unsigned int),
-                      void (*free_fn)(void*, void*), void* object);
 MwsPlayer* mwPlyCreateSofdec(MwsCreateParams*);
 void mwPlySetAudioCh(MwsPlayer*, int);
 void mwPlySetSubtitleCh(MwsPlayer*, int);

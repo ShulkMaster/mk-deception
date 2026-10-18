@@ -23,6 +23,12 @@ Compiler settings (M01, M13, M15, M16):
 Compiler mode across a TU. IF compact saves, `divw`, Boolean lowering repeat
 across TU, REQUIRE sibling evidence + all-function and section baselines.
 
+- Language-mode diagnostic: REQUIRE the effective command and an active
+  `__cplusplus` check. GC/2.7 uses the first `-lang`; remove or replace an
+  earlier C option rather than appending C++. Preserve C linkage where
+  required, and report C-only header/view failures as failures, not neutral
+  mode results (`ADXT_GetTime`). Archive the command before closing a mode
+  hypothesis; see [the ADXT language evidence](reports/adxt-cpp-static-bss.md).
 - Legacy local optimization scope justified by a historical compiler crash:
   REQUIRE a fresh compile with the current source, headers, and pinned
   compiler. TRY removing the workaround alone before source tuning; a stale
@@ -156,11 +162,14 @@ across TU, REQUIRE sibling evidence + all-function and section baselines.
   row-array pointer + propagation off (Puzzle crusher).
 - Fixed-count array copy as two advancing pointers, retail one byte
   induction reg: scoped `opt_strength_reduction off`. Loops only.
-- Size bit: `-opt off` TU lowers `ptr != 0` as `neg/or/srwi`, retail `addic
-  r0,x,-1; subfe`: `-O4,s` before `-opt off` at object scope when same-lib
-  siblings build that way. `,s` survives `-opt off`; no spelling gives the
-  carry idiom (`rwfexist`). Higher exact count can hide one lost function;
-  compare each.
+- Integer nonzero test lowers as `neg/or/srwi`, retail `addic r0,x,-1;
+  subfe`: REQUIRE the difference already exists in initial pcode, matching
+  operand width and zero comparison, and whole-unit mode evidence. TRY
+  object `-O4,s`; GC/2.7's native selector tests `copts.optimize_for_size`
+  for this choice, not operand signedness (`ck_eat_online_switches`). For
+  an `-opt off` TU, place `-O4,s` before it: the size bit survives
+  (`rwfexist`). Compare every function and section; a higher exact count
+  can hide a lost match. This is selection, not register coloring.
 - Dead ends `[da]`: compiler version sweeps never fixed a coloring residue;
   `-opt level=3`, `-schedule on`, `nocse`, `-O3`, `-O4,s` fixed nothing on an
   `-O4,p` lib (two regressed).
@@ -206,11 +215,24 @@ validation calls.
 - Saved 64-bit minimum read, lower selected, both words written even when
   unchanged: typed minimum local, conditionally replaced, always written back
   (`sfmps_CopyAudio`).
+- Literal order around worker-control stores differs: REQUIRE real access
+  provenance and independent declaration evidence before restoring shared-object
+  qualifiers; inspect native volatile-order edges and successor priorities
+  (`ADXM_SetupThrd`). A write-only member needs its own donor evidence, not a
+  claimed reader. Recheck every consumer, raw layout and full link; never qualify
+  ordinary locals for scheduling. [Measured case](reports/adxm-thread-flag-ordering.md).
 
 ## M03
 
 FP operands + schedule. REQUIRE same math, grouping, rounding.
 
+- Float-returning predicate compared with zero has reversed FCMPU operands:
+  REQUIRE the same single call and zero/nonzero branch, and native commutation
+  evidence that explicit equality moves the floating constant to the left.
+  TRY the direct scalar truth test (`!result` for the zero case,
+  `mk_chess_end_of_turn`). Swapping equality operands can canonicalize back
+  to the same tree. Preserve signed-zero and unordered behavior, the return
+  ABI, and call count; no integer conversion or fabricated predicate wrapper.
 - Raw width and half-width share one source web but retail has separate
   load/product homes: REQUIRE the power-of-two scale and unchanged rounded
   operations. TRY `half_width = width / 2.0f`
@@ -219,6 +241,15 @@ FP operands + schedule. REQUIRE same math, grouping, rounding.
   owner. Confirm load order, reciprocal literal bytes and operand orientation;
   coefficient-first retail multiplication may not admit this form. Do not
   stage the coefficient through a misleading half-width local.
+- Half-span multiply has reversed operands after binary commutation:
+  REQUIRE native evidence that the floating constant moves left, retail keeps
+  it right, and the derived half-span is the real subsequent accumulator.
+  TRY `half_span = player_distance; half_span *= 0.5f;` (`adj_cam_pos`).
+  Preserve rounding and offset-add order; no coefficient temp or passive alias.
+  A source operand swap can canonicalize back. The same real accumulator form
+  repairs both displacement scales in `p_plyr_sidekick_switch` (partial).
+  See the [camera report](reports/camera-norm-truth-and-half-span.md) and
+  [sidekick evidence](reports/sidekick-displacement-accumulators.md).
 - Initialized FP accumulator gains an extra copy: REQUIRE retail adds the
   rounded product before the initialized value, and native snapshots show
   shared-zero loads becoming a copy that cannot propagate across accumulator
@@ -241,6 +272,13 @@ FP operands + schedule. REQUIRE same math, grouping, rounding.
   FP order + all inverse-sqrt consumers.
 - Swap only commutative operands, or name real factors. Drop temps only
   without reassociation. Keep polynomial-before-sqrt order.
+- A rounded Y square overlaps a later edge input that retail reuses in the
+  same FPR: REQUIRE value-oriented native binding and the same separate-square/
+  fused-sum tree. TRY the real length accumulator's Y-square phase before Z-edge
+  construction (`turn_to_face_exterior_door`, partial). Recapture scheduling:
+  it may recreate the overlap despite corrected initial order. Do not substitute
+  different values from positional commuted-product votes. See the
+  [floating binding case](reports/gc27-floating-value-binding.md).
 - Plane-boundary limit/product inline locals rank below their load temps,
   retail reuses product/input homes: REQUIRE exact replay and unchanged
   two-product/FMA tree. TRY snapshotting the actual X/Z/offset coefficients
@@ -265,6 +303,11 @@ FP operands + schedule. REQUIRE same math, grouping, rounding.
   staging the sum in the existing scalar before taking its reciprocal
   (`obj_spawn_bld`); preserve component-store order.
 - Rounded product before add: explicit float conversion; verify output bits.
+- Duplicate vector publications: REQUIRE an independently verified donor and
+  raw stores at the corresponding operation. Decompiler pseudocode can erase
+  the repeats; inspect assembly before rejecting a missing publication phase
+  (`p_npc_on_pendulum_rope`). This does not prove a helper contract or authorize
+  self-copies; see [the PS2 evidence](reports/pendulum-acceleration-ps2-publication.md).
 - Mixed fused + separate ops: narrow function-scoped `fp_contract`; lexical
   toggles inside a function may do nothing. Retail `fmuls` + `fadds` where we
   emit `fmadds` and rest of lib needs contraction on `[da]`: each product in
@@ -278,6 +321,12 @@ FP operands + schedule. REQUIRE same math, grouping, rounding.
   output helper with explicit sub, scale, add phases
   (`mk_chess_activate_piece_properties`). Folded expr != decimal spelling:
   `3.0f * 0.075f` = 0x3e666667, `0.225f` = 0x3e666666.
+  When that midpoint becomes a target-relative delta, REQUIRE the same real
+  component updates and preserved target snapshots. TRY retaining the mutable
+  Vec through subtraction (`mk_chess_pre_fight_cam_ended`, partial). Check all
+  shared-helper consumers; a sum and subtraction sharing one native web can
+  still require different retail homes. See the
+  [camera evidence](reports/chess-camera-midpoint-delta.md).
 - Vec blend keeps three delta stores before scale/add: REQUIRE retail
   subtracts all components before modifying the output. TRY complete typed
   subtraction phase followed by component scale/add
@@ -350,6 +399,16 @@ Int-to-float scaffolding: natural cast with proven signedness; remove fake
 0x4330 `volatile` machinery. Real bit reinterpret = supported typed union
 (N10).
 
+- Two natural casts use reversed 8-byte scratch slots: REQUIRE actual backend
+  temporary allocation/reuse and final resolver evidence. TRY tracing earlier
+  pool creators and conversion traversal before changing source locals
+  (`mkScreenEngineClient::HandleAction`, partial). GC/2.7 can reuse slots made
+  by an earlier action; parser-only missing creators do not imply double
+  source locals. Distinguish changed traversal from changed pool order, and
+  verify receiver/call-result forwarding together. Do not add conversions,
+  padding or reorder earlier effects to steer reuse. See
+  [conversion owners](reports/gc27-conversion-temporary-owners.md).
+
 ## M06
 
 Leading stack byte updated, whole word passed: byte-bitfield/word union in GC
@@ -389,7 +448,41 @@ width.
   Scalar-replaced members become FE objects rather than named scalar webs
   (`look_at_interaction_target`). Check the caller's inline decision and the
   whole object; do not invent an aggregate for unrelated scalars.
+- Inlined math results copy into mutable channel countdowns: REQUIRE real
+  per-channel vector/countdown/norm semantics and native evidence that named
+  owners are below the copy-coalescing boundary. TRY a nonescaping typed local
+  motion record with only those existing values (`object_transition_to_state`,
+  partial). Preserve every evaluation, reload and stack word slot. Scalarized
+  fields follow first-use discovery; a graph-order solution is not permission
+  to add dummy field uses or move arithmetic across calls. See the
+  [motion ownership case](reports/konquest-transition-motion-ownership.md).
+- A returned iterator copies into a saved named endpoint: REQUIRE an actual
+  erase interval and native evidence that its named endpoint cannot coalesce.
+  TRY one nonescaping range with only the existing `first`/`last` pointers,
+  preserving call and initialization order (`mwFileServerManagerBase::removeServer`).
+  Scalarized endpoints can enter the FE copy window; check all template
+  siblings and relocation layout separately. See the
+  [erase interval evidence](reports/file-server-erase-range-ownership.md).
+- Corner/normal CSE groups swap before a cross product: REQUIRE retail reuses
+  the corner values for the first edge delta and preserves the same FP tree.
+  TRY a real nonescaping `Vec` holding the corner, then its in-place edge
+  displacement (`collide_sphere_and_quad`). Explicit X/Y/Z member loads can
+  establish scalarizer discovery order; first-use assignments inside a dot
+  expression may discover Y first and swap later split ranges. Verify all
+  edge islands, reload boundaries and the whole object. Scalar snapshots or
+  aggregate word copies are different controls. See the
+  [vector ownership evidence](reports/sphere-quad-vector-scalarization.md).
 - Localized-array base before index getter, then advance.
+- Four clipping-bound copies vanish after a tile-corner producer: REQUIRE
+  retail corner stores, a complete producer boundary, and native evidence
+  separating its extent values from caller clipping bounds. TRY the complete
+  corner helper, then capture bounds from its output. Keep the horizontal
+  plane normal as a real `Vec` and its signed offset scalar when their native
+  owner groups differ (`setup_per_tile_navigations`, partial). Initialize
+  normal components with float field accesses; a whole plane-record copy can
+  introduce word copies and stack storage. Verify copies through allocation:
+  equal source/destination colors can erase a surviving preallocation FMR.
+  Do not add aliases or move unrelated values into the vector.
 - Uniform stack displacement: adjacent-version source or same function in a
   donor decomp may show a real unused local (`__DSPHandler` 4-byte array before
   `OSContext`; mk-da `STACK_PAD_VAR` copied from Pikmin's same function).
@@ -459,6 +552,13 @@ Unexpected masks, pairs, arg copies. REQUIRE all callers + callee storage/
 return ABI. Recover full-width or byte ABI, typed conditional arms, aligned
 u64 pairs, by-value POD, real POD return. Low r4 return can be low u64 half.
 
+- A complete initializer returns a POD already passed by value later:
+  REQUIRE every aggregate copy and the frame agree with retail. Inlining a
+  returned record can retain a separate temporary and copy; a typed output
+  parameter may remove that extra copy without changing the original
+  scheduling cause. Do not infer a constructor boundary from source brevity
+  (`ImageWriteTGA`, [measured limits](reports/tga-header-construction-boundaries.md)).
+
 ## M11
 
 Wrapper load order differs, regs right: recover float/int param interleave
@@ -501,6 +601,10 @@ public APIs keep their documented `const`.
 
 - Coordinate loads moved before intervening stores: compare input qualifier
   with mutable caller objects (Krypt position inputs, Puzzle flesh path).
+  A qualifier trial that fails because a forwarding wrapper still takes
+  `const T*` is unmeasured: synchronize the supported input type through that
+  wrapper and its declarations before judging the hypothesis
+  (`spawn_decal_emitter`, position copy). Recheck every includer.
   In-place quaternion callers (`out == q1`) also support the root-input check
   (`gxQuatInterpQuat`); test each input independently and restore neutral
   qualifiers, preserving the other quaternion's pre-output snapshot.
@@ -542,6 +646,14 @@ public APIs keep their documented `const`.
   byte-neutral on the other `konquest_time` helpers and was reverted (no
   churn).
 - Separately cached dest owner = H05.
+- Entry field load delayed behind saved-register stores: REQUIRE an actual
+  native memory-dependency edge, a read-only input-record API, unchanged
+  post-call reloads, and compatible callers. TRY restoring supported root
+  pointee `const` in definition and prototype (`npc_setup_path_for_event`).
+  Check stored edge latencies and every sibling; a parameter-copy edge can
+  have zero latency while the prologue `stmw` memory edge causes the delay.
+  A ready-list trace alone does not identify that cause. See
+  [the measured case](reports/npc-event-path-alias-boundary.md).
 
 ## M13
 
@@ -551,6 +663,15 @@ shifts stack offsets. Typed macro only when its lvalue + per-expansion locals
 are proven. Shared headers only for proven ownership; unused O0 param takes
 `#pragma unused`, not wrong prototype.
 
+- A specialized reconstruction is smaller than the original UNUSED helper:
+  REQUIRE a verified outlined counterpart and matching call-site inputs,
+  stores and layout. Recover the complete parameterized operation and compare
+  its standalone extent with the retail map, then check all inlined consumers
+  (`mk_chess_scale_display_msg_at_loc_with_variable_width`,
+  [evidence](reports/chess-hud-scale-interface.md)). Equal size supports the
+  hypothesis but does not prove original instructions or a prototype. Preserve
+  target-specific math and policy; removing a caller layer can change every
+  address-taken output slot even when the initializer itself folds identically.
 - Repeated block: one `static inline` at each repeated site
   (`game_count_active_players`); leave already-exact spelled-out sites.
 - Balance-array base must select before a scaled-index CSE: REQUIRE native
@@ -612,11 +733,21 @@ are proven. Shared headers only for proven ownership; unused O0 param takes
   REQUIRE native `can_inline` cost exceeds its measured budget. GC2.7 has a
   recursive-cost branch at 0x560ce0 (mode byte 0x5ef108, evaluator 0x560fb0,
   budget 0x5e3ae0) omitted by the current compiler-source reconstruction.
-  It counts statements and expressions including nested inline bodies, and
-  stops once over budget; a rejected cost is only a lower bound. TRY reducing
+  It counts statements and expressions including nested inline bodies, but
+  can stop over budget or return a depth-exhaustion sentinel. REQUIRE the
+  actual native cost-context object, remaining depth and recursion flag;
+  one helper can be accepted in its own context and rejected elsewhere.
+  An over-budget result is not measured generated code size. TRY reducing
   redundant expression work or moving a real phase to the caller, then measure
   inlining and the whole TU (`mk_chess_spell_hud_show_my_spells`). Nested
   extraction alone need not reduce cost; do not infer a flag change from this.
+  A correct cost graph still does not prove actual expansions. REQUIRE the
+  statement-producing inliner's saved-record/output-node bindings, branch
+  labels and result-object joins when those are the residual mechanism
+  (`_ChangeCase`, unresolved). Native statement-pointer producer ancestry can
+  prove a copied boundary; it excludes expression-only substitutions and
+  later optimization. Recover the original method/result boundary before
+  adding manual recursion levels or per-level helpers.
   If a local pragma appears ineffective, REQUIRE native option writes and actual
   `can_inline`/emission entries: the next function declarator can drain
   `CInline_DispatchNextDeferredNode` after the restoring pragma was parsed
@@ -660,6 +791,14 @@ builds `va_list` inline where SDK macro emits helper call: scope
 String/constant identity, placement, extent. REQUIRE ELF sizes, bytes, reloc
 addends, use. Use `-c functionRelocDiffs=data_value`.
 
+- An unused reconstructed helper inserts a constant before retail's first use:
+  REQUIRE no source calls or address-taking references and no original
+  ELF/MAP owner supporting that helper. TRY removing the unused definition
+  and declaration, then compare the complete constant pool and private link
+  (`attract`: reconstructed `mkproc_jump_sleep`). Do not delete an evidenced
+  MAP-UNUSED producer merely because its code was stripped. Check payloads
+  independently: report-100 can hide a wrong literal such as five versus
+  fifteen ticks. See the [attract recovery](reports/attract-data-link-recovery.md).
 - An existing inline's aggregate initializer appears before its retail owner:
   REQUIRE actual first-use relocations, definition visibility, stable emitted
   function order and every consumer's value/strict comparison. TRY moving the
@@ -694,7 +833,11 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
 - Named stand-in pool with a real literal-pointer table: REQUIRE every
   table target, first-use order, full pool bytes and consumer values.
   TRY original individual table strings and formatter literals with the
-  measured object pooling policy (`gc_boot_space_check`, NBC table).
+  measured object pooling policy (`gc_boot_space_check`, NBC table,
+  `p_load_alternate_body`). A named array address can be commoned across calls
+  where native pooled literals are rematerialized: recover the complete pool
+  and its option together, then recheck owner lifetimes and every sibling.
+  See [the player-select pool recovery](reports/pselect-native-string-pool.md).
   Preserve duplicates through normal compiler reuse; a giant indexed
   literal macro does not recover individual producer ownership.
 - Anonymous pool has an exact prefix but later consumers use early offsets:
@@ -789,7 +932,22 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   discarded function only with genuine body (`dsp_task` 2004 SDK
   `__DSP_add_task`); no donor body -> stop. Keep named `static const` objects
   when converting drops placeholders (`adx_tlk`). Stripped-code restoration
-  needs the user's stripped-code ruling `[da]`.
+  needs the user's stripped-code ruling `[da]`. For auto-inlined client
+  creation helpers (`mkScreenEngineClient::CreateElement`), REQUIRE complete
+  operations surviving in the retail caller, MAP name/size, and original
+  definition order. TRY ordinary definitions before their callers; compare
+  standalone sizes, every caller, and the entire anonymous pool. Equal MAP
+  sizes support ownership but cannot prove stripped instruction bytes. Missing
+  literals without recoverable bodies remain separate evidence gaps; do not
+  invent a body or silently add data records to fill them.
+- Explicitly approved stripped-data records: REQUIRE complete retail pool
+  bytes/order, each inferred UNUSED owner, every function in all relocation
+  modes, and a real candidate link. Audit the records' own storage: top-level
+  const pointers can shift existing `.sdata2` floats even when all literal
+  values agree. Record qualification and extra relocations are reconstruction
+  choices requiring review, not recovered retail objects. Prove linker discard
+  and natural alignment tails; never add padding to silence a split-object
+  gap (`mslSound`; [evidence](reports/mslsound-literal-pool.md)).
 - `.sdata2` constant order (2.7) = `@N` order = creation order: statements in
   order, operands/args left to right, `?:` and if/else assignment arms before
   the condition (`if (a > 9) g = .5; else g = .25;` -> .5, .25, 9). One
@@ -845,7 +1003,13 @@ built objects; only linked DOL hash catches wrong layout.
   first-use order by generated function, operand order as written (`c ? &A :
   &B` -> A first); unexpanded inline bodies + decl order don't count. Object
   only `extern` at first use, defined after the functions -> placed after the
-  first-use ones, reverse definition order. Retail `at_cam_data, g_DroneAI2,
+  first-use ones, reverse definition order. `memcard` also places the two
+  locally unreferenced/pending globals after its naturally ordered live string
+  buffers: late `storage_status; gp_data;` emits `gp_data, storage_status`.
+  Native allocation and a negative/positive scratch DOL SHA pair verify the
+  complete map without initialization or mode changes; see
+  [memcard evidence](reports/memcard-unsigned-offset-ownership.md#whole-unit-link-follow-up).
+  Retail `at_cam_data, g_DroneAI2,
   g_DroneAI1` = static used first + `g_DroneAI1; g_DroneAI2;` defined at file
   end, externs at top. All functions byte-identical either way.
 - Function-static `name$N` suffix differs: objdiff falls back to section
@@ -860,6 +1024,15 @@ built objects; only linked DOL hash catches wrong layout.
   pragmas removed.
 - Explicit zero inits in proven order fix placement but may move object to
   another section (`sfmpv_ta_adr_tbl`, SVM aggregates); verify section.
+- Unreferenced tentative array follows initialized scalars in C, but retail
+  allocates it at its declaration: REQUIRE genuine object extent/binding,
+  native allocation evidence and whole-TU C++ compatibility. TRY object-only
+  C++ mode with explicit C linkage for the C ABI (`ADXT_GetTime`). Check the
+  effective command: GC/2.7 uses the first `-lang`, so an appended option can
+  leave C active. Recheck every function, all BSS symbols, data and undefineds;
+  require a negative C link and positive retail SHA before Matching. Do not
+  invent a first reference or initialize storage merely to force allocation.
+  Evidence: [ADX timing](reports/adxt-cpp-static-bss.md).
 - Invented aggregates overlaying several retail symbols: separate objects
   with retail names; fix first-use order with donor's linker-discarded setter
   (`mwPlySetFrmBuf`).
@@ -894,6 +1067,23 @@ hierarchy, weak owner, sizes, order. Fix decls, zero slots, inline-visible
 dtors; verify weak emission with linked SHA. Don't duplicate deleting call's
 null guard.
 
+- Allocator default-argument construction forwards its constructor result,
+  while retail rematerializes the temporary's stack address: REQUIRE the
+  canonical allocator has a user-defined empty destructor omitted by the
+  local declaration. TRY restoring that destructor's real lifetime contract
+  (`gcnHostMountPoint`, `gcnCDMountPoint` and their open-command factories).
+  Keep constructor ABI and initialization order. Audit all consumers and
+  additional weak destructor emission; matching instructions do not establish
+  unchanged function order or data relocations.
+- Exact constructors have GLOBAL bindings where retail has WEAK, and retail
+  factory calls remain out of line: REQUIRE existing correct bodies, ELF/MAP
+  ownership and all construction sites before those definitions in the same
+  TU. TRY ordinary `inline` on the existing later definitions, preserving
+  parse-time body availability (`ScreenExitScreenAction`). Moving bodies into
+  class declarations can expand the retail calls and remove needed standalone
+  bodies. Verify binding bits, every caller/body, layout and the linked SHA;
+  weak binding alone is not evidence for a header move. See [the constructor
+  ownership comparison](reports/screen-action-constructor-inline-order.md).
 - Factory arms allocate the base size, call its constructor, then install
   distinct derived vtables: REQUIRE ELF class identities, inheritance,
   allocation sizes and virtual-slot signatures. TRY real empty derived
@@ -921,6 +1111,12 @@ null guard.
   definitions only for ELF-proven weak methods (`mslSoundBuffer`, `IRefCntRes`).
   Preserve every consumer and section; deferred-scan without enough pool
   symbols is inconclusive, not evidence against deferred inlining.
+- Class-inline destructor already has exact instructions/order but emits WEAK
+  where retail is GLOBAL: REQUIRE the complete existing body and ELF/MAP owner.
+  TRY an ordinary out-of-class definition at its measured deferred position
+  (`SoundBuffer_Data`: before `FreeObject` in reverse source order). Verify all
+  header consumers, anonymous-pool identities and relocation metadata. See
+  [the ownership audit](reports/sound-buffer-data-destructor-ownership.md).
 - Vtables emitted at TU end in reverse creation order. Key function creates
   vtable at its compile; none -> weak vtable at first codegen ref (derived
   ctor inlining base ctor, not derived dtor).

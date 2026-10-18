@@ -34,13 +34,13 @@ void fixedBlockHeapFreeBlock(_mwMemHeap* heap, void* block) {
     privSetAlignInBitFlag(&header->flags, alignment);
     privSetBitFromBitFlag(&header->flags, 5);
     if (heap->freeList == 0) {
-        heap->freeList = header;
+        heap->freeList = (MwMemFreeHeader*)header;
         header->previous = 0;
         header->next = 0;
     } else {
-        header->next = heap->freeList;
+        header->next = (MwMemUsedHeader*)heap->freeList;
         header->previous = 0;
-        heap->freeList = header;
+        heap->freeList = (MwMemFreeHeader*)header;
     }
 }
 
@@ -66,10 +66,10 @@ void* fixedBlockHeapAlloc(u32 size, _mwMemHeap* heap, u32 flags, MwMemMallocRequ
     if (requested_size > heap->blockSize) {
         return 0;
     }
-    header = heap->freeList;
+    header = (MwMemUsedHeader*)heap->freeList;
     allocation_size = heap->blockSize + heap->blockPrefixSize;
     if (header != 0) {
-        heap->freeList = header->next;
+        heap->freeList = (MwMemFreeHeader*)header->next;
         header->previous = 0;
         header->next = 0;
     }
@@ -118,7 +118,7 @@ static inline void fixedBlockHeapCorrectPads(_mwMemHeap* heap) {
         heap->blockPrefixSize =
             fixedBlockAlignmentPadding(base_block_size, alignment_mask);
         arena_start =
-            heap->heapStart + heap->blockPrefixSize + sizeof(MwMemUsedHeader);
+            heap->heapStart + (heap->blockPrefixSize + sizeof(MwMemUsedHeader));
         heap->arenaAlignmentPadding =
             fixedBlockAlignmentPadding((u32)arena_start, alignment_mask);
     }
@@ -127,7 +127,7 @@ static inline void fixedBlockHeapCorrectPads(_mwMemHeap* heap) {
 static inline void privFBHeapPartition(_mwMemHeap* heap) {
     u32 index;
     u32 block_count;
-    MwMemUsedHeader* header;
+    MwMemFreeHeader* header;
     int alignment;
 
     fixedBlockHeapCorrectPads(heap);
@@ -136,8 +136,8 @@ static inline void privFBHeapPartition(_mwMemHeap* heap) {
     heap->freeTail = 0;
     block_count =
         (heap->heapEnd - heap->heapStart - heap->arenaAlignmentPadding) /
-        (heap->blockSize + heap->blockPrefixSize + sizeof(MwMemUsedHeader));
-    header = (MwMemUsedHeader*)(heap->heapStart + heap->arenaAlignmentPadding);
+        (heap->blockSize + heap->blockPrefixSize + sizeof(MwMemFreeHeader));
+    header = (MwMemFreeHeader*)(heap->heapStart + heap->arenaAlignmentPadding);
     alignment = privGetAlignFromMwMemFlags(heap->flags);
     index = 0;
     while (index < block_count) {
@@ -158,14 +158,14 @@ static inline void privFBHeapPartition(_mwMemHeap* heap) {
             heap->freeList = header;
         }
         index++;
-        header = mwMemHeaderAt(header, heap->blockSize);
-        header = mwMemHeaderAt(header, heap->blockPrefixSize);
+        header = (MwMemFreeHeader*)mwMemByteAddress(header, heap->blockSize);
+        header = (MwMemFreeHeader*)mwMemByteAddress(header, heap->blockPrefixSize);
         header++;
     }
 }
 
-/* TODO: [near miss] 97.34782%; payload-add association and stride registers remain;
- * staged payload pointer is neutral inside the recovered padding helper. */
+/* TODO: [near miss] 99.65218%; payload ADD inputs commute; block-size,
+ * prefix and split-cursor scratch homes remain different. */
 void fixedBlockHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
     MwMemUsedHeader* used;
 

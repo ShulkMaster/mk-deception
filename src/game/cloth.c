@@ -19,7 +19,6 @@
 static float p_cloth(void);
 static float p_wind(void);
 static float p_wind_lp(void);
-float p_axis_track_bone_world_mat(void);
 struct ClothForcePdata;
 static void do_cloth_force(MkHdr* header);
 static void do_cloth_colls(MkHdr* collision);
@@ -129,8 +128,6 @@ static inline ClothBone* find_cloth_bone_by_tag(MkObj* obj, int bone_id) {
     }
     return NULL;
 }
-void mks_obj_enable_update_cloth(MkObj* obj, int enabled);
-void mks_npc_cc1_eq_insert_cloth_coll( int model_index, int bone_index, float radius);
 
 static inline void cloth_bone_set_target(ClothBone* bone, ClothBone* target) {
     if (bone != 0 && target != 0) {
@@ -141,7 +138,6 @@ static inline void cloth_bone_set_target(ClothBone* bone, ClothBone* target) {
             &target->bone->parent_matrix->pos_vec);
     }
 }
-void mks_npc_set_target( int model_index, int source_bone_id, int target_bone_id);
 
 static inline MkObj* start_axis_indicator(
     MkObj* target, int bone_index, float scale, MkProcEntryFn track) {
@@ -189,11 +185,6 @@ static inline MkObj* start_axis_indicator(
     }
     return axis;
 }
-void mks_start_axis_indicator_p_axis_track_bone_world_mat( int bone_tag, float scale);
-void mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave( int bone_index_0, float weight_0, int bone_index_1, float weight_1, int bone_index_2, float weight_2, int bone_index_3, float weight_3);
-void mks_cc1_set_coll_fnc_eq_cloth_coll_vector_cyl(void);
-void mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_abs(void);
-void mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_inside(void);
 
 static inline void cloth_plane_add_bone(ClothCollisionPlane* plane, ClothBone* bone) {
     unsigned int index;
@@ -210,7 +201,6 @@ static inline void cloth_plane_add_bone(ClothCollisionPlane* plane, ClothBone* b
         plane->bones[index] = bone;
     }
 }
-void mks_cc1_expand_cyl(float top, float bottom);
 
 static inline void cloth_volume_add_bone(ClothCollisionVolume* volume, ClothBone* bone) {
     unsigned int index;
@@ -228,7 +218,6 @@ static inline void cloth_volume_add_bone(ClothCollisionVolume* volume, ClothBone
         volume->bone_settings[volume->bone_count] = 0;
     }
 }
-void mks_ccp1_eq_insert_cloth_coll_plane( int bone_index, float distance, float normal_x, float normal_y, float normal_z);
 
 static inline ClothCollisionVolume* create_cloth_coll_on_obj(
     MkObj* object, int bone_index, float radius) {
@@ -255,8 +244,6 @@ static inline ClothCollisionVolume* create_cloth_coll_on_obj(
     }
     return volume;
 }
-void mks_cc1_eq_insert_cloth_coll(int bone_index, float radius);
-void mks_cb1_set_scale( int include_children, float scale_x, float scale_y, float scale_z);
 
 static inline void insert_cloth_force(
     MkObj* obj, ClothBone* first, ClothBone* second,
@@ -280,7 +267,6 @@ static inline void insert_cloth_force(
         mk_insert((MkHdr*)pdata, &obj->list_7C);
     }
 }
-void mks_insert_cloth_force_bones(float rest_length, float stiffness);
 
 static inline void publish_current_wind(double x, double y, double z) {
     wind_v3.x = x;
@@ -1144,55 +1130,49 @@ static void cloth_coll_vector_cyl(void) {
     }
 }
 
-/* TODO: [near miss] 99.58791%; response/index/stride homes remain;
- * recover canonical point-helper frame/argument ownership. */
-static void cloth_coll_point_cyl_inside(void) {
-    Vec* force_position;
-    MKVECTOR world_point;
-    RwMatrixPosition radial_direction_0;
-    RwMatrixPosition axis_point_0;
-    RwMatrixPosition radial_direction_1;
-    RwMatrixPosition axis_point_1;
-    Vec axis_offset_0;
-    Vec axis_offset_1;
-    int index;
-    int collided;
-    float position_weight;
+static inline void cloth_project_axis_point(Vec* out, const Vec* origin,
+                                           const Vec* axis, float distance) {
+    Vec offset;
+    PSVECScale(axis, &offset, distance);
+    PSVECAdd(origin, &offset, out);
+}
+
+static inline int collide_pt_against_coll_bone_inside_GX(const Vec* point)
+{
+    RwMatrixPosition axis_point;
+    RwMatrixPosition radial_direction;
     float along_axis;
 
-    force_position = &cloth_bone->force_position;
-    PSVECSubtract(
-        force_position,
-        &cloth_coll_bone->transform_parent->matrix.pos_vec,
+    PSVECSubtract(point, &cloth_coll_bone->transform_parent->matrix.pos_vec,
         &v_ccb_to_coll_pt.xyz);
-    PSVECCrossProduct(
-        &cloth_coll_bone_uv.xyz, &v_ccb_to_coll_pt.xyz, &v_cc_cross.xyz);
-    if (PSVECDotProduct(&v_cc_cross.xyz, &v_cc_cross.xyz) >
-        cloth_coll_radius_sq) {
+    PSVECCrossProduct(&cloth_coll_bone_uv.xyz, &v_ccb_to_coll_pt.xyz,
+        &v_cc_cross.xyz);
+    if (PSVECDotProduct(&v_cc_cross.xyz, &v_cc_cross.xyz) > cloth_coll_radius_sq) {
         Vec* origin;
 
-        along_axis =
-            PSVECDotProduct(&v_ccb_to_coll_pt.xyz, &cloth_coll_bone_uv.xyz);
+        along_axis = PSVECDotProduct(&v_ccb_to_coll_pt.xyz, &cloth_coll_bone_uv.xyz);
         if (along_axis < cloth_coll->cylinder_bottom) {
             along_axis = cloth_coll->cylinder_bottom;
         }
         origin = &cloth_coll_bone->transform_parent->matrix.pos_vec;
-        PSVECScale(&cloth_coll_bone_uv.xyz, &axis_offset_0, along_axis);
-        PSVECAdd(origin, &axis_offset_0, &axis_point_0.value);
-        gxVectUVV3ToV3(
-            &radial_direction_0.value, &axis_point_0.value,
-            force_position);
-        PSVECScale(
-            &radial_direction_0.value, &radial_direction_0.value,
-            cloth_coll->radius);
-        PSVECAdd(&axis_point_0.value, &radial_direction_0.value, &axis_point_0.value);
-        PSVECSubtract(
-            &axis_point_0.value, force_position,
-            &pt_displacement_v.xyz);
-        collided = 1;
-    } else {
-        collided = 0;
+        cloth_project_axis_point(&axis_point.value, origin,
+                                 &cloth_coll_bone_uv.xyz, along_axis);
+        gxVectUVV3ToV3(&radial_direction.value, &axis_point.value, point);
+        PSVECScale(&radial_direction.value, &radial_direction.value, cloth_coll->radius);
+        PSVECAdd(&axis_point.value, &radial_direction.value, &axis_point.value);
+        PSVECSubtract(&axis_point.value, point, &pt_displacement_v.xyz);
+        return 1;
     }
+    return 0;
+}
+
+static void cloth_coll_point_cyl_inside(void) {
+    MKVECTOR world_point;
+    int index;
+    int collided;
+    float position_weight;
+
+    collided = collide_pt_against_coll_bone_inside_GX(&cloth_bone->force_position);
     if (collided) {
         PSVECAdd(
             &cloth_bone->force_position, &pt_displacement_v.xyz,
@@ -1205,37 +1185,7 @@ static void cloth_coll_point_cyl_inside(void) {
             &cloth_bone->collision_points[index].position,
             (Mat33*)&cloth_bone->bone->matrix,
             &cloth_bone->force_position);
-        PSVECSubtract(
-            &world_point,
-            &cloth_coll_bone->transform_parent->matrix.pos_vec,
-            &v_ccb_to_coll_pt.xyz);
-        PSVECCrossProduct(
-            &cloth_coll_bone_uv.xyz, &v_ccb_to_coll_pt.xyz, &v_cc_cross.xyz);
-        if (PSVECDotProduct(&v_cc_cross.xyz, &v_cc_cross.xyz) >
-            cloth_coll_radius_sq) {
-            Vec* origin;
-
-            along_axis = PSVECDotProduct(
-                &v_ccb_to_coll_pt.xyz, &cloth_coll_bone_uv.xyz);
-            if (along_axis < cloth_coll->cylinder_bottom) {
-                along_axis = cloth_coll->cylinder_bottom;
-            }
-            origin = &cloth_coll_bone->transform_parent->matrix.pos_vec;
-            PSVECScale(&cloth_coll_bone_uv.xyz, &axis_offset_1, along_axis);
-            PSVECAdd(origin, &axis_offset_1, &axis_point_1.value);
-            gxVectUVV3ToV3(
-                &radial_direction_1.value, &axis_point_1.value, &world_point);
-            PSVECScale(
-                &radial_direction_1.value, &radial_direction_1.value,
-                cloth_coll->radius);
-            PSVECAdd(
-                &axis_point_1.value, &radial_direction_1.value, &axis_point_1.value);
-            PSVECSubtract(
-                &axis_point_1.value, &world_point, &pt_displacement_v.xyz);
-            collided = 1;
-        } else {
-            collided = 0;
-        }
+        collided = collide_pt_against_coll_bone_inside_GX(&world_point);
         if (collided) {
             position_weight = 1.0f - cloth_bone->table_scale;
             gxVectScale(&pt_displacement_v.xyz, &pt_displacement_v.xyz,

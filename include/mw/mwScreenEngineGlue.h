@@ -140,36 +140,6 @@ typedef struct PausedStudioEvent {
     int flags;          /* +0x04 -- queued: -1/-2; live FireEvent pack */
 } PausedStudioEvent;
 
-/*
- * =====================================================================
- * Retail BSS -- exact sizes (Glue island)
- * =====================================================================
- *
- * Contiguous Glue BSS island (symbols.txt). init_screen_engine casts
- * paused_event_queue to ScreenEngineBssIsland* (mgr/client/vars members):
- *
- *   paused_event_queue     .bss size 0x60  (12 x PausedStudioEvent)
- *   @814                   .bss size 0x0C  (+0x60) -- MWCC pad
- *   screen_manager         .bss size 0x264 (+0x6C from queue)  -- ScreenMgr
- *   @815                   .bss size 0x0C  (+0x2D0)
- *   screen_engine_client   .bss size 0x80  (+0x2DC)           -- below
- *   @816                   .bss size 0x0C  (+0x35C)
- *   game_variables         .bss size 0x1C  (+0x368)           -- mkGameVariables
- *   pause_screen_engine_proc .sbss size 0x4                   -- int flag
- *
- * Wrong overlay / undersized buffers -> silent crash on Init/Register.
- * Provide zeroed storage of these sizes before init_screen_engine().
- *
- * mkGameVariables is the game subclass of mwScreenEngine GameVariables
- * (real `class mkGameVariables : public GameVariables`, 0x1C, distinct
- * __vt__15mkGameVariables). Its Get/Set overrides live in the Glue TU.
- *
- * The class and the BSS island overlay are DEFINED IN mwScreenEngineGlue.cpp,
- * not here: this header is included by C translation units (game.c, menu.c,
- * pselect.c, ending.c) which cannot see a C++ class. No C consumer references
- * either type -- the only mentions in C sources are comments.
- */
-
 #include "libmkparticle/pfxfont.h"
 
 /* Font name cache row (stride 0x10) at ScreenEngineClient+0x08. */
@@ -178,26 +148,6 @@ typedef struct ScreenFontCacheRow {
     int unloadId; /* +0x04 */
     PfxFontSlot font; /* +0x08 -- face + metrics */
 } ScreenFontCacheRow; /* 0x10 */
-
-/*
- * Global screen-engine client latch (bss size 0x80). share_pdata is
- * validated by comparing MkHdr.instance to share_instance before reuse.
- */
-typedef struct ScreenEngineClient {
-    char pad00[4];
-    int slot; /* +0x04 -- section slot from load_screen */
-    /*
-     * Font name cache: 7 slots of stride 0x10 at +0x08.
-     * CreateElement TEXT fills these when load_named_font fails (TGA + %s_MET).
-     */
-    ScreenFontCacheRow fontCache[7]; /* +0x08 .. +0x77 */
-    MkHdr* share_pdata; /* +0x78 */
-    int share_instance; /* +0x7C */
-} ScreenEngineClient; /* sizeof == 0x80 */
-
-/* ScreenEngineBssIsland (the init_screen_engine overlay) is defined in
- * mwScreenEngineGlue.cpp -- it has a mkGameVariables member, so it is
- * C++-only for the same reason. See the layout map at the top of this file. */
 
 /* SE string table (Screen.h SEStringTable_t) -- C view for Glue. */
 typedef struct SEStringTableView {
@@ -266,8 +216,8 @@ void fire_screen_studio_event(int event, int flag);
 
 void screen_engine_render(void);
 void vdestroy_screen_engine(MkHdr* hdr);
-float p_screen_engine_tick__Fv(void);
-float p_handle_screen_engine_controller__Fv(void);
+
+
 void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx);
 
 /*

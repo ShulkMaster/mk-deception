@@ -617,8 +617,8 @@ static inline int sfadxt_SearchFrmTop(SfdHandle* handle,
     return offset - data;
 }
 
-/* TODO: [near miss] 97.52688%; caller/scan GPR coloring remains;
- * stop pending new owner or ABI evidence. */
+/* TODO: [near miss] 97.52688%; caller/scan GPR owners rotate;
+ * original input lifetimes remain unresolved beyond the complete scan. */
 static void sfadxt_ExcludeHdr(SfdHandle* handle, const unsigned char* data,
                               int size, int* consumed)
 {
@@ -955,8 +955,8 @@ static inline void sfadxt_WriteTotSmpl(SfdHandle* handle)
     }
 }
 
-/* TODO: [near miss] 97.78409%; 108 register rows, all 264 operations agree;
- * handle wins the native cost stall; need original lifetime context. */
+/* TODO: [near miss] 97.78409%; handle cost-stall precedes result/input;
+ * handle/result ownership across supply and status phases is unresolved. */
 static int sfadxt_ExecServerSub(SfdHandle* handle)
 {
     int result;

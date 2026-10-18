@@ -6,7 +6,7 @@ static const char sud_div_type[] = "D";
 static const char sud_ccs_type[] = "C";
 static const char sud_tag_prefix[] = "<";
 static const char sud_tag[] = "<SUDPS_>";
-static int sud_init_cnt;
+int sud_init_cnt;
 static const char* sud_dummy;
 
 void SUD_SearchSudDat(

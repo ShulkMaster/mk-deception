@@ -538,7 +538,7 @@ AnimPdata* animate_obj(
     int active);
 static int ladder_data_tbl_offset = -1;
 static int curr_ladder_pos;
-int curr_ladder_char;
+static int curr_ladder_char;
 static struct LadderStringRef bgnd_name_item;
 static struct LadderEntry* current_ladder_tbl;
 const char* ladder_koin_type_to_string(int type) {
@@ -985,7 +985,6 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
     }
 }
 
-extern MkFileEntry gameart_file_table[];
 extern MkFileInfo sec_fightingart;
 extern const char* pz_ladder_koins[2];
 extern unsigned short n_pz_ladder_koins;

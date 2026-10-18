@@ -13,7 +13,7 @@ void sec_slot_file_wait_for_load(SecSlotFileEntry* file);
 void sec_slot_file_cancel_async(SecSlotFileEntry* file);
 void sec_slot_file_free_async(SecSlotFileEntry* file);
 void sec_slot_file_close_file(SecSlotFileEntry* file);
-void sec_slot_file_wait_on_ssf(MkFileEntry* ssf_file);
+void sec_slot_file_wait_on_ssf(const MkFileEntry* ssf_file);
 void init_sec_slot_files(void);
 
 #endif

@@ -71,8 +71,8 @@ static char* double2hex(long double num, char* buff, print_format format);
 static void round_decimal(decimal* dec, int new_length);
 static char* float2str(long double num, char* buff, print_format format);
 static int __pformatter(void* (*WriteProc)(void*, const char*, size_t), void* WriteProcArg, const char* format_str, va_list arg);
-static void* __FileWrite(void* pFile, const char* pBuffer, size_t char_num);
-static void* __StringWrite(void* pCtrl, const char* pBuffer, size_t char_num);
+void* __FileWrite(void* pFile, const char* pBuffer, size_t char_num);
+void* __StringWrite(void* pCtrl, const char* pBuffer, size_t char_num);
 
 static inline int vsnprintf(char* s, size_t n, const char* format, va_list arg)
 {
@@ -156,7 +156,7 @@ int printf(const char* format, ...)
 	return ret;
 }
 
-static void* __StringWrite(void* pCtrl, const char* pBuffer, size_t char_num)
+void* __StringWrite(void* pCtrl, const char* pBuffer, size_t char_num)
 {
 	size_t chars;
 	__OutStrCtrl* ctrl = (__OutStrCtrl*)pCtrl;
@@ -168,7 +168,7 @@ static void* __StringWrite(void* pCtrl, const char* pBuffer, size_t char_num)
 	return (void*)1;
 }
 
-static void* __FileWrite(void* pFile, const char* pBuffer, size_t char_num)
+void* __FileWrite(void* pFile, const char* pBuffer, size_t char_num)
 {
 	return (fwrite(pBuffer, 1, char_num, (FILE*)pFile) == char_num ? pFile : 0);
 }

@@ -233,8 +233,8 @@ static void add_field_description(PfxFieldDescription* field,
     field->offset = offset;
 }
 
-/* TODO: [near miss] 99.66%; named offset zero lies below coalesce window;
- * recover property-phase ownership so the reduced index can share it. */
+/* TODO: [near miss] 99.65517%; scalar offset cannot share the index zero;
+ * traversal state and phase helpers exchange offset/entry homes. */
 void fill_field_description(PfxFieldDescription* descriptions,
                             PfxFieldSet fields, int parametric)
 {

@@ -80,12 +80,12 @@ static inline int sfh_is_analyzable(const SFHHandle* handle)
     return 1;
 }
 
-static inline unsigned int sfh_read_le32(const unsigned char* data, int offset)
+static inline unsigned long sfh_read_le32(const unsigned char* data, int offset)
 {
-    const unsigned int* words = (const unsigned int*)data;
-    unsigned int word = words[offset / sizeof(*words)];
-
-    unsigned int swapped = ((word & 0x00FF0000U) >> 8) | ((word & 0x0000FF00U) << 8);
+    const unsigned long* words = (const unsigned long*)data;
+    unsigned long word = words[offset / sizeof(*words)];
+    unsigned long swapped = ((word & 0x00FF0000UL) >> 8) |
+                            ((word & 0x0000FF00UL) << 8);
 
     swapped |= (word >> 24) | (word << 24);
     return swapped;
@@ -462,8 +462,8 @@ int SFH_AnlyElemCodecAud(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 95.51%; peephole forms two insert pairs plus OR;
- * recover a genuine live boundary before swap/store folding. */
+/* TODO: [near miss] 95.51282%; two insert pairs remain; early chain repair
+ * triggers late STWBRX folding. Recover an authentic decoder boundary. */
 int SFH_AnlyMaxFrmNum(SFHHandle* handle, int* result)
 {
     *result = 0;
@@ -484,8 +484,8 @@ int SFH_AnlyMaxPlyLenAud(SFHHandle* handle, int* result)
     return sfh_read_header_u32(handle, 0xB8, result);
 }
 
-/* TODO: [near miss] 96.02273%; five byte-swap insertion rows remain;
- * need a real control-flow boundary; donor dead conditional is not admissible. */
+/* TODO: [near miss] 96.02273%; shared decoder's early chain repair folds
+ * to STWBRX in the late pass; an authentic block boundary is missing. */
 int SFH_AnlyByteRate(SFHHandle* handle, int* result)
 {
     *result = 0;

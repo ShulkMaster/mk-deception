@@ -209,8 +209,8 @@ mwFileDirectoryMountPoint::~mwFileDirectoryMountPoint()
 }
 #pragma inline_bottom_up on
 
-/* TODO: [breakthrough needed] 70.96774%; base-constructor call remains;
- * recover implicit Queryable construction while preserving the exact standalone base. */
+/* TODO: [breakthrough needed] 70.96774%; base call remains after canonical
+ * Queryable/visibility controls; recover the original nested inline boundary. */
 mwFileDirectoryMountPoint::mwFileDirectoryMountPoint(const char* mount_name)
     : mwFileMountPoint(mount_name), parent(0)
 {
@@ -267,10 +267,18 @@ public:
         void (*function)(unsigned long, unsigned long, unsigned long,
                          unsigned long, void*);
         void* callback_data;
-        unsigned long argument0;
-        unsigned long argument1;
-        unsigned long argument2;
-        unsigned long argument3;
+        unsigned long arguments[4];
+
+        Callback& operator=(const Callback& other)
+        {
+            function = other.function;
+            callback_data = other.callback_data;
+            arguments[0] = other.arguments[0];
+            arguments[1] = other.arguments[1];
+            arguments[2] = other.arguments[2];
+            arguments[3] = other.arguments[3];
+            return *this;
+        }
     };
 
     static void serviceCallbacks();
@@ -304,8 +312,8 @@ void mwFileDevice::serviceCallbacks()
     Callback callback;
 
     while (sQueue.consumeNonBlocking(callback)) {
-        callback.function(callback.argument0, callback.argument1,
-                          callback.argument2, callback.argument3,
+        callback.function(callback.arguments[0], callback.arguments[1],
+                          callback.arguments[2], callback.arguments[3],
                           callback.callback_data);
     }
 }
@@ -440,8 +448,8 @@ int mwFileMountTable::getMountPointFromName(mwFileMountPoint*& mount_point,
     return getMountPointFromName(mount_point, name, name + strlen(name));
 }
 
-/* TODO: [near miss] 99.96%; constructor and call-temporary ownership recovered;
- * default comparator source/argument-copy stack slots remain reversed. */
+/* TODO: [near miss] 99.95588%; saved locals restore ABI copy before compare;
+ * recover the original comparator owner before serialization. */
 int mwFileMountTable::getMountPointFromName(
     mwFileMountPoint*& mount_point, const char* first, const char* last) const
 {

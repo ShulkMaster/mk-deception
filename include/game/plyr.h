@@ -11,6 +11,8 @@ void vdestroy_mkpdata_plyr(PlyrPdata* pdata);
 void init_mkpdata_plyrs(void);
 void plyr_spawn_anim(AniData* animation, MkProcEntryFn entry);
 float p_animate_weapon_rest(void);
+float p_plyr_aux(void);
+float p_plyr_aux2(void);
 void init_plyr_info_struct(PlyrInfo* player);
 void plyr_turn_on_mirrorguy(PlyrInfo* player);
 void plyr_turn_off_mirrorguy(PlyrInfo* player);

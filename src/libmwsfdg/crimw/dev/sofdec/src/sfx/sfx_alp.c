@@ -75,8 +75,8 @@ static inline SFXAObject* SFXA_FindFreeObject(void) {
     return 0;
 }
 
-/* TODO: [near miss] 84.64%; initializer address/constant scheduling remains;
- * clean propagation-off is neutral; stop at the scheduling ceiling. */
+/* TODO: [near miss] 84.63889%; global-count address schedules ahead of
+ * initializer constants; recover the original scheduling dependency. */
 SFXAObject* SFXA_Create(void) {
     SFXAObject* object = SFXA_FindFreeObject();
     if (object == 0) {

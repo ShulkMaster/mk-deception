@@ -575,8 +575,6 @@ void gc_native_display_pass_to_RW(void) {
     _RwDlDefaultFifo = gc_native_display.fifo;
 }
 
-/* TODO: [breakthrough needed] 99.29487%; initial PCode already folds TV fallback;
- * recover original frontend dispatch boundary; switch/helper controls exhausted. */
 void gc_native_display_init(void) {
     int tvFormat;
     GXRenderModeObj* mode;
@@ -593,10 +591,14 @@ void gc_native_display_init(void) {
     gc_grab_renderpipe();
     VIInit();
     tvFormat = VIGetTvFormat();
-    if (tvFormat != 1 && tvFormat >= 1 && tvFormat < 3) {
+    switch (tvFormat) {
+    case VI_MPAL:
         gc_native_display.rmode = &GXMpal480IntDf;
-    } else {
+        break;
+    case VI_NTSC:
+    default:
         gc_native_display.rmode = &GXNtsc480IntDf;
+        break;
     }
 
     mode = gc_native_display.rmode;
@@ -983,8 +985,6 @@ int gc_prompt_for_refresh_rate(PADStatus* pads)
     return 1;
 }
 
-/* TODO: [breakthrough needed] 98.46561%; presched folds width zero pairs;
- * y baseline is distributed before initial pcode; caller-owned scans disturb stack slots. */
 static void display_dragon_with_text(void* arg) {
     DragonTextPrompt* prompt = arg;
     int msgW;
@@ -993,7 +993,15 @@ static void display_dragon_with_text(void* arg) {
     int yesW;
     int noW;
     int y;
-    unsigned long i;
+    int maxW;
+    int lineW;
+    char* width_s;
+    int yesMaxW;
+    int yesLineW;
+    char* yesText;
+    int noMaxW;
+    int noLineW;
+    char* noText;
 
     save_projection_matrix();
     set_2d_projection();
@@ -1016,33 +1024,97 @@ static void display_dragon_with_text(void* arg) {
     FontSize = FontData->cellWidth << 4;
     FontSpace = -0x10;
 
-    msgW = font_string_width(prompt->message);
+    width_s = prompt->message;
+
+    if (FontData == 0) {
+        msgW = 0;
+    } else {
+        lineW = 0;
+        maxW = 0;
+        while (*width_s != '\0') {
+            if (*width_s == '\n') {
+                if (maxW < lineW) {
+                    maxW = lineW;
+                }
+                lineW = 0;
+            }
+            width_s = font_accumulate_glyph_width(width_s, &lineW);
+        }
+        if (maxW < lineW) {
+            maxW = lineW;
+        }
+        msgW = (maxW + 0xF) / 0x10;
+    }
     render_text_without_clear(prompt->message, (screen_width - msgW) / 2, 0x15E);
 
     if (prompt->yes_hi != 0) {
-        for (i = 0; i < strlen(prompt->no_str); i++) {
-            prompt->no_str[i] |= 0x20;
+        unsigned long no_index;
+        unsigned long yes_index;
+        for (no_index = 0; no_index < strlen(prompt->no_str); no_index++) {
+            prompt->no_str[no_index] |= 0x20;
         }
-        for (i = 0; i < strlen(prompt->yes_str); i++) {
-            prompt->yes_str[i] &= 0xDF;
+        for (yes_index = 0; yes_index < strlen(prompt->yes_str); yes_index++) {
+            prompt->yes_str[yes_index] &= ~0x20;
         }
     } else {
-        for (i = 0; i < strlen(prompt->yes_str); i++) {
-            prompt->yes_str[i] |= 0x20;
+        unsigned long yes_index;
+        unsigned long no_index;
+        for (yes_index = 0; yes_index < strlen(prompt->yes_str); yes_index++) {
+            prompt->yes_str[yes_index] |= 0x20;
         }
-        for (i = 0; i < strlen(prompt->no_str); i++) {
-            prompt->no_str[i] &= 0xDF;
+        for (no_index = 0; no_index < strlen(prompt->no_str); no_index++) {
+            prompt->no_str[no_index] &= ~0x20;
         }
     }
 
     msgH = font_string_height(prompt->message);
     yesNoH = font_string_height("YESNO");
     y = msgH + yesNoH / 2;
-    yesW = font_string_width(prompt->yes_str);
-    y += 0x15E;
-    render_text_without_clear(prompt->yes_str, (screen_width / 2 - 100) - yesW / 2, y);
+    yesText = prompt->yes_str;
 
-    noW = font_string_width(prompt->no_str);
+    if (FontData == 0) {
+        yesW = 0;
+    } else {
+        yesLineW = 0;
+        yesMaxW = 0;
+        while (*yesText != '\0') {
+            if (*yesText == '\n') {
+                if (yesMaxW < yesLineW) {
+                    yesMaxW = yesLineW;
+                }
+                yesLineW = 0;
+            }
+            yesText = font_accumulate_glyph_width(yesText, &yesLineW);
+        }
+        if (yesMaxW < yesLineW) {
+            yesMaxW = yesLineW;
+        }
+        yesW = (yesMaxW + 0xF) / 0x10;
+    }
+    render_text_without_clear(
+        prompt->yes_str, (screen_width / 2 - 100) - yesW / 2, y += 0x15E);
+
+    noText = prompt->no_str;
+
+    if (FontData == 0) {
+        noW = 0;
+    } else {
+        noLineW = 0;
+        noMaxW = 0;
+        while (*noText != '\0') {
+            if (*noText == '\n') {
+                if (noMaxW < noLineW) {
+                    noMaxW = noLineW;
+                }
+                noLineW = 0;
+            }
+            noText = font_accumulate_glyph_width(noText, &noLineW);
+        }
+        if (noMaxW < noLineW) {
+            noMaxW = noLineW;
+        }
+        noW = (noMaxW + 0xF) / 0x10;
+    }
     render_text_without_clear(prompt->no_str, (screen_width / 2 + 100) - noW / 2, y);
 
     if (FontData != 0) {

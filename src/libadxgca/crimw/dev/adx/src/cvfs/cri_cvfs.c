@@ -466,7 +466,7 @@ void cvFsEntryErrFunc(CvFsErrorCallback callback, void* object)
 }
 
 /* TODO: [near miss] 99.74747%; device/table homes remain swapped;
- * query extraction with named input rotates filename and changes the final guard. */
+ * first-predicate table capture is neutral; recover the original owner boundary. */
 int cvFsGetFileSize(const char* filename)
 {
     CvFsInterface* interface;

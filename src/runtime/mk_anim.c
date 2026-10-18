@@ -720,8 +720,8 @@ static inline MkBone* matcher_bone_by_index(MkObj* object, unsigned int index) {
     return object->bones[index];
 }
 
-/* TODO: [near miss] 98.49892%; quaternion CSE/w order survives scalar controls;
- * recover component/result ownership and weighted-position interference. */
+/* TODO: [near miss] 98.49892%; quaternion and weighted FPR owners differ;
+ * recover the original input/result boundary; retained FP trees agree. */
 static float p_bone_matcher(void) {
     BoneMatcherState* matcher = (BoneMatcherState*)apdata;
     MkObj* parent_obj;
@@ -1127,7 +1127,7 @@ static void ps_anim(void) {
     plyr_pdata = 0;
 }
 
-void pw_anim(void) {
+static void pw_anim(void) {
     anim_pdata = (AnimPdata*)apdata;
     anim_obj = (anim_pdata->obj != 0)
                    ? ((anim_pdata->obj->hdr.instance == anim_pdata->obj_instance) ? anim_pdata->obj : 0)
@@ -3331,8 +3331,8 @@ MkBone* alloc_bone(void) {
     return bone;
 }
 
-/* TODO: [breakthrough needed] 96.25288%; CommonSubs caches the bone-table root;
- * retained slot walk adds cursor ops; recover the original reload boundary. */
+/* TODO: [breakthrough needed] 96.25288%; search still shares the bone-table root;
+ * recover its reload boundary while preserving tail/flag reuse and tag stores. */
 static void process_obj_bones(MkObj* obj, int* tags) {
     RpClump* clump = obj->clump;
     RpHAnimHierarchy* found_hierarchy = 0;
@@ -3568,38 +3568,47 @@ static inline void quat_to_normalized_matrix(RwMatrix* matrix, Quat* rotation) {
     matrix->up.x = cross.z - weighted.z;
 }
 
-/* TODO: [breakthrough needed] 94.74214%; unlink join and quaternion schedule differ;
- * weighted/cross ready-list ties need a different dependency graph. */
+static inline void mkbone_unlink_from_parent(MkBone* bone) {
+    MkBone* parent = bone->transform_parent;
+    MkBone* sibling;
+
+    if (parent != 0) {
+        sibling = bone->transform_parent->tree_child;
+        if (sibling == bone) {
+            parent->tree_child = bone->tree_next;
+            if (parent->tree_child == 0) {
+                parent->flags_54_bits.has_children = 0;
+            }
+        } else {
+            if (sibling != 0) {
+                while (sibling->tree_next != bone) {
+                    sibling = sibling->tree_next;
+                    if (sibling == 0) {
+                        goto unlink_complete;
+                    }
+                }
+                sibling->tree_next = bone->tree_next;
+            }
+        }
+    unlink_complete:
+        bone->transform_parent = 0;
+        bone->tree_next = 0;
+    }
+}
+
+#pragma push
+#pragma auto_inline off
+/* TODO: [breakthrough] 97.91824%; unlink guard and retail size agree;
+ * recover normalized-quaternion publication lifetimes and FPR owners. */
 static void _bone_make_parents_my_children(MkBone* bone) {
     Vec displacement;
     Quat inverse_rotation __attribute__((aligned(16)));
     MkBone* parent = bone->transform_parent;
-    MkBone* sibling;
 
     if (parent == 0) {
         return;
     }
-    sibling = bone->transform_parent->tree_child;
-    if (sibling == bone) {
-        parent->tree_child = bone->tree_next;
-        if (parent->tree_child == 0) {
-            parent->flags_54_bits.has_children = 0;
-        }
-    } else {
-        if (sibling != 0) {
-            while (sibling->tree_next != bone) {
-                sibling = sibling->tree_next;
-                if (sibling == 0) {
-                    break;
-                }
-            }
-            if (sibling != 0) {
-                sibling->tree_next = bone->tree_next;
-            }
-        }
-    }
-    bone->transform_parent = 0;
-    bone->tree_next = 0;
+    mkbone_unlink_from_parent(bone);
 
     _bone_make_parents_my_children(parent);
     if (parent->tree_next == 0) {
@@ -3630,6 +3639,7 @@ static void _bone_make_parents_my_children(MkBone* bone) {
     parent->flags_55_bits.reparent_toggle =
         1 - parent->flags_55_bits.reparent_toggle;
 }
+#pragma pop
 
 void mkbone_insert_child_of_parent(MkBone* child, MkBone* parent) {
     MkBone* tail;

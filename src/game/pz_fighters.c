@@ -96,7 +96,7 @@ PuzzleFightersEngine g_pz_fighters_engine;
 struct PuzzleFighterMoveTables g_pz_fighter_tables;
 extern PlyrPdata* his_pdata;
 extern struct PuzzleProjectile* g_global_projectile;
-static ScriptSlot* pz_shared_cmo;
+ScriptSlot* pz_shared_cmo;
 
 double sqrt(double value);
 float puzzle_fighter_get_super_bar_level(unsigned int player);
@@ -1355,8 +1355,8 @@ static float p_puzzle_fighter_master(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.86111%; eight FPR rows need raw-input/derived-owner order;
- * named/Vec owners are neutral; recover the original coordinate-operation boundary. */
+/* TODO: [near miss] 99.86111%; eight FPR rows remain at absolute/coordinate owners;
+ * preserve signed producer and recover the second coordinate-operation boundary. */
 static int pz_fighter_check_for_player_to_center_position_control(void) {
     float player1_distance;
     float player2_distance;
@@ -3062,8 +3062,6 @@ void pz_fighters_calc_distance_to_desired_idle_pos(
     }
 }
 
-/* TODO: [near miss] 98.19876%; angle/position store order now agrees;
- * 38 correction and offset/wrap FPR rows remain. */
 static void pz_fighter_snap_to_distance(
     float desired_distance_squared, float current_distance_squared) {
     Vec my_position;
@@ -3074,8 +3072,6 @@ static void pz_fighter_snap_to_distance(
     float desired_distance;
     float current_distance;
     float correction;
-    float opposite_correction;
-    float facing;
     float my_x_offset;
     float my_z_offset;
     float his_x_offset;
@@ -3083,7 +3079,7 @@ static void pz_fighter_snap_to_distance(
 
     current_distance = gxMathFastSqrt(current_distance_squared);
     desired_distance = gxMathFastSqrt(desired_distance_squared);
-    correction = (current_distance - desired_distance) * 0.5f;
+    correction = (current_distance - desired_distance) / 2.0f;
 
     my_position.x = plyr_obj->pos.value.x;
     my_position.y = plyr_obj->pos.value.y;
@@ -3099,34 +3095,30 @@ static void pz_fighter_snap_to_distance(
     his_angle.z = his_obj->ang.z;
 
     xz_unit_vector(&direction, &my_position, &his_position);
-    facing = (double)gxMathArcTanYX(direction.x, direction.z);
-    my_angle.y = facing;
-    opposite_correction = -1.0f * correction;
+    my_angle.y = gxMathArcTanYX(direction.x, direction.z);
+    my_angle.y = 0.000005992112f *
+                 (float)(((int)(166886.1f * my_angle.y)) & 0xFFFFF);
+    his_angle.y = 3.1415927f + my_angle.y;
+    his_angle.y = 0.000005992112f *
+                  (float)(((int)(166886.1f * his_angle.y)) & 0xFFFFF);
     my_x_offset = direction.x * correction;
     my_z_offset = direction.z * correction;
     my_position.x += my_x_offset;
     my_position.z += my_z_offset;
-    his_x_offset = direction.x * opposite_correction;
-    his_z_offset = direction.z * opposite_correction;
-
-    my_angle.y = 0.000005992112f *
-                 (float)(((int)(166886.1f * my_angle.y)) & 0xFFFFF);
-    his_angle.y = 3.1415927f + my_angle.y;
+    his_x_offset = direction.x * (-1.0f * correction);
+    his_z_offset = direction.z * (-1.0f * correction);
     his_position.x += his_x_offset;
     his_position.z += his_z_offset;
-    his_angle.y = 0.000005992112f *
-                  (float)(((int)(166886.1f * his_angle.y)) & 0xFFFFF);
     move_player(plyr_obj, &my_position, &my_angle);
     move_player(his_obj, &his_position, &his_angle);
     xz_distance_between_players();
 }
 
-static inline void pz_fighter_update_idle_positions(void) {
+static inline void pz_fighter_update_idle_positions(
+    float player1_idle_y, float player2_idle_y) {
     float player1_idle_x;
-    float player1_idle_y;
     float player1_idle_z;
     float player2_idle_x;
-    float player2_idle_y;
     float player2_idle_z;
     float player1_x_offset;
     float player1_z_offset;
@@ -3136,9 +3128,6 @@ static inline void pz_fighter_update_idle_positions(void) {
     float center_z;
     float center_x_delta;
     float center_z_delta;
-
-    player1_idle_y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
-    player2_idle_y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
 
     center_x = 0.0f;
     center_z = 0.0f;
@@ -3171,9 +3160,11 @@ static inline void pz_fighter_update_idle_positions(void) {
     g_pz_fighters_engine.player2_idle.z = player2_idle_z;
 }
 
-/* TODO: [breakthrough] 89.63768%; early height snapshots restore GPR owners;
- * post-scale/idle-Y FPR ownership and the third saved register remain. */
+/* TODO: [breakthrough needed] 90.07246%; recover post-scale/axis owner provenance;
+ * caller heights agree; only two FPRs are saved instead of three. */
 static void pz_fighter_calculate_start_pos(void) {
+    float player1_idle_y;
+    float player2_idle_y;
     float screen_scale = 1.0f;
     float post1_scale;
     float post2_scale;
@@ -3183,7 +3174,9 @@ static void pz_fighter_calculate_start_pos(void) {
 
     post1_scale = -1.6f * screen_scale;
     post2_scale = 1.6f * screen_scale;
-    pz_fighter_update_idle_positions();
+    player1_idle_y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
+    player2_idle_y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
+    pz_fighter_update_idle_positions(player1_idle_y, player2_idle_y);
     g_pz_fighters_engine.fighter_posts[0].x =
         g_pz_fighters_engine.arena_axis.x * post1_scale;
     g_pz_fighters_engine.fighter_posts[0].z =

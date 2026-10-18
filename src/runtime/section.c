@@ -471,8 +471,8 @@ static inline int count_section_slots(const SectionPerSlotDef* definitions) {
     return count;
 }
 
-/* TODO: [breakthrough needed] 91.20606%; retail overwrites the slot-footprint sum;
- * recover its original lowering context without inventing a consumer. */
+/* TODO: [breakthrough needed] 91.20606%; retail discards the GC footprint at
+ * +0x1d0; original producer/lowering context is missing, not a count consumer. */
 void set_section_memory_scheme(int scheme) {
     SectionSlotDef** new_map = &section_memory_maps[scheme];
     int common_position;

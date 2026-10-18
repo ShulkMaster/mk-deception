@@ -73,8 +73,8 @@ void ScreenAnimScene::SnapToTime(int time) {
     m_flags &= ~ANIM_SCENE_PLAYING;
 }
 
-/* TODO: [near miss] 99.87654%; hoisted direction conversion selects before count;
- * recover the count producer without changing the tally and track owners. */
+/* TODO: [near miss] 99.87654%; all eight-local orders retain the direction/count conflict;
+ * recover a real count boundary above the hoisted enum conversion. */
 void ScreenAnimScene::Process(int dt) {
     AnimDirectionE dir;
     int processed;

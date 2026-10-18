@@ -1223,7 +1223,8 @@ void bgnd_attach_rope_to_bgnd_obj(
     }
 }
 
-/* TODO: [near miss] 98.81%; typed rope owner and latch agree; process/rope saved-register pair remains. */
+/* TODO: [near miss] 98.81579%; process CSE/rope named homes swap;
+ * PS2 latch agrees; original MAP factory interface remains unresolved. */
 void bgnd_preload_obj_attach_rope(int model_index) {
     MkProc* rope_proc;
     MkObj* model;
@@ -1419,7 +1420,24 @@ static inline void set_bone_world_mat(MkBone* bone, MkObj* model) {
         (Mat33*)model_matrix, &model_matrix->pos_vec);
 }
 
-/* TODO: [near miss] 99.15%; model-owned matrix helper improves coloring; owner GPR webs remain. */
+static inline void get_bone_world_mat(MkBone* bone, MkObj* model, RwMatrix* matrix) {
+    RwMatrix* model_matrix;
+
+    if (bone->flags_54_bits.calculation_locked) {
+        *matrix = bone->matrix;
+    } else {
+        model_matrix = &model->frame->modelling;
+        gxMat33x33(
+            (Mat33*)matrix, (const Mat33*)bone->parent_matrix,
+            (const Mat33*)model_matrix);
+        gxMatV3MatAddV3(
+            &matrix->pos_vec, &bone->parent_matrix->pos_vec,
+            (Mat33*)model_matrix, &model_matrix->pos_vec);
+    }
+}
+
+/* TODO: [near miss] 99.90366%; third-pass parent-matrix snapshots use r24, retail r25;
+ * complete direction/orientation wrappers are neutral; original ownership unresolved. */
 static void rope_controller_update(struct RopeControllerData* rope) {
     MkObj* model = rope->model;
     MKMATRIX inverse_model_matrix;
@@ -1437,6 +1455,11 @@ static void rope_controller_update(struct RopeControllerData* rope) {
     MKVECTOR direction;
     MKVECTOR midpoint;
     int i;
+    struct RopeSegment* next;
+    MkBone* bone;
+    MkBone* parent;
+    struct RopeSegment* segment;
+    RwMatrix* parent_matrix;
 
     if (model == 0) {
         return;
@@ -1445,11 +1468,6 @@ static void rope_controller_update(struct RopeControllerData* rope) {
     RwMatrixInvert(&inverse_model_matrix, &model->frame->modelling);
 
     for (i = 0; i < rope->segment_count; i++) {
-        struct RopeSegment* segment;
-        struct RopeSegment* next;
-        MkBone* bone;
-        MkBone* parent;
-
         segment = &rope->segments[i];
         bone = segment->bone;
         if (bone == 0) {
@@ -1527,9 +1545,6 @@ static void rope_controller_update(struct RopeControllerData* rope) {
     }
 
     for (i = 0; i < rope->segment_count; i++) {
-        struct RopeSegment* segment;
-        MkBone* bone;
-
         segment = &rope->segments[i];
         bone = segment->bone;
         if (bone == 0) {
@@ -1537,8 +1552,6 @@ static void rope_controller_update(struct RopeControllerData* rope) {
         }
 
         if (segment->mode == 3 && rope->attached_model != 0) {
-            MkBone* parent;
-            RwMatrix* attached_model_matrix;
             MkBone* attached_bone;
 
             segment->velocity.x = 0.0f;
@@ -1546,21 +1559,8 @@ static void rope_controller_update(struct RopeControllerData* rope) {
             segment->velocity.z = 0.0f;
             attached_bone =
                 rope->attached_model->bones[rope->attached_object_id];
-            if (attached_bone->flags_54_bits.calculation_locked) {
-                attached_matrix = attached_bone->matrix;
-            } else {
-                attached_model_matrix =
-                    &rope->attached_model->frame->modelling;
-                gxMat33x33(
-                    (Mat33*)&attached_matrix,
-                    (const Mat33*)attached_bone->parent_matrix,
-                    (const Mat33*)attached_model_matrix);
-                gxMatV3MatAddV3(
-                    &attached_matrix.pos_vec,
-                    &attached_bone->parent_matrix->pos_vec,
-                    (Mat33*)attached_model_matrix,
-                    &attached_model_matrix->pos_vec);
-            }
+            get_bone_world_mat(
+                attached_bone, rope->attached_model, &attached_matrix);
             attached_position.x = attached_matrix.pos.x;
             attached_position.y = attached_matrix.pos.y;
             attached_position.z = attached_matrix.pos.z;
@@ -1594,11 +1594,6 @@ static void rope_controller_update(struct RopeControllerData* rope) {
     }
 
     for (i = 0; i < rope->segment_count; i++) {
-        struct RopeSegment* segment;
-        struct RopeSegment* next;
-        MkBone* bone;
-        RwMatrix* parent_matrix;
-
         segment = &rope->segments[i];
         bone = segment->bone;
         if (bone == 0) {

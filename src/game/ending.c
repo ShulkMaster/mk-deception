@@ -27,8 +27,6 @@ extern int text_window_state;
 extern float p_show_text_window(void);
 extern int char_for_ending;
 extern int winner_for_ending;
-extern MkFileEntry bio_text_file_table;
-extern MkFileEntry endings_file_table;
 extern MkFileInfo sec_ending_champion;
 extern int champion_bad_guys[2];
 void snd_stop_all(void);
@@ -222,14 +220,43 @@ static inline int count_credits_text(void) {
 }
 
 
-static inline int scaled_text_extent(float width, float scale) {
-    return width * scale;
+static inline void ending_show_text_window(
+    float left_fraction, float bottom_fraction, float width_fraction,
+    char* text, int alignment, int oid, int duration, int field_024,
+    int field_02C, int field_030, int field_034, int string_id) {
+    struct EndingTextWindowPdata* pdata;
+
+    if (_create_mkproc_generic_bigstack(
+            0x9002, aproc->priority + 1, p_show_text_window,
+            sizeof(struct EndingTextWindowPdata), (MkHdr**)&pdata) != 0) {
+        int width;
+        int left;
+        int wrap_width;
+
+        zero_pdata_payload(sizeof(struct EndingTextWindowPdata), &pdata->hdr);
+        width = screen_width;
+        text_window_state = 0;
+        left = (float)width * left_fraction;
+        wrap_width = (float)width * width_fraction;
+        pdata->field_4E8 = 0;
+        pdata->field_018 = 0;
+        pdata->x = left;
+        pdata->y = 480.0f - bottom_fraction * 480.0f;
+        pdata->font = 0x1D;
+        pdata->wrap_width = wrap_width;
+        pdata->oid = oid;
+        pdata->alignment = alignment;
+        pdata->duration = duration;
+        pdata->field_024 = field_024;
+        pdata->field_02C = field_02C;
+        pdata->field_030 = field_030;
+        pdata->field_034 = field_034;
+        pdata->string_id = string_id;
+        strcpy(pdata->text, text);
+    }
 }
 
-/* TODO: [near miss] 99.76852%; FP exact; pdata reload CG v50 and conversion
- * LIS v54 swap r10/r11; earlier x staging folds back to the same emission. */
 void ending_show_text(int string_id, int duration) {
-    MkHdr* pdata;
     char* text;
     int adjusted_duration;
     int frame_rate;
@@ -241,30 +268,9 @@ void ending_show_text(int string_id, int duration) {
     }
 
     text = get_string_by_id(string_id | 0x20000);
-    if (_create_mkproc_generic_bigstack(
-            0x9002, aproc->priority + 1, p_show_text_window,
-            sizeof(struct EndingTextWindowPdata), &pdata) != 0) {
-        int width;
-
-        zero_pdata_payload(sizeof(struct EndingTextWindowPdata), pdata);
-        width = screen_width;
-        text_window_state = 0;
-        ((struct EndingTextWindowPdata*)pdata)->field_4E8 = 0;
-        ((struct EndingTextWindowPdata*)pdata)->field_018 = 0;
-        ((struct EndingTextWindowPdata*)pdata)->x = scaled_text_extent((float)width, 0.08f);
-        ((struct EndingTextWindowPdata*)pdata)->y = 0x56;
-        ((struct EndingTextWindowPdata*)pdata)->font = 0x1D;
-        ((struct EndingTextWindowPdata*)pdata)->wrap_width = scaled_text_extent((float)width, 0.85f);
-        ((struct EndingTextWindowPdata*)pdata)->oid = 0x860;
-        ((struct EndingTextWindowPdata*)pdata)->alignment = 8;
-        ((struct EndingTextWindowPdata*)pdata)->duration = adjusted_duration;
-        ((struct EndingTextWindowPdata*)pdata)->field_024 = -1;
-        ((struct EndingTextWindowPdata*)pdata)->field_02C = -1;
-        ((struct EndingTextWindowPdata*)pdata)->field_030 = 0;
-        ((struct EndingTextWindowPdata*)pdata)->field_034 = 0;
-        ((struct EndingTextWindowPdata*)pdata)->string_id = 0x50014;
-        strcpy(((struct EndingTextWindowPdata*)pdata)->text, text);
-    }
+    ending_show_text_window(
+        0.08f, 0.82f, 0.85f, text, 8, 0x860, adjusted_duration,
+        -1, -1, 0, 0, 0x50014);
 }
 
 float p_credits_screen(void) {
@@ -292,9 +298,9 @@ float p_credits_screen(void) {
     ending_speech = 0;
     f_ending_speech_paused = 0;
 
-    load_ssf(&bio_text_file_table);
+    load_ssf(bio_text_file_table);
     load_string_bank(0x20000, "bio_strings_eng.mko");
-    load_ssf(&endings_file_table);
+    load_ssf(endings_file_table);
     load_font(8);
     if (mode_of_play == 6) {
         load_puzzle_champion_screen();
@@ -314,7 +320,7 @@ float p_credits_screen(void) {
     _create_mkproc_generic_tinystack(
         0x902D, 0x1F, p_early_out_monitor, 0, 0);
 
-    load_ssf(&endings_file_table);
+    load_ssf(endings_file_table);
     credits_script =
         cmdscript_loadfile_by_name(0x10, "credits.mko");
     cmdscript_setup_execution(credits_script, 1);
@@ -473,9 +479,9 @@ float p_champion_screen(void) {
         ending_speech = 0;
         f_ending_speech_paused = 0;
 
-        load_ssf(&bio_text_file_table);
+        load_ssf(bio_text_file_table);
         load_string_bank(0x20000, "bio_strings_eng.mko");
-        load_ssf(&endings_file_table);
+        load_ssf(endings_file_table);
         load_art_section(0x140064, &sec_ending_champion);
         snd_req(0x1AAB);
 
@@ -736,9 +742,9 @@ void run_ending(int fighter) {
     ending_speech = 0;
     f_ending_speech_paused = 0;
 
-    load_ssf(&bio_text_file_table);
+    load_ssf(bio_text_file_table);
     load_string_bank(0x20000, "bio_strings_eng.mko");
-    load_ssf(&endings_file_table);
+    load_ssf(endings_file_table);
     load_font(8);
 
     index = find_ending_index(fighter);

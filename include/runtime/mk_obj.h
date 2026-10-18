@@ -496,6 +496,11 @@ void force_rw_lights(void);
 struct PlyrPdata;
 struct MkProc* create_mkproc_headtracking(int pid, MkObj* object, struct PlyrPdata* target);
 void mirror_guy(MkObj* source, MkObj* mirror, struct PlyrPdata* pdata);
+void create_shadow_proc(int pid, struct PlyrPdata* controller, MkObj* source,
+                        MkObj* shadow);
+void limb_sever_hide_z_meat_chunks_all(MkObj* obj);
+void obj_set_all_sobjs_priority(MkObj* obj, int priority);
+void obj_set_pos_vel(MkObj* obj, void* velocity);
 void render_fgnd_mkobjs(void);
 extern unsigned int uploaded_light_state;
 RwTexture* material_get_texture_pointer(
@@ -509,6 +514,12 @@ MkObj* get_mkobj_frame(int type, RwFrame* frame);
 void destroy_mkobj(void* obj);
 
 extern MkPtr* fgnd_mkobj_list;
+extern MkPtr* board_piece_light_list;
+extern MkPtr* clone_light_list;
+extern MkPtr* freeze_light_list;
+extern MkPtr* gore2_light_list;
+extern MkPtr* special_light_list;
+extern MkPtr* weapon_trail_light_list;
 
 #ifdef __cplusplus
 }

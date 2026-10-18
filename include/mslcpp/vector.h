@@ -118,7 +118,8 @@ public:
     pointer data_;
 };
 
-/* TODO: [near miss] 99.43%; only the @stringBase0 addend differs (template string pool order). */
+/* TODO: [near miss] 99.43077%; copy source/end homes and two template
+ * pool addends remain; recover original range ownership. */
 template <class T, class Allocator>
 void __vector_pod<T, Allocator>::reserve(size_type n)
 {
@@ -146,18 +147,20 @@ void __vector_pod<T, Allocator>::resize(size_type sz, const value_type& x)
     }
 }
 
-/* TODO: [near miss] 99.24691%; max-size/old-buffer and suffix-copy register
- * homes differ; two template string-pool addends remain. */
+/* TODO: [near miss] 99.70988%; saved homes agree; suffix-copy temporary
+ * homes and two template string-pool addends remain. */
 template <class T, class Allocator>
 void __vector_pod<T, Allocator>::insert(iterator position, size_type n, const value_type& x)
 {
     if (n != 0) {
+        pointer old;
+        size_type new_size;
         size_type ms = max_size();
         if (n > ms || size_ > ms - n) {
             __msl_error("vector::insert length error\n");
         }
         size_type cur_cap = capacity();
-        size_type new_size = size_ + n;
+        new_size = size_ + n;
         if (new_size <= cur_cap) {
             pointer old_end = data_ + size_;
             const_pointer xr = &x;
@@ -178,7 +181,7 @@ void __vector_pod<T, Allocator>::insert(iterator position, size_type n, const va
             }
             size_ += n;
         } else {
-            pointer old = data_;
+            old = data_;
             size_type pos = position - old;
             size_type new_cap = cap_.second() != 0 ? cap_.second() : 1;
             while (new_size > new_cap) {
@@ -359,8 +362,8 @@ void __vector_imp<T, Allocator, false>::reserve(size_type n)
     }
 }
 
-/* TODO: [breakthrough needed] QueueItem 78.10043%, Callback 67.99262%; retain
- * allocator-accessor calls while recovering deferred placement construction. */
+/* TODO: [breakthrough needed] QueueItem 78.10043%, Callback 67.99262%; placement
+ * copy stays outlined after explicit Callback class instantiation; recover its policy. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::insert(iterator position, size_type n,
                                                const value_type& x)
@@ -462,6 +465,8 @@ public:
     }
 };
 
+/* TODO: [near miss] Callback destructor 94.73684%; inherited null guard remains;
+ * explicit empty destructor is neutral, recover the original cleanup boundary. */
 template <class T, class Allocator>
 class vector : public __vector_imp<T, Allocator, false> {
     typedef __vector_imp<T, Allocator, false> base;

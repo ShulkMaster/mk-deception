@@ -15,6 +15,9 @@
 #include "rw/rwcore_types.h"
 #include "rw/alphapass.h"
 
+static RpAtomic* AtomicFindAniTexture(RpAtomic* atomic, void* data);
+static float p_animate_textures(void);
+
 static void update_atc_block(MkHdr* hdr);
 static void _destroy_screen_obj_oid_mask(MkHdr* hdr);
 
@@ -296,15 +299,23 @@ AniTextureControl* attach_wiff_to_atomic_material(
     return atc;
 }
 
-/* TODO: [breakthrough needed] 90.93%; initial pcode folds reverse-shift addresses;
- * recover a genuine boundary retaining independent source/destination indices. */
+#define IMAGE_SHIFT_WIFF_FRAMES(control, index, with_alpha) \
+    for (; (index) >= 0; (index)--) { \
+        int destination = (index) + 1; \
+        (control)->textures[destination] = (control)->textures[index]; \
+        if ((with_alpha) && (control)->flag_bits.alpha) { \
+            (control)->alpha_textures[destination] = \
+                (control)->alpha_textures[index]; \
+        } \
+    }
+
 AniTextureControl* append_wiff_to_clump_material(int slot, unsigned int art_oid, RpClump* clump,
                                                  const char* tex_name) {
     AniTextureControl* atc;
     ImageClumpExt* clump_ext;
     int n;
-    int i;
     RpMaterial* mat;
+    int i;
 
     clump_ext = mkobj_clump_ext(clump);
     if (clump_ext == 0) {
@@ -327,9 +338,7 @@ AniTextureControl* append_wiff_to_clump_material(int slot, unsigned int art_oid,
     n = atc->numframes;
     i = n - 1;
     atc->numframes = n + 1;
-    for (; i >= 0; i--) {
-        atc->textures[i + 1] = atc->textures[i];
-    }
+    IMAGE_SHIFT_WIFF_FRAMES(atc, i, 0)
     atc->textures[0] = mat->texture;
     mk_insert((MkHdr*)atc, &ani_texture_control_list);
     mk_insert((MkHdr*)atc, &clump_ext->atc_list);
@@ -369,14 +378,7 @@ AniTextureControl* append_wiff_to_clump_material_id(int slot, unsigned int art_o
     n = atc->numframes;
     i = n - 1;
     atc->numframes = n + 1;
-    for (; i >= 0; i--) {
-        int destination = i + 1;
-
-        atc->textures[destination] = atc->textures[i];
-        if (atc->flag_bits.alpha) {
-            atc->alpha_textures[destination] = atc->alpha_textures[i];
-        }
-    }
+    IMAGE_SHIFT_WIFF_FRAMES(atc, i, 1)
     atc->textures[0] = mat->texture;
     if (atc->flag_bits.alpha) {
         atc->alpha_textures[0] = alpha;
@@ -386,7 +388,7 @@ AniTextureControl* append_wiff_to_clump_material_id(int slot, unsigned int art_o
     return atc;
 }
 
-RpAtomic* AtomicFindAniTexture(RpAtomic* atomic, void* data) {
+static RpAtomic* AtomicFindAniTexture(RpAtomic* atomic, void* data) {
     AniTextureControl* atc = data;
     AtcFlagBits* fbits;
     RpGeometry* geom;
@@ -578,7 +580,7 @@ AniTextureControl* find_atc_for_atomic_material_id(RpAtomic* atomic, unsigned in
     return 0;
 }
 
-float p_animate_textures(void) {
+static float p_animate_textures(void) {
     apply_to_mklist(update_atc_block, &ani_texture_control_list);
     return kOne;
 }

@@ -152,13 +152,13 @@ static void update_player_collision_nodes(PlayerCollisionData* collision);
 static void render_danger_zone_collision_obj(MkHdr* object);
 static void render_disabled_collision_obj(MkHdr* object);
 static void render_collision_obj(MkHdr* object);
-void render_bgnd_danger_zone_obstacle(ArenaObstacle* obstacle);
-void render_obstacle(ArenaObstacle* obstacle);
+static void render_bgnd_danger_zone_obstacle(ArenaObstacle* obstacle);
+static void render_obstacle(ArenaObstacle* obstacle);
 static void render_hero_collision(void);
 static void render_konquest_shadow_objects(MkHdr* object);
 static void render_konquest_collision_obj(MkHdr* object);
 extern void render_background_danger_areas(void);
-int collide_shape_vs_plyr(
+static int collide_shape_vs_plyr(
     PlyrInfo* player, CollisionShape* shape);
 static CollisionObj* convert_cdf_quad_to_collision_box(
     Vec* source, const Vec* angles, Vec* position);
@@ -190,7 +190,7 @@ static float ray_intersection_with_shape(
     const CollisionShape* shape, const Vec* origin, Vec* direction);
 static float ray_intersection_with_quad(
     const Vec* origin, Vec* direction, const CollisionShape* quad);
-int repel_shape_against_obstacle_list(
+static int repel_shape_against_obstacle_list(
     PlyrInfo* player, CollisionShape* shape, Vec* movement, Vec* position,
     ConstrainInfo* info, Vec* test_position, int step_index);
 static int repel_a_from_b(
@@ -204,7 +204,7 @@ static int repel_cylinder_and_quad(
 static int repel_cylinders(
     CollisionShape* first, CollisionShape* second,
     struct CollisionRepelInfo* info);
-int repel_cylinder_against_global_collision_list(
+static int repel_cylinder_against_global_collision_list(
     CollisionShape* cylinder, Vec* movement);
 void reset_player_collision(PlyrInfo* player);
 static void render_players_joints(void);
@@ -226,6 +226,7 @@ static inline void set_collision_vertex(
     RwIm3DVertex* vertex, const Vec* position,
     const unsigned int* color) {
     const RwRGBA* channels = (const RwRGBA*)color;
+    unsigned char* vertex_colors;
     unsigned char red;
     unsigned char green;
     unsigned char blue;
@@ -238,10 +239,11 @@ static inline void set_collision_vertex(
     vertex->position.x = position->x;
     vertex->position.y = position->y;
     vertex->position.z = position->z;
-    vertex->color_channels.red = red;
-    vertex->color_channels.green = green;
-    vertex->color_channels.blue = blue;
-    vertex->color_channels.alpha = alpha;
+    vertex_colors = (unsigned char*)&vertex->color;
+    vertex_colors[0] = red;
+    vertex_colors[1] = green;
+    vertex_colors[2] = blue;
+    vertex_colors[3] = alpha;
 }
 static inline CollisionObj* allocate_collision_obj(void) {
     CollisionObj* result;
@@ -808,14 +810,12 @@ void generate_obstacles(int handle, char* name, MkPtr** obstacle_list) {
     }
 }
 
-/* TODO: [breakthrough] 99.80%; in-place deltas survive expression propagation;
- * X input/result share one web; recover separate owners without alias reordering. */
 void repel_against_obstacle_list(
     PlyrInfo* player, Vec* previous_position, Vec* movement,
     Vec* position, ConstrainInfo* info) {
     CollisionShape shape;
     MkObj* object;
-    Vec original_position;
+    Vec displacement;
     Vec step;
     Vec candidate;
     float length;
@@ -823,7 +823,7 @@ void repel_against_obstacle_list(
     int step_count;
     int step_index;
 
-    gxVectCopy(&original_position, position);
+    gxVectCopy(&displacement, position);
     length = gxMathFastSqrt(
         movement->x * movement->x + movement->z * movement->z);
 
@@ -857,21 +857,18 @@ void repel_against_obstacle_list(
         player->slot.pdata->held_by_object_latch.obj,
         player->slot.pdata->held_by_object_latch.instance);
     if (object != 0) {
-        Vec displacement;
-
-        gxVectCopy(&displacement, position);
-        displacement.x -= original_position.x;
-        displacement.y -= original_position.y;
-        displacement.z -= original_position.z;
+        displacement.x = position->x - displacement.x;
+        displacement.y = position->y - displacement.y;
+        displacement.z = position->z - displacement.z;
         object->pos.value.x += displacement.x;
         object->pos.value.y += displacement.y;
         object->pos.value.z += displacement.z;
     }
 }
 
-/* TODO: [near miss] 99.55508%; Boolean result copy remains;
- * phase helper changes join/result web; inspect copy propagation provenance. */
-int repel_shape_against_obstacle_list(
+/* TODO: [near miss] 99.55508%; Boolean result copy is absent from initial pcode;
+ * recover its producer boundary; complete collision helper rotates saved owners. */
+static int repel_shape_against_obstacle_list(
     PlyrInfo* player, CollisionShape* shape, Vec* movement, Vec* position,
     ConstrainInfo* info, Vec* test_position, int step_index) {
     int result;
@@ -1298,7 +1295,7 @@ int repel_against_global_collision_list(
     return result > 0;
 }
 
-int repel_cylinder_against_global_collision_list(
+static int repel_cylinder_against_global_collision_list(
     CollisionShape* cylinder, Vec* movement) {
     int result;
     int retry;
@@ -1705,8 +1702,8 @@ void generate_collision_objects(
     }
 }
 
-/* TODO: [breakthrough] 98.69009%; radius loop now retains the real box base;
- * resolve box/sqrt/index owner ordering and center FP staging; retain CTR loop. */
+/* TODO: [near miss] 98.69009%; center and box/sqrt/index owners still differ;
+ * verified center/edge and mutable-input controls fail; recover value ownership. */
 static CollisionObj* convert_cdf_quad_to_collision_box(
     Vec* source, const Vec* angles, Vec* position) {
     CollisionObj* collision;
@@ -2613,13 +2610,97 @@ static inline void collision_render_sphere_outline(
     }
 }
 
-/* TODO: [near miss] 99.78947%; palette R load must follow G/B/A before loop;
- * need its original producer boundary while preserving shared vertex scheduling. */
+static inline void render_col_shape_as_sphere(
+    CollisionShape* shape, const unsigned int* color) {
+    RwIm3DVertex vertices[16];
+    RwIm3DVertex* vertex;
+    unsigned char* vertex_colors;
+    Vec transformed;
+    Vec radial;
+    int index;
+    float angle;
+    const RwRGBA* channels;
+    unsigned char red;
+    unsigned char green;
+    unsigned char blue;
+    unsigned char alpha;
+
+    channels = (const RwRGBA*)color;
+    for (index = 0; index <= 15; index++) {
+        angle = 3.1415927f * ((float)index / 7.5f);
+        transformed.x = shape->sphere.radius *
+            gxMathCos(angle);
+        transformed.y = shape->sphere.radius *
+            gxMathSin(angle);
+        transformed.z = 0.0f;
+        gxVectCopy(&radial, &transformed);
+        v3_x_mat_add_v3(
+            &transformed, &radial, &inv_cam_rot_mat,
+            &shape->sphere.center);
+        vertex = &vertices[index];
+        vertex_colors = (unsigned char*)&vertex->color;
+        green = channels->green;
+        blue = channels->blue;
+        alpha = channels->alpha;
+        red = channels->red;
+        vertex_colors[0] = red;
+        vertex_colors[1] = green;
+        vertex_colors[2] = blue;
+        vertex_colors[3] = alpha;
+        vertex->position.x = transformed.x;
+        vertex->position.y = transformed.y;
+        vertex->position.z = transformed.z;
+    }
+    if (RwIm3DTransform(vertices, 16, 0, 2) != 0) {
+        RwIm3DRenderPrimitive(2);
+        RwIm3DEnd();
+    }
+}
+
+static inline void collision_render_indexed_sphere_outline(
+    CollisionShape* shape, const unsigned char* color_channels) {
+    RwIm3DVertex vertices[16];
+    RwIm3DVertex* vertex;
+    unsigned char* vertex_colors;
+    Vec transformed;
+    Vec radial;
+    Vec* center;
+    int index;
+    float angle;
+
+    center = &shape->sphere.center;
+    for (index = 0; index <= 15; index++) {
+        angle = 3.1415927f * ((float)index / 7.5f);
+        transformed.x = shape->sphere.radius *
+            gxMathCos(angle);
+        transformed.y = shape->sphere.radius *
+            gxMathSin(angle);
+        transformed.z = 0.0f;
+        gxVectCopy(&radial, &transformed);
+        v3_x_mat_add_v3(
+            &transformed, &radial, &inv_cam_rot_mat,
+            center);
+        vertex = &vertices[index];
+        vertex_colors = (unsigned char*)&vertex->color;
+        vertex_colors[0] = color_channels[0];
+        vertex_colors[1] = color_channels[1];
+        vertex_colors[2] = color_channels[2];
+        vertex_colors[3] = color_channels[3];
+        vertex->position.x = transformed.x;
+        vertex->position.y = transformed.y;
+        vertex->position.z = transformed.z;
+    }
+    if (RwIm3DTransform(vertices, 16, 0, 2) != 0) {
+        RwIm3DRenderPrimitive(2);
+        RwIm3DEnd();
+    }
+}
+
 void render_col_shape(
     CollisionShape* shape, const unsigned int* color) {
     switch (shape->type & 7) {
     case 1:
-        collision_render_sphere_outline(shape, (const unsigned char*)color);
+        render_col_shape_as_sphere(shape, color);
         break;
     case 3:
         render_col_shape_as_box(shape, color);
@@ -2633,8 +2714,6 @@ void render_col_shape(
     }
 }
 
-/* TODO: [near miss] 94.02985%; alpha/red share the first-STFS deadline/height;
- * recover original color-producer insertion before post-RA scheduling. */
 static void render_col_shape_as_quad(
     CollisionShape* shape, const unsigned int* color) {
     Vec positions[8];
@@ -2668,49 +2747,39 @@ static void render_col_shape_as_quad(
     }
 }
 
-static inline void set_collision_vertex_values(
-    RwIm3DVertex* vertex, float x, float y, float z,
-    unsigned char red, unsigned char green,
-    unsigned char blue, unsigned char alpha) {
-    vertex->position.x = x;
-    vertex->position.y = y;
-    vertex->position.z = z;
-    vertex->color_channels.red = red;
-    vertex->color_channels.green = green;
-    vertex->color_channels.blue = blue;
-    vertex->color_channels.alpha = alpha;
-}
 
-/* TODO: [near miss] 90.02857%; palette byte types already agree with retail;
- * ready-load priority over corner stores still needs a real source boundary. */
+
 static void render_col_shape_as_box(
     const CollisionShape* shape, const unsigned int* color) {
     RwIm3DVertex vertices[8];
     Vec corners[8];
     float height;
+    Vec displacement;
     int index;
     RwIm3DVertex* vertex;
-    const RwRGBA* palette = (const RwRGBA*)color;
 
     height = shape->box.axis_0_max - shape->box.axis_0_min;
-    corners[0].x = shape->box.corners[3].value.x + (float)(shape->box.axis_0.x * height);
-    corners[0].y = shape->box.corners[3].value.y + (float)(shape->box.axis_0.y * height);
-    corners[0].z = shape->box.corners[3].value.z + (float)(shape->box.axis_0.z * height);
-    corners[1].x = shape->box.corners[2].value.x + (float)(shape->box.axis_0.x * height);
-    corners[1].y = shape->box.corners[2].value.y + (float)(shape->box.axis_0.y * height);
-    corners[1].z = shape->box.corners[2].value.z + (float)(shape->box.axis_0.z * height);
+    displacement.x = shape->box.axis_0.x * height;
+    displacement.y = shape->box.axis_0.y * height;
+    displacement.z = shape->box.axis_0.z * height;
+    corners[0].x = shape->box.corners[3].value.x + displacement.x;
+    corners[0].y = shape->box.corners[3].value.y + displacement.y;
+    corners[0].z = shape->box.corners[3].value.z + displacement.z;
+    corners[1].x = shape->box.corners[2].value.x + displacement.x;
+    corners[1].y = shape->box.corners[2].value.y + displacement.y;
+    corners[1].z = shape->box.corners[2].value.z + displacement.z;
     corners[2].x = shape->box.corners[3].value.x;
     corners[2].y = shape->box.corners[3].value.y;
     corners[2].z = shape->box.corners[3].value.z;
     corners[3].x = shape->box.corners[2].value.x;
     corners[3].y = shape->box.corners[2].value.y;
     corners[3].z = shape->box.corners[2].value.z;
-    corners[4].x = shape->box.corners[0].value.x + (float)(shape->box.axis_0.x * height);
-    corners[4].y = shape->box.corners[0].value.y + (float)(shape->box.axis_0.y * height);
-    corners[4].z = shape->box.corners[0].value.z + (float)(shape->box.axis_0.z * height);
-    corners[5].x = shape->box.corners[1].value.x + (float)(shape->box.axis_0.x * height);
-    corners[5].y = shape->box.corners[1].value.y + (float)(shape->box.axis_0.y * height);
-    corners[5].z = shape->box.corners[1].value.z + (float)(shape->box.axis_0.z * height);
+    corners[4].x = shape->box.corners[0].value.x + displacement.x;
+    corners[4].y = shape->box.corners[0].value.y + displacement.y;
+    corners[4].z = shape->box.corners[0].value.z + displacement.z;
+    corners[5].x = shape->box.corners[1].value.x + displacement.x;
+    corners[5].y = shape->box.corners[1].value.y + displacement.y;
+    corners[5].z = shape->box.corners[1].value.z + displacement.z;
     corners[6].x = shape->box.corners[0].value.x;
     corners[6].y = shape->box.corners[0].value.y;
     corners[6].z = shape->box.corners[0].value.z;
@@ -2720,10 +2789,7 @@ static void render_col_shape_as_box(
 
     vertex = vertices;
     for (index = 0; index < 8; index++) {
-        set_collision_vertex_values(
-            vertex, corners[index].x, corners[index].y, corners[index].z,
-            palette->red, palette->green,
-            palette->blue, palette->alpha);
+        set_collision_vertex(vertex, &corners[index], color);
         vertex++;
     }
 
@@ -2983,7 +3049,7 @@ int collide_sphere_vs_plyr(
     return collide_shape_vs_plyr(player, &shape);
 }
 
-int collide_shape_vs_plyr(
+static int collide_shape_vs_plyr(
     PlyrInfo* player, CollisionShape* shape) {
     PlayerCollisionData* collision;
     unsigned int region_index;
@@ -3297,8 +3363,6 @@ int is_point_inside_shape(
     return collision_point_inside_shape(shape, point, 0.0f);
 }
 
-/* TODO: [breakthrough] 99.24312%; four edge projections/compares now agree;
- * initial corner/normal CSE groups remain; stop at their first-cross FPR rotation. */
 static int collide_sphere_and_quad(
     const CollisionShape* sphere, const CollisionShape* quad) {
     Vec normal __attribute__((aligned(16)));
@@ -3307,9 +3371,7 @@ static int collide_sphere_and_quad(
     Vec edge_0 __attribute__((aligned(16)));
     float sphere_plane;
     float quad_plane;
-    float edge_x;
-    float edge_y;
-    float edge_z;
+    Vec edge;
     float quad_dot;
     float sphere_dot;
 
@@ -3320,9 +3382,13 @@ static int collide_sphere_and_quad(
     PSVECCrossProduct(&edge_0, &edge_1, &normal);
     PSVECNormalize(&normal, &normal);
 
-    quad_plane = normal.x * quad->quad.vertices[0].value.x +
-        normal.y * quad->quad.vertices[0].value.y +
-        normal.z * quad->quad.vertices[0].value.z;
+    edge.x = quad->quad.vertices[0].value.x;
+    edge.y = quad->quad.vertices[0].value.y;
+    edge.z = quad->quad.vertices[0].value.z;
+
+    quad_plane = normal.x * edge.x +
+        normal.y * edge.y +
+        normal.z * edge.z;
     sphere_plane = normal.x * sphere->sphere.center.x +
         normal.y * sphere->sphere.center.y +
         normal.z * sphere->sphere.center.z;
@@ -3335,12 +3401,12 @@ static int collide_sphere_and_quad(
 
 #define TEST_SPHERE_QUAD_EDGE(first, second) \
     do { \
-        edge_x = (second)->x - (first)->x; \
-        edge_y = (second)->y - (first)->y; \
-        edge_z = (second)->z - (first)->z; \
-        inward.x = normal.y * edge_z - normal.z * edge_y; \
-        inward.y = normal.z * edge_x - normal.x * edge_z; \
-        inward.z = normal.x * edge_y - normal.y * edge_x; \
+        edge.x = (second)->x - (first)->x; \
+        edge.y = (second)->y - (first)->y; \
+        edge.z = (second)->z - (first)->z; \
+        inward.x = normal.y * edge.z - normal.z * edge.y; \
+        inward.y = normal.z * edge.x - normal.x * edge.z; \
+        inward.z = normal.x * edge.y - normal.y * edge.x; \
         normalize_v3(&inward); \
         quad_dot = inward.x * (first)->x + inward.y * (first)->y + \
                 inward.z * (first)->z; \
@@ -3352,19 +3418,33 @@ static int collide_sphere_and_quad(
         } \
     } while (0)
 
-    TEST_SPHERE_QUAD_EDGE(
-        &quad->quad.vertices[0].value, &quad->quad.vertices[1].value);
+    edge.x = quad->quad.vertices[1].value.x - edge.x;
+    edge.y = quad->quad.vertices[1].value.y - edge.y;
+    edge.z = quad->quad.vertices[1].value.z - edge.z;
+    inward.x = normal.y * edge.z - normal.z * edge.y;
+    inward.y = normal.z * edge.x - normal.x * edge.z;
+    inward.z = normal.x * edge.y - normal.y * edge.x;
+    normalize_v3(&inward);
+    quad_dot = inward.x * quad->quad.vertices[0].value.x +
+        inward.y * quad->quad.vertices[0].value.y +
+        inward.z * quad->quad.vertices[0].value.z;
+    sphere_dot = inward.x * sphere->sphere.center.x +
+        inward.y * sphere->sphere.center.y +
+        inward.z * sphere->sphere.center.z;
+    if (sphere_dot > quad_dot) {
+        return 0;
+    }
     TEST_SPHERE_QUAD_EDGE(
         &quad->quad.vertices[1].value, &quad->quad.vertices[2].value);
     TEST_SPHERE_QUAD_EDGE(
         &quad->quad.vertices[2].value, &quad->quad.vertices[3].value);
 #undef TEST_SPHERE_QUAD_EDGE
-    edge_x = quad->quad.vertices[0].value.x - quad->quad.vertices[3].value.x;
-    edge_y = quad->quad.vertices[0].value.y - quad->quad.vertices[3].value.y;
-    edge_z = quad->quad.vertices[0].value.z - quad->quad.vertices[3].value.z;
-    inward.x = normal.y * edge_z - normal.z * edge_y;
-    inward.y = normal.z * edge_x - normal.x * edge_z;
-    inward.z = normal.x * edge_y - normal.y * edge_x;
+    edge.x = quad->quad.vertices[0].value.x - quad->quad.vertices[3].value.x;
+    edge.y = quad->quad.vertices[0].value.y - quad->quad.vertices[3].value.y;
+    edge.z = quad->quad.vertices[0].value.z - quad->quad.vertices[3].value.z;
+    inward.x = normal.y * edge.z - normal.z * edge.y;
+    inward.y = normal.z * edge.x - normal.x * edge.z;
+    inward.z = normal.x * edge.y - normal.y * edge.x;
     normalize_v3(&inward);
     quad_dot = inward.x * quad->quad.vertices[3].value.x +
         inward.y * quad->quad.vertices[3].value.y +
@@ -3375,8 +3455,8 @@ static int collide_sphere_and_quad(
     return !(sphere_dot > quad_dot);
 }
 
-/* TODO: [near miss] 99.52381%; raw-height/split-product and scalarized Y homes
- * differ; division changes operand order, so recover the common owner. */
+/* TODO: [near miss] 99.52381%; height/product and midpoint owners still differ;
+ * recover their discovery/emission order without changing the FP tree. */
 static void get_center_for_shape(const CollisionShape* shape, Vec* center) {
     int kind;
 
@@ -3608,8 +3688,26 @@ static inline void render_player_collision_shape(
     }
 }
 
-/* TODO: [near miss] 98.31858%; indexed center/index owners differ from stack/body
- * centers; recover their phase boundaries without retaining extra center addresses. */
+static inline void render_indexed_player_collision_shape(
+    CollisionShape* shape, const unsigned int* color) {
+    switch (shape->type & 7) {
+    case 1:
+        collision_render_indexed_sphere_outline(shape, (const unsigned char*)color);
+        break;
+    case 3:
+        render_col_shape_as_box(shape, color);
+        break;
+    case 4:
+        render_col_shape_as_quad(shape, color);
+        break;
+    case 2:
+        render_col_shape_as_cylinder(shape, color);
+        break;
+    }
+}
+
+/* TODO: [near miss] 99.81195%; 14 rows remain in sphere center/index GPR homes;
+ * indexed ownership and stack order agree; stop at coloring. */
 static void render_player_joints(PlayerCollisionData* collision) {
     CollisionShape shape;
     unsigned int index;
@@ -3617,7 +3715,7 @@ static void render_player_joints(PlayerCollisionData* collision) {
 
     if (collision->joints != 0) {
         for (index = 0; index < collision->joint_count; index++) {
-            render_player_collision_shape(
+            render_indexed_player_collision_shape(
                 &collision->joints[index].world_shape, &rgba_yellow);
         }
 
@@ -3630,7 +3728,7 @@ static void render_player_joints(PlayerCollisionData* collision) {
         if (collision->recorded_count != 0) {
             collision->render_recorded = 1;
             for (index = 0; index < collision->recorded_count; index++) {
-                render_player_collision_shape(
+                render_indexed_player_collision_shape(
                     &collision->recorded_shapes[index], &rgba_red);
             }
         }
@@ -3660,7 +3758,7 @@ static void render_konquest_shadow_objects(MkHdr* hdr) {
     }
 }
 
-void render_bgnd_danger_zone_obstacle(ArenaObstacle* obstacle) {
+static void render_bgnd_danger_zone_obstacle(ArenaObstacle* obstacle) {
     if (!obstacle->flags.bits.danger_zone) {
         return;
     }
@@ -3672,7 +3770,7 @@ void render_bgnd_danger_zone_obstacle(ArenaObstacle* obstacle) {
     }
 }
 
-void render_obstacle(ArenaObstacle* obstacle) {
+static void render_obstacle(ArenaObstacle* obstacle) {
     if (obstacle->flags.bits.disabled) {
         apply_to_mklist(render_disabled_collision_obj, &obstacle->shapes);
     } else if (obstacle->flags.bits.danger_zone) {
@@ -4001,8 +4099,8 @@ static void add_plyr_body_attack_nodes(
     }
 }
 
-/* TODO: [breakthrough needed] 98.07%; extra bone initialization remains;
- * loader permits missing/failed bone setup, so positive asset-count proof is required. */
+/* TODO: [breakthrough needed] 98.06667%; retain bone initialization;
+ * positive disc skeletons do not prove allocation success or complete weapon coverage. */
 static void generate_weapon_collision_nodes(
     PlayerCollisionData* collision_data, MkObj* weapon, float radius) {
     PlayerCollisionData* storage;
@@ -4191,8 +4289,8 @@ static void update_players_collision_nodes(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 97.00862%; native add propagation folds box bases;
- * recover first-box address-use boundary before further coloring. */
+/* TODO: [breakthrough needed] 97.00862%; all 27 first-box base uses permit folding;
+ * recover a real use boundary; cylinder call MRs prevent propagation. */
 static void update_player_collision_nodes(PlayerCollisionData* collision) {
     unsigned int index;
     CollisionShape* source;

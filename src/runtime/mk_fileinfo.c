@@ -7,20 +7,22 @@
 #include "runtime/section_slot_file.h"
 #include "runtime/utils.h"
 
+#include "src/runtime/mk_fileinfo_data.inc"
+
 static int renderware_fs_not_implemented(void);
-static MkFileEntry* ssf_member_open_async_withcallback(
+static const MkFileEntry* ssf_member_open_async_withcallback(
     MkFileInfo* info, MkFileOpenCallback callback, void* user);
 static void ssf_member_open_async_callback(void* entry_argument,
                                            MkHwFileRequest* request,
                                            int success);
 
-static int f_loading;
-static int ssf_open_linked_callback_attached;
-static void* ssf_open_linked_user_data;
-static MkFileOpenCallback ssf_open_linked_fn_user_callback;
-SsfContext current_ssf;
-SsfContext previous_ssf;
 int num_files_loaded;
+SsfContext previous_ssf;
+SsfContext current_ssf;
+static MkFileOpenCallback ssf_open_linked_fn_user_callback;
+static void* ssf_open_linked_user_data;
+static int ssf_open_linked_callback_attached;
+static int f_loading;
 
 void disable_default_filesystem(void) {
     RWbafsysUnk00* file_interface = RwOsGetFileInterface();
@@ -43,7 +45,7 @@ static int renderware_fs_not_implemented(void) {
 }
 
 MkFileInfo* find_section_by_name(const char* name) {
-    MkFileEntry* cursor = current_ssf.ssf_file + 1;
+    const MkFileEntry* cursor = current_ssf.ssf_file + 1;
     MkFileInfo* info = cursor->info;
 
     while (info != 0) {
@@ -57,38 +59,38 @@ MkFileInfo* find_section_by_name(const char* name) {
 }
 
 void* mk_file_read_async(void* buffer, int size, int count,
-                         MkFileEntry* entry) {
+                         const MkFileEntry* entry) {
     return mk_hwfile_read_async(current_ssf.hwfile,
                                 mk_hwfile_tell(current_ssf.hwfile),
                                 buffer, size * count);
 }
 
-int mk_file_length(MkFileEntry* entry) {
+int mk_file_length(const MkFileEntry* entry) {
     return entry->size;
 }
 
 unsigned int mk_file_read(void* buffer, unsigned int size, unsigned int count,
-                          MkFileEntry* entry) {
+                          const MkFileEntry* entry) {
     return mk_hwfile_read(current_ssf.hwfile, buffer, size * count) / size;
 }
 
-int mk_file_close(MkFileEntry* entry) {
+int mk_file_close(const MkFileEntry* entry) {
     num_files_loaded++;
     return 0;
 }
 
-MkFileEntry* mk_file_open_language(MkFileInfo* info, const char* mode,
+const MkFileEntry* mk_file_open_language(MkFileInfo* info, const char* mode,
                                    void* userdata) {
     int language = get_language();
 
     return mk_file_open(offset_mk_file_info(info, language), mode, userdata);
 }
 
-MkFileEntry* mk_file_open(MkFileInfo* info, const char* mode, void* userdata) {
+const MkFileEntry* mk_file_open(MkFileInfo* info, const char* mode, void* userdata) {
     return mk_file_open_async_withcallback(info, mode, userdata, 0, 0);
 }
 
-MkFileEntry* mk_file_open_async_withcallback(MkFileInfo* info,
+const MkFileEntry* mk_file_open_async_withcallback(MkFileInfo* info,
                                               const char* mode,
                                               void* userdata,
                                               MkFileOpenCallback callback,
@@ -96,8 +98,8 @@ MkFileEntry* mk_file_open_async_withcallback(MkFileInfo* info,
     return ssf_member_open_async_withcallback(info, callback, user);
 }
 
-static inline int ssf_find_info_index(MkFileEntry* table, MkFileInfo* info) {
-    MkFileEntry* cursor = table + 1;
+static inline int ssf_find_info_index(const MkFileEntry* table, MkFileInfo* info) {
+    const MkFileEntry* cursor = table + 1;
     int index = 0;
 
     while (cursor->info != 0) {
@@ -110,8 +112,8 @@ static inline int ssf_find_info_index(MkFileEntry* table, MkFileInfo* info) {
     return 0;
 }
 
-static inline MkFileEntry* ssf_find_member_entry(MkFileInfo* info) {
-    MkFileEntry* entry = current_ssf.ssf_file;
+static inline const MkFileEntry* ssf_find_member_entry(MkFileInfo* info) {
+    const MkFileEntry* entry = current_ssf.ssf_file;
 
     entry++;
     while (entry->info != 0) {
@@ -124,10 +126,10 @@ static inline MkFileEntry* ssf_find_member_entry(MkFileInfo* info) {
 }
 
 
-static MkFileEntry* ssf_member_open_async_withcallback(
+static const MkFileEntry* ssf_member_open_async_withcallback(
     MkFileInfo* info, MkFileOpenCallback callback, void* user) {
     int open_state = 1;
-    MkFileEntry* entry = ssf_find_member_entry(info);
+    const MkFileEntry* entry = ssf_find_member_entry(info);
 
     if (mk_hwfile_is_file_ready(current_ssf.hwfile) == 0) {
         if (ssf_open_linked_callback_attached == 0) {
@@ -136,7 +138,7 @@ static MkFileEntry* ssf_member_open_async_withcallback(
             ssf_open_linked_user_data = user;
             if (mk_hwfile_link_late_open_callback(
                     current_ssf.hwfile, ssf_member_open_async_callback,
-                    entry) != 0) {
+                    (void*)entry) != 0) {
                 open_state = 0;
             } else {
                 open_state = 2;
@@ -159,7 +161,7 @@ static MkFileEntry* ssf_member_open_async_withcallback(
 static void ssf_member_open_async_callback(void* entry_argument,
                                            MkHwFileRequest* request,
                                            int success) {
-    MkFileEntry* entry = entry_argument;
+    const MkFileEntry* entry = entry_argument;
 
     mk_hwfile_seek(current_ssf.hwfile, entry->offset, 0);
     if (ssf_open_linked_fn_user_callback != 0) {
@@ -175,13 +177,13 @@ void init_file_loading_table(void) {
 }
 
 MkFileInfo* offset_mk_file_info(MkFileInfo* info, int language) {
-    MkFileEntry* ssf_file = current_ssf.ssf_file;
+    const MkFileEntry* ssf_file = current_ssf.ssf_file;
 
     return ssf_file[language + ssf_find_info_index(ssf_file, info) + 1].info;
 }
 
 int get_ssf_dir_index(MkFileInfo* info) {
-    MkFileEntry* cursor = current_ssf.ssf_file + 1;
+    const MkFileEntry* cursor = current_ssf.ssf_file + 1;
     int index = 0;
 
     while (cursor->info != 0) {
@@ -198,8 +200,8 @@ MkFileInfo* get_mk_file_info_from_current_ssf(int index) {
     return current_ssf.ssf_file[index + 1].info;
 }
 
-int num_files_in_ssf(MkFileEntry* table) {
-    MkFileEntry* cursor = table + 1;
+int num_files_in_ssf(const MkFileEntry* table) {
+    const MkFileEntry* cursor = table + 1;
     int count = 0;
 
     while (cursor->info != 0) {
@@ -209,12 +211,11 @@ int num_files_in_ssf(MkFileEntry* table) {
     return count;
 }
 
-MkFileEntry* get_current_ssf_file(void) {
+const MkFileEntry* get_current_ssf_file(void) {
     return current_ssf.ssf_file;
 }
 
-/* TODO: [blocked] 94.44%; rb literal verified; recover file-table string-pool ownership for the large addend. */
-void load_ssf(MkFileEntry* ssf_entry) {
+void load_ssf(const MkFileEntry* ssf_entry) {
     MkHwFileRequest* hwfile;
 
     if (current_ssf.ssf_file != 0) {

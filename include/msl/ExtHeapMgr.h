@@ -61,9 +61,7 @@ extern "C" {
 
 unsigned long ExternalHeap_Alloc(
     ExternalHeap* heap, unsigned long size);
-unsigned long ExternalHeap_AlignAlloc(
-    ExternalHeap* heap, unsigned long size,
-    int alignment);
+
 void ExternalHeap_Free(ExternalHeap* heap, unsigned long address);
 void ExternalHeap_SetMutex(ExternalHeap* heap, void* mutex);
 ExternalHeap* ExternalHeap_Create(

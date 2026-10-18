@@ -46,6 +46,8 @@
 #include "rw/rplight.h"
 #include "rw/rpworld_types.h"
 
+static int AttachPlugins(void);
+
 extern int curr_pipeline_used;
 extern int last_pipeline_used;
 static const char display_text[] =                                             \
@@ -208,7 +210,7 @@ void TakeCameraSnapShot(void) {
     fading_screen.snapshotTex = texture;
 }
 
-RpLight* destroy_light(RpLight* light, void* data) {
+static RpLight* destroy_light(RpLight* light, void* data) {
     RpWorld* world = data;
     RpWorldRemoveLight(world, light);
     if (light->object.object.parent != 0) {
@@ -374,7 +376,7 @@ int add_clump_to_world(RpWorld* world, RpClump* clump) {
     return 0;
 }
 
-int AttachPlugins(void) {
+static int AttachPlugins(void) {
     if (!RpWorldPluginAttach()) {
         debug_error_message(display_text + 0x2A);
         return 0;

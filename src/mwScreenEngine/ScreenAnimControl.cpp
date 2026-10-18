@@ -8,12 +8,29 @@
 #define ANIM_KEY_LINEAR 2
 #define ANIM_KEY_HOLD 8
 
+static inline float anim_segment_time(int time, ScreenAnimKey* keyA,
+                                       ScreenAnimKey* keyB) {
+    float t;
+    int tA;
+    int tB;
+
+    tB = keyB->GetTime();
+    tA = keyA->GetTime();
+    t = tB - tA;
+    tA = keyA->GetTime();
+    t = (float)(time - tA) / t;
+    return t;
+}
+
+static inline float anim_ease_keys(ScreenAnimControl* control, float t,
+                                   ScreenAnimKey* keyA, ScreenAnimKey* keyB) {
+    return control->Ease(t, keyA->GetEaseOut(), keyB->GetEaseIn());
+}
+
 static inline int anim_key_component_count(ScreenAnimKey* key) {
     return key->m_count / 3;
 }
 
-/* TODO: [near miss] 99.96587%; named duration takes f30 instead of f31;
- * elapsed-conversion temporary ordering remains after component-count recovery. */
 void ScreenAnimControl::GetValue(float* out, int time) {
     unsigned int count;
     ScreenAnimKey* first;
@@ -28,8 +45,6 @@ void ScreenAnimControl::GetValue(float* out, int time) {
     float inTan[4];
     float outTan[4];
     float basis[4];
-    int tA;
-    int tB;
     int j;
     int n;
 
@@ -93,14 +108,10 @@ void ScreenAnimControl::GetValue(float* out, int time) {
 
         keyB = ScreenAnimKeyAt(m_keys, i);
         keyA = ScreenAnimKeyAt(m_keys, i - 1);
-        tB = keyB->GetTime();
-        tA = keyA->GetTime();
-        easeT = tB - tA;
-        tA = keyA->GetTime();
-        easeT = (float)(time - tA) / easeT;
+        easeT = anim_segment_time(time, keyA, keyB);
         keyA = ScreenAnimKeyAt(m_keys, i - 1);
         keyB = ScreenAnimKeyAt(m_keys, i);
-        easeT = Ease(easeT, keyA->GetEaseOut(), keyB->GetEaseIn());
+        easeT = anim_ease_keys(this, easeT, keyA, keyB);
 
         ScreenAnimKeyAt(m_keys, i)->GetValue(valB);
         ScreenAnimKeyAt(m_keys, i - 1)->GetValue(valA);

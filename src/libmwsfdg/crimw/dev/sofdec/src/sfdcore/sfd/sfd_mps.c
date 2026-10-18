@@ -67,6 +67,14 @@ typedef char SfmpsMpsLibWorkSizeCheck[
 int copy_sj_error;
 static SfmpsMpsLibWork sfmps_libwork;
 
+typedef struct SfmpsBufHn {
+    unsigned char pad[0x1308];
+    SfdBufferState buffer;
+} SfmpsBufHn;
+
+#define SFMPS_BUF_HN(handle, n) \
+    ((SfmpsBufHn*)((unsigned char*)(handle) + (n) * sizeof(SfdBufferState)))
+
 extern void SFHDS_ReprocessHdr(SfdHandle* handle);
 static int sfmps_ExecServerSub(SfdHandle* handle);
 
@@ -285,8 +293,6 @@ static inline void sfmps_ProcPrepSeek(SfdHandle* handle)
     }
 }
 
-/* TODO: [breakthrough needed] 99.52467%; explicit array-base owner survives IRO;
- * original buffer-root frontend boundary needed for folded load; padded view unsupported. */
 static void sfmps_ProcPrep(SfdHandle* handle)
 {
     MpsHandle* decoder;
@@ -295,7 +301,7 @@ static void sfmps_ProcPrep(SfdHandle* handle)
     MpsSystemHeader system;
     MpsPackHeader pack;
     int prep_output2, prep_output, prep_user;
-    SfdBufferState* input_buffer;
+    SfmpsBufHn* input_buffer;
     int size;
     int need;
 
@@ -307,10 +313,9 @@ static void sfmps_ProcPrep(SfdHandle* handle)
         if (SFBUF_GetPrepFlg(handle, handle->transports[1].parameter_10) == 1) {
             size = handle->create_config.buffer.buffer_sizes[0];
             need = handle->conditions_primary[22];
-            input_buffer = handle->buffers;
-            input_buffer += handle->transports[1].parameter_10;
+            input_buffer = SFMPS_BUF_HN(handle, handle->transports[1].parameter_10);
             if (size <= 0) {
-                size = input_buffer->work.ring.supply.buffer_size;
+                size = input_buffer->buffer.work.ring.supply.buffer_size;
             }
             if (size <= 0) {
                 size = need;
@@ -778,92 +783,31 @@ static inline void sfmps_SetPesFns(SfdHandle* handle, MpsHandle* decoder)
     MPS_SetPesFn(decoder, callback, object);
 }
 
-static inline void sfmps_SaveSystemHeader(SfmpsSeekSnapshot* snapshot,
-                                          MpsHandle* decoder,
-                                          const unsigned char* data, int size)
-{
-    MpsSystemHeader system;
-    SfmpsSavedSystemHeaders* saved = &snapshot->system_headers;
-    unsigned char* destination;
-    int copy_size;
 
-    MPS_GetLastSysHd(decoder, &system);
-    destination = saved->data[0];
-    copy_size = size < 0xB0 ? size : 0xB0;
-    if (system.video_bound > 0) {
-        saved->length[0] = copy_size;
-    } else if (system.audio_bound > 0) {
-        saved->length[1] = copy_size;
-        destination += sizeof(saved->data[0]);
-    } else {
-        return;
-    }
-    MEM_Copy(destination, data, copy_size);
-}
 
-static inline void sfmps_ScanSkip(SfdHandle* handle,
-                                  const unsigned char* data, int size,
-                                  int* copied)
-{
-    const unsigned char* cursor = data;
-    int amount;
 
-    *copied = 0;
-    if (size >= handle->create_config.buffer.ring_alignment + 3 &&
-        sfmps_IsZero((const signed char*)cursor,
-                     handle->create_config.buffer.ring_alignment)) {
-        *copied = handle->create_config.buffer.ring_alignment;
-        return;
-    }
-    amount = 0;
-    while (size >= 4) {
-        if ((MPS_CheckDelim(cursor) & 0xD0000) != 0) {
-            *copied = amount;
-            return;
-        }
-        amount++;
-        cursor++;
-        size--;
-    }
-    if (size > 0 && size < 4) {
-        SfdBufferState* input =
-            &handle->buffers[handle->transports[1].parameter_10];
-        SfdBufferRingWork* ring = &input->work.ring;
-        int at_end;
 
-        if (ring->supply.kind == 0 &&
-            (ring->supply.extra_size != 0 ||
-             ring->supply.field_14 != 0)) {
-            at_end = 0;
-        } else if (cursor + size ==
-                   ring->supply.buffer + ring->supply.buffer_size) {
-            at_end = 1;
-        } else {
-            at_end = 0;
-        }
-        if (at_end) {
-            amount += size;
-        }
-    }
-    *copied = amount;
-}
-
-/* TODO: [near miss] 99.16465%; skip operation consolidated; ring-base addressing
- * and header/scan register homes remain; need supported owner-shape evidence. */
 static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
                                int size, int* consumed, int* copied,
                                int readable)
 {
+    const unsigned char* cursor;
     int delimiter;
     int result = 0;
     SfmpsWork* work;
     MpsHandle* decoder;
     int buffer_index;
+    MpsSystemHeader system;
     int header_flags;
     int decoded_size;
     int packet_consumed;
     int packet_copied;
+    unsigned char* destination;
+    int copy_size;
+    int amount;
+    SfmpsBufHn* input;
     int proceed;
+    int at_end;
 
     *copied = *consumed = delimiter = 0;
     work = handle->transports[1].context;
@@ -922,9 +866,21 @@ static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
         SfmpsSeekSnapshot* snapshot = sfmps_GetSeekSnapshot(handle);
 
         if (snapshot != 0 && snapshot->active == 0) {
-            sfmps_SaveSystemHeader(snapshot, decoder, data, size);
+            destination = snapshot->system_headers.data[0];
+            MPS_GetLastSysHd(decoder, &system);
+            copy_size = size < 0xB0 ? size : 0xB0;
+            if (system.video_bound > 0) {
+                ((SfmpsSavedSystemHeaders*)destination)->length[0] = copy_size;
+            } else if (system.audio_bound > 0) {
+                ((SfmpsSavedSystemHeaders*)destination)->length[1] = copy_size;
+                destination += sizeof(snapshot->system_headers.data[0]);
+            } else {
+                goto no_system_header;
+            }
+            MEM_Copy(destination, data, copy_size);
         }
     }
+no_system_header:
 
     if (header_flags == 0x80000 && SFCON_IsEndcodeSkip(handle) != 0) {
         sfmps_GetWork(handle)->concat_count++;
@@ -935,7 +891,43 @@ static int sfmps_DecodeOneUnit(SfdHandle* handle, const unsigned char* data,
         *consumed = 4;
         work->scan_position = 4;
     } else if (delimiter == 0) {
-        sfmps_ScanSkip(handle, data, size, copied);
+        cursor = data;
+        *copied = 0;
+        if (size >= ((SfdCreateConfig*)handle)->buffer.ring_alignment + 3 &&
+            sfmps_IsZero((const signed char*)cursor,
+                         handle->create_config.buffer.ring_alignment)) {
+            *copied = handle->create_config.buffer.ring_alignment;
+        } else {
+            amount = 0;
+            while (size >= 4) {
+                if ((MPS_CheckDelim(cursor) & 0xD0000) != 0) {
+                    *copied = amount;
+                    goto skip_done;
+                }
+                amount++;
+                cursor++;
+                size--;
+            }
+            if (size > 0 && size < 4) {
+                input = SFMPS_BUF_HN(handle, handle->transports[1].parameter_10);
+                if (input->buffer.work.ring.supply.kind == 0 &&
+                    (input->buffer.work.ring.supply.extra_size != 0 ||
+                     input->buffer.work.ring.supply.field_14 != 0)) {
+                    at_end = 0;
+                } else if (cursor + size ==
+                           input->buffer.work.ring.supply.buffer +
+                           input->buffer.work.ring.supply.buffer_size) {
+                    at_end = 1;
+                } else {
+                    at_end = 0;
+                }
+                if (at_end) {
+                    amount += size;
+                }
+            }
+            *copied = amount;
+        }
+    skip_done:
         *consumed = *copied;
         if (*copied > 0 && work->scan_position >= 0) {
             if (work->scan_position >= handle->create_config.buffer.ring_alignment) {

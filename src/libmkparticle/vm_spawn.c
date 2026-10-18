@@ -151,7 +151,7 @@ static void _pfxvm_link_to_table(void* output, const PfxSpawnTable* table,
     }
 }
 
-static PfxEmitterInstruction* add_emitter_insn(PfxVmEmitter* emitter,
+PfxEmitterInstruction* add_emitter_insn(PfxVmEmitter* emitter,
                                                 int opcode,
                                                 unsigned int field)
 {
