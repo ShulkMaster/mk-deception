@@ -551,6 +551,17 @@ boundary.
 Retained value or address. REQUIRE shared uses + unchanged ownership
 interval. Reject redundant aliases, identity wrappers, permuter residue.
 
+- A log publisher and its inlined consumers share wrong record-address
+  islands: REQUIRE distinct existing head and published-current indices,
+  canonical record layout, and no intervening mutation of either index.
+  TRY publishing `current_log_index = log_index`, reading the `last_*` pair
+  through the published current index and the `current_*` pair through the
+  authoritative head, then reusing the original publisher in every consumer
+  (`update_my_last_switch` and six flying attacks). This preserves ownership
+  that a single record/index snapshot erases; it can recover separate field
+  bases and indexed loads. Verify every consumer, unrelated code, data and
+  relocations. Exact instructions can retain equal-value pool-address
+  differences; do not infer link exactness or an unobserved compiler pass.
 - Retail keeps a SECOND web of a parameter after its guards (guard reads the
   arg register, then `mr rX,r3`; or extra parameter copies feeding helper
   guards), ours keeps one long-lived parameter home: REQUIRE retail IR shows
@@ -604,8 +615,8 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   schedule only partially and reverse a product's operand order; it is not
   required when both output values survive naturally. Confirm zero/conversion
   temporary creation order separately from named-value homes. No invented
-  use, escape or claim about an unobserved eligibility predicate. See
-  [the conversion availability evidence](reports/trial-window-conversion-availability.md).
+  use, escape or claim about an unobserved eligibility predicate. Shared
+  note 9224 preserves the conversion-availability evidence.
 - Zero and integer-to-float setup homes rotate, possibly with a reversed
   first multiply: REQUIRE native temporary creation order, independent
   state/payload owners and unchanged FP/rounding trees. TRY publishing the
@@ -616,8 +627,26 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   need the independent zero before its input read. A nested assignment can
   reverse multiply operands. Check both conversions, all publications and
   whole-TU relocations; no redundant snapshot or reordered aliasing effect.
-  See [the ending closure](reports/ending-window-helper-boundary.md#quantized-output-staging-closure)
-  and [the trial-window closure](reports/trial-window-conversion-availability.md#closing-the-residual).
+  Shared notes for `ending_show_text` and `trial_show_text_window` preserve
+  the measured output-staging closures.
+- Repeated comparisons share an indexed element address whose CSE home swaps
+  with a real named flag: REQUIRE the same array element, unchanged index,
+  ordered member reads and no intervening aliasing effect. TRY a typed pointer
+  to that actual element in its existing traversal block, then measure the
+  original flags' same-scope declaration order (`setup_per_tile_navigations`,
+  partial). Verify the pointer survives as a named owner: the kind repair alone
+  can rotate the flags and regress. No copied source value, extra read, dummy
+  use or changed geometry; check the whole object and FP class separately.
+- Indexed sphere rendering retains a center address while radius reads use
+  the parent node: REQUIRE native ownership evidence for those distinct
+  values, identical dispatch cases and proven array/Vec stack roles. TRY an
+  indexed-only complete sphere expansion owning the actual `Vec* center`,
+  reached through a complete dispatcher at the original inline depth
+  (`render_player_joints`, partial). A named shape pointer can redirect radius
+  reads and lose parent liveness; direct leaf calls can regroup inline arrays
+  and swap stack roles. Keep shared generic callers unchanged. Verify native
+  object agreement, every stack operand and whole-unit relocations before
+  accepting a fuzzy gain; stop when only center/index coloring remains.
 - A post-guard owner reload duplicates the guard's memory read: REQUIRE no
   intervening effect and native CSE/copy stages showing the named owner lost
   to a generated value. TRY capture the existing owner in that first guard
@@ -730,6 +759,17 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   preserve retail order (`pfx_estimate_render_size`, exact with propagation
   both off and on). Verify every field read and the whole unit under each mode;
   a neutral source repair does not authorize a flag change while siblings lose.
+- A shared event lookup folds a fixed field into a computed record address:
+  REQUIRE canonical nested fields, a sentinel test followed by the same
+  nonvolatile read, and no intervening mutation. TRY direct indexed field
+  reads in both test and return instead of capturing a slot and value
+  (`mk_chess_request_piece_script_for_action`). Keep the real out-of-range
+  and sentinel fallbacks. Pure inline predicates may use the actual global
+  piece at both predicate and lookup sites; real calls still require the
+  observed reloads. The measured closure combines those changes, so do not
+  attribute it to either edit alone. Check every shared helper consumer and
+  raw relocations: CLI `all` can still accept local call-target offsets that
+  differ from retail.
 - A vector delta's first component loses its owner before publication:
   REQUIRE native IroPropagate snapshots show a single-use subtraction
   substituted into the first destination update while later components
@@ -828,6 +868,13 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   REQUIRE the same typed object and component offsets at every helper use.
   TRY an object-taking projection helper and read-only owner snapshots in
   retail load order (`repel_players`); preserve global reloads after calls.
+  If two returns share axis loads at their comparison ancestor, REQUIRE the
+  native initial-code component/shared-axis order. TRY assigning the two real
+  scalar results to the existing projection locals before comparing them,
+  retaining that object-taking helper and both FP trees. This can put the
+  first component reads before shared axis loads without a scalar-argument
+  wrapper, duplicate alias or artificial dependency. Check later fresh
+  projections and all consumers.
 - Field-address load-update alone != pointer-to-field local.
 - Reused scratch subobject address swaps a saved home with a long-lived owner:
   REQUIRE capture identifies the anonymous loop-invariant address and replay
@@ -1016,6 +1063,15 @@ settings. Verify emitted calls, helper symbols, every consumer.
   data or `.rela.data` -> delete it.
 - One-purpose inline helper for a fast path the shared helper can't make:
   only when shared form measured worse; record measurement `[da]`.
+- A shared renderer has exact consumers but one dispatcher retains different
+  palette-load owners: REQUIRE the original MAP names a distinct complete
+  rendering helper, retail byte-load/store order, and unchanged geometry.
+  TRY restoring that named operation with its real palette representation and
+  local channel captures (`render_col_shape_as_sphere`). Keep existing exact
+  consumers at their established boundary; verify all expansions and absence
+  of a new outlined body. Native initial/build captures must preserve the
+  required channel order and vertex publication schedule. This evidence does
+  not justify unnamed per-caller clones or reordered pointed stores.
 - Indexed record rebuild around callbacks: REQUIRE selected index and ID
   retained through construction, then global selection reloaded for publication.
   TRY complete indexed removal and build/add phases; return pointer/null at
@@ -1342,6 +1398,14 @@ Switch. REQUIRE full finite case/default/fallthrough set + text order.
 - Small ordered hardware-ID sequence can be `if`/`else if` chain
   (`InitMetroTRKCommTable`); two adjacent priority cases can need real
   `switch` (`ARQPostRequest`).
+- A materialized Boolean predicate lacks a retail branch-around-jump:
+  REQUIRE the original comparison, result owner and all inline consumers.
+  Check the actual selector lowering before retaining a singleton switch
+  (`is_char_locked`, partial): selecting Boolean one can add a separate
+  comparison and over-expand every consumer while fuzzy scores stay equal.
+  A complementary case-zero form can add further lowering. Measure ELF
+  sizes and result/join instructions; a shared branch symptom alone does not
+  establish that the helper's original API was a switch.
 - Per-arm address formation: keep real index; table base formed before
   dispatch = one owner.
 - Explicitly compared no-op cases: REQUIRE independently proven `case N: break;`.
@@ -1657,6 +1721,9 @@ lifetimes.
 - Split decl from init only without const/aggregate/scope/lifetime change;
   reordered initialized decls reorder stores. Branch-local scalar with wrong
   reg can move to function decl group, load stays in branch.
+  For an existing local pointer zero, measure declaration initialization
+  versus its standalone assignment (`do_dialog`, partial); preserve the zero
+  before all effects and do not retain unrelated declaration changes.
 - Init after lock/lookup when accumulator has no earlier use
   (`SFMPVF_GetNumFrm`). Process-creation output zero init stays in creation
   guard.
@@ -2291,13 +2358,23 @@ straight in (`mps_dec`).
 
 ## H21
 
+- The same typed traversal owners recur in successive passes alongside a
+  stripped matrix helper: REQUIRE unchanged guarded assignments, retail
+  operations and MAP evidence for the complete helper. TRY shared same-role
+  locals together with that copy-or-compose boundary (`rope_controller_update`,
+  partial). Validate the combination against every sibling and raw object
+  layout; a combined gain does not prove either edit independently necessary.
+  Passing a remaining snapshot through a larger direction/orientation helper
+  can compile identically, so an inline-argument spelling alone does not prove
+  a different allocation owner. Stop when only snapshot coloring remains.
+
 - Inlined helper owners rotate while operations/extent agree: REQUIRE its
   actual expansion, source locals and original MAP ownership. TRY ordinary
   function-scope declarations before the helper's context pointer, retaining
   guarded initialization/uses (`p_show_text_window`, verified candidate).
   No new alias, use, block or type to force lifetime. Check every consumer and
-  any emitted UNUSED outline; changed unscored bodies require review. See
-  [the helper-scope evidence](reports/window-helper-scope-and-byte-wrap.md).
+  any emitted UNUSED outline; changed unscored bodies require review.
+  Shared note 9253 preserves the helper-scope evidence.
 
 - A uniform scale and a scalarized coordinate take opposite homes, while a
   broad by-value geometry helper splits persistent caller values: REQUIRE
@@ -3177,12 +3254,12 @@ Helper locals and web kind.
   mask on the sum (`p_show_text_window`, verified candidate). It can retain
   compare-before-add and remove the overlap; do not widen arithmetic, change
   clamping or manufacture a dependency. Check all inline/outlined consumers.
-  See [the byte-wrap evidence](reports/window-helper-scope-and-byte-wrap.md).
+  Shared note 9253 preserves the byte-wrap evidence.
   Require unchanged conditional-arm typing and shift/mask folding as well:
   a mask on one byte-typed conditional arm can introduce a new narrowing
   instruction (`do_win_effect`), while a cast after a signed shift can prevent
-  rotate-and-mask folding. Equivalent values alone are insufficient; see
-  [the bounded transfer controls](reports/byte-wrap-transfer-controls.md).
+  rotate-and-mask folding. Equivalent values alone are insufficient; verify
+  the exact narrowing and shift instructions in every expanded consumer.
 
 One-row operand/constant/copy residue. One at a time:
 
@@ -3296,6 +3373,16 @@ Keep helper when arg is latch address reused in member writes, or retail
 reuses another var's zero on failure path.
 
 ## H26
+
+- Signed-conversion stack roles rotate although the projection/viewport math
+  and cast count agree: REQUIRE native conversion creation/resolver evidence,
+  unchanged FP trees, and all inputs read before final output stores. TRY
+  deriving the existing real output values incrementally from their actual
+  offset/scale inputs (`camera_get_screen_pos_from_world_pos`, partial).
+  A scalar offset snapshot alone can fix one role while leaving the others
+  wrong. Keep every conversion, rounding boundary and final publication;
+  no added scratch locals, casts, aliases or stack padding. Check each retail
+  conversion role against the native resolver, not scratch-object UID order.
 
 - Plane coefficients need persistent scalar owners, but copying their record
   introduces stack traffic: REQUIRE an existing proven record type, all fields
@@ -3451,6 +3538,17 @@ advances ordered differently, REQUIRE unchanged semantics (no alias between
 moved accesses), TRY statements in retail order: compute packed words before
 storing, advance cursors after stores, load node output ptr before size store
 (mk-da `MCBlockDecDCNest`, `gop_decode`). Stack-member stores: H14.
+
+- Paired position/UV streams retain scalar-owner rotation plus FP setup residue:
+  REQUIRE identical pointed-store order, signed conversions, variable byte
+  strides and unescaped local cursors. TRY advancing UV then position after each
+  glyph, with the real horizontal-coordinate update before the second UV
+  publication. Verify the complete arithmetic context too: open-coding the two
+  single-use coordinate helpers, the existing UV declaration placement and a
+  plain bias `if/else` were validated jointly in
+  `set_letter_positions_and_values`; this does not prove each edit necessary.
+  Do not add cursor aliases, move pointed stores or infer final data layout
+  from matching instructions.
 
 - A shared scalar initializer loads before the first vector component while
   retail loads the component first: REQUIRE two independent reads, one real
@@ -3696,6 +3794,15 @@ add a dummy zero local.
   inline numbering (`ListPoolAttach`: node, predecessor, data, index), then
   recheck every home. A helper regression alone does not disprove the boundary;
   never add a dummy shared zero or couple pointer/index values with casts.
+- A complete manager phase restores the first LI/MR but rotates caller list
+  owners, while the second loop must keep LI/LI: REQUIRE original MAP helper
+  names, native inline origins and complete interacting operations. TRY
+  restoring the manager/model-slot, startup-script and visible-list phases
+  together (`start_running_npcs`). The index and slot then have genuine inline
+  ownership while list walks no longer compete as caller-named locals. Check
+  both zero pairs, every saved home and the whole unit; preserve manager
+  reloads across callbacks. No whole-function wrapper, synthetic zero,
+  auxiliary output or invented helper contract.
 - Loop helper restores LI/MR but makes a preceding selector branchy: REQUIRE
   the loop is one complete operation and the caller already computes the
   selected bank. TRY pass that actual bank to the typed inline loop, keeping

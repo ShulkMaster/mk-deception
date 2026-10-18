@@ -109,7 +109,7 @@ Tools:
   (`SpreadSheet_text::Update`). Require a unique qualified source definition,
   exact nonempty ELF extent and ordinary/observed whole-object equality; never
   call the mangler to manufacture identity. See
-  [qualified IRO identity](reports/qualified-iro-method-identity.md).
+  shared notes 9242 and 9243 for the verified qualified IRO identity checks.
 - Reordered integer products: positional register votes can pair different
   values even when opcodes agree (`ADX_DecodeSte4AsMono`). Establish the
   product inputs independently from ABI/load evidence, then compare bounded
@@ -145,6 +145,7 @@ Tools:
 | Missing/extra reload of global or owner | H05, M12 |
 | Retail keeps value/address source recomputes, or reverse | H06 |
 | Retail derives value in the register it loaded into | H26 |
+| Signed-conversion stack roles rotate; viewport math/casts already agree | H26, M03 |
 | Home swap, decl sweeps neutral, single-use selector/index/latch local | H28 |
 | Load/store/pointer-advance order differs, same ops | H27, H14 |
 | Call args from one value computed in other order | H15, H16 |
