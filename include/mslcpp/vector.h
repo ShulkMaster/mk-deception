@@ -363,7 +363,7 @@ void __vector_imp<T, Allocator, false>::reserve(size_type n)
 }
 
 /* TODO: [breakthrough needed] QueueItem 78.10043%, Callback 67.99262%; placement
- * copy stays outlined after explicit Callback class instantiation; recover its policy. */
+ * copy remains outlined; original storage-accessor closure regresses exact wrappers. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::insert(iterator position, size_type n,
                                                const value_type& x)
@@ -480,7 +480,6 @@ public:
     typedef const T& const_reference;
 
     explicit vector(const allocator_type& a) : base(a) {}
-    vector(const vector& x) : base(x) {}
 
     iterator begin() { return base::begin(); }
     iterator end() { return base::end(); }

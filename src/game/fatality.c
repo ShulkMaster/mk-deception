@@ -3028,8 +3028,8 @@ void bone_matcher_set_ang_pos(
     }
 }
 
-/* TODO: [near miss] 92.14286%; latch-result webs merge into return r3;
- * recover a genuine return-owner boundary before root/instance coloring. */
+/* TODO: [near miss] 92.14286%; return coalescing removes both post-latch copies;
+ * recover a distinct return-owner lifetime; stop at coloring. */
 MkObj* weapon_bm_ignore(int weapon, int ignored) {
     PlyrMirrorObjLatch* latch;
     MkObj* object;
@@ -3242,8 +3242,8 @@ static inline void fatality_adjust_to_radius(
 
 }
 
-/* TODO: [breakthrough] 98.22785%; radius and attacker X-square/sum owners differ;
- * retain center-Z/admission; recover Z-product schedule and correction homes. */
+/* TODO: [near miss] 98.22785%; radius/X-square owners, Z-product scheduling and
+ * correction homes differ; original producer boundary remains unproven. */
 int fat_bgnd_char_setup_radius_check(
     FatalityRadiusCheck* check) {
     Vec attacker_delta;
@@ -3368,8 +3368,8 @@ void set_victim_v3_units_away(float x, float z) {
     his_obj->pos.value.y = original_y;
 }
 
-/* TODO: [breakthrough needed] 93.93939%; retain the fog-first cursor;
- * recover address/zero producers; both color-assignment chains add conversions. */
+/* TODO: [near miss] 93.93939%; fog cursor is retained; four address/zero owners
+ * and float-zero load order need an original emission boundary. */
 void fade_fatality_screen(void) {
     float far_clip;
     float step;
@@ -3556,8 +3556,8 @@ static int init_fatality_world(void) {
     return 0;
 }
 
-/* TODO: [near miss] 98.71795%; four codegen address/zero owners and post-RA
- * float-zero load order remain; recover original emission boundary. */
+/* TODO: [near miss] 98.71795%; native replay confirms four address/zero owners
+ * and post-RA float-zero order; original emission boundary remains unknown. */
 float start_suicide(void) {
     FatalityBgndScriptView* section_script;
     unsigned int camera_script;

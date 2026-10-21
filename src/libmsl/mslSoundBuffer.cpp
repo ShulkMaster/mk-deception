@@ -1148,8 +1148,8 @@ static inline SPSoundEntry* GetStreamSoundEntry(SPSoundTable* table) {
     return sound;
 }
 
-/* TODO: [near miss] 99.24171%; result/this cost stalls and branch-local address homes remain;
- * recover source-setup ownership before changing declaration order. */
+/* TODO: [near miss] 99.24171%; result/this stalls and branch-local address homes remain;
+ * recover original producer lifetimes; preserve the base address-record shape. */
 int SBPlayable_Stream::iPlayPrepped(void) {
     int result = -1;
 

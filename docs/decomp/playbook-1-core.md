@@ -69,6 +69,13 @@ mk-da symbols). Recheck under GC/2.7 before relying on it for game/CRI code.
   floats/strings; different float constants can score equal.
 - Read every differing offset/immediate, even >99%. One wrong offset = wrong
   member, not residue. Big score swings can be alignment artifacts.
+- A compact diff's equal call row does not prove callee identity, especially
+  with differing hidden constructor/destructor flags. Objdiff may display the
+  retail callee for a paired current wrapper. Read each object's exact caller
+  section/value/size and raw relocation symbol/addend before inferring an
+  alias or inline collapse (`reserve_priority_queue`: current outer-vector
+  dtor, retail base deleter). See the
+  [raw-call correction](reports/original-cw8-container-interfaces.md#priority-queue-constructor-and-cleanup-ownership).
 - Per-symbol 100 does not prove layout. Check raw offsets/sizes of statics
   (`.sbss` order) and anonymous literal pool order (reversed pair: each
   string matches, relocs wrong) `[da]`.
@@ -145,6 +152,7 @@ Tools:
 | Missing/extra reload of global or owner | H05, M12 |
 | Retail keeps value/address source recomputes, or reverse | H06 |
 | Retail derives value in the register it loaded into | H26 |
+| Raw operand in own web, ours loads into the delta web; second operand snapshot named | H26 nested-assignment subtraction, exact same-TU siblings |
 | Signed-conversion stack roles rotate; viewport math/casts already agree | H26, M03 |
 | Home swap, decl sweeps neutral, single-use selector/index/latch local | H28 |
 | Load/store/pointer-advance order differs, same ops | H27, H14 |
@@ -165,7 +173,7 @@ Tools:
 | Retail-only `b` to a case body between switch dispatch and first arm | N14 |
 | Differing instruction absent from pre-RA `initial` pcode | H29, N14 (not coloring) |
 | Same ops, regs swapped | H15, H21, H22, then tier 4 stops |
-| Same ops, only volatile temps (r0/r3-r12, f0-f13) rotated | H27 statement/operand order, H15 |
+| Same ops, only volatile temps (r0/r3-r12, f0-f13) rotated | H27 statement/operand order, H15; inline arg temp propagated past helper's first statement -> H07 param type identity |
 | Lone web wants r3/f1 (return/arg reg), no order fixes it | H01 return type/arg, H15 |
 | Add/or operands commuted in one row | H15, H22 |
 | Call result move order | H16 |

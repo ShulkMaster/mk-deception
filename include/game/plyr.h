@@ -18,7 +18,7 @@ void plyr_turn_on_mirrorguy(PlyrInfo* player);
 void plyr_turn_off_mirrorguy(PlyrInfo* player);
 void plyr_turn_on_shadowbox(PlyrInfo* player);
 void plyr_turn_off_shadowbox(PlyrInfo* player);
-int load_plyr_model_async(int player, int char_id, int* flags);
+int load_plyr_model_async(int player, int char_id, const int* flags);
 void set_player_state(PlyrInfo* player, int state);
 
 int plyr_pdata_get_previous_state(PlyrPdata* pdata);
@@ -50,6 +50,7 @@ AnimPdata* get_my_plyr_anim_pdata(void);
 int is_sidekick_active(PlyrInfo* player);
 float player_sleep_forever(void);
 void set_attack_type(int attack_type);
+void add_facial_damage(float amount);
 
 void create_player(int player_index, PlyrInfo* player);
 void show_player(PlyrPdata* player);

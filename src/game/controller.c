@@ -282,26 +282,9 @@ PlyrInfo* get_player_for_port(int port) {
     return player;
 }
 
-/* TODO: [near miss] 91.58537%; typed copy rows remain CG temporaries above bases;
- * recover earlier row ownership without changing shared loop-zero setup. */
 void init_player_switch_maps(void) {
-    SwitchMapEntry* dest;
-    SwitchMapEntry* src;
-    int i;
-
-    dest = p1_temp_switch_map;
-    p1_use_temp_switch_map = 0;
-    src = default_switch_map;
-    for (i = 0; i < PROFILE_SWITCHMAP_COUNT; i++) {
-        dest[i] = src[i];
-    }
-
-    dest = p2_temp_switch_map;
-    p2_use_temp_switch_map = 0;
-    src = default_switch_map;
-    for (i = 0; i < PROFILE_SWITCHMAP_COUNT; i++) {
-        dest[i] = src[i];
-    }
+    init_temp_switch_map(0, 0);
+    init_temp_switch_map(1, 0);
     p1_rumble_on = 0;
     p2_rumble_on = 0;
 }

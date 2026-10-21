@@ -960,17 +960,17 @@ static inline int game_count_active_players(void) {
     return count;
 }
 
-/* TODO: [near miss] 99.58884%; if/else fade-in step keeps all operations;
- * recover original instance-load ownership and table/alpha register homes. */
+/* TODO: [near miss] 99.91924%; fatality/deathtrap table-address coloring;
+ * native replay needs original table-access ownership; tick staging regresses. */
 void do_win_effect(void) {
     PlyrInfo* victor;
     PlyrInfo* defeated;
-    int timing_index;
-    int deathtrap_index;
-    StringObj* winner_text;
     StringObj* flawless_text;
+    int deathtrap_index;
     ScreenObj* fatality_left;
     ScreenObj* fatality_right;
+    unsigned char alpha;
+    int sound_id;
     ScreenObjLatch fatality_left_latch;
     ScreenObjLatch fatality_right_latch;
     StringObjLatch winner_text_latch;
@@ -978,23 +978,23 @@ void do_win_effect(void) {
     float intro_ticks;
     float hold_ticks;
     float tail_ticks;
-    unsigned char alpha;
-    int sound_id;
     const char* player_name;
-    const char* draw_text;
-    int active_profiles;
     int icon_x;
+    int timing_index;
+    const char* format;
+    int active_profiles;
+    StringObj* winner_text;
     char message[0x50];
 
     fatality_left_latch.obj = 0;
     fatality_left_latch.instance = 0;
     fatality_left = 0;
     fatality_right_latch.obj = 0;
-    flawless_text_latch.instance = 0;
+    fatality_right_latch.instance = 0;
     winner_text_latch.obj = 0;
     winner_text_latch.instance = 0;
     flawless_text_latch.obj = 0;
-    fatality_right_latch.instance = 0;
+    flawless_text_latch.instance = 0;
     fatality_right = 0;
     flawless_text = 0;
     victor = 0;
@@ -1048,8 +1048,8 @@ void do_win_effect(void) {
     }
 
     if (round_winner == 3) {
-        draw_text = get_string_by_id(0x10005);
-        sprintf(message, draw_text);
+        format = get_string_by_id(0x10005);
+        sprintf(message, format);
     } else {
         if (mode_of_play == 8 && round_winner == 0) {
             sound_id = 0x7D;
@@ -1058,7 +1058,8 @@ void do_win_effect(void) {
             player_name = global_player_data[victor->player_index].name;
             sound_id = victor->slot.fighter->runtime_data->win_sound_id;
         }
-        sprintf(message, get_string_by_id(0x10004), player_name);
+        format = get_string_by_id(0x10004);
+        sprintf(message, format, player_name);
         if (sound_id != 0) {
             snd_req(sound_id);
         }
@@ -1103,16 +1104,25 @@ void do_win_effect(void) {
 
         alpha = 0;
         if (fatality_left != 0 && fatality_right != 0) {
+            unsigned int* left_instance_address = &fatality_left->instance;
+            unsigned int* right_instance_address = &fatality_right->instance;
+
             fatality_left_latch.obj = fatality_left;
-            fatality_left_latch.instance = fatality_left->instance;
+            fatality_left_latch.instance = *left_instance_address;
             fatality_right_latch.obj = fatality_right;
-            fatality_right_latch.instance = fatality_right->instance;
+            fatality_right_latch.instance = *right_instance_address;
 
             while (alpha < 0xFF) {
-                fatality_left = MK_LIVE(
-                    fatality_left_latch.obj, fatality_left_latch.instance);
-                fatality_right = MK_LIVE(
-                    fatality_right_latch.obj, fatality_right_latch.instance);
+                fatality_left = fatality_left_latch.obj != 0
+                    ? (*left_instance_address == fatality_left_latch.instance
+                           ? fatality_left_latch.obj
+                           : 0)
+                    : 0;
+                fatality_right = fatality_right_latch.obj != 0
+                    ? (*right_instance_address == fatality_right_latch.instance
+                           ? fatality_right_latch.obj
+                           : 0)
+                    : 0;
                 if (fatality_left != 0) {
                     pfx_2d_obj_set_alpha(fatality_left, alpha);
                 }
@@ -1127,10 +1137,16 @@ void do_win_effect(void) {
                 win_effect_sleep(1.0f);
             }
 
-            fatality_left = MK_LIVE(
-                fatality_left_latch.obj, fatality_left_latch.instance);
-            fatality_right = MK_LIVE(
-                fatality_right_latch.obj, fatality_right_latch.instance);
+            fatality_left = fatality_left_latch.obj != 0
+                ? (*left_instance_address == fatality_left_latch.instance
+                       ? fatality_left_latch.obj
+                       : 0)
+                : 0;
+            fatality_right = fatality_right_latch.obj != 0
+                ? (*right_instance_address == fatality_right_latch.instance
+                       ? fatality_right_latch.obj
+                       : 0)
+                : 0;
             if (fatality_left != 0) {
                 pfx_2d_obj_set_alpha(fatality_left, alpha);
             }

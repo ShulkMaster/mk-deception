@@ -1026,6 +1026,34 @@ static void update_func_awayxz(struct BgndUpdateData* update, int index) {
     object->pos.z += delta.z;
 }
 
+static void update_func_rotate(struct BgndUpdateData* update, int index) {
+    MkSobj* object;
+    RwFrame* frame;
+    RwV3d position;
+    float angle;
+
+    object = update->object;
+    if (object == 0) {
+        return;
+    }
+
+    frame = object->frame;
+    position = frame->modelling.pos;
+    frame->modelling.pos.z = 0.0f;
+    frame->modelling.pos.y = 0.0f;
+    frame->modelling.pos.x = 0.0f;
+    angle = norm_angle_inline(
+        update_seconds_per_frame * update->commands[index].slot.speed +
+        update->commands[index].slot.field_38);
+    update->commands[index].slot.field_38 = angle;
+    RwMatrixRotate(
+        &frame->modelling,
+        (const RwV3d*)&update->commands[index].slot.direction,
+        -angle * 360.0f / 6.28f, 0);
+    frame->modelling.pos = position;
+    RwFrameUpdateObjects(frame);
+}
+
 static void update_func_fall(struct BgndUpdateData* update, int index) {
     MkSobj* object;
     Vec movement;
@@ -1223,23 +1251,23 @@ void bgnd_attach_rope_to_bgnd_obj(
     }
 }
 
-/* TODO: [near miss] 98.81579%; process CSE/rope named homes swap;
- * PS2 latch agrees; original MAP factory interface remains unresolved. */
-void bgnd_preload_obj_attach_rope(int model_index) {
+static inline void insert_rope(MkObj* model) {
     MkProc* rope_proc;
-    MkObj* model;
     struct RopeControllerData* rope;
 
-    model = g_bgnd_preloaded_models[model_index];
-    if (model != 0) {
-        rope_proc = MK_LIVE(rope_proc_item.proc, rope_proc_item.instance);
-        if (rope_proc != 0) {
-            rope = (struct RopeControllerData*)get_mkpdata_generic(0x1A0);
-            if (rope != 0) {
-                mk_insert(&rope->hdr, &rope_proc->pdata_list);
-                rope_controller_init(rope, model);
-            }
+    rope_proc = MK_LIVE(rope_proc_item.proc, rope_proc_item.instance);
+    if (rope_proc != 0) {
+        rope = (struct RopeControllerData*)get_mkpdata_generic(0x1A0);
+        if (rope != 0) {
+            mk_insert(&rope->hdr, &rope_proc->pdata_list);
+            rope_controller_init(rope, model);
         }
+    }
+}
+
+void bgnd_preload_obj_attach_rope(int model_index) {
+    if (g_bgnd_preloaded_models[model_index] != 0) {
+        insert_rope(g_bgnd_preloaded_models[model_index]);
     }
 }
 
@@ -1388,6 +1416,33 @@ static inline void rope_point_bone_at(
               (const Mat33*)rotation);
 }
 
+static inline void rope_point_bone_at_parent(
+    MkBone* bone, Vec* span, Vec* direction, RwMatrixPosition* axis,
+    Quat* quaternion, RwMatrix* source, RwMatrix* rotation) {
+    RwMatrix* initial_matrix;
+
+    RwMatrixSetIdentityMacro(rotation);
+    RwMatrixSetIdentityMacro(source);
+    initial_matrix = bone->parent_matrix;
+    PSVECScale(span, direction, -1.0f);
+    rope_point_bone_at(
+        bone, initial_matrix, direction, axis, quaternion, source, rotation);
+}
+
+static inline void rope_point_bone_at_midpoint(
+    MkBone* bone, Vec* span, Vec* midpoint, Vec* direction,
+    RwMatrixPosition* axis, Quat* quaternion, RwMatrix* source,
+    RwMatrix* rotation) {
+    RwMatrix* initial_matrix;
+
+    RwMatrixSetIdentityMacro(rotation);
+    RwMatrixSetIdentityMacro(source);
+    initial_matrix = bone->parent_matrix;
+    PSVECSubtract(span, midpoint, direction);
+    rope_point_bone_at(
+        bone, initial_matrix, direction, axis, quaternion, source, rotation);
+}
+
 static inline struct RopeSegment* rope_next_segment(
     struct RopeControllerData* rope, int index) {
     index++;
@@ -1407,37 +1462,30 @@ static inline struct RopeSegment* rope_previous_segment(
 }
 
 static inline void set_bone_world_mat(MkBone* bone, MkObj* model) {
-    RwMatrix* parent_matrix;
+    rope_bone_world_matrix(&bone->matrix, bone->parent_matrix, model);
+}
+
+static inline void compute_bone_world_mat(
+    MkBone* bone, MkObj* model, RwMatrix* matrix) {
     RwMatrix* model_matrix;
 
     model_matrix = &model->frame->modelling;
-    parent_matrix = bone->parent_matrix;
     gxMat33x33(
-        (Mat33*)&bone->matrix, (const Mat33*)parent_matrix,
+        (Mat33*)matrix, (const Mat33*)bone->parent_matrix,
         (const Mat33*)model_matrix);
     gxMatV3MatAddV3(
-        &bone->matrix.pos_vec, &parent_matrix->pos_vec,
+        &matrix->pos_vec, &bone->parent_matrix->pos_vec,
         (Mat33*)model_matrix, &model_matrix->pos_vec);
 }
 
 static inline void get_bone_world_mat(MkBone* bone, MkObj* model, RwMatrix* matrix) {
-    RwMatrix* model_matrix;
-
     if (bone->flags_54_bits.calculation_locked) {
         *matrix = bone->matrix;
     } else {
-        model_matrix = &model->frame->modelling;
-        gxMat33x33(
-            (Mat33*)matrix, (const Mat33*)bone->parent_matrix,
-            (const Mat33*)model_matrix);
-        gxMatV3MatAddV3(
-            &matrix->pos_vec, &bone->parent_matrix->pos_vec,
-            (Mat33*)model_matrix, &model_matrix->pos_vec);
+        compute_bone_world_mat(bone, model, matrix);
     }
 }
 
-/* TODO: [near miss] 99.90366%; third-pass parent-matrix snapshots use r24, retail r25;
- * complete direction/orientation wrappers are neutral; original ownership unresolved. */
 static void rope_controller_update(struct RopeControllerData* rope) {
     MkObj* model = rope->model;
     MKMATRIX inverse_model_matrix;
@@ -1459,7 +1507,6 @@ static void rope_controller_update(struct RopeControllerData* rope) {
     MkBone* bone;
     MkBone* parent;
     struct RopeSegment* segment;
-    RwMatrix* parent_matrix;
 
     if (model == 0) {
         return;
@@ -1613,25 +1660,17 @@ static void rope_controller_update(struct RopeControllerData* rope) {
         }
 
         if (rope_previous_segment(rope, i) != 0) {
-            RwMatrixSetIdentityMacro(&rotation);
-            RwMatrixSetIdentityMacro(&source);
-            parent_matrix = bone->parent_matrix;
-            PSVECScale(&segment->span, &direction, -1.0f);
-            rope_point_bone_at(
-                bone, parent_matrix, &direction, &axis, &quaternion, &source,
+            rope_point_bone_at_parent(
+                bone, &segment->span, &direction, &axis, &quaternion, &source,
                 &rotation);
         } else if (segment->mode == 1) {
             next = rope_next_segment(rope, i);
             if (next != 0) {
                 PSVECAdd(&segment->span, &next->span, &midpoint);
                 PSVECScale(&midpoint, &midpoint, 0.5f);
-                RwMatrixSetIdentityMacro(&rotation);
-                RwMatrixSetIdentityMacro(&source);
-                parent_matrix = bone->parent_matrix;
-                PSVECSubtract(&segment->span, &midpoint, &direction);
-                rope_point_bone_at(
-                    bone, parent_matrix, &direction, &axis, &quaternion, &source,
-                    &rotation);
+                rope_point_bone_at_midpoint(
+                    bone, &segment->span, &midpoint, &direction, &axis,
+                    &quaternion, &source, &rotation);
             }
         }
 

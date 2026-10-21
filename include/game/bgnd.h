@@ -47,6 +47,12 @@ extern "C" {
 
 void bgnd_pfx_resume_effect(const char* name);
 void bgnd_pfx_reset_effect(const char* name);
+void bgnd_pebble_set_current_info(unsigned int field, float value);
+void bgnd_set_fx_ang_y(float angle);
+void spad_set_heading_vector_to(int index, float heading, float offset);
+void spad_set_vector_y(int index, float y);
+void spad_set_vector_setting(int index, float x, float y, float z);
+void spad_set_y_angle_plus_offset_from_xz_vector(int index, float x, float z, float offset);
 MkSobj* bgnd_fetch_sobj(int model_index, unsigned int object_id);
 void bgnd_start_script_in_proc(int process_id, unsigned int script_index);
 void bgnd_anim_camera_ended(void);

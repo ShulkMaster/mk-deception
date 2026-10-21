@@ -874,11 +874,7 @@ static inline int ladder_get_char_at_pos(int position)
     return current_ladder_tbl[position].character_id;
 }
 
-/* TODO: [breakthrough needed] 97.95122%; row binding precedes the first X;
- * recover a real indexed-load boundary surviving propagation/address CSE. */
 static void place_plyr_on_ladder(int position, int alternate_model) {
-    struct LadderPlacement* placement;
-    float* ground_height;
     char* model_name;
     AnimScript* piece_animation;
     AnimPdata* animation;
@@ -899,10 +895,8 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
         return;
     }
 
-    placement = &ladder_small_pos_tbl[position];
-    gxVectCopy(&object->pos.value, &placement->position);
-    object->ang.y = placement->angle_y;
-    ground_height = &placement->position.y;
+    gxVectCopy(&object->pos.value, &ladder_small_pos_tbl[position].position);
+    object->ang.y = ladder_small_pos_tbl[position].angle_y;
     if (alternate_model != 0) {
         object->pos.value.x = 1.437f;
         object->ang.y = -0.5f;
@@ -922,7 +916,7 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
     }
 
     object->hide_flag_bits.bit6 = ladder_small_pos_tbl[position].mirrored;
-    object->ground_colls_y = *ground_height;
+    object->ground_colls_y = ladder_small_pos_tbl[position].position.y;
     obj_change_to_skinned_obj_light_list(
         object, (LightDef*)&ladder_skinned_obj_light_def);
     if (position == 0U) {

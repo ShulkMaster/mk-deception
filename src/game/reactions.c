@@ -169,7 +169,6 @@ extern struct ReactionSharedAnimations shared_ani;
 void ani_to_frame_x(float frame);
 void ani_to_blend_frame(float frame);
 void ani_to_frame_x_call(void (*callback)(void), float frame);
-void add_facial_damage(float amount);
 void check_for_combo_message(void);
 void disable_both_repel_flags(void);
 void init_air_move(void);

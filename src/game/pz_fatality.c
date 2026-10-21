@@ -4,6 +4,7 @@
 #include "math/gxVect.h"
 #include "math/mk_math.h"
 #include "game/pz_fatality.h"
+#include "game/bgnd.h"
 #include "game/pfxscript.h"
 #include "game/game_info.h"
 #include "runtime/cam_api.h"
@@ -366,7 +367,6 @@ int pan_snd_req(int sound, float pan);
 int pan_vol_snd_req(int sound, float pan, float volume);
 int plyr_snd_req(int sound);
 void bgnd_launch_fx_at_position(const char* name, float x, float y, float z);
-void bgnd_set_fx_ang_y(float angle);
 void snd_major_hit_voice(void);
 void snd_death_voice(void);
 void random_hit(int group);
@@ -740,12 +740,47 @@ static inline void pz_snake_lunge(unsigned int snake) {
     }
 }
 
-static inline void pz_lightning_bolt(Vec* position, int pan_side) {
-    struct PuzzleFighterRenderObject* bolt;
-    unsigned int smoke_effects[2];
+static inline float do_pz_fatality_manage_lightning_fx(Vec* position) {
+    unsigned int lightning_smoke;
     unsigned int spark;
+    unsigned int burning_smoke;
+
+    lightning_smoke = fx_by_owner("pz_lightningsmoke", 4);
+    spark = fx_by_owner("pz_spark", 4);
+    burning_smoke = fx_by_owner("pz_burningsmoke", 4);
+    _mkproc_sleep_ticks = 3.0f;
+    aproc->vtbl->sleep();
+    if (g_pz_fighter_fatality_engine.controller->preround_active == 0 &&
+        g_pz_fighter_fatality_engine.controller->phase == 0) {
+        return 0.0f;
+    }
+    fx_reset(spark);
+    fx_set_param_v3(
+        spark, 0x202, position->x, position->y, position->z);
+    fx_resume_emit(spark);
+    fx_reset(burning_smoke);
+    fx_set_param_v3(
+        burning_smoke, 0x202, position->x, position->y + 0.3f,
+        position->z);
+    fx_resume_emit(burning_smoke);
+    fx_reset(lightning_smoke);
+    fx_set_param_v3(
+        lightning_smoke, 0x202, position->x, position->y, position->z);
+    fx_resume_emit(lightning_smoke);
+    _mkproc_sleep_ticks = 20.0f;
+    aproc->vtbl->sleep();
+    if (g_pz_fighter_fatality_engine.controller->preround_active == 0 &&
+        g_pz_fighter_fatality_engine.controller->phase == 0) {
+        return 0.0f;
+    }
+    fx_pause_emit(burning_smoke);
+    fx_pause_emit(lightning_smoke);
+    return 0.0f;
+}
+
+static inline struct PuzzleFighterRenderObject* do_pz_fatality_lightning_strike(Vec* position) {
+    struct PuzzleFighterRenderObject* bolt;
     AniTextureControl* texture;
-    unsigned int bolt_instance;
 
     bolt = (struct PuzzleFighterRenderObject*)load_named_model_from_slot(
         0x70036, "BOLT_OBJECT", 0x2099, 0);
@@ -758,52 +793,7 @@ static inline void pz_lightning_bolt(Vec* position, int pan_side) {
         "Nightwolf_Bolt");
     set_ani_texture_framerate(texture, 1.0f);
     set_ani_texture_frame(texture, 0);
-    bolt_instance = bolt->instance;
-    if (pan_side < 0) {
-        pan_snd_req(0x1ABA, -0.7f);
-    } else if (pan_side > 0) {
-        pan_snd_req(0x1ABA, 0.7f);
-    } else {
-        if (position->x < 0.0f) {
-            pan_snd_req(0x1ABA, -0.7f);
-        } else {
-            pan_snd_req(0x1ABA, 0.7f);
-        }
-    }
-
-    smoke_effects[0] = fx_by_owner("pz_lightningsmoke", 4);
-    spark = fx_by_owner("pz_spark", 4);
-    smoke_effects[1] = fx_by_owner("pz_burningsmoke", 4);
-    _mkproc_sleep_ticks = 3.0f;
-    aproc->vtbl->sleep();
-    if (g_pz_fighter_fatality_engine.controller->preround_active != 0 ||
-        g_pz_fighter_fatality_engine.controller->phase != 0) {
-        fx_reset(spark);
-        fx_set_param_v3(
-            spark, 0x202, position->x, position->y, position->z);
-        fx_resume_emit(spark);
-        fx_reset(smoke_effects[1]);
-        fx_set_param_v3(
-            smoke_effects[1], 0x202, position->x, position->y + 0.3f,
-            position->z);
-        fx_resume_emit(smoke_effects[1]);
-        fx_reset(smoke_effects[0]);
-        fx_set_param_v3(
-            smoke_effects[0], 0x202, position->x, position->y, position->z);
-        fx_resume_emit(smoke_effects[0]);
-        _mkproc_sleep_ticks = 20.0f;
-        aproc->vtbl->sleep();
-        if (g_pz_fighter_fatality_engine.controller->preround_active != 0 ||
-            g_pz_fighter_fatality_engine.controller->phase != 0) {
-            fx_pause_emit(smoke_effects[1]);
-            fx_pause_emit(smoke_effects[0]);
-        }
-    }
-
-    bolt = MK_LIVE(bolt, bolt_instance);
-    if (bolt != 0 && bolt->instance != 0) {
-        ((MkHdr*)bolt)->typed_vtbl->destroy((MkHdr*)bolt);
-    }
+    return bolt;
 }
 
 static inline void pz_chomper_apply_motion(
@@ -2804,7 +2794,7 @@ static void pz_fighter_chomper_entering_fatality(
     reset_chomper_motion(2);
 }
 
-static inline void pz_fighter_chomper2_offset_post(int player, float* post_x, float* post_z) {
+static inline void pz_fighter_chomper2_offset_post(long player, float* post_x, float* post_z) {
     Vec offset = {0.05f, 0.0f, 0.0f};
 
     if (player == 0) {
@@ -2967,8 +2957,6 @@ static float p_chomper2_controller(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.79798%; template/player-data emission order swaps r3/r4;
- * recover the original evaluation boundary before further source trials. */
 static float pz_fighter_chomper2_victim_crushed(void) {
     float blood_x;
     float blood_z;
@@ -4041,10 +4029,10 @@ static float pz_fighters_lightning_preround(void) {
     return pz_fatality_start_preround();
 }
 
-/* TODO: [near miss] 99.66732%; snapshot/smoke coalesced degrees and texture claims;
- * effect-start boundary is neutral; recover creation/retention ownership. */
 static float p_lightning_controller(void) {
     Vec position = {0.0f, 0.0f, 0.0f};
+    struct PuzzleFighterRenderObject* bolt;
+    unsigned int bolt_instance;
 
     if (g_pz_fighter_fatality_engine.controller->unload_requested == 1) {
         return -1.0f;
@@ -4054,11 +4042,25 @@ static float p_lightning_controller(void) {
         _mkproc_sleep_ticks = 60.0f;
         aproc->vtbl->sleep();
         position.x = screen_width > 650 ? -2.2f : -1.9f;
-        pz_lightning_bolt(&position, -1);
+        bolt = do_pz_fatality_lightning_strike(&position);
+        bolt_instance = bolt->instance;
+        pan_snd_req(0x1ABA, -0.7f);
+        do_pz_fatality_manage_lightning_fx(&position);
+        bolt = MK_LIVE(bolt, bolt_instance);
+        if (bolt != 0 && bolt->instance != 0) {
+            ((MkHdr*)bolt)->typed_vtbl->destroy((MkHdr*)bolt);
+        }
         _mkproc_sleep_ticks = 60.0f;
         aproc->vtbl->sleep();
         position.x = screen_width > 650 ? 2.2f : 1.9f;
-        pz_lightning_bolt(&position, 1);
+        bolt = do_pz_fatality_lightning_strike(&position);
+        bolt_instance = bolt->instance;
+        pan_snd_req(0x1ABA, 0.7f);
+        do_pz_fatality_manage_lightning_fx(&position);
+        bolt = MK_LIVE(bolt, bolt_instance);
+        if (bolt != 0 && bolt->instance != 0) {
+            ((MkHdr*)bolt)->typed_vtbl->destroy((MkHdr*)bolt);
+        }
         g_pz_fighter_fatality_engine.controller->preround_active = 0;
     } else if (g_pz_fighter_fatality_engine.controller->phase == 1 &&
                (randu0(10000) & 0xFFFF) < 15) {
@@ -4066,7 +4068,18 @@ static float p_lightning_controller(void) {
         if ((randu0(100) & 0xFFFF) < 50) {
             position.x *= -1.0f;
         }
-        pz_lightning_bolt(&position, 0);
+        bolt = do_pz_fatality_lightning_strike(&position);
+        bolt_instance = bolt->instance;
+        if (position.x < 0.0f) {
+            pan_snd_req(0x1ABA, -0.7f);
+        } else {
+            pan_snd_req(0x1ABA, 0.7f);
+        }
+        do_pz_fatality_manage_lightning_fx(&position);
+        bolt = MK_LIVE(bolt, bolt_instance);
+        if (bolt != 0 && bolt->instance != 0) {
+            ((MkHdr*)bolt)->typed_vtbl->destroy((MkHdr*)bolt);
+        }
         _mkproc_sleep_ticks = 5.0f;
         aproc->vtbl->sleep();
     }

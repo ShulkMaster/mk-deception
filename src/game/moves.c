@@ -4119,11 +4119,8 @@ void noobsmoke_sidekick_double_charge(void) {
     }
 }
 
-/* TODO: [breakthrough needed] 99.96403%; offset.y/lateral.y remain unwritten
- * inputs to the vector callee; recover defined ownership before FPR tuning. */
 static float p_plyr_sidekick_charge(void) {
     float wrapped_angle;
-    float position_y;
     MkObj* sidekick;
     PlyrInfo* info;
     PlyrPdata* player;
@@ -4136,13 +4133,12 @@ static float p_plyr_sidekick_charge(void) {
     Vec direction;
     Vec lateral;
     Vec offset;
+    Vec position;
     float length_sq;
     float inverse_length;
     float sine;
     float cosine;
-    float position_x;
     struct MovesSidekickPdata* pdata;
-    float position_z;
     float angle_x;
     float angle_y;
     float angle_z;
@@ -4191,15 +4187,15 @@ static float p_plyr_sidekick_charge(void) {
         v3_add_v3_scaled(&offset, &offset, &lateral, -0.45f);
         transition = 8;
     }
-    position_x = offset.x = offset.x + main_object->pos.value.x;
-    position_y = g_game_info.field_34;
-    position_z = offset.z = offset.z + main_object->pos.value.z;
+    position.x = offset.x = offset.x + main_object->pos.value.x;
+    position.y = g_game_info.field_34;
+    position.z = offset.z = offset.z + main_object->pos.value.z;
 
     sidekick->ground_colls_y = main_object->ground_colls_y;
     set_root_and_obj_movement_weights(anim, 0.0f, 1.0f);
-    sidekick->pos.value.x = position_x;
-    sidekick->pos.value.y = position_y;
-    sidekick->pos.value.z = position_z;
+    sidekick->pos.value.x = position.x;
+    sidekick->pos.value.y = position.y;
+    sidekick->pos.value.z = position.z;
     sidekick->ang.x = angle_x;
     sidekick->ang.y = angle_y;
     sidekick->ang.z = angle_z;
@@ -4337,15 +4333,11 @@ static inline void moves_create_sidekick_exit_process(void) {
     }
 }
 
-/* TODO: [near miss] 99.80978%; raw-x shares the delta owner and normalized-z splits;
- * recover an independent raw sample before the opponent load; scratch slots agree. */
 int advance_my_sidekick_from_behind_with_moveset(void) {
     MkObj* sidekick;
     MkHdr* object;
     float delta_x;
     float delta_z;
-    float player_z;
-    float normalized_z;
     float opponent_x;
     float opponent_z;
     float inverse_distance;
@@ -4364,19 +4356,15 @@ int advance_my_sidekick_from_behind_with_moveset(void) {
     stop_me();
     tightrope_restrictions_off();
 
-    player_z = plyr_obj->pos.value.z;
-    opponent_z = his_obj->pos.value.z;
-    delta_z = player_z - opponent_z;
-    delta_x = plyr_obj->pos.value.x;
-    opponent_x = his_obj->pos.value.x;
-    delta_x -= opponent_x;
     position_y = plyr_obj->pos.value.y;
+    delta_x = plyr_obj->pos.value.x - (opponent_x = his_obj->pos.value.x);
+    delta_z = plyr_obj->pos.value.z - (opponent_z = his_obj->pos.value.z);
     inverse_distance =
         gxMathFastInvSqrt(delta_x * delta_x + delta_z * delta_z);
     delta_x *= inverse_distance;
-    normalized_z = delta_z * inverse_distance;
+    delta_z *= inverse_distance;
     position_x = -2.0f * delta_x;
-    position_z = -2.0f * normalized_z;
+    position_z = -2.0f * delta_z;
     position_x += opponent_x;
     position_z += opponent_z;
     sidekick->pos.value.x = position_x;
@@ -4444,12 +4432,13 @@ static inline void moves_launch_sidekick_watchdog(PlyrPdata* player) {
 }
 
 static inline CmdScript* moves_get_player_script(PlyrPdata* player, MkProc** player_proc) {
-    *player_proc = MK_LIVE(player->own_player_proc, player->own_player_proc_instance);
-    return get_cmdscript_for_proc(*player_proc);
+    MkProc* proc = MK_LIVE(player->own_player_proc, player->own_player_proc_instance);
+    CmdScript* script = get_cmdscript_for_proc(proc);
+
+    *player_proc = proc;
+    return script;
 }
 
-/* TODO: [near miss] 99.82353%; process input coalesces with r3 before r30;
- * recover original raw/result ownership across the script lookup. */
 static float p_plyr_sidekick_switch(void) {
     PlyrPdata* player;
     PlyrInfo* plyr_info;

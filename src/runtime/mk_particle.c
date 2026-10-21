@@ -648,21 +648,18 @@ void* pfx_create_raw_userdata(int extra_size, int userdata_size, int field_90,
                                        out_pfx);
 }
 
-static inline PfxVm* scan_pfx_emitter_fields(MkPfx* pfx, PfxEmitter* emitter)
+static inline void scan_pfx_emitter_fields(MkPfx* pfx, PfxEmitter* emitter)
 {
     PfxFieldSet field_pair = {0, 0};
-    PfxVm* vm;
 
     pfx_emitter_scan_for_fields(emitter, &field_pair);
-    vm = pfx_vm(pfx);
     pfx->field_214 |= field_pair.render_flags;
     pfx->field_A0 |= field_pair.particle_flags;
-    return vm;
 }
 
-static inline int initialize_pfx_memory(MkPfx* pfx, PfxVm* vm,
-                                        PfxBuildInfo* build)
+static inline int initialize_pfx_memory(MkPfx* pfx, PfxBuildInfo* build)
 {
+    PfxVm* vm;
     PfxEstimate est_buf;
     int ready;
     int pad_raw;
@@ -675,6 +672,7 @@ static inline int initialize_pfx_memory(MkPfx* pfx, PfxVm* vm,
     PfxNameObj* name_obj;
     char* name_dst;
 
+    vm = pfx_vm(pfx);
     if (pfx_native_is_supported_type(pfx->field_214) == 0) {
         ready = 0;
     } else {
@@ -721,14 +719,13 @@ static inline int initialize_pfx_memory(MkPfx* pfx, PfxVm* vm,
     return ready;
 }
 
-/* TODO: [near miss] 99.91304%; only emitter restore r20/r21 remains;
- * recover its owner while preserving factory locals and failure exits. */
+/* TODO: [near miss] 99.91304%; four emitter restore r20/r21 rows remain;
+ * original two-input allocator leaves restore-owner coloring unresolved. */
 void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_90,
                                   int field_214, int field_a0, PfxInitCb init_cb,
                                   int pid, MkProcEntryFn entry, void** out_pfx) {
     MkProc* created_proc;
     MkPfx* pfx;
-    PfxVm* vm;
 
     MkProcInitFlags proc_nostack_slot;
     PfxEmitter emitter_buf;
@@ -785,9 +782,9 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
         init_cb(pfx_vm(pfx));
     }
 
-    vm = scan_pfx_emitter_fields(pfx, &emitter_buf);
+    scan_pfx_emitter_fields(pfx, &emitter_buf);
 
-    ready = initialize_pfx_memory(pfx, vm, build);
+    ready = initialize_pfx_memory(pfx, build);
 
     if (ready == 0) {
         if (pfx->hdr.instance != 0) {

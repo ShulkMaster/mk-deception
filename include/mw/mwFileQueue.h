@@ -134,8 +134,8 @@ class reserve_priority_queue
     typedef std::priority_queue<T, std::vector<T, mwFileMemAllocator<T, 3> >, Compare> base;
 
 public:
-    /* TODO: [near miss] 99.95000%; temporary cleanup retains flag -1;
-     * body-local depth leaks; recover the original destructor context. */
+    /* TODO: [breakthrough needed] 99.95000%; vector/-1 vs retail deleter/0 remains;
+     * implicit copy is neutral; recover the original wrapper-inlining boundary. */
     reserve_priority_queue(const mwFileMemAllocator<T, 3>& a)
         : base(Compare(), std::vector<T, mwFileMemAllocator<T, 3> >(a))
     {

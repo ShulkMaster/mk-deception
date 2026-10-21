@@ -450,7 +450,6 @@ void start_sweat_particles(
 void gut_bleed_me(int size);
 void face_bleed_me(int size);
 void plyr_bleed_mouth(PlyrPdata* player);
-void add_facial_damage(float amount);
 
 int get_player_number(MkObj* player);
 MkProc* get_player_proc(MkObj* player);

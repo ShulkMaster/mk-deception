@@ -1138,9 +1138,7 @@ void xfer_player_proc(MkProc* proc, MkProcEntryFn entry) {
     xfer_proc(proc, entry);
 }
 
-/* TODO: [near miss] 99.37143%; initial pdata/flags loads tie;
- * recover pdata-first production while keeping three out-slot reloads. */
-int load_plyr_model_async(int player, int char_id, int* flags) {
+int load_plyr_model_async(int player, int char_id, const int* flags) {
     struct LoadPlyrModelPdata* pdata;
     int pid;
     unsigned int flag_word;
@@ -2433,8 +2431,12 @@ float active_sidekick_swap_change_style(PlyrPdata* pdata) {
     return 0.0f;
 }
 
-/* TODO: [near miss] 97.99296%; pdata/sidekick and hide/flags homes differ;
- * recover copy ownership and early hide-extract scheduling. */
+static inline MkHdr* plyr_live_animation(PlyrPdata* owner) {
+    return pdata_of_proc(MK_LIVE(owner->anim_proc, (int)owner->anim_proc_instance));
+}
+
+/* TODO: [near miss] 98.87324%; hide-bit extraction, saved-step load and Boolean-result shift
+ * have different issue order; stores/calls agree. */
 float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     PlyrInfo* player;
     MkObj* sidekick;
@@ -2444,8 +2446,8 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     struct PlyrSidekickProcPdata* process_data;
     CmdScript* saved_interpreter;
     AniData* saved_animation;
-    unsigned int saved_animation_flags;
     int saved_hide_bit;
+    unsigned int saved_animation_flags;
     float saved_frame;
     float saved_weight;
     float saved_step;
@@ -2456,8 +2458,7 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     sidekick = MK_HDR_LIVE(pdata->sidekick_obj, pdata->sidekick_instance);
     sidekick_animation =
         (AnimPdata*)pdata_of_proc(MK_LIVE(pdata->sidekick_anim_proc, (int)pdata->sidekick_anim_instance));
-    player_animation =
-        (AnimPdata*)pdata_of_proc(MK_LIVE(pdata->anim_proc, (int)pdata->anim_proc_instance));
+    player_animation = (AnimPdata*)plyr_live_animation(pdata);
 
     unhide_obj(sidekick);
     sidekick->pos_vel.z = 0.0f;

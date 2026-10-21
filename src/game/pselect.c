@@ -1141,8 +1141,8 @@ static float p_enter_profile_code(void) {
 }
 
 
-/* TODO: [near miss] 97.91045%; unsigned64 validity-result ownership and join differ;
- * preserve signed-ID ABI and recover the common predicate producer. */
+/* TODO: [breakthrough needed] 97.91045%; the original 28-byte validity
+ * helper contract and materialized caller result remain unresolved. */
 int is_char_locked(int char_id, int alt_bit) {
     unsigned long long mask;
     unsigned long long bit;
@@ -1173,7 +1173,7 @@ int is_char_locked(int char_id, int alt_bit) {
     return 1;
 }
 
-void send_player_status_msg(void) {
+void send_player_status_msg(PlyrInfo* player) {
 }
 
 void pselect_handicap_update(void) {
@@ -1775,8 +1775,8 @@ void resolve_alternate_palettes(PlyrInfo* plyr) {
     }
 }
 
-/* TODO: [near miss] 99.41989%; shared range-result join and preview owner order differ;
- * canonical preview address agrees; recover the predicate producer. */
+/* TODO: [breakthrough needed] 99.41989%; validity helper lacks its original
+ * result boundary; preview owner homes also differ. */
 void pselect_player_selected(PlyrInfo* plyr) {
     PlyrInfo* other;
     int* sel_pos;

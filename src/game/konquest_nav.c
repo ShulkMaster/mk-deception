@@ -393,8 +393,8 @@ void nav_get_unit_vector_to_area(int areaIndex, Vec* out, Vec* pos) {
     out->y = 0.0f;
 }
 
-/* TODO: [near miss] 98.05556%; scalar plane fields retain all operations;
- * six FPR owners still cross scalarized/named/codegen creation bands. */
+/* TODO: [near miss] 98.05556%; 18 FPR rows across zero, plane and distance;
+ * retain raw plane snapshot; recover original distance/normal ownership. */
 static struct NavArea* unit_vector_to_area(struct NavArea* area, Vec* nearestNormal,
                                     float* nearestDistance,
                                     Vec* farthestNormal,
@@ -598,8 +598,8 @@ static inline void add_nav_area_to_tile(
     }
 }
 
-/* TODO: [near miss] 99.31884%; 42 GPR rows remain in area/tile/index and flag homes;
- * vertex and inside flag owners agree; original root ownership is missing. */
+/* TODO: [near miss] 99.37681%; 40 area/count, tile and flag GPR rows remain;
+ * tile-index home agrees; recover remaining owner kinds before further tuning. */
 static void setup_per_tile_navigations(void) {
     static int most_navigation_per_tile;
     int cornerIndex;
@@ -610,6 +610,7 @@ static void setup_per_tile_navigations(void) {
     int areaIndex;
     int boundaryCount;
     int tileCount;
+    struct NavTile* tile;
     int tileIndex;
 
     areaIndex = 0;
@@ -622,7 +623,6 @@ static void setup_per_tile_navigations(void) {
 
         tileIndex = 0;
         while (tileIndex < tileCount) {
-            struct NavTile* tile = &konquest_pdata->navTiles[tileIndex];
             float minX;
             float maxX;
             float minZ;
@@ -637,6 +637,7 @@ static void setup_per_tile_navigations(void) {
             int vertexIndex;
             struct NavBoundary* boundary;
 
+            tile = &konquest_pdata->navTiles[tileIndex];
             calc_tile_points(tile, tileCorners);
             minX = tileCorners[0].x;
             maxX = tileCorners[2].x;

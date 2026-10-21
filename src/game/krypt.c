@@ -1178,8 +1178,8 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
     }
 }
 
-/* TODO: [near miss] 99.41177%; row-base owner remains below table-offset CSE;
- * early row-loop zero is neutral; recover original row/index ownership. */
+/* TODO: [near miss] 99.61938%; named row_base numbers below the coffin-offset CSE;
+ * recover the original row-scale owner (note 9527). */
 static void set_number_positions_and_values(PfxVm* pfx) {
     Vec* pos;
     float* uv;
@@ -1187,6 +1187,7 @@ static void set_number_positions_and_values(PfxVm* pfx) {
     int pos_stride;
     int view_row;
     int view_col;
+    int row_base;
     int row_off;
     int col_off;
     int fill;
@@ -1198,7 +1199,6 @@ static void set_number_positions_and_values(PfxVm* pfx) {
     float z_near;
     float z_far;
     int row;
-    int row_base;
     int col;
     int coffin_idx;
     unsigned int cost;

@@ -96,27 +96,28 @@ static RpAtomic* GCSpecSkinLighting(
 extern GXLightObj _RwGCLightObjs[8];
 
 void _rpSkinLoadMatrix(const RwMatrix*, int, int);
+void SetupAtomicSpecularity(RpAtomic* atomic);
+int SpecularCreatePipelines(void);
 
-RxPipeline* SpecSkinAtomicPipeline;
-RxPipeline* SpecSkinMaterialPipeline;
-RxPipeline* ReflectionAtomicPipeline;
-
-RwMatrix cachedInverseAtomicLTM;
-static float viewPort[6];
-static int bLastMatUploadedRoot = 1;
-static int specTexNum = 3;
-static float base_z_buff;
-static float z_near;
-static float z_scale;
-static float z_dist;
-struct SpecLight* pDirLight1;
-struct SpecLight* pDirLight2;
-struct SpecLight* pPointLight1;
-struct SpecLight* pPointLight2;
-struct SpecLight* pAmbLight;
-static float oldZFar;
-static float oldZNear;
 static float lastZOffset;
+static float oldZNear;
+static float oldZFar;
+struct SpecLight* pAmbLight;
+struct SpecLight* pPointLight2;
+struct SpecLight* pPointLight1;
+struct SpecLight* pDirLight2;
+struct SpecLight* pDirLight1;
+static float z_dist;
+static float z_scale;
+static float z_near;
+static float base_z_buff;
+static int bLastMatUploadedRoot = 1;
+static float viewPort[6];
+RwMatrix cachedInverseAtomicLTM;
+
+RxPipeline* ReflectionAtomicPipeline;
+RxPipeline* SpecSkinMaterialPipeline;
+RxPipeline* SpecSkinAtomicPipeline;
 
 static inline void* rw_plugin_data(void* owner, int offset) {
     return (unsigned char*)owner + offset;
@@ -151,243 +152,6 @@ static inline struct SpecLight* light_from_link(RwLLLink* link) {
 
 static inline int color_component(float value) {
     return value;
-}
-
-void ProcessSpecularity(
-    RpMaterial* material,
-    RwTexture* base_texture,
-    RwTexture* alpha_texture,
-    int has_specular_map) {
-    SpecularMaterialPluginData* specular;
-    struct SpecLight* light;
-    RwTexture* texture;
-    GXColor color;
-    float scale;
-    float material_scale;
-    int initial_stage;
-    int tev_stage;
-    int tex_coord;
-
-    specular = specular_data(material);
-    initial_stage = (has_specular_map != 0) + 1;
-    tev_stage = initial_stage;
-    if (alpha_texture != 0) {
-        tev_stage = initial_stage + 1;
-    }
-    tex_coord = base_texture != 0;
-
-    scale = 1.0f;
-    material_scale = 2.0f * material->surface.specular;
-    light = specular->light;
-    scale = scale <= material_scale ? scale : material_scale;
-    color.r = (unsigned char)(
-        specular->tint.red * (scale * light->color.red));
-    color.g = (unsigned char)(
-        specular->tint.green * (scale * light->color.green));
-    color.b = (unsigned char)(
-        specular->tint.blue * (scale * light->color.blue));
-    color.a = 0xFF;
-    GXSetTevColor(3, color);
-
-    GXSetNumTexGens(tex_coord + 1);
-    GXSetTexCoordGen2(tex_coord, 1, 1, 0x39, 0, 0x7D);
-    texture = specular->texture;
-    texture->filter_flags =
-        (texture->filter_flags & 0xFFFF00FF) | 0x1100;
-    _rwDlTextureSet(texture, specTexNum);
-    GXSetTevOrder(tev_stage, tex_coord, specTexNum, 0xFF);
-    GXSetTevSwapMode(tev_stage, 0, 0);
-    GXSetNumTevStages(
-        (unsigned char)tev_stage + 1);
-    GXSetTevColorIn(tev_stage, 0xF, 8, 6, 0);
-    GXSetTevColorOp(tev_stage, 0, 0, 0, 1, 0);
-    GXSetTevAlphaIn(tev_stage, 7, 7, 7, 0);
-    GXSetTevAlphaOp(tev_stage, 0, 0, 0, 1, 0);
-}
-
-/* TODO: [breakthrough needed] 88.33334%; first-GX presence/offset owners differ;
- * preserve byte narrowing; the original producer boundary is still missing. */
-void CleanupSpecularity(
-    RpMaterial* material, RwTexture* base_texture, RwTexture* alpha_texture) {
-    SpecularMaterialPluginData* specular;
-    GXBool textured;
-    int stage_count;
-
-    stage_count = alpha_texture != 0 ? 2 : 1;
-    textured = base_texture != 0;
-    specular = specular_data(material);
-
-    GXSetNumTexGens(textured);
-    GXSetNumTevStages(stage_count);
-    if (alpha_texture != 0 && specular->flags.bits.swapMode != 0) {
-        GXSetTevSwapMode(2, 0, 0);
-        GXSetTevSwapMode(3, 0, 0);
-    }
-}
-
-void SetupAtomicSpecularity(RpAtomic* atomic) {
-    RpGeometry* geometry = atomic->geometry;
-    struct SpecularGeometryData* extension = specular_geometry(geometry);
-    RwMatrix inverse;
-    float texture_matrix[3][4];
-    RwMatrix combined;
-
-    if (extension->material_index == -1) {
-        return;
-    }
-
-    SpecularMaterialCalcMatrix(geometry->matList.materials[0]);
-    combined.flags = 0x20003;
-    inverse.flags = 0x20003;
-    RwMatrixInvert(&inverse, &SpecularMatrix);
-    RwMatrixMultiply(
-        &combined, RwFrameGetLTM(atomic->object.parent), &inverse);
-
-    texture_matrix[0][0] = -0.5f * -combined.right.x;
-    texture_matrix[0][1] = -0.5f * -combined.up.x;
-    texture_matrix[0][2] = -0.5f * -combined.at.x;
-    texture_matrix[0][3] = -0.5f;
-    texture_matrix[1][0] = -0.5f * combined.right.y;
-    texture_matrix[1][1] = -0.5f * combined.up.y;
-    texture_matrix[1][2] = -0.5f * combined.at.y;
-    texture_matrix[1][3] = 0.5f;
-    GXLoadTexMtxImm(texture_matrix, 0x39, 1);
-}
-
-int SpecularCreatePipelines(void) {
-    SpecSkinAtomicPipeline = _rpDlAtomicPipelineCreate(
-        0xDC, 0, _rpSkinInstanceCallback, _rpSkinAtomicReinstanceCallBack,
-        GCSpecSkinLighting, MKSpecSkinRenderCallback);
-    if (SpecSkinAtomicPipeline == 0) {
-        return 0;
-    }
-
-    ReflectionAtomicPipeline = _rpDlAtomicPipelineCreate(
-        0xDC, 0, _rpSkinInstanceCallback, _rpSkinAtomicReinstanceCallBack,
-        GCSpecSkinLighting, MKReflectionRenderCallback);
-    if (ReflectionAtomicPipeline != 0) {
-        return 1;
-    }
-    return 0;
-}
-
-void SetupShadowPlayerPipeline(RpClump* clump) {
-}
-
-static void* MKReflectionRenderCallback(
-    void* object, RxGameCubeAtomicAllInOneInstanceData* resource) {
-    RpAtomic* atomic = object;
-    RpSkin* skin;
-    void* vertex_format;
-    RwMatrix* atomic_ltm;
-    unsigned int bone;
-
-    ((struct SpecDisplayResource*)resource->resourceEntry)->header.token = _RwDlTokenCurrent;
-    vertex_format = geometry_vertex_format(atomic->geometry);
-    atomic_ltm = RwFrameGetLTM(atomic->object.parent);
-    _rwDlVtxFmtSetup(vertex_format, (RpGameCubeVtxFmtSetupData*)resource);
-
-    skin = RpSkinGeometryGetSkin(atomic->geometry);
-    if (skin->maxNumWeights > 1) {
-        _rwDlTransformSetup(atomic_ltm, 1);
-    } else {
-        GXSetVtxDesc(0, 1);
-    }
-
-    _rwDlObjectRenderSetup(
-        resource->geometryFlags,
-        resource->lightMask,
-        resource->hasAmbient,
-        0);
-    if (skin->maxNumWeights == 1) {
-        for (bone = 0; bone < skin->numUsedBones; bone++) {
-            _rpSkinLoadMatrix(
-                &((RwMatrix*)_rpSkinGlobals.alignedScratchMemory)
-                    [skin->usedBoneList[bone]],
-                bone * 3,
-                1);
-        }
-    }
-    return object;
-}
-
-static void* MKSpecSkinRenderCallback(
-    void* object, RxGameCubeAtomicAllInOneInstanceData* resource) {
-    RpAtomic* atomic = object;
-    RwCamera* camera;
-    RpSkin* skin;
-    RwMatrix* atomic_ltm;
-    void* vertex_format;
-    unsigned int bone;
-    RwMatrix object_to_camera;
-    int old_src_blend;
-    int old_dst_blend;
-
-    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 1);
-    RwEngineInstance->dOpenDevice.fpRenderStateGet(0x0A, &old_src_blend);
-    RwEngineInstance->dOpenDevice.fpRenderStateGet(0x0B, &old_dst_blend);
-
-    ((struct SpecDisplayResource*)resource->resourceEntry)->header.token = _RwDlTokenCurrent;
-    vertex_format = geometry_vertex_format(atomic->geometry);
-    atomic_ltm = RwFrameGetLTM(atomic->object.parent);
-    _rwDlVtxFmtSetup(vertex_format, (RpGameCubeVtxFmtSetupData*)resource);
-
-    skin = RpSkinGeometryGetSkin(atomic->geometry);
-    if (skin->maxNumWeights > 1) {
-        _rwDlTransformSetup(atomic_ltm, 1);
-    } else {
-        GXSetVtxDesc(0, 1);
-    }
-
-    _rwDlObjectRenderSetup(
-        resource->geometryFlags,
-        resource->lightMask,
-        resource->hasAmbient,
-        0);
-    if (skin->maxNumWeights == 1) {
-        for (bone = 0; bone < skin->numUsedBones; bone++) {
-            _rpSkinLoadMatrix(
-                &((RwMatrix*)_rpSkinGlobals.alignedScratchMemory)
-                    [skin->usedBoneList[bone]],
-                bone * 3,
-                1);
-        }
-    }
-
-    camera = RwEngineInstance->curCamera;
-    RwMatrixMultiply(
-        &object_to_camera,
-        RwFrameGetLTM(atomic->object.parent),
-        &camera->viewMatrix);
-    z_dist = object_to_camera.pos.z;
-    z_near = camera->nearPlane;
-    z_scale = camera->nearPlane *
-        (camera->zScale * camera->farPlane) /
-        (camera->farPlane - camera->nearPlane);
-    if (z_dist < z_near) {
-        z_dist = z_near;
-    }
-    base_z_buff = z_scale / z_dist;
-
-    GXGetViewportv(viewPort);
-    oldZNear = viewPort[4];
-    oldZFar = viewPort[5];
-    lastZOffset = 0.0f;
-    SpecSkinProcessMaterialList(atomic, resource);
-
-    if (lastZOffset != 0.0f) {
-        viewPort[4] = oldZNear;
-        viewPort[5] = oldZFar;
-        GXSetViewport(
-            viewPort[0], viewPort[1], viewPort[2], viewPort[3],
-            viewPort[4], viewPort[5]);
-    }
-
-    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x0A, 2);
-    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x0B, 2);
-    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x0A, old_src_blend);
-    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x0B, old_dst_blend);
-    return object;
 }
 
 static inline void upload_material_transform(
@@ -438,120 +202,6 @@ static inline void draw_spec_mesh(
     GXCallDisplayList(
         display_lists[display_index].data,
         display_lists[display_index].size);
-}
-
-static void SpecSkinProcessMaterialList(
-    RpAtomic* atomic, RxGameCubeAtomicAllInOneInstanceData* resource) {
-    struct SpecMesh* alpha_meshes[64];
-    struct SpecMesh* reflection_meshes[64];
-    int reflection_priority[64];
-    struct SpecMeshHeader* mesh_header;
-    RwGameCubeVertexBuffer* display_header;
-    unsigned int num_meshes;
-    struct SpecMesh* mesh;
-    unsigned int mesh_index;
-    struct SpecDisplayList* display_lists;
-    struct SpecMesh* first_mesh;
-    int alpha_count = 0;
-    int reflection_count = 0;
-    int i;
-
-    display_header = (RwGameCubeVertexBuffer*)(resource->resourceEntry + 1);
-    display_lists =
-        (struct SpecDisplayList*)((RwGameCubeVertexArray*)(display_header + 1) +
-                                 (display_header->numArrays - 1));
-    bLastMatUploadedRoot = 1;
-    mesh_header = (struct SpecMeshHeader*)resource->meshHeader;
-    first_mesh = mesh_header->meshes;
-    num_meshes = mesh_header->num_meshes;
-
-    for (mesh_index = 0, mesh = first_mesh;
-         mesh_index < num_meshes;
-         mesh_index++, mesh++) {
-        RpMaterial* material = mesh->material;
-        unsigned int flags;
-
-        if (MK_SPECULAR_MATERIAL_PLUGIN(material)->flags.bits.hidden != 0) {
-            continue;
-        }
-        flags = mkmaterial_data(mesh->material)->flags;
-
-        if ((flags & 0x40000000) == 0x40000000) {
-            int insert = -1;
-            int priority = (flags >> 16) & 0xFF;
-            int scan;
-
-            for (scan = 0;
-                 scan < reflection_count && insert < 0;
-                 scan++) {
-                if (reflection_priority[scan] > priority) {
-                    insert = scan;
-                }
-            }
-            if (insert >= 0) {
-                for (scan = reflection_count; scan > insert; scan--) {
-                    reflection_meshes[scan] = reflection_meshes[scan - 1];
-                    reflection_priority[scan] =
-                        reflection_priority[scan - 1];
-                }
-                reflection_meshes[insert] = mesh;
-                reflection_priority[insert] = priority;
-            } else {
-                reflection_meshes[reflection_count] = mesh;
-                reflection_priority[reflection_count] =
-                    priority;
-            }
-            reflection_count++;
-        } else if ((int)(flags & 0xFFF) > 0) {
-            alpha_meshes[alpha_count++] = mesh;
-        } else {
-            if (MK_SPECULAR_MATERIAL_PLUGIN(material)->flags.bits.cullFront != 0) {
-                GXSetCullMode(0);
-            } else {
-                GXSetCullMode(1);
-            }
-            draw_spec_mesh(
-                atomic, first_mesh, mesh, display_lists, 0);
-        }
-    }
-
-    for (i = 0; i < alpha_count; i++) {
-        SpecularMaterialPluginData* specular;
-        mesh = alpha_meshes[i];
-        specular = mk_get_specular_material_plugin(mesh->material);
-
-        if (specular->flags.bits.cullFront != 0) {
-            GXSetCullMode(0);
-        } else {
-            GXSetCullMode(1);
-        }
-        draw_spec_mesh(
-            atomic, first_mesh, mesh, display_lists, 0);
-    }
-    if (reflection_count > 0) {
-        for (i = reflection_count - 1; i >= 0; i--) {
-            SpecularMaterialPluginData* specular;
-            mesh = reflection_meshes[i];
-            specular = mk_get_specular_material_plugin(mesh->material);
-
-            if (specular->flags.bits.reflectionPass == 0) {
-                GXSetCullMode(2);
-                draw_spec_mesh(
-                    atomic, first_mesh, mesh, display_lists, 1);
-            }
-        }
-        for (i = 0; i < reflection_count; i++) {
-            mesh = reflection_meshes[i];
-
-            GXSetCullMode(1);
-            draw_spec_mesh(
-                atomic, first_mesh, mesh, display_lists, 1);
-        }
-    }
-
-    GXSetTevSwapMode(1, 0, 0);
-    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 1);
-    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 2);
 }
 
 static inline void apply_material_z_bias(float bias) {
@@ -634,227 +284,6 @@ static inline void setup_base_z_compare(RwTexture* texture) {
         _rwDlRenderStateSetZCompLoc(
             (RW_RASTER_PLATFORM_DATA(raster_owner)->hasAlpha & 1) ^ 1);
     }
-}
-
-static void GCSpecSkinMaterialNoSpecmap(struct SpecMesh* mesh) {
-    RpMaterial* material = mesh->material;
-    SpecularMaterialPluginData* specular = (SpecularMaterialPluginData*)(
-        (unsigned char*)material + SpecularMaterialOffset);
-    struct SpecLight* light;
-    RwTexture* base_texture;
-    RwTexture* specular_texture;
-    GXColor default_ambient = {0, 0, 0, 0xFF};
-    GXColor specular_color;
-    union {
-        float value;
-        int bits;
-    } encoded_bias;
-    GXColor ambient;
-    RwMatrix* base_transform;
-    GXColor diffuse;
-    float z_offset;
-    float ambient_scale;
-    float scale;
-    float material_scale;
-
-    GXSetBlendMode(0, 4, 5, 5);
-    encoded_bias.value = specular->gloss;
-    if (encoded_bias.bits != 0) {
-        z_offset = z_scale / (z_dist + encoded_bias.value) - base_z_buff;
-        viewPort[4] = oldZNear + z_offset;
-        viewPort[5] = oldZFar + z_offset;
-        GXSetViewport(
-            viewPort[0], viewPort[1], viewPort[2], viewPort[3],
-            viewPort[4], viewPort[5]);
-        lastZOffset = z_offset;
-    } else if (lastZOffset != 0.0f) {
-        viewPort[4] = oldZNear;
-        viewPort[5] = oldZFar;
-        GXSetViewport(
-            viewPort[0], viewPort[1], viewPort[2], viewPort[3],
-            viewPort[4], viewPort[5]);
-        lastZOffset = 0.0f;
-    }
-
-    specular_texture = specular->texture;
-    base_texture = mesh->material->texture;
-    _rwDlTextureSet(base_texture, 0);
-    specular_texture->filter_flags =
-        (specular_texture->filter_flags & 0xFFFF00FF) | 0x1100;
-    _rwDlTextureSet(specular_texture, 1);
-    setup_base_z_compare(base_texture);
-
-    GXSetNumTexGens(2);
-    RpMatFXMaterialGetUVTransformMatrices(
-        material, &base_transform, 0);
-    setup_uv_transform(base_transform);
-    GXSetTexCoordGen2(1, 1, 1, 0x39, 0, 0x7D);
-    GXSetTevOrder(0, 0, 0, 4);
-    GXSetTevOrder(1, 1, 1, 0xFF);
-    GXSetNumTevStages(2);
-
-    if (pAmbLight != 0) {
-        ambient_scale = 255.0f * material->surface.ambient;
-        ambient.r = (unsigned char)(pAmbLight->color.red * ambient_scale);
-        ambient.g = (unsigned char)(pAmbLight->color.green * ambient_scale);
-        ambient.b = (unsigned char)(pAmbLight->color.blue * ambient_scale);
-        ambient.a = 0;
-    } else {
-        ambient = default_ambient;
-    }
-    GXSetChanAmbColor(0, ambient);
-    diffuse.r = (unsigned char)(
-        material->color.red * material->surface.diffuse);
-    diffuse.g = (unsigned char)(
-        material->color.green * material->surface.diffuse);
-    diffuse.b = (unsigned char)(
-        material->color.blue * material->surface.diffuse);
-    diffuse.a = 0;
-    GXSetChanMatColor(0, diffuse);
-    material_scale = 2.0f * material->surface.specular;
-    light = specular_data(material)->light;
-    scale = 1.0f <= material_scale ? 1.0f : material_scale;
-    specular_color.r = (unsigned char)(
-        specular->tint.red * (scale * light->color.red));
-    specular_color.g = (unsigned char)(
-        specular->tint.green * (scale * light->color.green));
-    specular_color.b = (unsigned char)(
-        specular->tint.blue * (scale * light->color.blue));
-    specular_color.a = 0xFF;
-    GXSetTevColor(3, specular_color);
-
-    GXSetTevColorOp(0, 0, 0, 0, 1, 0);
-    GXSetTevAlphaOp(0, 0, 0, 0, 1, 0);
-    GXSetTevColorIn(0, 0xF, 8, 0xA, 0xF);
-    GXSetTevAlphaIn(0, 7, 7, 7, 6);
-    GXSetTevSwapMode(1, 0, 0);
-    GXSetTevColorOp(1, 0, 0, 0, 1, 0);
-    GXSetTevAlphaOp(1, 0, 0, 0, 1, 0);
-    GXSetTevColorIn(1, 0xF, 6, 8, 0);
-    GXSetTevAlphaIn(1, 7, 7, 7, 0);
-}
-
-static void GCSpecSkinMaterial(struct SpecMesh* mesh, int alpha_pass) {
-    RpMaterial* material = mesh->material;
-    SpecularMaterialPluginData* specular = (SpecularMaterialPluginData*)(
-        (unsigned char*)material + SpecularMaterialOffset);
-    struct SpecLight* light;
-    RwTexture* base_texture;
-    RwTexture* specular_texture;
-    RwTexture* alpha_texture;
-    RwMatrix* base_transform;
-    GXColor default_ambient = {0, 0, 0, 0xFF};
-    GXColor specular_color;
-    union {
-        float value;
-        int bits;
-    } encoded_bias;
-    GXColor ambient;
-    GXColor diffuse;
-    float ambient_scale;
-    float z_offset;
-    float scale;
-    float material_scale;
-    encoded_bias.value = specular->gloss;
-    if (encoded_bias.bits != 0) {
-        z_offset = z_scale / (z_dist + encoded_bias.value) - base_z_buff;
-        viewPort[4] = oldZNear + z_offset;
-        viewPort[5] = oldZFar + z_offset;
-        GXSetViewport(viewPort[0], viewPort[1], viewPort[2], viewPort[3],
-                      viewPort[4], viewPort[5]);
-        lastZOffset = z_offset;
-    } else if (lastZOffset != 0.0f) {
-        viewPort[4] = oldZNear;
-        viewPort[5] = oldZFar;
-        GXSetViewport(viewPort[0], viewPort[1], viewPort[2], viewPort[3],
-                      viewPort[4], viewPort[5]);
-        lastZOffset = 0.0f;
-    }
-    RpMatFXMaterialGetUVTransformMatrices(
-        material, &base_transform, 0);
-    if (pAmbLight != 0) {
-        ambient_scale = 255.0f * material->surface.ambient;
-        ambient.r = (unsigned char)(pAmbLight->color.red * ambient_scale);
-        ambient.g = (unsigned char)(pAmbLight->color.green * ambient_scale);
-        ambient.b = (unsigned char)(pAmbLight->color.blue * ambient_scale);
-        ambient.a = 0;
-    } else {
-        ambient = default_ambient;
-    }
-    GXSetChanAmbColor(0, ambient);
-    diffuse.r = (unsigned char)(material->color.red * material->surface.diffuse);
-    diffuse.g = (unsigned char)(material->color.green * material->surface.diffuse);
-    diffuse.b = (unsigned char)(material->color.blue * material->surface.diffuse);
-    diffuse.a = 0;
-    GXSetChanMatColor(0, diffuse);
-
-    alpha_texture = RpMaterialGetAlphaPassTexture(mesh->material);
-    if (alpha_texture == 0) {
-        return;
-    }
-
-    specular_texture = specular->texture;
-    base_texture = mesh->material->texture;
-    _rwDlTextureSet(base_texture, 0);
-    _rwDlTextureSet(alpha_texture, 1);
-    specular_texture->filter_flags =
-        (specular_texture->filter_flags & 0xFFFF00FF) | 0x1100;
-    _rwDlTextureSet(specular_texture, 2);
-    setup_base_z_compare(base_texture);
-
-    GXSetNumTexGens(2);
-    setup_uv_transform(base_transform);
-    GXSetTexCoordGen2(1, 1, 1, 0x39, 0, 0x7D);
-    GXSetTevOrder(0, 0, 0, 4);
-    GXSetTevOrder(1, 0, 1, 4);
-    GXSetTevOrder(2, 1, 2, 0xFF);
-    GXSetTevSwapModeTable(3, 0, 3, 2, 1);
-    GXSetNumTevStages(3);
-
-    material_scale = 2.0f * material->surface.specular;
-    light = specular_data(material)->light;
-    scale = (1.0f <= material_scale) ? 1.0f : material_scale;
-    specular_color.r = (unsigned char)(
-        specular->tint.red * (scale * light->color.red));
-    specular_color.g = (unsigned char)(
-        specular->tint.green * (scale * light->color.green));
-    specular_color.b = (unsigned char)(
-        specular->tint.blue * (scale * light->color.blue));
-    specular_color.a = 0xFF;
-    GXSetTevColor(3, specular_color);
-
-    if (alpha_pass != 0) {
-        GXSetBlendMode(1, 4, 5, 5);
-        GXSetTevColorOp(0, 0, 0, 0, 1, 0);
-        GXSetTevAlphaOp(0, 0, 0, 0, 1, 0);
-        GXSetTevColorIn(0, 0xF, 8, 0xA, 0xF);
-        GXSetTevAlphaIn(0, 7, 7, 7, 7);
-        GXSetTevSwapMode(1, 0, 3);
-        GXSetTevColorOp(1, 0, 0, 0, 1, 0);
-        GXSetTevAlphaOp(1, 0, 0, 0, 1, 0);
-        GXSetTevColorIn(1, 0xF, 0xF, 0xF, 0);
-        GXSetTevAlphaIn(1, 7, 7, 7, 4);
-        GXSetTevColorOp(2, 0, 0, 0, 1, 0);
-        GXSetTevAlphaOp(2, 0, 0, 0, 1, 0);
-        GXSetTevColorIn(2, 0xF, 6, 8, 0);
-        GXSetTevAlphaIn(2, 7, 7, 7, 0);
-        return;
-    }
-
-    GXSetBlendMode(0, 4, 5, 5);
-    GXSetTevColorIn(0, 0xF, 8, 0xA, 0xF);
-    GXSetTevColorOp(0, 0, 0, 0, 1, 1);
-    GXSetTevAlphaOp(0, 0, 0, 0, 1, 1);
-    GXSetTevAlphaIn(0, 7, 7, 7, 7);
-    GXSetTevSwapMode(1, 0, 3);
-    GXSetTevColorIn(1, 0xF, 6, 9, 0xF);
-    GXSetTevColorOp(1, 0, 0, 0, 1, 2);
-    GXSetTevAlphaOp(1, 0, 0, 0, 1, 2);
-    GXSetTevAlphaIn(1, 7, 7, 7, 4);
-    GXSetTevColorOp(2, 0, 0, 0, 1, 0);
-    GXSetTevAlphaOp(2, 0, 0, 0, 1, 0);
-    GXSetTevColorIn(2, 0xF, 4, 8, 2);
-    GXSetTevAlphaIn(2, 7, 7, 7, 6);
 }
 
 static inline void FindGlobalLights(void) {
@@ -1172,5 +601,576 @@ static RpAtomic* GCSpecSkinLighting(
         }
     }
     return atomic;
+}
+
+static void GCSpecSkinMaterial(struct SpecMesh* mesh, int alpha_pass) {
+    RpMaterial* material = mesh->material;
+    SpecularMaterialPluginData* specular = (SpecularMaterialPluginData*)(
+        (unsigned char*)material + SpecularMaterialOffset);
+    struct SpecLight* light;
+    RwTexture* base_texture;
+    RwTexture* specular_texture;
+    RwTexture* alpha_texture;
+    RwMatrix* base_transform;
+    GXColor default_ambient = {0, 0, 0, 0xFF};
+    GXColor specular_color;
+    union {
+        float value;
+        int bits;
+    } encoded_bias;
+    GXColor ambient;
+    GXColor diffuse;
+    float ambient_scale;
+    float z_offset;
+    float scale;
+    float material_scale;
+    encoded_bias.value = specular->gloss;
+    if (encoded_bias.bits != 0) {
+        z_offset = z_scale / (z_dist + encoded_bias.value) - base_z_buff;
+        viewPort[4] = oldZNear + z_offset;
+        viewPort[5] = oldZFar + z_offset;
+        GXSetViewport(viewPort[0], viewPort[1], viewPort[2], viewPort[3],
+                      viewPort[4], viewPort[5]);
+        lastZOffset = z_offset;
+    } else if (lastZOffset != 0.0f) {
+        viewPort[4] = oldZNear;
+        viewPort[5] = oldZFar;
+        GXSetViewport(viewPort[0], viewPort[1], viewPort[2], viewPort[3],
+                      viewPort[4], viewPort[5]);
+        lastZOffset = 0.0f;
+    }
+    RpMatFXMaterialGetUVTransformMatrices(
+        material, &base_transform, 0);
+    if (pAmbLight != 0) {
+        ambient_scale = 255.0f * material->surface.ambient;
+        ambient.r = (unsigned char)(pAmbLight->color.red * ambient_scale);
+        ambient.g = (unsigned char)(pAmbLight->color.green * ambient_scale);
+        ambient.b = (unsigned char)(pAmbLight->color.blue * ambient_scale);
+        ambient.a = 0;
+    } else {
+        ambient = default_ambient;
+    }
+    GXSetChanAmbColor(0, ambient);
+    diffuse.r = (unsigned char)(material->color.red * material->surface.diffuse);
+    diffuse.g = (unsigned char)(material->color.green * material->surface.diffuse);
+    diffuse.b = (unsigned char)(material->color.blue * material->surface.diffuse);
+    diffuse.a = 0;
+    GXSetChanMatColor(0, diffuse);
+
+    alpha_texture = RpMaterialGetAlphaPassTexture(mesh->material);
+    if (alpha_texture == 0) {
+        return;
+    }
+
+    specular_texture = specular->texture;
+    base_texture = mesh->material->texture;
+    _rwDlTextureSet(base_texture, 0);
+    _rwDlTextureSet(alpha_texture, 1);
+    specular_texture->filter_flags =
+        (specular_texture->filter_flags & 0xFFFF00FF) | 0x1100;
+    _rwDlTextureSet(specular_texture, 2);
+    setup_base_z_compare(base_texture);
+
+    GXSetNumTexGens(2);
+    setup_uv_transform(base_transform);
+    GXSetTexCoordGen2(1, 1, 1, 0x39, 0, 0x7D);
+    GXSetTevOrder(0, 0, 0, 4);
+    GXSetTevOrder(1, 0, 1, 4);
+    GXSetTevOrder(2, 1, 2, 0xFF);
+    GXSetTevSwapModeTable(3, 0, 3, 2, 1);
+    GXSetNumTevStages(3);
+
+    material_scale = 2.0f * material->surface.specular;
+    light = specular_data(material)->light;
+    scale = (1.0f <= material_scale) ? 1.0f : material_scale;
+    specular_color.r = (unsigned char)(
+        specular->tint.red * (scale * light->color.red));
+    specular_color.g = (unsigned char)(
+        specular->tint.green * (scale * light->color.green));
+    specular_color.b = (unsigned char)(
+        specular->tint.blue * (scale * light->color.blue));
+    specular_color.a = 0xFF;
+    GXSetTevColor(3, specular_color);
+
+    if (alpha_pass != 0) {
+        GXSetBlendMode(1, 4, 5, 5);
+        GXSetTevColorOp(0, 0, 0, 0, 1, 0);
+        GXSetTevAlphaOp(0, 0, 0, 0, 1, 0);
+        GXSetTevColorIn(0, 0xF, 8, 0xA, 0xF);
+        GXSetTevAlphaIn(0, 7, 7, 7, 7);
+        GXSetTevSwapMode(1, 0, 3);
+        GXSetTevColorOp(1, 0, 0, 0, 1, 0);
+        GXSetTevAlphaOp(1, 0, 0, 0, 1, 0);
+        GXSetTevColorIn(1, 0xF, 0xF, 0xF, 0);
+        GXSetTevAlphaIn(1, 7, 7, 7, 4);
+        GXSetTevColorOp(2, 0, 0, 0, 1, 0);
+        GXSetTevAlphaOp(2, 0, 0, 0, 1, 0);
+        GXSetTevColorIn(2, 0xF, 6, 8, 0);
+        GXSetTevAlphaIn(2, 7, 7, 7, 0);
+        return;
+    }
+
+    GXSetBlendMode(0, 4, 5, 5);
+    GXSetTevColorIn(0, 0xF, 8, 0xA, 0xF);
+    GXSetTevColorOp(0, 0, 0, 0, 1, 1);
+    GXSetTevAlphaOp(0, 0, 0, 0, 1, 1);
+    GXSetTevAlphaIn(0, 7, 7, 7, 7);
+    GXSetTevSwapMode(1, 0, 3);
+    GXSetTevColorIn(1, 0xF, 6, 9, 0xF);
+    GXSetTevColorOp(1, 0, 0, 0, 1, 2);
+    GXSetTevAlphaOp(1, 0, 0, 0, 1, 2);
+    GXSetTevAlphaIn(1, 7, 7, 7, 4);
+    GXSetTevColorOp(2, 0, 0, 0, 1, 0);
+    GXSetTevAlphaOp(2, 0, 0, 0, 1, 0);
+    GXSetTevColorIn(2, 0xF, 4, 8, 2);
+    GXSetTevAlphaIn(2, 7, 7, 7, 6);
+}
+
+static void GCSpecSkinMaterialNoSpecmap(struct SpecMesh* mesh) {
+    RpMaterial* material = mesh->material;
+    SpecularMaterialPluginData* specular = (SpecularMaterialPluginData*)(
+        (unsigned char*)material + SpecularMaterialOffset);
+    struct SpecLight* light;
+    RwTexture* base_texture;
+    RwTexture* specular_texture;
+    GXColor default_ambient = {0, 0, 0, 0xFF};
+    GXColor specular_color;
+    union {
+        float value;
+        int bits;
+    } encoded_bias;
+    GXColor ambient;
+    RwMatrix* base_transform;
+    GXColor diffuse;
+    float z_offset;
+    float ambient_scale;
+    float scale;
+    float material_scale;
+
+    GXSetBlendMode(0, 4, 5, 5);
+    encoded_bias.value = specular->gloss;
+    if (encoded_bias.bits != 0) {
+        z_offset = z_scale / (z_dist + encoded_bias.value) - base_z_buff;
+        viewPort[4] = oldZNear + z_offset;
+        viewPort[5] = oldZFar + z_offset;
+        GXSetViewport(
+            viewPort[0], viewPort[1], viewPort[2], viewPort[3],
+            viewPort[4], viewPort[5]);
+        lastZOffset = z_offset;
+    } else if (lastZOffset != 0.0f) {
+        viewPort[4] = oldZNear;
+        viewPort[5] = oldZFar;
+        GXSetViewport(
+            viewPort[0], viewPort[1], viewPort[2], viewPort[3],
+            viewPort[4], viewPort[5]);
+        lastZOffset = 0.0f;
+    }
+
+    specular_texture = specular->texture;
+    base_texture = mesh->material->texture;
+    _rwDlTextureSet(base_texture, 0);
+    specular_texture->filter_flags =
+        (specular_texture->filter_flags & 0xFFFF00FF) | 0x1100;
+    _rwDlTextureSet(specular_texture, 1);
+    setup_base_z_compare(base_texture);
+
+    GXSetNumTexGens(2);
+    RpMatFXMaterialGetUVTransformMatrices(
+        material, &base_transform, 0);
+    setup_uv_transform(base_transform);
+    GXSetTexCoordGen2(1, 1, 1, 0x39, 0, 0x7D);
+    GXSetTevOrder(0, 0, 0, 4);
+    GXSetTevOrder(1, 1, 1, 0xFF);
+    GXSetNumTevStages(2);
+
+    if (pAmbLight != 0) {
+        ambient_scale = 255.0f * material->surface.ambient;
+        ambient.r = (unsigned char)(pAmbLight->color.red * ambient_scale);
+        ambient.g = (unsigned char)(pAmbLight->color.green * ambient_scale);
+        ambient.b = (unsigned char)(pAmbLight->color.blue * ambient_scale);
+        ambient.a = 0;
+    } else {
+        ambient = default_ambient;
+    }
+    GXSetChanAmbColor(0, ambient);
+    diffuse.r = (unsigned char)(
+        material->color.red * material->surface.diffuse);
+    diffuse.g = (unsigned char)(
+        material->color.green * material->surface.diffuse);
+    diffuse.b = (unsigned char)(
+        material->color.blue * material->surface.diffuse);
+    diffuse.a = 0;
+    GXSetChanMatColor(0, diffuse);
+    material_scale = 2.0f * material->surface.specular;
+    light = specular_data(material)->light;
+    scale = 1.0f <= material_scale ? 1.0f : material_scale;
+    specular_color.r = (unsigned char)(
+        specular->tint.red * (scale * light->color.red));
+    specular_color.g = (unsigned char)(
+        specular->tint.green * (scale * light->color.green));
+    specular_color.b = (unsigned char)(
+        specular->tint.blue * (scale * light->color.blue));
+    specular_color.a = 0xFF;
+    GXSetTevColor(3, specular_color);
+
+    GXSetTevColorOp(0, 0, 0, 0, 1, 0);
+    GXSetTevAlphaOp(0, 0, 0, 0, 1, 0);
+    GXSetTevColorIn(0, 0xF, 8, 0xA, 0xF);
+    GXSetTevAlphaIn(0, 7, 7, 7, 6);
+    GXSetTevSwapMode(1, 0, 0);
+    GXSetTevColorOp(1, 0, 0, 0, 1, 0);
+    GXSetTevAlphaOp(1, 0, 0, 0, 1, 0);
+    GXSetTevColorIn(1, 0xF, 6, 8, 0);
+    GXSetTevAlphaIn(1, 7, 7, 7, 0);
+}
+
+static void SpecSkinProcessMaterialList(
+    RpAtomic* atomic, RxGameCubeAtomicAllInOneInstanceData* resource) {
+    struct SpecMesh* alpha_meshes[64];
+    struct SpecMesh* reflection_meshes[64];
+    int reflection_priority[64];
+    struct SpecMeshHeader* mesh_header;
+    RwGameCubeVertexBuffer* display_header;
+    unsigned int num_meshes;
+    struct SpecMesh* mesh;
+    unsigned int mesh_index;
+    struct SpecDisplayList* display_lists;
+    struct SpecMesh* first_mesh;
+    int alpha_count = 0;
+    int reflection_count = 0;
+    int i;
+
+    display_header = (RwGameCubeVertexBuffer*)(resource->resourceEntry + 1);
+    display_lists =
+        (struct SpecDisplayList*)((RwGameCubeVertexArray*)(display_header + 1) +
+                                 (display_header->numArrays - 1));
+    bLastMatUploadedRoot = 1;
+    mesh_header = (struct SpecMeshHeader*)resource->meshHeader;
+    first_mesh = mesh_header->meshes;
+    num_meshes = mesh_header->num_meshes;
+
+    for (mesh_index = 0, mesh = first_mesh;
+         mesh_index < num_meshes;
+         mesh_index++, mesh++) {
+        RpMaterial* material = mesh->material;
+        unsigned int flags;
+
+        if (MK_SPECULAR_MATERIAL_PLUGIN(material)->flags.bits.hidden != 0) {
+            continue;
+        }
+        flags = mkmaterial_data(mesh->material)->flags;
+
+        if ((flags & 0x40000000) == 0x40000000) {
+            int insert = -1;
+            int priority = (flags >> 16) & 0xFF;
+            int scan;
+
+            for (scan = 0;
+                 scan < reflection_count && insert < 0;
+                 scan++) {
+                if (reflection_priority[scan] > priority) {
+                    insert = scan;
+                }
+            }
+            if (insert >= 0) {
+                for (scan = reflection_count; scan > insert; scan--) {
+                    reflection_meshes[scan] = reflection_meshes[scan - 1];
+                    reflection_priority[scan] =
+                        reflection_priority[scan - 1];
+                }
+                reflection_meshes[insert] = mesh;
+                reflection_priority[insert] = priority;
+            } else {
+                reflection_meshes[reflection_count] = mesh;
+                reflection_priority[reflection_count] =
+                    priority;
+            }
+            reflection_count++;
+        } else if ((int)(flags & 0xFFF) > 0) {
+            alpha_meshes[alpha_count++] = mesh;
+        } else {
+            if (MK_SPECULAR_MATERIAL_PLUGIN(material)->flags.bits.cullFront != 0) {
+                GXSetCullMode(0);
+            } else {
+                GXSetCullMode(1);
+            }
+            draw_spec_mesh(
+                atomic, first_mesh, mesh, display_lists, 0);
+        }
+    }
+
+    for (i = 0; i < alpha_count; i++) {
+        SpecularMaterialPluginData* specular;
+        mesh = alpha_meshes[i];
+        specular = mk_get_specular_material_plugin(mesh->material);
+
+        if (specular->flags.bits.cullFront != 0) {
+            GXSetCullMode(0);
+        } else {
+            GXSetCullMode(1);
+        }
+        draw_spec_mesh(
+            atomic, first_mesh, mesh, display_lists, 0);
+    }
+    if (reflection_count > 0) {
+        for (i = reflection_count - 1; i >= 0; i--) {
+            SpecularMaterialPluginData* specular;
+            mesh = reflection_meshes[i];
+            specular = mk_get_specular_material_plugin(mesh->material);
+
+            if (specular->flags.bits.reflectionPass == 0) {
+                GXSetCullMode(2);
+                draw_spec_mesh(
+                    atomic, first_mesh, mesh, display_lists, 1);
+            }
+        }
+        for (i = 0; i < reflection_count; i++) {
+            mesh = reflection_meshes[i];
+
+            GXSetCullMode(1);
+            draw_spec_mesh(
+                atomic, first_mesh, mesh, display_lists, 1);
+        }
+    }
+
+    GXSetTevSwapMode(1, 0, 0);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 1);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 2);
+}
+
+static void* MKSpecSkinRenderCallback(
+    void* object, RxGameCubeAtomicAllInOneInstanceData* resource) {
+    RpAtomic* atomic = object;
+    RwCamera* camera;
+    RpSkin* skin;
+    RwMatrix* atomic_ltm;
+    void* vertex_format;
+    unsigned int bone;
+    RwMatrix object_to_camera;
+    int old_src_blend;
+    int old_dst_blend;
+
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 1);
+    RwEngineInstance->dOpenDevice.fpRenderStateGet(0x0A, &old_src_blend);
+    RwEngineInstance->dOpenDevice.fpRenderStateGet(0x0B, &old_dst_blend);
+
+    ((struct SpecDisplayResource*)resource->resourceEntry)->header.token = _RwDlTokenCurrent;
+    vertex_format = geometry_vertex_format(atomic->geometry);
+    atomic_ltm = RwFrameGetLTM(atomic->object.parent);
+    _rwDlVtxFmtSetup(vertex_format, (RpGameCubeVtxFmtSetupData*)resource);
+
+    skin = RpSkinGeometryGetSkin(atomic->geometry);
+    if (skin->maxNumWeights > 1) {
+        _rwDlTransformSetup(atomic_ltm, 1);
+    } else {
+        GXSetVtxDesc(0, 1);
+    }
+
+    _rwDlObjectRenderSetup(
+        resource->geometryFlags,
+        resource->lightMask,
+        resource->hasAmbient,
+        0);
+    if (skin->maxNumWeights == 1) {
+        for (bone = 0; bone < skin->numUsedBones; bone++) {
+            _rpSkinLoadMatrix(
+                &((RwMatrix*)_rpSkinGlobals.alignedScratchMemory)
+                    [skin->usedBoneList[bone]],
+                bone * 3,
+                1);
+        }
+    }
+
+    camera = RwEngineInstance->curCamera;
+    RwMatrixMultiply(
+        &object_to_camera,
+        RwFrameGetLTM(atomic->object.parent),
+        &camera->viewMatrix);
+    z_dist = object_to_camera.pos.z;
+    z_near = camera->nearPlane;
+    z_scale = camera->nearPlane *
+        (camera->zScale * camera->farPlane) /
+        (camera->farPlane - camera->nearPlane);
+    if (z_dist < z_near) {
+        z_dist = z_near;
+    }
+    base_z_buff = z_scale / z_dist;
+
+    GXGetViewportv(viewPort);
+    oldZNear = viewPort[4];
+    oldZFar = viewPort[5];
+    lastZOffset = 0.0f;
+    SpecSkinProcessMaterialList(atomic, resource);
+
+    if (lastZOffset != 0.0f) {
+        viewPort[4] = oldZNear;
+        viewPort[5] = oldZFar;
+        GXSetViewport(
+            viewPort[0], viewPort[1], viewPort[2], viewPort[3],
+            viewPort[4], viewPort[5]);
+    }
+
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x0A, 2);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x0B, 2);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x0A, old_src_blend);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x0B, old_dst_blend);
+    return object;
+}
+
+static void* MKReflectionRenderCallback(
+    void* object, RxGameCubeAtomicAllInOneInstanceData* resource) {
+    RpAtomic* atomic = object;
+    RpSkin* skin;
+    void* vertex_format;
+    RwMatrix* atomic_ltm;
+    unsigned int bone;
+
+    ((struct SpecDisplayResource*)resource->resourceEntry)->header.token = _RwDlTokenCurrent;
+    vertex_format = geometry_vertex_format(atomic->geometry);
+    atomic_ltm = RwFrameGetLTM(atomic->object.parent);
+    _rwDlVtxFmtSetup(vertex_format, (RpGameCubeVtxFmtSetupData*)resource);
+
+    skin = RpSkinGeometryGetSkin(atomic->geometry);
+    if (skin->maxNumWeights > 1) {
+        _rwDlTransformSetup(atomic_ltm, 1);
+    } else {
+        GXSetVtxDesc(0, 1);
+    }
+
+    _rwDlObjectRenderSetup(
+        resource->geometryFlags,
+        resource->lightMask,
+        resource->hasAmbient,
+        0);
+    if (skin->maxNumWeights == 1) {
+        for (bone = 0; bone < skin->numUsedBones; bone++) {
+            _rpSkinLoadMatrix(
+                &((RwMatrix*)_rpSkinGlobals.alignedScratchMemory)
+                    [skin->usedBoneList[bone]],
+                bone * 3,
+                1);
+        }
+    }
+    return object;
+}
+
+void SetupShadowPlayerPipeline(RpClump* clump) {
+}
+
+int SpecularCreatePipelines(void) {
+    SpecSkinAtomicPipeline = _rpDlAtomicPipelineCreate(
+        0xDC, 0, _rpSkinInstanceCallback, _rpSkinAtomicReinstanceCallBack,
+        GCSpecSkinLighting, MKSpecSkinRenderCallback);
+    if (SpecSkinAtomicPipeline == 0) {
+        return 0;
+    }
+
+    ReflectionAtomicPipeline = _rpDlAtomicPipelineCreate(
+        0xDC, 0, _rpSkinInstanceCallback, _rpSkinAtomicReinstanceCallBack,
+        GCSpecSkinLighting, MKReflectionRenderCallback);
+    if (ReflectionAtomicPipeline != 0) {
+        return 1;
+    }
+    return 0;
+}
+
+void SetupAtomicSpecularity(RpAtomic* atomic) {
+    RpGeometry* geometry = atomic->geometry;
+    struct SpecularGeometryData* extension = specular_geometry(geometry);
+    RwMatrix inverse;
+    float texture_matrix[3][4];
+    RwMatrix combined;
+
+    if (extension->material_index == -1) {
+        return;
+    }
+
+    SpecularMaterialCalcMatrix(geometry->matList.materials[0]);
+    combined.flags = 0x20003;
+    inverse.flags = 0x20003;
+    RwMatrixInvert(&inverse, &SpecularMatrix);
+    RwMatrixMultiply(
+        &combined, RwFrameGetLTM(atomic->object.parent), &inverse);
+
+    texture_matrix[0][0] = -0.5f * -combined.right.x;
+    texture_matrix[0][1] = -0.5f * -combined.up.x;
+    texture_matrix[0][2] = -0.5f * -combined.at.x;
+    texture_matrix[0][3] = -0.5f;
+    texture_matrix[1][0] = -0.5f * combined.right.y;
+    texture_matrix[1][1] = -0.5f * combined.up.y;
+    texture_matrix[1][2] = -0.5f * combined.at.y;
+    texture_matrix[1][3] = 0.5f;
+    GXLoadTexMtxImm(texture_matrix, 0x39, 1);
+}
+
+void CleanupSpecularity(
+    RpMaterial* material, RwTexture* base_texture, RwTexture* alpha_texture) {
+    SpecularMaterialPluginData* specular;
+    GXBool textured;
+    int stage_count;
+
+    specular = specular_data(material);
+    stage_count = alpha_texture != 0 ? 2 : 1;
+    textured = base_texture != 0;
+
+    GXSetNumTexGens(textured);
+    GXSetNumTevStages(stage_count);
+    if (alpha_texture != 0 && specular->flags.bits.swapMode != 0) {
+        GXSetTevSwapMode(2, 0, 0);
+        GXSetTevSwapMode(3, 0, 0);
+    }
+}
+
+void ProcessSpecularity(
+    RpMaterial* material,
+    RwTexture* base_texture,
+    RwTexture* alpha_texture,
+    int has_specular_map) {
+    static int specTexNum = 3;
+    SpecularMaterialPluginData* specular;
+    struct SpecLight* light;
+    RwTexture* texture;
+    GXColor color;
+    float scale;
+    float material_scale;
+    int initial_stage;
+    int tev_stage;
+    int tex_coord;
+
+    specular = specular_data(material);
+    initial_stage = (has_specular_map != 0) + 1;
+    tev_stage = initial_stage;
+    if (alpha_texture != 0) {
+        tev_stage = initial_stage + 1;
+    }
+    tex_coord = base_texture != 0;
+
+    scale = 1.0f;
+    material_scale = 2.0f * material->surface.specular;
+    light = specular->light;
+    scale = scale <= material_scale ? scale : material_scale;
+    color.r = (unsigned char)(
+        specular->tint.red * (scale * light->color.red));
+    color.g = (unsigned char)(
+        specular->tint.green * (scale * light->color.green));
+    color.b = (unsigned char)(
+        specular->tint.blue * (scale * light->color.blue));
+    color.a = 0xFF;
+    GXSetTevColor(3, color);
+
+    GXSetNumTexGens(tex_coord + 1);
+    GXSetTexCoordGen2(tex_coord, 1, 1, 0x39, 0, 0x7D);
+    texture = specular->texture;
+    texture->filter_flags =
+        (texture->filter_flags & 0xFFFF00FF) | 0x1100;
+    _rwDlTextureSet(texture, specTexNum);
+    GXSetTevOrder(tev_stage, tex_coord, specTexNum, 0xFF);
+    GXSetTevSwapMode(tev_stage, 0, 0);
+    GXSetNumTevStages(
+        (unsigned char)tev_stage + 1);
+    GXSetTevColorIn(tev_stage, 0xF, 8, 6, 0);
+    GXSetTevColorOp(tev_stage, 0, 0, 0, 1, 0);
+    GXSetTevAlphaIn(tev_stage, 7, 7, 7, 0);
+    GXSetTevAlphaOp(tev_stage, 0, 0, 0, 1, 0);
 }
 

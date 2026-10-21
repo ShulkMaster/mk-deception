@@ -92,18 +92,16 @@ void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float 
 }
 #pragma pop
 
-/* TODO: [breakthrough needed] 94.91380%; triple-product parse swaps remain;
- * original geometry/inverse-root boundary must retain the 0x70 frame. */
+/* TODO: [near miss] 96.74569%; operations agree; original geometry/helper
+ * FPR ownership remains unresolved. */
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, const Vec* cylAxis,
                          float radius, float* tNear, float* tFar) {
     float nx = dir->y * cylAxis->z - dir->z * cylAxis->y;
     float ny = dir->z * cylAxis->x - dir->x * cylAxis->z;
     float nz = dir->x * cylAxis->y - dir->y * cylAxis->x;
     float lenN = nx * nx + ny * ny + nz * nz;
-    float ox = origin->x - cylPos->x;
-    float oy = origin->y - cylPos->y;
-    float oz = origin->z - cylPos->z;
-    float invLen = gxMathFastSqrt(lenN);
+    Vec displacement;
+    float invLen;
     float dist;
     int hit;
     Vec vector;
@@ -115,16 +113,21 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
     float chordOffset;
     float lenO;
 
+    displacement.x = origin->x - cylPos->x;
+    displacement.y = origin->y - cylPos->y;
+    displacement.z = origin->z - cylPos->z;
+    invLen = gxMathFastSqrt(lenN);
+
     if (invLen < kTiny) {
-        dist = ox * cylAxis->x + oy * cylAxis->y + oz * cylAxis->z;
+        dist = displacement.x * cylAxis->x + displacement.y * cylAxis->y + displacement.z * cylAxis->z;
         dist = -dist;
         vector.y = cylAxis->y * dist;
         vector.x = cylAxis->x * dist;
         vector.z = cylAxis->z * dist;
-        oy = vector.y + oy;
-        ox = vector.x + ox;
-        oz = vector.z + oz;
-        lenO = ox * ox + oy * oy + oz * oz;
+        vector.y = vector.y + displacement.y;
+        vector.x = vector.x + displacement.x;
+        vector.z = vector.z + displacement.z;
+        lenO = vector.x * vector.x + vector.y * vector.y + vector.z * vector.z;
         dist = gxMathFastSqrt(lenO);
         *tNear = kHugeNeg;
         *tFar = kHugePos;
@@ -135,20 +138,21 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
     nx *= invLen;
     ny *= invLen;
     nz *= invLen;
-    dist = ox * nx + oy * ny + oz * nz;
+    dist = displacement.x * nx + displacement.y * ny + displacement.z * nz;
     if (dist < kZero) {
         dist = -dist;
     }
     hit = (dist <= radius);
     if (hit) {
+        vector.x = displacement.y * cylAxis->z - displacement.z * cylAxis->y;
+        vector.y = displacement.z * cylAxis->x - displacement.x * cylAxis->z;
+        vector.z = displacement.x * cylAxis->y - displacement.y * cylAxis->x;
+        tMid = -(vector.x * nx + vector.y * ny + vector.z * nz);
+        tMid = invLen * tMid;
         vector.x = ny * cylAxis->z - nz * cylAxis->y;
         vector.y = nz * cylAxis->x - nx * cylAxis->z;
         vector.z = nx * cylAxis->y - ny * cylAxis->x;
         lenQ = vector.x * vector.x + vector.y * vector.y + vector.z * vector.z;
-        tMid = -((oy * cylAxis->z - oz * cylAxis->y) * nx +
-                 (oz * cylAxis->x - ox * cylAxis->z) * ny +
-                 (ox * cylAxis->y - oy * cylAxis->x) * nz);
-        tMid = invLen * tMid;
         invQ = mk_inv_sqrt(lenQ);
         vector.y *= invQ;
         vector.x *= invQ;

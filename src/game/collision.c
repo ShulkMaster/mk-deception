@@ -866,8 +866,6 @@ void repel_against_obstacle_list(
     }
 }
 
-/* TODO: [near miss] 99.55508%; Boolean result copy is absent from initial pcode;
- * recover its producer boundary; complete collision helper rotates saved owners. */
 static int repel_shape_against_obstacle_list(
     PlyrInfo* player, CollisionShape* shape, Vec* movement, Vec* position,
     ConstrainInfo* info, Vec* test_position, int step_index) {
@@ -945,7 +943,7 @@ static int repel_shape_against_obstacle_list(
                             test_position->y = original_y;
                             test_position->z = original_z;
                         }
-                        collided = collided == 0;
+                        collided = !collided;
                     }
 
                     if (collided != 0) {
@@ -3455,8 +3453,25 @@ static int collide_sphere_and_quad(
     return !(sphere_dot > quad_dot);
 }
 
-/* TODO: [near miss] 99.52381%; height/product and midpoint owners still differ;
- * recover their discovery/emission order without changing the FP tree. */
+static inline void collision_box_center(Vec* center, const CollisionBox* box) {
+    Vec base_center;
+    float half_height;
+
+    half_height = 0.5f * (box->axis_0_max - box->axis_0_min);
+    base_center.x = box->corners[0].value.x + box->corners[1].value.x;
+    base_center.y = box->corners[0].value.y + box->corners[1].value.y;
+    base_center.z = box->corners[0].value.z + box->corners[1].value.z;
+    base_center.x = 0.5f * base_center.x;
+    base_center.y = 0.5f * base_center.y;
+    base_center.z = 0.5f * base_center.z;
+    base_center.x += 0.5f * (box->corners[2].value.x - box->corners[1].value.x);
+    base_center.y += 0.5f * (box->corners[2].value.y - box->corners[1].value.y);
+    base_center.z += 0.5f * (box->corners[2].value.z - box->corners[1].value.z);
+    center->x = box->axis_0.x * half_height + base_center.x;
+    center->y = box->axis_0.y * half_height + base_center.y;
+    center->z = box->axis_0.z * half_height + base_center.z;
+}
+
 static void get_center_for_shape(const CollisionShape* shape, Vec* center) {
     int kind;
 
@@ -3468,24 +3483,7 @@ static void get_center_for_shape(const CollisionShape* shape, Vec* center) {
         v3_x_v_add_v3(
             center, &shape->cylinder.axis.value, 0.5f * shape->cylinder.height);
     } else if (kind == 3) {
-        Vec base_center;
-        float half_height;
-
-        base_center.x = shape->box.corners[0].value.x;
-        base_center.x = 0.5f * (base_center.x + shape->box.corners[1].value.x);
-        base_center.y = 0.5f * (shape->box.corners[0].value.y + shape->box.corners[1].value.y);
-        half_height = shape->box.axis_0_max - shape->box.axis_0_min;
-        base_center.z = 0.5f * (shape->box.corners[0].value.z + shape->box.corners[1].value.z);
-        half_height = 0.5f * half_height;
-        base_center.x +=
-            0.5f * (shape->box.corners[2].value.x - shape->box.corners[1].value.x);
-        base_center.y +=
-            0.5f * (shape->box.corners[2].value.y - shape->box.corners[1].value.y);
-        base_center.z +=
-            0.5f * (shape->box.corners[2].value.z - shape->box.corners[1].value.z);
-        center->x = shape->box.axis_0.x * half_height + base_center.x;
-        center->y = shape->box.axis_0.y * half_height + base_center.y;
-        center->z = shape->box.axis_0.z * half_height + base_center.z;
+        collision_box_center(center, &shape->box);
     } else if (kind == 4) {
         center->x = shape->quad.vertices[0].value.x;
         center->y = shape->quad.vertices[0].value.y;
@@ -3509,25 +3507,8 @@ static void get_center_for_shape(const CollisionShape* shape, Vec* center) {
     }
 }
 
-static inline void collision_box_center(Vec* center, const CollisionBox* box) {
-    Vec base_center;
-    float half_height;
-
-    base_center.x = 0.5f * (box->corners[0].value.x + box->corners[1].value.x);
-    half_height = 0.5f * (box->axis_0_max - box->axis_0_min);
-    base_center.y = 0.5f * (box->corners[0].value.y + box->corners[1].value.y);
-    base_center.y += 0.5f * (box->corners[2].value.y - box->corners[1].value.y);
-    base_center.z = box->corners[0].value.z + box->corners[1].value.z;
-    base_center.x += 0.5f * (box->corners[2].value.x - box->corners[1].value.x);
-    base_center.z = 0.5f * base_center.z;
-    base_center.z += 0.5f * (box->corners[2].value.z - box->corners[1].value.z);
-    center->x = box->axis_0.x * half_height + base_center.x;
-    center->y = box->axis_0.y * half_height + base_center.y;
-    center->z = box->axis_0.z * half_height + base_center.z;
-}
-
-/* TODO: [breakthrough] 99.45%; box-center scheduling agrees; X/Z owners and edge storage differ;
- * FPR owners and original quad-edge stack extent remain unresolved. */
+/* TODO: [near miss] 99.91753%; only quad-edge stack slots/frame differ (retail edges
+ * sp+0x8/sp+0x18, frame 0x40); original GC edge local extent unproven, keep Vec. */
 static void xz_unit_vector_to_shape(
     Vec* result, CollisionShape* shape, Vec* point) {
     int type;
@@ -3706,8 +3687,8 @@ static inline void render_indexed_player_collision_shape(
     }
 }
 
-/* TODO: [near miss] 99.81195%; 14 rows remain in sphere center/index GPR homes;
- * indexed ownership and stack order agree; stop at coloring. */
+/* TODO: [near miss] 99.81195%; 14 sphere center/index GPR rows remain;
+ * generic local-order controls fail; recover the original center/index ownership. */
 static void render_player_joints(PlayerCollisionData* collision) {
     CollisionShape shape;
     unsigned int index;

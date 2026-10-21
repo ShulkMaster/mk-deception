@@ -421,102 +421,65 @@ void log_switch(int player, int switch_index, int tick,
     if (sw_log_on != 0) show_sw_log();
 }
 
-/* TODO: [near miss] 99.67442%; first practice count controls five residual homes;
- * recover its original owner boundary; normal panes and second process agree. */
-void show_sw_log(void) {
-    int index;
+static inline void display_practice_log(int player, int* list) {
     int y;
-    if (mode_of_play == 4) {
-        MkProc* p1_old_proc;
-        MkProc* p2_old_proc;
-        int count;
-        del_string_obj_by_id(0x2083);
+    int x;
+    int index;
+    int count;
+    MkProc* old_proc;
+
+    if (player == 0) {
+        x = 0x32;
         index = practice_p1_index;
-        y = 0x4B;
-        count = 0;
-        p1_old_proc = find_mkproc_pid(0x206C);
-        if (p1_old_proc != 0) {
-            pfx_2d_obj_set_alpha_by_id(0x2083, 0xFF);
-            if (p1_old_proc->instance != 0) p1_old_proc->vtbl->destroy(p1_old_proc);
-        }
-        proc_create(p_switch_log_fadeoff, 0x206C);
-        for (; count < 5 && practice_p1_list[index] != -1; count++) {
-            const char* text = practice_font_offset_tbl[practice_p1_list[index]];
-            if (*text != ' ') string_left_xy(0x2083, 7, text, 0x32, y, 0x1F);
-            if (--index < 0) index = 4;
-            y += 0x1E;
-        }
-        index = practice_p2_index;
-        y = 0x4B;
-        count = 0;
-        p2_old_proc = find_mkproc_pid(0x206C);
-        if (p2_old_proc != 0) {
-            pfx_2d_obj_set_alpha_by_id(0x2083, 0xFF);
-            if (p2_old_proc->instance != 0) p2_old_proc->vtbl->destroy(p2_old_proc);
-        }
-        proc_create(p_switch_log_fadeoff, 0x206C);
-        for (; count < 5 && practice_p2_list[index] != -1; count++) {
-            const char* text = practice_font_offset_tbl[practice_p2_list[index]];
-            if (*text != ' ') string_left_xy(0x2083, 7, text, 0x235, y, 0x1F);
-            if (--index < 0) index = 4;
-            y += 0x1E;
-        }
     } else {
-        int p1_pad_count;
-        int p1_switch_count;
-        int p2_pad_count;
-        int p2_switch_count;
-        int p1_pad_y;
-        int p1_switch_y;
-        int p2_pad_y;
-        int p2_switch_y;
-        del_string_obj_by_id(0x2012);
-        index = p1_pad_log_index;
-        p1_pad_y = 0x1E;
-        if (index < 0) index = 0;
-        for (p1_pad_count = 0; p1_pad_count < 4; p1_pad_count++) {
-            if (p1_pad_switch_log[index].label != 0) {
-                string_left_xy(0x2012, 0, p1_pad_switch_log[index].label,
-                               0x14, p1_pad_y, 0);
-                p1_pad_y += 0x19;
-            }
-            if (--index < 0) index = 29;
-        }
-        index = p1_log_index;
-        p1_switch_y = 0x1E;
-        if (index < 0) index = 0;
-        for (p1_switch_count = 0; p1_switch_count < 4; p1_switch_count++) {
-            if (p1_switch_log[index].label != 0) {
-                string_left_xy(0x2012, 0, p1_switch_log[index].label,
-                               0xAA, p1_switch_y, 0);
-                p1_switch_y += 0x19;
-            }
-            if (--index < 0) index = 29;
-        }
-        index = p2_pad_log_index;
-        p2_pad_y = 0x1E;
-        if (index < 0) index = 0;
-        for (p2_pad_count = 0; p2_pad_count < 4; p2_pad_count++) {
-            if (p2_pad_switch_log[index].label != 0) {
-                string_left_xy(0x2012, 0, p2_pad_switch_log[index].label,
-                               0x159, p2_pad_y, 0);
-                p2_pad_y += 0x19;
-            }
-            if (--index < 0) index = 29;
-        }
-        index = p2_log_index;
-        p2_switch_y = 0x1E;
-        if (index < 0) index = 0;
-        for (p2_switch_count = 0; p2_switch_count < 4; p2_switch_count++) {
-            if (p2_switch_log[index].label != 0) {
-                string_left_xy(0x2012, 0, p2_switch_log[index].label,
-                               0x1EF, p2_switch_y, 0);
-                p2_switch_y += 0x19;
-            }
-            if (--index < 0) index = 29;
-        }
+        x = 0x235;
+        index = practice_p2_index;
+    }
+    y = 0x4B;
+    count = 0;
+    old_proc = find_mkproc_pid(0x206C);
+    if (old_proc != 0) {
+        pfx_2d_obj_set_alpha_by_id(0x2083, 0xFF);
+        if (old_proc->instance != 0) old_proc->vtbl->destroy(old_proc);
+    }
+    proc_create(p_switch_log_fadeoff, 0x206C);
+    for (; count < 5 && list[index] != -1; count++) {
+        const char* text = practice_font_offset_tbl[list[index]];
+        if (*text != ' ') string_left_xy(0x2083, 7, text, x, y, 0x1F);
+        if (--index < 0) index = 4;
+        y += 0x1E;
     }
 }
+
+static inline void display_sw_log(struct SwitchLogEntry* log, int index, int x) {
+    int y;
+    int count;
+
+    y = 0x1E;
+    if (index < 0) index = 0;
+    for (count = 0; count < 4; count++) {
+        if (log[index].label != 0) {
+            string_left_xy(0x2012, 0, log[index].label, x, y, 0);
+            y += 0x19;
+        }
+        if (--index < 0) index = 29;
+    }
+}
+
+void show_sw_log(void) {
+    if (mode_of_play == 4) {
+        del_string_obj_by_id(0x2083);
+        display_practice_log(0, practice_p1_list);
+        display_practice_log(1, practice_p2_list);
+    } else {
+        del_string_obj_by_id(0x2012);
+        display_sw_log(p1_pad_switch_log, p1_pad_log_index, 0x14);
+        display_sw_log(p1_switch_log, p1_log_index, 0xAA);
+        display_sw_log(p2_pad_switch_log, p2_pad_log_index, 0x159);
+        display_sw_log(p2_switch_log, p2_log_index, 0x1EF);
+    }
+}
+
 
 static inline void reset_switch_log_state(void) {
     int i;
@@ -578,7 +541,6 @@ static inline unsigned int check_smoke_decoy(unsigned int action) {
 
 static inline void execute_scan_sequence_cmd(unsigned int action,
                                              int execution_mode) {
-    plyr_pdata->field_234 = 1;
     if (plyr_pdata != 0 && plyr_pdata->state != 0x4203)
         pre_attack_chores();
     plyr_going_to_attack_with_action(action);
@@ -611,7 +573,7 @@ static inline void execute_scan_sequence_cmd(unsigned int action,
 }
 
 /* TODO: [near miss] 98.40635%; two decrement-order rows and saved-owner topology remain;
- * recover counter-expression/owner boundaries; bounded replay is inconclusive. */
+ * original execution boundary is neutral; recover counter and invariant owners. */
 void scan_switch_sequences(unsigned int* sequence) {
     struct SwitchLogEntry* switch_log;
     int log_index;
@@ -712,6 +674,7 @@ void scan_switch_sequences(unsigned int* sequence) {
             }
             action = check_smoke_decoy(check_subzero_decoy(action));
         }
+        plyr_pdata->field_234 = 1;
         execute_scan_sequence_cmd(action, execution_mode);
 
     next_sequence:

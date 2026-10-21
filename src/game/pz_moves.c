@@ -22,6 +22,7 @@
 #include "runtime/mk_pdata.h"
 #include "game/game_info.h"
 #include "game/pz_fatality.h"
+#include "game/bgnd.h"
 #include "math/mk_math.h"
 #include "rw/rwframe.h"
 #include "rw/rwcore_types.h"
@@ -310,7 +311,6 @@ void snd_req_delay(int sound, int delay);
 void pz_fighter_get_grinder_post(int player, Vec* post);
 void bgnd_launch_fx_at_position(
     const char* effect, float x, float y, float z);
-void bgnd_set_fx_ang_y(float angle);
 void set_my_secondary_state(int state);
 void set_block_requirement(int requirement);
 MkProc* start_scorpion_spear(int field_34);
@@ -2300,10 +2300,8 @@ void pz_fighter_step_throw_into_check(void) {
     set_both_face_opponent_flags();
 }
 
-/* TODO: [near miss] 96.55844%; SR index-zero interleaves table materialization;
- * recover original local-static placement and producer scheduling. */
 void pz_fighter_create_space_between_fighters(void) {
-    unsigned short roll = randu0(100);
+    unsigned int roll = (unsigned short)randu0(100);
     float player_distance = xz_distance_between_players();
     float home_distance =
         pz_fighter_fetch_plyr_to_home_post_distance(plyr_pdata->plyr_num);

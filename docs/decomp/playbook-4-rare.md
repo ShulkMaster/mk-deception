@@ -55,6 +55,15 @@ check after another instruction occupies its unit or fills the queue
 supported by that distinction; an observed delay alone does not justify an
 invented dependency or address escape.
 
+Two instructions around a reused register swap and the pre-RA tie matches
+retail: REQUIRE a trace showing retail's order comes from a post-RA pass that
+our block never gets. GC2.7 reruns the scheduler after allocation only on
+blocks that allocation changed (a copy coalesced away). TRY computing the
+value into an honest named local and passing that local, so the block gains a
+copy that allocation deletes (`p_konquest_map_screen`: `cursor_x = ...;`
+before the call). Trace all blocks with `sched.py --trace SYM --block 1`;
+`--block N --phase post` prints nothing when block N has no post-RA pass.
+
 An unchanged opcode count or zero peephole-rule return is not an unchanged
 instruction: REQUIRE paired native operands and the actual store/scan path.
 The GC2.7 late MR-base arm can rewrite a load and return zero
@@ -149,6 +158,15 @@ joint sweep of recorded neutrals before any soft ceiling.
 - `ShadowCameraUpdate`: direct canonical container macro alone byte-neutral;
   node/end/atomic declaration order alone regresses. Together they retain the
   named atomic owner and restore all three saved homes (H21).
+- A newly recovered helper can change which older controls compose. REQUIRE
+  a fresh native capture and a replay coupling every expansion of shared
+  declarations; TRY only the predicted pair, then recheck all consumers.
+  `mk_chess_end_of_turn`: after piece-cell/game-over recovery, a single
+  narrow-once deadpool initializer alone regresses, but pairing it with
+  side-before-index declarations in the shared live iterator makes both
+  expansions exact. A coarse frontend-band graph solution alone does not
+  justify crossing split/CSE/inline creation kinds. See
+  [the iterator recovery report](reports/chess-end-turn-iterator-recovery.md).
 
 ## N14
 

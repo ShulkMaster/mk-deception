@@ -17,7 +17,7 @@ typedef struct PlyrInfo PlyrInfo;
 int is_pselect_mode(void);
 int is_char_locked(int char_id, int alt_bit);
 
-void send_player_status_msg(void);
+void send_player_status_msg(PlyrInfo* player);
 void pselect_handicap_update(void);
 void pselect_handicap_show(void);
 void pselect_bgnd_select_done(void);

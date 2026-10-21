@@ -287,9 +287,6 @@ void erase_player_profile(int device, int slot) {
 }
 
 static inline void delete_selected_profile(void) {
-    unsigned int* freeBlocks;
-    int* freeBytes;
-    StorageDevice* storage;
     int device;
     int slot;
     int region;
@@ -299,22 +296,19 @@ static inline void delete_selected_profile(void) {
     slot = pos_slot;
     if ((device = pos_device) >= 0 && device < STORAGE_MAX_DEVICES && slot >= 0 &&
         slot < STORAGE_MAX_SLOTS) {
-        storage = DEVICE_AT(device);
-        reset_sg_status(storage, slot);
+        reset_sg_status(DEVICE_AT(device), slot);
         storage_status_change_calculations(device);
         mcard_msg_deleting_data(device);
         clear_region_buffer();
 
         region = 1;
-        freeBlocks = &storage->freeBlocks;
-        freeBytes = &storage->freeBytes;
         ok = 1;
         while (region < 9 && ok != 0) {
             title = nbc_find_text(NBC_MEMCARD_TITLE, 1);
             ok = save_konquest_region_to_memcard_w_error(
                 device, slot, 5, title, region,
-                konq_region_data_buffer, 0, freeBlocks,
-                freeBytes);
+                konq_region_data_buffer, 0, &DEVICE_AT(device)->freeBlocks,
+                &DEVICE_AT(device)->freeBytes);
             if (ok != 0 && mcard_msg_active != MCARD_MSG_ACTIVE_PROGRESS) {
                 mcard_msg_end();
                 mcard_msg_deleting_data(device);
@@ -325,8 +319,8 @@ static inline void delete_selected_profile(void) {
         if (ok != 0) {
             title = nbc_find_text(NBC_MEMCARD_TITLE, 1);
             ok = save_to_memcard_w_error(
-                device, 4, title, &storage->settings, 0,
-                freeBlocks, freeBytes);
+                device, 4, title, &DEVICE_AT(device)->settings, 0,
+                &DEVICE_AT(device)->freeBlocks, &DEVICE_AT(device)->freeBytes);
         }
         if (ok != 0) {
             mcard_msg_delete_successful_generic();
@@ -337,8 +331,6 @@ static inline void delete_selected_profile(void) {
     }
 }
 
-/* TODO: [near miss] 99.18699%; pre-RA scheduling moves status MR before output addresses;
- * retain the entry test and recover a supported scheduling boundary. */
 float p_delete_profile(void) {
     int statusChanged;
 

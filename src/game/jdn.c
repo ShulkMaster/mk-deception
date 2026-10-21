@@ -113,8 +113,6 @@ MkPfx* start_pfx_glass_shards(
     return glass;
 }
 
-/* TODO: [breakthrough needed] 98.81536%; vector multiply and GameInfo address spill order differs;
- * recover original setup dependency; retain runtime byte strides. */
 static float pfx_glass_break_run(void) {
     float moving_damping;
     float resting_damping;
@@ -154,30 +152,37 @@ static float pfx_glass_break_run(void) {
     gravity = 0.003f * game_speed;
     vm = (PfxVm*)apfx->matrix;
     dst_scale = pfx_get_field(vm, -2, 0x102);
-    src_scale = pfx_get_field(vm, -1, 0x102);
-    src_time = pfx_get_field(vm, -1, 0x301);
+    last_scale = pfx_get_field(vm, -1, 0x102);
+    src_scale = last_scale;
+    last_time = pfx_get_field(vm, -1, 0x301);
+    src_time = last_time;
     dst_time = pfx_get_field(vm, -2, 0x301);
     dst_pos = pfx_get_field(vm, -2, 0x100);
-    src_pos = pfx_get_field(vm, -1, 0x100);
-    src_vel = pfx_get_field(vm, -1, 0x300);
+    last_pos = pfx_get_field(vm, -1, 0x100);
+    src_pos = last_pos;
+    last_vel = pfx_get_field(vm, -1, 0x300);
+    src_vel = last_vel;
     dst_vel = pfx_get_field(vm, -2, 0x300);
     dst_color = pfx_get_field(vm, -2, 0x101);
-    src_state = pfx_get_field(vm, -1, 0x307);
+    last_state = pfx_get_field(vm, -1, 0x307);
+    src_state = last_state;
     dst_state = pfx_get_field(vm, -2, 0x307);
-    src_life = pfx_get_field(vm, -1, 0x305);
+    last_life = pfx_get_field(vm, -1, 0x305);
+    src_life = last_life;
     dst_life = pfx_get_field(vm, -2, 0x305);
     dst_angle = pfx_get_field(vm, -2, 0x103);
-    src_angle = pfx_get_field(vm, -1, 0x103);
+    last_angle = pfx_get_field(vm, -1, 0x103);
+    src_angle = last_angle;
     fstride = vm->transforms[0].particle_field_stride;
     vstride = vm->particle_vector_stride;
     last = vm->particle_cursor - 1;
-    last_angle = PFX_FIELD_AT(src_angle, fstride * last);
-    last_pos = PFX_FIELD_AT(src_pos, fstride * last);
-    last_vel = PFX_FIELD_AT(src_vel, vstride * last);
-    last_time = PFX_FIELD_AT(src_time, vstride * last);
-    last_scale = PFX_FIELD_AT(src_scale, fstride * last);
-    last_life = PFX_FIELD_AT(src_life, vstride * last);
-    last_state = PFX_FIELD_AT(src_state, vstride * last);
+    last_pos = PFX_FIELD_AT(last_pos, fstride * last);
+    last_vel = PFX_FIELD_AT(last_vel, vstride * last);
+    last_time = PFX_FIELD_AT(last_time, vstride * last);
+    last_scale = PFX_FIELD_AT(last_scale, fstride * last);
+    last_life = PFX_FIELD_AT(last_life, vstride * last);
+    last_state = PFX_FIELD_AT(last_state, vstride * last);
+    last_angle = PFX_FIELD_AT(last_angle, fstride * last);
     index = 0;
 
     while (index < vm->particle_cursor) {

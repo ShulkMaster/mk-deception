@@ -574,7 +574,7 @@ private:
 };
 
 /* TODO: [near miss] 99.14815%; five tag-carrier/argument rows remain;
- * recover dispatch-object transport with the current allocator contract. */
+ * original size() boundary is neutral; recover temporary transport ownership. */
 template <class T, class Traits, class Allocator>
 basic_string<T, Traits, Allocator>::basic_string(const basic_string& str)
     : alloc_(str.alloc_)
@@ -2398,8 +2398,8 @@ int mwFileXPReadBufferedCommand<T, H>::handleSignalState()
     return mwFileCommandPluginBase::handleSignalState();
 }
 
-/* TODO: [near miss] 97.98561%; canonical round-up expansion regresses saved
- * homes; original offset/fill-size ownership remains unresolved. */
+/* TODO: [near miss] 97.98561%; +f4 receiver copy order and offset/fill word homes
+ * differ; needs original cached-receiver and read-phase ownership. */
 template <class T, class H>
 int mwFileXPReadBufferedCommand<T, H>::handleReadingState()
 {

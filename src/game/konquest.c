@@ -2597,7 +2597,7 @@ static inline int konquest_sphere_visible(const RwSphere* sphere) {
 }
 
 static inline void play_pui_effect_now(
-    KonquestPuiRuntime* pui, unsigned int handle) {
+    KonquestPuiRuntime* pui, int unused_mode, unsigned int handle) {
     struct KonquestChestOwner* owner;
     MkObj* object;
     MkSobj* child;
@@ -2636,7 +2636,8 @@ static inline void play_pui_effect_now(
 }
 
 static inline void play_pui_effect_sequence_now(
-    KonquestPuiRuntime* pui, KonquestPuiPfxSequenceRow* sequence) {
+    KonquestPuiRuntime* pui, int unused_mode,
+    KonquestPuiPfxSequenceRow* sequence) {
     struct KonquestChestOwner* owner;
     MkObj* object;
     MkSobj* child;
@@ -5647,8 +5648,8 @@ static inline void get_door_position(KonquestChildObject* door, Vec* position) {
     }
 }
 
-/* TODO: [breakthrough needed] 98.19768%; angle guard loses its branch before
- * allocation; need live guard-copy provenance, then partner/saved ownership. */
+/* TODO: [breakthrough needed] 98.19768%; angle-null branch and partner/saved-owner mismatch remain;
+ * recover original guard/result ownership. */
 static void generate_door_paths(void) {
     int waypoint_index;
     int generated_count;
@@ -6195,8 +6196,8 @@ static float p_pui_pfx_sequence(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 98.84956%; validation aliases keep PUI at the simplify
- * threshold; recover lower alias pressure while preserving both success branches. */
+/* TODO: [near miss] 98.84956%; sixteen coalesced PUI aliases retain the wrong
+ * saved homes; recover validation ownership preserving both success branches. */
 static void handle_trigger_preprocess(struct KonquestTriggerStruct* trigger) {
     struct KonquestTriggerDefinition* definition;
     KonquestPuiRuntime* pui;
@@ -6263,9 +6264,9 @@ static void handle_trigger_preprocess(struct KonquestTriggerStruct* trigger) {
             sphere.radius = radius;
             if (konquest_sphere_visible(&sphere)) {
                 if (pui->flag_bits.bit4) {
-                    play_pui_effect_now(pui, pui->attached_effect);
+                    play_pui_effect_now(pui, 0, pui->attached_effect);
                 } else {
-                    play_pui_effect_sequence_now(pui, pui->effect_sequence);
+                    play_pui_effect_sequence_now(pui, 0, pui->effect_sequence);
                 }
             }
         }
@@ -6489,8 +6490,8 @@ static inline void update_child_object_matrix(
     }
 }
 
-/* TODO: [near miss] 99.01395%; retail operations and size agree;
- * scalarized norm/timer FPR ordering remains; stop at coloring. */
+/* TODO: [near miss] 99.01395%; 67 norm/timer FPR-coloring rows remain;
+ * retail math and size agree; stop pending original ownership evidence. */
 static void object_transition_to_state(
     KonquestChildObject* record, int state, int play_sound) {
     struct KonquestObjectState* state_data;
@@ -8099,8 +8100,8 @@ static inline void run_monk_move_frames(int initial_state)
     }
 }
 
-/* TODO: [breakthrough needed] 97.49020%; sole outside IRO jump hoists table setup;
- * guarded-do/for controls fail; original multi-entry or table-producer evidence is missing. */
+/* TODO: [breakthrough needed] 97.49020%; early table preheader persists;
+ * original entry edges or table producer remain unresolved after event-boundary recovery. */
 static float p_monk_move(void) {
     MkObj* hero;
     int initial_state;
@@ -10094,8 +10095,6 @@ static inline void configure_konquest_map_fade(ScreenObj* fade) {
     }
 }
 
-/* TODO: [near miss] 99.98276%; portal slot/OID LIS tie; retain projected-X
- * anchor order and recover original argument-emission ownership. */
 static float p_konquest_map_screen(void) {
     struct KonquestPdata* pdata;
     const MkObj* hero;
@@ -10162,10 +10161,10 @@ static float p_konquest_map_screen(void) {
         map_scale_z = 7.0f;
     }
 
-    cursor_x = (1.067f * (map_scale_x * hero->pos.value.x));
+    cursor_x = map_center_x +
+        (int)(1.067f * (map_scale_x * hero->pos.value.x)) - 0x10;
     cursor = load_named_2d_pfxobj_xy(
-        0x60027, 0x8313, "HERO", 0,
-        map_center_x + cursor_x - 0x10,
+        0x60027, 0x8313, "HERO", 0, cursor_x,
         map_center_y - (int)(map_scale_z * hero->pos.value.z) - 0x10,
         0x20);
     for (index = 0; index < 4; index++) {
@@ -10180,11 +10179,11 @@ static float p_konquest_map_screen(void) {
     blink_cursor(cursor, 0x8245, 0x1E, 0xA);
 
     if (konquest_pdata->objective.visible != 0) {
-        cursor_x = (1.067f *
-            (map_scale_x * pdata->objective.position.x));
+        cursor_x = map_center_x +
+            (int)(1.067f * (map_scale_x * pdata->objective.position.x)) -
+            0x10;
         cursor = load_named_2d_pfxobj_xy(
-            0x60027, 0x8313, "OBJECTIVE", 0,
-            map_center_x + cursor_x - 0x10,
+            0x60027, 0x8313, "OBJECTIVE", 0, cursor_x,
             map_center_y -
                     (int)(map_scale_z *
                           pdata->objective.position.z) -
@@ -10194,14 +10193,13 @@ static float p_konquest_map_screen(void) {
     }
     if (konquest_pdata->region_index != 1 &&
         konquest_pdata->region_index != 8) {
+        cursor_x = map_center_x +
+            (int)(1.067f *
+                  (map_scale_x * konquest_pdata->region_table
+                                     ->map_portal_position.x)) -
+            0x10;
         cursor = load_named_2d_pfxobj_xy(
-            0x60027, 0x8313, "PORTAL", 0,
-            map_center_x +
-                    (int)(1.067f *
-                          (map_scale_x *
-                           konquest_pdata->region_table
-                               ->map_portal_position.x)) -
-                0x10,
+            0x60027, 0x8313, "PORTAL", 0, cursor_x,
             map_center_y -
                     (int)(map_scale_z *
                           konquest_pdata->region_table
@@ -13942,8 +13940,8 @@ int is_character_unlocked_in_profile(
     return 0;
 }
 
-/* TODO: [near miss] 99.81557%; all seven-live-local scan orders miss cursor/reload
- * homes; recover the GC-specific inline uppercase ownership boundary. */
+/* TODO: [near miss] 99.81557%; uppercase cursor/reload homes differ;
+ * MAP-size single-cursor strupr_lang loses retail's independent write advance. */
 static void load_art_for_inventory_award(struct KonquestAwardArtPdata* pdata) {
     KonquestPuiDefinition* item;
     ScreenObj* object;

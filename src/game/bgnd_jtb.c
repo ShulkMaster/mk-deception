@@ -1,4 +1,5 @@
 #include "game/game_info.h"
+#include "game/bgnd.h"
 #include "runtime/anim_transition.h"
 #include "game/plyr_globals.h"
 #include "runtime/sound.h"
@@ -92,9 +93,6 @@ float spad_get_pos(int index, int component);
 int spad_sub_vectors(int lhs, int rhs, int out);
 int spad_norm_vector(int index);
 int spad_scale_vector(int destination, int source, float scale);
-int spad_set_vector_y(int index, float value);
-int spad_set_vector_setting(
-    int index, float x, float y, float z);
 float spad_xz_dot_xz(int lhs, int rhs);
 float spad_xz_length_vector(int index);
 int reaction_fetch_current_power_level(int player_index);
@@ -103,7 +101,6 @@ int is_pX_airborn(int player_index);
 void bgnd_launch_fx_at_bid_of_mkobj(
     const char* effect_name, MkObj* object, int bone);
 int bgnd_pebble_set_current_pebble(int pebble, int index);
-int bgnd_pebble_set_current_info(int info, void* object, float value);
 
 float r_chest2_stumble(void);
 
@@ -387,8 +384,8 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     bgnd_collision_if_enable_col(5, npc_id + 0x12C);
 }
 
-/* TODO: [near miss] 99.32806%; weighted-sum schedule agrees; mass-add direction
- * and FPR homes remain; denominator/reciprocal accumulators rotate earlier values. */
+/* TODO: [near miss] 99.32806%; 23 mass-add operand and FPR-home rows remain;
+ * scalar staging preserves retail operation order; recover mass/weight owners. */
 static void nb_npc_slave_hit_by_plyr(int npc_id) {
     struct NbNpcState* npc;
     Vec target = nb_hit_zero;
@@ -810,9 +807,9 @@ static float p_npc_on_pendulum_rope(void) {
         object->pos.value.z += npc->momentum.z;
         bgnd_pebble_set_current_pebble(8, npc->npc_id - 1);
         bgnd_pebble_set_current_info(
-            9, npc->object, npc->object->pos.value.x);
+            9, npc->object->pos.value.x);
         bgnd_pebble_set_current_info(
-            0xB, npc->object, npc->object->pos.value.z);
+            0xB, npc->object->pos.value.z);
 
         if (npc->swing_angle != 0.0f) {
             npc->swing_angle *= 0.995f;

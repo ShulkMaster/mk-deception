@@ -1133,15 +1133,15 @@ void load_window_frame(void) {
 }
 
 void create_string_objects(void) {
+    int alignment;
+    StringObj* string;
+    unsigned int color;
+    unsigned char* color_bytes;
+    unsigned int packed_color;
     struct KonquestTrialWindowPdata* pdata;
 
     pdata = (struct KonquestTrialWindowPdata*)apdata;
     if (pdata != 0) {
-        int alignment;
-        StringObj* string;
-        unsigned char color[4];
-        unsigned int packed_color;
-
         if (pdata->prompt_flags & 0x800) {
             alignment = 1;
         } else if (pdata->prompt_flags & 0x1000) {
@@ -1155,12 +1155,13 @@ void create_string_objects(void) {
             0, alignment, 2);
         string->priority = pdata->priority - 2;
         packed_color = pdata->color;
-        color[0] = packed_color >> 24;
-        color[1] = packed_color >> 16;
-        color[2] = packed_color >> 8;
-        color[3] = packed_color;
+        color_bytes = (unsigned char*)&color;
+        color_bytes[0] = packed_color >> 24;
+        color_bytes[1] = packed_color >> 16;
+        color_bytes[2] = packed_color >> 8;
+        color_bytes[3] = packed_color;
         pfxfont_set_string_color(
-            &string->pfx, (unsigned int*)color);
+            &string->pfx, &color);
         pdata->top = string->text_h;
         mk_insert((MkHdr*)string, &aproc->pdata_list_b);
         insert_2d_obj((ScreenObj*)string);
@@ -1328,13 +1329,15 @@ static void text_window_fade_out(unsigned char ticks) {
 #pragma opt_unroll_loops reset
 
 void text_window_fade_in(unsigned char ticks) {
+    int alpha = 0;
+    int target;
+    unsigned char step;
     struct KonquestTrialWindowPdata* pdata =
         (struct KonquestTrialWindowPdata*)apdata;
-    int alpha = 0;
 
     if (pdata != 0) {
-        int target = (unsigned char)pdata->color;
-        unsigned char step = target / ticks;
+        target = (unsigned char)pdata->color;
+        step = target / ticks;
 
         do {
             pfx_2d_obj_set_alpha_by_id(0x9002, alpha);
@@ -1344,7 +1347,7 @@ void text_window_fade_in(unsigned char ticks) {
             if (target - step < (unsigned char)alpha) {
                 alpha = target;
             } else {
-                alpha = (unsigned char)((unsigned char)alpha + step);
+                alpha = ((unsigned char)alpha + step) & 0xFF;
             }
             _mkproc_sleep_ticks = 1.0f;
             aproc->vtbl->sleep();
@@ -1356,8 +1359,6 @@ void text_window_fade_in(unsigned char ticks) {
     }
 }
 
-/* TODO: [breakthrough] 98.78345%; read-only latch validation restores cleanup;
- * mutable validation loses rereads; recover setup/fade owner order. */
 float p_show_text_window(void) {
     struct KonquestTrialWindowPdata* window =
         (struct KonquestTrialWindowPdata*)apdata;

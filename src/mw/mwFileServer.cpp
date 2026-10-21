@@ -455,7 +455,7 @@ mwFileServerQueued::mwFileServerQueued() : pending(0), active_count(0), servicin
 }
 
 /* TODO: [breakthrough needed] 96.52174%; scan-result copy must precede its guard;
- * preserve both lazy locks and recover original Boolean-result ownership. */
+ * PS2 server lacks this query; recover GC Boolean-result ownership. */
 bool mwFileServerNotQueued::queryActive() const
 {
     bool active;

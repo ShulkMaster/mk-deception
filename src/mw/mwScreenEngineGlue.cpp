@@ -1119,7 +1119,7 @@ extern void snd_req(int sound_id);
 extern void snd_stop_all(void);
 extern void fx_resume_emit(unsigned int handle);
 extern void pselect_update_selbox_pos(int player, int position);
-extern void send_player_status_msg(void* player);
+extern void send_player_status_msg(PlyrInfo* player);
 extern void pselect_start_code_entry(int player, int pad);
 extern int pselect_background_select_available(void);
 extern void format_or_recreate_left_device(void);
@@ -1702,11 +1702,17 @@ static inline unsigned int get_stick_bits__Fi(int port) {
     return bits;
 }
 
-/* TODO: [near miss] 99.60481%; recovered edge/stick helpers leave seven publication rows; base-before-index emission unresolved. */
-void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) {
-    unsigned int bits;
-    unsigned int* slotBits;
+static inline void update_stick_bits(int port, int player) {
+    stick_bits[player - 1] = get_stick_bits__Fi(port) & ~s_nRepeatedStickBits;
+}
 
+static inline void check_stick_edge_event(int port, int player, int switchIndex,
+                                          int eventId) {
+    check_edge_event__Fiiiiiii(port, stick_bits[player - 1], player, switchIndex,
+                               eventId, 1, 1);
+}
+
+void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) {
     check_edge_event__Fiiiiiii(port, switches, plyr_idx + 1, 0,
                                SE_EVT_L2, 0, 0);
     check_edge_event__Fiiiiiii(port, switches, plyr_idx + 1, 1,
@@ -1736,19 +1742,12 @@ void screen_engine_fire_switches(int port, unsigned int switches, int plyr_idx) 
     check_edge_event__Fiiiiiii(port, switches, plyr_idx + 1, 15,
                                SE_EVT_DPAD_LEFT, 1, 0);
 
-    bits = get_stick_bits__Fi(port);
+    update_stick_bits(port, plyr_idx + 1);
 
-    slotBits = &stick_bits[plyr_idx + 1];
-    *--slotBits = bits & ~s_nRepeatedStickBits;
-
-    check_edge_event__Fiiiiiii(port, *slotBits, plyr_idx + 1, 16,
-                               SE_EVT_CSTICK_DOWN, 1, 1);
-    check_edge_event__Fiiiiiii(port, *slotBits, plyr_idx + 1, 17,
-                               SE_EVT_CSTICK_RIGHT, 1, 1);
-    check_edge_event__Fiiiiiii(port, *slotBits, plyr_idx + 1, 18,
-                               SE_EVT_CSTICK_UP, 1, 1);
-    check_edge_event__Fiiiiiii(port, *slotBits, plyr_idx + 1, 19,
-                               SE_EVT_CSTICK_LEFT, 1, 1);
+    check_stick_edge_event(port, plyr_idx + 1, 16, SE_EVT_CSTICK_DOWN);
+    check_stick_edge_event(port, plyr_idx + 1, 17, SE_EVT_CSTICK_RIGHT);
+    check_stick_edge_event(port, plyr_idx + 1, 18, SE_EVT_CSTICK_UP);
+    check_stick_edge_event(port, plyr_idx + 1, 19, SE_EVT_CSTICK_LEFT);
 }
 
 static float p_repeat_analog_stick_input__Fv(void) {
@@ -3123,27 +3122,34 @@ void SpreadSheet_image::Update() {
     FireEvent__12ScreenObjectFP9ScreenMgriiUi(this, &screen_manager, 0x53500002, 0, 0);
 }
 
-static inline void screen_set_font_color_bytes(PfxFontString* font, const unsigned char* rgba) {
-    unsigned int color;
-    ((unsigned char*)&color)[0] = rgba[0];
-    ((unsigned char*)&color)[1] = rgba[1];
-    ((unsigned char*)&color)[2] = rgba[2];
-    ((unsigned char*)&color)[3] = rgba[3];
-    pfxfont_set_string_color(font, &color);
+static inline void screen_text_set_color(ScreenText* text, const unsigned char* rgba) {
+    StringObj* live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
+    if (live != 0) {
+        unsigned int color;
+        ((unsigned char*)&color)[0] = rgba[0];
+        ((unsigned char*)&color)[1] = rgba[1];
+        ((unsigned char*)&color)[2] = rgba[2];
+        ((unsigned char*)&color)[3] = rgba[3];
+        pfxfont_set_string_color(&live->pfx, &color);
+        text->flags |= 1;
+    }
 }
 
-static inline void screen_update_text_preserving_color(ScreenText* text, StringObj* live, char* string) {
-    unsigned int savedColor;
-    ((unsigned char*)&savedColor)[0] = live->pfx.instance0.rgba[0];
-    ((unsigned char*)&savedColor)[1] = live->pfx.instance0.rgba[1];
-    ((unsigned char*)&savedColor)[2] = live->pfx.instance0.rgba[2];
-    ((unsigned char*)&savedColor)[3] = live->pfx.instance0.rgba[3];
-    update_string_obj_pfx(live, text->font, string);
-    pfxfont_set_string_color(&live->pfx, &savedColor);
+static inline void screen_text_set_string(ScreenText* text, char* string) {
+    StringObj* live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
+    if (live != 0) {
+        unsigned int savedColor;
+        ((unsigned char*)&savedColor)[0] = live->pfx.instance0.rgba[0];
+        ((unsigned char*)&savedColor)[1] = live->pfx.instance0.rgba[1];
+        ((unsigned char*)&savedColor)[2] = live->pfx.instance0.rgba[2];
+        ((unsigned char*)&savedColor)[3] = live->pfx.instance0.rgba[3];
+        update_string_obj_pfx(live, text->font, string);
+        pfxfont_set_string_color(&live->pfx, &savedColor);
+    }
 }
 
-/* TODO: [near miss] 98.22581%; aligned font-word helpers preserve code;
- * this/count/loop and scaled-cell ownership still differ. */
+/* TODO: [near miss] 98.22581%; complete string/color operations are byte-neutral;
+ * 124 this/count/loop and scaled-cell GPR rows remain. */
 void SpreadSheet_text::Update() {
     int x;
     int y;
@@ -3181,10 +3187,7 @@ void SpreadSheet_text::Update() {
                 ((ScreenNode*)this->unk118[cell])->Dispose();
                 char* content = this->strings[source];
                 ScreenText* text = this->unk118[cell];
-                StringObj* live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
-                if (live != 0) {
-                    screen_update_text_preserving_color(text, live, content);
-                }
+                screen_text_set_string(text, content);
                 ((ScreenNode*)this->unk118[cell])->Init();
                 ((ScreenNode*)this->unk118[cell])->SetVisible(1);
                 if (this->useColor != 0) {
@@ -3193,19 +3196,11 @@ void SpreadSheet_text::Update() {
                         (this->bindNodeB4 != 0 &&
                          this->unkDC == y + this->unkD4)) {
                         ScreenText* text = this->unk118[cell];
-                        StringObj* live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
-                        if (live != 0) {
-                            screen_set_font_color_bytes(&live->pfx, this->color);
-                            text->flags |= 1;
-                        }
+                        screen_text_set_color(text, this->color);
                     } else if (this->bindNodeB0 != 0 || this->bindNodeB4 != 0) {
                         ScreenText* text = this->unk118[cell];
                         unsigned char* rgba = &this->cellColors[cell * 4];
-                        StringObj* live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
-                        if (live != 0) {
-                            screen_set_font_color_bytes(&live->pfx, rgba);
-                            text->flags |= 1;
-                        }
+                        screen_text_set_color(text, rgba);
                     }
                 }
             } else {
@@ -3434,8 +3429,8 @@ static inline void SpreadSheetPlayNavSound(SpreadSheet* self) {
 }
 
 #pragma auto_inline off
-/* TODO: [breakthrough needed] 98.75%; count-failure branch is folded;
- * recover its genuine producer/return boundary; other instructions agree. */
+/* TODO: [breakthrough needed] 98.75%; count-failure branch remains folded;
+ * both shared-Update arm orders fail; recover the original early-return producer. */
 void ScrollRight__11SpreadSheetFi(SpreadSheet* self, int delta) {
     int rem;
 
@@ -5905,8 +5900,8 @@ void SetComponent__10ScreenPolyFP17ScreenAnimControlPfi(ScreenPoly* poly,
     poly->flags = 1;
 }
 
-/* TODO: [breakthrough needed] 94.46970%; addressed low-byte conversion and exit differ;
- * recover original representation/API while preserving signed wrapping. */
+/* TODO: [breakthrough needed] 94.46970%; addressed low-byte conversion and void exit remain;
+ * recover their original representation/API while preserving signed wrapping. */
 void Render__10ScreenPolyFP16ScreenRenderInfo(ScreenPoly* poly,
                                               ScreenRenderInfoC* info) {
     ScreenMatrixStackC* stack;
@@ -6581,8 +6576,6 @@ void set_target_game_mode(int menu_player_arg, int mode) {
     }
 }
 
-/* TODO: [near miss] 99.93420%; signed conversions reuse earlier color slots;
- * recover traversal/receiver order while retaining direct r3 forwarding. */
 void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
     mkScreenEngineClient* self, ScreenMgr* mgr, const ScreenAction* action,
     int handled) {
@@ -6647,17 +6640,10 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
     case 0x1393:
         {
             ScreenText* text;
-            StringObj* live;
 
             text = (ScreenText*)params->GetScreenObject(0);
             ScreenColor colorValue = params->GetColor(1);
-            live = MK_LIVE(text->stringObj,
-                           (unsigned int)text->stringObjInstance);
-            if (live != 0) {
-                screen_set_font_color_bytes(&live->pfx,
-                    (unsigned char*)&colorValue.value);
-                text->flags |= 1;
-            }
+            screen_text_set_color(text, (unsigned char*)&colorValue.value);
         }
         break;
     case 0x1394: {
@@ -6699,7 +6685,6 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
     case 0x2afa:
         {
             ScreenText* text;
-            StringObj* live;
             char* name;
             char* string;
             int activeIndex;
@@ -6711,11 +6696,7 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
             activeLibrary = activeScreen->m_set->m_resourceLib;
             string = (char*)activeLibrary->GetString(name);
 
-            live = MK_LIVE(text->stringObj,
-                           (unsigned int)text->stringObjInstance);
-            if (live != 0) {
-                screen_update_text_preserving_color(text, live, string);
-            }
+            screen_text_set_string(text, string);
         }
         break;
     case 0x13a8:
@@ -6882,9 +6863,9 @@ void HandleAction__20mkScreenEngineClientFP9ScreenMgrPC12ScreenActioni(
         value = params->GetInt(0);
         ScreenAnimScene* scene = animScreen->GetAnimScene(value);
         resource = params->GetResourceID(1);
-        scene->PlayUntilTime(
-            (float)scene->m_data->maxTime *
-            ((float)game_variables.GetInt(resource) / 100.0f));
+        int time = game_variables.GetInt(resource);
+        time = scene->m_data->maxTime * (time / 100.0f);
+        scene->PlayUntilTime(time);
         break;
     }
     case 0x1f44:

@@ -1272,7 +1272,6 @@ void resume_effect_at_plyr_num_bid(
     int player, int bone_id, unsigned int effect_handle,
     int bind_mode, int blood_required);
 
-int add_facial_damage(void *, float);
 int add_npc_list_to_world(int);
 void add_trigger_list_to_world(void);
 int ani_1_frame(void);
@@ -1326,7 +1325,6 @@ void bgnd_set_active_danger_zone(unsigned int);
 void bgnd_set_active_sobj(int);
 int bgnd_set_active_sobj_rop(int);
 void bgnd_set_fx_ang_dir_to_i_vector(void);
-void bgnd_set_fx_ang_y(void *, float);
 int bgnd_set_viewing_of_danger_zones(int);
 void bgnd_setup_rx_handler(int);
 int bgnd_sh_level_1(void);
@@ -1717,7 +1715,6 @@ void bgnd_pebble_burst_set_value_min_max(int, unsigned int, unsigned int, int,
                                          void *, float, float);
 void bgnd_pebble_change_current_end_behavior(int);
 void bgnd_pebble_rand_scale(int, void *, float, float);
-void bgnd_pebble_set_current_info(unsigned int, void *, float);
 void bgnd_pebble_set_current_pebble(int, int);
 void bgnd_pebble_simple_launch_at_time(int, int, unsigned int, int);
 int bgnd_place_crack_when_plyr_hits_ground(int);
@@ -1884,7 +1881,7 @@ void nb_npc_slave_plyr_process_collision(unsigned int);
 int nbc_script_debug_point(int, int, void *, float);
 void ncs_set_pebble_pos(struct PebbleData*, int, Vec*);
 int npc_ani_to_blend_frame(void *, float);
-int npc_assign_door_path(int, int);
+void npc_assign_door_path(long, int);
 int npc_assign_path(int, int, int);
 int npc_assign_path_to_him(int, int, int, int);
 int npc_at_waypoint_set_flags(int, int);
@@ -1978,12 +1975,7 @@ int sobj_set_alpha(int, int);
 void spad_add_vector(int, void *, float, float, float);
 void spad_rotate_xz_vector(int, void *, float);
 void spad_scale_vector(int, unsigned int, void *, float);
-void spad_set_heading_vector_to(int, void *, float, float);
 int spad_set_vector(int, int);
-void spad_set_vector_setting(int, void *, float, float, float);
-void spad_set_vector_y(int, void *, float);
-void spad_set_y_angle_plus_offset_from_xz_vector(int, void *, float, float,
-                                                 float);
 int spad_sub_vectors(int, int, int);
 void start_character_separation_process(float);
 int start_cliff_watcher(void *, float);
@@ -7822,7 +7814,7 @@ static void _bgnd_set_fx_ang_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    bgnd_set_fx_ang_y(current_args, args->slots[0].f);
+    bgnd_set_fx_ang_y(args->slots[0].f);
 }
 
 static void _bgnd_launch_plyr_blood_fx(void) {
@@ -8077,7 +8069,7 @@ static void _spad_set_heading_vector_to(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    spad_set_heading_vector_to(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f);
+    spad_set_heading_vector_to(args->slots[0].i, args->slots[1].f, args->slots[2].f);
 }
 
 static void _degrees_to_rad(void) {
@@ -8098,7 +8090,7 @@ static void _bgnd_pebble_set_current_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    bgnd_pebble_set_current_info(args->slots[0].i, current_args, args->slots[1].f);
+    bgnd_pebble_set_current_info(args->slots[0].i, args->slots[1].f);
 }
 
 static void _bgnd_pebble_fetch_current_info(void) {
@@ -8565,14 +8557,14 @@ static void _spad_set_y_angle_plus_offset_from_xz_vector(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    spad_set_y_angle_plus_offset_from_xz_vector(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
+    spad_set_y_angle_plus_offset_from_xz_vector(args->slots[0].i, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
 static void _spad_set_vector_setting(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    spad_set_vector_setting(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
+    spad_set_vector_setting(args->slots[0].i, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
 static void _bgnd_process_active_sobj_info(void) {
@@ -8682,7 +8674,7 @@ static void _spad_set_vector_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    spad_set_vector_y(args->slots[0].i, current_args, args->slots[1].f);
+    spad_set_vector_y(args->slots[0].i, args->slots[1].f);
 }
 
 static void _bgnd_process_collision_info(void) {
@@ -12940,7 +12932,7 @@ static void _add_facial_damage(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    add_facial_damage(current_args, args->slots[0].f);
+    add_facial_damage(args->slots[0].f);
 }
 
 static void _random_voice_him(void) {
@@ -13138,7 +13130,7 @@ static void _shake_camera(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    shake_camera(args->slots[0].i, current_args, args->slots[1].f);
+    shake_camera(args->slots[0].i, args->slots[1].f);
 }
 
 static void _force_away(void) {
