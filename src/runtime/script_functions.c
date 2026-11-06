@@ -1715,7 +1715,6 @@ void bgnd_pebble_burst_set_value_min_max(int, unsigned int, unsigned int, int,
                                          void *, float, float);
 void bgnd_pebble_change_current_end_behavior(int);
 void bgnd_pebble_rand_scale(int, void *, float, float);
-void bgnd_pebble_set_current_pebble(int, int);
 void bgnd_pebble_simple_launch_at_time(int, int, unsigned int, int);
 int bgnd_place_crack_when_plyr_hits_ground(int);
 void bgnd_place_object_at_position(int, int, int, int, int);

@@ -335,49 +335,25 @@ static inline int callPathOption(CvFsInterface* interface)
     return result;
 }
 
-static inline CvFsInterface* findDevice(CvFsDevice* table, const char* name,
-                                        int length)
+static inline int isNeedDevName(const char* name)
 {
-    CvFsDevice* device;
-    unsigned long i;
+    return callPathOption(getDevice(name));
+}
 
-    device = table;
-    for (i = 0; i < 32; i++) {
-        if (strncmp(name, device->name, length) == 0) {
-            return cvfs_tbl[i].interface;
-        }
-        device++;
+static inline void addDevName(char* file, const char* name)
+{
+    if (name == NULL) {
+        name = cvfs_defdev;
     }
-    return NULL;
-}
-
-static inline CvFsInterface* searchDevice(CvFsDevice* table, const char* name)
-{
-    unsigned long i;
-    int length;
-
-    length = strlen(name);
-    for (i = 0; i < 32; i++) {
-        if (strncmp(name, table[i].name, length) == 0) {
-            return cvfs_tbl[i].interface;
-        }
+    if (isNeedDevName(name) == 1) {
+        prefixDeviceName(file, name);
     }
-    return NULL;
 }
 
-static inline int wantsDevicePrefix(CvFsDevice* table, const char* name,
-                                    int length)
-{
-    return callPathOption(findDevice(table, name, length)) == 1;
-}
-
-static inline CvFsInterface* resolveDevice(char* device, char* file,
-                                           const char* original_path)
+static inline CvFsInterface* variousProc(char* device, char* file,
+                                         const char* original_path)
 {
     CvFsInterface* interface;
-    CvFsDevice* table;
-    const char* lookup_name;
-    long length;
 
     if (device[0] == '\0') {
         getDefaultDevice(device);
@@ -385,20 +361,11 @@ static inline CvFsInterface* resolveDevice(char* device, char* file,
             return NULL;
         }
     }
-
-    lookup_name = device;
-    if (lookup_name == NULL) {
-        lookup_name = cvfs_defdev;
-    }
-    length = strlen(lookup_name);
-    table = cvfs_tbl;
-    if (wantsDevicePrefix(table, lookup_name, length)) {
-        prefixDeviceName(file, lookup_name);
-    }
-    interface = searchDevice(table, device);
+    addDevName(file, device);
+    interface = getDevice(device);
     if (interface == NULL) {
         getDefaultDevice(device);
-        interface = searchDevice(table, device);
+        interface = getDevice(device);
         if (interface == NULL) {
             return NULL;
         }
@@ -465,8 +432,8 @@ void cvFsEntryErrFunc(CvFsErrorCallback callback, void* object)
     cvfs_errobj = object;
 }
 
-/* TODO: [near miss] 99.74747%; device/table homes remain swapped;
- * first-predicate table capture is neutral; recover the original owner boundary. */
+/* TODO: [near miss] 99.74747%; device pointer must be variousProc's own param object (above the table IV);
+ * the named device_name local is substituted instead; recover the original non-trivial argument. */
 int cvFsGetFileSize(const char* filename)
 {
     CvFsInterface* interface;
@@ -486,7 +453,7 @@ int cvFsGetFileSize(const char* filename)
     }
 
     device_name = device;
-    interface = resolveDevice(device_name, file, filename);
+    interface = variousProc(device_name, file, filename);
     if (device == NULL) {
         cvFsError(size_bad_device);
     }
@@ -630,7 +597,7 @@ CvFsObject* cvFsOpen(const char* filename, void* parameter, int mode)
     }
 
     device_name = device;
-    handle->interface = resolveDevice(device_name, file, filename);
+    handle->interface = variousProc(device_name, file, filename);
     if (device == NULL) {
         releaseHandle(handle);
         cvFsError(open_bad_device);

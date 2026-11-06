@@ -374,7 +374,7 @@ void display_debug_damage(PlyrInfo* player, float damage) {
 int printf(const char* fmt, ...);
 
 static inline int fade_pause_allows_tick(void) {
-    if (g_game_info.feature_flags.bits.high_bit == 0 &&
+    if (g_game_info.feature_flags.bits.online_game == 0 &&
         is_controller_removed() != 0) {
         return 0;
     }
@@ -1541,7 +1541,7 @@ static void fade_screen(int frames, int color, int flag, int to_fade) {
             _mkproc_sleep_ticks = kFadeSleepTick;
             aproc->vtbl->sleep();
 
-            if (g_game_info.feature_flags.bits.high_bit == 0 &&
+            if (g_game_info.feature_flags.bits.online_game == 0 &&
                 is_controller_removed() != 0) {
                 tick_allowed = 0;
             } else {

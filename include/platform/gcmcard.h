@@ -5,7 +5,7 @@
 
 int init_gc_memcard(void);
 int update_storage_status(int flag);
-int update_storage_status_for_one_device(int device);
+int update_storage_status_for_one_device(long device);
 const char* get_device_reference_name(int device);
 
 int format_card_and_create_mkda_file(int device);

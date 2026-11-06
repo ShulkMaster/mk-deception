@@ -7616,7 +7616,7 @@ static void pz_preinit_world(int network_setup) {
         return;
     }
 
-    if (((g_game_info.field_04 >> 5) & 1) != 0 ||
+    if (g_game_info.feature_flags.bits.powerbars_locked != 0 ||
         g_game_info.bgnd_id >= 0x23) {
         __pz_start_msg.background = randu0(6);
     } else {
@@ -8098,7 +8098,7 @@ static float p_pz_mode_fill(void) {
         }
 
         if (puzzle_ctrl->input_bits.input_latched == 0 &&
-            g_game_info.feature_flags.bits.high_bit == 0) {
+            g_game_info.feature_flags.bits.online_game == 0) {
             if (game_save_loop_count != 0) {
                 ck_do_profile_save();
             }
@@ -8604,7 +8604,7 @@ float p_puzzle_fighter(void) {
     turn_camera_on();
     mode_of_play = 6;
     puzzle_mode_net = 0;
-    if (g_game_info.feature_flags.bits.high_bit == 0) {
+    if (g_game_info.feature_flags.bits.online_game == 0) {
         pz_preinit_world(is_pz_net_master);
     }
 

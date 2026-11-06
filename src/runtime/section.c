@@ -434,23 +434,31 @@ int get_current_section_memory_scheme(void) {
     return sec_sys_state.current_map - section_memory_maps;
 }
 
-static inline int common_section_position(SectionSlotDef** old_map,
-                                          SectionSlotDef** new_map) {
+static void* section_table_malloc(unsigned int size) {
+    return _mwMemMalloc(section_table_heap, size, 3, 0, 0, 0);
+}
+
+static int are_group_info_structs_same(SectionSlotDef* a, SectionSlotDef* b) {
+    if (a->group_id == b->group_id &&
+        a->group_buffer_size == b->group_buffer_size &&
+        a->per_slot_defs == b->per_slot_defs) {
+        return 1;
+    }
+    return 0;
+}
+
+static int find_last_section_group_in_common(SectionSlotDef** old_map,
+                                             SectionSlotDef** new_map) {
     int position;
+    SectionSlotDef* old_def;
+    SectionSlotDef* new_def;
+
     position = -1;
     if (old_map != 0 && new_map != 0) {
-        SectionSlotDef* old_def = *old_map;
-        SectionSlotDef* new_def = *new_map;
+        old_def = *old_map;
+        new_def = *new_map;
         while (old_def->group_id != -1 && new_def->group_id != -1) {
-            int definitions_match;
-            if (old_def->group_id == new_def->group_id &&
-                old_def->group_buffer_size == new_def->group_buffer_size &&
-                old_def->per_slot_defs == new_def->per_slot_defs) {
-                definitions_match = 1;
-            } else {
-                definitions_match = 0;
-            }
-            if (!definitions_match) {
+            if (!are_group_info_structs_same(old_def, new_def)) {
                 break;
             }
             position++;
@@ -461,40 +469,70 @@ static inline int common_section_position(SectionSlotDef** old_map,
     return position;
 }
 
-static inline int count_section_slots(const SectionPerSlotDef* definitions) {
-    int count = 0;
+static void setup_sec_slots_in_group(SectionSlotDef* definition,
+                                     SecSlotGroup* group) {
+    SecSlot* slot;
+    int slot_index;
+    unsigned char* buffer_position;
+    SectionPerSlotDef* per_slot;
+    int slot_count;
+    unsigned int footprint;
 
-    while (definitions->slot_index != -1) {
-        count++;
-        definitions++;
+    buffer_position = group->buffer;
+    slot_count = 0;
+    footprint = 0;
+    per_slot = definition->per_slot_defs;
+    while (per_slot->slot_index != -1) {
+        footprint += (per_slot->buffer_size & 0x7FFFFFFFU) *
+                     (~per_slot->buffer_size >> 31);
+        slot_count++;
+        per_slot++;
     }
-    return count;
+    group->slot_count = slot_count;
+    group->slots = section_table_malloc(slot_count * sizeof(*group->slots));
+    slot = group->slots;
+    per_slot = definition->per_slot_defs;
+    for (slot_index = 0; slot_index < slot_count;
+         per_slot++, slot_index++, slot++) {
+        unsigned int allocation_size;
+        slot->slot_id = per_slot->slot_index;
+        allocation_size = per_slot->buffer_size & 0x7FFFFFFFU;
+        slot->buffer_size = per_slot->buffer_size;
+        if (per_slot->buffer_size != allocation_size) {
+            slot->base = _mwMemMalloc(SystemSwappableHeap, allocation_size,
+                                      7, 0, 0, 0);
+        } else {
+            slot->base = buffer_position;
+            buffer_position += allocation_size;
+        }
+        slot->files = 0;
+        slot->file_count = 0;
+    }
 }
 
-/* TODO: [breakthrough needed] 91.20606%; retail discards the GC footprint at
- * +0x1d0; original producer/lowering context is missing, not a count consumer. */
 void set_section_memory_scheme(int scheme) {
-    SectionSlotDef** new_map = &section_memory_maps[scheme];
     int common_position;
     int group_count;
     unsigned int required_memory;
     SectionSlotDef* definition;
     int group_index;
+    SecSlotGroup* group;
 
-    if (sec_sys_state.current_map == new_map) {
+    if (sec_sys_state.current_map == &section_memory_maps[scheme]) {
         return;
     }
-    common_position = common_section_position(sec_sys_state.current_map, new_map);
+    common_position = find_last_section_group_in_common(
+        sec_sys_state.current_map, &section_memory_maps[scheme]);
     if (common_position >= 0) {
         free_all_slot_groups_after_pos(common_position);
     }
-    sec_sys_state.current_map = new_map;
+    sec_sys_state.current_map = &section_memory_maps[scheme];
     group_count = 0;
     required_memory = 0;
-    definition = *new_map;
+    definition = *sec_sys_state.current_map;
     while (definition->group_id != -1) {
-        group_count++;
         required_memory += definition->group_buffer_size;
+        group_count++;
         definition++;
     }
     if (required_memory > (unsigned int)sec_sys_state.total_memory) {
@@ -504,17 +542,10 @@ void set_section_memory_scheme(int scheme) {
     definition = *sec_sys_state.current_map;
     for (group_index = 0; definition->group_id != -1;
          group_index++, definition++) {
-        SecSlotGroup* group;
-        int slot_count;
-        unsigned char* buffer_position;
-        int slot_index;
-        SecSlot* slot;
-        SectionPerSlotDef* per_slot;
-
         if (group_index <= common_position) {
             continue;
         }
-        group = _mwMemMalloc(section_table_heap, sizeof(*group), 3, 0, 0, 0);
+        group = section_table_malloc(sizeof(*group));
         memset(group, 0, sizeof(*group));
         group->next = sec_sys_state.group_list;
         group->buffer = _mwMemMalloc(section_heap, definition->group_buffer_size,
@@ -522,29 +553,7 @@ void set_section_memory_scheme(int scheme) {
         group->buffer_size = definition->group_buffer_size;
         group->group_id = definition->group_id;
         group->map_index = group_index;
-        buffer_position = group->buffer;
-        slot_count = count_section_slots(definition->per_slot_defs);
-        group->slot_count = slot_count;
-        group->slots = _mwMemMalloc(section_table_heap,
-                                    slot_count * sizeof(*group->slots), 3, 0, 0, 0);
-        per_slot = definition->per_slot_defs;
-        slot = group->slots;
-        for (slot_index = 0; slot_index < slot_count;
-             slot_index++, slot++, per_slot++) {
-            unsigned int allocation_size;
-            slot->slot_id = per_slot->slot_index;
-            slot->buffer_size = per_slot->buffer_size;
-            allocation_size = per_slot->buffer_size & 0x7FFFFFFFU;
-            if (per_slot->buffer_size != allocation_size) {
-                slot->base = _mwMemMalloc(SystemSwappableHeap, allocation_size,
-                                          7, 0, 0, 0);
-            } else {
-                slot->base = buffer_position;
-                buffer_position += allocation_size;
-            }
-            slot->files = 0;
-            slot->file_count = 0;
-        }
+        setup_sec_slots_in_group(definition, group);
         sec_sys_state.group_list = group;
     }
 }

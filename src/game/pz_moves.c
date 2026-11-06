@@ -1,3 +1,5 @@
+/* BUILD: -inline auto,deferred: retail literal numbering runs backwards; definitions are in
+   reverse .text order so pz_fighter_check_to_toggle_obj_and_ani_flips inlines into its callers. */
 #include "game/ground_fx.h"
 #include "runtime/anim_transition.h"
 #include "game/ejb.h"
@@ -551,1662 +553,58 @@ static inline int select_scripted_move(
     }
     return table->moves[0].script_move;
 }
-
-int pz_fighter_should_handle_special_move(unsigned int player, unsigned int move) {
-    if (move == 4) {
-        g_pz_fighters_engine.special_move_4 = 1;
-    } else if (move == 5) {
-        g_pz_fighters_engine.special_move_5 = 1;
-    } else if (move == 1) {
-        return 1;
-    }
-    return 0;
-}
-
-float pz_fighter_perform_special_move(void) {
-    switch (plyr_pdata->character_id) {
-    case 0:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
-            aproc->vtbl->jump_sleep(pz_fighter_scorpion_attack_start, 0.0f);
-            return 0.0f;
-        }
-        break;
-    case 12:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->unk28 = 0x12;
-            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
-            return 0.0f;
-        }
-        break;
-    case 19:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
-            aproc->vtbl->jump_sleep(pz_fighter_jax_attack_start, 0.0f);
-            return 0.0f;
-        }
-        break;
-    case 8:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->unk28 = 0x11;
-            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
-            return 0.0f;
-        }
-        break;
-    case 4:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->unk28 = 0x0F;
-            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
-            return 0.0f;
-        }
-        break;
-    case 5:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->unk28 = 0x17;
-            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
-            return 0.0f;
-        }
-        break;
-    case 10:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->unk28 = 0x0F;
-            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
-            return 0.0f;
-        }
-        break;
-    case 1:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->unk28 = 0x0D;
-            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
-            return 0.0f;
-        }
-        break;
-    case 3:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->unk28 = 0x13;
-            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
-            return 0.0f;
-        }
-        break;
-    case 23:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->unk28 = 0x18;
-            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
-            return 0.0f;
-        }
-        break;
-    case 21:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->unk28 = 0x16;
-            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
-            return 0.0f;
-        }
-        break;
-    case 29:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
-            active_cmdscript->unk28 = 0x14;
-            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
-            return 0.0f;
-        }
-        break;
-    case 2:
-    case 6:
-    case 7:
-    case 9:
-    case 11:
-    case 33:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
-            aproc->vtbl->jump_sleep(pz_fighter_jax_attack_start, 0.0f);
-            return 0.0f;
-        }
-        break;
-    }
-
-    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-    return 0.0f;
-}
-
-int pz_finish_him_request(void) {
-    if (xz_distance_between_players() > 2.0f) {
-        aproc->vtbl->jump_sleep(pz_fighter_far_propell, 0.0f);
-    } else {
-        active_cmdscript->unk28 = 0x2B;
-        cmdscript_reset_stack();
-        cmdscript_setup_execution(
-            pz_shared_cmo, active_cmdscript->unk28);
-        call_player_script_function(pz_shared_cmo);
-        aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-    }
-    return 0;
-}
-
-/* TODO: [breakthrough needed] 98.5782%; retail flip guard is absent from initial pcode; recover its original predicate or macro. */
-static float pz_fighter_scorpion_attack_start(void) {
-    float player_distance = xz_distance_between_players();
-    float home_distance =
-        pz_fighter_fetch_plyr_to_home_post_distance(plyr_pdata->plyr_num);
-    MkProc* spear_proc;
-
-    if (!(player_distance > 3.0f)) {
-        if (home_distance > 6.0f) {
-            PuzzleAttackParameters attack;
-            struct PuzzleFighterMove* move;
-
-            attack = pz_attack_common;
-            move = pz_get_fighter_move();
-            move->active_flags |= 1;
-            pz_fighter_attack(pz_shared_ani.shove, &attack, 0x24);
-            ani_to_end();
-        } else if (home_distance < 4.0f) {
-            avoid_double_ani();
-            init_ground_move_no_aniproc();
-            random_voice(9);
-            set_my_state(0x6208);
-            plyr_anim_pdata->flags |= 0x40;
-            snd_req(0xD71);
-            blend_to_ani(shared_ani.dash_back, 3, 0.2f);
-            plyr_anim_pdata->step = 0.75f;
-            plyr_anim_pdata->weight_velocity = 0.0f;
-            plyr_anim_pdata->weight = 1.8f;
-            ani_to_frame_x(12.0f);
-            init_air_move();
-            ani_to_frame_x(17.0f);
-            init_ground_move();
-            random_foot(1);
-        } else {
-            avoid_double_ani();
-            init_ground_move_no_aniproc();
-            random_voice(9);
-            set_my_state(0x6208);
-            plyr_anim_pdata->flags |= 0x40;
-            snd_req(0xD71);
-            blend_to_ani(shared_ani.dash_back, 3, 0.2f);
-            plyr_anim_pdata->step = 0.9f;
-            plyr_anim_pdata->weight_velocity = 0.0f;
-            plyr_anim_pdata->weight = 1.0f;
-            ani_to_frame_x(12.0f);
-            init_air_move();
-            ani_to_frame_x(17.0f);
-            init_ground_move();
-            random_foot(1);
-        }
-    }
-
-    set_my_secondary_state(0x101);
-    set_block_requirement(0);
-    plyr_pdata->saved_position_x = plyr_obj->pos.value.x;
-    plyr_pdata->saved_position_z = plyr_obj->pos.value.z;
-    plyr_pdata->duck_reaction_active = 1;
-    blend_to_ani(
-        plyr_pdata->fighter_definition->spear_throw_start, 3, 0.1f);
-    set_ani_speed(0.9f);
-    ani_to_frame_x(12.0f);
-    snd_req_vol(0x1AF2, 0.75f);
-    ani_to_end();
-    set_my_state(0xD200);
-    spear_proc = start_scorpion_spear(9);
-    plyr_pdata->spear_proc = spear_proc;
-    plyr_pdata->spear_proc_instance = spear_proc->instance;
-    blend_to_ani(
-        plyr_pdata->fighter_definition->spear_throw_loop, 0, 0.1f);
-    set_ani_speed(0.9f);
-    ani_x_more_frames(10.0f);
-    ani_to_end();
-    blend_to_ani(
-        plyr_pdata->fighter_definition->spear_throw_end, 3, 0.1f);
-    set_ani_speed(0.5f);
-    play_sound_1(0x2D4);
-    pz_fighter_reaction_xfer_him(0x23);
-    ani_to_blend_frame(10.0f);
-    blend_to_fstance(0.1f);
-    toggle_obj_and_ani_flips(plyr_anim_pdata);
-    active_cmdscript->unk28 = 0x2B;
-    cmdscript_reset_stack();
-    cmdscript_setup_execution(
-        pz_shared_cmo, active_cmdscript->unk28);
-    call_player_script_function(pz_shared_cmo);
-    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-    return 0.0f;
-}
-
-static float pz_fighter_jax_attack_start(void) {
-    float player_distance = xz_distance_between_players();
-    float home_distance =
-        pz_fighter_fetch_plyr_to_home_post_distance(plyr_pdata->plyr_num);
-    struct PuzzleProjectile* projectile;
-    unsigned int ticks;
-
-    if (!(player_distance > 3.0f)) {
-        if (home_distance > 6.0f) {
-            PuzzleAttackParameters attack;
-            struct PuzzleFighterMove* move;
-
-            attack = pz_attack_common;
-            move = pz_get_fighter_move();
-            move->active_flags |= 1;
-            pz_fighter_attack(pz_shared_ani.shove, &attack, 0x24);
-            ani_to_end();
-        } else if (home_distance < 4.0f) {
-            avoid_double_ani();
-            init_ground_move_no_aniproc();
-            random_voice(9);
-            set_my_state(0x6208);
-            plyr_anim_pdata->flags |= 0x40;
-            snd_req(0xD71);
-            blend_to_ani(shared_ani.dash_back, 3, 0.2f);
-            plyr_anim_pdata->step = 0.75f;
-            plyr_anim_pdata->weight_velocity = 0.0f;
-            plyr_anim_pdata->weight = 1.8f;
-            ani_to_frame_x(12.0f);
-            init_air_move();
-            ani_to_frame_x(17.0f);
-            init_ground_move();
-            random_foot(1);
-        } else {
-            avoid_double_ani();
-            init_ground_move_no_aniproc();
-            random_voice(9);
-            set_my_state(0x6208);
-            plyr_anim_pdata->flags |= 0x40;
-            snd_req(0xD71);
-            blend_to_ani(shared_ani.dash_back, 3, 0.2f);
-            plyr_anim_pdata->step = 0.9f;
-            plyr_anim_pdata->weight_velocity = 0.0f;
-            plyr_anim_pdata->weight = 1.0f;
-            ani_to_frame_x(12.0f);
-            init_air_move();
-            ani_to_frame_x(17.0f);
-            init_ground_move();
-            random_foot(1);
-        }
-    }
-
-    plyr_anim_pdata->flags |= 0x40;
-    blend_to_ani(
-        plyr_pdata->fighter_definition->spear_throw_start, 3, 0.3f);
-    pz_fighter_create_projectile(&projectile);
-    plyr_anim_pdata->step = 1.0f;
-    ani_to_blend_frame(10.0f);
-    blend_to_ani(
-        plyr_pdata->fighter_definition->spear_throw_loop, 0, 0.3f);
-    set_ani_speed(0.3f);
-    ticks = 0;
-    do {
-        ani_1_frame();
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-        if (g_pz_fighters_engine.special_move_4) {
-            break;
-        }
-        ticks++;
-    } while (ticks < 125);
-
-    blend_to_ani(
-        plyr_pdata->fighter_definition->spear_throw_end, 3, 0.3f);
-    plyr_anim_pdata->step = 1.5f;
-    ani_to_frame_x(21.0f);
-    if (g_global_projectile == 0) {
-        pz_fighter_create_projectile(&projectile);
-    }
-    g_global_projectile->launch_immediately = 1;
-    ani_to_end();
-    blend_to_ani(
-        plyr_pdata->fighter_definition->projectile_return_loop, 0, 0.1f);
-    ticks = 0;
-    do {
-        ani_1_frame();
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-        if (g_pz_fighters_engine.special_move_5) {
-            break;
-        }
-        ticks++;
-    } while (ticks < 125);
-    blend_to_ani(
-        plyr_pdata->fighter_definition->projectile_return_end, 3, 0.1f);
-    ani_to_blend_frame(15.0f);
-    blend_to_stance(0.15f);
-    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighters_react_to_bomb_explosion(void) {
-    if (pz_fighter_fetch_plyr_to_home_post_distance(
-            plyr_pdata->plyr_num) >
-        6.5f) {
-        active_cmdscript->unk28 = 0x44;
-    } else {
-        active_cmdscript->unk28 = 0x45;
-    }
-    aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_perform_ohyeah_move(void) {
-    unsigned short choice = randu0(100);
-
-    if (choice < 50) {
-        aproc->vtbl->jump_sleep(pz_fighter_one_arm_swing, 0.0f);
-        return 0.0f;
-    } else if (choice < 70) {
-        aproc->vtbl->jump_sleep(pz_fighter_big_time_happy, 0.0f);
-        return 0.0f;
-    } else {
-        aproc->vtbl->jump_sleep(pz_fighter_gaydance, 0.0f);
-        return 0.0f;
-    }
-}
-
-float pz_fighter_perform_super_move_just_enabled(void) {
-    unsigned short choice = randu0(100);
-
-    if (choice < 50) {
-        aproc->vtbl->jump_sleep(pz_fighter_go_get_him, 0.0f);
-        return 0.0f;
-    } else if (choice < 60) {
-        aproc->vtbl->jump_sleep(pz_fighter_one_arm_swing, 0.0f);
-        return 0.0f;
-    } else if (choice < 75) {
-        aproc->vtbl->jump_sleep(pz_fighter_big_time_happy, 0.0f);
-        return 0.0f;
-    } else {
-        aproc->vtbl->jump_sleep(pz_fighter_gaydance, 0.0f);
-        return 0.0f;
-    }
-}
-
-float pz_fighter_perform_other_guy_super_move_just_enabled(void) {
-    aproc->vtbl->jump_sleep(pz_fighter_dont_get_me, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_perform_ohno_move(void) {
-    unsigned short choice = randu0(100);
-
-    if (choice < 30) {
-        aproc->vtbl->jump_sleep(pz_fighter_WTF, 0.0f);
-        return 0.0f;
-    } else if (choice < 70) {
-        aproc->vtbl->jump_sleep(pz_fighter_WTF2, 0.0f);
-        return 0.0f;
-    } else if (
-        choice < 88 &&
-        pz_fighter_is_losing_big(plyr_pdata->plyr_num) != 0) {
-        aproc->vtbl->jump_sleep(pz_fighter_beg, 0.0f);
-        return 0.0f;
-    } else {
-        xfer_proc(
-            get_player_proc(his_obj), pz_fighter_execute_distracts_and_hit);
-        aproc->vtbl->jump_sleep(
-            pz_fighter_execute_point_reaction_no_space, 0.0f);
-        return 0.0f;
-    }
-}
-
-float pz_fighter_perform_center_pos_minor_adjustement(void) {
-    if (xz_distance_between_players() > 1.2f) {
-        aproc->vtbl->jump_sleep(pz_fighter_light_propell, 0.0f);
-        return 0.0f;
-    } else {
-        active_cmdscript->unk28 = 8;
-        aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
-        return 0.0f;
-    }
-}
-
-float pz_fighter_perform_center_pos_single_close_move(void) {
-    aproc->vtbl->jump_sleep(pz_fighter_light_propell, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_smart_flippy(void) {
-    float player1_distance;
-    float player1_absolute;
-    float player2_distance;
-    float player2_absolute;
-    float distance;
-
-    pz_fighters_calc_distance_to_desired_idle_pos_abs(
-        &player1_distance, &player2_distance, &player1_absolute,
-        &player2_absolute);
-    if (plyr_pdata->plyr_num == 0) {
-        distance = player1_distance;
-    } else {
-        distance = player2_distance;
-    }
-
-    if (distance < 0.1f) {
-        aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-        return 0.0f;
-    }
-    if (distance < 0.9f) {
-        active_cmdscript->unk28 = 4;
-    } else {
-        active_cmdscript->unk28 = 3;
-    }
-    aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_perform_center_pos_single_range_move(void) {
-    if ((unsigned short)randu0(100) < 30) {
-        aproc->vtbl->jump_sleep(pz_fighter_light_propell, 0.0f);
-        return 0.0f;
-    }
-
-    active_cmdscript->unk28 = 3;
-    aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_perform_center_pos_range_attack(void) {
-    unsigned short choice = randu0(100);
-
-    if (choice < 40) {
-        aproc->vtbl->jump_sleep(pz_fighter_superman_move, 0.0f);
-        return 0.0f;
-    } else if (choice < 55) {
-        aproc->vtbl->jump_sleep(pz_fighter_propell, 0.0f);
-        return 0.0f;
-    } else {
-        active_cmdscript->unk28 = 1;
-        aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
-        return 0.0f;
-    }
-}
-
-float pz_fighter_perform_dist_attack(void) {
-    unsigned short choice = randu0(100);
-
-    if (choice < 20) {
-        active_cmdscript->unk28 = 2;
-    } else if (choice < 60) {
-        active_cmdscript->unk28 = 6;
-    } else {
-        active_cmdscript->unk28 = 7;
-    }
-    aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_perform_off_wall_attack(void) {
-    unsigned short choice = randu0(100);
-
-    if (choice < 40) {
-        aproc->vtbl->jump_sleep(pz_fighter_superman_move, 0.0f);
-        return 0.0f;
-    }
-    if (choice < 80) {
-        active_cmdscript->unk28 = 1;
-    } else {
-        active_cmdscript->unk28 = 2;
-    }
-    aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_random_taunt(void) {
-    unsigned short roll = randu0(100);
-
-    if (roll < 30) {
-        aproc->vtbl->jump_sleep(pz_fighter_select_taunt_1, 0.0f);
-        return 0.0f;
-    } else if (roll < 60) {
-        aproc->vtbl->jump_sleep(pz_fighter_select_taunt_2, 0.0f);
-        return 0.0f;
-    } else {
-        aproc->vtbl->jump_sleep(pz_fighter_select_taunt_3, 0.0f);
-        return 0.0f;
-    }
-}
-
-float pz_fighter_perform_other_guy_ohno(void) {
-    aproc->vtbl->jump_sleep(pz_fighter_laugh, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_perform_other_guy_ohyeah(void) {
-    aproc->vtbl->jump_sleep(pz_fighter_whatever2, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_perform_other_guy_holding_onto_super_move(void) {
-    aproc->vtbl->jump_sleep(pz_fighter_beg, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_perform_holding_onto_super_move(void) {
-    aproc->vtbl->jump_sleep(pz_fighter_workthecrowd, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_perform_peak_move(void) {
-    if ((unsigned short)randu0(100) < 65) {
-        aproc->vtbl->jump_sleep(pz_fighter_peak, 0.0f);
-        return 0.0f;
-    } else {
-        aproc->vtbl->jump_sleep(pz_fighter_fast_look, 0.0f);
-        return 0.0f;
-    }
-}
-
-float pz_fighter_perform_relief_move(void) {
-    if ((unsigned short)randu0(100) < 65 &&
-        pz_fighter_is_winning_big(plyr_pdata->plyr_num)) {
-        aproc->vtbl->jump_sleep(pz_fighter_big_time_happy, 0.0f);
-        return 0.0f;
-    } else {
-        aproc->vtbl->jump_sleep(pz_fighter_round_whew, 0.0f);
-        return 0.0f;
-    }
-}
-
-float pz_fighter_dummy_propell(void) {
-    int ticks;
-
-    init_ground_move_no_aniproc();
-    head_tracking_off();
-    blend_to_ani(pz_shared_ani.propell_start, 3, 0.1f);
-    set_ani_speed(1.1f);
-    ani_to_frame_x(10.0f);
-    snd_req(0xD7E);
-    ani_to_end();
-    force_away(-0.03f, 20, 0.9f, 4);
-    set_ani_speed(1.5f);
-    glitch_to_ani(pz_shared_ani.propell_air, 0);
-    xfer_proc(plyr_anim_proc, p_animate);
-    for (ticks = 0; ticks < 20; ticks++) {
-        if (xz_distance_between_players() <= 0.65f) {
-            plyr_pdata->collision_result = 1;
-            stop_me();
-            break;
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    blend_to_ani(pz_shared_ani.propell_end, 3, 0.1f);
-    ani_to_blend_frame(10.0f);
-    aproc->vtbl->jump_sleep(j_exit, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_light_propell(void) {
-    int ticks;
-
-    init_ground_move_no_aniproc();
-    head_tracking_off();
-    blend_to_ani(pz_shared_ani.propell_start, 3, 0.1f);
-    set_ani_speed(1.1f);
-    ani_to_frame_x(10.0f);
-    snd_req(0xD7E);
-    ani_to_end();
-    force_away(-0.03f, 20, 0.9f, 4);
-    set_ani_speed(1.5f);
-    glitch_to_ani(pz_shared_ani.propell_air, 0);
-    xfer_proc(plyr_anim_proc, p_animate);
-    for (ticks = 0; ticks < 20; ticks++) {
-        if (xz_distance_between_players() <= 0.65f) {
-            plyr_pdata->collision_result = 1;
-            pz_fighter_reaction_xfer_him(0x2B);
-            stop_me();
-            break;
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    blend_to_ani(pz_shared_ani.propell_end, 3, 0.1f);
-    ani_to_blend_frame(10.0f);
-    aproc->vtbl->jump_sleep(j_exit, 0.0f);
-    return 0.0f;
-}
-
-static float pz_fighter_propell(void) {
-    int ticks;
-
-    init_ground_move_no_aniproc();
-    head_tracking_off();
-    blend_to_ani(pz_shared_ani.propell_start, 3, 0.1f);
-    set_ani_speed(1.1f);
-    ani_to_frame_x(10.0f);
-    snd_req(0xD7E);
-    ani_to_end();
-    force_away(-0.03f, 20, 0.9f, 4);
-    set_ani_speed(1.5f);
-    glitch_to_ani(pz_shared_ani.propell_air, 0);
-    xfer_proc(plyr_anim_proc, p_animate);
-    for (ticks = 0; ticks < 20; ticks++) {
-        if (xz_distance_between_players() <= 0.75f) {
-            plyr_pdata->collision_result = 1;
-            pz_fighter_reaction_xfer_him(0x29);
-            stop_me();
-            break;
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    blend_to_ani(pz_shared_ani.propell_end, 3, 0.1f);
-    ani_to_blend_frame(10.0f);
-    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-    return 0.0f;
-}
-
-static float pz_fighter_far_propell(void) {
-    int ticks;
-
-    init_ground_move_no_aniproc();
-    head_tracking_off();
-    blend_to_ani(pz_shared_ani.propell_start, 3, 0.1f);
-    set_ani_speed(1.1f);
-    ani_to_frame_x(10.0f);
-    snd_req(0xD7E);
-    ani_to_end();
-    force_away(-0.065f, 30, 0.9f, 4);
-    set_ani_speed(1.5f);
-    glitch_to_ani(pz_shared_ani.propell_air, 0);
-    xfer_proc(plyr_anim_proc, p_animate);
-    for (ticks = 0; ticks < 30; ticks++) {
-        if (xz_distance_between_players() <= 0.75f) {
-            plyr_pdata->collision_result = 1;
-            pz_fighter_reaction_xfer_him(0x29);
-            stop_me();
-            break;
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    blend_to_ani(pz_shared_ani.propell_end, 3, 0.1f);
-    ani_to_blend_frame(10.0f);
-    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_perform_scripted_move(void) {
-    struct PuzzleFighterMove* move = pz_get_fighter_move();
-    unsigned int move_index;
-    int distance_class;
-    int script_move;
-    distance_class = move->distance_class;
-    move_index = move->script_move;
-    script_move =
-        select_scripted_move(move_index, distance_class, randu0(100));
-    active_cmdscript->unk28 = script_move;
-    cmdscript_reset_stack();
-    cmdscript_setup_execution(
-        pz_shared_cmo, active_cmdscript->unk28);
-    call_player_script_function(pz_shared_cmo);
-    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-    return 0.0f;
-}
-
-void pz_fighter_walk_FB_true(
-    int (*continue_test)(void), unsigned int duration, int forward) {
-    static float object_weight_setting = 0.2f;
-    static float forward_speed = 1.0f;
-    static float backward_speed = 1.0f;
-    int start_tick;
-
-    if (continue_test() != 0) {
-        return;
-    }
-    start_tick = exec_tick_ctr;
-    init_ground_move_no_aniproc();
-    rotate_towards_him(0.2f);
-    if (forward != 0) {
-        set_my_state(0x2000);
-        plyr_anim_pdata->flags |= 0x40;
-        blend_to_ani(
-            plyr_pdata->fighter_definition->walk_forward_start, 0x23, 0.2f);
-        plyr_anim_pdata->step = forward_speed;
-        plyr_anim_pdata->weight = object_weight_setting;
-        ani_to_frame_x_call(
-            face_opponent_now, plyr_anim_pdata->high_frame - 13.0f);
-    } else {
-        set_my_state(0x2001);
-        plyr_anim_pdata->flags |= 0x40;
-        blend_to_ani(
-            plyr_pdata->fighter_definition->walk_backward_start, 0x23,
-            0.2f);
-        plyr_anim_pdata->step = backward_speed;
-        plyr_anim_pdata->weight = object_weight_setting;
-        ani_to_frame_x_call(
-            face_opponent_now, plyr_anim_pdata->high_frame - 14.0f);
-    }
-    random_foot(1);
-    if (continue_test() == 0 &&
-        (unsigned int)(exec_tick_ctr - start_tick) < duration) {
-        if (forward != 0) {
-            blend_to_ani(
-                plyr_pdata->fighter_definition->walk_forward_loop, 0, 0.2f);
-            plyr_anim_pdata->step = forward_speed;
-        } else {
-            blend_to_ani(
-                plyr_pdata->fighter_definition->walk_backward_loop, 0, 0.2f);
-            plyr_anim_pdata->step = backward_speed;
-        }
-        while (continue_test() == 0 &&
-               (unsigned int)(exec_tick_ctr - start_tick) < duration) {
-            face_opponent_now();
-            advance_anim(plyr_anim_pdata);
-            pose_anim(plyr_anim_pdata, 1);
-            _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep();
-        }
-        blend_to_stance(0.1f);
-        return;
-    }
-    ani_to_frame_x_call(
-        face_opponent_now, plyr_anim_pdata->high_frame - 10.0f);
-    plyr_anim_pdata->weight = object_weight_setting;
-}
-
-void pz_fighter_shake_camera(int duration, float strength) {
-    struct PuzzleCameraShakePdata* pdata;
-
-    shake_camera(duration, strength);
-    if (g_pz_cam_already_shaking == 1) {
-        return;
-    }
-
-    g_pz_cam_already_shaking = 1;
-    if (_create_mkproc_generic_tinystack(
-            0x1007, 0x1E, p_pz_shake_camera,
-            sizeof(struct PuzzleCameraShakePdata), (MkHdr**)&pdata) != 0) {
-        pdata->duration = duration;
-        pdata->strength = strength;
-    }
-}
-
-static float p_pz_shake_camera(void) {
-    int i;
-    struct PuzzleCameraShakePdata* pdata = (struct PuzzleCameraShakePdata*)apdata;
-    int first;
-    int second;
-    int offset;
-
-    _mkproc_sleep_ticks = 1.0f;
-    aproc->vtbl->sleep();
-    minigame_get_bgnd_y_value(&first, &second);
-
-    for (i = 0; i < pdata->duration; i++) {
-        offset = 340.0f * pdata->strength;
-        minigame_set_bgnd_y_value(first + offset, second + offset);
-        _mkproc_sleep_ticks = 3.0f;
-        aproc->vtbl->sleep();
-        minigame_set_bgnd_y_value(first, second);
-        _mkproc_sleep_ticks = 3.0f;
-        aproc->vtbl->sleep();
-    }
-
-    g_pz_cam_already_shaking = 0;
-    return -1.0f;
-}
-
-int pz_fighter_walk_until_danger_or_in_wrong_direction(void) {
-    float player1_distance;
-    float player2_distance;
-    float distance;
-    int state;
-
-    pz_fighters_calc_distance_to_desired_idle_pos(
-        &player1_distance, &player2_distance);
-    if (plyr_pdata->plyr_num == 0) {
-        distance = player1_distance;
-    } else {
-        distance = player2_distance;
-    }
-    if (distance > -0.01f && distance < 0.01f) {
-        return 1;
-    }
-    if (g_pz_fighters_engine.breakout == 1) {
-        return 1;
-    }
-    state = plyr_pdata->state;
-    if (state == 0x2000 && distance < 0.0f) {
-        return 1;
-    }
-    if (state == 0x2001 && distance > 0.0f) {
-        return 1;
-    }
-    return 0;
-}
-
-int pz_fighter_walk_until_fight_distance(void) {
-    return xz_distance_between_players() < 0.95f;
-}
-
-float pz_fighter_showoff_warmup2(void) {
-    face_opponent_now();
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    set_ani_weight(0.55f);
-    blend_to_ani(pz_shared_ani.showoff_warmup2, 3, 0.1f);
-    set_ani_speed(0.7f);
-    ani_to_blend_frame(20.0f);
-    blend_to_stance(0.1f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_showoff_warmup1(void) {
-    face_opponent_now();
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    set_ani_weight(0.55f);
-    blend_to_ani(pz_shared_ani.showoff_warmup1, 3, 0.1f);
-    set_ani_speed(0.6f);
-    ani_to_blend_frame(20.0f);
-    blend_to_stance(0.1f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_active_warmup2(void) {
-    face_opponent_now();
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    set_ani_weight(0.55f);
-    blend_to_ani(pz_shared_ani.active_warmup2, 3, 0.1f);
-    set_ani_speed(0.6f);
-    ani_to_blend_frame(20.0f);
-    blend_to_stance(0.1f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_active_warmup1(void) {
-    face_opponent_now();
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    set_ani_weight(0.55f);
-    blend_to_ani(pz_shared_ani.active_warmup1, 3, 0.1f);
-    set_ani_speed(0.6f);
-    ani_to_blend_frame(20.0f);
-    blend_to_stance(0.1f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_bow_warmup(void) {
-    face_opponent_now();
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    blend_to_ani(pz_shared_ani.bow_warmup, 3, 0.1f);
-    set_ani_speed(1.25f);
-    ani_to_blend_frame(20.0f);
-    blend_to_stance(0.05f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-void pz_fighter_kill_global_projectile(void) {
-    if (g_global_projectile != 0) {
-        g_global_projectile->state = 2;
-    }
-}
-
-static float p_pz_fighter_projectile_launcher(void) {
-    MkHdr* saved_pdata;
-    RwFrame* frame;
-    struct PuzzleProjectile* projectile = (struct PuzzleProjectile*)apdata;
-    int passed_target = 0;
-    Vec position;
-
-    if ((unsigned int)projectile->state == 2) {
-        g_global_projectile = 0;
-        return -1.0f;
-    }
-
-    if (--projectile->timer != 0) {
-        switch (projectile->state) {
-        case 0: {
-            frame = projectile->object->frame;
-
-            get_bone_world_pos(
-                projectile->launch_bone_owner, 0x1B, &position);
-            projectile->object->pos.value.x = position.x;
-            projectile->object->pos.value.y = position.y;
-            projectile->object->pos.value.z = position.z;
-            if (projectile->launch_immediately == 1) {
-                projectile->timer = 1;
-            }
-            RwFrameUpdateObjects(projectile->object->frame);
-            frame->modelling.pos.x = projectile->object->pos.value.x;
-            frame->modelling.pos.y = projectile->object->pos.value.y;
-            frame->modelling.pos.z = projectile->object->pos.value.z;
-            RwFrameUpdateObjects(projectile->object->frame);
-            break;
-        }
-        case 1: {
-            frame = projectile->object->frame;
-
-            RwFrameUpdateObjects(frame);
-            projectile->object->pos.value.x += projectile->object->pos_vel.x;
-            projectile->object->pos.value.y += projectile->object->pos_vel.y;
-            projectile->object->pos.value.z += projectile->object->pos_vel.z;
-            frame->modelling.pos.x = projectile->object->pos.value.x;
-            frame->modelling.pos.y = projectile->object->pos.value.y;
-            frame->modelling.pos.z = projectile->object->pos.value.z;
-            RwFrameUpdateObjects(projectile->object->frame);
-            get_bone_world_pos(projectile->target, 9, &position);
-            if (projectile->object->pos_vel.x > 0.0f) {
-                if (projectile->object->pos.value.x > position.x) {
-                    passed_target = 1;
-                }
-            } else if (projectile->object->pos.value.x < position.x) {
-                passed_target = 1;
-            }
-            if (passed_target == 1) {
-                saved_pdata = apdata;
-
-                apdata = (MkHdr*)projectile->owner;
-                fx_reset(projectile->effect);
-                if (projectile->owner->character_id != 6) {
-                    bgnd_launch_fx_at_position(
-                        "fireball_explosion_fx", projectile->target->pos.value.x,
-                        projectile->object->pos.value.y, projectile->target->pos.value.z);
-                    bgnd_launch_fx_at_position(
-                        "fireball_sparkies_fx", projectile->target->pos.value.x,
-                        projectile->object->pos.value.y, projectile->target->pos.value.z);
-                } else {
-                    bgnd_launch_fx_at_position(
-                        "green_fireball_explosion_fx", projectile->target->pos.value.x,
-                        projectile->object->pos.value.y, projectile->target->pos.value.z);
-                    bgnd_launch_fx_at_position(
-                        "green_fireball_sparkies_fx", projectile->target->pos.value.x,
-                        projectile->object->pos.value.y, projectile->target->pos.value.z);
-                }
-                pz_fighter_reaction_xfer_him(4);
-                apdata = saved_pdata;
-                g_global_projectile = 0;
-                return -1.0f;
-            }
-            break;
-        }
-        }
-    } else {
-        switch (projectile->state) {
-        case 0:
-            projectile->state = 1;
-            projectile->object->pos_vel.x = 0.18f;
-            if (projectile->owner->plyr_num == 1) {
-                projectile->object->pos_vel.x *= -1.0f;
-            }
-            projectile->timer = 300;
-            break;
-        case 1:
-            g_global_projectile = 0;
-            return -1.0f;
-        }
-    }
-    return 1.0f;
-}
-
-float pz_fighter_completely_prone(void) {
-    return 1.0f;
-}
-
-float pz_fighter_won2(void) {
-    int flags = 3;
-
-    if (plyr_pdata->plyr_num == 1) {
-        flags = 11;
-    }
-
-    set_my_state(0x4201);
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    blend_to_ani(pz_shared_ani.won2, flags, 0.1f);
-    set_ani_speed(0.65f);
-    plyr_obj->flags_09_bits.head_tracking = 0;
-    ani_to_frame_x(131.0f);
-    aproc->vtbl->jump_sleep(pz_fighter_one_arm_victory, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_wipe_blood_off(void) {
-    int flags = 3;
-
-    if (plyr_pdata->plyr_num == 1) {
-        flags = 11;
-    }
-
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    plyr_obj->flags_09_bits.head_tracking = 0;
-    blend_to_ani(pz_shared_ani.wipe_blood, flags, 0.1f);
-    set_ani_speed(0.75f);
-    ani_to_frame_x(22.0f);
-    plyr_bleed_medium_cycle(plyr_pdata, 9);
-    plyr_bleed_medium_cycle(plyr_pdata, 0x18);
-    plyr_bleed_medium_cycle(plyr_pdata, 0x1A);
-    ani_to_frame_x(80.0f);
-    plyr_bleed_medium_cycle(plyr_pdata, 0x18);
-    plyr_bleed_medium_cycle(plyr_pdata, 0x19);
-    ani_to_frame_x(128.0f);
-    aproc->vtbl->jump_sleep(pz_fighter_double_arm_victory, 0.0f);
-    return 0.0f;
-}
-
-void pz_fighter_wipe_blood_off_hands(void) {
-    plyr_bleed_medium_cycle(plyr_pdata, 0x18);
-    plyr_bleed_medium_cycle(plyr_pdata, 0x19);
-}
-
-static float pz_fighter_double_arm_victory(void) {
-    int flags = 3;
-
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-
-    set_my_state(0x4201);
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    blend_to_ani(pz_shared_ani.double_arm_victory, flags, 0.05f);
-    set_ani_speed(0.5f);
-    ani_to_blend_frame(10.0f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_whatever2(void) {
-    int flags = 3;
-
-    if (plyr_pdata->plyr_num == 1) {
-        flags = 11;
-    }
-
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    force_away(0.01f, 5, 0.9f, 5);
-    head_tracking_on();
-    blend_to_ani(pz_shared_ani.whatever2, flags, 0.1f);
-    set_ani_speed(0.7f);
-    ani_to_blend_frame(10.0f);
-    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_disgusted_with_grinding(void) {
-    int flags = 3;
-
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    blend_to_ani(pz_shared_ani.disgusted_with_grinding, flags, 0.1f);
-    set_ani_speed(0.75f);
-    plyr_obj->flags_09_bits.head_tracking = 0;
-    ani_to_frame_x(163.0f);
-    aproc->vtbl->jump_sleep(pz_fighter_one_arm_victory2, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_one_arm_victory2(void) {
-    int flags = 3;
-
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    set_my_state(0x4201);
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    plyr_obj->flags_09_bits.head_tracking = 0;
-    blend_to_ani(pz_shared_ani.one_arm_victory_start, flags, 0.1f);
-    set_ani_speed(0.5f);
-    ani_to_frame_x(91.0f);
-    flags = 0;
-    plyr_obj->flags_09_bits.head_tracking = 0;
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    blend_to_ani(pz_shared_ani.one_arm_victory_loop, flags, 0.5f);
-    set_ani_speed(0.5f);
-    ani_loop_more_frames(1000.0f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_one_arm_victory(void) {
-    int flags = 3;
-
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    set_my_state(0x4201);
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    plyr_obj->flags_09_bits.head_tracking = 0;
-    blend_to_ani(pz_shared_ani.one_arm_victory_start, flags, 0.2f);
-    set_ani_speed(0.75f);
-    ani_to_frame_x(91.0f);
-    flags = 0;
-    plyr_obj->flags_09_bits.head_tracking = 0;
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    blend_to_ani(pz_shared_ani.one_arm_victory_loop, flags, 0.5f);
-    set_ani_speed(0.75f);
-    ani_loop_more_frames(1000.0f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_round_ground_pound(void) {
-    int flags = 3;
-
-    head_tracking_off();
-    stop_me();
-    init_ground_move();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    ani_loop_more_frames(10.0f);
-    pz_fighter_set_y_constrain(plyr_obj, 1, 0.1f);
-    blend_to_ani(pz_shared_ani.round_ground_pound, flags, 0.1f);
-    set_ani_speed(0.65f);
-    ani_to_blend_frame(10.0f);
-    blend_to_stance(0.05f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_WTF2(void) {
-    int flags = 3;
-
-    head_tracking_off();
-    stop_me();
-    init_ground_move();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    ani_loop_more_frames(10.0f);
-    blend_to_ani(pz_shared_ani.wtf2, flags, 0.1f);
-    set_ani_speed(0.9f);
-    ani_to_blend_frame(10.0f);
-    blend_to_stance(0.1f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-static float pz_fighter_gaydance(void) {
-    int flags = 3;
-
-    head_tracking_off();
-    stop_me();
-    init_ground_move_no_aniproc();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    blend_to_ani(pz_shared_ani.gaydance, flags, 0.1f);
-    set_ani_speed(1.35f);
-    ani_to_frame_x(2.0f);
-    init_air_move();
-    ani_to_blend_frame(10.0f);
-    blend_to_stance(0.1f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-static float pz_fighter_dont_get_me(void) {
-    int flags = 3;
-
-    stop_me();
-    init_ground_move_no_aniproc();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    blend_to_ani(pz_shared_ani.dont_get_me, flags, 0.1f);
-    set_ani_speed(0.75f);
-    ani_to_blend_frame(20.0f);
-    blend_to_stance(0.2f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-static float pz_fighter_go_get_him(void) {
-    int flags = 3;
-
-    head_tracking_off();
-    stop_me();
-    init_ground_move_no_aniproc();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    blend_to_ani(pz_shared_ani.go_get_him, flags, 0.1f);
-    set_ani_speed(0.9f);
-    ani_to_blend_frame(10.0f);
-    blend_to_stance(0.1f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-static float pz_fighter_one_arm_swing(void) {
-    int flags = 3;
-
-    head_tracking_off();
-    stop_me();
-    init_ground_move_no_aniproc();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    blend_to_ani(pz_shared_ani.one_arm_swing, flags, 0.1f);
-    set_ani_speed(1.45f);
-    ani_to_blend_frame(10.0f);
-    blend_to_stance(0.1f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-static float pz_fighter_select_taunt_3(void) {
-    int flags = 3;
-
-    head_tracking_off();
-    stop_me();
-    init_ground_move();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    blend_to_ani(pz_shared_ani.taunt3, flags, 0.1f);
-    set_ani_speed(0.9f);
-    ani_to_blend_frame(10.0f);
-    blend_to_stance(0.1f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-static float pz_fighter_select_taunt_2(void) {
-    int flags = 3;
-
-    head_tracking_off();
-    stop_me();
-    init_ground_move();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    blend_to_ani(pz_shared_ani.taunt2, flags, 0.1f);
-    set_ani_speed(0.9f);
-    ani_to_blend_frame(10.0f);
-    blend_to_stance(0.1f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-static float pz_fighter_select_taunt_1(void) {
-    int flags = 3;
-
-    head_tracking_off();
-    stop_me();
-    init_ground_move();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    blend_to_ani(pz_shared_ani.taunt1, flags, 0.1f);
-    set_ani_speed(0.9f);
-    ani_to_blend_frame(10.0f);
-    blend_to_stance(0.1f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_WTF(void) {
-    int flags = 3;
-
-    head_tracking_off();
-    stop_me();
-    init_ground_move();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    ani_loop_more_frames(10.0f);
-    blend_to_ani(pz_shared_ani.wtf, flags, 0.1f);
-    set_ani_speed(0.9f);
-    ani_to_blend_frame(10.0f);
-    blend_to_stance(0.1f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_round_failure(void) {
-    unsigned int frame;
-
-    head_tracking_off();
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    blend_to_ani(pz_shared_ani.round_failure, 3, 0.1f);
-    set_ani_speed(0.75f);
-    for (frame = 0; frame < 32; frame++) {
-        if (plyr_pdata->plyr_num == 1) {
-            plyr_obj->ang.y += 0.049087387f;
-        } else {
-            plyr_obj->ang.y -= 0.049087387f;
-        }
-        ani_1_frame();
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-    ani_to_frame_x(154.0f);
-    for (frame = 0; frame < 16; frame++) {
-        if (plyr_pdata->plyr_num == 1) {
-            plyr_obj->ang.y += -0.09817477f;
-        } else {
-            plyr_obj->ang.y -= -0.09817477f;
-        }
-        ani_1_frame();
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-static float pz_fighter_workthecrowd(void) {
-    int flags = 0;
-
-    head_tracking_off();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    blend_to_ani(pz_shared_ani.workthecrowd_start, flags, 0.05f);
-    set_ani_speed(0.8f);
-    blend_to_ani(pz_shared_ani.workthecrowd_loop, flags, 0.1f);
-    ani_loop_more_frames(220.0f);
-    blend_to_stance(0.05f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-static float pz_fighter_beg(void) {
-    unsigned int flags = 3;
-    unsigned int loop;
-
-    head_tracking_off();
-    if (plyr_pdata->plyr_num == 1) {
-        flags = flags | 8;
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    plyr_obj->flags_08_bits.moving = 0;
-    blend_to_ani(pz_shared_ani.beg_start, flags, 0.1f);
-    set_ani_speed(0.8f);
-    for (loop = 0; loop < 2; loop++) {
-        blend_to_ani(pz_shared_ani.beg_loop, flags, 0.1f);
-        ani_to_end();
-    }
-    blend_to_ani(pz_shared_ani.beg_end, flags, 0.1f);
-    ani_to_blend_frame(10.0f);
-    blend_to_stance(0.05f);
-    plyr_obj->flags_08_bits.moving = 1;
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_laugh_small(void) {
-    int flags = 3;
-
-    head_tracking_off();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    plyr_obj->flags_08_bits.moving = 0;
-    blend_to_ani(pz_shared_ani.laugh_start, flags, 0.1f);
-    set_ani_speed(0.8f);
-    blend_to_ani(pz_shared_ani.laugh_loop, flags, 0.1f);
-    ani_to_end();
-    blend_to_ani(pz_shared_ani.laugh_end, flags, 0.1f);
-    ani_to_blend_frame(10.0f);
-    blend_to_stance(0.05f);
-    plyr_obj->flags_08_bits.moving = 1;
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_laugh(void) {
-    unsigned int flags = 3;
-    unsigned int loop;
-
-    head_tracking_off();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    plyr_obj->flags_08_bits.moving = 0;
-    blend_to_ani(pz_shared_ani.laugh_start, flags, 0.1f);
-    set_ani_speed(0.8f);
-    for (loop = 0; loop < 2; loop++) {
-        blend_to_ani(pz_shared_ani.laugh_loop, flags, 0.1f);
-        ani_to_end();
-    }
-    blend_to_ani(pz_shared_ani.laugh_end, flags, 0.1f);
-    ani_to_blend_frame(10.0f);
-    blend_to_stance(0.05f);
-    plyr_obj->flags_08_bits.moving = 1;
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_big_time_happy(void) {
-    unsigned int flags = 3;
-    unsigned int loop;
-
-    head_tracking_off();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    plyr_obj->flags_08_bits.moving = 0;
-    blend_to_ani(pz_shared_ani.happy_start, flags, 0.1f);
-    set_ani_speed(0.8f);
-    loop = 0;
-    do {
-        blend_to_ani(pz_shared_ani.happy_loop, flags, 0.1f);
-        ani_to_end();
-        loop++;
-    } while (loop < 3);
-    blend_to_ani(pz_shared_ani.happy_end, flags, 0.1f);
-    ani_to_blend_frame(10.0f);
-    blend_to_stance(0.05f);
-    plyr_obj->flags_08_bits.moving = 1;
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-static float pz_fighter_fast_look(void) {
-    int flags = 3;
-
-    head_tracking_off();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    init_ground_move_no_aniproc();
-    blend_to_ani(pz_shared_ani.fast_look, flags, 0.33f);
-    set_ani_speed(2.15f);
-    ani_to_blend_frame(5.0f);
-    blend_to_stance(0.2f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-static float pz_fighter_peak(void) {
-    int flags = 3;
-
-    head_tracking_off();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    init_ground_move_no_aniproc();
-    blend_to_ani(pz_shared_ani.peak, flags, 0.1f);
-    set_ani_speed(1.1f);
-    ani_to_frame_x(46.0f);
-    g_pz_fighters_engine.peak_active = 1;
-    g_pz_fighters_engine.peak_mode = 2;
-    ani_to_blend_frame(10.0f);
-    blend_to_stance(0.1f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_round_whew(void) {
-    int flags = 3;
-
-    head_tracking_off();
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    blend_to_ani(pz_shared_ani.round_whew, flags, 0.1f);
-    set_ani_speed(0.55f);
-    ani_to_blend_frame(10.0f);
-    blend_to_stance(0.05f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_round_victory(void) {
-    unsigned int frame;
-
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    head_tracking_off();
-    blend_to_ani(pz_shared_ani.round_victory, 3, 0.1f);
-    set_ani_speed(0.75f);
-    for (frame = 0; frame < 32; frame++) {
-        if (plyr_pdata->plyr_num == 1) {
-            plyr_obj->ang.y += 0.049087387f;
-        } else {
-            plyr_obj->ang.y -= 0.049087387f;
-        }
-        ani_1_frame();
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-    ani_to_frame_x(184.0f);
-    for (frame = 0; frame < 16; frame++) {
-        if (plyr_pdata->plyr_num == 1) {
-            plyr_obj->ang.y += -0.09817477f;
-        } else {
-            plyr_obj->ang.y -= -0.09817477f;
-        }
-        ani_1_frame();
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-void pz_fighter_register_move(
-    int move, int table, int parameter1, int parameter2, int character) {
-    unsigned int index;
-
-    switch (table) {
-    case 0:
-        if (g_pz_fighter_tables.common_count < 15) {
-            g_pz_fighter_tables
-                .common_moves[g_pz_fighter_tables.common_count] = move;
-            g_pz_fighter_tables.common_count++;
-        }
-        return;
-    case 1:
-        index = g_pz_fighter_tables.characters[character].count;
-        if (index < 15) {
-            g_pz_fighter_tables.characters[character]
-                .moves[index].script_move = move;
-            g_pz_fighter_tables.characters[character]
-                .moves[g_pz_fighter_tables.characters[character].count]
-                .chance = parameter1;
-            g_pz_fighter_tables.characters[character]
-                .moves[g_pz_fighter_tables.characters[character].count]
-                .conditions = parameter2;
-            g_pz_fighter_tables.characters[character].count++;
-        }
-        return;
-    }
-}
-
-float pz_fighter_give_present(void) {
-    struct PuzzleReactionDelayPdata* pdata;
-
-    head_tracking_off();
-    init_ground_move();
-    if (_create_mkproc_generic_tinystack(
-            0xC001, 0x1F, p_force_reaction,
-            sizeof(struct PuzzleReactionDelayPdata), (MkHdr**)&pdata) != 0 &&
-        pdata != 0) {
-        pdata->ticks = 30;
-        pdata->reaction = 0x2D;
-        pdata->saved_pdata = apdata;
-    }
-    active_cmdscript->unk28 = 0x37;
-    cmdscript_reset_stack();
-    cmdscript_setup_execution(
-        pz_shared_cmo, active_cmdscript->unk28);
-    call_player_script_function(pz_shared_cmo);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_footstomp(void) {
-    PuzzleAttackParameters attack;
-    struct PuzzleReactionDelayPdata* pdata;
-
-    attack = pz_attack_footstomp;
-    init_ground_move();
-    if (_create_mkproc_generic_tinystack(
-            0xC001, 0x1F, p_force_reaction,
-            sizeof(struct PuzzleReactionDelayPdata), (MkHdr**)&pdata) != 0 &&
-        pdata != 0) {
-        pdata->ticks = 22;
-        pdata->reaction = 0x20;
-        pdata->saved_pdata = apdata;
-    }
-    pz_fighter_attack(pz_shared_ani.footstomp, &attack, 0x20);
-    ani_to_frame_x(34.0f);
-    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_punch_dizzyfall(void) {
-    PuzzleAttackParameters attack = pz_attack_dizzy_punch;
-
-    head_tracking_off();
-    pz_fighter_attack(pz_shared_ani.dizzy_punch, &attack, 0x11);
-    pz_fighter_check_breakout();
-    ani_to_frame_x(22.0f);
-    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_back_and_forth_showoff(void) {
-    PuzzleAttackParameters attack = pz_attack_showoff_punch;
-
-    head_tracking_off();
-    pz_fighter_attack(pz_shared_ani.dizzy_punch, &attack, 0x1D);
-    pz_fighter_check_breakout();
-    ani_to_frame_x(22.0f);
-    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-    return 0.0f;
-}
-
-int pz_fighter_distance_check_wo_super_check(void) {
-    float distance =
-        pz_fighter_fetch_plyr_to_home_post_distance(plyr_pdata->plyr_num);
-
-    if (distance < 2.45f) {
-        return 1;
-    }
-    return 2;
-}
-
-int pz_fighter_distance_check(void) {
-    float distance =
-        pz_fighter_fetch_plyr_to_home_post_distance(plyr_pdata->plyr_num);
-
-    if (pz_fighter_close_enough_to_super_move(his_pdata->plyr_num) == 1) {
-        return 0;
-    }
-    if (distance < 2.45f) {
-        return 1;
-    }
-    return 2;
-}
+int pz_fighter_should_handle_special_move(unsigned int player, unsigned int move);
+float pz_fighter_perform_special_move(void);
+int pz_finish_him_request(void);
+
+void pz_fighter_check_to_toggle_obj_and_ani_flips(unsigned int expected_player);
+float pz_fighters_react_to_bomb_explosion(void);
+float pz_fighter_perform_ohyeah_move(void);
+float pz_fighter_perform_super_move_just_enabled(void);
+float pz_fighter_perform_other_guy_super_move_just_enabled(void);
+float pz_fighter_perform_ohno_move(void);
+float pz_fighter_perform_center_pos_minor_adjustement(void);
+float pz_fighter_perform_center_pos_single_close_move(void);
+float pz_fighter_smart_flippy(void);
+float pz_fighter_perform_center_pos_single_range_move(void);
+float pz_fighter_perform_center_pos_range_attack(void);
+float pz_fighter_perform_dist_attack(void);
+float pz_fighter_perform_off_wall_attack(void);
+float pz_fighter_random_taunt(void);
+float pz_fighter_perform_other_guy_ohno(void);
+float pz_fighter_perform_other_guy_ohyeah(void);
+float pz_fighter_perform_other_guy_holding_onto_super_move(void);
+float pz_fighter_perform_holding_onto_super_move(void);
+float pz_fighter_perform_peak_move(void);
+float pz_fighter_perform_relief_move(void);
+float pz_fighter_dummy_propell(void);
+float pz_fighter_perform_scripted_move(void);
+void pz_fighter_walk_FB_true( int (*continue_test)(void), unsigned int duration, int forward);
+void pz_fighter_shake_camera(int duration, float strength);
+int pz_fighter_walk_until_danger_or_in_wrong_direction(void);
+int pz_fighter_walk_until_fight_distance(void);
+float pz_fighter_showoff_warmup2(void);
+float pz_fighter_showoff_warmup1(void);
+float pz_fighter_active_warmup2(void);
+float pz_fighter_active_warmup1(void);
+float pz_fighter_bow_warmup(void);
+void pz_fighter_kill_global_projectile(void);
+float pz_fighter_completely_prone(void);
+float pz_fighter_won2(void);
+float pz_fighter_wipe_blood_off(void);
+void pz_fighter_wipe_blood_off_hands(void);
+float pz_fighter_disgusted_with_grinding(void);
+float pz_fighter_round_ground_pound(void);
+float pz_fighter_round_failure(void);
+float pz_fighter_laugh_small(void);
+float pz_fighter_round_victory(void);
+void pz_fighter_register_move( int move, int table, int parameter1, int parameter2, int character);
+float pz_fighter_give_present(void);
+float pz_fighter_footstomp(void);
+float pz_fighter_punch_dizzyfall(void);
+float pz_fighter_back_and_forth_showoff(void);
+int pz_fighter_distance_check_wo_super_check(void);
+int pz_fighter_distance_check(void);
 
 #define PZ_RUN_SHARED_FIGHTER_SCRIPT(script_index)                              \
     do {                                                                        \
@@ -2217,788 +615,92 @@ int pz_fighter_distance_check(void) {
         call_player_script_function(pz_shared_cmo);                             \
         aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);                           \
     } while (0)
+float pz_fighter_execute_R_coming_down(void);
+float pz_fighter_execute_point_no_space_check(void);
+float pz_fighter_execute_point(void);
+float pz_fighter_perform_taunt(void);
+void pz_fighter_release_other_player(int reaction);
+void pz_fighter_step_throw_into_check(void);
+void pz_fighter_create_space_between_fighters(void);
+float pz_fighter_dash_back(void);
+void pz_fighter_create_space_between_fighters_for_special_moves(void);
+float pz_fighter_dizzy(void);
+float pz_fighter_backflip_and_point(void);
+float pz_fighter_just_backflip(void);
+float pz_fighter_shove(void);
+void pz_fighter_force_reaction_in_ticks(int reaction, int ticks);
+float pz_fighter_inline_force_away_with_ani( float velocity, unsigned int coast_ticks, float damping, unsigned int damping_ticks);
+void suspend_in_midair(float ticks);
+void pz_fighter_function(unsigned int function);
+void pz_fighter_kill_present(void);
+void pz_fighter_allow_easy_continuation(void);
+void pz_fighter_reset_continuation(void);
+void pz_fighter_disallow_continuation(void);
+void pz_fighter_allow_continuation(void);
+float pz_fighter_clear_out_external_forces(void);
+void pz_fighter_clear_out_all_external_forces( MkObj* fighter);
 
-float pz_fighter_execute_point_reaction_no_space(void) {
-    PZ_RUN_SHARED_FIGHTER_SCRIPT(0x36);
+float r_pz_call_script_function(void) {
+    cmdscript_reset_stack();
+    cmdscript_setup_execution(pz_shared_cmo,
+                              active_cmdscript->unk28);
+    call_player_script_function(pz_shared_cmo);
     return 0.0f;
 }
 
-static float pz_fighter_execute_distracts_and_hit(void) {
-    head_tracking_off();
-    PZ_RUN_SHARED_FIGHTER_SCRIPT(0x32);
+static float r_call_player_script_function(void) {
+    cmdscript_reset_stack();
+    cmdscript_setup_execution(plyr_pdata->fighter_definition->cmo,
+                              active_cmdscript->unk28);
+    call_player_script_function(plyr_pdata->fighter_definition->cmo);
     return 0.0f;
 }
 
-float pz_fighter_execute_R_coming_down(void) {
-    head_tracking_off();
-    PZ_RUN_SHARED_FIGHTER_SCRIPT(0x34);
+static float r_call_character_cmo_function(void) {
+    cmdscript_reset_stack();
+    cmdscript_setup_execution(plyr_pdata->cmo,
+                              active_cmdscript->unk28);
+    call_player_script_function(plyr_pdata->cmo);
     return 0.0f;
 }
 
-float pz_fighter_execute_point_no_space_check(void) {
-    head_tracking_off();
-    PZ_RUN_SHARED_FIGHTER_SCRIPT(0x33);
+static float r_call_other_pz_player_char_script_function(void) {
+    cmdscript_reset_stack();
+    cmdscript_setup_execution(plyr_pdata->his_plyr_pdata->cmo,
+                              active_cmdscript->unk28);
+    call_player_script_function(plyr_pdata->his_plyr_pdata->cmo);
     return 0.0f;
 }
 
-float pz_fighter_execute_point(void) {
-    head_tracking_off();
-    PZ_RUN_SHARED_FIGHTER_SCRIPT(0x31);
+void pz_fighter_clear_out_all_external_forces(
+    MkObj* fighter) {
+    fighter->pos_vel.x = 0.0f;
+    fighter->pos_vel.z = 0.0f;
+}
+
+float pz_fighter_clear_out_external_forces(void) {
+    plyr_obj->pos_vel.x = 0.0f;
+    plyr_obj->pos_vel.z = 0.0f;
     return 0.0f;
 }
 
-float pz_fighter_perform_taunt(void) {
-    PZ_RUN_SHARED_FIGHTER_SCRIPT(0x30);
-    return 0.0f;
+void pz_fighter_allow_continuation(void) {
+    g_pz_fighters_engine.easy_continuation = 0;
+    g_pz_fighters_engine.continuation_allowed = 1;
 }
 
-#undef PZ_RUN_SHARED_FIGHTER_SCRIPT
-
-void pz_fighter_shaking(void) {
-    int flags = 0;
-    int frame;
-
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    blend_to_ani(pz_shared_ani.shaking, flags, 0.1f);
-    plyr_anim_pdata->step = 1.3f;
-    ani_to_frame_x(15.0f);
-    frame = 1;
-    do {
-        glitch_to_ani(pz_shared_ani.shaking, flags);
-        ani_to_frame_x(15.0f);
-        frame++;
-    } while (frame < 6);
+void pz_fighter_disallow_continuation(void) {
+    g_pz_fighters_engine.continuation_allowed = 0;
+    g_pz_fighters_engine.continuation_blocked = 0;
 }
 
-void pz_fighter_check_to_toggle_obj_and_ani_flips(
-    unsigned int expected_player) {
-    if ((unsigned int)plyr_pdata->plyr_num == expected_player) {
-        toggle_obj_and_ani_flips(plyr_anim_pdata);
-    }
+void pz_fighter_reset_continuation(void) {
+    g_pz_fighters_engine.continuation_reset = 0;
 }
 
-void pz_fighter_release_other_player(int reaction) {
-    int reaction_locked = 0;
-
-    release_other_player();
-    his_obj->flags_09_bits.face_opponent = reaction_locked;
-    plyr_obj->flags_09_bits.face_opponent = reaction_locked;
-    pz_fighter_reaction_xfer_him(reaction);
-}
-
-void pz_fighter_step_throw_into_check(void) {
-    init_ground_move();
-    random_voice(9);
-    random_hit(0xE);
-    set_my_state(0x120C);
-    blend_to_ani(shared_ani.step_throw, 3, 0.1f);
-    plyr_anim_pdata->step = 1.6f;
-    ani_to_frame_x(8.0f);
-    pz_fighter_ani_attack(10.0f, 0x12, 9.0f, 1.0f, 2);
-    set_both_face_opponent_flags();
-}
-
-void pz_fighter_create_space_between_fighters(void) {
-    unsigned int roll = (unsigned short)randu0(100);
-    float player_distance = xz_distance_between_players();
-    float home_distance =
-        pz_fighter_fetch_plyr_to_home_post_distance(plyr_pdata->plyr_num);
-    unsigned int index;
-
-    if (player_distance > 1.5f) {
-        return;
-    }
-    if (home_distance < 1.5f) {
-        set_my_state(0x4208);
-        init_air_move();
-        head_tracking_off();
-        pz_fighter_dont_fudge_desired_distance();
-        pz_fighter_startup_attack(
-            pz_shared_ani.backflip, 14.0f, 0.1f, 0.6f, 0.3f,
-            0x10000, 0x10008, 3, 2, 0.8f);
-        ani_to_frame_x(24.0f);
-        player_feet_land_chores();
-        init_ground_move();
-        ani_to_frame_x(32.0f);
-        init_air_move();
-        ani_to_frame_x(38.0f);
-        init_ground_move();
-        ani_to_end();
-        return;
-    }
-    for (index = 0; index < pz_spacing_table.count; index++) {
-        if (roll < pz_spacing_table.choices[index].threshold) {
-            pz_spacing_table.choices[index].entry();
-            return;
-        }
-    }
-}
-
-float pz_fighter_dash_back(void) {
-    avoid_double_ani();
-    init_ground_move_no_aniproc();
-    random_voice(9);
-    set_my_state(0x6208);
-    plyr_anim_pdata->flags |= 0x40;
-    snd_req(0xD71);
-    blend_to_ani(shared_ani.dash_back, 3, 0.2f);
-    plyr_anim_pdata->step = 0.9f;
-    plyr_anim_pdata->weight_velocity = 0.0f;
-    plyr_anim_pdata->weight = 1.0f;
-    ani_to_frame_x(12.0f);
-    init_air_move();
-    ani_to_frame_x(17.0f);
-    init_ground_move();
-    random_foot(1);
-    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-    return 0.0f;
-}
-
-void pz_fighter_create_space_between_fighters_for_special_moves(void) {
-    float player_distance = xz_distance_between_players();
-    float home_distance =
-        pz_fighter_fetch_plyr_to_home_post_distance(plyr_pdata->plyr_num);
-
-    if (player_distance > 3.0f) {
-        return;
-    }
-    if (home_distance > 6.0f) {
-        PuzzleAttackParameters attack;
-        struct PuzzleFighterMove* move;
-
-        attack = pz_attack_common;
-        move = pz_get_fighter_move();
-        move->active_flags |= 1;
-        pz_fighter_attack(pz_shared_ani.shove, &attack, 0x24);
-        ani_to_end();
-        return;
-    }
-    if (home_distance < 4.0f) {
-        avoid_double_ani();
-        init_ground_move_no_aniproc();
-        random_voice(9);
-        set_my_state(0x6208);
-        plyr_anim_pdata->flags |= 0x40;
-        snd_req(0xD71);
-        blend_to_ani(shared_ani.dash_back, 3, 0.2f);
-        plyr_anim_pdata->step = 0.75f;
-        plyr_anim_pdata->weight_velocity = 0.0f;
-        plyr_anim_pdata->weight = 1.8f;
-        ani_to_frame_x(12.0f);
-        init_air_move();
-        ani_to_frame_x(17.0f);
-        init_ground_move();
-        random_foot(1);
-        return;
-    }
-    avoid_double_ani();
-    init_ground_move_no_aniproc();
-    random_voice(9);
-    set_my_state(0x6208);
-    plyr_anim_pdata->flags |= 0x40;
-    snd_req(0xD71);
-    blend_to_ani(shared_ani.dash_back, 3, 0.2f);
-    plyr_anim_pdata->step = 0.9f;
-    plyr_anim_pdata->weight_velocity = 0.0f;
-    plyr_anim_pdata->weight = 1.0f;
-    ani_to_frame_x(12.0f);
-    init_air_move();
-    ani_to_frame_x(17.0f);
-    init_ground_move();
-    random_foot(1);
-}
-
-float pz_fighter_dizzy(void) {
-    int flags = 0;
-
-    if (plyr_pdata->plyr_num == 1) {
-        flags |= 8;
-    }
-    init_ground_move_no_aniproc();
-    rotate_towards_him(0.1f);
-    set_my_state(0x4203);
-    plyr_pdata->state_flags.bits.dizzy = 1;
-    plyr_obj->flags_09_bits.head_tracking = 0;
-    blend_to_ani(shared_ani.dizzy, flags, 0.1f);
-    xfer_proc(plyr_anim_proc, p_animate);
-    _mkproc_sleep_ticks = 10.0f;
-    aproc->vtbl->sleep();
-    set_my_state(0);
-    for (;;) {
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-}
-
-float pz_fighter_backflip_and_point(void) {
-    set_my_state(0x4208);
-    init_air_move();
-    head_tracking_off();
-    pz_fighter_dont_fudge_desired_distance();
-    pz_fighter_startup_attack(
-        pz_shared_ani.backflip, 14.0f, 0.1f, 0.6f, 0.3f,
-        0x10000, 0x10008, 3, 2, 0.8f);
-    ani_to_frame_x(24.0f);
-    player_feet_land_chores();
-    init_ground_move();
-    ani_to_frame_x(32.0f);
-    init_air_move();
-    ani_to_frame_x(38.0f);
-    init_ground_move();
-    ani_to_end();
-    set_my_state(0x420A);
-    blend_to_ani(pz_shared_ani.backflip_point, 3, 0.1f);
-    set_ani_speed(0.8f);
-    ani_to_frame_x(18.0f);
-    random_hit(7);
-    ani_to_frame_x(30.0f);
-    random_hit(7);
-    ani_to_blend_frame(20.0f);
-    set_my_state(0);
-    aproc->vtbl->jump_sleep(pz_fighter_long_exit, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_just_backflip(void) {
-    set_my_state(0x4208);
-    init_air_move();
-    head_tracking_off();
-    pz_fighter_dont_fudge_desired_distance();
-    pz_fighter_startup_attack(
-        pz_shared_ani.backflip, 14.0f, 0.1f, 0.6f, 0.3f,
-        0x10000, 0x10008, 3, 2, 0.8f);
-    ani_to_frame_x(24.0f);
-    player_feet_land_chores();
-    init_ground_move();
-    ani_to_frame_x(32.0f);
-    init_air_move();
-    ani_to_frame_x(38.0f);
-    init_ground_move();
-    ani_to_end();
-    aproc->vtbl->jump_sleep(pz_fighter_long_exit, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_shove(void) {
-    PuzzleAttackParameters attack;
-    struct PuzzleFighterMove* move;
-
-    plyr_pdata->state = 0x120B;
-    attack = pz_attack_shove;
-    move = pz_get_fighter_move();
-    move->active_flags |= 1;
-    pz_fighter_attack(pz_shared_ani.shove, &attack, 0x14);
-    ani_to_end();
-    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-    return 0.0f;
-}
-
-static float pz_fighter_shove_brush_back(void) {
-    PuzzleAttackParameters attack = pz_attack_shove;
-    struct PuzzleFighterMove* move;
-
-    move = pz_get_fighter_move();
-    move->active_flags |= 1;
-    pz_fighter_attack(pz_shared_ani.shove, &attack, 0x14);
-    ani_to_end();
-    return 0.0f;
-}
-
-static float pz_fighter_uppercut_brush_back(void) {
-    PuzzleAttackParameters attack = pz_attack_uppercut;
-
-    pz_fighter_attack(pz_shared_ani.uppercut_brush_back, &attack, 8);
-    slow_ani_x(0.3f, 17.0f);
-    ani_to_end();
-    return 0.0f;
-}
-
-float pz_fighter_superman_move(void) {
-    int ticks;
-    int reached = 0;
-    void* object;
-
-    init_air_move_no_aniproc();
-    head_tracking_off();
-    plyr_obj->flags_09_bits.launched = 0;
-    blend_to_ani(pz_shared_ani.superman, 3, 0.2f);
-    set_ani_speed(0.6f);
-    ani_to_frame_x(17.0f);
-    set_ani_speed(0.75f);
-    myvel_his_angle_y(0.0f, -0.035f, -0.035f);
-    for (ticks = 0; ticks < 15; ticks++) {
-        if (xz_distance_between_players() < 1.25f) {
-            reached = 1;
-            break;
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-    stop_me();
-    if (reached == 1) {
-        pz_fighter_reaction_xfer_him(0x27);
-    }
-    ani_to_frame_x(37.0f);
-    plyr_obj->flags_09_bits.launched = 1;
-    object = plyr_obj != 0 ? as_mkhdr((MkHdr*)plyr_obj) : 0;
-    update_bone_hierarchy(object);
-    object = plyr_obj != 0 ? as_mkhdr((MkHdr*)plyr_obj) : 0;
-    ground_me(object);
-    ani_to_end();
-    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_exit(void) {
-    plyr_pdata->script_exit_value_int = 10;
-    plyr_pdata->script_exit_args[0] = 0;
-    plyr_pdata->script_exit_args[1] = 0;
-    plyr_pdata->script_exit_arg_2 = 0;
-    plyr_pdata->input_unlock_tick = 0;
-    plyr_pdata->blocking_disable_tick_1 = 0;
-    plyr_pdata->blocking_disable_tick_2 = 0;
-    aproc->vtbl->jump_sleep(j_exit_6, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_long_exit(void) {
-    plyr_pdata->script_exit_value_int = 20;
-    plyr_pdata->script_exit_args[0] = 0;
-    plyr_pdata->script_exit_args[1] = 0;
-    plyr_pdata->script_exit_arg_2 = 0;
-    plyr_pdata->input_unlock_tick = 0;
-    plyr_pdata->blocking_disable_tick_1 = 0;
-    plyr_pdata->blocking_disable_tick_2 = 0;
-    aproc->vtbl->jump_sleep(j_exit_6, 0.0f);
-    return 0.0f;
-}
-
-void pz_fighter_force_reaction_in_ticks(int reaction, int ticks) {
-    struct PuzzleReactionDelayPdata* pdata;
-
-    if (_create_mkproc_generic_tinystack(
-            0xC001, 0x1F, p_force_reaction,
-            sizeof(struct PuzzleReactionDelayPdata), (MkHdr**)&pdata) != 0 &&
-        pdata != 0) {
-        pdata->ticks = ticks;
-        pdata->reaction = reaction;
-        pdata->saved_pdata = apdata;
-    }
-}
-
-static float p_force_reaction(void) {
-    struct PuzzleReactionDelayPdata* pdata = (struct PuzzleReactionDelayPdata*)apdata;
-
-    if (--pdata->ticks > 0) {
-        return 1.0f;
-    }
-
-    apdata = pdata->saved_pdata;
-    pz_fighter_reaction_xfer_him(pdata->reaction);
-    return -1.0f;
-}
-
-void pz_fighter_reaction_xfer_him(int reaction) {
-    struct PuzzleReactionTransferData* reaction_data;
-    MkProc* opponent_proc;
-    MkProc* hold_proc;
-    CmdScript* script;
-    struct PuzzleReactionDispatch dispatch;
-
-    if (g_pz_fighters_engine.reactions_disabled != 0) {
-        return;
-    }
-
-    reaction_data = (struct PuzzleReactionTransferData*)apdata;
-    dispatch = tbl_xfer_addresses[reaction].dispatch;
-    opponent_proc = MK_LIVE(reaction_data->opponent_proc, reaction_data->opponent_proc_instance);
-
-    his_obj = reaction_data->opponent_obj;
-    his_pdata = reaction_data->opponent_pdata;
-    script = get_cmdscript_for_proc(opponent_proc);
-    his_pdata->state = 0x600;
-    swap_active_plyr_proc();
-
-    if (plyr_pdata->scream_sound_handle != 0) {
-        snd_stop(plyr_pdata->scream_sound_handle);
-        plyr_pdata->scream_sound_handle = 0;
-    }
-
-    hold_proc = MK_LIVE(plyr_pdata->hold_proc, plyr_pdata->hold_proc_instance);
-
-    if (hold_proc != 0) {
-        release_other_player();
-        if (plyr_pdata == g_game_info.plyr0.slot.pdata) {
-            xfer_player_proc(g_game_info.plyr1.idle_proc, j_exit);
-        } else {
-            xfer_player_proc(g_game_info.plyr0.idle_proc, j_exit);
-        }
-    }
-
-    plyr_anim_pdata->flags |= 0x40;
-    plyr_anim_pdata->step = 1.0f;
-    if (plyr_pdata->state_flags.bits.frozen) {
-        unfreeze_player();
-    }
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    if (reaction != 0x2D && g_pz_fighters_engine.present != 0) {
-        g_pz_fighters_engine.present->state = 5;
-    }
-    if (reaction != 4 && g_global_projectile != 0) {
-        g_global_projectile->state = 2;
-    }
-    run_reaction_cleanup_function(plyr_pdata);
-
-    if (tbl_xfer_addresses[reaction].movement_flags & 2) {
-        init_air_move_no_aniproc();
-    } else {
-        if (tbl_xfer_addresses[reaction].movement_flags & 1) {
-            init_ground_move_no_aniproc();
-        }
-        if (tbl_xfer_addresses[reaction].movement_flags & 4) {
-            init_3d_move_no_aniproc();
-        }
-    }
-    set_my_state(0x600);
-    swap_active_plyr_proc();
-
-    if (dispatch.call_type == 4) {
-        script->unk28 = (int)dispatch.entry;
-        xfer_player_proc(opponent_proc, r_pz_call_script_function);
-    } else if (dispatch.call_type == 0) {
-        script->unk28 = (int)dispatch.entry;
-        xfer_player_proc(opponent_proc, r_call_player_script_function);
-    } else if (dispatch.call_type == 2) {
-        script->unk28 = (int)dispatch.entry;
-        xfer_player_proc(opponent_proc, r_call_character_cmo_function);
-    } else if (dispatch.call_type == 3) {
-        script->unk28 = (int)dispatch.entry;
-        xfer_player_proc(
-            opponent_proc, r_call_other_pz_player_char_script_function);
-    } else {
-        xfer_player_proc(opponent_proc, dispatch.entry);
-    }
-}
-
-static float pz_fighter_r_null(void) {
-    _mkproc_sleep_ticks = 8.0f;
-    aproc->vtbl->sleep();
-    blend_to_stance(0.1f);
-    aproc->vtbl->jump_sleep(j_exit, 0.0f);
-    return 0.0f;
-}
-
-static float r_pz_ermac_slam(void) {
-    got_hit_fx(2, 0xD, 4, 0, 0, 0.0f, 2);
-    init_air_move();
-    face_opponent_now();
-    stop_me();
-    plyr_obj->gravity = 0.0018f;
-    xfer_proc(plyr_anim_proc, p_animate);
-    blend_to_ani(his_pdata->reaction_animation, 0, 0.1f);
-    _mkproc_sleep_ticks = 50.0f;
-    aproc->vtbl->sleep();
-    plyr_obj->gravity = -0.1f;
-    snd_req(0x254);
-    blend_to_ani(shared_ani.ermac_slam, 3, 0.2f);
-    plyr_anim_pdata->step = 1.0f;
-    ani_to_frame_x(6.0f);
-    wait_to_land();
-    snd_req(0x255);
-    snd_req(0x1D7);
-    set_my_state(0x3203);
-    init_air_move();
-    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 2);
-    plyr_anim_pdata->step = 0.6f;
-    launch_me_up(0.08f, -0.003f);
-    ani_to_frame_x(34.0f);
-    set_my_state(0x600);
-    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 2);
-    random_hit(9);
-    bulvan_function(0);
-    init_ground_move();
-    stop_me();
-    ani_to_end();
-    aproc->vtbl->jump_sleep(j_getup_back_6, 0.0f);
-    return 0.0f;
-}
-
-static float r_pz_fighter_spear_tug(void) {
-    int ticks;
-
-    blend_to_ani(
-        his_pdata->fighter_definition->spear_tug_start, 3, 0.1f);
-    ani_to_end();
-    snd_req(0xD70);
-    myvel_his_angle_y(0.0f, -0.05f, -0.05f);
-    blend_to_ani(
-        his_pdata->fighter_definition->spear_tug_loop, 0, 0.1f);
-    plyr_anim_pdata->step = 0.45f;
-    ticks = 0;
-    while (xz_distance_between_players() > 1.0f && ticks < 120) {
-        _mkproc_sleep_ticks = 1.0f;
-        ticks++;
-        aproc->vtbl->sleep();
-    }
-    init_ground_move();
-    stop_me();
-    set_my_state(0x4204);
-    blend_to_ani(
-        his_pdata->fighter_definition->spear_tug_end, 3, 0.2f);
-    plyr_anim_pdata->step = 1.3f;
-    ani_loop_more_frames(120.0f);
-    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
-    return 0.0f;
-}
-
-static float r_pz_fighter_spear_hit(void) {
-    stop_me();
-    init_air_move();
-    set_my_state(0x603);
-    got_hit_fx(2, 5, 1, 0, 0, 0.0f, 0);
-    blend_to_ani(his_pdata->fighter_definition->spear_hit, 3, 0.1f);
-    ani_to_frame_x(83.0f);
-    set_my_state(0x604);
-    ani_to_end();
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-static float r_pz_fighter_almost_in_grinder(void) {
-    face_opponent_now();
-    shake_hit_voice(0, 0.02f, 0, 4);
-
-    if (plyr_obj->pos.value.x > -1.45f && plyr_obj->pos.value.x < 1.45f) {
-        if (plyr_obj->pos.value.x < -1.35f || plyr_obj->pos.value.x > 1.35f) {
-            force_away(0.03f, 6, 0.9f, 4);
-        } else if (plyr_obj->pos.value.x < -1.2f || plyr_obj->pos.value.x > 1.2f) {
-            force_away(0.0415f, 6, 0.8f, 4);
-        } else if (plyr_obj->pos.value.x < -1.1f || plyr_obj->pos.value.x > 1.1f) {
-            force_away(0.05f, 6, 0.8f, 4);
-        } else {
-            force_away(0.06f, 6, 0.8f, 4);
-        }
-    }
-
-    blend_to_ani(pz_shared_ani.almost_in_grinder, 3, 0.1f);
-    ani_to_frame_x(10.0f);
-
-    if (plyr_obj->pos.value.x < -1.35f) {
-        pan_snd_req(0x1AB9, -0.5f);
-        pan_snd_req(0xD8A, -0.5f);
-        pan_snd_req(0xD5D, -0.5f);
-        snd_req_delay(0xD5D, 5);
-        snd_req_delay(0xD89, 5);
-        snd_req_delay(0xD8A, 8);
-        snd_req_delay(0xD8D, 10);
-    } else {
-        pan_snd_req(0x1AB9, 0.5f);
-        pan_snd_req(0xD8A, 0.5f);
-        pan_snd_req(0xD5D, 0.5f);
-        snd_req_delay(0xD5D, 5);
-        snd_req_delay(0xD89, 5);
-        snd_req_delay(0xD8A, 8);
-        snd_req_delay(0xD8D, 10);
-    }
-
-    if (plyr_obj->pos.value.x < -1.35f || plyr_obj->pos.value.x > 1.35f) {
-        Vec post;
-
-        pz_fighter_get_grinder_post(plyr_pdata->plyr_num, &post);
-        if (plyr_pdata->plyr_num == 0) {
-            post.x -= 0.4f;
-        } else {
-            post.x += 0.4f;
-        }
-        bgnd_launch_fx_at_position(
-            "post_blood", post.x, plyr_obj->pos.value.y, post.z);
-        if (plyr_pdata->plyr_num == 1) {
-            bgnd_set_fx_ang_y(3.1415927f);
-        }
-    }
-
-    set_ani_speed(0.85f);
-    ani_to_blend_frame(10.0f);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-static float r_pz_fighter_feet3_swept_out(void) {
-    face_opponent_now();
-    got_hit_fx(2, 7, 0, 0, 0, 0.0f, 0x10);
-    plyr_obj->flags_09_bits.face_opponent = 0;
-    plyr_obj->flags_09_bits.tightrope_restricted = 0;
-    pz_fighter_set_y_constrain(plyr_obj, 1, 0.3f);
-    blend_to_ani_INOUT(
-        shared_ani.swept_out, shared_ani.swept_in,
-        0.2f, 1.0f, 0.8f);
-    ani_to_frame_x(fpick_a_float(20.0f, 20.0f));
-    if (large_ground_fx != 0) {
-        large_ground_fx();
-    }
-    land_chores(0xD7F, 0xCB8, 0.0f, 0.0f);
-    pz_fighter_set_y_constrain(plyr_obj, 1, 0.3f);
-    ani_to_end();
-    aproc->vtbl->jump_sleep(j_getup_back_9, 0.0f);
-    return 0.0f;
-}
-
-float pz_fighter_inline_force_away_with_ani(
-    float velocity, unsigned int coast_ticks, float damping,
-    unsigned int damping_ticks) {
-    unsigned int ticks;
-
-    myvel_my_angle_y(3.1428f, velocity, velocity);
-    for (ticks = 0; ticks < coast_ticks; ticks++) {
-        ani_1_frame();
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-    for (ticks = 0; ticks < damping_ticks; ticks++) {
-        plyr_obj->pos_vel.x *= damping;
-        plyr_obj->pos_vel.z *= damping;
-        ani_1_frame();
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-    return 0.0f;
-}
-
-void suspend_in_midair(float ticks) {
-    float saved_velocity = plyr_obj->pos_vel.y;
-
-    plyr_obj->flags_08_bits.moving = 0;
-    plyr_obj->pos_vel.y = 0.0f;
-    _mkproc_sleep_ticks = ticks;
-    aproc->vtbl->sleep();
-    plyr_obj->pos_vel.y = saved_velocity;
-    plyr_obj->flags_08_bits.moving = 1;
-}
-
-static float r_pz_fighter_dizzyfall3_with_holdface(void) {
-    face_opponent_now();
-    wall_eligible_on();
-    got_hit_fx(0, 1, 0, 2, 0, 0.0f, 0);
-    snd_major_hit_voice();
-    force_away(0.04f, 2, 0.4f, 2);
-    blend_to_ani(pz_shared_ani.dizzyfall_holdface, 0xB, 0.1f);
-    ani_to_frame_x(95.0f);
-    got_hit_fx(0, 0xC, 0, 4, 0, 0.0f, 1);
-    random_hit(9);
-    ani_to_end();
-    if (pz_fighter_should_he_breakout() == 0) {
-        init_ground_move_no_aniproc();
-        plyr_obj->flags_09_bits.head_tracking = 0;
-        tightrope_restrictions_off();
-        plyr_anim_pdata->step = 0.6f;
-        plyr_anim_pdata->transition_weight = 0.5f;
-        transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.dizzyfall_recover, 0);
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-        ani_to_frame_x(2.0f);
-        init_air_move();
-        plyr_anim_pdata->step = 0.9f;
-        ani_to_frame_x(12.0f);
-        while (plyr_anim_pdata->frame <= plyr_anim_pdata->high_frame) {
-            ani_1_frame();
-            _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep();
-            if (pz_fighter_should_he_breakout() == 1) {
-                break;
-            }
-        }
-    }
-    pz_fighter_set_y_constrain(plyr_obj, 1, 0.3f);
-    aproc->vtbl->jump_sleep(j_getup_back_6, 0.0f);
-    return 0.0f;
-}
-
-static float r_pz_fighter_block_lo(void) {
-    stop_me();
-    init_ground_move();
-    random_hit(1);
-    plyr_pdata->his_attack_counter = get_his_attack_counter();
-    xfer_proc(plyr_anim_proc, p_anim_idle);
-    blend_to_ani(shared_ani.block_low_start, 3, 0.2f);
-    plyr_anim_pdata->step = 1.0f;
-    ani_to_end();
-    xfer_proc(plyr_anim_proc, p_animate);
-    blend_to_ani(shared_ani.block_low_loop, 0, 0.2f);
-    plyr_anim_pdata->step = 0.5f;
-    do {
-        init_ground_move();
-        set_my_state(0x900);
-        nudge_towards_him(0.2f);
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    } while ((plyr_pdata->state & 0x800) != 0 && his_pdata->state != 0);
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-static float r_pz_fighter_block_hi(void) {
-    stop_me();
-    init_ground_move();
-    random_hit(1);
-    plyr_pdata->his_attack_counter = get_his_attack_counter();
-    set_my_state(0xA00);
-    blend_to_ani(shared_ani.block_high, 0, 0.5f);
-    xfer_proc(plyr_anim_proc, p_animate);
-    plyr_anim_pdata->step = 1.0f;
-    force_forward(0.01f, 6, 0.5f, 3);
-    for (;;) {
-        nudge_towards_him(0.2f);
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-        if ((plyr_pdata->state & 0x800) == 0 || his_pdata->state == 0) {
-            break;
-        }
-    }
-    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
-    return 0.0f;
-}
-
-void pz_fighter_function(unsigned int function) {
-    if (function < 3) {
-        pz_fighter_tbl[function]();
-    }
-}
-
-static float pz_fighter_present_explode(void) {
-    if (g_pz_fighters_engine.present != 0) {
-        g_pz_fighters_engine.present->state = 2;
-    }
-    return 0.0f;
-}
-
-static float pz_fighter_present_given(void) {
-    if (g_pz_fighters_engine.present != 0) {
-        g_pz_fighters_engine.present->state = 3;
-    }
-    return 0.0f;
-}
-
-static float pz_fighter_present_on_attackers_hand(void) {
-    struct PuzzlePresentState* present = 0;
-
-    if (_create_mkproc_generic_tinystack(
-            0xC001, 0x1F, p_present_control,
-            sizeof(struct PuzzlePresentState), (MkHdr**)&present) != 0 &&
-        present != 0) {
-        present->state = 0;
-        g_pz_fighters_engine.present = present;
-        present->owner = plyr_pdata;
-    }
-    return 0.0f;
-}
-
-void pz_fighter_kill_present(void) {
-    if (g_pz_fighters_engine.present == 0) {
-        return;
-    }
-    g_pz_fighters_engine.present->state = 5;
+void pz_fighter_allow_easy_continuation(void) {
+    g_pz_fighters_engine.easy_continuation = 1;
+    g_pz_fighters_engine.continuation_allowed = 1;
 }
 
 static float p_present_control(void) {
@@ -3106,65 +808,2440 @@ static float p_present_control(void) {
     }
 }
 
-void pz_fighter_allow_easy_continuation(void) {
-    g_pz_fighters_engine.easy_continuation = 1;
-    g_pz_fighters_engine.continuation_allowed = 1;
+void pz_fighter_kill_present(void) {
+    if (g_pz_fighters_engine.present == 0) {
+        return;
+    }
+    g_pz_fighters_engine.present->state = 5;
 }
 
-void pz_fighter_reset_continuation(void) {
-    g_pz_fighters_engine.continuation_reset = 0;
-}
+static float pz_fighter_present_on_attackers_hand(void) {
+    struct PuzzlePresentState* present = 0;
 
-void pz_fighter_disallow_continuation(void) {
-    g_pz_fighters_engine.continuation_allowed = 0;
-    g_pz_fighters_engine.continuation_blocked = 0;
-}
-
-void pz_fighter_allow_continuation(void) {
-    g_pz_fighters_engine.easy_continuation = 0;
-    g_pz_fighters_engine.continuation_allowed = 1;
-}
-
-float pz_fighter_clear_out_external_forces(void) {
-    plyr_obj->pos_vel.x = 0.0f;
-    plyr_obj->pos_vel.z = 0.0f;
+    if (_create_mkproc_generic_tinystack(
+            0xC001, 0x1F, p_present_control,
+            sizeof(struct PuzzlePresentState), (MkHdr**)&present) != 0 &&
+        present != 0) {
+        present->state = 0;
+        g_pz_fighters_engine.present = present;
+        present->owner = plyr_pdata;
+    }
     return 0.0f;
 }
 
-void pz_fighter_clear_out_all_external_forces(
-    MkObj* fighter) {
-    fighter->pos_vel.x = 0.0f;
-    fighter->pos_vel.z = 0.0f;
-}
-
-static float r_call_other_pz_player_char_script_function(void) {
-    cmdscript_reset_stack();
-    cmdscript_setup_execution(plyr_pdata->his_plyr_pdata->cmo,
-                              active_cmdscript->unk28);
-    call_player_script_function(plyr_pdata->his_plyr_pdata->cmo);
+static float pz_fighter_present_given(void) {
+    if (g_pz_fighters_engine.present != 0) {
+        g_pz_fighters_engine.present->state = 3;
+    }
     return 0.0f;
 }
 
-static float r_call_character_cmo_function(void) {
-    cmdscript_reset_stack();
-    cmdscript_setup_execution(plyr_pdata->cmo,
-                              active_cmdscript->unk28);
-    call_player_script_function(plyr_pdata->cmo);
+static float pz_fighter_present_explode(void) {
+    if (g_pz_fighters_engine.present != 0) {
+        g_pz_fighters_engine.present->state = 2;
+    }
     return 0.0f;
 }
 
-static float r_call_player_script_function(void) {
-    cmdscript_reset_stack();
-    cmdscript_setup_execution(plyr_pdata->fighter_definition->cmo,
-                              active_cmdscript->unk28);
-    call_player_script_function(plyr_pdata->fighter_definition->cmo);
+void pz_fighter_function(unsigned int function) {
+    if (function < 3) {
+        pz_fighter_tbl[function]();
+    }
+}
+
+static float r_pz_fighter_block_hi(void) {
+    stop_me();
+    init_ground_move();
+    random_hit(1);
+    plyr_pdata->his_attack_counter = get_his_attack_counter();
+    set_my_state(0xA00);
+    blend_to_ani(shared_ani.block_high, 0, 0.5f);
+    xfer_proc(plyr_anim_proc, p_animate);
+    plyr_anim_pdata->step = 1.0f;
+    force_forward(0.01f, 6, 0.5f, 3);
+    for (;;) {
+        nudge_towards_him(0.2f);
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+        if ((plyr_pdata->state & 0x800) == 0 || his_pdata->state == 0) {
+            break;
+        }
+    }
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
 
-float r_pz_call_script_function(void) {
+static float r_pz_fighter_block_lo(void) {
+    stop_me();
+    init_ground_move();
+    random_hit(1);
+    plyr_pdata->his_attack_counter = get_his_attack_counter();
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    blend_to_ani(shared_ani.block_low_start, 3, 0.2f);
+    plyr_anim_pdata->step = 1.0f;
+    ani_to_end();
+    xfer_proc(plyr_anim_proc, p_animate);
+    blend_to_ani(shared_ani.block_low_loop, 0, 0.2f);
+    plyr_anim_pdata->step = 0.5f;
+    do {
+        init_ground_move();
+        set_my_state(0x900);
+        nudge_towards_him(0.2f);
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    } while ((plyr_pdata->state & 0x800) != 0 && his_pdata->state != 0);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+static float r_pz_fighter_dizzyfall3_with_holdface(void) {
+    face_opponent_now();
+    wall_eligible_on();
+    got_hit_fx(0, 1, 0, 2, 0, 0.0f, 0);
+    snd_major_hit_voice();
+    force_away(0.04f, 2, 0.4f, 2);
+    blend_to_ani(pz_shared_ani.dizzyfall_holdface, 0xB, 0.1f);
+    ani_to_frame_x(95.0f);
+    got_hit_fx(0, 0xC, 0, 4, 0, 0.0f, 1);
+    random_hit(9);
+    ani_to_end();
+    if (pz_fighter_should_he_breakout() == 0) {
+        init_ground_move_no_aniproc();
+        plyr_obj->flags_09_bits.head_tracking = 0;
+        tightrope_restrictions_off();
+        plyr_anim_pdata->step = 0.6f;
+        plyr_anim_pdata->transition_weight = 0.5f;
+        transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.dizzyfall_recover, 0);
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+        ani_to_frame_x(2.0f);
+        init_air_move();
+        plyr_anim_pdata->step = 0.9f;
+        ani_to_frame_x(12.0f);
+        while (plyr_anim_pdata->frame <= plyr_anim_pdata->high_frame) {
+            ani_1_frame();
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+            if (pz_fighter_should_he_breakout() == 1) {
+                break;
+            }
+        }
+    }
+    pz_fighter_set_y_constrain(plyr_obj, 1, 0.3f);
+    aproc->vtbl->jump_sleep(j_getup_back_6, 0.0f);
+    return 0.0f;
+}
+
+void suspend_in_midair(float ticks) {
+    float saved_velocity = plyr_obj->pos_vel.y;
+
+    plyr_obj->flags_08_bits.moving = 0;
+    plyr_obj->pos_vel.y = 0.0f;
+    _mkproc_sleep_ticks = ticks;
+    aproc->vtbl->sleep();
+    plyr_obj->pos_vel.y = saved_velocity;
+    plyr_obj->flags_08_bits.moving = 1;
+}
+
+float pz_fighter_inline_force_away_with_ani(
+    float velocity, unsigned int coast_ticks, float damping,
+    unsigned int damping_ticks) {
+    unsigned int ticks;
+
+    myvel_my_angle_y(3.1428f, velocity, velocity);
+    for (ticks = 0; ticks < coast_ticks; ticks++) {
+        ani_1_frame();
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    for (ticks = 0; ticks < damping_ticks; ticks++) {
+        plyr_obj->pos_vel.x *= damping;
+        plyr_obj->pos_vel.z *= damping;
+        ani_1_frame();
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    return 0.0f;
+}
+
+static float r_pz_fighter_feet3_swept_out(void) {
+    face_opponent_now();
+    got_hit_fx(2, 7, 0, 0, 0, 0.0f, 0x10);
+    plyr_obj->flags_09_bits.face_opponent = 0;
+    plyr_obj->flags_09_bits.tightrope_restricted = 0;
+    pz_fighter_set_y_constrain(plyr_obj, 1, 0.3f);
+    blend_to_ani_INOUT(
+        shared_ani.swept_out, shared_ani.swept_in,
+        0.2f, 1.0f, 0.8f);
+    ani_to_frame_x(fpick_a_float(20.0f, 20.0f));
+    if (large_ground_fx != 0) {
+        large_ground_fx();
+    }
+    land_chores(0xD7F, 0xCB8, 0.0f, 0.0f);
+    pz_fighter_set_y_constrain(plyr_obj, 1, 0.3f);
+    ani_to_end();
+    aproc->vtbl->jump_sleep(j_getup_back_9, 0.0f);
+    return 0.0f;
+}
+
+static float r_pz_fighter_almost_in_grinder(void) {
+    face_opponent_now();
+    shake_hit_voice(0, 0.02f, 0, 4);
+
+    if (plyr_obj->pos.value.x > -1.45f && plyr_obj->pos.value.x < 1.45f) {
+        if (plyr_obj->pos.value.x < -1.35f || plyr_obj->pos.value.x > 1.35f) {
+            force_away(0.03f, 6, 0.9f, 4);
+        } else if (plyr_obj->pos.value.x < -1.2f || plyr_obj->pos.value.x > 1.2f) {
+            force_away(0.0415f, 6, 0.8f, 4);
+        } else if (plyr_obj->pos.value.x < -1.1f || plyr_obj->pos.value.x > 1.1f) {
+            force_away(0.05f, 6, 0.8f, 4);
+        } else {
+            force_away(0.06f, 6, 0.8f, 4);
+        }
+    }
+
+    blend_to_ani(pz_shared_ani.almost_in_grinder, 3, 0.1f);
+    ani_to_frame_x(10.0f);
+
+    if (plyr_obj->pos.value.x < -1.35f) {
+        pan_snd_req(0x1AB9, -0.5f);
+        pan_snd_req(0xD8A, -0.5f);
+        pan_snd_req(0xD5D, -0.5f);
+        snd_req_delay(0xD5D, 5);
+        snd_req_delay(0xD89, 5);
+        snd_req_delay(0xD8A, 8);
+        snd_req_delay(0xD8D, 10);
+    } else {
+        pan_snd_req(0x1AB9, 0.5f);
+        pan_snd_req(0xD8A, 0.5f);
+        pan_snd_req(0xD5D, 0.5f);
+        snd_req_delay(0xD5D, 5);
+        snd_req_delay(0xD89, 5);
+        snd_req_delay(0xD8A, 8);
+        snd_req_delay(0xD8D, 10);
+    }
+
+    if (plyr_obj->pos.value.x < -1.35f || plyr_obj->pos.value.x > 1.35f) {
+        Vec post;
+
+        pz_fighter_get_grinder_post(plyr_pdata->plyr_num, &post);
+        if (plyr_pdata->plyr_num == 0) {
+            post.x -= 0.4f;
+        } else {
+            post.x += 0.4f;
+        }
+        bgnd_launch_fx_at_position(
+            "post_blood", post.x, plyr_obj->pos.value.y, post.z);
+        if (plyr_pdata->plyr_num == 1) {
+            bgnd_set_fx_ang_y(3.1415927f);
+        }
+    }
+
+    set_ani_speed(0.85f);
+    ani_to_blend_frame(10.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+static float r_pz_fighter_spear_hit(void) {
+    stop_me();
+    init_air_move();
+    set_my_state(0x603);
+    got_hit_fx(2, 5, 1, 0, 0, 0.0f, 0);
+    blend_to_ani(his_pdata->fighter_definition->spear_hit, 3, 0.1f);
+    ani_to_frame_x(83.0f);
+    set_my_state(0x604);
+    ani_to_end();
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+static float r_pz_fighter_spear_tug(void) {
+    int ticks;
+
+    blend_to_ani(
+        his_pdata->fighter_definition->spear_tug_start, 3, 0.1f);
+    ani_to_end();
+    snd_req(0xD70);
+    myvel_his_angle_y(0.0f, -0.05f, -0.05f);
+    blend_to_ani(
+        his_pdata->fighter_definition->spear_tug_loop, 0, 0.1f);
+    plyr_anim_pdata->step = 0.45f;
+    ticks = 0;
+    while (xz_distance_between_players() > 1.0f && ticks < 120) {
+        _mkproc_sleep_ticks = 1.0f;
+        ticks++;
+        aproc->vtbl->sleep();
+    }
+    init_ground_move();
+    stop_me();
+    set_my_state(0x4204);
+    blend_to_ani(
+        his_pdata->fighter_definition->spear_tug_end, 3, 0.2f);
+    plyr_anim_pdata->step = 1.3f;
+    ani_loop_more_frames(120.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+    return 0.0f;
+}
+
+static float r_pz_ermac_slam(void) {
+    got_hit_fx(2, 0xD, 4, 0, 0, 0.0f, 2);
+    init_air_move();
+    face_opponent_now();
+    stop_me();
+    plyr_obj->gravity = 0.0018f;
+    xfer_proc(plyr_anim_proc, p_animate);
+    blend_to_ani(his_pdata->reaction_animation, 0, 0.1f);
+    _mkproc_sleep_ticks = 50.0f;
+    aproc->vtbl->sleep();
+    plyr_obj->gravity = -0.1f;
+    snd_req(0x254);
+    blend_to_ani(shared_ani.ermac_slam, 3, 0.2f);
+    plyr_anim_pdata->step = 1.0f;
+    ani_to_frame_x(6.0f);
+    wait_to_land();
+    snd_req(0x255);
+    snd_req(0x1D7);
+    set_my_state(0x3203);
+    init_air_move();
+    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 2);
+    plyr_anim_pdata->step = 0.6f;
+    launch_me_up(0.08f, -0.003f);
+    ani_to_frame_x(34.0f);
+    set_my_state(0x600);
+    got_hit_fx(4, 9, 1, 0, 0, 0.0f, 2);
+    random_hit(9);
+    bulvan_function(0);
+    init_ground_move();
+    stop_me();
+    ani_to_end();
+    aproc->vtbl->jump_sleep(j_getup_back_6, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_r_null(void) {
+    _mkproc_sleep_ticks = 8.0f;
+    aproc->vtbl->sleep();
+    blend_to_stance(0.1f);
+    aproc->vtbl->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+
+void pz_fighter_reaction_xfer_him(int reaction) {
+    struct PuzzleReactionTransferData* reaction_data;
+    MkProc* opponent_proc;
+    MkProc* hold_proc;
+    CmdScript* script;
+    struct PuzzleReactionDispatch dispatch;
+
+    if (g_pz_fighters_engine.reactions_disabled != 0) {
+        return;
+    }
+
+    reaction_data = (struct PuzzleReactionTransferData*)apdata;
+    dispatch = tbl_xfer_addresses[reaction].dispatch;
+    opponent_proc = MK_LIVE(reaction_data->opponent_proc, reaction_data->opponent_proc_instance);
+
+    his_obj = reaction_data->opponent_obj;
+    his_pdata = reaction_data->opponent_pdata;
+    script = get_cmdscript_for_proc(opponent_proc);
+    his_pdata->state = 0x600;
+    swap_active_plyr_proc();
+
+    if (plyr_pdata->scream_sound_handle != 0) {
+        snd_stop(plyr_pdata->scream_sound_handle);
+        plyr_pdata->scream_sound_handle = 0;
+    }
+
+    hold_proc = MK_LIVE(plyr_pdata->hold_proc, plyr_pdata->hold_proc_instance);
+
+    if (hold_proc != 0) {
+        release_other_player();
+        if (plyr_pdata == g_game_info.plyr0.slot.pdata) {
+            xfer_player_proc(g_game_info.plyr1.idle_proc, j_exit);
+        } else {
+            xfer_player_proc(g_game_info.plyr0.idle_proc, j_exit);
+        }
+    }
+
+    plyr_anim_pdata->flags |= 0x40;
+    plyr_anim_pdata->step = 1.0f;
+    if (plyr_pdata->state_flags.bits.frozen) {
+        unfreeze_player();
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    if (reaction != 0x2D && g_pz_fighters_engine.present != 0) {
+        g_pz_fighters_engine.present->state = 5;
+    }
+    if (reaction != 4 && g_global_projectile != 0) {
+        g_global_projectile->state = 2;
+    }
+    run_reaction_cleanup_function(plyr_pdata);
+
+    if (tbl_xfer_addresses[reaction].movement_flags & 2) {
+        init_air_move_no_aniproc();
+    } else {
+        if (tbl_xfer_addresses[reaction].movement_flags & 1) {
+            init_ground_move_no_aniproc();
+        }
+        if (tbl_xfer_addresses[reaction].movement_flags & 4) {
+            init_3d_move_no_aniproc();
+        }
+    }
+    set_my_state(0x600);
+    swap_active_plyr_proc();
+
+    if (dispatch.call_type == 4) {
+        script->unk28 = (int)dispatch.entry;
+        xfer_player_proc(opponent_proc, r_pz_call_script_function);
+    } else if (dispatch.call_type == 0) {
+        script->unk28 = (int)dispatch.entry;
+        xfer_player_proc(opponent_proc, r_call_player_script_function);
+    } else if (dispatch.call_type == 2) {
+        script->unk28 = (int)dispatch.entry;
+        xfer_player_proc(opponent_proc, r_call_character_cmo_function);
+    } else if (dispatch.call_type == 3) {
+        script->unk28 = (int)dispatch.entry;
+        xfer_player_proc(
+            opponent_proc, r_call_other_pz_player_char_script_function);
+    } else {
+        xfer_player_proc(opponent_proc, dispatch.entry);
+    }
+}
+
+static float p_force_reaction(void) {
+    struct PuzzleReactionDelayPdata* pdata = (struct PuzzleReactionDelayPdata*)apdata;
+
+    if (--pdata->ticks > 0) {
+        return 1.0f;
+    }
+
+    apdata = pdata->saved_pdata;
+    pz_fighter_reaction_xfer_him(pdata->reaction);
+    return -1.0f;
+}
+
+void pz_fighter_force_reaction_in_ticks(int reaction, int ticks) {
+    struct PuzzleReactionDelayPdata* pdata;
+
+    if (_create_mkproc_generic_tinystack(
+            0xC001, 0x1F, p_force_reaction,
+            sizeof(struct PuzzleReactionDelayPdata), (MkHdr**)&pdata) != 0 &&
+        pdata != 0) {
+        pdata->ticks = ticks;
+        pdata->reaction = reaction;
+        pdata->saved_pdata = apdata;
+    }
+}
+
+float pz_fighter_long_exit(void) {
+    plyr_pdata->script_exit_value_int = 20;
+    plyr_pdata->script_exit_args[0] = 0;
+    plyr_pdata->script_exit_args[1] = 0;
+    plyr_pdata->script_exit_arg_2 = 0;
+    plyr_pdata->input_unlock_tick = 0;
+    plyr_pdata->blocking_disable_tick_1 = 0;
+    plyr_pdata->blocking_disable_tick_2 = 0;
+    aproc->vtbl->jump_sleep(j_exit_6, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_exit(void) {
+    plyr_pdata->script_exit_value_int = 10;
+    plyr_pdata->script_exit_args[0] = 0;
+    plyr_pdata->script_exit_args[1] = 0;
+    plyr_pdata->script_exit_arg_2 = 0;
+    plyr_pdata->input_unlock_tick = 0;
+    plyr_pdata->blocking_disable_tick_1 = 0;
+    plyr_pdata->blocking_disable_tick_2 = 0;
+    aproc->vtbl->jump_sleep(j_exit_6, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_superman_move(void) {
+    int ticks;
+    int reached = 0;
+    void* object;
+
+    init_air_move_no_aniproc();
+    head_tracking_off();
+    plyr_obj->flags_09_bits.launched = 0;
+    blend_to_ani(pz_shared_ani.superman, 3, 0.2f);
+    set_ani_speed(0.6f);
+    ani_to_frame_x(17.0f);
+    set_ani_speed(0.75f);
+    myvel_his_angle_y(0.0f, -0.035f, -0.035f);
+    for (ticks = 0; ticks < 15; ticks++) {
+        if (xz_distance_between_players() < 1.25f) {
+            reached = 1;
+            break;
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    stop_me();
+    if (reached == 1) {
+        pz_fighter_reaction_xfer_him(0x27);
+    }
+    ani_to_frame_x(37.0f);
+    plyr_obj->flags_09_bits.launched = 1;
+    object = plyr_obj != 0 ? as_mkhdr((MkHdr*)plyr_obj) : 0;
+    update_bone_hierarchy(object);
+    object = plyr_obj != 0 ? as_mkhdr((MkHdr*)plyr_obj) : 0;
+    ground_me(object);
+    ani_to_end();
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_uppercut_brush_back(void) {
+    PuzzleAttackParameters attack = pz_attack_uppercut;
+
+    pz_fighter_attack(pz_shared_ani.uppercut_brush_back, &attack, 8);
+    slow_ani_x(0.3f, 17.0f);
+    ani_to_end();
+    return 0.0f;
+}
+
+static float pz_fighter_shove_brush_back(void) {
+    PuzzleAttackParameters attack = pz_attack_shove;
+    struct PuzzleFighterMove* move;
+
+    move = pz_get_fighter_move();
+    move->active_flags |= 1;
+    pz_fighter_attack(pz_shared_ani.shove, &attack, 0x14);
+    ani_to_end();
+    return 0.0f;
+}
+
+float pz_fighter_shove(void) {
+    PuzzleAttackParameters attack;
+    struct PuzzleFighterMove* move;
+
+    plyr_pdata->state = 0x120B;
+    attack = pz_attack_shove;
+    move = pz_get_fighter_move();
+    move->active_flags |= 1;
+    pz_fighter_attack(pz_shared_ani.shove, &attack, 0x14);
+    ani_to_end();
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_just_backflip(void) {
+    set_my_state(0x4208);
+    init_air_move();
+    head_tracking_off();
+    pz_fighter_dont_fudge_desired_distance();
+    pz_fighter_startup_attack(
+        pz_shared_ani.backflip, 14.0f, 0.1f, 0.6f, 0.3f,
+        0x10000, 0x10008, 3, 2, 0.8f);
+    ani_to_frame_x(24.0f);
+    player_feet_land_chores();
+    init_ground_move();
+    ani_to_frame_x(32.0f);
+    init_air_move();
+    ani_to_frame_x(38.0f);
+    init_ground_move();
+    ani_to_end();
+    aproc->vtbl->jump_sleep(pz_fighter_long_exit, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_backflip_and_point(void) {
+    set_my_state(0x4208);
+    init_air_move();
+    head_tracking_off();
+    pz_fighter_dont_fudge_desired_distance();
+    pz_fighter_startup_attack(
+        pz_shared_ani.backflip, 14.0f, 0.1f, 0.6f, 0.3f,
+        0x10000, 0x10008, 3, 2, 0.8f);
+    ani_to_frame_x(24.0f);
+    player_feet_land_chores();
+    init_ground_move();
+    ani_to_frame_x(32.0f);
+    init_air_move();
+    ani_to_frame_x(38.0f);
+    init_ground_move();
+    ani_to_end();
+    set_my_state(0x420A);
+    blend_to_ani(pz_shared_ani.backflip_point, 3, 0.1f);
+    set_ani_speed(0.8f);
+    ani_to_frame_x(18.0f);
+    random_hit(7);
+    ani_to_frame_x(30.0f);
+    random_hit(7);
+    ani_to_blend_frame(20.0f);
+    set_my_state(0);
+    aproc->vtbl->jump_sleep(pz_fighter_long_exit, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_dizzy(void) {
+    int flags = 0;
+
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    init_ground_move_no_aniproc();
+    rotate_towards_him(0.1f);
+    set_my_state(0x4203);
+    plyr_pdata->state_flags.bits.dizzy = 1;
+    plyr_obj->flags_09_bits.head_tracking = 0;
+    blend_to_ani(shared_ani.dizzy, flags, 0.1f);
+    xfer_proc(plyr_anim_proc, p_animate);
+    _mkproc_sleep_ticks = 10.0f;
+    aproc->vtbl->sleep();
+    set_my_state(0);
+    for (;;) {
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+}
+
+void pz_fighter_create_space_between_fighters_for_special_moves(void) {
+    float player_distance = xz_distance_between_players();
+    float home_distance =
+        pz_fighter_fetch_plyr_to_home_post_distance(plyr_pdata->plyr_num);
+
+    if (player_distance > 3.0f) {
+        return;
+    }
+    if (home_distance > 6.0f) {
+        PuzzleAttackParameters attack;
+        struct PuzzleFighterMove* move;
+
+        attack = pz_attack_common;
+        move = pz_get_fighter_move();
+        move->active_flags |= 1;
+        pz_fighter_attack(pz_shared_ani.shove, &attack, 0x24);
+        ani_to_end();
+        return;
+    }
+    if (home_distance < 4.0f) {
+        avoid_double_ani();
+        init_ground_move_no_aniproc();
+        random_voice(9);
+        set_my_state(0x6208);
+        plyr_anim_pdata->flags |= 0x40;
+        snd_req(0xD71);
+        blend_to_ani(shared_ani.dash_back, 3, 0.2f);
+        plyr_anim_pdata->step = 0.75f;
+        plyr_anim_pdata->weight_velocity = 0.0f;
+        plyr_anim_pdata->weight = 1.8f;
+        ani_to_frame_x(12.0f);
+        init_air_move();
+        ani_to_frame_x(17.0f);
+        init_ground_move();
+        random_foot(1);
+        return;
+    }
+    avoid_double_ani();
+    init_ground_move_no_aniproc();
+    random_voice(9);
+    set_my_state(0x6208);
+    plyr_anim_pdata->flags |= 0x40;
+    snd_req(0xD71);
+    blend_to_ani(shared_ani.dash_back, 3, 0.2f);
+    plyr_anim_pdata->step = 0.9f;
+    plyr_anim_pdata->weight_velocity = 0.0f;
+    plyr_anim_pdata->weight = 1.0f;
+    ani_to_frame_x(12.0f);
+    init_air_move();
+    ani_to_frame_x(17.0f);
+    init_ground_move();
+    random_foot(1);
+}
+
+float pz_fighter_dash_back(void) {
+    avoid_double_ani();
+    init_ground_move_no_aniproc();
+    random_voice(9);
+    set_my_state(0x6208);
+    plyr_anim_pdata->flags |= 0x40;
+    snd_req(0xD71);
+    blend_to_ani(shared_ani.dash_back, 3, 0.2f);
+    plyr_anim_pdata->step = 0.9f;
+    plyr_anim_pdata->weight_velocity = 0.0f;
+    plyr_anim_pdata->weight = 1.0f;
+    ani_to_frame_x(12.0f);
+    init_air_move();
+    ani_to_frame_x(17.0f);
+    init_ground_move();
+    random_foot(1);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+    return 0.0f;
+}
+
+void pz_fighter_create_space_between_fighters(void) {
+    unsigned int roll = (unsigned short)randu0(100);
+    float player_distance = xz_distance_between_players();
+    float home_distance =
+        pz_fighter_fetch_plyr_to_home_post_distance(plyr_pdata->plyr_num);
+    unsigned int index;
+
+    if (player_distance > 1.5f) {
+        return;
+    }
+    if (home_distance < 1.5f) {
+        set_my_state(0x4208);
+        init_air_move();
+        head_tracking_off();
+        pz_fighter_dont_fudge_desired_distance();
+        pz_fighter_startup_attack(
+            pz_shared_ani.backflip, 14.0f, 0.1f, 0.6f, 0.3f,
+            0x10000, 0x10008, 3, 2, 0.8f);
+        ani_to_frame_x(24.0f);
+        player_feet_land_chores();
+        init_ground_move();
+        ani_to_frame_x(32.0f);
+        init_air_move();
+        ani_to_frame_x(38.0f);
+        init_ground_move();
+        ani_to_end();
+        return;
+    }
+    for (index = 0; index < pz_spacing_table.count; index++) {
+        if (roll < pz_spacing_table.choices[index].threshold) {
+            pz_spacing_table.choices[index].entry();
+            return;
+        }
+    }
+}
+
+void pz_fighter_step_throw_into_check(void) {
+    init_ground_move();
+    random_voice(9);
+    random_hit(0xE);
+    set_my_state(0x120C);
+    blend_to_ani(shared_ani.step_throw, 3, 0.1f);
+    plyr_anim_pdata->step = 1.6f;
+    ani_to_frame_x(8.0f);
+    pz_fighter_ani_attack(10.0f, 0x12, 9.0f, 1.0f, 2);
+    set_both_face_opponent_flags();
+}
+
+void pz_fighter_release_other_player(int reaction) {
+    int reaction_locked = 0;
+
+    release_other_player();
+    his_obj->flags_09_bits.face_opponent = reaction_locked;
+    plyr_obj->flags_09_bits.face_opponent = reaction_locked;
+    pz_fighter_reaction_xfer_him(reaction);
+}
+
+void pz_fighter_check_to_toggle_obj_and_ani_flips(
+    unsigned int expected_player) {
+    if ((unsigned int)plyr_pdata->plyr_num == expected_player) {
+        toggle_obj_and_ani_flips(plyr_anim_pdata);
+    }
+}
+
+void pz_fighter_shaking(void) {
+    int flags = 0;
+    int frame;
+
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    blend_to_ani(pz_shared_ani.shaking, flags, 0.1f);
+    plyr_anim_pdata->step = 1.3f;
+    ani_to_frame_x(15.0f);
+    frame = 1;
+    do {
+        glitch_to_ani(pz_shared_ani.shaking, flags);
+        ani_to_frame_x(15.0f);
+        frame++;
+    } while (frame < 6);
+}
+
+float pz_fighter_perform_taunt(void) {
+    PZ_RUN_SHARED_FIGHTER_SCRIPT(0x30);
+    return 0.0f;
+}
+
+float pz_fighter_execute_point(void) {
+    head_tracking_off();
+    PZ_RUN_SHARED_FIGHTER_SCRIPT(0x31);
+    return 0.0f;
+}
+
+float pz_fighter_execute_point_no_space_check(void) {
+    head_tracking_off();
+    PZ_RUN_SHARED_FIGHTER_SCRIPT(0x33);
+    return 0.0f;
+}
+
+float pz_fighter_execute_R_coming_down(void) {
+    head_tracking_off();
+    PZ_RUN_SHARED_FIGHTER_SCRIPT(0x34);
+    return 0.0f;
+}
+
+static float pz_fighter_execute_distracts_and_hit(void) {
+    head_tracking_off();
+    PZ_RUN_SHARED_FIGHTER_SCRIPT(0x32);
+    return 0.0f;
+}
+
+float pz_fighter_execute_point_reaction_no_space(void) {
+    PZ_RUN_SHARED_FIGHTER_SCRIPT(0x36);
+    return 0.0f;
+}
+
+int pz_fighter_distance_check(void) {
+    float distance =
+        pz_fighter_fetch_plyr_to_home_post_distance(plyr_pdata->plyr_num);
+
+    if (pz_fighter_close_enough_to_super_move(his_pdata->plyr_num) == 1) {
+        return 0;
+    }
+    if (distance < 2.45f) {
+        return 1;
+    }
+    return 2;
+}
+
+int pz_fighter_distance_check_wo_super_check(void) {
+    float distance =
+        pz_fighter_fetch_plyr_to_home_post_distance(plyr_pdata->plyr_num);
+
+    if (distance < 2.45f) {
+        return 1;
+    }
+    return 2;
+}
+
+float pz_fighter_back_and_forth_showoff(void) {
+    PuzzleAttackParameters attack = pz_attack_showoff_punch;
+
+    head_tracking_off();
+    pz_fighter_attack(pz_shared_ani.dizzy_punch, &attack, 0x1D);
+    pz_fighter_check_breakout();
+    ani_to_frame_x(22.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_punch_dizzyfall(void) {
+    PuzzleAttackParameters attack = pz_attack_dizzy_punch;
+
+    head_tracking_off();
+    pz_fighter_attack(pz_shared_ani.dizzy_punch, &attack, 0x11);
+    pz_fighter_check_breakout();
+    ani_to_frame_x(22.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_footstomp(void) {
+    PuzzleAttackParameters attack;
+    struct PuzzleReactionDelayPdata* pdata;
+
+    attack = pz_attack_footstomp;
+    init_ground_move();
+    if (_create_mkproc_generic_tinystack(
+            0xC001, 0x1F, p_force_reaction,
+            sizeof(struct PuzzleReactionDelayPdata), (MkHdr**)&pdata) != 0 &&
+        pdata != 0) {
+        pdata->ticks = 22;
+        pdata->reaction = 0x20;
+        pdata->saved_pdata = apdata;
+    }
+    pz_fighter_attack(pz_shared_ani.footstomp, &attack, 0x20);
+    ani_to_frame_x(34.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_give_present(void) {
+    struct PuzzleReactionDelayPdata* pdata;
+
+    head_tracking_off();
+    init_ground_move();
+    if (_create_mkproc_generic_tinystack(
+            0xC001, 0x1F, p_force_reaction,
+            sizeof(struct PuzzleReactionDelayPdata), (MkHdr**)&pdata) != 0 &&
+        pdata != 0) {
+        pdata->ticks = 30;
+        pdata->reaction = 0x2D;
+        pdata->saved_pdata = apdata;
+    }
+    active_cmdscript->unk28 = 0x37;
     cmdscript_reset_stack();
-    cmdscript_setup_execution(pz_shared_cmo,
-                              active_cmdscript->unk28);
+    cmdscript_setup_execution(
+        pz_shared_cmo, active_cmdscript->unk28);
     call_player_script_function(pz_shared_cmo);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
+
+void pz_fighter_register_move(
+    int move, int table, int parameter1, int parameter2, int character) {
+    unsigned int index;
+
+    switch (table) {
+    case 0:
+        if (g_pz_fighter_tables.common_count < 15) {
+            g_pz_fighter_tables
+                .common_moves[g_pz_fighter_tables.common_count] = move;
+            g_pz_fighter_tables.common_count++;
+        }
+        return;
+    case 1:
+        index = g_pz_fighter_tables.characters[character].count;
+        if (index < 15) {
+            g_pz_fighter_tables.characters[character]
+                .moves[index].script_move = move;
+            g_pz_fighter_tables.characters[character]
+                .moves[g_pz_fighter_tables.characters[character].count]
+                .chance = parameter1;
+            g_pz_fighter_tables.characters[character]
+                .moves[g_pz_fighter_tables.characters[character].count]
+                .conditions = parameter2;
+            g_pz_fighter_tables.characters[character].count++;
+        }
+        return;
+    }
+}
+
+float pz_fighter_round_victory(void) {
+    unsigned int frame;
+
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    head_tracking_off();
+    blend_to_ani(pz_shared_ani.round_victory, 3, 0.1f);
+    set_ani_speed(0.75f);
+    for (frame = 0; frame < 32; frame++) {
+        if (plyr_pdata->plyr_num == 1) {
+            plyr_obj->ang.y += 0.049087387f;
+        } else {
+            plyr_obj->ang.y -= 0.049087387f;
+        }
+        ani_1_frame();
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    ani_to_frame_x(184.0f);
+    for (frame = 0; frame < 16; frame++) {
+        if (plyr_pdata->plyr_num == 1) {
+            plyr_obj->ang.y += -0.09817477f;
+        } else {
+            plyr_obj->ang.y -= -0.09817477f;
+        }
+        ani_1_frame();
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_round_whew(void) {
+    int flags = 3;
+
+    head_tracking_off();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    blend_to_ani(pz_shared_ani.round_whew, flags, 0.1f);
+    set_ani_speed(0.55f);
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.05f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_peak(void) {
+    int flags = 3;
+
+    head_tracking_off();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    init_ground_move_no_aniproc();
+    blend_to_ani(pz_shared_ani.peak, flags, 0.1f);
+    set_ani_speed(1.1f);
+    ani_to_frame_x(46.0f);
+    g_pz_fighters_engine.peak_active = 1;
+    g_pz_fighters_engine.peak_mode = 2;
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.1f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_fast_look(void) {
+    int flags = 3;
+
+    head_tracking_off();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    init_ground_move_no_aniproc();
+    blend_to_ani(pz_shared_ani.fast_look, flags, 0.33f);
+    set_ani_speed(2.15f);
+    ani_to_blend_frame(5.0f);
+    blend_to_stance(0.2f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_big_time_happy(void) {
+    unsigned int flags = 3;
+    unsigned int loop;
+
+    head_tracking_off();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    plyr_obj->flags_08_bits.moving = 0;
+    blend_to_ani(pz_shared_ani.happy_start, flags, 0.1f);
+    set_ani_speed(0.8f);
+    loop = 0;
+    do {
+        blend_to_ani(pz_shared_ani.happy_loop, flags, 0.1f);
+        ani_to_end();
+        loop++;
+    } while (loop < 3);
+    blend_to_ani(pz_shared_ani.happy_end, flags, 0.1f);
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.05f);
+    plyr_obj->flags_08_bits.moving = 1;
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_laugh(void) {
+    unsigned int flags = 3;
+    unsigned int loop;
+
+    head_tracking_off();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    plyr_obj->flags_08_bits.moving = 0;
+    blend_to_ani(pz_shared_ani.laugh_start, flags, 0.1f);
+    set_ani_speed(0.8f);
+    for (loop = 0; loop < 2; loop++) {
+        blend_to_ani(pz_shared_ani.laugh_loop, flags, 0.1f);
+        ani_to_end();
+    }
+    blend_to_ani(pz_shared_ani.laugh_end, flags, 0.1f);
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.05f);
+    plyr_obj->flags_08_bits.moving = 1;
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_laugh_small(void) {
+    int flags = 3;
+
+    head_tracking_off();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    plyr_obj->flags_08_bits.moving = 0;
+    blend_to_ani(pz_shared_ani.laugh_start, flags, 0.1f);
+    set_ani_speed(0.8f);
+    blend_to_ani(pz_shared_ani.laugh_loop, flags, 0.1f);
+    ani_to_end();
+    blend_to_ani(pz_shared_ani.laugh_end, flags, 0.1f);
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.05f);
+    plyr_obj->flags_08_bits.moving = 1;
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_beg(void) {
+    unsigned int flags = 3;
+    unsigned int loop;
+
+    head_tracking_off();
+    if (plyr_pdata->plyr_num == 1) {
+        flags = flags | 8;
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    plyr_obj->flags_08_bits.moving = 0;
+    blend_to_ani(pz_shared_ani.beg_start, flags, 0.1f);
+    set_ani_speed(0.8f);
+    for (loop = 0; loop < 2; loop++) {
+        blend_to_ani(pz_shared_ani.beg_loop, flags, 0.1f);
+        ani_to_end();
+    }
+    blend_to_ani(pz_shared_ani.beg_end, flags, 0.1f);
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.05f);
+    plyr_obj->flags_08_bits.moving = 1;
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_workthecrowd(void) {
+    int flags = 0;
+
+    head_tracking_off();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    blend_to_ani(pz_shared_ani.workthecrowd_start, flags, 0.05f);
+    set_ani_speed(0.8f);
+    blend_to_ani(pz_shared_ani.workthecrowd_loop, flags, 0.1f);
+    ani_loop_more_frames(220.0f);
+    blend_to_stance(0.05f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_round_failure(void) {
+    unsigned int frame;
+
+    head_tracking_off();
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    blend_to_ani(pz_shared_ani.round_failure, 3, 0.1f);
+    set_ani_speed(0.75f);
+    for (frame = 0; frame < 32; frame++) {
+        if (plyr_pdata->plyr_num == 1) {
+            plyr_obj->ang.y += 0.049087387f;
+        } else {
+            plyr_obj->ang.y -= 0.049087387f;
+        }
+        ani_1_frame();
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    ani_to_frame_x(154.0f);
+    for (frame = 0; frame < 16; frame++) {
+        if (plyr_pdata->plyr_num == 1) {
+            plyr_obj->ang.y += -0.09817477f;
+        } else {
+            plyr_obj->ang.y -= -0.09817477f;
+        }
+        ani_1_frame();
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_WTF(void) {
+    int flags = 3;
+
+    head_tracking_off();
+    stop_me();
+    init_ground_move();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    ani_loop_more_frames(10.0f);
+    blend_to_ani(pz_shared_ani.wtf, flags, 0.1f);
+    set_ani_speed(0.9f);
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.1f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_select_taunt_1(void) {
+    int flags = 3;
+
+    head_tracking_off();
+    stop_me();
+    init_ground_move();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    blend_to_ani(pz_shared_ani.taunt1, flags, 0.1f);
+    set_ani_speed(0.9f);
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.1f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_select_taunt_2(void) {
+    int flags = 3;
+
+    head_tracking_off();
+    stop_me();
+    init_ground_move();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    blend_to_ani(pz_shared_ani.taunt2, flags, 0.1f);
+    set_ani_speed(0.9f);
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.1f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_select_taunt_3(void) {
+    int flags = 3;
+
+    head_tracking_off();
+    stop_me();
+    init_ground_move();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    blend_to_ani(pz_shared_ani.taunt3, flags, 0.1f);
+    set_ani_speed(0.9f);
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.1f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_one_arm_swing(void) {
+    int flags = 3;
+
+    head_tracking_off();
+    stop_me();
+    init_ground_move_no_aniproc();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    blend_to_ani(pz_shared_ani.one_arm_swing, flags, 0.1f);
+    set_ani_speed(1.45f);
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.1f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_go_get_him(void) {
+    int flags = 3;
+
+    head_tracking_off();
+    stop_me();
+    init_ground_move_no_aniproc();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    blend_to_ani(pz_shared_ani.go_get_him, flags, 0.1f);
+    set_ani_speed(0.9f);
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.1f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_dont_get_me(void) {
+    int flags = 3;
+
+    stop_me();
+    init_ground_move_no_aniproc();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    blend_to_ani(pz_shared_ani.dont_get_me, flags, 0.1f);
+    set_ani_speed(0.75f);
+    ani_to_blend_frame(20.0f);
+    blend_to_stance(0.2f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_gaydance(void) {
+    int flags = 3;
+
+    head_tracking_off();
+    stop_me();
+    init_ground_move_no_aniproc();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    blend_to_ani(pz_shared_ani.gaydance, flags, 0.1f);
+    set_ani_speed(1.35f);
+    ani_to_frame_x(2.0f);
+    init_air_move();
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.1f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_WTF2(void) {
+    int flags = 3;
+
+    head_tracking_off();
+    stop_me();
+    init_ground_move();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    ani_loop_more_frames(10.0f);
+    blend_to_ani(pz_shared_ani.wtf2, flags, 0.1f);
+    set_ani_speed(0.9f);
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.1f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_round_ground_pound(void) {
+    int flags = 3;
+
+    head_tracking_off();
+    stop_me();
+    init_ground_move();
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    ani_loop_more_frames(10.0f);
+    pz_fighter_set_y_constrain(plyr_obj, 1, 0.1f);
+    blend_to_ani(pz_shared_ani.round_ground_pound, flags, 0.1f);
+    set_ani_speed(0.65f);
+    ani_to_blend_frame(10.0f);
+    blend_to_stance(0.05f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_one_arm_victory(void) {
+    int flags = 3;
+
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    set_my_state(0x4201);
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    plyr_obj->flags_09_bits.head_tracking = 0;
+    blend_to_ani(pz_shared_ani.one_arm_victory_start, flags, 0.2f);
+    set_ani_speed(0.75f);
+    ani_to_frame_x(91.0f);
+    flags = 0;
+    plyr_obj->flags_09_bits.head_tracking = 0;
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    blend_to_ani(pz_shared_ani.one_arm_victory_loop, flags, 0.5f);
+    set_ani_speed(0.75f);
+    ani_loop_more_frames(1000.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_one_arm_victory2(void) {
+    int flags = 3;
+
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    set_my_state(0x4201);
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    plyr_obj->flags_09_bits.head_tracking = 0;
+    blend_to_ani(pz_shared_ani.one_arm_victory_start, flags, 0.1f);
+    set_ani_speed(0.5f);
+    ani_to_frame_x(91.0f);
+    flags = 0;
+    plyr_obj->flags_09_bits.head_tracking = 0;
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+    blend_to_ani(pz_shared_ani.one_arm_victory_loop, flags, 0.5f);
+    set_ani_speed(0.5f);
+    ani_loop_more_frames(1000.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_disgusted_with_grinding(void) {
+    int flags = 3;
+
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    blend_to_ani(pz_shared_ani.disgusted_with_grinding, flags, 0.1f);
+    set_ani_speed(0.75f);
+    plyr_obj->flags_09_bits.head_tracking = 0;
+    ani_to_frame_x(163.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_one_arm_victory2, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_whatever2(void) {
+    int flags = 3;
+
+    if (plyr_pdata->plyr_num == 1) {
+        flags = 11;
+    }
+
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    force_away(0.01f, 5, 0.9f, 5);
+    head_tracking_on();
+    blend_to_ani(pz_shared_ani.whatever2, flags, 0.1f);
+    set_ani_speed(0.7f);
+    ani_to_blend_frame(10.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_double_arm_victory(void) {
+    int flags = 3;
+
+    if (plyr_pdata->plyr_num == 1) {
+        flags |= 8;
+    }
+
+    set_my_state(0x4201);
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    blend_to_ani(pz_shared_ani.double_arm_victory, flags, 0.05f);
+    set_ani_speed(0.5f);
+    ani_to_blend_frame(10.0f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+void pz_fighter_wipe_blood_off_hands(void) {
+    plyr_bleed_medium_cycle(plyr_pdata, 0x18);
+    plyr_bleed_medium_cycle(plyr_pdata, 0x19);
+}
+
+float pz_fighter_wipe_blood_off(void) {
+    int flags = 3;
+
+    if (plyr_pdata->plyr_num == 1) {
+        flags = 11;
+    }
+
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    plyr_obj->flags_09_bits.head_tracking = 0;
+    blend_to_ani(pz_shared_ani.wipe_blood, flags, 0.1f);
+    set_ani_speed(0.75f);
+    ani_to_frame_x(22.0f);
+    plyr_bleed_medium_cycle(plyr_pdata, 9);
+    plyr_bleed_medium_cycle(plyr_pdata, 0x18);
+    plyr_bleed_medium_cycle(plyr_pdata, 0x1A);
+    ani_to_frame_x(80.0f);
+    plyr_bleed_medium_cycle(plyr_pdata, 0x18);
+    plyr_bleed_medium_cycle(plyr_pdata, 0x19);
+    ani_to_frame_x(128.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_double_arm_victory, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_won2(void) {
+    int flags = 3;
+
+    if (plyr_pdata->plyr_num == 1) {
+        flags = 11;
+    }
+
+    set_my_state(0x4201);
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    blend_to_ani(pz_shared_ani.won2, flags, 0.1f);
+    set_ani_speed(0.65f);
+    plyr_obj->flags_09_bits.head_tracking = 0;
+    ani_to_frame_x(131.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_one_arm_victory, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_completely_prone(void) {
+    return 1.0f;
+}
+
+static float p_pz_fighter_projectile_launcher(void) {
+    MkHdr* saved_pdata;
+    RwFrame* frame;
+    struct PuzzleProjectile* projectile = (struct PuzzleProjectile*)apdata;
+    int passed_target = 0;
+    Vec position;
+
+    if ((unsigned int)projectile->state == 2) {
+        g_global_projectile = 0;
+        return -1.0f;
+    }
+
+    if (--projectile->timer != 0) {
+        switch (projectile->state) {
+        case 0: {
+            frame = projectile->object->frame;
+
+            get_bone_world_pos(
+                projectile->launch_bone_owner, 0x1B, &position);
+            projectile->object->pos.value.x = position.x;
+            projectile->object->pos.value.y = position.y;
+            projectile->object->pos.value.z = position.z;
+            if (projectile->launch_immediately == 1) {
+                projectile->timer = 1;
+            }
+            RwFrameUpdateObjects(projectile->object->frame);
+            frame->modelling.pos.x = projectile->object->pos.value.x;
+            frame->modelling.pos.y = projectile->object->pos.value.y;
+            frame->modelling.pos.z = projectile->object->pos.value.z;
+            RwFrameUpdateObjects(projectile->object->frame);
+            break;
+        }
+        case 1: {
+            frame = projectile->object->frame;
+
+            RwFrameUpdateObjects(frame);
+            projectile->object->pos.value.x += projectile->object->pos_vel.x;
+            projectile->object->pos.value.y += projectile->object->pos_vel.y;
+            projectile->object->pos.value.z += projectile->object->pos_vel.z;
+            frame->modelling.pos.x = projectile->object->pos.value.x;
+            frame->modelling.pos.y = projectile->object->pos.value.y;
+            frame->modelling.pos.z = projectile->object->pos.value.z;
+            RwFrameUpdateObjects(projectile->object->frame);
+            get_bone_world_pos(projectile->target, 9, &position);
+            if (projectile->object->pos_vel.x > 0.0f) {
+                if (projectile->object->pos.value.x > position.x) {
+                    passed_target = 1;
+                }
+            } else if (projectile->object->pos.value.x < position.x) {
+                passed_target = 1;
+            }
+            if (passed_target == 1) {
+                saved_pdata = apdata;
+
+                apdata = (MkHdr*)projectile->owner;
+                fx_reset(projectile->effect);
+                if (projectile->owner->character_id != 6) {
+                    bgnd_launch_fx_at_position(
+                        "fireball_explosion_fx", projectile->target->pos.value.x,
+                        projectile->object->pos.value.y, projectile->target->pos.value.z);
+                    bgnd_launch_fx_at_position(
+                        "fireball_sparkies_fx", projectile->target->pos.value.x,
+                        projectile->object->pos.value.y, projectile->target->pos.value.z);
+                } else {
+                    bgnd_launch_fx_at_position(
+                        "green_fireball_explosion_fx", projectile->target->pos.value.x,
+                        projectile->object->pos.value.y, projectile->target->pos.value.z);
+                    bgnd_launch_fx_at_position(
+                        "green_fireball_sparkies_fx", projectile->target->pos.value.x,
+                        projectile->object->pos.value.y, projectile->target->pos.value.z);
+                }
+                pz_fighter_reaction_xfer_him(4);
+                apdata = saved_pdata;
+                g_global_projectile = 0;
+                return -1.0f;
+            }
+            break;
+        }
+        }
+    } else {
+        switch (projectile->state) {
+        case 0:
+            projectile->state = 1;
+            projectile->object->pos_vel.x = 0.18f;
+            if (projectile->owner->plyr_num == 1) {
+                projectile->object->pos_vel.x *= -1.0f;
+            }
+            projectile->timer = 300;
+            break;
+        case 1:
+            g_global_projectile = 0;
+            return -1.0f;
+        }
+    }
+    return 1.0f;
+}
+
+void pz_fighter_kill_global_projectile(void) {
+    if (g_global_projectile != 0) {
+        g_global_projectile->state = 2;
+    }
+}
+
+float pz_fighter_bow_warmup(void) {
+    face_opponent_now();
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    blend_to_ani(pz_shared_ani.bow_warmup, 3, 0.1f);
+    set_ani_speed(1.25f);
+    ani_to_blend_frame(20.0f);
+    blend_to_stance(0.05f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_active_warmup1(void) {
+    face_opponent_now();
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    set_ani_weight(0.55f);
+    blend_to_ani(pz_shared_ani.active_warmup1, 3, 0.1f);
+    set_ani_speed(0.6f);
+    ani_to_blend_frame(20.0f);
+    blend_to_stance(0.1f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_active_warmup2(void) {
+    face_opponent_now();
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    set_ani_weight(0.55f);
+    blend_to_ani(pz_shared_ani.active_warmup2, 3, 0.1f);
+    set_ani_speed(0.6f);
+    ani_to_blend_frame(20.0f);
+    blend_to_stance(0.1f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_showoff_warmup1(void) {
+    face_opponent_now();
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    set_ani_weight(0.55f);
+    blend_to_ani(pz_shared_ani.showoff_warmup1, 3, 0.1f);
+    set_ani_speed(0.6f);
+    ani_to_blend_frame(20.0f);
+    blend_to_stance(0.1f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_showoff_warmup2(void) {
+    face_opponent_now();
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    set_ani_weight(0.55f);
+    blend_to_ani(pz_shared_ani.showoff_warmup2, 3, 0.1f);
+    set_ani_speed(0.7f);
+    ani_to_blend_frame(20.0f);
+    blend_to_stance(0.1f);
+    aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
+    return 0.0f;
+}
+
+int pz_fighter_walk_until_fight_distance(void) {
+    return xz_distance_between_players() < 0.95f;
+}
+
+int pz_fighter_walk_until_danger_or_in_wrong_direction(void) {
+    float player1_distance;
+    float player2_distance;
+    float distance;
+    int state;
+
+    pz_fighters_calc_distance_to_desired_idle_pos(
+        &player1_distance, &player2_distance);
+    if (plyr_pdata->plyr_num == 0) {
+        distance = player1_distance;
+    } else {
+        distance = player2_distance;
+    }
+    if (distance > -0.01f && distance < 0.01f) {
+        return 1;
+    }
+    if (g_pz_fighters_engine.breakout == 1) {
+        return 1;
+    }
+    state = plyr_pdata->state;
+    if (state == 0x2000 && distance < 0.0f) {
+        return 1;
+    }
+    if (state == 0x2001 && distance > 0.0f) {
+        return 1;
+    }
+    return 0;
+}
+
+static float p_pz_shake_camera(void) {
+    int i;
+    struct PuzzleCameraShakePdata* pdata = (struct PuzzleCameraShakePdata*)apdata;
+    int first;
+    int second;
+    int offset;
+
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+    minigame_get_bgnd_y_value(&first, &second);
+
+    for (i = 0; i < pdata->duration; i++) {
+        offset = 340.0f * pdata->strength;
+        minigame_set_bgnd_y_value(first + offset, second + offset);
+        _mkproc_sleep_ticks = 3.0f;
+        aproc->vtbl->sleep();
+        minigame_set_bgnd_y_value(first, second);
+        _mkproc_sleep_ticks = 3.0f;
+        aproc->vtbl->sleep();
+    }
+
+    g_pz_cam_already_shaking = 0;
+    return -1.0f;
+}
+
+void pz_fighter_shake_camera(int duration, float strength) {
+    struct PuzzleCameraShakePdata* pdata;
+
+    shake_camera(duration, strength);
+    if (g_pz_cam_already_shaking == 1) {
+        return;
+    }
+
+    g_pz_cam_already_shaking = 1;
+    if (_create_mkproc_generic_tinystack(
+            0x1007, 0x1E, p_pz_shake_camera,
+            sizeof(struct PuzzleCameraShakePdata), (MkHdr**)&pdata) != 0) {
+        pdata->duration = duration;
+        pdata->strength = strength;
+    }
+}
+
+void pz_fighter_walk_FB_true(
+    int (*continue_test)(void), unsigned int duration, int forward) {
+    static float object_weight_setting = 0.2f;
+    static float forward_speed = 1.0f;
+    static float backward_speed = 1.0f;
+    int start_tick;
+
+    if (continue_test() != 0) {
+        return;
+    }
+    start_tick = exec_tick_ctr;
+    init_ground_move_no_aniproc();
+    rotate_towards_him(0.2f);
+    if (forward != 0) {
+        set_my_state(0x2000);
+        plyr_anim_pdata->flags |= 0x40;
+        blend_to_ani(
+            plyr_pdata->fighter_definition->walk_forward_start, 0x23, 0.2f);
+        plyr_anim_pdata->step = forward_speed;
+        plyr_anim_pdata->weight = object_weight_setting;
+        ani_to_frame_x_call(
+            face_opponent_now, plyr_anim_pdata->high_frame - 13.0f);
+    } else {
+        set_my_state(0x2001);
+        plyr_anim_pdata->flags |= 0x40;
+        blend_to_ani(
+            plyr_pdata->fighter_definition->walk_backward_start, 0x23,
+            0.2f);
+        plyr_anim_pdata->step = backward_speed;
+        plyr_anim_pdata->weight = object_weight_setting;
+        ani_to_frame_x_call(
+            face_opponent_now, plyr_anim_pdata->high_frame - 14.0f);
+    }
+    random_foot(1);
+    if (continue_test() == 0 &&
+        (unsigned int)(exec_tick_ctr - start_tick) < duration) {
+        if (forward != 0) {
+            blend_to_ani(
+                plyr_pdata->fighter_definition->walk_forward_loop, 0, 0.2f);
+            plyr_anim_pdata->step = forward_speed;
+        } else {
+            blend_to_ani(
+                plyr_pdata->fighter_definition->walk_backward_loop, 0, 0.2f);
+            plyr_anim_pdata->step = backward_speed;
+        }
+        while (continue_test() == 0 &&
+               (unsigned int)(exec_tick_ctr - start_tick) < duration) {
+            face_opponent_now();
+            advance_anim(plyr_anim_pdata);
+            pose_anim(plyr_anim_pdata, 1);
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+        }
+        blend_to_stance(0.1f);
+        return;
+    }
+    ani_to_frame_x_call(
+        face_opponent_now, plyr_anim_pdata->high_frame - 10.0f);
+    plyr_anim_pdata->weight = object_weight_setting;
+}
+
+float pz_fighter_perform_scripted_move(void) {
+    struct PuzzleFighterMove* move = pz_get_fighter_move();
+    unsigned int move_index;
+    int distance_class;
+    int script_move;
+    distance_class = move->distance_class;
+    move_index = move->script_move;
+    script_move =
+        select_scripted_move(move_index, distance_class, randu0(100));
+    active_cmdscript->unk28 = script_move;
+    cmdscript_reset_stack();
+    cmdscript_setup_execution(
+        pz_shared_cmo, active_cmdscript->unk28);
+    call_player_script_function(pz_shared_cmo);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_far_propell(void) {
+    int ticks;
+
+    init_ground_move_no_aniproc();
+    head_tracking_off();
+    blend_to_ani(pz_shared_ani.propell_start, 3, 0.1f);
+    set_ani_speed(1.1f);
+    ani_to_frame_x(10.0f);
+    snd_req(0xD7E);
+    ani_to_end();
+    force_away(-0.065f, 30, 0.9f, 4);
+    set_ani_speed(1.5f);
+    glitch_to_ani(pz_shared_ani.propell_air, 0);
+    xfer_proc(plyr_anim_proc, p_animate);
+    for (ticks = 0; ticks < 30; ticks++) {
+        if (xz_distance_between_players() <= 0.75f) {
+            plyr_pdata->collision_result = 1;
+            pz_fighter_reaction_xfer_him(0x29);
+            stop_me();
+            break;
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    blend_to_ani(pz_shared_ani.propell_end, 3, 0.1f);
+    ani_to_blend_frame(10.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_propell(void) {
+    int ticks;
+
+    init_ground_move_no_aniproc();
+    head_tracking_off();
+    blend_to_ani(pz_shared_ani.propell_start, 3, 0.1f);
+    set_ani_speed(1.1f);
+    ani_to_frame_x(10.0f);
+    snd_req(0xD7E);
+    ani_to_end();
+    force_away(-0.03f, 20, 0.9f, 4);
+    set_ani_speed(1.5f);
+    glitch_to_ani(pz_shared_ani.propell_air, 0);
+    xfer_proc(plyr_anim_proc, p_animate);
+    for (ticks = 0; ticks < 20; ticks++) {
+        if (xz_distance_between_players() <= 0.75f) {
+            plyr_pdata->collision_result = 1;
+            pz_fighter_reaction_xfer_him(0x29);
+            stop_me();
+            break;
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    blend_to_ani(pz_shared_ani.propell_end, 3, 0.1f);
+    ani_to_blend_frame(10.0f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_light_propell(void) {
+    int ticks;
+
+    init_ground_move_no_aniproc();
+    head_tracking_off();
+    blend_to_ani(pz_shared_ani.propell_start, 3, 0.1f);
+    set_ani_speed(1.1f);
+    ani_to_frame_x(10.0f);
+    snd_req(0xD7E);
+    ani_to_end();
+    force_away(-0.03f, 20, 0.9f, 4);
+    set_ani_speed(1.5f);
+    glitch_to_ani(pz_shared_ani.propell_air, 0);
+    xfer_proc(plyr_anim_proc, p_animate);
+    for (ticks = 0; ticks < 20; ticks++) {
+        if (xz_distance_between_players() <= 0.65f) {
+            plyr_pdata->collision_result = 1;
+            pz_fighter_reaction_xfer_him(0x2B);
+            stop_me();
+            break;
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    blend_to_ani(pz_shared_ani.propell_end, 3, 0.1f);
+    ani_to_blend_frame(10.0f);
+    aproc->vtbl->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_dummy_propell(void) {
+    int ticks;
+
+    init_ground_move_no_aniproc();
+    head_tracking_off();
+    blend_to_ani(pz_shared_ani.propell_start, 3, 0.1f);
+    set_ani_speed(1.1f);
+    ani_to_frame_x(10.0f);
+    snd_req(0xD7E);
+    ani_to_end();
+    force_away(-0.03f, 20, 0.9f, 4);
+    set_ani_speed(1.5f);
+    glitch_to_ani(pz_shared_ani.propell_air, 0);
+    xfer_proc(plyr_anim_proc, p_animate);
+    for (ticks = 0; ticks < 20; ticks++) {
+        if (xz_distance_between_players() <= 0.65f) {
+            plyr_pdata->collision_result = 1;
+            stop_me();
+            break;
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    xfer_proc(plyr_anim_proc, p_anim_idle);
+    blend_to_ani(pz_shared_ani.propell_end, 3, 0.1f);
+    ani_to_blend_frame(10.0f);
+    aproc->vtbl->jump_sleep(j_exit, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_perform_relief_move(void) {
+    if ((unsigned short)randu0(100) < 65 &&
+        pz_fighter_is_winning_big(plyr_pdata->plyr_num)) {
+        aproc->vtbl->jump_sleep(pz_fighter_big_time_happy, 0.0f);
+        return 0.0f;
+    } else {
+        aproc->vtbl->jump_sleep(pz_fighter_round_whew, 0.0f);
+        return 0.0f;
+    }
+}
+
+float pz_fighter_perform_peak_move(void) {
+    if ((unsigned short)randu0(100) < 65) {
+        aproc->vtbl->jump_sleep(pz_fighter_peak, 0.0f);
+        return 0.0f;
+    } else {
+        aproc->vtbl->jump_sleep(pz_fighter_fast_look, 0.0f);
+        return 0.0f;
+    }
+}
+
+float pz_fighter_perform_holding_onto_super_move(void) {
+    aproc->vtbl->jump_sleep(pz_fighter_workthecrowd, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_perform_other_guy_holding_onto_super_move(void) {
+    aproc->vtbl->jump_sleep(pz_fighter_beg, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_perform_other_guy_ohyeah(void) {
+    aproc->vtbl->jump_sleep(pz_fighter_whatever2, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_perform_other_guy_ohno(void) {
+    aproc->vtbl->jump_sleep(pz_fighter_laugh, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_random_taunt(void) {
+    unsigned short roll = randu0(100);
+
+    if (roll < 30) {
+        aproc->vtbl->jump_sleep(pz_fighter_select_taunt_1, 0.0f);
+        return 0.0f;
+    } else if (roll < 60) {
+        aproc->vtbl->jump_sleep(pz_fighter_select_taunt_2, 0.0f);
+        return 0.0f;
+    } else {
+        aproc->vtbl->jump_sleep(pz_fighter_select_taunt_3, 0.0f);
+        return 0.0f;
+    }
+}
+
+float pz_fighter_perform_off_wall_attack(void) {
+    unsigned short choice = randu0(100);
+
+    if (choice < 40) {
+        aproc->vtbl->jump_sleep(pz_fighter_superman_move, 0.0f);
+        return 0.0f;
+    }
+    if (choice < 80) {
+        active_cmdscript->unk28 = 1;
+    } else {
+        active_cmdscript->unk28 = 2;
+    }
+    aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_perform_dist_attack(void) {
+    unsigned short choice = randu0(100);
+
+    if (choice < 20) {
+        active_cmdscript->unk28 = 2;
+    } else if (choice < 60) {
+        active_cmdscript->unk28 = 6;
+    } else {
+        active_cmdscript->unk28 = 7;
+    }
+    aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_perform_center_pos_range_attack(void) {
+    unsigned short choice = randu0(100);
+
+    if (choice < 40) {
+        aproc->vtbl->jump_sleep(pz_fighter_superman_move, 0.0f);
+        return 0.0f;
+    } else if (choice < 55) {
+        aproc->vtbl->jump_sleep(pz_fighter_propell, 0.0f);
+        return 0.0f;
+    } else {
+        active_cmdscript->unk28 = 1;
+        aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
+        return 0.0f;
+    }
+}
+
+float pz_fighter_perform_center_pos_single_range_move(void) {
+    if ((unsigned short)randu0(100) < 30) {
+        aproc->vtbl->jump_sleep(pz_fighter_light_propell, 0.0f);
+        return 0.0f;
+    }
+
+    active_cmdscript->unk28 = 3;
+    aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_smart_flippy(void) {
+    float player1_distance;
+    float player1_absolute;
+    float player2_distance;
+    float player2_absolute;
+    float distance;
+
+    pz_fighters_calc_distance_to_desired_idle_pos_abs(
+        &player1_distance, &player2_distance, &player1_absolute,
+        &player2_absolute);
+    if (plyr_pdata->plyr_num == 0) {
+        distance = player1_distance;
+    } else {
+        distance = player2_distance;
+    }
+
+    if (distance < 0.1f) {
+        aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+        return 0.0f;
+    }
+    if (distance < 0.9f) {
+        active_cmdscript->unk28 = 4;
+    } else {
+        active_cmdscript->unk28 = 3;
+    }
+    aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_perform_center_pos_single_close_move(void) {
+    aproc->vtbl->jump_sleep(pz_fighter_light_propell, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_perform_center_pos_minor_adjustement(void) {
+    if (xz_distance_between_players() > 1.2f) {
+        aproc->vtbl->jump_sleep(pz_fighter_light_propell, 0.0f);
+        return 0.0f;
+    } else {
+        active_cmdscript->unk28 = 8;
+        aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
+        return 0.0f;
+    }
+}
+
+float pz_fighter_perform_ohno_move(void) {
+    unsigned short choice = randu0(100);
+
+    if (choice < 30) {
+        aproc->vtbl->jump_sleep(pz_fighter_WTF, 0.0f);
+        return 0.0f;
+    } else if (choice < 70) {
+        aproc->vtbl->jump_sleep(pz_fighter_WTF2, 0.0f);
+        return 0.0f;
+    } else if (
+        choice < 88 &&
+        pz_fighter_is_losing_big(plyr_pdata->plyr_num) != 0) {
+        aproc->vtbl->jump_sleep(pz_fighter_beg, 0.0f);
+        return 0.0f;
+    } else {
+        xfer_proc(
+            get_player_proc(his_obj), pz_fighter_execute_distracts_and_hit);
+        aproc->vtbl->jump_sleep(
+            pz_fighter_execute_point_reaction_no_space, 0.0f);
+        return 0.0f;
+    }
+}
+
+float pz_fighter_perform_other_guy_super_move_just_enabled(void) {
+    aproc->vtbl->jump_sleep(pz_fighter_dont_get_me, 0.0f);
+    return 0.0f;
+}
+
+float pz_fighter_perform_super_move_just_enabled(void) {
+    unsigned short choice = randu0(100);
+
+    if (choice < 50) {
+        aproc->vtbl->jump_sleep(pz_fighter_go_get_him, 0.0f);
+        return 0.0f;
+    } else if (choice < 60) {
+        aproc->vtbl->jump_sleep(pz_fighter_one_arm_swing, 0.0f);
+        return 0.0f;
+    } else if (choice < 75) {
+        aproc->vtbl->jump_sleep(pz_fighter_big_time_happy, 0.0f);
+        return 0.0f;
+    } else {
+        aproc->vtbl->jump_sleep(pz_fighter_gaydance, 0.0f);
+        return 0.0f;
+    }
+}
+
+float pz_fighter_perform_ohyeah_move(void) {
+    unsigned short choice = randu0(100);
+
+    if (choice < 50) {
+        aproc->vtbl->jump_sleep(pz_fighter_one_arm_swing, 0.0f);
+        return 0.0f;
+    } else if (choice < 70) {
+        aproc->vtbl->jump_sleep(pz_fighter_big_time_happy, 0.0f);
+        return 0.0f;
+    } else {
+        aproc->vtbl->jump_sleep(pz_fighter_gaydance, 0.0f);
+        return 0.0f;
+    }
+}
+
+float pz_fighters_react_to_bomb_explosion(void) {
+    if (pz_fighter_fetch_plyr_to_home_post_distance(
+            plyr_pdata->plyr_num) >
+        6.5f) {
+        active_cmdscript->unk28 = 0x44;
+    } else {
+        active_cmdscript->unk28 = 0x45;
+    }
+    aproc->vtbl->jump_sleep(r_pz_call_script_function, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_jax_attack_start(void) {
+    float player_distance = xz_distance_between_players();
+    float home_distance =
+        pz_fighter_fetch_plyr_to_home_post_distance(plyr_pdata->plyr_num);
+    struct PuzzleProjectile* projectile;
+    unsigned int ticks;
+
+    if (!(player_distance > 3.0f)) {
+        if (home_distance > 6.0f) {
+            PuzzleAttackParameters attack;
+            struct PuzzleFighterMove* move;
+
+            attack = pz_attack_common;
+            move = pz_get_fighter_move();
+            move->active_flags |= 1;
+            pz_fighter_attack(pz_shared_ani.shove, &attack, 0x24);
+            ani_to_end();
+        } else if (home_distance < 4.0f) {
+            avoid_double_ani();
+            init_ground_move_no_aniproc();
+            random_voice(9);
+            set_my_state(0x6208);
+            plyr_anim_pdata->flags |= 0x40;
+            snd_req(0xD71);
+            blend_to_ani(shared_ani.dash_back, 3, 0.2f);
+            plyr_anim_pdata->step = 0.75f;
+            plyr_anim_pdata->weight_velocity = 0.0f;
+            plyr_anim_pdata->weight = 1.8f;
+            ani_to_frame_x(12.0f);
+            init_air_move();
+            ani_to_frame_x(17.0f);
+            init_ground_move();
+            random_foot(1);
+        } else {
+            avoid_double_ani();
+            init_ground_move_no_aniproc();
+            random_voice(9);
+            set_my_state(0x6208);
+            plyr_anim_pdata->flags |= 0x40;
+            snd_req(0xD71);
+            blend_to_ani(shared_ani.dash_back, 3, 0.2f);
+            plyr_anim_pdata->step = 0.9f;
+            plyr_anim_pdata->weight_velocity = 0.0f;
+            plyr_anim_pdata->weight = 1.0f;
+            ani_to_frame_x(12.0f);
+            init_air_move();
+            ani_to_frame_x(17.0f);
+            init_ground_move();
+            random_foot(1);
+        }
+    }
+
+    plyr_anim_pdata->flags |= 0x40;
+    blend_to_ani(
+        plyr_pdata->fighter_definition->spear_throw_start, 3, 0.3f);
+    pz_fighter_create_projectile(&projectile);
+    plyr_anim_pdata->step = 1.0f;
+    ani_to_blend_frame(10.0f);
+    blend_to_ani(
+        plyr_pdata->fighter_definition->spear_throw_loop, 0, 0.3f);
+    set_ani_speed(0.3f);
+    ticks = 0;
+    do {
+        ani_1_frame();
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+        if (g_pz_fighters_engine.special_move_4) {
+            break;
+        }
+        ticks++;
+    } while (ticks < 125);
+
+    blend_to_ani(
+        plyr_pdata->fighter_definition->spear_throw_end, 3, 0.3f);
+    plyr_anim_pdata->step = 1.5f;
+    ani_to_frame_x(21.0f);
+    if (g_global_projectile == 0) {
+        pz_fighter_create_projectile(&projectile);
+    }
+    g_global_projectile->launch_immediately = 1;
+    ani_to_end();
+    blend_to_ani(
+        plyr_pdata->fighter_definition->projectile_return_loop, 0, 0.1f);
+    ticks = 0;
+    do {
+        ani_1_frame();
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+        if (g_pz_fighters_engine.special_move_5) {
+            break;
+        }
+        ticks++;
+    } while (ticks < 125);
+    blend_to_ani(
+        plyr_pdata->fighter_definition->projectile_return_end, 3, 0.1f);
+    ani_to_blend_frame(15.0f);
+    blend_to_stance(0.15f);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+    return 0.0f;
+}
+
+static float pz_fighter_scorpion_attack_start(void) {
+    float player_distance = xz_distance_between_players();
+    float home_distance =
+        pz_fighter_fetch_plyr_to_home_post_distance(plyr_pdata->plyr_num);
+    MkProc* spear_proc;
+
+    if (!(player_distance > 3.0f)) {
+        if (home_distance > 6.0f) {
+            PuzzleAttackParameters attack;
+            struct PuzzleFighterMove* move;
+
+            attack = pz_attack_common;
+            move = pz_get_fighter_move();
+            move->active_flags |= 1;
+            pz_fighter_attack(pz_shared_ani.shove, &attack, 0x24);
+            ani_to_end();
+        } else if (home_distance < 4.0f) {
+            avoid_double_ani();
+            init_ground_move_no_aniproc();
+            random_voice(9);
+            set_my_state(0x6208);
+            plyr_anim_pdata->flags |= 0x40;
+            snd_req(0xD71);
+            blend_to_ani(shared_ani.dash_back, 3, 0.2f);
+            plyr_anim_pdata->step = 0.75f;
+            plyr_anim_pdata->weight_velocity = 0.0f;
+            plyr_anim_pdata->weight = 1.8f;
+            ani_to_frame_x(12.0f);
+            init_air_move();
+            ani_to_frame_x(17.0f);
+            init_ground_move();
+            random_foot(1);
+        } else {
+            avoid_double_ani();
+            init_ground_move_no_aniproc();
+            random_voice(9);
+            set_my_state(0x6208);
+            plyr_anim_pdata->flags |= 0x40;
+            snd_req(0xD71);
+            blend_to_ani(shared_ani.dash_back, 3, 0.2f);
+            plyr_anim_pdata->step = 0.9f;
+            plyr_anim_pdata->weight_velocity = 0.0f;
+            plyr_anim_pdata->weight = 1.0f;
+            ani_to_frame_x(12.0f);
+            init_air_move();
+            ani_to_frame_x(17.0f);
+            init_ground_move();
+            random_foot(1);
+        }
+    }
+
+    set_my_secondary_state(0x101);
+    set_block_requirement(0);
+    plyr_pdata->saved_position_x = plyr_obj->pos.value.x;
+    plyr_pdata->saved_position_z = plyr_obj->pos.value.z;
+    plyr_pdata->duck_reaction_active = 1;
+    blend_to_ani(
+        plyr_pdata->fighter_definition->spear_throw_start, 3, 0.1f);
+    set_ani_speed(0.9f);
+    ani_to_frame_x(12.0f);
+    snd_req_vol(0x1AF2, 0.75f);
+    ani_to_end();
+    set_my_state(0xD200);
+    spear_proc = start_scorpion_spear(9);
+    plyr_pdata->spear_proc = spear_proc;
+    plyr_pdata->spear_proc_instance = spear_proc->instance;
+    blend_to_ani(
+        plyr_pdata->fighter_definition->spear_throw_loop, 0, 0.1f);
+    set_ani_speed(0.9f);
+    ani_x_more_frames(10.0f);
+    ani_to_end();
+    blend_to_ani(
+        plyr_pdata->fighter_definition->spear_throw_end, 3, 0.1f);
+    set_ani_speed(0.5f);
+    play_sound_1(0x2D4);
+    pz_fighter_reaction_xfer_him(0x23);
+    ani_to_blend_frame(10.0f);
+    blend_to_fstance(0.1f);
+    pz_fighter_check_to_toggle_obj_and_ani_flips(plyr_pdata->plyr_num);
+    active_cmdscript->unk28 = 0x2B;
+    cmdscript_reset_stack();
+    cmdscript_setup_execution(
+        pz_shared_cmo, active_cmdscript->unk28);
+    call_player_script_function(pz_shared_cmo);
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+    return 0.0f;
+}
+
+int pz_finish_him_request(void) {
+    if (xz_distance_between_players() > 2.0f) {
+        aproc->vtbl->jump_sleep(pz_fighter_far_propell, 0.0f);
+    } else {
+        active_cmdscript->unk28 = 0x2B;
+        cmdscript_reset_stack();
+        cmdscript_setup_execution(
+            pz_shared_cmo, active_cmdscript->unk28);
+        call_player_script_function(pz_shared_cmo);
+        aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+    }
+    return 0;
+}
+
+float pz_fighter_perform_special_move(void) {
+    switch (plyr_pdata->character_id) {
+    case 0:
+        if (g_pz_fighters_engine.special_move_enabled == 1) {
+            aproc->vtbl->jump_sleep(pz_fighter_scorpion_attack_start, 0.0f);
+            return 0.0f;
+        }
+        break;
+    case 12:
+        if (g_pz_fighters_engine.special_move_enabled == 1) {
+            active_cmdscript->unk28 = 0x12;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
+            return 0.0f;
+        }
+        break;
+    case 19:
+        if (g_pz_fighters_engine.special_move_enabled == 1) {
+            aproc->vtbl->jump_sleep(pz_fighter_jax_attack_start, 0.0f);
+            return 0.0f;
+        }
+        break;
+    case 8:
+        if (g_pz_fighters_engine.special_move_enabled == 1) {
+            active_cmdscript->unk28 = 0x11;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
+            return 0.0f;
+        }
+        break;
+    case 4:
+        if (g_pz_fighters_engine.special_move_enabled == 1) {
+            active_cmdscript->unk28 = 0x0F;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
+            return 0.0f;
+        }
+        break;
+    case 5:
+        if (g_pz_fighters_engine.special_move_enabled == 1) {
+            active_cmdscript->unk28 = 0x17;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
+            return 0.0f;
+        }
+        break;
+    case 10:
+        if (g_pz_fighters_engine.special_move_enabled == 1) {
+            active_cmdscript->unk28 = 0x0F;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
+            return 0.0f;
+        }
+        break;
+    case 1:
+        if (g_pz_fighters_engine.special_move_enabled == 1) {
+            active_cmdscript->unk28 = 0x0D;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
+            return 0.0f;
+        }
+        break;
+    case 3:
+        if (g_pz_fighters_engine.special_move_enabled == 1) {
+            active_cmdscript->unk28 = 0x13;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
+            return 0.0f;
+        }
+        break;
+    case 23:
+        if (g_pz_fighters_engine.special_move_enabled == 1) {
+            active_cmdscript->unk28 = 0x18;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
+            return 0.0f;
+        }
+        break;
+    case 21:
+        if (g_pz_fighters_engine.special_move_enabled == 1) {
+            active_cmdscript->unk28 = 0x16;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
+            return 0.0f;
+        }
+        break;
+    case 29:
+        if (g_pz_fighters_engine.special_move_enabled == 1) {
+            active_cmdscript->unk28 = 0x14;
+            aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
+            return 0.0f;
+        }
+        break;
+    case 2:
+    case 6:
+    case 7:
+    case 9:
+    case 11:
+    case 33:
+        if (g_pz_fighters_engine.special_move_enabled == 1) {
+            aproc->vtbl->jump_sleep(pz_fighter_jax_attack_start, 0.0f);
+            return 0.0f;
+        }
+        break;
+    }
+
+    aproc->vtbl->jump_sleep(pz_fighter_exit, 0.0f);
+    return 0.0f;
+}
+
+int pz_fighter_should_handle_special_move(unsigned int player, unsigned int move) {
+    if (move == 4) {
+        g_pz_fighters_engine.special_move_4 = 1;
+    } else if (move == 5) {
+        g_pz_fighters_engine.special_move_5 = 1;
+    } else if (move == 1) {
+        return 1;
+    }
+    return 0;
+}
+
+#undef PZ_RUN_SHARED_FIGHTER_SCRIPT

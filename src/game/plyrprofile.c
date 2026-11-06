@@ -1468,13 +1468,6 @@ int is_mark_as_unlocked(PlayerProfile* profile, int category, int character) {
     return unlocked != 0;
 }
 
-static inline void mark_bitset_locked(
-    ProfileUnlockBits64* bits, unsigned long long mask) {
-    bits->value &= mask;
-}
-
-/* TODO: [near miss] 98.92857%; nine word loads need earlier codegen owners
- * than their complements; scheduled order agrees, source boundary unresolved. */
 void mark_as_locked(PlayerProfile* profile, int category, int character) {
     unsigned long long mask;
     ProfileUnlockBits64* bits;
@@ -1485,50 +1478,59 @@ void mark_as_locked(PlayerProfile* profile, int category, int character) {
     switch (category) {
     case 1:
         if (character < 0 || character >= 44) return;
-        mask = ~(1ULL << character);
-        mark_bitset_locked(&profile->unlock_cat1, mask);
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat1.value &= ~mask;
         return;
     case 2:
         if (character < 0 || character >= 44) return;
-        mask = ~(1ULL << character);
-        mark_bitset_locked(&profile->unlock_cat2, mask);
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat2.value &= ~mask;
         return;
     case 3:
         if (character < 0 || character >= 35) return;
-        mask = ~(1ULL << character);
-        profile->unlock_cat3 &= (unsigned int)mask;
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat3 &= ~mask;
         return;
     case 6:
         if (character < 0 || character >= 44) return;
-        mask = ~(1ULL << character);
-        mark_bitset_locked(&profile->unlock_cat4, mask);
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat4.value &= ~mask;
         return;
     case 4:
         if (character < 0 || character >= 11) return;
-        mask = ~(1ULL << character);
-        profile->unlock_cat5 &= (unsigned int)mask;
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat5 &= ~mask;
         return;
     case 5:
         if (character < 0 || character >= 11) return;
-        mask = ~(1ULL << (character + 10));
-        profile->unlock_cat6 &= (unsigned int)mask;
+        mask = 1;
+        mask <<= character + 10;
+        profile->unlock_cat6 &= ~mask;
         return;
     case 7:
     case 8:
         if (character < 0 || character >= 44) return;
         bits = category == 7 ? &profile->unlock_cat7 : &profile->unlock_cat8;
-        mask = ~(1ULL << character);
-        mark_bitset_locked(bits, mask);
+        mask = 1;
+        mask <<= character;
+        bits->value &= ~mask;
         return;
     case 9:
         if (character < 0 || character >= 44) return;
-        mask = ~(1ULL << character);
-        mark_bitset_locked(&profile->unlock_cat9, mask);
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat9.value &= ~mask;
         return;
     case 10:
         if (character < 0 || character >= 35) return;
-        mask = ~(1ULL << character);
-        profile->unlock_cat10 &= (unsigned int)mask;
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat10 &= ~mask;
         return;
     default:
         return;

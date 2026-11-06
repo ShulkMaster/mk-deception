@@ -1,3 +1,5 @@
+/* BUILD: -inline auto,deferred: retail auto-inlines plain static helpers (MAP UNUSED
+ * check_*_decoy, display_*_log, execute_scan_sequence_cmd) and init_switch_log. */
 #include "game/switch.h"
 #include "platform/io.h"
 
@@ -55,7 +57,7 @@ int last_switch_time;
 int sw_log_on;
 int debug_message_handler_set;
 
-static inline int check_decoy_distance_too_close(void) {
+static int check_decoy_distance_too_close(void) {
     if (plyr_pdata == 0) return 0;
     if (g_game_info.plyr0.slot.mirror_a == 0 ||
         g_game_info.plyr1.slot.mirror_a == 0) return 0;
@@ -329,33 +331,9 @@ void init_switch_log(void) {
     }
 }
 
-/* TODO: [near miss] 94.22%; named label loses the first register claim to reduced offset;
- * recover label ownership while preserving reset order. */
 void turn_switch_log_on(void) {
-    const char* label;
-    int i;
     sw_log_on = 1;
-    label = io_text + 0x2D;
-    for (i = 0; i < 30; i++) {
-        p1_switch_log[i].switch_index = -1;
-        p1_pad_switch_log[i].switch_index = -1;
-        p2_switch_log[i].switch_index = -1;
-        p2_pad_switch_log[i].switch_index = -1;
-        p1_switch_log[i].tick = -1;
-        p1_pad_switch_log[i].tick = -1;
-        p2_switch_log[i].tick = -1;
-        p2_pad_switch_log[i].tick = -1;
-        p1_switch_log[i].label = label;
-        p1_pad_switch_log[i].label = label;
-        p2_switch_log[i].label = label;
-        p2_pad_switch_log[i].label = label;
-    }
-    practice_p1_index = 0;
-    practice_p2_index = 0;
-    for (i = 0; i < 5; i++) {
-        practice_p1_list[i] = -1;
-        practice_p2_list[i] = -1;
-    }
+    init_switch_log();
 }
 
 void turn_switch_log_off(void) {
@@ -421,7 +399,7 @@ void log_switch(int player, int switch_index, int tick,
     if (sw_log_on != 0) show_sw_log();
 }
 
-static inline void display_practice_log(int player, int* list) {
+static void display_practice_log(int player, int* list) {
     int y;
     int x;
     int index;
@@ -451,7 +429,7 @@ static inline void display_practice_log(int player, int* list) {
     }
 }
 
-static inline void display_sw_log(struct SwitchLogEntry* log, int index, int x) {
+static void display_sw_log(struct SwitchLogEntry* log, int index, int x) {
     int y;
     int count;
 
@@ -480,32 +458,6 @@ void show_sw_log(void) {
     }
 }
 
-
-static inline void reset_switch_log_state(void) {
-    int i;
-
-    for (i = 0; i < 30; i++) {
-        p1_switch_log[i].switch_index = -1;
-        p1_pad_switch_log[i].switch_index = -1;
-        p2_switch_log[i].switch_index = -1;
-        p2_pad_switch_log[i].switch_index = -1;
-        p1_switch_log[i].tick = -1;
-        p1_pad_switch_log[i].tick = -1;
-        p2_switch_log[i].tick = -1;
-        p2_pad_switch_log[i].tick = -1;
-        p1_switch_log[i].label = io_text + 0x2D;
-        p1_pad_switch_log[i].label = io_text + 0x2D;
-        p2_switch_log[i].label = io_text + 0x2D;
-        p2_pad_switch_log[i].label = io_text + 0x2D;
-    }
-    practice_p1_index = 0;
-    practice_p2_index = 0;
-    for (i = 0; i < 5; i++) {
-        practice_p1_list[i] = -1;
-        practice_p2_list[i] = -1;
-    }
-}
-
 static float p_switch_log_fadeoff(void) {
     int alpha;
 
@@ -520,18 +472,18 @@ static float p_switch_log_fadeoff(void) {
     }
     pfx_2d_obj_set_alpha_by_id(0x2083, 0);
 
-    reset_switch_log_state();
+    init_switch_log();
     return -1.0f;
 }
 
-static inline unsigned int check_subzero_decoy(unsigned int action) {
+static unsigned int check_subzero_decoy(unsigned int action) {
     if (plyr_pdata == 0) return action;
     if (plyr_pdata->character_id != 3) return action;
     if (action == 0xA && check_decoy_distance_too_close()) action = 9;
     return action;
 }
 
-static inline unsigned int check_smoke_decoy(unsigned int action) {
+static unsigned int check_smoke_decoy(unsigned int action) {
     if (plyr_pdata == 0) return action;
     if (plyr_pdata->character_id != 0x1B) return action;
     if (!is_sidekick_active(plyr_pdata->plyr_info)) return action;
@@ -539,7 +491,7 @@ static inline unsigned int check_smoke_decoy(unsigned int action) {
     return action;
 }
 
-static inline void execute_scan_sequence_cmd(unsigned int action,
+static void execute_scan_sequence_cmd(unsigned int action,
                                              int execution_mode) {
     if (plyr_pdata != 0 && plyr_pdata->state != 0x4203)
         pre_attack_chores();

@@ -526,8 +526,6 @@ static inline u32 mpvhdec_AlignSequenceWindow(u32 bits, int bit_offset)
     return bits;
 }
 
-/* TODO: [near miss] 99.5956%; raw-word alignment copy is absent before allocation;
- * const-input/result-owner controls are neutral; recover the original reader phase. */
 static int mpvhdec_DecPscSj(MPVContext* context, SJ* stream)
 {
     SJCK remainder;
@@ -548,7 +546,12 @@ static int mpvhdec_DecPscSj(MPVContext* context, SJ* stream)
 
     words = (const u32*)((unsigned long)context->header_chunk.data & ~3UL);
     bit_offset = (context->header_chunk.data - (const u8*)words) * 8;
-    bits = mpvhdec_AlignSequenceWindow(words[1], bit_offset);
+    next_bits = words[1];
+    if (bit_offset != 0) {
+        bits = next_bits << bit_offset;
+    } else {
+        bits = next_bits;
+    }
     next_bits = words[2];
     words += 3;
 
@@ -784,7 +787,6 @@ static int mpvhdec_DecShcSj(MPVContext* context, SJ* stream)
     return 0;
 }
 
-/* TODO: [near miss] 95.45%; result/stream homes agree; input data load is hoisted into the save sequence. */
 int MPV_DecodePicAtr(MPVContext* context, SJCK* input,
                      int* consumed_size)
 {

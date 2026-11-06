@@ -55,6 +55,7 @@ public:
 
     void UpdateString();
     void ScrollText(int dir, int amount);
+    unsigned char ShouldAutoScrollDown();
 
     ScreenNode* textNode;
     char* editBuf;

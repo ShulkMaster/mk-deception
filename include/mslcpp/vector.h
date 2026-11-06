@@ -118,8 +118,8 @@ public:
     pointer data_;
 };
 
-/* TODO: [near miss] 99.43077%; copy source/end homes and two template
- * pool addends remain; recover original range ownership. */
+/* TODO: [near miss] 99.46154%; inlined copy first/last homes swap (r4/r3);
+ * recover original range ownership. */
 template <class T, class Allocator>
 void __vector_pod<T, Allocator>::reserve(size_type n)
 {
@@ -147,8 +147,8 @@ void __vector_pod<T, Allocator>::resize(size_type sz, const value_type& x)
     }
 }
 
-/* TODO: [near miss] 99.70988%; saved homes agree; suffix-copy temporary
- * homes and two template string-pool addends remain. */
+/* TODO: [near miss] 99.72222%; saved homes agree; suffix-copy temporary
+ * homes (data_/last r3/r4) remain. */
 template <class T, class Allocator>
 void __vector_pod<T, Allocator>::insert(iterator position, size_type n, const value_type& x)
 {
@@ -292,7 +292,7 @@ public:
     void init(ForwardIterator first, ForwardIterator last, forward_iterator_tag);
 };
 
-/* TODO: [breakthrough needed] QueueItem const-range 87.38333%; placement-copy
+/* TODO: [breakthrough needed] QueueItem const-range 87.41666%; placement-copy
  * remains outlined; recover per-consumer inline policy and source/pool homes. */
 template <class T, class Allocator>
 template <class ForwardIterator>
@@ -341,7 +341,7 @@ __vector_imp<T, Allocator, false>::erase(iterator first, iterator last)
     return first;
 }
 
-/* TODO: [breakthrough needed] QueueItem 90.52778%; placement-copy remains
+/* TODO: [breakthrough needed] QueueItem 90.55556%; placement-copy remains
  * outlined; recover its instantiation policy while preserving exact getter calls. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::reserve(size_type n)
@@ -362,7 +362,7 @@ void __vector_imp<T, Allocator, false>::reserve(size_type n)
     }
 }
 
-/* TODO: [breakthrough needed] QueueItem 78.10043%, Callback 67.99262%; placement
+/* TODO: [breakthrough needed] QueueItem 78.10917%, Callback 67.99262%; placement
  * copy remains outlined; original storage-accessor closure regresses exact wrappers. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::insert(iterator position, size_type n,

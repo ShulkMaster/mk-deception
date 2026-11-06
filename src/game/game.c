@@ -635,7 +635,7 @@ int check_for_winner(void) {
             winner = 2;
             g_game_info.plyr0.field_0C = 0.0f;
         } else if (g_game_info.plyr0.field_0C == g_game_info.plyr1.field_0C) {
-            if (!g_game_info.feature_flags.bits.high_bit &&
+            if (!g_game_info.feature_flags.bits.online_game &&
                 g_game_info.plyr0.field_0C == g_game_info.plyr0.field_10 &&
                 g_game_info.plyr1.field_0C == g_game_info.plyr1.field_10) {
                 winner = 3;
@@ -960,8 +960,8 @@ static inline int game_count_active_players(void) {
     return count;
 }
 
-/* TODO: [near miss] 99.91924%; fatality/deathtrap table-address coloring;
- * native replay needs original table-access ownership; tick staging regresses. */
+/* TODO: [near miss] 99.91924%; fatality/deathtrap table-address colouring (addi r3/add r4, addi r4/add r4)
+ * needs an r0-busy GPR web plus row base/index live past the add; no honest producer found yet. */
 void do_win_effect(void) {
     PlyrInfo* victor;
     PlyrInfo* defeated;
@@ -1424,7 +1424,7 @@ int round_over(void) {
     g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
 
     if (mode_of_play != 4 && mode_of_play != 10 &&
-        !g_game_info.feature_flags.bits.high_bit &&
+        !g_game_info.feature_flags.bits.online_game &&
         g_game_info.plyr0.field_0C + g_game_info.plyr1.field_0C ==
             g_game_info.plyr0.field_10 + g_game_info.plyr1.field_10) {
         ck_restore_kiddy();
@@ -1456,7 +1456,7 @@ int round_over(void) {
             break;
         default:
             round_winner_info->field_40++;
-            if (g_game_info.feature_flags.bits.high_bit) {
+            if (g_game_info.feature_flags.bits.online_game) {
                 rounds_to_win = 2;
             } else {
                 rounds_to_win = game_settings.round_time;
@@ -1563,7 +1563,7 @@ int round_over(void) {
             (mode_of_play == 1 || mode_of_play == 0)) {
             int winning_side = winner;
 
-            if (!g_game_info.feature_flags.bits.high_bit) {
+            if (!g_game_info.feature_flags.bits.online_game) {
                 if (winning_side == 1) {
                     if (p1_profile_status == 1) {
                         p1_profile.versus_wins++;
@@ -1677,7 +1677,7 @@ static void reset_game_timer(void) {
         if (g_game_info.feature_flags.bits.powerbars_locked) {
             g_game_info.field_204 = 0x5F;
         } else {
-            if (g_game_info.feature_flags.bits.high_bit) {
+            if (g_game_info.feature_flags.bits.online_game) {
                 g_game_info.field_204 = 0x3C;
             } else {
                 g_game_info.field_204 = game_settings.round_timer_value;
@@ -2704,7 +2704,7 @@ float p_game_loop(void) {
             return 0.0f;
         }
 
-        if (g_game_info.feature_flags.bits.high_bit) {
+        if (g_game_info.feature_flags.bits.online_game) {
             return -1.0f;
         }
         if (g_game_info.plyr0.field_0C + g_game_info.plyr1.field_0C ==
@@ -2806,7 +2806,7 @@ float p_gamelogic(void) {
     }
 
     turn_camera_on();
-    if (g_game_info.feature_flags.bits.high_bit) {
+    if (g_game_info.feature_flags.bits.online_game) {
         ck_for_controller_removed();
     }
     load_ssf(gameart_file_table);

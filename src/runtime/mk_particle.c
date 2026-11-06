@@ -23,7 +23,6 @@
 void pfx_reset_renderstate(void* vm);
 
 static float* inverse_camera_matrix;
-static void* old_ltm_415;
 
 MkPfx* apfx;
 MkObj* apfx_render_obj;
@@ -657,70 +656,65 @@ static inline void scan_pfx_emitter_fields(MkPfx* pfx, PfxEmitter* emitter)
     pfx->field_A0 |= field_pair.particle_flags;
 }
 
-static inline int initialize_pfx_memory(MkPfx* pfx, PfxBuildInfo* build)
+static void copy_emitter(PfxEmitter* dst, PfxEmitter* src)
+{
+    static void* old_ltm;
+
+    old_ltm = dst->transform;
+    memcpy(dst, src, sizeof(*dst));
+    dst->transform = old_ltm;
+}
+
+static int alloc_pfx_memory(MkPfx* pfx, PfxBuildInfo* build)
 {
     PfxVm* vm;
     PfxEstimate est_buf;
-    int ready;
     int pad_raw;
-    int pad_align;
-    unsigned int alloc_size;
     int est_size;
     int pad_extra;
     void* mem;
     void* aligned;
     PfxNameObj* name_obj;
-    char* name_dst;
 
     vm = pfx_vm(pfx);
     if (pfx_native_is_supported_type(pfx->field_214) == 0) {
-        ready = 0;
-    } else {
-        pfx_estimate_size(vm, &est_buf, build);
-        est_size = est_buf.size;
-        pad_raw = build->emitter_count;
-        pad_raw *= sizeof(PfxSlot);
-        pad_align = (pad_raw + 0xF) & ~0xF;
-        pad_extra = pad_align - pad_raw;
-        alloc_size = 0x10 + pad_raw + pad_extra + est_size;
-        mem = get_mem(alloc_size);
-        if (mem == 0) {
-            ready = 0;
-        } else {
-            pfx->mem = mem;
-            memset(mem, 0, alloc_size);
-            aligned = (void*)(((unsigned long)mem + 0xFUL) & ~0xFUL);
-            if (build->emitter_count != 0) {
-                pfx->slot_table = aligned;
-                aligned = (char*)aligned + pad_raw + pad_extra;
-            }
-            pfx_set_memory(vm, aligned, &est_buf);
-            name_obj = vm->name_obj;
-            if (name_obj != 0) {
-                name_obj->scale = vm->effect_scale;
-            }
-            if (pfx_frame_begin(vm) != 0) {
-                pfx_frame_end(vm);
-                ready = 0;
-            } else {
-                pfx_frame_end(vm);
-                if (vm->behavior_count != 0) {
-                    pfx_behaviors_frame_begin(vm);
-                    pfx_behaviors_frame_end(vm);
-                }
-                name_dst = vm->name;
-                if (name_dst != 0) {
-                    strcpy(name_dst, build->name);
-                }
-                ready = 1;
-            }
-        }
+        return 0;
     }
-    return ready;
+    pfx_estimate_size(vm, &est_buf, build);
+    est_size = est_buf.size;
+    pad_raw = build->emitter_count;
+    pad_raw *= sizeof(PfxSlot);
+    pad_extra = ((pad_raw + 0xF) & ~0xF) - pad_raw;
+    if ((mem = get_mem(0x10 + pad_raw + pad_extra + est_size)) == 0) {
+        return 0;
+    }
+    pfx->mem = mem;
+    memset(mem, 0, 0x10 + pad_raw + pad_extra + est_size);
+    aligned = (void*)(((unsigned long)mem + 0xFUL) & ~0xFUL);
+    if (build->emitter_count != 0) {
+        pfx->slot_table = aligned;
+        aligned = (char*)aligned + pad_raw + pad_extra;
+    }
+    pfx_set_memory(vm, aligned, &est_buf);
+    name_obj = vm->name_obj;
+    if (name_obj != 0) {
+        name_obj->scale = vm->effect_scale;
+    }
+    if (pfx_frame_begin(vm) != 0) {
+        pfx_frame_end(vm);
+        return 0;
+    }
+    pfx_frame_end(vm);
+    if (vm->behavior_count != 0) {
+        pfx_behaviors_frame_begin(vm);
+        pfx_behaviors_frame_end(vm);
+    }
+    if (vm->name != 0) {
+        strcpy(vm->name, build->name);
+    }
+    return 1;
 }
 
-/* TODO: [near miss] 99.91304%; four emitter restore r20/r21 rows remain;
- * original two-input allocator leaves restore-owner coloring unresolved. */
 void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field_90,
                                   int field_214, int field_a0, PfxInitCb init_cb,
                                   int pid, MkProcEntryFn entry, void** out_pfx) {
@@ -784,7 +778,7 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
 
     scan_pfx_emitter_fields(pfx, &emitter_buf);
 
-    ready = initialize_pfx_memory(pfx, build);
+    ready = alloc_pfx_memory(pfx, build);
 
     if (ready == 0) {
         if (pfx->hdr.instance != 0) {
@@ -794,11 +788,7 @@ void* new_pfx_create_raw_userdata(PfxBuildInfo* build, int extra_size, int field
     }
 
     if (pfx->slot_count != 0 && init_cb != 0) {
-        PfxEmitter* ltm_src = pfx->emitter_scratch;
-
-        old_ltm_415 = ltm_src->transform;
-        memcpy(ltm_src, &emitter_buf, sizeof(emitter_buf));
-        ltm_src->transform = old_ltm_415;
+        copy_emitter(pfx->emitter_scratch, &emitter_buf);
     }
 
     if (entry != 0) {

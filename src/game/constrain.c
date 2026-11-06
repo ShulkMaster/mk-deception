@@ -760,7 +760,7 @@ static inline void update_tightrope_plane(MkObj* player_1, MkObj* player_2) {
         tightrope_uv.z = direction.z;
         tightrope_perp_uv.x = tightrope_uv.z;
         tightrope_perp_uv.z = -tightrope_uv.x;
-        if (!g_game_info.feature_flags.bits.high_bit) {
+        if (!g_game_info.feature_flags.bits.online_game) {
             tightrope_dist =
                 CONSTRAIN_P1_OBJECT->pos.value.x * tightrope_perp_uv.x +
                 CONSTRAIN_P1_OBJECT->pos.value.y * tightrope_perp_uv.y +

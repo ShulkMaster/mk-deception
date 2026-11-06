@@ -303,7 +303,7 @@ static inline void opening_coffin_effects_impl(Vec* origin) {
     fx_restart_emit(dust_effect);
 }
 
-static inline void finish_coffin_opening_effects(Vec* origin) {
+static inline void start_closing_coffin_effects(Vec* origin) {
     Vec dust_offset = {0.0f, 0.25f, 2.0f};
     Vec effect_position = {0.0f, 0.0f, 0.0f};
     unsigned int dust;
@@ -1178,8 +1178,8 @@ static void set_letter_positions_and_values(PfxVm* pfx) {
     }
 }
 
-/* TODO: [near miss] 99.61938%; named row_base numbers below the coffin-offset CSE;
- * recover the original row-scale owner (note 9527). */
+/* TODO: [near miss] 99.61938%; named row_base numbers below the coffin-offset CSE; row*20
+ * must reach pcode before z_far; recover the row-scale owner. */
 static void set_number_positions_and_values(PfxVm* pfx) {
     Vec* pos;
     float* uv;
@@ -1982,7 +1982,7 @@ static float p_move_camera_and_open_coffin(void) {
         fade_in_pdata->alpha_step = 8;
     }
 
-    finish_coffin_opening_effects(&coffin_position);
+    start_closing_coffin_effects(&coffin_position);
 
     coffin = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3C);
     if (coffin != 0) {

@@ -135,8 +135,6 @@ static void mwsflib_LscErrFunc(void* object, const char* message)
     MWSFSVM_Error(message);
 }
 
-/* TODO: [breakthrough needed] 99.25134%; first IRO copy pass merges the nested
- * destination formal; recover its original type/availability boundary. */
 void mwPlyInitSfdFx(MwsInitParam* parameter)
 {
     MwsInitParam local;
@@ -194,10 +192,11 @@ static void mwsflib_InitLibWork(MwsInitParam* parameter)
 {
     MwsLibraryWork* work;
 
-    memset(work = &mwsfd_libwork, 0, sizeof(mwsfd_libwork));
+    work = &mwsfd_libwork;
+    memset(work, 0, sizeof(mwsfd_libwork));
     MWSFSVR_SetMwsfdSvrFlg(0);
     work->field_5C = 0;
-    mwsflib_SetLibPrm(work, parameter);
+    mwsflib_SetLibPrm(&mwsfd_libwork, parameter);
     work->use_picture_user_data = 1;
     work->pause_border = 1;
 }

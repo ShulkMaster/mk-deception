@@ -393,7 +393,7 @@ typedef struct BgndPebblePlayerData {
     MkHdr hdr;
     BgndPebbleCollection* collection;
     MkSobj* sobj;
-    int count;
+    unsigned int count;
     int mode;
 } BgndPebblePlayerData;
 
@@ -1017,9 +1017,9 @@ static inline void beetle_lair_emit_glass_smoke(const Vec* smoke_position) {
         smoke_position->y, smoke_position->z);
 }
 
-static inline void beetle_lair_mark_player_sync(
-    PlyrPdata* player, int sync_index) {
-    player->online_sync_index = sync_index;
+static inline void register_danger_zone_callback(
+    PlyrPdata* player, int callback) {
+    player->danger_zone_callback = callback;
     if (player->plyr_num == 0) {
         g_game_info.plyr0.fighting_lights.green_trigger = 1;
     } else {
@@ -1473,7 +1473,6 @@ static inline void bgnd_set_randomized_component(float* destination,
 }
 void bgnd_pebble_burst_set_value(int player, unsigned int first, unsigned int end, int field, void* script, float x, float y, float z, float x_spread, float y_spread, float z_spread);
 float bgnd_pebble_fetch_current_info(unsigned int field);
-void bgnd_pebble_set_current_pebble(int player, int index);
 void bgnd_pebble_change_current_end_behavior(int end_behavior);
 void bgnd_pebble_change_current_behavior_to_bounce( float velocity_x, float velocity_y, float velocity_z, float angular_x, float angular_y, float angular_z, unsigned int ticks, int bounce_param);
 void bgnd_pebble_change_current_behavior( float velocity_x, float velocity_y, float velocity_z, float angular_x, float angular_y, float angular_z, unsigned int ticks, int behavior_param);
@@ -1481,7 +1480,7 @@ void bgnd_pebble_launch_at_time( int player, int index, float position_x, float 
 void bgnd_pebble_simple_launch_at_time(int player, int index, unsigned int delay, int behavior_param);
 
 static inline BgndPebbleCollection* bgnd_create_pebble_collection(
-    MkSobj* object, const unsigned int count) {
+    MkSobj* object, unsigned int count) {
     BgndPebbleCollection* collection;
     unsigned int i;
 
@@ -3670,7 +3669,7 @@ float bgnd_current_rx_get_info(int info_id) {
         return g_current_reaction_info.power_level;
     case 4:
         pdata = g_current_reaction_info.player_info->slot.pdata;
-        return pdata->online_sync_index;
+        return pdata->danger_zone_callback;
     case 5:
         return g_game_info.crack_count;
     case 6:
@@ -3688,7 +3687,7 @@ void bgnd_current_rx_set_info(int info_id, void* script_args, float value) {
     switch (info_id) {
     case 4:
         player = g_current_reaction_info.player_info->slot.pdata;
-        player->online_sync_index = value;
+        player->danger_zone_callback = value;
         if (player->plyr_num == 0) {
             g_game_info.plyr0.fighting_lights.green_trigger = 1;
         } else {
@@ -3740,15 +3739,10 @@ void bgnd_rx_notify(
     }
 }
 void bgnd_register_danger_zone_callback(PlyrPdata* pdata, int callback) {
-    pdata->online_sync_index = callback;
-    if (pdata->plyr_num == 0) {
-        g_game_info.plyr0.fighting_lights.green_trigger = 1;
-        return;
-    }
-    g_game_info.plyr1.fighting_lights.green_trigger = 1;
+    register_danger_zone_callback(pdata, callback);
 }
 void bgnd_clear_danger_zone_callback(PlyrPdata* pdata) {
-    pdata->online_sync_index = -1;
+    pdata->danger_zone_callback = -1;
     if (pdata->plyr_num == 0) {
         g_game_info.plyr0.fighting_lights.green_trigger = 0;
         return;
@@ -3924,7 +3918,7 @@ void bgnd_make_displayed_item_pickupable_at_active_sobj_pos(int item_id) {
             } else if (list_item->type == item_id) {
                 mk_pull_discard(&list_item->hdr, displayed_list);
                 if (list_item->obstacle != 0 &&
-                        !g_game_info.feature_flags.bits.high_bit) {
+                        !g_game_info.feature_flags.bits.online_game) {
                     list_item->obstacle->flags.bits.disabled = 0;
                 }
                 mk_insert(&list_item->hdr, &g_game_info.field_64);
@@ -4075,7 +4069,7 @@ float bgnd_process_collision_info(
     case 5: {
         PlyrPdata* player = g_game_info.collision_player_pdata;
 
-        player->online_sync_index = -1;
+        player->danger_zone_callback = -1;
         if (player->plyr_num == 0) {
             g_game_info.plyr0.fighting_lights.green_trigger = 0;
         } else {
@@ -4305,6 +4299,7 @@ void spad_set_heading_vector_to(int index, float heading, float offset) {
     Vec* vector;
     float angle;
     int normalized;
+
     vector = &g_bgnd_scratch_pad_vectors[index];
     heading += offset;
     normalized = (int)(166886.1f * heading) & 0xFFFFF;
@@ -4335,6 +4330,7 @@ float spad_xz_cos_two_vectors(int first, int second) {
 }
 void spad_set_vector_y(int index, float y) {
     Vec* vector;
+
     vector = &g_bgnd_scratch_pad_vectors[index];
     vector->y = y;
 }
@@ -4499,6 +4495,7 @@ void spad_norm_vector(int index) {
 }
 void spad_set_vector_setting(int index, float x, float y, float z) {
     Vec* vector;
+
     vector = &g_bgnd_scratch_pad_vectors[index];
     vector->x = x;
     vector->y = y;
@@ -4509,6 +4506,7 @@ void spad_set_y_angle_plus_offset_from_xz_vector(
     Vec* output;
     Vec direction;
     Vec angles;
+
     direction.x = x;
     direction.y = 0.0f;
     direction.z = z;
@@ -4579,7 +4577,7 @@ void enable_bgnd_obj_repel(BgndDisplayedItem* item) {
     ArenaObstacle* obstacle;
 
     obstacle = item->obstacle;
-    if (obstacle != 0 && !g_game_info.feature_flags.bits.high_bit) {
+    if (obstacle != 0 && !g_game_info.feature_flags.bits.online_game) {
         obstacle->flags.bits.disabled = 0;
     }
 }
@@ -4587,7 +4585,7 @@ void disable_bgnd_obj_repel(BgndDisplayedItem* item) {
     ArenaObstacle* obstacle;
 
     obstacle = item->obstacle;
-    if (obstacle != 0 && !g_game_info.feature_flags.bits.high_bit) {
+    if (obstacle != 0 && !g_game_info.feature_flags.bits.online_game) {
         obstacle->flags.bits.disabled = 1;
     }
 }
@@ -4769,7 +4767,7 @@ void bgnd_place_weapon_at_position(
         if (permanent != 0) {
             if (item != 0) {
                 if (item->obstacle != 0 &&
-                    !g_game_info.feature_flags.bits.high_bit) {
+                    !g_game_info.feature_flags.bits.online_game) {
                     item->obstacle->flags.bits.disabled = 0;
                 }
                 mk_insert(&item->hdr, &g_game_info.field_64);
@@ -4794,7 +4792,7 @@ void bgnd_place_weapon_at_position(
             }
         } else {
             if (item->obstacle != 0 &&
-                !g_game_info.feature_flags.bits.high_bit) {
+                !g_game_info.feature_flags.bits.online_game) {
                 item->obstacle->flags.bits.disabled = 1;
             }
             mk_insert(&item->hdr, &g_game_info.displayed_items);
@@ -4891,7 +4889,7 @@ void bgnd_place_object_at_position(
 
         if (item != 0) {
             if (item->obstacle != 0 &&
-                !g_game_info.feature_flags.bits.high_bit) {
+                !g_game_info.feature_flags.bits.online_game) {
                 item->obstacle->flags.bits.disabled = 0;
             }
             mk_insert(&item->hdr, &g_game_info.field_64);
@@ -5519,7 +5517,7 @@ void bgnd_collision_if_rx_override(unsigned int collision_id) {
             g_active_obstacle_event_data->player_pdata);
     }
     player = g_active_obstacle_event_data->player_pdata;
-    player->online_sync_index = collision_id;
+    player->danger_zone_callback = collision_id;
     if (player->plyr_num == 0) {
         g_game_info.plyr0.fighting_lights.green_trigger = 1;
     } else {
@@ -6502,7 +6500,8 @@ static float p_pebble_manual_monitor(void) {
     }
     return 1.0f;
 }
-void bgnd_init_pebbles(int player, unsigned int first, unsigned int end) {
+static inline void bgnd_init_pebble_range(unsigned int player, unsigned int first,
+                                          unsigned int end) {
     BgndPebbleControl* pebble;
     unsigned int index;
 
@@ -6532,10 +6531,14 @@ void bgnd_init_pebbles(int player, unsigned int first, unsigned int end) {
         pebble->bounce_velocity.z = 0.0f;
         pebble->bounce_velocity.y = 0.5f;
         MKMatrixRotatXZYScaleTranslate(
-            &g_pebbles[player]->matrices[index], pebble->angles.x,
-            pebble->angles.z, pebble->angles.y,
+            &g_pebbles[player]->matrices[index],
+            pebble->angles.x, pebble->angles.z, pebble->angles.y,
             &pebble->scale, &pebble->position);
     }
+}
+
+void bgnd_init_pebbles(int player, unsigned int first, unsigned int end) {
+    bgnd_init_pebble_range(player, first, end);
 }
 void bgnd_pebble_gravity(int player, void* script, float gravity) {
     BgndPebbleControl* pebbles;
@@ -6543,7 +6546,7 @@ void bgnd_pebble_gravity(int player, void* script, float gravity) {
 
     (void)script;
     pebbles = g_pebbles[player]->pebbles;
-    for (index = 0; index < (unsigned int)g_pebbles_pdata[player]->count;
+    for (index = 0; index < g_pebbles_pdata[player]->count;
          index++) {
         pebbles[index].gravity = gravity;
     }
@@ -6557,7 +6560,7 @@ void bgnd_pebble_rand_scale(int player, void* script, float base,
 
     (void)script;
     pebbles = g_pebbles[player]->pebbles;
-    for (index = 0; index < (unsigned int)g_pebbles_pdata[player]->count;
+    for (index = 0; index < g_pebbles_pdata[player]->count;
          index++) {
         pebble = &pebbles[index];
         scale = base + frand(range);
@@ -6571,7 +6574,7 @@ void bgnd_hide_pebbles(int player) {
     BgndPebbleControl* pebbles;
 
     pebbles = g_pebbles[player]->pebbles;
-    for (index = 0; index < (unsigned int)g_pebbles_pdata[player]->count;
+    for (index = 0; index < g_pebbles_pdata[player]->count;
          index++) {
         pebbles[index].state = 0;
         pebbles[index].position.y = -200.0f;
@@ -6674,13 +6677,9 @@ static inline BgndPebblePlayerData* bgnd_create_pebble_process(
     return result;
 }
 
-/* TODO: [near miss] 99.78022%; process still selects before index claims r24;
- * original collection-pointer input is neutral; recover process ownership. */
 BgndPebbleControl* bgnd_create_pebbles_with_sobj(
     MkSobj* object, unsigned int player, int mode, unsigned int count) {
-    unsigned int index;
     BgndPebblePlayerData* result;
-    BgndPebbleControl* pebble;
 
     if (player >= 20) {
         return 0;
@@ -6696,36 +6695,7 @@ BgndPebbleControl* bgnd_create_pebbles_with_sobj(
     }
     hide_sobj(object);
 
-    for (index = 0; index < count; index++) {
-        pebble = &g_pebbles[player]->pebbles[index];
-        pebble->position.z = 0.0f;
-        pebble->position.y = 0.0f;
-        pebble->position.x = 0.0f;
-        pebble->scale.z = 1.0f;
-        pebble->scale.y = 1.0f;
-        pebble->scale.x = 1.0f;
-        pebble->angles.z = 0.0f;
-        pebble->angles.y = 0.0f;
-        pebble->angles.x = 0.0f;
-        pebble->angular_velocity.z = 0.0f;
-        pebble->angular_velocity.y = 0.0f;
-        pebble->angular_velocity.x = 0.0f;
-        pebble->velocity.z = 0.0f;
-        pebble->velocity.y = 0.0f;
-        pebble->velocity.x = 0.0f;
-        pebble->bounce_flags = 0;
-        pebble->state = 0;
-        pebble->bounce_ticks = 0;
-        pebble->launch_ticks = 0;
-        pebble->gravity = 0.0f;
-        pebble->bounce_velocity.x = 0.0f;
-        pebble->bounce_velocity.z = 0.0f;
-        pebble->bounce_velocity.y = 0.5f;
-        MKMatrixRotatXZYScaleTranslate(
-            &g_pebbles[player]->matrices[index],
-            pebble->angles.x, pebble->angles.z, pebble->angles.y,
-            &pebble->scale, &pebble->position);
-    }
+    bgnd_init_pebble_range(player, 0, count);
 
     result = bgnd_create_pebble_process(object, g_pebbles[player], mode, count);
     g_pebbles_pdata[player] = result;
@@ -6967,8 +6937,8 @@ static void bgnd_pebble_burst_at(int player, const Vec* position,
     unsigned int index;
     BgndPebbleControl* pebble;
 
-    if (first >= (unsigned int)g_pebbles_pdata[player]->count ||
-        end > (unsigned int)g_pebbles_pdata[player]->count || first >= end) {
+    if (first >= g_pebbles_pdata[player]->count ||
+        end > g_pebbles_pdata[player]->count || first >= end) {
         return;
     }
 
@@ -7048,8 +7018,8 @@ void bgnd_pebble_burst_set_value(int player, unsigned int first,
     Vec* value;
 
     (void)script;
-    if (first >= (unsigned int)g_pebbles_pdata[player]->count ||
-        end > (unsigned int)g_pebbles_pdata[player]->count || first >= end) {
+    if (first >= g_pebbles_pdata[player]->count ||
+        end > g_pebbles_pdata[player]->count || first >= end) {
         return;
     }
 
@@ -7097,8 +7067,8 @@ void bgnd_pebble_burst_set_value_min_max(int player, unsigned int first,
     float magnitude;
 
     (void)script;
-    if (first >= (unsigned int)g_pebbles_pdata[player]->count ||
-        end > (unsigned int)g_pebbles_pdata[player]->count || first >= end) {
+    if (first >= g_pebbles_pdata[player]->count ||
+        end > g_pebbles_pdata[player]->count || first >= end) {
         return;
     }
 
@@ -7149,8 +7119,8 @@ void bgnd_pebble_burst_set_end_state(int player, unsigned int first,
     BgndPebbleControl* pebbles;
     unsigned int index;
 
-    if (first >= (unsigned int)g_pebbles_pdata[player]->count ||
-        end > (unsigned int)g_pebbles_pdata[player]->count || first >= end) {
+    if (first >= g_pebbles_pdata[player]->count ||
+        end > g_pebbles_pdata[player]->count || first >= end) {
         return;
     }
 
@@ -9632,7 +9602,7 @@ float r_beetle_lair_transition(void) {
         }
     }
     delete_obstacle_from_background_by_id(0x42);
-    player->online_sync_index = -1;
+    player->danger_zone_callback = -1;
     if (player->plyr_num == 0) {
         g_game_info.plyr0.fighting_lights.green_trigger = 0;
     } else {
@@ -9684,12 +9654,12 @@ static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
         if (event->event_id == 0x12C) {
             if (beetle_lair_react_to_wall_danger_zone_cb(
                     event->player_pdata)) {
-                beetle_lair_mark_player_sync(event->player_pdata, 0x131);
+                register_danger_zone_callback(event->player_pdata, 0x131);
             }
         } else if (event->event_id == 0x12D && event->player_pdata != 0) {
             aligned = beetle_lair_player_faces_wall(event->player_pdata);
             if (aligned) {
-                beetle_lair_mark_player_sync(event->player_pdata, 0xE3);
+                register_danger_zone_callback(event->player_pdata, 0xE3);
             }
         }
     } else if (event->field_04 == 5) {
@@ -12112,7 +12082,7 @@ int is_bgnd_locked(int bgnd_id) {
         return 1;
     }
 
-    if (g_game_info.feature_flags.bits.high_bit && !g_game_info.feature_flags.bits.pad_6) {
+    if (g_game_info.feature_flags.bits.online_game && !g_game_info.feature_flags.bits.field_bit6) {
         return 0;
     }
 

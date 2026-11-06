@@ -417,7 +417,7 @@ typedef struct PlyrPdata {
     int (*baraka_moveset_callback)(
         struct PlyrPdata*, PlyrMirrorSlots*); /* +0x718 */
     void* active_pickup; /* +0x71C */
-    int online_sync_index;            /* +0x720 - -1 when unavailable */
+    int danger_zone_callback;            /* +0x720 - -1 when unavailable */
     int impaled_projectile_state;       /* +0x724 */
     int field_728;
     MkObj* sidekick_obj;              /* +0x72C */

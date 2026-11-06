@@ -261,11 +261,6 @@ void AXRNA_ExecServer(void)
     }
 }
 
-static inline int axrna_align_transfer_size(int size)
-{
-    return (size / 32) * 32;
-}
-
 static inline void axrna_transfer_channels(AXRNAHandle* handle)
 {
     SJCK input_chunk;
@@ -275,7 +270,7 @@ static inline void axrna_transfer_channels(AXRNAHandle* handle)
     int channel;
 
     for (channel = 0; channel < handle->num_channels; channel++) {
-        int transfer_size;
+        long transfer_size;
 
         if (handle->voices[channel] == 0 ||
             handle->transfer_pending[channel] != 0) {
@@ -286,11 +281,9 @@ static inline void axrna_transfer_channels(AXRNAHandle* handle)
             &buffer_chunk);
         handle->inputs[channel]->interface->get_chunk(
             handle->inputs[channel], 1, buffer_chunk.len, &input_chunk);
-        transfer_size = buffer_chunk.len;
-        if (input_chunk.len < transfer_size) {
-            transfer_size = input_chunk.len;
-        }
-        transfer_size = axrna_align_transfer_size(transfer_size);
+        transfer_size = input_chunk.len < buffer_chunk.len ? input_chunk.len
+                                                           : buffer_chunk.len;
+        transfer_size = (transfer_size / 32) * 32;
         SJ_SplitChunk(&buffer_chunk, transfer_size, &buffer_chunk,
                       &buffer_remainder);
         handle->buffers[channel]->interface->unget_chunk(
@@ -329,7 +322,7 @@ static inline void axrna_flash_channels(AXRNAHandle* handle)
     int channel;
 
     for (channel = 0; channel < handle->num_channels; channel++) {
-        int transfer_size;
+        long transfer_size;
 
         if (handle->flash_pending[channel] != 0) {
             continue;
@@ -337,7 +330,7 @@ static inline void axrna_flash_channels(AXRNAHandle* handle)
         handle->buffers[channel]->interface->get_chunk(
             handle->buffers[channel], 0, AXRNA_TRANSFER_BYTES,
             &flash_chunk);
-        transfer_size = axrna_align_transfer_size(flash_chunk.len);
+        transfer_size = (flash_chunk.len / 32) * 32;
         SJ_SplitChunk(&flash_chunk, transfer_size, &flash_chunk,
                       &flash_remainder);
         handle->buffers[channel]->interface->unget_chunk(
@@ -359,8 +352,6 @@ static inline void axrna_flash_channels(AXRNAHandle* handle)
     }
 }
 
-/* TODO: [near miss] 99.55189%; descriptor slots and operations agree;
- * channel/size register homes swap in both DMA phases; stop at coloring. */
 void AXRNA_ExecHndl(AXRNAHandle* handle)
 {
     if (handle == 0) {

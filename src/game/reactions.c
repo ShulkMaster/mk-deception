@@ -1163,8 +1163,8 @@ int reaction_xfer_him(int reaction, float damage_scale, int block_type) {
             !both_special) {
             bgnd_clear_danger_zone_callback(victim);
         }
-        if (victim->online_sync_index != -1) {
-            dispatch_reaction = victim->online_sync_index;
+        if (victim->danger_zone_callback != -1) {
+            dispatch_reaction = victim->danger_zone_callback;
             dispatch_pair =
                 tbl_xfer_addresses[dispatch_reaction].dispatch;
         }
@@ -2667,7 +2667,7 @@ static float r_subzero_iceball(void) {
         aproc->vtbl->jump_sleep(j_exit, 0.0f);
         return 0.0f;
     }
-    if (g_game_info.feature_flags.bits.high_bit == 0 ? 0 : demo_interrupt) {
+    if (g_game_info.feature_flags.bits.online_game == 0 ? 0 : demo_interrupt) {
         aproc->vtbl->jump_sleep(blend_to_stance_j_exit, 0.0f);
         return 0.0f;
     }

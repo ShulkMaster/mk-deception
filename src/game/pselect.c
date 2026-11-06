@@ -337,7 +337,7 @@ static inline struct PselectCharEntry* pselect_char_at(int slot) {
     return &pselect_char_tbl[slot];
 }
 
-static inline int pselect_char_id_at(int slot) {
+static inline long get_char_from_tbl(long slot) {
     if (pselect_mode == 2) {
         return pselect_pz_char_tbl[slot].char_id;
     }
@@ -418,8 +418,8 @@ void pselect_update_profile_settings(void) {
 int pselect_background_select_available(void) {
     int players;
 
-    if (g_game_info.feature_flags.bits.high_bit) {
-        return g_game_info.feature_flags.bits.pad_6 != 0;
+    if (g_game_info.feature_flags.bits.online_game) {
+        return g_game_info.feature_flags.bits.field_bit6 != 0;
     }
 
     if (mode_of_play == 6) {
@@ -489,20 +489,18 @@ void pselect_random_select(int player) {
     g_game_info.pads[pad].flag_bits.disabled = 1;
 }
 
-static inline int pselect_character_id_valid(int char_id) {
-    int valid = 0;
-
-    if ((unsigned long long)char_id < 0x2CULL) {
-        valid = 1;
+static inline int is_char_valid(unsigned long long char_id) {
+    if (char_id >= 0x2CULL) {
+        return 0;
     }
-    return valid;
+    return 1;
 }
 
 static inline int pselect_character_locked_impl(int char_id, int alt_bit) {
     unsigned long long mask;
     unsigned long long bit;
 
-    if (!pselect_character_id_valid(char_id)) {
+    if (!is_char_valid(char_id)) {
         return 1;
     }
 
@@ -521,15 +519,13 @@ static inline int pselect_character_locked_impl(int char_id, int alt_bit) {
         }
     }
 
-    bit = 1ULL << char_id;
+    bit = 1ULL << (unsigned long long)char_id;
     if ((mask & bit) != 0ull) {
         return 0;
     }
     return 1;
 }
 
-/* TODO: [near miss] 97.55396%; shared range-result join and early shift-count owner differ;
- * recover the original predicate boundary; preserve current allocation. */
 static float p_random_player_select(void) {
     int attempts;
     int slot;
@@ -547,10 +543,10 @@ static float p_random_player_select(void) {
 
     attempts = 0;
     slot = randu0(pdata->num_chars & 0xFFFF) & 0xFFFF;
-    char_id = pselect_char_id_at(slot);
+    char_id = get_char_from_tbl(slot);
     while (pselect_character_locked_impl(char_id, 0) || char_id == 0x20) {
         slot = randu0(pdata->num_chars & 0xFFFF) & 0xFFFF;
-        char_id = pselect_char_id_at(slot);
+        char_id = get_char_from_tbl(slot);
         attempts += 1;
         if (attempts > 0x32) {
             slot = 0;
@@ -838,8 +834,6 @@ void ck_decrement_bet(void) {
     }
 }
 
-/* TODO: [near miss] 99.40860%; balance/amount producers remain reversed;
- * verified PS2 inlines the same checks; recover their original ownership boundary. */
 void ck_increment_bet(void) {
     MkProc* proc;
     MkHdr* pdata;
@@ -859,11 +853,11 @@ void ck_increment_bet(void) {
     }
 
     if (p1_profile_status == 1 && p2_profile_status == 1) {
-        int next_amount =
-            g_game_info.pselect.field_1d8 + g_game_info.pselect.field_1f0;
-        if ((unsigned int)p1_profile.koins[koin] >= next_amount &&
-            (unsigned int)p2_profile.koins[koin] >= next_amount) {
-            g_game_info.pselect.field_1d8 = next_amount;
+        if ((unsigned int)p1_profile.koins[koin] >=
+                g_game_info.pselect.field_1d8 + g_game_info.pselect.field_1f0 &&
+            (unsigned int)p2_profile.koins[koin] >=
+                g_game_info.pselect.field_1d8 + g_game_info.pselect.field_1f0) {
+            g_game_info.pselect.field_1d8 += g_game_info.pselect.field_1f0;
             proc = find_mkproc_pid(0x20A4);
             if (proc != 0) {
                 pdata = pdata_of_proc(proc);
@@ -1141,13 +1135,11 @@ static float p_enter_profile_code(void) {
 }
 
 
-/* TODO: [breakthrough needed] 97.91045%; the original 28-byte validity
- * helper contract and materialized caller result remain unresolved. */
 int is_char_locked(int char_id, int alt_bit) {
     unsigned long long mask;
     unsigned long long bit;
 
-    if (!pselect_character_id_valid(char_id)) {
+    if (!is_char_valid(char_id)) {
         return 1;
     }
 
@@ -1166,7 +1158,7 @@ int is_char_locked(int char_id, int alt_bit) {
         }
     }
 
-    bit = 1ULL << (unsigned int)char_id;
+    bit = 1ULL << (unsigned long long)char_id;
     if ((mask & bit) != 0ull) {
         return 0;
     }
@@ -1524,8 +1516,6 @@ void get_bg_pselect_team_textures(PselectTexOut out, int team) {
     pselect_update_team_preview(team);
 }
 
-/* TODO: [near miss] 98.88000%; shared validity join differs before allocation;
- * recover the unsigned64 predicate boundary, then zero sharing. */
 void get_pselect_head_textures(PselectTexOut out) {
     int n;
     int i;
@@ -1540,7 +1530,7 @@ void get_pselect_head_textures(PselectTexOut out) {
     }
 
     for (i = 0; i < n; i++) {
-        if (is_char_locked(pselect_char_id_at(i), 0)) {
+        if (is_char_locked(get_char_from_tbl(i), 0)) {
             out.colors[i] = load_named_tga_from_slot(PSELECT_SEC_SLOT, tbl[i].head_lock);
             out.alphas[i] =
                 load_named_alpha_texture_from_slot(PSELECT_SEC_SLOT, tbl[i].head_lock);
@@ -1665,8 +1655,6 @@ void pselect_player_moved(int player) {
         bg_team_record_focus_of(get_screen_pdata(), player, char_id);
 }
 
-/* TODO: [breakthrough needed] 96.85567%; selector product stays live across
- * head-texture load; recover the branch-local multiplication producer. */
 void bg_pselect_player_canceled(int player) {
     struct BgPselectTeamPdata* pdata;
     int count;
@@ -1696,11 +1684,7 @@ void bg_pselect_player_canceled(int player) {
                                        pselect_char_tbl[sel_pos].head_name);
         pdata->teams[player].colors[count - 2] = tex;
         pdata->teams[player].entries[count - 1] = 0x2C;
-        if (pselect_mode == 2) {
-            char_id = pselect_pz_char_tbl[sel_pos].char_id;
-        } else {
-            char_id = pselect_char_tbl[sel_pos].char_id;
-        }
+        char_id = get_char_from_tbl(sel_pos);
         pdata->teams[player].focus =
             bg_team_record_focus_of(get_screen_pdata(), player, char_id);
     }
@@ -1775,8 +1759,6 @@ void resolve_alternate_palettes(PlyrInfo* plyr) {
     }
 }
 
-/* TODO: [breakthrough needed] 99.41989%; validity helper lacks its original
- * result boundary; preview owner homes also differ. */
 void pselect_player_selected(PlyrInfo* plyr) {
     PlyrInfo* other;
     int* sel_pos;
@@ -1819,7 +1801,7 @@ void pselect_player_selected(PlyrInfo* plyr) {
         return;
     }
 
-    char_id = pselect_char_id_at(*sel_pos);
+    char_id = get_char_from_tbl(*sel_pos);
     plyr->player_index = char_id;
     flags = &plyr->flags_14_bits;
     flags->alternate_costume = 0;
@@ -1883,7 +1865,7 @@ void pselect_player_selected(PlyrInfo* plyr) {
     }
 
     if (pselect_mode == 1) {
-        char_id = pselect_char_id_at(*sel_pos);
+        char_id = get_char_from_tbl(*sel_pos);
         focus = bg_team_record_focus_of(get_screen_pdata(),
                                  plyr->field_04, char_id);
         if (focus >= 0) {
@@ -1985,18 +1967,13 @@ int pselect_get_selbox_pos(int player) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 95.98290%; public/internal owner order and range-result join differ;
- * recover the GC operation boundary and unsigned64 predicate producer. */
 void pselect_update_selbox_pos(int player, int new_pos) {
     int* pos_p;
-    int cols;
     int n_cells;
     int skips;
     int delta;
+    int cols;
     int char_id;
-    int row2;
-    int second_row_end;
-    int abs_delta;
 
     if (player == 0) {
         if (mode_of_play != 4 && g_game_info.plyr0.player_state == 0) {
@@ -2024,39 +2001,34 @@ void pselect_update_selbox_pos(int player, int new_pos) {
     }
 
     skips = 0;
-    char_id = pselect_char_id_at(new_pos);
-    row2 = cols * 2;
+    char_id = get_char_from_tbl(new_pos);
     delta = new_pos - *pos_p;
-    second_row_end = row2 - 1;
 
     while (is_char_locked(char_id, 0)) {
         if (char_id == 0x20) {
             break;
         }
-        if (delta == 1 && (*pos_p == cols - 1 || *pos_p == second_row_end ||
+        if (delta == 1 && (*pos_p == cols - 1 || *pos_p == cols * 2 - 1 ||
                            *pos_p == cols * 3 - 1)) {
             new_pos = *pos_p - (cols - 1);
             *pos_p = new_pos;
             delta = 1;
-        } else {
-            abs_delta = delta < 0 ? -delta : delta;
-            if (row2 == abs_delta) {
-                new_pos = *pos_p + delta;
-                *pos_p = new_pos;
-                if (delta > 0) {
-                    delta = -cols;
-                } else {
-                    delta = cols;
-                }
-            } else if (delta == -1 &&
-                       (*pos_p == 0 || *pos_p == cols || *pos_p == row2)) {
-                new_pos = cols + *pos_p;
-                new_pos -= 1;
-                *pos_p = new_pos;
+        } else if (cols * 2 == (delta < 0 ? -delta : delta)) {
+            new_pos = *pos_p + delta;
+            *pos_p = new_pos;
+            if (delta > 0) {
+                delta = -cols;
             } else {
-                new_pos = *pos_p + delta;
-                *pos_p = new_pos;
+                delta = cols;
             }
+        } else if (delta == -1 &&
+                   (*pos_p == 0 || *pos_p == cols || *pos_p == cols * 2)) {
+            new_pos = cols + *pos_p;
+            new_pos -= 1;
+            *pos_p = new_pos;
+        } else {
+            new_pos = *pos_p + delta;
+            *pos_p = new_pos;
         }
 
         if (new_pos >= n_cells) {
@@ -2078,20 +2050,18 @@ void pselect_update_selbox_pos(int player, int new_pos) {
             }
         }
 
-        char_id = pselect_char_id_at(new_pos);
+        char_id = get_char_from_tbl(new_pos);
     }
 
     *pos_p = new_pos;
     if (player == 0) {
-        g_game_info.plyr0.player_index = pselect_char_id_at(new_pos);
+        g_game_info.plyr0.player_index = get_char_from_tbl(new_pos);
     } else if (player == 1) {
-        g_game_info.plyr1.player_index = pselect_char_id_at(new_pos);
+        g_game_info.plyr1.player_index = get_char_from_tbl(new_pos);
     }
     fire_screen_studio_event(0x1FA4, player);
 }
 
-/* TODO: [near miss] 98.37209%; shared unsigned64 validity-result ownership/join differ;
- * recover the original producer before IroJump folding. */
 static void check_reset_player_selection(int player, int start_pos) {
     int pos;
     int char_id;
@@ -2104,7 +2074,7 @@ static void check_reset_player_selection(int player, int start_pos) {
     if (player == 0) {
         pos = p1_selbox_pos;
     }
-    char_id = pselect_char_id_at(pos);
+    char_id = get_char_from_tbl(pos);
     if (is_char_locked(char_id, 0)) {
         pselect_update_selbox_pos(player, start_pos);
     }
@@ -2150,7 +2120,7 @@ void bg_pselect_set_character(int team) {
     }
     count = pdata->teams[team].entries[0];
     if (count >= 1 && count <= 5) {
-        char_id = pselect_char_id_at(sel_pos);
+        char_id = get_char_from_tbl(sel_pos);
         pdata->teams[team].entries[count] = char_id;
         pdata->teams[team].focus = bg_team_record_focus_of(
             get_screen_pdata(), team, char_id);
@@ -2310,7 +2280,7 @@ float p_bg_pselect(void) {
     turn_camera_on();
     turn_controllers_on();
 
-    if ((g_game_info.field_04 >> 7) & 1) {
+    if (g_game_info.feature_flags.bits.online_game != 0) {
         ck_for_controller_removed();
     }
 
@@ -2403,7 +2373,7 @@ float p_pz_pselect(void) {
     turn_controllers_on();
     turn_camera_on();
 
-    if ((g_game_info.field_04 >> 7) & 1) {
+    if (g_game_info.feature_flags.bits.online_game != 0) {
         ck_for_controller_removed();
     }
 
@@ -2513,7 +2483,7 @@ float p_pselect(void) {
     turn_controllers_on();
     turn_camera_on();
 
-    if ((g_game_info.field_04 >> 7) & 1) {
+    if (g_game_info.feature_flags.bits.online_game != 0) {
         ck_for_controller_removed();
     }
 
@@ -2618,8 +2588,8 @@ float p_pselect(void) {
 
 static void init_startup_selboxes(void);
 
-/* TODO: [near miss] 97.36994%; shared range-result join and position/mask owners differ;
- * preserve local searches and outlining; recover predicate ownership. */
+/* TODO: [near miss] 98.29480%; coloring only: p1_pos/p2_pos must number above the
+ * hoisted mask/table loads (retail r28/r17); recover their owner kind. */
 static void init_startup_selboxes(void) {
     int max_col;
     int p1_pos;
@@ -2644,7 +2614,7 @@ static void init_startup_selboxes(void) {
     }
 
     p1_pos = p1_selbox_start_pos;
-    while (is_char_locked(pselect_char_id_at(p1_pos), 0)) {
+    while (is_char_locked(get_char_from_tbl(p1_pos), 0)) {
         p1_pos += 1;
         if (p1_pos > max_col) {
             p1_pos = 0;
@@ -2657,7 +2627,7 @@ static void init_startup_selboxes(void) {
     }
 
     p2_pos = p2_selbox_start_pos;
-    while (is_char_locked(pselect_char_id_at(p2_pos), 0)) {
+    while (is_char_locked(get_char_from_tbl(p2_pos), 0)) {
         p2_pos -= 1;
         if (p2_pos < 0) {
             p2_pos = max_col;

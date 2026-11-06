@@ -834,7 +834,8 @@ static inline int mslBankSoundUnUseInline(
 }
 
 static inline void mslBankFinishPlayInline(
-    bool loaded, _ListNode* node, mslBankSoundEntry* bank_sound) {
+    bool loaded, mslBankSoundEntry* bank_sound, void* data) {
+    _ListNode* node = (_ListNode*)data;
     mslRuntimeSound* copy =
         (mslRuntimeSound*)ListNodeData(0, node);
     unsigned long error_id =
@@ -914,8 +915,6 @@ extern "C" unsigned long mslBankPlayPrep(mslLoadedBank* bank, int sound_id)
     return 0;
 }
 
-/* TODO: [near miss] 99.58823%; fixed-stall scans leave argument/node homes;
- * recover acquisition/finish copy ownership beyond the bounded scan orders. */
 extern "C" unsigned long mslBankPlayVol(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, unsigned long play_flags) {
@@ -944,7 +943,7 @@ extern "C" unsigned long mslBankPlayVol(
             _mslSystem* system = gMsi;
 
             if (bank_sound->sound != 0) {
-                mslBankFinishPlayInline(true, node, bank_sound);
+                mslBankFinishPlayInline(true, bank_sound, node);
             } else {
                 _mslSound* loaded_sound = mslSoundLoad(
                     system, bank, bank_sound->definition, bank_sound->flags);
@@ -956,7 +955,7 @@ extern "C" unsigned long mslBankPlayVol(
                     mslDebugPrintf("Unable to load async sound.\n");
                 }
                 mslBankFinishPlayInline(
-                    bank_sound->sound != 0, node, bank_sound);
+                    bank_sound->sound != 0, bank_sound, node);
             }
             return handle;
         }
@@ -966,30 +965,6 @@ extern "C" unsigned long mslBankPlayVol(
     return 0;
 }
 
-static inline void mslBankPlaySoundInline(
-    _mslSystem* system, mslLoadedBank* bank,
-    mslBankSoundEntry* bank_sound, _ListNode* node) {
-    if (bank_sound->sound != 0) {
-        mslBankFinishPlayInline(true, node, bank_sound);
-    } else {
-        _mslSound* loaded_sound = mslSoundLoad(
-            system, bank, bank_sound->definition, bank_sound->flags);
-        if (loaded_sound != 0) {
-            bank_sound->sound = loaded_sound;
-            ((mslRuntimeSound*)bank_sound->sound)->bank_ref_count = 1;
-            ((mslRuntimeSound*)bank_sound->sound)->owner_bank = bank;
-        } else {
-            mslDebugPrintf("Unable to load async sound.\n");
-        }
-        mslBankFinishPlayInline(
-            bank_sound->sound != 0, node, bank_sound);
-    }
-}
-
-#pragma push
-#pragma inline_max_size(1024)
-/* TODO: [near miss] 99.59584%; coalesced name/system aliases couple playback homes;
- * recover acquisition/finish ownership at the two simplify stalls. */
 extern "C" unsigned long mslBankPlayVolPanPitch(
     mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
     unsigned long play_arg1, float volume, float pan, float pitch,
@@ -1018,7 +993,23 @@ extern "C" unsigned long mslBankPlayVolPanPitch(
             copy->pan = pan;
             copy->pitch = pitch;
 
-            mslBankPlaySoundInline(gMsi, bank, bank_sound, node);
+            _mslSystem* system = gMsi;
+
+            if (bank_sound->sound != 0) {
+                mslBankFinishPlayInline(true, bank_sound, node);
+            } else {
+                _mslSound* loaded_sound = mslSoundLoad(
+                    system, bank, bank_sound->definition, bank_sound->flags);
+                if (loaded_sound != 0) {
+                    bank_sound->sound = loaded_sound;
+                    ((mslRuntimeSound*)bank_sound->sound)->bank_ref_count = 1;
+                    ((mslRuntimeSound*)bank_sound->sound)->owner_bank = bank;
+                } else {
+                    mslDebugPrintf("Unable to load async sound.\n");
+                }
+                mslBankFinishPlayInline(
+                    bank_sound->sound != 0, bank_sound, node);
+            }
             return handle;
         }
     }
@@ -1027,7 +1018,6 @@ extern "C" unsigned long mslBankPlayVolPanPitch(
         "mslBankPlayVolPanitch::MSL Bank Play error.\n");
     return 0;
 }
-#pragma pop
 
 extern "C" unsigned long mslBankPlay(mslLoadedBank* bank, int sound_id)
 {
@@ -1227,10 +1217,9 @@ extern "C" int mslBankUse(
     return 0;
 }
 
-/* TODO: [near miss] 98.41270%; initial null LI precedes the node MR;
- * recover its producer without shifting the saved callback owners. */
 void callbackPlay(
-    bool loaded, mslBankSoundEntry* bank_sound, _ListNode* node) {
+    bool loaded, mslBankSoundEntry* bank_sound, void* data) {
+    _ListNode* node = (_ListNode*)data;
     mslRuntimeSound* copy =
         (mslRuntimeSound*)ListNodeData(0, node);
     unsigned long error_id =
@@ -1271,9 +1260,9 @@ void callbackPlay(
 void asyncLoadSound(
     _mslSystem* system, mslLoadedBank* bank,
     mslBankSoundEntry* bank_sound, mslAsyncSoundCallback callback,
-    _ListNode* node) {
+    void* data) {
     if (bank_sound->sound != 0) {
-        callback(true, bank_sound, node);
+        callback(true, bank_sound, data);
     } else {
         _mslSound* loaded = mslSoundLoad(
             system, bank, bank_sound->definition, bank_sound->flags);
@@ -1284,7 +1273,7 @@ void asyncLoadSound(
         } else {
             mslDebugPrintf("Unable to load async sound.\n");
         }
-        callback(bank_sound->sound != 0, bank_sound, node);
+        callback(bank_sound->sound != 0, bank_sound, data);
     }
 }
 

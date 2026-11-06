@@ -726,18 +726,21 @@ static inline int sfmpv_IsLateSkip(SfdHandle* handle, int picture_type)
 {
     SfdMpvFrameWork* work =
         handle->transports[2].context;
+    int target;
     int scale;
-    SfdTimerState* timer = &handle->timer_state;
-    int target = timer->elapsed_time.active == 0
-                     ? 0
-                     : timer->sample_history.fields_00[1] +
-                           (timer->field_00C0.value - timer->elapsed_time.value);
-    SfdMpvSkipCallback callback = timer->skip_state.callback;
     int value;
     int current_scale;
+    SfdMpvSkipCallback callback;
+    SfdTimerState* timer = &handle->timer_state;
 
+    if (timer->elapsed_time.active == 0) {
+        target = 0;
+    } else {
+        target = timer->sample_history.fields_00[1] +
+                 (timer->field_00C0.value - timer->elapsed_time.value);
+    }
+    callback = timer->skip_state.callback;
     scale = timer->field_00C0.scale;
-
     if (callback != 0) {
         return callback(handle, picture_type, target, scale);
     }
@@ -2253,8 +2256,8 @@ static int sfmpv_ChkBufSiz(SfdHandle* handle,
     return 0;
 }
 
-/* TODO: [near miss] 99.45895%; skip/publication and GOP owners rotate;
- * complete policy predicates outline; stop until original ownership is recovered. */
+/* TODO: [near miss] 99.8694%; only IsGopSkip skip/selector-load r0/r3 swap remains (load is a cg-temp
+ * coloured first); RE4 needed a volatile re-read: find an honest FE-band owner for the load. */
 static int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
 {
     SfdMpvFrameWork* work =

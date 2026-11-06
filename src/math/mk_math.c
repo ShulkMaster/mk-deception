@@ -92,14 +92,14 @@ void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float 
 }
 #pragma pop
 
-/* TODO: [near miss] 96.74569%; operations agree; original geometry/helper
- * FPR ownership remains unresolved. */
+/* TODO: [near miss] 97.21983%; FPR colouring only; nx/ny/nz must number above the
+ * split/CSE temps; Vec normal and decl orders miss; find their temp-kind owner. */
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, const Vec* cylAxis,
                          float radius, float* tNear, float* tFar) {
     float nx = dir->y * cylAxis->z - dir->z * cylAxis->y;
     float ny = dir->z * cylAxis->x - dir->x * cylAxis->z;
     float nz = dir->x * cylAxis->y - dir->y * cylAxis->x;
-    float lenN = nx * nx + ny * ny + nz * nz;
+    float lenN;
     Vec displacement;
     float invLen;
     float dist;
@@ -116,6 +116,7 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
     displacement.x = origin->x - cylPos->x;
     displacement.y = origin->y - cylPos->y;
     displacement.z = origin->z - cylPos->z;
+    lenN = nx * nx + ny * ny + nz * nz;
     invLen = gxMathFastSqrt(lenN);
 
     if (invLen < kTiny) {

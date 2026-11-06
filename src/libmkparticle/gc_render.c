@@ -85,20 +85,19 @@ static inline void write_particle_vertex(
     GXTexCoord2f32(u, v);
 }
 
-/* TODO: [near miss] 98.56209%; scale/angle result owners rotate saved GPRs;
- * recover their producer boundary while preserving FP and vertex order. */
 static void gc_generic_render(PfxVm* vm) {
     PfxVec3 axis0, axis1;
     PfxVec3 base1, base0, base_corner;
     PfxVec3 corner, point;
-    PfxVec3* positions;
     PfxColor* colors;
+    int age_stride;
     PfxTextureFrame* uv_stream;
-    float* ages;
+    PfxVec3* positions;
+    int i, position_stride, color_stride;
     float* scales;
+    float* ages;
     float* angles;
-    int count, position_stride, age_stride, color_stride;
-    int uv_mode, i;
+    int count, uv_mode;
     float u, v, right, bottom, du, dv;
 
     count = vm->transforms[vm->active_transform].live;

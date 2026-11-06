@@ -51,7 +51,7 @@ unsigned char* SJ_SearchTag(
 }
 
 void SJ_SplitChunk(
-    const SJCK* source, int nbyte, SJCK* first, SJCK* remainder) {
+    const SJCK* source, long nbyte, SJCK* first, SJCK* remainder) {
     *first = *source;
     remainder->len = first->len;
     if (first->len > nbyte) {

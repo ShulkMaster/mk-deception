@@ -448,16 +448,13 @@ int mwFileMountTable::getMountPointFromName(mwFileMountPoint*& mount_point,
     return getMountPointFromName(mount_point, name, name + strlen(name));
 }
 
-/* TODO: [near miss] 99.95588%; saved locals restore ABI copy before compare;
- * recover the original comparator owner before serialization. */
 int mwFileMountTable::getMountPointFromName(
     mwFileMountPoint*& mount_point, const char* first, const char* last) const
 {
     mwFileMutexLock lock(mutex);
     mwFileDummyMountPoint query(first, last);
-    pointer_less<mwFileMountPoint> compare;
     mwFileMountPoint* const* found = std::lower_bound(
-        mounts.begin(), mounts.end(), &query, compare);
+        mounts.begin(), mounts.end(), &query, pointer_less<mwFileMountPoint>());
 
     if (found == mounts.end()) {
         mount_point = 0;
@@ -471,14 +468,11 @@ int mwFileMountTable::getMountPointFromName(
     return -15;
 }
 
-/* TODO: [near miss] 99.93877%; comparator follows its ABI copy at 0x10/0xc;
- * recover object creation order; declaration timing cannot reverse allocation. */
 int mwFileMountTable::removeMountPoint(mwFileMountPoint* mount_point)
 {
-    pointer_less<mwFileMountPoint> compare;
     mwFileMutexLock lock(mutex);
     mwFileMountPoint** found = std::lower_bound(
-        mounts.begin(), mounts.end(), mount_point, compare);
+        mounts.begin(), mounts.end(), mount_point, pointer_less<mwFileMountPoint>());
 
     if (found == mounts.end()) {
         return -15;
@@ -489,13 +483,11 @@ int mwFileMountTable::removeMountPoint(mwFileMountPoint* mount_point)
     return 0;
 }
 
-/* TODO: [near miss] 99.93877%; comparator copy slots remain swapped at 0xc/0x10. */
 int mwFileMountTable::addMountPoint(mwFileMountPoint* mount_point)
 {
-    pointer_less<mwFileMountPoint> compare;
     mwFileMutexLock lock(mutex);
     mwFileMountPoint** found = std::lower_bound(
-        mounts.begin(), mounts.end(), mount_point, compare);
+        mounts.begin(), mounts.end(), mount_point, pointer_less<mwFileMountPoint>());
 
     if (found != mounts.end()) {
         if (mwFileStringCompareIgnoreCase((*found)->name,

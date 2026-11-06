@@ -41,9 +41,7 @@
 
 extern MkPtr* clone_light_list;
 
-struct JabSplatterState;
-
-static void splatter_init(struct JabSplatterState* splatter);
+static void splatter_init(PfxVm* vm);
 
 const struct FxPfxDefinition jab_pfx_table[8] = {
     {
@@ -156,14 +154,6 @@ struct JabBoneMatcherState {
     unsigned char flip_parent_angle_y : 1;
     unsigned char release_parent_weight : 1;
     unsigned char blend_child_transform : 1;
-};
-
-struct JabSplatterState {
-    char pad00[0x40];
-    unsigned char pad_high : 3;
-    unsigned char bit4 : 1;
-    unsigned char bit3 : 1;
-    unsigned char pad_low : 3;
 };
 
 struct JabObjectRef {
@@ -2236,7 +2226,7 @@ float pfx_kenshi_lift_smoke(void) {
     return 1.0f;
 }
 
-static void splatter_init(struct JabSplatterState* splatter) {
-    splatter->bit4 = 1;
-    splatter->bit3 = 1;
+static void splatter_init(PfxVm* vm) {
+    vm->frame_flag_bits.bit4 = 1;
+    vm->frame_flag_bits.frame_end_pending = 1;
 }

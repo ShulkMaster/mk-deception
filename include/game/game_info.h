@@ -88,8 +88,8 @@ typedef struct GameSwitchInputFlags {
 } GameSwitchInputFlags;
 
 typedef struct GameFeatureFlagBits {
-    unsigned char high_bit : 1; /* bit7 */
-    unsigned char pad_6 : 1;
+    unsigned char online_game : 1; /* bit7 */
+    unsigned char field_bit6 : 1;
     unsigned char powerbars_locked : 1; /* bit5 */
     unsigned char pad_4_0 : 5;
 } GameFeatureFlagBits;
@@ -170,7 +170,6 @@ typedef struct GameInfo {
     char pad03;
     union {
         unsigned int feature_flags_word;
-        unsigned char field_04; /* +0x04 - raw attract/glue flags */
         GameFeatureFlags feature_flags;
     };
     int field_08;           /* +0x08 */

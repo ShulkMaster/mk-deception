@@ -1141,7 +1141,6 @@ void xfer_player_proc(MkProc* proc, MkProcEntryFn entry) {
 int load_plyr_model_async(int player, int char_id, const int* flags) {
     struct LoadPlyrModelPdata* pdata;
     int pid;
-    unsigned int flag_word;
 
     pid = player + LOAD_PLYR_MODEL_PID;
     destroy_mkprocs_pid(pid);
@@ -1150,10 +1149,9 @@ int load_plyr_model_async(int player, int char_id, const int* flags) {
         return 0;
     }
 
-    flag_word = *flags;
     pdata->player = player;
     pdata->char_id = char_id;
-    pdata->flags.word = flag_word;
+    pdata->flags.word = *flags;
     return 1;
 }
 
@@ -2435,8 +2433,8 @@ static inline MkHdr* plyr_live_animation(PlyrPdata* owner) {
     return pdata_of_proc(MK_LIVE(owner->anim_proc, (int)owner->anim_proc_instance));
 }
 
-/* TODO: [near miss] 98.87324%; hide-bit extraction, saved-step load and Boolean-result shift
- * have different issue order; stores/calls agree. */
+/* TODO: [near miss] 98.87324%; saved-state block lacks retail's post-RA reschedule; needs a
+ * coalesced copy there that adds no new interfering GPR web. */
 float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     PlyrInfo* player;
     MkObj* sidekick;

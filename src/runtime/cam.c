@@ -445,18 +445,17 @@ static inline void get_target_movement_vector_impl(
     static float units_per_tick;
     Vec delta;
     Vec direction;
-    float length_squared;
     float length;
     float inverse_length;
 
     delta.x = target_position->x - current_position->x;
     delta.y = target_position->y - current_position->y;
     delta.z = target_position->z - current_position->z;
-    length_squared = delta.z * delta.z +
-                     (delta.x * delta.x + delta.y * delta.y);
-    length = gxMathFastSqrt(length_squared);
+    length = gxMathFastSqrt(delta.z * delta.z +
+                            (delta.x * delta.x + delta.y * delta.y));
     units_per_tick = length / (60.0f * (0.6f * duration));
-    inverse_length = gxMathFastInvSqrt(length_squared);
+    inverse_length = gxMathFastInvSqrt(delta.z * delta.z +
+                                       (delta.x * delta.x + delta.y * delta.y));
     gxVectScale(&direction, &delta, inverse_length);
     movement->x = direction.x * units_per_tick;
     movement->y = direction.y * units_per_tick;
@@ -525,13 +524,27 @@ static float generic_victory_camera(void);
 
 static inline void reset_camera_motion(Vec* endpoint, float* initial_speed, float* final_speed);
 
-static inline void camera_capture_forward_look(Vec* const look_position,
-                                               float position_x,
-                                               float position_y,
-                                               float position_z) {
-    Vec forward_step;
+static inline void camera_copy_look_target(Vec* const target, const Vec* source) {
+    Vec position;
 
-    gxVectScale(&forward_step, &cam_forward_uv, 2.0f);
+    position.x = source->x;
+    position.y = source->y;
+    position.z = source->z;
+    target->x = position.x;
+    target->y = position.y;
+    target->z = position.z;
+}
+
+static inline void camera_capture_forward_look(Vec* const look_position,
+                                               const Vec* position) {
+    Vec forward_step;
+    float position_x = position->x;
+    float position_y = position->y;
+    float position_z = position->z;
+
+    forward_step.x = 2.0f * cam_forward_uv.x;
+    forward_step.y = 2.0f * cam_forward_uv.y;
+    forward_step.z = 2.0f * cam_forward_uv.z;
     look_position->x = position_x;
     look_position->y = position_y;
     look_position->z = position_z;
@@ -1809,8 +1822,7 @@ int orbit_position_to_end_point(Vec* center, Vec* endpoint,
     return 0;
 }
 
-/* TODO: [near miss] 99.95000%; scalar compound update is byte-neutral;
- * recover distinct square/sum and radius owners without rotating saved homes. */
+/* TODO: [Scope warn] x square held in later-redefined next_radius: honest forms drop 100% -> 99.95%. */
 static int radial_move_to_game_position(Vec* target_position,
                                         Vec* center, float rate) {
     CameraObj* camera;
@@ -1841,8 +1853,8 @@ static int radial_move_to_game_position(Vec* target_position,
     radial.x = target_position->x - center->x;
     radial.y = target_position->y - center->y;
     radial.z = target_position->z - center->z;
-    target_radius = radial.x * radial.x;
-    target_radius = target_radius + radial.z * radial.z;
+    next_radius = radial.x * radial.x;
+    target_radius = next_radius + radial.z * radial.z;
     target_radius = gxMathFastSqrt(target_radius);
     angle_delta =
         (float)atan2(radial.x, radial.z) - current_angle;
@@ -2773,7 +2785,7 @@ float camera_get_pos(unsigned int axis) {
 
 void cam_recalc_midpoint(void) {
     force_midpoint_calculation_update = 1;
-    if ((g_game_info.field_04 >> 5) & 1) {
+    if (g_game_info.feature_flags.bits.powerbars_locked != 0) {
         xfer_camera_impl(p_attract_camera, 1);
     } else {
         xfer_camera_impl(p_camera_proc, 1);
@@ -4023,8 +4035,8 @@ static inline float get_interaction_angle(void) {
     return interaction_angle;
 }
 
-/* TODO: [near miss] 99.86622%; calibrated angle helper is code-neutral;
- * entry-radius and sleep FPR ownership still need the original boundary. */
+/* TODO: [near miss] 99.86622%; one FPR colouring group (entry radius, yaw, look height/radius,
+ * hoisted 1.0f) with no pop order; the 1.0f and yaw webs sit at the K=32 phantom-degree boundary. */
 static float p_interaction_cam(void) {
     CameraObj* entry_camera;
     CameraObj* active_camera;
@@ -4044,11 +4056,10 @@ static float p_interaction_cam(void) {
 
     track_targets = g_ic_data.created_process;
     check_reverse_interaction_cam_targets();
-    entry_camera = camera_item.node;
     g_ic_data.created_process = 0;
     snap_angles = g_ic_data.ticks;
     snap_angles = snap_angles == 1;
-    entry_camera = MK_HDR_LIVE(entry_camera, camera_item.instance);
+    entry_camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
     if (entry_camera == 0) {
         return -1.0f;
@@ -5764,28 +5775,29 @@ static inline void camera_direction_angles(Vec* angles, float dx, float dy,
     v3_to_xy_ang(angles, &direction);
 }
 
-static inline float camera_movement_step_length_squared(float x, float y, float z) {
-    float x_squared = x * x;
-    float y_squared = y * y;
-    float z_squared = z * z;
-
-    return x_squared + y_squared + z_squared;
+static inline float camera_vector_length_squared(const Vec* v) {
+    return v->x * v->x + v->y * v->y + v->z * v->z;
 }
 
-static inline int camera_target_within_step(const Vec* const current,
-                                            const Vec* const target,
-                                            float step_length_squared) {
-    float step_length = gxMathFastSqrt(step_length_squared);
-    float dx = target->x - current->x;
-    float dy = target->y - current->y;
-    float dz = target->z - current->z;
-    float remaining_length = gxMathFastSqrt(dx * dx + dy * dy + dz * dz);
+static inline int camera_target_within_step(const Vec* current,
+                                            const Vec* target,
+                                            const Vec* step) {
+    float step_length = gxMathFastSqrt(camera_vector_length_squared(step));
+    float dz;
+    float dy;
+    float dx;
+    float remaining_length;
+
+    dx = target->x - current->x;
+    dy = target->y - current->y;
+    dz = target->z - current->z;
+    remaining_length = gxMathFastSqrt(dx * dx + dy * dy + dz * dz);
 
     return remaining_length < step_length;
 }
 
-/* TODO: [breakthrough needed] 98.18919%; capture/rotation FP and movement FRSP differ;
- * recover the original camera-read and movement publication boundaries. */
+/* TODO: [breakthrough needed] 99.79729%; both forward-look captures splice the first position load into
+ * its store (IroPropagate single use); retail keeps all three: recover the barrier that prevents it. */
 static float generic_victory_camera(void) {
     MkProc* camera_proc = camera_info.proc;
     CameraPdata* pdata = camera_info.pdata;
@@ -5811,11 +5823,6 @@ static float generic_victory_camera(void) {
     float look_height;
     float camera_angle;
     float travel_time;
-    float pitch_delta;
-    float yaw_delta;
-    float roll_delta;
-    float step_x;
-    float step_length_squared;
     int rotation_ticks;
     int side_is_left;
 
@@ -5853,8 +5860,7 @@ static float generic_victory_camera(void) {
     camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
     camera_node = camera_item.node;
     if (camera != 0) {
-        camera_capture_forward_look(
-            &moving_look_target, camera->pos.x, camera->pos.y, camera->pos.z);
+        camera_capture_forward_look(&moving_look_target, &camera->pos);
     }
 
     side_is_left = camera_is_left_of_object(camera_node, attacker);
@@ -5887,32 +5893,7 @@ static float generic_victory_camera(void) {
         camera_direction_angles(&rotation_angles, dx, dy, dz);
         rotation_angles.x = initial_camera->ang.x;
         while (rotation_ticks != 0) {
-            RESOLVE_CAMERA_OBJ(camera);
-            pitch_delta = rotation_angles.x - camera->ang.x;
-            if (pitch_delta > 3.1415927f) {
-                pitch_delta -= 6.2831855f;
-            } else if (pitch_delta < -3.1415927f) {
-                pitch_delta += 6.2831855f;
-            }
-            yaw_delta = rotation_angles.y - camera->ang.y;
-            if (yaw_delta > 3.1415927f) {
-                yaw_delta -= 6.2831855f;
-            } else if (yaw_delta < -3.1415927f) {
-                yaw_delta += 6.2831855f;
-            }
-            if (pitch_delta * pitch_delta + yaw_delta * yaw_delta <
-                1.0000001e-6f) {
-                camera->ang.x = rotation_angles.x;
-                camera->ang.y = rotation_angles.y;
-                camera->ang.z = rotation_angles.z;
-            } else {
-                pitch_delta *= 0.1f;
-                yaw_delta *= 0.1f;
-                roll_delta = 0.0f * 0.1f;
-                camera->ang.x = camera->ang.x + pitch_delta;
-                camera->ang.y = camera->ang.y + yaw_delta;
-                camera->ang.z = camera->ang.z + roll_delta;
-            }
+            rotate_to_game_angle(&rotation_angles, 0.1f, 1);
             remove_camera_offsets_impl();
             add_camera_offsets_impl();
             _mkproc_sleep_ticks = 1.0f;
@@ -5921,27 +5902,23 @@ static float generic_victory_camera(void) {
         }
         RESOLVE_CAMERA_OBJ(camera);
         if (camera != 0) {
-            camera_capture_forward_look(
-                &moving_look_target, camera->pos.x, camera->pos.y, camera->pos.z);
+            camera_capture_forward_look(&moving_look_target, &camera->pos);
         }
     }
 
-    gxVectCopy(&current_look_target, &moving_look_target);
+    camera_copy_look_target(&current_look_target, &moving_look_target);
     get_target_movement_vector_impl(&current_look_target, &look_target,
                                     &look_step, travel_time);
-    step_x = look_step.x;
-    step_length_squared = camera_movement_step_length_squared(
-        step_x, look_step.y, look_step.z);
 
     while (move_to_end_point(&destination, &initial_speed, &final_speed, 0,
                              travel_time) == 0) {
         if (camera_target_within_step(&current_look_target, &look_target,
-                                      step_length_squared)) {
+                                      &look_step)) {
             current_look_target.x = look_target.x;
             current_look_target.y = look_target.y;
             current_look_target.z = look_target.z;
         } else {
-            current_look_target.x += step_x;
+            current_look_target.x += look_step.x;
             current_look_target.y += look_step.y;
             current_look_target.z += look_step.z;
         }

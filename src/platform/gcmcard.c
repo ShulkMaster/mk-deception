@@ -687,25 +687,13 @@ static inline int mem_card_open(int device, const char* fileName, CARDFileInfo* 
     }
 }
 
-static inline int finish_memcard_load_after_unmount(int device, int result) {
-    s32 rc;
+static inline unsigned int get_gc_offset(unsigned int offset) {
+    unsigned int block = 0;
 
-    if (device >= 0 && device < 2) {
-        do {
-            rc = CARDUnmount(device);
-        } while (rc == -1);
+    if (offset >= 0x28B8U) {
+        block = (offset - 0x28B8U) / 0x1F54U + 2;
     }
-    return result;
-}
-
-static inline int finish_memcard_load_after_close(int device, CARDFileInfo* fileInfo, int result) {
-    s32 rc;
-
-    gc_seek_position = 0;
-    do {
-        rc = CARDClose(fileInfo);
-    } while (rc == -1);
-    return finish_memcard_load_after_unmount(device, result);
+    return block;
 }
 
 static inline int calc_data_checksum(unsigned char* buffer, unsigned int length) {
@@ -727,8 +715,23 @@ static inline int calc_data_checksum(unsigned char* buffer, unsigned int length)
     return sum;
 }
 
-/* TODO: [near miss] 99.92805%; offset/checksumFailOut saved homes remain swapped;
- * recover the original read-to-compare result owner and coalesced copy. */
+static inline int mem_card_close(CARDFileInfo* fileInfo) {
+    s32 rc;
+
+    gc_seek_position = 0;
+    do {
+        rc = CARDClose(fileInfo);
+    } while (rc == -1);
+    switch (rc) {
+    case 0: return 0;
+    case -3: return -10;
+    case -128:
+    default: return -99;
+    }
+}
+
+/* TODO: [near miss] 99.928%; offset/checksumFailOut saved homes swapped (r30/r26): simplify stall
+ * picks offset (cost 3/deg 30) over checksumFailOut (3/29); only the frame-temp edge differs. */
 int load_from_memcard2(const int device, int modeFlag, unsigned int offset, const char* unusedStr,
                        const char* fileName, void* buffer, int size, const char* unusedCardName,
                        int unusedNameLen, unsigned int* freeBlocks, int* freeBytes,
@@ -740,7 +743,6 @@ int load_from_memcard2(const int device, int modeFlag, unsigned int offset, cons
     int result;
     CARDFileInfo fileInfo;
     int storedChecksum;
-    unsigned int seekBlock;
 
     sectorSize = 0;
     *freeBlocks = 0;
@@ -814,10 +816,7 @@ int load_from_memcard2(const int device, int modeFlag, unsigned int offset, cons
         goto unmount_file;
     }
 
-    seekBlock = 0;
-    if (offset >= 0x28B8U)
-        seekBlock = (offset - 0x28B8U) / 0x1F54U + 2;
-    gc_seek_position = seekBlock;
+    gc_seek_position = get_gc_offset(offset);
     rc = mem_card_read(&fileInfo, buffer, size);
     if (rc != 0) {
         switch (rc) {
@@ -835,16 +834,7 @@ int load_from_memcard2(const int device, int modeFlag, unsigned int offset, cons
         goto close_file;
     }
 
-    gc_seek_position = 0;
-    do {
-        rc = CARDClose(&fileInfo);
-    } while (rc == -1);
-    switch (rc) {
-    case 0: status = 0; break;
-    case -3: status = -10; break;
-    case -128:
-    default: status = -99; break;
-    }
+    status = mem_card_close(&fileInfo);
     if (status != 0) {
         switch (status) {
         case -2: result = 7; break;
@@ -887,43 +877,6 @@ done:
     return result;
 }
 
-static inline int finish_memcard_save_after_unmount(int device, int result) {
-    s32 rc;
-
-    if (device >= 0 && device < 2) {
-        do {
-            rc = CARDUnmount(device);
-        } while (rc == -1);
-    }
-    unload_memorycard_write_buffer();
-    return result;
-}
-
-static inline int finish_memcard_save_after_close(int device, CARDFileInfo* fileInfo, int result) {
-    s32 rc;
-
-    gc_seek_position = 0;
-    do {
-        rc = CARDClose(fileInfo);
-    } while (rc == -1);
-    return finish_memcard_save_after_unmount(device, result);
-}
-
-static inline int mem_card_close(CARDFileInfo* fileInfo) {
-    s32 rc;
-
-    gc_seek_position = 0;
-    do {
-        rc = CARDClose(fileInfo);
-    } while (rc == -1);
-    switch (rc) {
-    case 0: return 0;
-    case -3: return -10;
-    case -128:
-    default: return -99;
-    }
-}
-
 static inline int mem_card_write(CARDFileInfo* fileInfo, void* buffer, const int size) {
     s32 writeLen;
     s32 rc;
@@ -955,8 +908,8 @@ static inline int mem_card_write(CARDFileInfo* fileInfo, void* buffer, const int
     return result;
 }
 
-/* TODO: [near miss] 99.95058%; checksum length/oldBit homes remain swapped;
- * recover the original length owner; current guarded helpers leave it unchanged. */
+/* TODO: [near miss] 99.951%; checksum length CSE temp (r6) pops after inline oldBit (r5): retail length
+ * web must be created before calc_data_checksum's locals; no caller spelling found. */
 int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int createFlag,
                      const char* unusedStr, const char* fileName, void* buffer, int size,
                      unsigned int* freeBlocks,
@@ -969,7 +922,6 @@ int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int cr
     int i;
     int checksumWord;
     unsigned int checksumLength;
-    unsigned int seekBlock;
     CARDFileInfo fileInfo;
 
     sectorSize = 0;
@@ -1011,11 +963,7 @@ int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int cr
         goto done;
     }
 
-    seekBlock = 0;
-    if (offset >= 0x28B8U) {
-        seekBlock = (offset - 0x28B8U) / 0x1F54U + 2;
-    }
-    gc_seek_position = seekBlock;
+    gc_seek_position = get_gc_offset(offset);
     status = mem_card_mount(chan);
     if (status != 0) {
         switch (status) {
@@ -1341,10 +1289,9 @@ static int gc_get_memcard_serial_number(int device, u64* out) {
     return result;
 }
 
-/* TODO: [breakthrough needed] 93.95161%; parameter/result owners and callback load ties;
- * recover the original inline boundary while preserving authoritative reloads. */
-int update_storage_status_for_one_device(int device) {
+int update_storage_status_for_one_device(long device) {
     int changed = 0;
+    unsigned int mask;
 
     if (device < 0 || device >= 2) {
         return changed;
@@ -1355,20 +1302,20 @@ int update_storage_status_for_one_device(int device) {
         removals &= ~mcmasks[device];
         remove_mu(device, 0, device);
         changed = 1;
-        force_removals &= ~mcmasks[device];
+        mask = mcmasks[device];
+        force_removals &= (int)~mask;
     }
     if ((insertions & mcmasks[device]) || (force_insertions & mcmasks[device])) {
         reset_ppwls_timeout();
         insertions &= ~mcmasks[device];
         changed = 1;
         insert_mu(device, 0, device);
-        force_insertions &= ~mcmasks[device];
+        mask = mcmasks[device];
+        force_insertions &= (int)~mask;
     }
     return changed;
 }
 
-/* TODO: [near miss] 94.44%; named device and CSE table base swap saved homes;
- * postcallback mask/global load ties remain. */
 int update_storage_status(int flag) {
     int device;
     int any = 0;

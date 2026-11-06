@@ -96,8 +96,6 @@ static RpAtomic* GCSpecSkinLighting(
 extern GXLightObj _RwGCLightObjs[8];
 
 void _rpSkinLoadMatrix(const RwMatrix*, int, int);
-void SetupAtomicSpecularity(RpAtomic* atomic);
-int SpecularCreatePipelines(void);
 
 static float lastZOffset;
 static float oldZNear;
@@ -144,14 +142,6 @@ static inline void* geometry_vertex_format(RpGeometry* geometry) {
 
 static inline MksobjPluginData* mksobj_data(RpAtomic* atomic) {
     return rw_plugin_data(atomic, MksobjLocalOffset);
-}
-
-static inline struct SpecLight* light_from_link(RwLLLink* link) {
-    return RW_CONTAINER_OF(link, struct SpecLight, in_world);
-}
-
-static inline int color_component(float value) {
-    return value;
 }
 
 static inline void upload_material_transform(
@@ -204,32 +194,6 @@ static inline void draw_spec_mesh(
         display_lists[display_index].size);
 }
 
-static inline void apply_material_z_bias(float bias) {
-    union {
-        float value;
-        int bits;
-    } encoded_bias;
-    float offset;
-
-    encoded_bias.value = bias;
-    if (encoded_bias.bits != 0) {
-        offset = z_scale / (z_dist + bias) - base_z_buff;
-        viewPort[4] = oldZNear + offset;
-        viewPort[5] = oldZFar + offset;
-        GXSetViewport(
-            viewPort[0], viewPort[1], viewPort[2], viewPort[3],
-            viewPort[4], viewPort[5]);
-        lastZOffset = offset;
-    } else if (lastZOffset != 0.0f) {
-        viewPort[4] = oldZNear;
-        viewPort[5] = oldZFar;
-        GXSetViewport(
-            viewPort[0], viewPort[1], viewPort[2], viewPort[3],
-            viewPort[4], viewPort[5]);
-        lastZOffset = 0.0f;
-    }
-}
-
 static inline void setup_uv_transform(RwMatrix* base_transform) {
     float texture_matrix[3][4];
 
@@ -247,33 +211,6 @@ static inline void setup_uv_transform(RwMatrix* base_transform) {
     } else {
         GXSetTexCoordGen2(0, 1, 4, 0x3C, 0, 0x7D);
     }
-}
-
-static inline void setup_material_channels(
-    RpMaterial* material, const GXColor* default_ambient) {
-    GXColor ambient;
-    GXColor diffuse;
-    float scale;
-
-    if (pAmbLight != 0) {
-        scale = 255.0f * material->surface.ambient;
-        ambient.r = color_component(pAmbLight->color.red * scale);
-        ambient.g = color_component(pAmbLight->color.green * scale);
-        ambient.b = color_component(pAmbLight->color.blue * scale);
-        ambient.a = 0;
-    } else {
-        ambient = *default_ambient;
-    }
-    GXSetChanAmbColor(0, ambient);
-
-    diffuse.r = color_component(
-        material->color.red * material->surface.diffuse);
-    diffuse.g = color_component(
-        material->color.green * material->surface.diffuse);
-    diffuse.b = color_component(
-        material->color.blue * material->surface.diffuse);
-    diffuse.a = 0;
-    GXSetChanMatColor(0, diffuse);
 }
 
 static inline void setup_base_z_compare(RwTexture* texture) {
@@ -364,14 +301,14 @@ static inline void FindLocalLights(void) {
 
 static inline void spec_point_metrics(
     float* const squared_distance, float* const radius,
-    const Vec* delta, const struct SpecLight* light) {
+    Vec* delta, struct SpecLight* light) {
     *radius = light->radius;
     *squared_distance = delta->x * delta->x + delta->y * delta->y +
                         delta->z * delta->z;
 }
 
 static inline GXLightObj* initialize_point_light_geometry(
-    int light_index, const Vec* delta, float inverse_distance) {
+    int light_index, Vec* delta, float inverse_distance) {
     GXLightObj* light_object = &_RwGCLightObjs[light_index];
 
     GXInitLightAttn(light_object, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
@@ -386,7 +323,7 @@ static inline GXLightObj* initialize_point_light_geometry(
 static inline void upload_point_light(
     struct SpecLight* light,
     RwGameCubeLightingData* lighting,
-    const Vec* delta,
+    Vec* delta,
     float inverse_distance,
     float intensity) {
     GXColor color;
@@ -415,7 +352,7 @@ static inline void upload_point_light(
 }
 
 static inline GXLightObj* initialize_directional_light_geometry(
-    int light_index, const RwV3d* direction) {
+    int light_index, RwV3d* direction) {
     GXLightObj* light_object = &_RwGCLightObjs[light_index];
 
     GXInitLightAttn(light_object, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
@@ -605,8 +542,7 @@ static RpAtomic* GCSpecSkinLighting(
 
 static void GCSpecSkinMaterial(struct SpecMesh* mesh, int alpha_pass) {
     RpMaterial* material = mesh->material;
-    SpecularMaterialPluginData* specular = (SpecularMaterialPluginData*)(
-        (unsigned char*)material + SpecularMaterialOffset);
+    SpecularMaterialPluginData* specular = MK_SPECULAR_MATERIAL_PLUGIN(material);
     struct SpecLight* light;
     RwTexture* base_texture;
     RwTexture* specular_texture;
@@ -728,8 +664,7 @@ static void GCSpecSkinMaterial(struct SpecMesh* mesh, int alpha_pass) {
 
 static void GCSpecSkinMaterialNoSpecmap(struct SpecMesh* mesh) {
     RpMaterial* material = mesh->material;
-    SpecularMaterialPluginData* specular = (SpecularMaterialPluginData*)(
-        (unsigned char*)material + SpecularMaterialOffset);
+    SpecularMaterialPluginData* specular = MK_SPECULAR_MATERIAL_PLUGIN(material);
     struct SpecLight* light;
     RwTexture* base_texture;
     RwTexture* specular_texture;

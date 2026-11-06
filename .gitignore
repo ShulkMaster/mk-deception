@@ -46,7 +46,8 @@ compile_commands.json
 /*.txt
 *.exe
 
-docs/decomp
+/docs/decomp/reports
+/AGENTS.md
 .codex
 /config/SLUS_208.81/
 /scalated3.md

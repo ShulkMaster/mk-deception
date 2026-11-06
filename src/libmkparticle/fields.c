@@ -233,67 +233,64 @@ static void add_field_description(PfxFieldDescription* field,
     field->offset = offset;
 }
 
-/* TODO: [near miss] 99.65517%; scalar offset cannot share the index zero;
- * traversal state and phase helpers exchange offset/entry homes. */
 void fill_field_description(PfxFieldDescription* descriptions,
                             PfxFieldSet fields, int parametric)
 {
-    int render_offset;
+    int offset;
     PfxFieldDescription* description;
     int property_index;
-    int property_offset;
 
-    render_offset = 0;
+    offset = 0;
     description = descriptions;
     if ((fields.render_flags & 0x002) != 0) {
         add_field_description(description, 0x100, 0, 0);
-        render_offset = get_size(1);
-        render_offset += _pfx_config.align_add;
-        render_offset &= ~_pfx_config.align_mask;
+        offset = get_size(1);
+        offset += _pfx_config.align_add;
+        offset &= ~_pfx_config.align_mask;
         description++;
     }
     if ((fields.render_flags & 0x040) != 0) {
-        add_field_description(description, 0x103, 0, render_offset);
-        render_offset += get_size(3);
-        render_offset += _pfx_config.align_add;
-        render_offset &= ~_pfx_config.align_mask;
+        add_field_description(description, 0x103, 0, offset);
+        offset += get_size(3);
+        offset += _pfx_config.align_add;
+        offset &= ~_pfx_config.align_mask;
         description++;
     }
     if ((fields.render_flags & 0x010) != 0) {
-        add_field_description(description, 0x101, 0, render_offset);
-        render_offset += get_size(2);
-        render_offset += _pfx_config.align_add;
-        render_offset &= ~_pfx_config.align_mask;
+        add_field_description(description, 0x101, 0, offset);
+        offset += get_size(2);
+        offset += _pfx_config.align_add;
+        offset &= ~_pfx_config.align_mask;
         description++;
     }
     if ((fields.render_flags & 0x020) != 0) {
-        add_field_description(description, 0x102, 0, render_offset);
-        render_offset += get_size(3);
-        render_offset += _pfx_config.align_add;
-        render_offset &= ~_pfx_config.align_mask;
+        add_field_description(description, 0x102, 0, offset);
+        offset += get_size(3);
+        offset += _pfx_config.align_add;
+        offset &= ~_pfx_config.align_mask;
         description++;
     }
     if ((fields.render_flags & 0x100) != 0) {
-        add_field_description(description, 0x104, 0, render_offset);
-        render_offset += 0x10;
-        render_offset += _pfx_config.align_add;
-        render_offset &= ~_pfx_config.align_mask;
+        add_field_description(description, 0x104, 0, offset);
+        offset += 0x10;
+        offset += _pfx_config.align_add;
+        offset &= ~_pfx_config.align_mask;
         description++;
     }
     if ((fields.render_flags & 0x200) != 0 &&
         _pfx_config.estimate_size != 0 && parametric == 0) {
-        add_field_description(description, 0x163, 0, render_offset);
+        add_field_description(description, 0x163, 0, offset);
         description++;
     }
 
-    property_offset = 0;
+    offset = 0;
     property_index = 0;
     while (properties[property_index].flag != 0) {
         if ((fields.particle_flags & properties[property_index].flag) != 0) {
             add_field_description(description,
                                   properties[property_index].description, 1,
-                                  property_offset);
-            property_offset += get_size(properties[property_index].type);
+                                  offset);
+            offset += get_size(properties[property_index].type);
             description++;
         }
         property_index++;

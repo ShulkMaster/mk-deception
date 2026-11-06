@@ -158,7 +158,7 @@ Tools:
 | Load/store/pointer-advance order differs, same ops | H27, H14 |
 | Call args from one value computed in other order | H15, H16 |
 | Extra/missing `bl`, inlining differs | H07, M13 |
-| Retail compares value with itself before shared inlined loop | H07 |
+| Retail compares value with itself before shared inlined loop; unfolded `li r0,1; cmpwi r0,0; beq` | H07 |
 | Pointer+instance latch diamond | H08, H25 |
 | Loop entry/latch, CTR; preheader after final return | H09 |
 | Prologue order differs, loop body exact | H09, H27 |
@@ -248,13 +248,16 @@ Core line only; detail = `## Hxx` in tier 2.
 - **H18 Absolute address** | fixed-address access scheduled/CSE'd different |
   retail addressing | MWCC absolute-address vars, not pointer-cast macros.
 - **H19 Materialized Boolean** | `li 1; b; li 0; cmpwi` | inline predicate |
-  `if (c) return 1; return 0;` or `(c) == 0 ? 0 : 1`.
+  `if (c) return 1; return 0;` or `(c) == 0 ? 0 : 1`; if-tests all fold ->
+  reuse the predicate's input conversion later (CSE in condition).
 - **H20 State struct** | whole-function rotation around inlined state struct
   | retail colors state first | declared scalar locals driven by macros.
 - **H21 Helper locals / web kind** | helper loop locals colored above loop
   temps; helper copies under `opt_propagation off`; volatile rotation |
   retail reuses dead outer regs; kind sets web number | open-code + reuse
-  outer locals; copy-free helper; change web kind before decl sweeps.
+  outer locals; copy-free helper; change web kind before decl sweeps:
+  local type flips (uchar/int/unsigned), `p = a[i];` statement instead of
+  `(p = a[i])->f` in a condition.
 - **H22 One-row residue** | operand/constant/copy residue in one row |
   single row | try one listed spelling at a time.
 - **H23 Unit-owned data** | base rematerialized each use | symbol in this

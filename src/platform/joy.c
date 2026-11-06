@@ -292,7 +292,7 @@ float p_joy_loop(void) {
     }
 
     allow_stance_transition = 0;
-    if (!g_game_info.feature_flags.bits.high_bit) {
+    if (!g_game_info.feature_flags.bits.online_game) {
         allow_stance_transition = 1;
     }
     if (allow_stance_transition != 0 &&

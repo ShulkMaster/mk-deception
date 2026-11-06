@@ -754,7 +754,7 @@ static float p_do_controller_removed(void) {
     }
 
     DRAW_CONTROLLER_REMOVED_TEXT(screen_oid, player_x, player_pad, initial_text);
-    if (!g_game_info.feature_flags.bits.high_bit) {
+    if (!g_game_info.feature_flags.bits.online_game) {
         pause_procs(1);
     }
 
@@ -792,7 +792,7 @@ static float p_do_controller_removed(void) {
             break;
         }
 
-        if (!g_game_info.feature_flags.bits.high_bit) {
+        if (!g_game_info.feature_flags.bits.online_game) {
             if ((int)display_off == 0) {
                 pause_procs(1);
             } else {

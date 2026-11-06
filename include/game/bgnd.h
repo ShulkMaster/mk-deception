@@ -47,6 +47,7 @@ extern "C" {
 
 void bgnd_pfx_resume_effect(const char* name);
 void bgnd_pfx_reset_effect(const char* name);
+void bgnd_pebble_set_current_pebble(int player, int index);
 void bgnd_pebble_set_current_info(unsigned int field, float value);
 void bgnd_set_fx_ang_y(float angle);
 void spad_set_heading_vector_to(int index, float heading, float offset);

@@ -547,68 +547,6 @@ extern void reset_effect(const char* name);
         aproc->vtbl->sleep();                          \
     } while (0)
 
-static inline void fatality_prepare_black_fog(GameInfo* game, float* color) {
-    background_color.red = 0;
-    game->sky = 0;
-    background_color.alpha = 0;
-    background_color.green = 0;
-    background_color.blue = 0;
-    fog_on = 1;
-    fog_distance = 0.0f;
-    fog_type = 1;
-    color[3] = 0.0f;
-    *color++ = 0.0f;
-    *color++ = 0.0f;
-    *color = 0.0f;
-}
-
-static inline void fatality_fade_and_cleanup(void) {
-    float far_clip;
-    float step;
-
-    fatality_prepare_black_fog(&g_game_info, fog_color_real);
-
-    far_clip = Camera->farPlane;
-    step = (far_clip - 10.0f) / 30.0f;
-    while (far_clip > 10.0f) {
-        far_clip -= step;
-        if (far_clip < 10.0f) {
-            far_clip = 10.0f;
-        }
-        RwCameraSetFarClipPlane(Camera, far_clip);
-        FATALITY_SLEEP(1.0f);
-    }
-
-    destroy_mkprocs_pid(0x3019);
-    destroy_mkprocs_pid(0x501B);
-    unimpale_victim(g_game_info.plyr0.slot.pdata);
-    unimpale_victim(g_game_info.plyr1.slot.pdata);
-    reload_fan(g_game_info.plyr0.slot.pdata);
-    reload_fan(g_game_info.plyr1.slot.pdata);
-    destroy_mkprocs_pid(0x2026);
-    g_game_info.plyr0.slot.pdata->impaled_projectile_state = 0;
-    g_game_info.plyr1.slot.pdata->impaled_projectile_state = 0;
-    if (g_game_info.plyr0.slot.pdata != 0 && g_game_info.plyr0.slot.pdata->status_data != 0 &&
-        g_game_info.plyr0.slot.pdata->status_data->reaction_cleanup != 0) {
-        run_reaction_cleanup_function(g_game_info.plyr0.slot.pdata);
-    }
-    if (g_game_info.plyr1.slot.pdata != 0 && g_game_info.plyr1.slot.pdata->status_data != 0 &&
-        g_game_info.plyr1.slot.pdata->status_data->reaction_cleanup != 0) {
-        run_reaction_cleanup_function(g_game_info.plyr1.slot.pdata);
-    }
-    stop_tunes();
-    if (g_game_info.field_200 == 3) {
-        fatality_loop_sound = snd_req(0x1A9D);
-    } else {
-        fatality_loop_sound = snd_req(0x1A9B);
-    }
-    fatality_state.mirror_camera =
-        is_a_to_the_right_of_b(
-            fatality_state.attacker_object,
-            fatality_state.victim_object) != 0;
-    wait_for_slot_load(fatality_anim_slot);
-}
-
 static inline void start_loading_fatality_anims(int secondary) {
     int slot;
     int file_count;
@@ -3028,8 +2966,6 @@ void bone_matcher_set_ang_pos(
     }
 }
 
-/* TODO: [near miss] 92.14286%; return coalescing removes both post-latch copies;
- * recover a distinct return-owner lifetime; stop at coloring. */
 MkObj* weapon_bm_ignore(int weapon, int ignored) {
     PlyrMirrorObjLatch* latch;
     MkObj* object;
@@ -3039,7 +2975,7 @@ MkObj* weapon_bm_ignore(int weapon, int ignored) {
         object = MK_HDR_LIVE(latch->obj, latch->instance);
         if (object != 0) {
             object->flags_08_bits.bit7 = ignored;
-            return object;
+            goto done;
         }
     }
     latch = &plyr_pdata->mirror_slots->weapon[1].secondary;
@@ -3047,6 +2983,7 @@ MkObj* weapon_bm_ignore(int weapon, int ignored) {
     if (object != 0) {
         object->flags_08_bits.bit7 = ignored;
     }
+done:
     return object;
 }
 
@@ -3219,14 +3156,11 @@ void advance_to_weapon_style(PlyrPdata* player) {
 static inline void fatality_adjust_to_radius(
     float radius, float attacker_distance_sq, const Vec* selected) {
     CameraObj* camera;
-    float inverse_distance;
     float correction;
     float x;
     float z;
 
-    inverse_distance = gxMathFastInvSqrt(attacker_distance_sq);
-    correction = radius * inverse_distance;
-    correction = 0.65f * correction;
+    correction = 0.65f * (radius * gxMathFastInvSqrt(attacker_distance_sq));
     correction -= 1.0f;
     x = selected->x * correction;
     z = selected->z * correction;
@@ -3242,8 +3176,6 @@ static inline void fatality_adjust_to_radius(
 
 }
 
-/* TODO: [near miss] 98.22785%; radius/X-square owners, Z-product scheduling and
- * correction homes differ; original producer boundary remains unproven. */
 int fat_bgnd_char_setup_radius_check(
     FatalityRadiusCheck* check) {
     Vec attacker_delta;
@@ -3251,26 +3183,23 @@ int fat_bgnd_char_setup_radius_check(
     const Vec* selected;
     float radius;
     float radius_sq;
-    float center_z;
-    float center_x;
     float attacker_distance_sq;
     float victim_distance_sq;
 
     radius = check->radius;
     radius_sq = radius * radius;
-    center_x = check->center_x;
     attacker_delta.x =
-        fatality_state.attacker_object->pos.value.x - center_x;
-    attacker_distance_sq = attacker_delta.x * attacker_delta.x;
+        fatality_state.attacker_object->pos.value.x - check->center_x;
     attacker_delta.z =
-        fatality_state.attacker_object->pos.value.z - (center_z = check->center_z);
-    attacker_distance_sq += attacker_delta.z * attacker_delta.z;
+        fatality_state.attacker_object->pos.value.z - check->center_z;
     victim_delta.x =
-        fatality_state.victim_object->pos.value.x - center_x;
-    victim_distance_sq = victim_delta.x * victim_delta.x;
+        fatality_state.victim_object->pos.value.x - check->center_x;
     victim_delta.z =
-        fatality_state.victim_object->pos.value.z - center_z;
-    victim_distance_sq += victim_delta.z * victim_delta.z;
+        fatality_state.victim_object->pos.value.z - check->center_z;
+    attacker_distance_sq = attacker_delta.x * attacker_delta.x +
+                           attacker_delta.z * attacker_delta.z;
+    victim_distance_sq = victim_delta.x * victim_delta.x +
+                         victim_delta.z * victim_delta.z;
     if (!check->select_farthest) {
         if (radius < 0.0f) {
             if (attacker_distance_sq < radius_sq ||
@@ -3368,13 +3297,22 @@ void set_victim_v3_units_away(float x, float z) {
     his_obj->pos.value.y = original_y;
 }
 
-/* TODO: [near miss] 93.93939%; fog cursor is retained; four address/zero owners
- * and float-zero load order need an original emission boundary. */
 void fade_fatality_screen(void) {
     float far_clip;
     float step;
 
-    fatality_prepare_black_fog(&g_game_info, fog_color_real);
+    g_game_info.sky = 0;
+    background_color.red = 0;
+    background_color.alpha = 0;
+    background_color.green = 0;
+    background_color.blue = 0;
+    fog_on = 1;
+    fog_distance = 0.0f;
+    fog_type = 1;
+    fog_color_real[3] = 0.0f;
+    fog_color_real[0] = 0.0f;
+    fog_color_real[1] = 0.0f;
+    fog_color_real[2] = 0.0f;
 
     far_clip = Camera->farPlane;
     step = (far_clip - 10.0f) / 30.0f;
@@ -3481,6 +3419,38 @@ static void run_fatality_sequence(
     cmdscript_execute(plyr_pdata->cmo);
 }
 
+static inline void post_init_fatality_world(void) {
+    fade_fatality_screen();
+    destroy_mkprocs_pid(0x3019);
+    destroy_mkprocs_pid(0x501B);
+    unimpale_victim(g_game_info.plyr0.slot.pdata);
+    unimpale_victim(g_game_info.plyr1.slot.pdata);
+    reload_fan(g_game_info.plyr0.slot.pdata);
+    reload_fan(g_game_info.plyr1.slot.pdata);
+    destroy_mkprocs_pid(0x2026);
+    g_game_info.plyr0.slot.pdata->impaled_projectile_state = 0;
+    g_game_info.plyr1.slot.pdata->impaled_projectile_state = 0;
+    if (g_game_info.plyr0.slot.pdata != 0 && g_game_info.plyr0.slot.pdata->status_data != 0 &&
+        g_game_info.plyr0.slot.pdata->status_data->reaction_cleanup != 0) {
+        run_reaction_cleanup_function(g_game_info.plyr0.slot.pdata);
+    }
+    if (g_game_info.plyr1.slot.pdata != 0 && g_game_info.plyr1.slot.pdata->status_data != 0 &&
+        g_game_info.plyr1.slot.pdata->status_data->reaction_cleanup != 0) {
+        run_reaction_cleanup_function(g_game_info.plyr1.slot.pdata);
+    }
+    stop_tunes();
+    if (g_game_info.field_200 == 3) {
+        fatality_loop_sound = snd_req(0x1A9D);
+    } else {
+        fatality_loop_sound = snd_req(0x1A9B);
+    }
+    fatality_state.mirror_camera =
+        is_a_to_the_right_of_b(
+            fatality_state.attacker_object,
+            fatality_state.victim_object) != 0;
+    wait_for_slot_load(fatality_anim_slot);
+}
+
 static inline void fatality_hide_opponent_auxiliaries(PlyrPdata* opponent) {
     MkObj* object;
 
@@ -3556,8 +3526,6 @@ static int init_fatality_world(void) {
     return 0;
 }
 
-/* TODO: [near miss] 98.71795%; native replay confirms four address/zero owners
- * and post-RA float-zero order; original emission boundary remains unknown. */
 float start_suicide(void) {
     FatalityBgndScriptView* section_script;
     unsigned int camera_script;
@@ -3567,7 +3535,7 @@ float start_suicide(void) {
     if (init_fatality_world() == 0) {
         g_game_info.field_200 = 0;
     } else {
-        fatality_fade_and_cleanup();
+        post_init_fatality_world();
         if (plyr_pdata->status_data->fatality_definition->suicide_script != 0 &&
             plyr_pdata->status_data->fatality_definition->suicide_script != 0xFFFFFFFFU) {
             if (is_my_chest_to_screen() == 0) {
@@ -3641,8 +3609,6 @@ float start_suicide(void) {
 }
 
 
-/* TODO: [breakthrough] 98.09524%; color cursor restores fog-first order;
- * remaining address/zero order matches primary; stop at source boundary. */
 float start_2nd_fatality(void) {
     FatalityDefinition* definition;
 
@@ -3651,7 +3617,7 @@ float start_2nd_fatality(void) {
         g_game_info.field_200 = 0;
     } else {
         start_loading_fatality_anims(1);
-        fatality_fade_and_cleanup();
+        post_init_fatality_world();
         definition = plyr_pdata->status_data->fatality_definition;
         if (definition->secondary_script != 0 &&
             definition->secondary_script != 0xFFFFFFFFU &&
@@ -3669,8 +3635,6 @@ float start_2nd_fatality(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough] 98.09524%; real color cursor restores fog-first order;
- * address homes and post-RA zero-load order remain; stop at source boundary. */
 float start_fatality(void) {
     FatalityDefinition* definition;
 
@@ -3679,7 +3643,7 @@ float start_fatality(void) {
         g_game_info.field_200 = 0;
     } else {
         start_loading_fatality_anims(0);
-        fatality_fade_and_cleanup();
+        post_init_fatality_world();
         definition = plyr_pdata->status_data->fatality_definition;
         if (definition->primary_script != 0 &&
             definition->primary_script + 0x10000 != 0x0000FFFF &&

@@ -2652,7 +2652,7 @@ void pre_attack_chores(void) {
 
 float do_my_suicide(void) {
     if (f_fatality_available != 0 ||
-        g_game_info.feature_flags.bits.high_bit != 0) {
+        g_game_info.feature_flags.bits.online_game != 0) {
         f_fatality_was_done = 1;
         moves_jump(start_suicide);
         return 0.0f;
@@ -2663,7 +2663,7 @@ float do_my_suicide(void) {
 
 float do_my_2nd_fatality(void) {
     if (((f_fatality_available != 0 && his_pdata->state == 0x4203) ||
-         g_game_info.feature_flags.bits.high_bit != 0) &&
+         g_game_info.feature_flags.bits.online_game != 0) &&
         (plyr_pdata->character_id != 0x1B ||
          plyr_pdata->sidekick_active != 0)) {
         f_fatality_was_done = 1;
@@ -2676,7 +2676,7 @@ float do_my_2nd_fatality(void) {
 
 float do_my_fatality(void) {
     if (((f_fatality_available != 0 && his_pdata->state == 0x4203) ||
-         g_game_info.feature_flags.bits.high_bit != 0) &&
+         g_game_info.feature_flags.bits.online_game != 0) &&
         (plyr_pdata->character_id != 0x1B ||
          plyr_pdata->sidekick_active == 0)) {
         f_fatality_was_done = 1;
@@ -3449,7 +3449,7 @@ void advance_active_moveset(PlyrPdata* player) {
     player->player_slot++;
     if (player->player_slot >= 3) {
         if (player->character_id == 0x1B) {
-            if (g_game_info.feature_flags.bits.high_bit != 0) {
+            if (g_game_info.feature_flags.bits.online_game != 0) {
                 player->player_slot = 0;
                 sidekick = MK_HDR_LIVE(player->tracked_obj_latch.obj, player->tracked_obj_latch.instance);
                 if (sidekick != 0) {

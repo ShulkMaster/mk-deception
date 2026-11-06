@@ -524,8 +524,8 @@ static void do_assign_constant_v3(unsigned char* destination, int stride,
     }
 }
 
-/* TODO: [near miss] 99.69299%; early named pointer destinations hide retail
- * intermediate owners; recover the producer without reassociating adds. */
+/* TODO: [near miss] 99.89766%; first-cursor field_offset (named) colours below the
+ * stream-base CSE (r4/r5 swap); needs the offset as a temp-kind web. */
 void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
 {
     int current_stride;
@@ -552,10 +552,9 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
         }
         field_offset = instruction->field.offset;
         previous_value = previous->data + field_offset;
-        current_value = current->data;
+        current_value = current->data + field_offset +
+                        current->stride * behavior->active_particle_count;
         current_stride = current->stride;
-        field_offset += current_stride * behavior->active_particle_count;
-        current_value += field_offset;
         switch (instruction->opcode) {
         case 2:
         case 9:
@@ -674,14 +673,14 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
                 bounce_field->offset;
             bounce_count_stride =
                 behavior->previous_streams[bounce_field->stream].stride;
-            updated_bounce_counts += bounce_count_stride *
-                behavior->active_particle_count;
+            updated_bounce_counts = PFX_FIELD_AT(updated_bounce_counts,
+                bounce_count_stride * behavior->active_particle_count);
             velocities =
                 behavior->current_streams[velocity_field->stream].data +
                 velocity_field->offset;
-            velocities +=
+            velocities = PFX_FIELD_AT(velocities,
                 behavior->current_streams[velocity_field->stream].stride *
-                behavior->active_particle_count;
+                behavior->active_particle_count);
             do_bounce(
                 behavior->particle_count, current_value, current_stride,
                 velocities, argument_stride,
@@ -712,9 +711,10 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
                 behavior->current_streams[
                     instruction->arguments.fade.age_field.stream].data +
                 instruction->arguments.fade.age_field.offset;
-            age_values += behavior->current_streams[
-                instruction->arguments.fade.age_field.stream].stride *
-                behavior->active_particle_count;
+            age_values = PFX_FIELD_AT(age_values,
+                behavior->current_streams[
+                    instruction->arguments.fade.age_field.stream].stride *
+                behavior->active_particle_count);
             do_fade_alpha(
                 frame_time, behavior->particle_count, &instruction->arguments,
                 previous_value, current_value, current_stride,
@@ -728,7 +728,8 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
                 instruction->arguments.color_lerp.age_field.stream];
             unsigned char* age_values = age_stream->data +
                 instruction->arguments.color_lerp.age_field.offset;
-            age_values += age_stream->stride * behavior->active_particle_count;
+            age_values = PFX_FIELD_AT(age_values,
+                age_stream->stride * behavior->active_particle_count);
             do_lerp_color(
                 frame_time, behavior->particle_count, &instruction->arguments,
                 current_value, current_stride, age_values, age_stream->stride);
@@ -739,9 +740,10 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
                 behavior->current_streams[
                     instruction->arguments.texture_anim.age_field.stream].data +
                 instruction->arguments.texture_anim.age_field.offset;
-            age_values += behavior->current_streams[
-                instruction->arguments.texture_anim.age_field.stream].stride *
-                behavior->active_particle_count;
+            age_values = PFX_FIELD_AT(age_values,
+                behavior->current_streams[
+                    instruction->arguments.texture_anim.age_field.stream].stride *
+                behavior->active_particle_count);
             do_texture_anim(
                 frame_time, behavior->particle_count, &instruction->arguments,
                 current_value, current_stride, age_values,
