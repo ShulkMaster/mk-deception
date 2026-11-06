@@ -241,7 +241,7 @@ static const char fx_string_base[228] =
     "Tried to unfreeze a player who is NOT frozen!!\0"
     "TELE_ENERGY\0FX.C-created";
 
-static inline int lensflare_sun_blocked(
+static int cam_to_sun_blocked(
     struct FxRayPlane** planes, int count) {
     CameraObj* camera;
     Vec direction;
@@ -267,11 +267,78 @@ static inline int lensflare_sun_blocked(
     return blocked;
 }
 
-static inline float lensflare_opacity(float horizontal, float vertical) {
+static void calc_angle_cam_to_sun(Vec* angles) {
+    CameraObj* camera;
+    Vec direction;
+
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
+    uv_v3_to_v3(&direction, &camera->pos, &sun);
+    v3_to_xy_ang(angles, &direction);
+    angles->x -= camera->ang.x;
+    angles->y -= camera->ang.y;
+    angles->z -= camera->ang.z;
+    norm_angles_v3(angles);
+    if (angles->x > 3.1415927f) {
+        angles->x -= 6.2831855f;
+    }
+    if (angles->y > 3.1415927f) {
+        angles->y -= 6.2831855f;
+    }
+}
+
+static void move_raster_abs(ScreenObj* object, int x, int y) {
+    if (object != 0) {
+        object->x = x;
+        object->y = y;
+    }
+}
+
+static ScreenObj* make_one_flare(const char* texture_name) {
+    ScreenObj* object;
+
+    if (mode_of_play == 10 || mode_of_play == 9) {
+        object = load_named_2d_pfxobj(
+            0x8003D, 0x301F, texture_name, 0, 0xC);
+    } else {
+        object = load_named_2d_pfxobj(
+            0x2001E, 0x301F, texture_name, 0, 0xC);
+    }
+    if (object != 0) {
+        object->x = screen_width / 2 - object->pfx2d->tex_w / 2;
+        object->y = screen_height / 2 - object->pfx2d->tex_h / 2;
+        object->pfx2d->src_blend = 5;
+        object->pfx2d->dst_blend = 2;
+        pull_screen_obj(object);
+    }
+    return object;
+}
+
+static void set_flare_alpha(ScreenObj* object, float opacity) {
+    float alpha_value;
+
+    alpha_value = 255.0f * opacity;
+    object->pfx2d->verts[0].a = alpha_value;
+    object->pfx2d->verts[1].a = alpha_value;
+    object->pfx2d->verts[2].a = alpha_value;
+    object->pfx2d->verts[3].a = alpha_value;
+    object->pfx2d->mirror = 1;
+}
+
+static void update_flare_position(int index, float horizontal,
+                                  float vertical) {
+    int screen_x;
+    int screen_y;
     double horizontal_abs;
     double vertical_abs;
     float alpha_value;
 
+    screen_x = ((float)(screen_width / 2) *
+                (horizontal * flare_data.entries[index].line_position)) +
+               (float)(screen_width / 2) - flare_data.entries[index].half_width;
+    screen_y = ((float)(screen_height / 2) *
+                (vertical * flare_data.entries[index].line_position)) +
+               (float)(screen_height / 2) - flare_data.entries[index].half_height;
+    move_raster_abs(flare_data.entries[index].object, screen_x, screen_y);
     vertical_abs = __fabs(vertical);
     horizontal_abs = __fabs(horizontal);
     if (horizontal_abs >= vertical_abs) {
@@ -281,23 +348,16 @@ static inline float lensflare_opacity(float horizontal, float vertical) {
         alpha_value = 0.75f *
             (1.0f - (vertical >= 0.0f ? vertical : -vertical)) + 0.25f;
     }
-    return 255.0f * alpha_value;
+    set_flare_alpha(flare_data.entries[index].object, alpha_value);
 }
 
-/* TODO: [near miss] 99.65116%; angle/negation/absolute and 255/bias FPR
- * owners rotate; recover original producers before further allocation work. */
 float lensflare_proc2(void) {
     int index;
     struct LensflarePdata* pdata;
     CameraObj* camera;
-    struct LensFlareEntry* flare;
-    ScreenObj* object;
     Vec angles;
-    Vec direction;
-    float horizontal;
     float vertical;
-    float alpha_value;
-    int screen_y;
+    float horizontal;
 
     pdata = (struct LensflarePdata*)apdata;
     camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
@@ -306,51 +366,17 @@ float lensflare_proc2(void) {
         mkproc_die();
     }
 
-    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
-
-    uv_v3_to_v3(&direction, &camera->pos, &sun);
-    v3_to_xy_ang(&angles, &direction);
-    angles.x -= camera->ang.x;
-    angles.y -= camera->ang.y;
-    angles.z -= camera->ang.z;
-    norm_angles_v3(&angles);
-    if (angles.x > 3.1415927f) {
-        angles.x -= 6.2831855f;
-    }
-    if (angles.y > 3.1415927f) {
-        angles.y -= 6.2831855f;
-    }
+    calc_angle_cam_to_sun(&angles);
 
     if (__fabs(angles.y) < 0.69813f &&
         __fabs(angles.x) < 0.69813f &&
-        !lensflare_sun_blocked(&pdata->obstructions, pdata->obstruction_count)) {
+        !cam_to_sun_blocked(&pdata->obstructions, pdata->obstruction_count)) {
         horizontal = angles.y / 0.69813f;
         vertical = angles.x / 0.69813f;
         for (index = 0; index < flare_data.count; index++) {
-            int screen_x;
-            flare = &flare_data.entries[index];
-            screen_x =
-                ((float)(screen_width / 2) *
-                 (horizontal * flare->line_position)) +
-                (float)(screen_width / 2) - flare->half_width;
-            screen_y =
-                ((float)(screen_height / 2) *
-                 (vertical * flare->line_position)) +
-                (float)(screen_height / 2) - flare->half_height;
-            object = flare->object;
-            if (object != 0) {
-                object->x = screen_x;
-                object->y = screen_y;
-            }
-            alpha_value = lensflare_opacity(horizontal, vertical);
-            object = flare->object;
-            object->pfx2d->verts[0].a = alpha_value;
-            object->pfx2d->verts[1].a = alpha_value;
-            object->pfx2d->verts[2].a = alpha_value;
-            object->pfx2d->verts[3].a = alpha_value;
-            object->pfx2d->mirror = 1;
+            update_flare_position(index, horizontal, vertical);
             if (flare_data.inserted == 0) {
-                insert_screen_obj(flare->object);
+                insert_screen_obj(flare_data.entries[index].object);
             }
         }
         flare_data.inserted = 1;
@@ -367,11 +393,9 @@ float lensflare_proc2(void) {
 
 float lensflare_proc(void) {
     struct LensflarePdata* pdata;
-    ScreenObj* object;
     struct LensFlareEntry* flare;
     const struct LensFlareDefinition* definition;
     int count;
-    const char* texture_name;
 
     pdata = (struct LensflarePdata*)apdata;
     if (!g_game_info.flag_bits.lens_flare_enabled) {
@@ -386,22 +410,7 @@ float lensflare_proc(void) {
     while (definition->texture_name != 0 && count < 10) {
         flare = &flare_data.entries[count];
         flare->line_position = definition->line_position;
-        texture_name = definition->texture_name;
-        if (mode_of_play == 10 || mode_of_play == 9) {
-            object = load_named_2d_pfxobj(
-                0x8003D, 0x301F, texture_name, 0, 0xC);
-        } else {
-            object = load_named_2d_pfxobj(
-                0x2001E, 0x301F, texture_name, 0, 0xC);
-        }
-        if (object != 0) {
-            object->x = screen_width / 2 - object->pfx2d->tex_w / 2;
-            object->y = screen_height / 2 - object->pfx2d->tex_h / 2;
-            object->pfx2d->src_blend = 5;
-            object->pfx2d->dst_blend = 2;
-            pull_screen_obj(object);
-        }
-        flare->object = object;
+        flare->object = make_one_flare(definition->texture_name);
         mk_insert((MkHdr*)flare->object, &aproc->pdata_list_b);
         flare->half_height = flare->object->pfx2d->tex_h / 2.0f;
         flare->half_width = flare->object->pfx2d->tex_w / 2.0f;
@@ -421,16 +430,24 @@ float lensflare_proc(void) {
 #define FSTYLE_SIGN_OID 0x3002
 #define FSTYLE_SIGN_PRIORITY 0x2A
 
-void courtyard_start_lensflare(void) {
+static void start_lensflare(Vec* sun_position,
+                            const struct LensFlareDefinition* lens_data,
+                            struct FxRayPlane* obstructions,
+                            int obstruction_count) {
     struct LensflarePdata* pdata;
 
     _create_mkproc_generic_tinystack(
         YINYANG_LENSFLARE_PID, 0x20, lensflare_proc, sizeof(*pdata),
         (MkHdr**)&pdata);
-    pdata->sun_position = &courtyard_sun_pos;
-    pdata->lens_data = courtyard_lens_data;
-    pdata->obstructions = courtyard_flare_obstructions;
-    pdata->obstruction_count = 1;
+    pdata->sun_position = sun_position;
+    pdata->lens_data = lens_data;
+    pdata->obstructions = obstructions;
+    pdata->obstruction_count = obstruction_count;
+}
+
+void courtyard_start_lensflare(void) {
+    start_lensflare(&courtyard_sun_pos, courtyard_lens_data,
+                    courtyard_flare_obstructions, 1);
 }
 
 void yinyang_stop_lensflare(void) {
@@ -438,15 +455,8 @@ void yinyang_stop_lensflare(void) {
 }
 
 void yinyang_start_lensflare(void) {
-    struct LensflarePdata* pdata;
-
-    _create_mkproc_generic_tinystack(
-        YINYANG_LENSFLARE_PID, 0x20, lensflare_proc, sizeof(*pdata),
-        (MkHdr**)&pdata);
-    pdata->sun_position = &yinyang_sun_pos;
-    pdata->lens_data = yinyang_lens_data;
-    pdata->obstructions = yinyang_flare_obstructions;
-    pdata->obstruction_count = 0;
+    start_lensflare(&yinyang_sun_pos, yinyang_lens_data,
+                    yinyang_flare_obstructions, 0);
 }
 
 static inline ScreenObj* global_moveset_live_style_sign(GlobalMoveset* owner) {
@@ -475,7 +485,16 @@ static inline int fighting_style_sign_can_restart(int player)
     return 0;
 }
 
-/* TODO: [near miss] 98.96227%; initial pcode selects directly into PID; recover the retail selection-to-owner copy boundary. */
+static inline unsigned int fighting_style_sign_pid(int player) {
+    unsigned int pid;
+
+    pid = 0x3004;
+    if (player == 0) {
+        pid = 0x3003;
+    }
+    return pid;
+}
+
 void show_fighting_style(GlobalMoveset* moveset, int player) {
     struct FightingStyleSignPdata* pdata;
     ScreenObj* sign;
@@ -489,10 +508,7 @@ void show_fighting_style(GlobalMoveset* moveset, int player) {
         return;
     }
 
-    pid = 0x3004;
-    if (player == 0) {
-        pid = 0x3003;
-    }
+    pid = fighting_style_sign_pid(player);
     sign = global_moveset_live_style_sign(moveset);
 
     if (sign == 0 ||
@@ -612,6 +628,71 @@ static void update_skewer_positions(int player) {
     }
 }
 
+static void clear_p2_fstyle_sign(void) {
+    ScreenObj* skewer;
+
+    if (player_fstyle_sign[1] != 0) {
+        while (player_fstyle_sign[1]->x < FSTYLE_RGHT_START_X) {
+            player_fstyle_sign[1]->x += 0x1E;
+            update_skewer_positions(1);
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+            if (player_fstyle_sign[1] == 0) {
+                mkproc_die();
+            }
+        }
+        pull_screen_obj(player_fstyle_sign[1]);
+        player_fstyle_sign[1] = 0;
+
+        skewer = MK_LIVE(p2_skewer_item.object, p2_skewer_item.instance);
+
+        if (skewer != 0 && skewer->instance != 0U) {
+            skewer->typed_vtbl->destroy(skewer);
+        }
+        skewer = MK_LIVE(p2_skewer_tip_item.object, p2_skewer_tip_item.instance);
+
+        if (skewer != 0 && skewer->instance != 0U) {
+            skewer->typed_vtbl->destroy(skewer);
+        }
+        _mkproc_sleep_ticks = 5.0f;
+        aproc->vtbl->sleep();
+    }
+}
+
+static void clear_p1_fstyle_sign(void) {
+    ScreenObj* skewer;
+    int width;
+
+    if (player_fstyle_sign[0] != 0) {
+        width = g_game_info.plyr0.slot.pdata
+            ->active_move_display->display_width;
+        while (player_fstyle_sign[0]->x > width) {
+            player_fstyle_sign[0]->x -= 0x1E;
+            update_skewer_positions(0);
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+            if (player_fstyle_sign[0] == 0) {
+                mkproc_die();
+            }
+        }
+        pull_screen_obj(player_fstyle_sign[0]);
+        player_fstyle_sign[0] = 0;
+
+        skewer = MK_LIVE(p1_skewer_item.object, p1_skewer_item.instance);
+
+        if (skewer != 0 && skewer->instance != 0U) {
+            skewer->typed_vtbl->destroy(skewer);
+        }
+        skewer = MK_LIVE(p1_skewer_tip_item.object, p1_skewer_tip_item.instance);
+
+        if (skewer != 0 && skewer->instance != 0U) {
+            skewer->typed_vtbl->destroy(skewer);
+        }
+        _mkproc_sleep_ticks = 5.0f;
+        aproc->vtbl->sleep();
+    }
+}
+
 static inline int fx_fatality_available_for(int winner) {
     int winning_player;
 
@@ -633,7 +714,6 @@ static float fighting_style_sign_proc(void) {
     struct FightingStyleSignPdata* pdata;
     GlobalMoveset* moveset;
     ScreenObj* sign;
-    ScreenObj* skewer;
     int fatality;
     int width;
 
@@ -648,34 +728,7 @@ static float fighting_style_sign_proc(void) {
             f_p1_show_fatality_off = 1;
             f_p1_showing_fatatality = 0;
         }
-        if (player_fstyle_sign[0] != 0) {
-            width = g_game_info.plyr0.slot.pdata
-                ->active_move_display->display_width;
-            while (player_fstyle_sign[0]->x > width) {
-                player_fstyle_sign[0]->x -= 0x1E;
-                update_skewer_positions(0);
-                _mkproc_sleep_ticks = 1.0f;
-                aproc->vtbl->sleep();
-                if (player_fstyle_sign[0] == 0) {
-                    mkproc_die();
-                }
-            }
-            pull_screen_obj(player_fstyle_sign[0]);
-            player_fstyle_sign[0] = 0;
-
-            skewer = MK_LIVE(p1_skewer_item.object, p1_skewer_item.instance);
-
-            if (skewer != 0 && skewer->instance != 0U) {
-                skewer->typed_vtbl->destroy(skewer);
-            }
-            skewer = MK_LIVE(p1_skewer_tip_item.object, p1_skewer_tip_item.instance);
-
-            if (skewer != 0 && skewer->instance != 0U) {
-                skewer->typed_vtbl->destroy(skewer);
-            }
-            _mkproc_sleep_ticks = 5.0f;
-            aproc->vtbl->sleep();
-        }
+        clear_p1_fstyle_sign();
 
         sign = MK_LIVE(moveset->style_sign, moveset->style_sign_instance);
 
@@ -727,32 +780,7 @@ static float fighting_style_sign_proc(void) {
             f_p2_show_fatality_off = 1;
             f_p2_showing_fatatality = 0;
         }
-        if (player_fstyle_sign[1] != 0) {
-            while (player_fstyle_sign[1]->x < FSTYLE_RGHT_START_X) {
-                player_fstyle_sign[1]->x += 0x1E;
-                update_skewer_positions(1);
-                _mkproc_sleep_ticks = 1.0f;
-                aproc->vtbl->sleep();
-                if (player_fstyle_sign[1] == 0) {
-                    mkproc_die();
-                }
-            }
-            pull_screen_obj(player_fstyle_sign[1]);
-            player_fstyle_sign[1] = 0;
-
-            skewer = MK_LIVE(p2_skewer_item.object, p2_skewer_item.instance);
-
-            if (skewer != 0 && skewer->instance != 0U) {
-                skewer->typed_vtbl->destroy(skewer);
-            }
-            skewer = MK_LIVE(p2_skewer_tip_item.object, p2_skewer_tip_item.instance);
-
-            if (skewer != 0 && skewer->instance != 0U) {
-                skewer->typed_vtbl->destroy(skewer);
-            }
-            _mkproc_sleep_ticks = 5.0f;
-            aproc->vtbl->sleep();
-        }
+        clear_p2_fstyle_sign();
 
         sign = MK_LIVE(moveset->style_sign, moveset->style_sign_instance);
 

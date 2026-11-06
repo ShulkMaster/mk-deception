@@ -3921,7 +3921,7 @@ float j_stay_down_dead(void) {
         if (getup_should_stay_down() == 0) {
             end_of_round_check();
         }
-        if (g_game_info.feature_flags.bits.high_bit) {
+        if (g_game_info.feature_flags.bits.online_game) {
             go_into_major_pain_please = 0;
         }
         if (!is_big_boss(plyr_pdata)) {

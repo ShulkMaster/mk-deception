@@ -506,6 +506,7 @@ static inline int mem_card_mount(int device) {
 
 static inline int mem_card_unmount(int device) {
     s32 rc;
+    int result;
 
     if (device < 0 || device >= 2)
         return -99;
@@ -514,16 +515,20 @@ static inline int mem_card_unmount(int device) {
     } while (rc == -1);
     switch (rc) {
     case 0:
-        return 0;
+        result = 0;
+        break;
     case -3:
-        return -10;
+        result = -10;
+        break;
     case -128:
     default:
-        return -99;
+        result = -99;
+        break;
     }
+    return result;
 }
 
-/* TODO: [breakthrough needed] 94.71713%; recover GC second-index guard and owners;
+/* TODO: [breakthrough needed] 94.77689%; recover GC second-index guard and owners;
  * verified PS2 has no unmount phase, so API typing cannot supply this structure. */
 int gc_format_procedure(int device) {
     unsigned int mask;
@@ -682,45 +687,51 @@ static inline int mem_card_open(int device, const char* fileName, CARDFileInfo* 
     }
 }
 
-static inline int finish_memcard_load_after_unmount(int device, int result) {
-    s32 rc;
+static inline unsigned int get_gc_offset(unsigned int offset) {
+    unsigned int block = 0;
 
-    if (device >= 0 && device < 2) {
-        do {
-            rc = CARDUnmount(device);
-        } while (rc == -1);
+    if (offset >= 0x28B8U) {
+        block = (offset - 0x28B8U) / 0x1F54U + 2;
     }
-    return result;
-}
-
-static inline int finish_memcard_load_after_close(int device, CARDFileInfo* fileInfo, int result) {
-    s32 rc;
-
-    gc_seek_position = 0;
-    do {
-        rc = CARDClose(fileInfo);
-    } while (rc == -1);
-    return finish_memcard_load_after_unmount(device, result);
+    return block;
 }
 
 static inline int calc_data_checksum(unsigned char* buffer, unsigned int length) {
+    unsigned char oldBit;
+    unsigned char* p = buffer;
     int sum = 0;
-    unsigned int i;
     unsigned int bit = 0x80;
+    unsigned int i;
 
     for (i = 0; i < length; i++) {
-        unsigned char oldBit = bit;
-        sum += (unsigned char)(*buffer++ | oldBit);
+        oldBit = bit;
+        sum += (unsigned char)(*p++ | oldBit);
         bit = (unsigned char)bit >> 1;
-        if (((unsigned int)oldBit >> 1) == 0) {
+        oldBit = (unsigned int)oldBit >> 1;
+        if (oldBit == 0) {
             bit = 0x80;
         }
     }
     return sum;
 }
 
-/* TODO: [near miss] 99.43645%; checksum byte promotions preserve all 417 operations;
- * recover offset/checksumFailOut, fileName/mount-temp and checksum register owners. */
+static inline int mem_card_close(CARDFileInfo* fileInfo) {
+    s32 rc;
+
+    gc_seek_position = 0;
+    do {
+        rc = CARDClose(fileInfo);
+    } while (rc == -1);
+    switch (rc) {
+    case 0: return 0;
+    case -3: return -10;
+    case -128:
+    default: return -99;
+    }
+}
+
+/* TODO: [near miss] 99.928%; offset/checksumFailOut saved homes swapped (r30/r26): simplify stall
+ * picks offset (cost 3/deg 30) over checksumFailOut (3/29); only the frame-temp edge differs. */
 int load_from_memcard2(const int device, int modeFlag, unsigned int offset, const char* unusedStr,
                        const char* fileName, void* buffer, int size, const char* unusedCardName,
                        int unusedNameLen, unsigned int* freeBlocks, int* freeBytes,
@@ -731,9 +742,7 @@ int load_from_memcard2(const int device, int modeFlag, unsigned int offset, cons
     int status;
     int result;
     CARDFileInfo fileInfo;
-    unsigned int checksumLength;
     int storedChecksum;
-    unsigned int seekBlock;
 
     sectorSize = 0;
     *freeBlocks = 0;
@@ -807,10 +816,7 @@ int load_from_memcard2(const int device, int modeFlag, unsigned int offset, cons
         goto unmount_file;
     }
 
-    seekBlock = 0;
-    if (offset >= 0x28B8U)
-        seekBlock = (offset - 0x28B8U) / 0x1F54U + 2;
-    gc_seek_position = seekBlock;
+    gc_seek_position = get_gc_offset(offset);
     rc = mem_card_read(&fileInfo, buffer, size);
     if (rc != 0) {
         switch (rc) {
@@ -828,16 +834,7 @@ int load_from_memcard2(const int device, int modeFlag, unsigned int offset, cons
         goto close_file;
     }
 
-    gc_seek_position = 0;
-    do {
-        rc = CARDClose(&fileInfo);
-    } while (rc == -1);
-    switch (rc) {
-    case 0: status = 0; break;
-    case -3: status = -10; break;
-    case -128:
-    default: status = -99; break;
-    }
+    status = mem_card_close(&fileInfo);
     if (status != 0) {
         switch (status) {
         case -2: result = 7; break;
@@ -851,9 +848,8 @@ int load_from_memcard2(const int device, int modeFlag, unsigned int offset, cons
         goto unmount_file;
     }
 
-    checksumLength = (unsigned int)size - sizeof(storedChecksum);
-    storedChecksum = calc_data_checksum(buffer, checksumLength);
-    if (compare_checksums((char*)buffer + checksumLength,
+    storedChecksum = calc_data_checksum(buffer, (unsigned int)size - sizeof(storedChecksum));
+    if (compare_checksums((char*)buffer + ((unsigned int)size - sizeof(storedChecksum)),
         (const char*)&storedChecksum) == 0) {
         *checksumFailOut = 1;
         result = 6;
@@ -881,46 +877,10 @@ done:
     return result;
 }
 
-static inline int finish_memcard_save_after_unmount(int device, int result) {
-    s32 rc;
-
-    if (device >= 0 && device < 2) {
-        do {
-            rc = CARDUnmount(device);
-        } while (rc == -1);
-    }
-    unload_memorycard_write_buffer();
-    return result;
-}
-
-static inline int finish_memcard_save_after_close(int device, CARDFileInfo* fileInfo, int result) {
-    s32 rc;
-
-    gc_seek_position = 0;
-    do {
-        rc = CARDClose(fileInfo);
-    } while (rc == -1);
-    return finish_memcard_save_after_unmount(device, result);
-}
-
-static inline int mem_card_close(CARDFileInfo* fileInfo) {
-    s32 rc;
-
-    gc_seek_position = 0;
-    do {
-        rc = CARDClose(fileInfo);
-    } while (rc == -1);
-    switch (rc) {
-    case 0: return 0;
-    case -3: return -10;
-    case -128:
-    default: return -99;
-    }
-}
-
 static inline int mem_card_write(CARDFileInfo* fileInfo, void* buffer, const int size) {
     s32 writeLen;
     s32 rc;
+    int result;
 
     writeLen = ((size + 0x1FFF) / 0x2000) * 0x2000;
     if ((unsigned int)writeLen > sizeof(gc_memcard_io_buffer)) {
@@ -934,21 +894,22 @@ static inline int mem_card_write(CARDFileInfo* fileInfo, void* buffer, const int
             rc = CARDWrite(fileInfo, gc_memcard_io_buffer, writeLen, gc_seek_position << 13);
         } while (rc == -1);
         switch (rc) {
-        case 0: return 0;
-        case -3: return -10;
-        case -4: return -4;
+        case 0: result = 0; break;
+        case -3: result = -10; break;
+        case -4: result = -4; break;
         case -5:
         case CARD_RESULT_NOPERM:
         case CARD_RESULT_LIMIT:
         case -14:
         case -128:
-        default: return -99;
+        default: result = -99; break;
         }
     }
+    return result;
 }
 
-/* TODO: [near miss] 99.46458%; checksum byte promotions already agree;
- * recover original parameter/helper ownership for saved and checksum registers. */
+/* TODO: [near miss] 99.951%; checksum length CSE temp (r6) pops after inline oldBit (r5): retail length
+ * web must be created before calc_data_checksum's locals; no caller spelling found. */
 int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int createFlag,
                      const char* unusedStr, const char* fileName, void* buffer, int size,
                      unsigned int* freeBlocks,
@@ -960,9 +921,7 @@ int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int cr
     int result;
     int i;
     int checksumWord;
-    unsigned int bufferSize = size;
     unsigned int checksumLength;
-    unsigned int seekBlock;
     CARDFileInfo fileInfo;
 
     sectorSize = 0;
@@ -975,11 +934,11 @@ int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int cr
         return 0;
     }
 
-    checksumLength = bufferSize - sizeof(checksumWord);
+    checksumLength = size - sizeof(checksumWord);
     if (skipChecksum != 0) {
         checksumWord = 0;
     } else {
-        checksumWord = calc_data_checksum(buffer, checksumLength);
+        checksumWord = calc_data_checksum(buffer, size - sizeof(checksumWord));
     }
     *(int*)((unsigned char*)buffer + checksumLength) = checksumWord;
 
@@ -1004,11 +963,7 @@ int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int cr
         goto done;
     }
 
-    seekBlock = 0;
-    if (offset >= 0x28B8U) {
-        seekBlock = (offset - 0x28B8U) / 0x1F54U + 2;
-    }
-    gc_seek_position = seekBlock;
+    gc_seek_position = get_gc_offset(offset);
     status = mem_card_mount(chan);
     if (status != 0) {
         switch (status) {
@@ -1039,7 +994,7 @@ int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int cr
     *freeBlocks = (*freeBlocks + 0x1FFF) >> 13;
 
     if (createFlag != 0) {
-        if (create_memorycard_write_buffer(buffer, bufferSize) == 0) {
+        if (create_memorycard_write_buffer(buffer, size) == 0) {
             result = 4;
             goto unmount_file;
         }
@@ -1080,7 +1035,7 @@ int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int cr
             goto unmount_file;
         }
     } else {
-        if (create_memorycard_write_buffer(buffer, bufferSize) == 0) {
+        if (create_memorycard_write_buffer(buffer, size) == 0) {
             result = 4;
             goto unmount_file;
         }
@@ -1334,10 +1289,9 @@ static int gc_get_memcard_serial_number(int device, u64* out) {
     return result;
 }
 
-/* TODO: [breakthrough needed] 93.95161%; parameter/result owners and callback load ties;
- * recover the original inline boundary while preserving authoritative reloads. */
-int update_storage_status_for_one_device(int device) {
+int update_storage_status_for_one_device(long device) {
     int changed = 0;
+    unsigned int mask;
 
     if (device < 0 || device >= 2) {
         return changed;
@@ -1348,20 +1302,20 @@ int update_storage_status_for_one_device(int device) {
         removals &= ~mcmasks[device];
         remove_mu(device, 0, device);
         changed = 1;
-        force_removals &= ~mcmasks[device];
+        mask = mcmasks[device];
+        force_removals &= (int)~mask;
     }
     if ((insertions & mcmasks[device]) || (force_insertions & mcmasks[device])) {
         reset_ppwls_timeout();
         insertions &= ~mcmasks[device];
         changed = 1;
         insert_mu(device, 0, device);
-        force_insertions &= ~mcmasks[device];
+        mask = mcmasks[device];
+        force_insertions &= (int)~mask;
     }
     return changed;
 }
 
-/* TODO: [near miss] 94.44%; named device and CSE table base swap saved homes;
- * postcallback mask/global load ties remain. */
 int update_storage_status(int flag) {
     int device;
     int any = 0;

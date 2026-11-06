@@ -130,10 +130,6 @@ int ScreenElseAction::Update(ScreenMgr*, ScreenActionStack&,
     return 1;
 }
 
-#pragma push
-#pragma optimization_level 2
-/* TODO: [near miss] 99.60784%; value homes now agree;
- * case index/call-argument constants remain scheduled in reverse order. */
 int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack&,
                                  int) {
     ScreenParams* params;
@@ -154,36 +150,34 @@ int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack&,
 
     arg = m_arg;
     object = m_object;
+    paramIndex = 0;
 
     switch (arg) {
     case kArgQuestionVisible:
     {
-        paramIndex = 1;
-        ScreenNode* node = params->GetScreenNode(0);
-        lhs = node->IsVisible();
+        ScreenNode* node = params->GetScreenNode(paramIndex++);
+        int visible = node->IsVisible();
+        lhs = visible;
         break;
     }
     case kArgQuestionFocus:
     {
         int focusIndex;
 
-        ScreenObject* probe = params->GetScreenObject(0);
-        paramIndex = 2;
-        focusIndex = params->GetInt(1);
+        ScreenObject* probe = params->GetScreenObject(paramIndex++);
+        focusIndex = params->GetInt(paramIndex++);
         lhs = (probe->m_parent->GetFocus(focusIndex) == probe);
         break;
     }
     case kArgQuestionEnabled:
     {
-        paramIndex = 1;
-        ScreenObject* probe = params->GetScreenObject(0);
+        ScreenObject* probe = params->GetScreenObject(paramIndex++);
         lhs = (probe->m_ext->flags >> 1) & 1;
         break;
     }
     case kArgQuestionStage:
     {
-        paramIndex = 1;
-        int stage = params->GetInt(0);
+        int stage = params->GetInt(paramIndex++);
         if (stage == 0) {
             stage = m_flags;
         }
@@ -194,8 +188,7 @@ int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack&,
     {
         int resourceId;
 
-        paramIndex = 1;
-        resourceId = params->GetResourceID(0);
+        resourceId = params->GetResourceID(paramIndex++);
         lhs = ScreenControl::m_pGameVariables->GetInt(resourceId);
         break;
     }
@@ -236,7 +229,7 @@ int ScreenQuestionAction::Update(ScreenMgr* mgr, ScreenActionStack&,
     }
     return 1;
 }
-#pragma pop
+
 
 int ScreenEnableAction::Update(ScreenMgr* mgr, ScreenActionStack&,
                                int) {
@@ -278,13 +271,13 @@ int ScreenEnableAction::Update(ScreenMgr* mgr, ScreenActionStack&,
     return 1;
 }
 
-/* TODO: [near miss] 98.20755%; CInline substitutes incoming this directly;
- * original owner boundary is missing; keep raw Boolean staging. */
+/* TODO: [near miss] 99.00944%; 21 colouring rows: retail pops `this` first (r31), which needs
+ * two more interference edges at K=29 (TU is -inline off); next: find the missing `this` user. */
 int ScreenUserConfirmAction::Update(ScreenMgr* mgr, ScreenActionStack&,
                                     int) {
+    int confirmId;
     ScreenParams* params;
     int stageIndex;
-    int confirmId;
     int value;
     int flag;
 

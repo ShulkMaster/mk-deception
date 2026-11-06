@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-void shake_camera(int count, void* script_args, float strength);
+void shake_camera(int count, float strength);
 
 #ifdef __cplusplus
 }

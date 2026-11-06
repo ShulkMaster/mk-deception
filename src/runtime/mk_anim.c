@@ -693,35 +693,24 @@ failed:
 
 static inline void compose_bone_rotation(
     Quat* out, Quat* parent, Quat* target) {
-    float dot = parent->z * target->z +
-        (parent->x * target->x + parent->y * target->y);
-    float cross_x =
-        parent->y * target->z - parent->z * target->y;
-    float cross_y =
-        parent->z * target->x - parent->x * target->z;
-    float cross_z =
-        parent->x * target->y - parent->y * target->x;
-    float pw = parent->w;
-    float tw = target->w;
-
-    out->x = cross_x;
-    out->y = cross_y;
-    out->z = cross_z;
-    out->x += target->x * pw;
-    out->y += target->y * pw;
-    out->z += target->z * pw;
-    out->w = pw * tw - dot;
-    out->x += parent->x * tw;
-    out->y += parent->y * tw;
-    out->z += parent->z * tw;
+    out->w = parent->w * target->w -
+        (parent->x * target->x + parent->y * target->y +
+         parent->z * target->z);
+    out->x = parent->y * target->z - parent->z * target->y;
+    out->y = parent->z * target->x - parent->x * target->z;
+    out->z = parent->x * target->y - parent->y * target->x;
+    out->x += target->x * parent->w;
+    out->y += target->y * parent->w;
+    out->z += target->z * parent->w;
+    out->x += parent->x * target->w;
+    out->y += parent->y * target->w;
+    out->z += parent->z * target->w;
 }
 
 static inline MkBone* matcher_bone_by_index(MkObj* object, unsigned int index) {
     return object->bones[index];
 }
 
-/* TODO: [near miss] 98.49892%; quaternion and weighted FPR owners differ;
- * recover the original input/result boundary; retained FP trees agree. */
 static float p_bone_matcher(void) {
     BoneMatcherState* matcher = (BoneMatcherState*)apdata;
     MkObj* parent_obj;
@@ -745,12 +734,7 @@ static float p_bone_matcher(void) {
     float parent_weight;
     float child_weight;
     Vec correction;
-    float parent_delta_x;
-    float parent_delta_y;
-    float parent_delta_z;
-    float child_delta_x;
-    float child_delta_y;
-    float child_delta_z;
+    Vec parent_delta;
 
     if (matcher == 0) {
         mkproc_die();
@@ -952,18 +936,18 @@ static float p_bone_matcher(void) {
         parent_weight = -matcher->child_weight;
         child_weight = 1.0f - matcher->child_weight;
 
-        parent_delta_x = correction.x * parent_weight;
-        parent_delta_y = correction.y * parent_weight;
-        parent_delta_z = correction.z * parent_weight;
-        child_delta_x = correction.x * child_weight;
-        child_delta_y = correction.y * child_weight;
-        child_delta_z = correction.z * child_weight;
-        parent_obj->pos.value.x = parent_delta_x + parent_obj->pos.value.x;
-        parent_obj->pos.value.y = parent_delta_y + parent_obj->pos.value.y;
-        parent_obj->pos.value.z = parent_delta_z + parent_obj->pos.value.z;
-        child_obj->pos.value.x = child_delta_x + child_obj->pos.value.x;
-        child_obj->pos.value.y = child_delta_y + child_obj->pos.value.y;
-        child_obj->pos.value.z = child_delta_z + child_obj->pos.value.z;
+        parent_delta.x = correction.x * parent_weight;
+        parent_delta.y = correction.y * parent_weight;
+        parent_delta.z = correction.z * parent_weight;
+        correction.x *= child_weight;
+        correction.y *= child_weight;
+        correction.z *= child_weight;
+        parent_obj->pos.value.x += parent_delta.x;
+        parent_obj->pos.value.y += parent_delta.y;
+        parent_obj->pos.value.z += parent_delta.z;
+        child_obj->pos.value.x += correction.x;
+        child_obj->pos.value.y += correction.y;
+        child_obj->pos.value.z += correction.z;
         update_obj_pos(child_obj);
         update_obj_pos(parent_obj);
     } else {

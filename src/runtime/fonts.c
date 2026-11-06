@@ -265,7 +265,7 @@ void update_string_obj_pfx(StringObj* obj, PfxFontSlot* font, const char* text) 
 }
 
 /* TODO: [near miss] 96.50%; y_off load/test precedes vertical conversion;
- * metrics-pointer phase regresses; recover table/publication ownership. */
+ * shared setter expansion regresses the exact standalone setter. */
 void update_string_obj(StringObj* obj, int font, const char* text) {
     int halign;
     int valign;
@@ -582,8 +582,8 @@ StringObj* string_left_xy(int oid, int font, const char* text, int x, int y, int
     return obj;
 }
 
-/* TODO: [near miss] 98.98305%; shared loader rotates homes; indexed walk deletes
- * retail rematerialization; integer handle typing alone is byte-neutral. */
+/* TODO: [near miss] 98.98305%; search offset and loaded handle retain different
+ * register owners; preserve retail slot rematerialization. */
 PfxFontSlot* load_named_font(const char* name) {
     int offset;
     FontTableEntry* walk;
@@ -605,7 +605,7 @@ PfxFontSlot* load_named_font(const char* name) {
             face = font_table[i].slot.face;
             binary_id = font_table[i].binary_id;
             tga_arg = font_table[i].tga_arg;
-            handle = (int)font_table[i].path;
+            handle = font_table[i].handle;
             if (face == NULL) {
                 flag = 0;
                 tga = load_tga(handle, tga_arg);
@@ -661,7 +661,7 @@ PfxFontSlot* load_font(int slot) {
     face = font_table[slot].slot.face;
     binary_id = font_table[slot].binary_id;
     tga_arg = font_table[slot].tga_arg;
-    handle = (int)font_table[slot].path;
+    handle = font_table[slot].handle;
     if (face == NULL) {
         flag = 0;
         tga = load_tga(handle, tga_arg);

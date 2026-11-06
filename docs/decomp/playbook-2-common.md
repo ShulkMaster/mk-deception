@@ -8,6 +8,12 @@ exemplars that reached exact. `[da]` = mk-da import (tier 1).
 
 ABI: wrong arg/return regs. REQUIRE all callers + callee ABI.
 
+- Indexed caller list empty but original code may be unindexed: REQUIRE the
+  original executable segment ranges and ISA-correct direct-branch decoding.
+  TRY a bounded original `j`/`jal` census, then verify each complete caller's
+  bytes and argument/result transfers (`fat_bgnd_char_setup_radius_check`).
+  Distinguish a raw verified wrapper from a defined Ghidra function; this
+  census does not rule out indirect or overlay callers.
 - Generic callback parameters occupy swapped saved registers: REQUIRE the
   canonical callback typedef and its object-return contract. TRY the real
   generic object parameter, a typed local for object operations, and returning
@@ -16,6 +22,16 @@ ABI: wrong arg/return regs. REQUIRE all callers + callee ABI.
   can disappear because both receive the same physical register; that alone is
   not evidence of compiler coalescence. Do not invent an alias without an API
   boundary that requires the conversion.
+  Callback is `extern "C"` (unmangled) and its body is also inlined into
+  callers; only saved homes rotate there: REQUIRE a MAP-mangled sibling of the
+  same callback type (UNUSED counts: `callbackPrep__FbP13_mslBankSoundPv` =
+  `(bool, _mslBankSound*, void*)`). TRY that typedef with a `void* data`
+  parameter and `T* x = (T*)data;` in the callback and every inline twin. The
+  coalesced copy adds the retail +1 phantom degree (`phantom_degree.py
+  --plus` reproduces retail first); closed `callbackPlay`, `mslBankPlayVol`
+  and `mslBankPlayVolPanPitch` after held-scan sweeps reported a ceiling.
+  MWCC inlines a constant function-pointer argument's call inside an inline
+  helper. Recheck every includer of the typedef.
 - Callback return/liveness residue: REQUIRE retail function-pointer mangling
   and actual dispatch return use. TRY correct void return and full callback
   arity in the owner typedef, declaration, and definition together
@@ -56,7 +72,10 @@ ABI: wrong arg/return regs. REQUIRE all callers + callee ABI.
 - Variadic: canonical prototype; check `crclr` and arg regs.
 - Reg live at `bl` is not arg if callee overwrites first. Prior store can
   leave its object address in r3; don't add it when callee reads only globals
-  (Puzzle random-fatality check). Fix prototype + all callers together.
+  (Puzzle random-fatality check). A bitfield insertion constant or script-load
+  base can likewise survive in r4 (`shake_camera`); a false argument can split
+  an otherwise shared constant owner. Fix the canonical prototype, definition
+  and all callers together; measure every header includer.
 - TU-local prototype adds arg whose reg is only leftover from prior store:
   REQUIRE callee def + retail reg consumption. TRY fixing prototype + call
   together; phantom arg can add owner reload (`r_pz_fighter_block_hi`). Null
@@ -238,6 +257,21 @@ allocation or compiler layout.
 
 Signedness, narrowing. REQUIRE loads, callers, arithmetic range.
 
+- A 16-bit value is re-extended for a full-width compare and a loop
+  preheader issues differently: REQUIRE the producer really returns 16 bits
+  (callee epilogue `clrlwi r3,..,16`) and retail extends only at the call.
+  TRY hold it full width, narrowing once at the call:
+  `unsigned int roll = (unsigned short)randu0(100)`
+  (`pz_fighter_create_space_between_fighters`). The hoisted RLWINM leaves the
+  preheader and the pre-RA issue order changes. Keep compare signedness.
+- A matching donor's redundant narrow cast changes a neighboring register:
+  REQUIRE ordinary/native whole-object agreement and a one-cast subtraction
+  control. Trace the removed conversion's temporary and interference edge
+  before attributing the difference to ABI or compiler revision
+  (`adxt_nlp_trap_entry`, [evidence](reports/cri-trap-sonic-cast-contract.md)).
+  A second temporary occupying `r0` can explain the neighbor's `r4` without
+  a direct physical-`r0` exclusion. This explains the donor register choice;
+  it does not justify adding a redundant cast to source.
 - A real byte-offset snapshot folds away and swaps a saved home with a range
   value: REQUIRE the consumer's canonical unsigned offset type, bounded signed
   arithmetic, and native propagation/allocation evidence. TRY that API type
@@ -434,6 +468,33 @@ Bits. REQUIRE storage width, bit position, every use.
   not an honest way to prevent it. Do not add a dead branch, store or lifetime
   merely to reject a predicate; recover a real source boundary or retain the
   ceiling.
+- Retail `slwi; ori; or` where ours folds to `rlwimi` (field packing): IF the
+  OR's other operand has a known disjoint mask, REQUIRE the honest fix is an
+  accumulator: `handle |= field`. `adjustforward` runs computepossiblemask from
+  the OR itself, so `OR vH,vH,t` sees its own shifted operand and refuses the
+  insert; every single-expression spelling (`*0x01000000U`, `(x<<24)&mask`,
+  `(x&0xFF)<<24`, casts, `<<=` on a single-use local) is re-fused by IRO and
+  gen_AND and folds. TRY computing the shifted field first into its own local,
+  then build field by field (`h = a & 0xF; h |= (i & 0x3FF) << 4; h |= 0x4000;
+  h |= generation;`); the first field as `h = (a|b)` propagates the shift after
+  the `ori` (3 rows). (`pfxscript:fx_to_handle`, shared by fx_by_id/fx2.)
+  Mask-insert `(w & ~0xF) | (i & 0xF)` where retail keeps `clrlwi; clrrwi;
+  or`: TRY the loaded word as accumulator masked in place, `h = w; h &= ~0xF;
+  h |= i & 0xF;` (`build_bank_handle` MAP 0x40 vs folded 0x38, in
+  `load_effect_bank_with_context`); masking `w` in the first assignment
+  folds again.
+- Retail consecutive `beq X; beq X` after one `cmplwi`: REQUIRE evidence for
+  the original validation or helper boundary. The emitted branches alone do
+  not justify adding `p != 0 && p != 0` for an unchanged ordinary pointer.
+  TRY the recovered complete operation with its real checks; otherwise keep
+  the missing-boundary ceiling. A redundant pure check added only to
+  reproduce an instruction fails the quality gate. Evidence that the original
+  tested twice: the PS2 counterpart branches on the same pointer twice, and/or
+  the helper's MAP UNUSED size is one instruction over the single-test body.
+  With it, TRY an early `if (p == 0) continue;` (or `return;`) before the
+  original `if (p != 0 && ...)` (`bank_find_fx` 0xcc vs 0xc8 in fx2 and
+  banks_find_owned_fx; `resolve_pfx_handle`, PS2 0x0036c3b8/0x0036c3c0).
+  MWCC CSEs the second compare and keeps both branches; record the evidence.
 
 ## H05
 
@@ -484,6 +545,18 @@ boundary.
   mutating caller or invent an alias. See
   [the Konquest latch report](reports/konquest-readonly-latch.md).
   This is pointee const, distinct from an immutable `Owner * const` binding.
+  Global owner (`g_game_info`): `const Owner*` fed `&global` loses the
+  qualifier path (loads fold to direct object accesses, CSE drops the reload;
+  so do a void helper reading the global, a by-value helper and the open-coded
+  macro guard). TRY a read-only view of the latch field pair instead:
+  `T* const* proc, const unsigned int* instance` with `MK_HDR_LIVE(*proc,
+  *instance)`, called with `&global.proc, &global.proc_instance`; const on the
+  pointer-field view is decisive, instance const neutral
+  (`destroy_background_extras` camera process). This qualifies the pointer
+  slot, not the process; it promises neither no-alias nor global immutability.
+  REQUIRE unchanged lazy validation, receiver sampling and callback/clear
+  order. Paired emitted-code controls establish the reload effect; distinguish
+  that observation from an untraced internal CSE predicate.
   Existing CSE-off restores the reload but leaves a volatile-home swap:
   REQUIRE the same complete const-owner API with paired mutable and policy
   controls. TRY normal CSE with that read-only validator; remove the old
@@ -551,6 +624,44 @@ boundary.
 Retained value or address. REQUIRE shared uses + unchanged ownership
 interval. Reject redundant aliases, identity wrappers, permuter residue.
 
+- Retail scan compares with `lwzx base,i*12` and forms the record address
+  only inside the match block (`add r4,r6,r4` reusing the SR offset): TRY
+  indexing members directly in loop test and match block (`a[i].description`,
+  `a[i].stream`, `a[i].offset`). A stepped `p++` cursor or a block-local
+  `entry = &a[i]` hoists the address before the compare (`pfx_get_field`).
+
+- Retail recomputes an index product (`mulli r0,rSel,40` in each arm after a
+  call) that ours keeps live from an earlier table access: REQUIRE a
+  MAP-UNUSED accessor whose out-of-line size matches. TRY that accessor with a
+  non-`int` index parameter (`long get_char_from_tbl(long slot)` = MAP 0x34;
+  `bg_pselect_player_canceled`). The typed inline parameter is its own object,
+  so its product is not CSEd with the caller's `int` index. Return type moves
+  other consumers too: measure all of them (one kept open-coded int lookups).
+
+- Retail loads a field once into r0 and copies it to both a saved home and
+  the call argument (`lwz r0; mr r31,r0; mr r3,r0`); ours loads into the saved
+  home and copies to r3: REQUIRE the local keeps its initializer and later
+  uses, no store between. TRY passing the field itself as the call argument
+  (`set_root_and_obj_movement_weights(g_active_piece->animation, ...)` while
+  `anim = g_active_piece->animation` stays; `mk_chess_blend_to_ani`). IRO CSE
+  owns the load as a temp feeding both copies. Copy an exact sibling's call
+  spelling (`mk_chess_set_obj_move_weight`).
+- Two webs of an inlined helper swap saved homes and why.py says a CSE temp
+  must outrank an inline object (or the inline local must sit among the CSE
+  temps): REQUIRE the inline local is a plain copy of a field/element with no
+  store to it. TRY dropping the local and reading the field at each use
+  (`piece->object->pos`, `board[x].cells[y].piece` in the test); exact
+  standalone copies stay exact (`mk_chess_blend_into_cell_orgin_in_x_frames_by_caller`
+  100, `mk_chess_locate_closest_piece_in_area_to` piece r20).
+- A retained root serves only one embedded object: REQUIRE original subobject
+  address evidence, canonical layout and unchanged lookup/publication timing.
+  TRY replacing the root local with a pointer to that actual subobject
+  (`npc_shadow_update`, `RwSphere`, partial). Native address folding can leave
+  the root load as a codegen temporary instead of the earlier named owner,
+  fixing integer homes without changing floating-point owners. Remove the
+  replaced root local; no duplicate alias, shifted view or new guard. Verify
+  folding, all effects and collateral; separate the remaining FP residue.
+  See [the sphere ownership evidence](reports/npc-shadow-sphere-ownership.md).
 - A log publisher and its inlined consumers share wrong record-address
   islands: REQUIRE distinct existing head and published-current indices,
   canonical record layout, and no intervening mutation of either index.
@@ -562,6 +673,12 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   bases and indexed loads. Verify every consumer, unrelated code, data and
   relocations. Exact instructions can retain equal-value pool-address
   differences; do not infer link exactness or an unobserved compiler pass.
+- Retail loads a word into one register, copies it (`mr r7,r4` before the
+  test) and shifts from the original (`slw r7,r4,r3`); ours shifts in place:
+  REQUIRE sibling decoders exact with the in-place helper. TRY the donor
+  bit-window load: `next = words[1]; if (off != 0) bits = next << off; else
+  bits = next;` (`mpvhdec_DecPscSj`, RE4 MPVBIT_GET32 minus its dead start
+  code). Keep the shared helper for siblings whose retail is in place.
 - Retail keeps a SECOND web of a parameter after its guards (guard reads the
   arg register, then `mr rX,r3`; or extra parameter copies feeding helper
   guards), ours keeps one long-lived parameter home: REQUIRE retail IR shows
@@ -577,6 +694,23 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   Declare it before a loop counter, or IRO still drops it (`save_to_memcard2`).
   This is the user-ruled exception (brief ruling 1, ivy #8833) to tier 1's
   "copy of in-scope value"; without retail IR plus an anchor, reject it.
+- Inline-helper loop preheader keeps a VN constant copy (`li rA,1 ... mr rB,rA`,
+  inline locals are FE temporaries so backend VN commons the `li`) and ours
+  issues the `mr` BEFORE loop-invariant address `addi`s that retail issues
+  first; sched trace shows the pre-RA scheduler picking MR (opcode rank 0) over
+  ADDI (rank 2) at equal height: REQUIRE the addresses are member addresses of
+  one record base, the saved index and record identity remain stable across
+  every intervening call, and an anchor shows the original recomputed the base
+  (PS2 clobbers/recomputes it after the loop). This supports rematerialization;
+  it does not prove that original source lacked pointer locals. TRY deleting the base and pointer
+  locals and writing the record-lookup member address (`&DEVICE_AT(device)->f`)
+  at every use (`p_delete_profile`, exact). IRO CSE/LICM temps then own the
+  addresses with a coalesced copy as ADDI dependent (height 2 issues first);
+  rewrite output omits the redundant copy and the post-RA scheduler (no opcode
+  rank, ties keep list order) re-emits retail's order. Endpoint snapshots do
+  not identify the deletion or flag-clear writer without a trace. A retained base local with
+  `&base->f` at the calls, two-level inline helpers with base or pointer
+  params, and init/declaration reorders do not move the MR.
 
 - A field shared by a predicate and guarded update has a CSE/codegen home
   swap: REQUIRE native initial pcode proves an early object-backed CSE owner,
@@ -759,6 +893,18 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   preserve retail order (`pfx_estimate_render_size`, exact with propagation
   both off and on). Verify every field read and the whole unit under each mode;
   a neutral source repair does not authorize a flag change while siblings lose.
+  Retail `lfsx` first field, `add` row, then `addi rR,rR,4` after the last
+  row read and a late `lfs 0(rR)`: that is an IRO CSE temp of the row's
+  `.y` address shared with a later direct `table[index].position.y` read,
+  not a `float*` owner. REQUIRE every read of the row, including the late
+  one, as a direct subscript; a named row pointer makes X a variable deref
+  (`add` then `lfs 0`) and a named `&row->y` owner blocks the `.y` CSE and
+  duplicates the row add (`place_plyr_on_ladder`, 97.95 -> exact).
+  The same applies to call arguments. When a loop keeps an element cursor
+  but retail's call setup orders the CSE copy (`mr r4,r3`) after a later
+  `addi`, TRY `&array[i].field` arguments for the Vec calls in that loop. The
+  first call's argument form can decide the order at the next call
+  (`p_pebble_path_monitor`, 99.43 -> exact).
 - A shared event lookup folds a fixed field into a computed record address:
   REQUIRE canonical nested fields, a sentinel test followed by the same
   nonvolatile read, and no intervening mutation. TRY direct indexed field
@@ -940,6 +1086,187 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
 
 ## H07
 
+- MAP-UNUSED helper = plain `static`: GC2.7 emits an auto-inlined static out
+  of line (dead-stripped -> UNUSED); a fully inlined `static inline` is never
+  emitted. `-inline auto` refuses a callee of >= 30 statements (probe: 29 call
+  statements inline, 30 do not). REQUIRE out-of-line size = MAP. IF the
+  plain-static restoration stays a `bl`, TRY the compact original body: early
+  `return 0/1` instead of a result local, assignment in the `if` test, no
+  single-use locals. A caller value colored against the helper's locals can
+  need one helper web as a CSE temp (CSE numbers below inline objects): repeat
+  the shared expression (`get_mem(0x10 + a + b + size)` and the same in
+  `memset`, `size` copied from the escaped record) (`new_pfx_create_raw_userdata`:
+  alloc_pfx_memory 0x140, copy_emitter 0x40 owning local static old_ltm$415).
+- Retail inlines code with no visible owner (stores to absolute 0, reads an
+  unwritten stack array, per-iteration owner reloads, redundant self-stores
+  that fold): REQUIRE MAP-UNUSED methods whose out-of-line compile equals
+  their MAP size (compile the body as a plain probe function). TRY restore
+  them as static inline helpers with the proven body, even when the body is
+  buggy (`TextList::Update`: GetPosition 0xb0 with a null pointer,
+  SetVertsToBoundingBox 0xb0, ScreenPoly::SetPosition 0x34; PS2 counterpart
+  also stores to 0). Reuse an existing helper of the same size
+  (`image_list_set_color_texture` = SetTexture 0xa4 in `ScreenPoly::Render`).
+  Same residue at every inline site of a helper absent from the MAP: the
+  helper is a misnamed MAP-UNUSED function or an invention. Compile it
+  out-of-line and match the size to an UNUSED entry; inside it, call the
+  real global sibling it duplicates instead of a copied body, and delete the
+  invented sub-helper (`post_init_fatality_world` 0x21c calls
+  `fade_fatality_screen()`, auto-inlined; closed `start_suicide`,
+  `start_fatality`, `start_2nd_fatality` and `fade_fatality_screen`
+  together). Define it after the callee: non-deferred `-inline auto` never
+  inlines a later definition.
+- Deferred TU (`-inline auto,deferred`): later definitions inline too; MAP
+  UNUSED order is reverse definition order (place helpers there; free
+  helpers need prototypes). Big MAP-UNUSED helper restored by size stays a
+  `bl`: REQUIRE its MAP-UNUSED sub-helpers exist. TRY building its body from
+  those calls (fewer statements -> fits the auto-inline budget; sizes still
+  equal MAP). Explicit `inline` also inlines but emits nothing, contradicting
+  the UNUSED entry (`InitializeVoice` 0x17c via `AXVPB_ComputeVoiceRatio`
+  0x4c, `i_AXVPB_SetVoice_Type`/`_Addr`; closed `iPlayPrepped`, iPlay stays
+  exact). Derived method = base body + extras: call the base inline
+  (`SBPlayable_Stream::Pause` = OSDisable + `SoundBuffer_Playable::Pause()` +
+  two resets, exact). Same in non-deferred `-inline auto` TUs: an invented
+  monolithic helper whose body equals a MAP-UNUSED entry's size only after a
+  sub-helper split; the sub-helper signature is the one whose out-of-line
+  size equals its own MAP entry (`mk_chess_locate_closest_piece_in_area_to`
+  0x158 via `mk_chess_fetch_d_distance_param(direction, x, y, cur_x, cur_y)`
+  0x68; `(direction, dx, dy)` is 0x60 and keeps the old colours). The split
+  fixed the inline-object webs of both cursor selectors (34 -> 10 rows).
+- Hand-nested copies of one walker body (same loop at 2-3 depths, callee
+  calls only at the innermost depth, then `bl self`): TRY the plain recursive
+  function; GC2.7 self-inlines recursion up to its inline budget. Inline-visible
+  callees at the outer depths shrink the depth (`_ChangeCase`: 3 levels with
+  GetStringLen/ChangeCase inlinable, 6 levels with them as calls).
+
+- Retail scales `(x + 1)` with a -4 displacement or base-4 (an unfolded
+  `p - 1` index): REQUIRE PS2 arithmetic or several uses of `x + 1`. TRY a
+  void inline helper whose 1-based parameter indexes `arr[p - 1]`, called with
+  `idx + 1` (`screen_engine_fire_switches`: `update_stick_bits`,
+  `check_stick_edge_event`). The inliner temps the argument and substitutes it
+  after front-end folding, so (x+1)-1 survives. A macro, local or
+  expression-returning helper folds.
+
+- Inline helper argument is a non-trivial load (`p->field`, global deref) and
+  retail evaluates it BEFORE the helper's first statement (e.g. before an
+  initialized-aggregate template copy), ours after; only volatile temps swap
+  (`lwz r4,obj; lis r3,@tmpl` vs `lwz r3,obj; lis r4,@tmpl`), the value dies
+  at its compare, no saved register. REQUIRE native iro_expr_probe shows the
+  CInline arg temp `@p = <load>` spliced into its single use
+  (IRO_ExpressionPropagation), and every other consumer of the helper passes a
+  plain local (substituted, no temp) or is unchanged. Require a private helper
+  and value-preserving uses across every caller; preserve external prototypes
+  and variadic argument types (for example, `sprintf` format contracts). An
+  already-exact helper expansion is not a target for this rule. TRY a parameter type of
+  the same width and signedness but different identity from the argument:
+  `long` for an `int` argument. The temp becomes
+  `@p = CONVERT(load)`; the propagation type gate (`expression type differs`)
+  refuses the splice in both passes, the load stays at the call site, no
+  conversion instruction. `unsigned`/`short`/`char` change the compare or add
+  `extsh`; `!p` instead of `p == 0` does not block. A second use in another
+  flow node also blocks but keeps the temp live across the branch and adds a
+  compare; dead same-node uses are erased before IRO (`pz_fighter_chomper2_victim_crushed`
+  via `pz_fighter_chomper2_offset_post(long player, ...)`, note 9517). Say the
+  type is IR-justified; PS2 `bne a0,zero` cannot distinguish int from long.
+  CRI middleware `Sint32` is `signed long` (RE4 `cri_xpt.h`): a size local
+  fed by `SJCK.len` (long) and passed to `SJ_SplitChunk` must be `long` with
+  the prototype's `nbyte` `long` too; an `int` local or param renumbers the
+  size/IV webs of both DMA loops (`AXRNA_ExecHndl`). Compile the RE4 donor
+  unit with MKD's GC2.7 and diff register lists vs MKD retail, then bisect
+  donor-side; one `int n` reproduced the 54-row form.
+
+- A saved parameter has the wrong home and its value feeds repeated
+  `int`-typed call arguments: REQUIRE the complete caller/declaration census,
+  a value-preserving signed `int`/`long` round trip, and actual native
+  before/after evidence. With `long door_id`, `IRO_CommonSubs` creates and
+  reuses `CONVERT(INDIRECT(door_id))` for the lookup and path-setup arguments;
+  the `int` baseline has no such CSE. TRY the parameter type only when all
+  observed inputs are representable and no arithmetic, escaping address,
+  variadic use or incompatible function pointer changes the contract. Update
+  every declaration and verify all callers and emitted bodies. This is
+  conversion CSE, not the private-inline expression-splice gate above
+  (`npc_assign_door_path`). Matching output supports this reconstruction but
+  does not prove the original scalar spelling; a solver's request for ABI
+  evidence alone is not a new source premise.
+
+- Open-coded `table[p->type].field` shares the whole `type * stride` product
+  with an earlier inline-argument address; retail shares only the `p->type`
+  load and recomputes `mulli`: REQUIRE a MAP UNUSED accessor whose
+  out-of-line compile equals its size. TRY that accessor with an
+  `unsigned int` index parameter (`mk_chess_fetch_class_name_length_for_team`
+  0x18 in `mk_chess_hud_set_piece_portrait`). The inline argument is its own
+  object, so IRO CSE stops at the load. An `int` parameter is substituted
+  and keeps the shared product. Same gate blocks loop-invariant motion: a
+  loop-invariant `int` argument substituted into a helper inlined in a loop
+  makes `arg * stride` invariant and hoisted, retail recomputes it in the
+  branch while still hoisting constants. TRY `unsigned int` for that helper
+  parameter (row count/index from an unsigned API) and drop any
+  `opt_loop_invariants` pragma: the parameter object is assigned inside the
+  loop (`p_adjust_sky`: adjust_star_dome_for_new_time_of_day 0x178,
+  `unsigned int last_row`; caller-side type flip regresses).
+
+- Near miss runs through a shared static inline helper and caller-only
+  spellings are exhausted: REQUIRE the helper's MAP UNUSED size. TRY compiling
+  the helper BODY as a plain non-inline function (an inlining wrapper measures
+  smaller, invalid) and fix its shape until the size matches: missing param,
+  guard/read order, nested helper (`npc_travel_path`: `npc_get_next_waypoint`
+  0xa4, `npc_find_angle_to_next_waypoint(npc)` 0x10c, `save_script_stack` 0x60).
+  Recheck every caller of the helper; one size-wrong variant can close the
+  target and swap colours in sibling callers. A helper may sit in the MAP
+  under another name: match out-of-line size against every UNUSED entry of
+  the object and rename (`pfx_create_load_script` = init_script_environment
+  0xac; bank creator = bank_alloc 0xf0 only with `size += strlen(name) + 1;`,
+  0xec with `size += strlen(name); size++;`).
+  Open-coded body, colour-only residue, MAP lists UNUSED helpers just before
+  the function (deferred unit: reverse text order = definition order):
+  REQUIRE each candidate body compiled out of line = its MAP size (PS2 calls
+  give the boundary and args). TRY the helper decomposition, then statement
+  order inside helpers: an int->float arg converted first (`ticks = interval *
+  ticks_per_hour;` before the row pointers) emits its `lis` cg-temp first
+  (`adjust_light/sky_for_new_time_of_day`: `get_current_color_table_index`
+  0x64, `get_new_color` 0x18c, `adjust_shadow_for_new_time_of_day` 0x160).
+  Out pointer must be an uncast object address (`fog_color_real`, local
+  `float color[4]`): a cast argument loses named-object alias and reloads
+  globals after its stores.
+  Static inline helper absent from the MAP while the unit's real helpers all
+  appear UNUSED: suspect a decomp invention (latch wrapper, distance wrapper).
+  Its inline local + result copies coalesce around the argument (phantom
+  degree). TRY open code / the macro at ALL its sites in one change; partial
+  replacement can regress (`handle_trigger_preprocess`: four
+  `MK_HDR_LIVE` sites exact, 1-3 sites worse; `turn_to_face_exterior_door`).
+  Switch helpers: an arm that only re-stores the initial value inlines to the
+  same tree but adds its own block out of line (`sfmpv_IsGopSkip` =
+  `sfmpv_IsDefect` 0x54 only without `case 4: skip = 0;`).
+  Nested setter formal: retail stores through a copy of the target pointer
+  (`mr r5,r28`; ours stores through r28) and the outer helper measures short
+  out of line. TRY the nested call with the global's address, not the
+  outer alias, plus the alias assigned in its own statement:
+  `work = &g; memset(work, ...); setter(&g, prm);` (not `memset(work = &g,
+  ...)`, not `setter(work, ...)`); only both together fit
+  (`mwsflib_InitLibWork` 0xac -> MAP 0xb4 closed `mwPlyInitSfdFx`; RE4
+  donor call shape).
+  Nested lookup reads may CSE with the caller's original root expression:
+  REQUIRE a retail pre-lookup load and a read-only lookup. TRY that canonical
+  root instead of an alias or explicit snapshot (`mk_chess_check_for_game_over`,
+  partial); the snapshot can introduce a different inline owner.
+
+- A lifecycle helper combines creation, effects and retained-object cleanup:
+  REQUIRE distinct retail MAP helper names/extents and verified counterpart
+  calls/return paths. TRY the original operation boundaries together before
+  tuning locals (`p_lightning_controller`: model/texture creation returns the
+  bolt; the effects helper returns float zero through early exits). Compile
+  each actual helper body out of line to check its extent; a void approximation
+  can hide the original return and inline-result ownership. Keep the bolt and
+  instance in the controller across effects and cleanup. Map-size agreement
+  alone cannot establish extra arguments or guards; require semantic evidence.
+  If the complete operation already has a public definition, TRY its direct
+  call with the verified arguments before introducing a private wrapper.
+  Under existing deferred inlining, a later-parsed definition can have a saved
+  body before caller generation. REQUIRE the native visibility and acceptance
+  decisions; do not transfer an immediate-mode visibility failure to that
+  policy (`init_player_switch_maps`,
+  [evidence](reports/controller-map-original-contract.md)). Preserve public
+  definition order, compiler settings, standalone output and all consumers.
+
 - An independently rebuilt library donor has the same retail function body,
   but isolated helper substitutions regress: REQUIRE a pinned-compiler donor
   control and the actual macro predicates, argument evaluation, definition
@@ -959,6 +1286,11 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   size/call disagreement through the actual inlining boundary. Preserve the
   target's repeated conversions even if another platform shares them, and
   do not infer that recovering the helper fixes remaining register residue.
+  Preserve an original snap input and integer result even when one caller
+  passes zero and discards that result. A verified shared operation owning
+  the global object lookup can replace a partial resolved-subobject/void
+  helper (`adj_cam_pos`, [evidence](reports/camera-game-angle-original-contract.md));
+  protect the other callers and check literal values separately.
   When real adjacent helpers jointly own stack locals, recover the complete
   pair before judging a one-helper stack displacement; preserve acquisition
   versus publication lifetimes (`screen_engine_fire_switches`, partial;
@@ -1207,6 +1539,39 @@ settings. Verify emitted calls, helper symbols, every consumer.
   read defers into the validated arm (`p_projectile_downward`: one snapshot
   helper at ground + hit -> exact).
 
+- Retail-only `li r0,1; cmpwi r0,0; beq` before a call: inlined
+  self-compare, not a literal. REQUIRE a global check function defined later
+  (non-deferred: cannot inline). TRY an explicit `static inline` twin of its
+  body, called with the value it checks against (`pz_check_to_toggle_flips(
+  plyr_pdata->plyr_num)` in `pz_fighter_scorpion_attack_start`, twin of
+  `pz_fighter_check_to_toggle_obj_and_ani_flips`). IRO CSE folds `x == @arg`
+  to 1 after branch folding. Literal 1, const/flag locals, sizeof, comma,
+  switch, float compares fold; `&global != 0` emits a reloc + `cmplwi`.
+- Retail inlined helper keeps a dead loop accumulation (`nor; clrlwi; srwi;
+  mullw; add` into a register overwritten later): REQUIRE a MAP-UNUSED
+  helper whose out-of-line size needs it. TRY a never-read accumulator local
+  in the void helper (`setup_sec_slots_in_group` 0x108: `footprint += (size &
+  0x7FFFFFFF) * (~size >> 31)`; 0xec without, 0x10c when returned). GC2.7
+  keeps an accumulator whose only use is its own update. Evidence-gated only:
+  never add one without the MAP size.
+- Retail is the inliner's product but the callee is not inline-visible (plain
+  methods defined later in the TU, `(func,global)` in the MAP, so neither a
+  class-body inline nor `-inline deferred` fits): REQUIRE a scratch compile
+  with the callee defined before the caller reproducing retail exactly. TRY
+  static inline helpers that spell the expansion levels explicitly, one per
+  inlined depth, with the real out-of-line calls at the depth where the
+  inliner stopped (`_ChangeCase__FP12SEElements_tUi` 100%: ChangeCaseDepth3
+  calls GetStringLen/ChangeCase, Depth2 and the walker inline the leaf helper;
+  `count` declared before `i` in every level). Hand-unrolled loops with named
+  locals cannot reproduce the inliner's parameter copies (`mr r17,r25`).
+- Two expansions of the same MAP-UNUSED helper, the first nested in a second
+  MAP-UNUSED helper (`check_pause_screen_engine` = test + `handle_paused_events`):
+  the depth-1 copy's loop counter must number above every depth-2 object while
+  its pointer locals stay low. TRY the nesting AND a helper body that indexes
+  the array directly (`queue[i].field`, no named entry/base pointers): the
+  addresses become IRO CSE temps below the inliner band
+  (`p_screen_engine_tick` 100%; nesting alone 14 rows, expression body alone 3).
+
 ## H08
 
 Latch diamond. REQUIRE null-before-instance reads, no call between.
@@ -1222,7 +1587,13 @@ Latch diamond. REQUIRE null-before-instance reads, no call between.
   canonical lazy ptr/instance macro + verified header-at-zero layout. TRY
   macro directly on owner fields with its header type, restore concrete
   result type (`p_mk_chess_apply_force`). Separately staged ptr can keep
-  extra volatile copy.
+  extra volatile copy. If conditional-assignment distribution absorbs the
+  post-join copy, keep the genuine header-to-object conversion outside the
+  selection (`pfx_kenshi_lift_smoke`); retrace with the corrected cursor-owner
+  graph before tuning declarations. This does not prevent fixed-return
+  coalescing when the copy already survives into initial PCode; that needs
+  one shared-return web (H11, `weapon_bm_ignore`). No unrelated cast,
+  qualifier or fabricated header.
 - Retail skips null assignment on valid arm: REQUIRE separate null-owner arm +
   same ptr test. TRY `condition ? pointer : 0` (`destroy_sobj_ctrl_proc`).
 - Reuse existing accessor before adding latch view; its success return keeps
@@ -1244,6 +1615,15 @@ Latch diamond. REQUIRE null-before-instance reads, no call between.
 
 Loops. REQUIRE zero-trip behavior + test/update order.
 
+- Retail-only dead `b X` after the final return (`lfs f1,..; b epilogue; b X`,
+  X = in-line preheader of constants): header has two outside predecessors, so
+  IRO CreatePreHeader appends block N after the return; N survives only if
+  vector-phase LICM hoists a subable invariant into it (e.g. `ADD(global,off)`),
+  which blocks IRO jump chaining; backend LICM then strands N (`p_fade_fog`).
+  REQUIRE iro_preheader_probe "append" and iro_stages_probe showing no new
+  `@tmp` after FindLoops in ours. TRY recovering the original loop-invariant
+  global-field expression; var+offset under INDIRECT is not subable on GC2.7
+  (`p_fish_attack_bloodsplat` open). Never add a dummy invariant.
 - Output stride advances before a call while the traversal ordinal advances
   afterward: REQUIRE both retail update points and independent evidence for
   the two live counters. TRY a genuine output index consumed with
@@ -1285,6 +1665,13 @@ Loops. REQUIRE zero-trip behavior + test/update order.
 - Fixed reverse array clear, only zero/index setup order differs: REQUIRE same
   descending order + unused final iterator. TRY `for (i = count; i-- != 0;)
   array[i] = 0` (defined final wrap) (`ScreenObject::ClearActiveObjects`).
+- Body and register homes agree but hoisted constant loads rotate: REQUIRE
+  native loop-block ownership and invariant-motion evidence. Backend code
+  motion visits the loop header last. TRY a genuine top-tested countdown
+  `remaining = count; while (remaining-- != 0)` when the do-loop body observes
+  `count - 1` through zero. Preserve early-exit counter values, final wrap,
+  calls and lazy tests; require the entry test to fold without extra code
+  (`mk_chess_pre_fight_cam_ended`; [evidence](reports/chess-pre-fight-camera-countdown.md)).
 - Rotated top test may need top guard. Keep polling, sleep, countdown order
   incl final input recheck.
 - Frame bound at entry + exact equality after sleep: REQUIRE both edges +
@@ -1399,13 +1786,9 @@ Switch. REQUIRE full finite case/default/fallthrough set + text order.
   (`InitMetroTRKCommTable`); two adjacent priority cases can need real
   `switch` (`ARQPostRequest`).
 - A materialized Boolean predicate lacks a retail branch-around-jump:
-  REQUIRE the original comparison, result owner and all inline consumers.
-  Check the actual selector lowering before retaining a singleton switch
-  (`is_char_locked`, partial): selecting Boolean one can add a separate
-  comparison and over-expand every consumer while fuzzy scores stay equal.
-  A complementary case-zero form can add further lowering. Measure ELF
-  sizes and result/join instructions; a shared branch symptom alone does not
-  establish that the helper's original API was a switch.
+  a singleton `switch` on the predicate reproduces the diamond but adds its
+  own `beq; b` dispatch; it is not the original API. Real cause and fix:
+  H19 shared-conversion CSE (`is_char_locked`).
 - Per-arm address formation: keep real index; table base formed before
   dispatch = one owner.
 - Explicitly compared no-op cases: REQUIRE independently proven `case N: break;`.
@@ -1426,6 +1809,11 @@ Switch. REQUIRE full finite case/default/fallthrough set + text order.
   single-value root; two same-label ranges = orphan `b`. Never a bare empty
   case/default (`save_to_memcard2`: CARD BROKEN -6, not IOERROR -5;
   [range-tree report](reports/switch-case-range-tree-orphans.md)).
+  `cmpwi N; beq default` root + orphan: the default-stacked run starts at
+  N+1, and N itself is not listed. `case N: default:` gives the root without the orphan
+  (`mwsfcre_CreateSfd` / inlined `mwsfcre_UsesAudio`: `{2,3}` + `case 5:
+  default:`). Run `switch_tree_sim.py --search` before porting a donor's
+  codeless-asm arm: RE4 byte-matched the same tree with a COMPILER-DIFF pin.
 - Same dead `b default`, plus loaded selector in r4/r6/r7 where ours uses r0:
   REQUIRE enum-backed switch, sentinel shares `default`. TRY enum `*_FORCE_32BIT =
   0x7FFFFFFF` label before `default`; constant too big for `cmpwi` keeps
@@ -1485,6 +1873,13 @@ Joins. REQUIRE real branch destinations + effect ownership.
   paths and absorb the inner lookup result without a goto or extra condition.
   Preserve full binding guards and callback order; smaller lookup helpers or
   spelling a common exit alone need not recover that owner.
+- Retail copies a latch/?: temp into r3 (`mr r3,r6`) before each null test
+  while ours keeps the object in r3: the copy exists only when every arm's
+  value is ONE web reaching one shared return. REQUIRE no other result
+  owner. TRY ending the early success arm with a forward jump to the shared
+  `return object;` (AGENTS.md goto exception) instead of its own `return`
+  (`weapon_bm_ignore` exact). Null-init plus `if (object == 0)` re-test
+  merges the web too but adds `li`/`cmplwi`/`bnelr`.
 - Initialization success is stored and returned, but ours duplicates the success
   constant: REQUIRE identical failure effects and a native result-copy trace.
   TRY explicit failure/success assignments to one real result, publish only in
@@ -1497,7 +1892,11 @@ Joins. REQUIRE real branch destinations + effect ownership.
   GC/2.7 `IRO_RemoveRedundantJumps` inverts an If/IfNot around the following
   Goto when its original target immediately follows that Goto; the Goto
   becomes Nop. TRY recover meaningful source/inline provenance that survives
-  this pass. Empty-arm guard
+  this pass. Two consecutive early-return guards (`if (a) return; if (b)
+  return;`) fold to one skip each; one `if (a || b) return;` keeps retail's
+  `b<cc> L; b exit` on the second operand: copy a matched sibling's guard
+  (`SpreadSheet::ScrollLeft/Right` from ScrollUp/Down; `ScreenPoly::Render`
+  `hidden != 0 || colorTex == 0`). Empty-arm guard
   spellings canonicalize before allocation; do not sweep declarations or
   retain empty arms to recover this reachable branch pair.
 - A complete scalar-result query has that guard plus real calculations and
@@ -1575,7 +1974,12 @@ Joins. REQUIRE real branch destinations + effect ownership.
   separate arms: REQUIRE same input + branches. TRY block-local state sample
   + explicit result arms, not compact `&&` (`is_he_blocking_throw`).
 - Null-failure block before independent gates: positive ptr guard with
-  else-return, then gates.
+  else-return, then gates. If success performs setup followed by publication,
+  REQUIRE retail branches to the publication and separately past it. TRY
+  `if (ptr != 0) { setup; } else { return; }` with the real publication after
+  the conditional (`sh_start_grinder_crush_blood`, `sh_start_grinder_crush_chunks`).
+  Putting publication inside success or using only an early null return can
+  remove the setup-exit/publication branches; no extra condition or empty arm.
 - `||` merge of null/invalid only when retail shares return; keep null test
   before lazy reads. Nested exclusion folds to one skip branch, retail has
   conditional to body + unconditional shared return: TRY combined
@@ -1674,13 +2078,31 @@ successor, keep save-next, clear-header, destroy order.
 Stack slots + store order. REQUIRE real address-taken locals, offsets,
 lifetimes.
 
-- A named object is created before an ABI copy but allocated after it:
-  REQUIRE actual saved-record and restored-Object bindings. GC2.7 deferred
-  reconstruction can append locals in serialized-list order, bypassing parser
-  creation hooks (`mwFileMountTable::getMountPointFromName`, partial). TRY
-  recovering the original semantic storage/inline owner; declaration timing
-  alone does not change that order. Keep unknown creators unknown and reject
-  padding or synthetic copies. See the [native ownership evidence](reports/gc27-deferred-object-stack-order.md).
+- IF only the frame (`stwu`/`stmw`/`lmw` immediates) and the `addi rN,r1,X`
+  of address-taken vector locals differ, with retail slots 16 bytes apart
+  where ours are 12 (e.g. retail sp+8/sp+0x18, frame 0x40; ours sp+8/sp+0x14,
+  frame 0x30) and no extra prologue. REQUIRE the values come from a 16-byte
+  padded vector type (`CollisionPaddedVec` = `Vec value; float pad`). TRY
+  declaring the locals as that padded type and passing `&v.value`; an
+  `aligned(16)` typedef (`MKVECTOR`) is wrong here because it adds the
+  `clrlwi`/`stwux` aligned prologue. Block-scoped locals of sibling branches
+  still share one slot, so count the frame from the largest branch
+  (`xz_unit_vector_to_shape` 99.92 -> 100).
+
+- Empty functor/tag source and its by-value ABI copy swap 1-byte slots
+  (`lbz rX,A(r1)` / `stb rX,B(r1)`, copy passed as `addi rN,r1,B`): GC2.7
+  `assign_locals_to_memory` fills size classes 1,2,4.. in locals-list order;
+  list is prepended, so the later-created object gets the lower slot. Named
+  local or plain temp = created at parse, before the call's copy (source above
+  copy). Temp of a class with a user ctor = created after the copy (source
+  below copy). Empty no-ctor class temp = no storage (`lbz 0(0)`, wrong).
+  IF retail source sits below its copy, REQUIRE the source has no other use.
+  TRY an empty user default ctor on the functor plus `f(..., Functor())` at
+  every call site (`mwFileMountTable::addMountPoint`, `removeMountPoint`,
+  const `getMountPointFromName`, closed together). Declaration position of a
+  named source never reverses it. Converse open: retail tag source above its
+  copy next to a class-return temp (`basic_string` copy ctor). Keep unknown
+  creators unknown; no padding or synthetic copies.
 
 - Factory outputs lie below by-value process flags while retail places them
   above: REQUIRE native slot allocation identifies real flag objects and ABI
@@ -1700,7 +2122,7 @@ lifetimes.
 - A late factory output word swaps slots with an earlier inverse-sqrt input:
   REQUIRE both real lifetimes, unchanged factory checks/publication and native
   frame evidence. TRY letting a complete launch operation own its process and
-  output local (`p_plyr_sidekick_switch`, partial); keep the earlier math helper
+  output local (`p_plyr_sidekick_switch`); keep the earlier math helper
   unchanged. Verify actual slots and every consumer, without zero-init, padding
   or an artificial block. A correct frame does not establish owner coloring.
 - Mutex pointer remains in a GPR, retail stores it in a stack owner across
@@ -1774,6 +2196,13 @@ lifetimes.
 
 ## H15
 
+- why.py "every working pop order moves a PARAMETER" is not a stop:
+  declaration order also moves simplify sweeps/degrees. TRY a mechanical
+  swap+move hill climb over the named GPR declaration lines, sc.py rows as
+  cost (scratch only, minutes) before calling an ABI ceiling
+  (`gc_generic_render`: 12-web saved rotation incl. the vm param, 122 -> 0
+  rows in two rounds).
+
 - Reused counters/cursors create split ranges in independent display or history
   panes: REQUIRE actual disjoint source domains and full replay mapping each
   range to its retail role. TRY separate named counters, vertical cursors and
@@ -1781,6 +2210,15 @@ lifetimes.
   and effect position (`show_sw_log`, partial). This changes source ownership;
   reordering only the old split registers or wrapping all panes in a helper
   can miss it. See [the pane-owner audit](reports/switch-log-pane-ownership.md).
+  If original caller/callee evidence identifies complete helpers for all panes,
+  REQUIRE their actual parameter contracts, calibrated MAP extents and fresh
+  full allocation replay. TRY that complete closure before adjusting locals:
+  a practice helper can own player/index selection while a normal helper owns
+  its separate history loop. Isolated helper trials do not test that closure.
+  Only then apply one same-scope declaration pair when replay predicts both
+  expansions together and preserves every other color (`show_sw_log`;
+  [original helper recovery](reports/io-log-original-contract.md)). A graph
+  solution alone does not establish a source boundary.
 
 - A value reuses the wrong already-obtained saved register: REQUIRE exact
   full replay and the unchanged first claimant of that current color, even
@@ -1791,6 +2229,12 @@ lifetimes.
   (`mkobj_update_weapon_trail`: cache-copy child matrix). Keep parameters
   first and all initializations/uses fixed; verify every selected color.
   Obtained saved registers remain available after their first value dies.
+  Fixed-scope declaration searches do not test an actual pointer's enclosing
+  scope. REQUIRE an exact same-named-kind replay relation across those scopes;
+  TRY moving only that declaration into the existing enclosing group, leaving
+  its lookup at the original executable point (`setup_per_tile_navigations`,
+  partial). Keep C89 declarations before statements; literal flag initializers
+  have no effects, but calls and owner reads must retain their order.
   A truncated search that omits the unwanted color's first claimant cannot
   prove an interference difference.
   If the unchanged claimant belongs to a complete operation and the
@@ -2059,6 +2503,21 @@ branch-only alias = dishonest even at 100.
   emitted before the expression using its result, a macro/open-coded
   expression is not, so `min - dot(a, b)` loads `min` after the dot via an
   inline but before it via a macro (`repel_cylinder_and_box`).
+- Retail `addi rX,rX,sym@l; add rY,rX,idx` (table-address temp not r0, row
+  add in another register) where ours gives `addi r0; add r3`: r0 is the first
+  colour and only a base/addi-source operand gets an r0 edge, so the retail
+  addi result had a pre-RA base use and stayed live past the add (or the
+  index did). REQUIRE that use in the final code; absent, it was deleted
+  post-RA (dead cr0-only consumer, same-colour copy into a named/BE web,
+  store of a just-loaded value). TRY the real second use (field read through
+  the base, index reuse); the IRO drops dead reads, empty ifs and
+  self-assignments, so stop when none exists (`do_win_effect` timing arms,
+  soft ceiling). A PS2-evidenced dead compare is not that use: GC2.7 deletes
+  an `if` whose body is empty or a dead store before pcode, and a body that
+  dies only in pcode (same-value re-store, CSE'd reload) always leaves the
+  `cmpwi` (`bne X; b X` at arm end, bare `cmpwi` mid-arm); a key re-read is
+  CSE'd into the search loop's register; a constant-row read gives
+  `addi r4; add r3` (wrong pop order). Measured, all neutral (`do_win_effect`).
 - Independent FP deltas have both named-result and source-temp rotations:
   REQUIRE exact replay needs both result and codegen-temp order changes,
   with no intervening effects. TRY reversing the real axis calculations and
@@ -2213,7 +2672,8 @@ branch-only alias = dishonest even at 100.
 - Declaration grouping in actual initialization order closed
   `pfx_parametric_spawn` (emitter, old_count, particle, capacity, cursor ->
   r26..r30). Explicit `if/else` for a ground value instead of a ternary
-  initializer closed `do_bounce` (f3/f2). Named vs inline owner of a
+  initializer closed `do_bounce` (f3/f2) and, in an inlined helper, renumbered
+  the caller's skip/state webs (`sfmpv_IsLateSkip` in `sfmpv_IsSkip`). Named vs inline owner of a
   constant: H29.
 - FP temp: IF same ops but a staged common float divisor changes entry FPRs,
   REQUIRE no intervening side effects and same float precision, TRY the
@@ -2223,6 +2683,16 @@ branch-only alias = dishonest even at 100.
 
 ## H16
 
+- Retail computes a value into the argument register and copies it to its
+  saved home (`addi r5,r4,-1; mr r23,r5`), ours the reverse (`addi r23; mr
+  r5,r23`): REQUIRE the named local is assigned the same pure expression
+  right before the call, no kill between. TRY passing the repeated
+  expression as the argument: IRO CSE owns the value (temp -> argument), the
+  local is the copy. The CSE copy adds +1 phantom degree to every web live
+  across it; if params rotate, look for a MAP-UNUSED helper whose
+  restoration removes one copy (`update_pui_actions`: repeated
+  `table_index - pui_begin - 1` + pui_exists_in_world 0x94, also used by
+  is_it_safe_to_spawn_pui/kill_pui; either alone regresses).
 - Integer constant update is rematerialized at several consumers: REQUIRE
   native IRO snapshots place the rewrite in UseDef increment propagation,
   with an unreferenced-result compound update and a genuine first consumer.
@@ -2238,6 +2708,16 @@ branch-only alias = dishonest even at 100.
   evaluation can preserve that order while changing real producer ownership.
   Measure both phases together: one can fix itself and recolor the other.
   See [the formatting case](reports/gcmcardmsg-format-expression-owners.md).
+- Sampled random calls feed one inline/helper call, retail call order is the
+  reverse of the PS2 counterpart, FPR/GPR rotation inside each range: REQUIRE
+  verified retail random-call order and one helper call per range. TRY every
+  sampled value as a direct argument and pointer arguments direct too
+  (`&pebbles[index]`, not a named pointer local)
+  (`bl_init_beetle_pebbles_second_floor`). GC2.7 evaluates call-containing
+  arguments right to left; a pointer local assigned before the call is
+  computed before the argument calls (structural rows). Keep a sampled value
+  as a statement only where retail samples it before the call; then later
+  samples must stay statements too to keep call order (`..._first_floor`).
 
 Nest single-use result; keep original callback owner at untyped boundary.
 `g = f(); use(g);` forwards without reload even under `-opt nocse`
@@ -2317,6 +2797,16 @@ guard: REQUIRE canonical predicate body, same call order. TRY `== 0` instead
 of `!`; MWCC can keep inline Boolean boundary
 (`pselect_update_profile_settings`).
 
+IF an ordinary integer inversion emits retail `cntlzw; srwi` into a fresh
+result followed by `mr` into the named local, but `value == 0` writes that
+local directly: REQUIRE identical single evaluation and an unchanged integer
+result type. TRY `value = !value` (`repel_shape_against_obstacle_list`).
+GC2.7 can retain EEQU versus ELOGNOT through IRO: equality forwards the
+assignment destination, while logical-not allocates its own result and the
+assignment copies it. This is instruction-selection destination handling,
+not a type-conversion or CSE boundary. A producer already matching retail,
+with only a later move/branch ordering difference, does not meet this gate.
+
 Retail normalizes a canonical `bool` argument before an `int` callback:
 REQUIRE the mangled input ABI, callback type, and configured TU size mode.
 TRY explicit `flag ? 1 : 0` at that boundary; direct forwarding can omit
@@ -2338,7 +2828,23 @@ WHOLE expression, `#define X_ABS(v) ((v) >= 0.0f ? (v) : -(v))` (same shape as
 static predicate returning `cond ? 1 : 0` with caller `== 1`; the front end
 keeps the 0/1 so the later compare is not folded (`SFH_IsSfdHeader`). Apply
 only where retail shows that sequence: normalized-ternary controls on
-`pselect_character_id_valid` regressed its consumers.
+`is_char_valid` regressed its consumers.
+
+Retail keeps an inlined 0/1 predicate result in a register with a
+branch-around-jump (`li rZ,0 .. bne L1; b L2; L1: li rZ,1; L2: cmpwi rZ,0`),
+but every `if` spelling (if/return pair, `?:`, `== 0`, caller local, result
+type) folds into one direct branch: REQUIRE the predicate's converted input
+is converted the same way again later in the caller (retail stages that
+operand early, e.g. an `mr` of the `__shl2i` count inside the test block).
+TRY spelling the later use with the identical conversion
+(`is_char_valid(unsigned long long)` plus `1ULL << (unsigned long long)char_id`
+in `is_char_locked`; 6 inline consumers). The repeated conversion becomes a
+CSE assigned inside the predicate's condition; RebuildPossibleCondExpression
+counts that assignment as a side effect and leaves the rebuilt ECOND in a
+variable, so the back end emits the diamond and the 0-arm copy coalesces with
+the compare's hi-word zero. Size the helper by MAP UNUSED extent (64-bit
+param `is_char_valid` = 0x1c). Row counts mislead here: a `valid = 1`
+triangle cut rows 7 -> 4 but lost fuzzy.
 
 Weighted-bit ternaries precede the wrong comparison before allocation:
 REQUIRE pre/post-IRO expression trees, not only assembly order. GC2.7
@@ -2358,6 +2864,72 @@ straight in (`mps_dec`).
 
 ## H21
 
+- Base and advanced cursor share one register (`add r9,r3,r0; add r9,r9,r3`),
+  retail keeps the base in its own volatile (`add r4,r3,r0; add r8,r4,r3`):
+  `x += n` and `x = x + n` are both ADDASS (IRO_DoTransformations), one web.
+  TRY the in-place byte advance `x = PFX_FIELD_AT(x, n)` (void* result, not
+  OPASS): IRO_SplitLifetimes splits base and advance
+  (`pfxvm_execute_behavior_update`, 5 cursors). One expression
+  `data + off + n` reassociates to `data + (off + n)`; a single-use named base
+  propagates into it and reassociates the same way.
+- Two named `char*` cursors (read, write) over a local array rotate against
+  the RMW load temp (why.py: read cursor must number above a cg-temp): TRY an
+  `int` index loop over the array (`character = text[0]; while (character) {
+  ... text[index] -= 0x20; index++; character = text[index]; }`). Loop SR
+  makes both pointers induction temps above codegen temps
+  (`load_art_for_inventory_award`). `while ((c = text[i]) != 0)` and `for`
+  forms change the loop shape.
+- Whole saved band inverted (params at r16/r17 vs retail r30/r31) and why.py
+  says named loop constants (`row2 = cols * 2`, `row2 - 1`, `abs_delta`) pop
+  first: REQUIRE they are pure functions of loop-invariant values. TRY the
+  expression inline at each test (`cols * 2 == (delta < 0 ? -delta : delta)`);
+  IRO hoists it as a loop-invariant temp, so it no longer sits in a late
+  simplify sweep. Then fix the remaining named order by declaration
+  (`pselect_update_selbox_pos`). Removing only one of them can lose fuzzy.
+- Web kind follows local types; sweep them before declaration orders. REQUIRE
+  value-preserving flips only. (1) `unsigned char x = p->byte_field` copied
+  into an int array inside an inline loop is propagated and its zero
+  extension re-hoisted as a reduce_strength/loop-invariant IRO temp, numbered
+  below every inline local; `int x` keeps a real inline local, and inline
+  locals number in declaration order (first declared = lowest vreg)
+  (`mk_chess_determine_open_surrounding_spot_near_piece`, rescue/teleport).
+  (2) Signed vs unsigned delta locals passed to `int` params rotate the
+  subtract/abs homes (`mk_chess_drone_exchange_ai_casting`: `unsigned int dx,
+  dy`). TRY a single-flip sweep int / unsigned int / unsigned char over the
+  function and its inline helpers' locals; check every consumer.
+  (3) why.py wants CSE temps (repeated field loads) above inline-helper
+  float locals: drop the helper's snapshot locals (`pw = p->w`, `dot`,
+  `cross_x`) and read fields directly, in retail statement order
+  (`p_bone_matcher` quaternion compose: `out->w` first, cross into `out`,
+  then two scaled increments; 81 -> 31 rows).
+- Named byte local loaded inside a condition (`(flags = *(u8*)&slot) >> 7`)
+  colours before the slot base; retail gives the byte the base's dead
+  register: TRY typed bitfield reads of the real flag struct; two reads share
+  one IRO CSE byte temp numbered above the base. Index the first read by the
+  source field (`pads[ctrl->port]`), assign `port` as a statement after the
+  guard (`p_handle_screen_engine_controller`). `short` locals fix the colour
+  but add `extsh`.
+- `if ((p = a[i])->f != K)` hides `p->f` from IRO CSE (EINDIRECT of an
+  assignment does not match `p->f`); backend value numbering then reuses the
+  load as a codegen temp (band 3) that colours before FE CSE temps: REQUIRE
+  a later `p->f` read with no store between. TRY the statement
+  `p = a[i]; if (p->f != K)` (`mk_chess_drone_heal_ai_casting`).
+- Named `nav = g->f` must number above the global's CSE temp (`g` reread by
+  inline helpers): a named `pdata` local is propagated away, dropping `nav`
+  swaps two CSE temps instead. TRY testing the field first and fetching the
+  local after: `if (g->f == 0) return -1; nav = g->f;`
+  (`nav_what_area_is_point_in`, with the matched sibling's cursor walk).
+
+- A cached pointer in an inline helper takes the wrong home relative to later
+  backend temporaries: REQUIRE native attribution to that inline local and
+  prove the pointer field cannot change across the original component stores
+  or calls in every consumer. TRY direct typed member reads, removing only
+  the redundant pointer snapshot (`bgnd_current_rx_set_info`). Confirm the
+  actual surviving backend producer and all shared consumers; qualifier/scope
+  changes retaining the local are a different control. Do not assume the
+  pointee itself is disjoint or identify an unobserved elimination pass.
+  See [the impact-pointer case](reports/reaction-impact-pointer-ownership.md).
+
 - The same typed traversal owners recur in successive passes alongside a
   stripped matrix helper: REQUIRE unchanged guarded assignments, retail
   operations and MAP evidence for the complete helper. TRY shared same-role
@@ -2371,10 +2943,22 @@ straight in (`mps_dec`).
 - Inlined helper owners rotate while operations/extent agree: REQUIRE its
   actual expansion, source locals and original MAP ownership. TRY ordinary
   function-scope declarations before the helper's context pointer, retaining
-  guarded initialization/uses (`p_show_text_window`, verified candidate).
+  guarded initialization/uses (`p_show_text_window`).
   No new alias, use, block or type to force lifetime. Check every consumer and
   any emitted UNUSED outline; changed unscored bodies require review.
-  Shared note 9253 preserves the helper-scope evidence.
+  See the [helper-scope review](reports/window-helper-scope-and-byte-wrap.md).
+
+- An inline helper both returns a call result and publishes a value through
+  an out-pointer. Retail keeps that value in a nonvolatile across the call
+  (`mr r3,rN` before `bl`); ours computes it in r3 and copies it into rN after
+  the call. REQUIRE the same validation CFG and call order, and prove the call,
+  its callbacks and aliases cannot observe the delayed output store in any
+  consumer. TRY computing the
+  value into a helper local, making the call with the local, and only then
+  storing `*out = local` (`p_plyr_sidekick_switch`).
+  Publishing before the call, or open-coding the helper, keeps or rotates the
+  r3 coalesce. Verify all consumers and emitted helper bodies; do not invent an
+  out-parameter helper solely to keep a value live.
 
 - A uniform scale and a scalarized coordinate take opposite homes, while a
   broad by-value geometry helper splits persistent caller values: REQUIRE
@@ -3251,10 +3835,10 @@ Helper locals and web kind.
 - Byte-wrapped accumulator has a normalization temporary live across the sum:
   REQUIRE promoted byte inputs, a defined bounded sum, actual scheduled
   compare/add order and their interference edge. TRY the equivalent low-byte
-  mask on the sum (`p_show_text_window`, verified candidate). It can retain
+  mask on the sum (`p_show_text_window`). It can retain
   compare-before-add and remove the overlap; do not widen arithmetic, change
   clamping or manufacture a dependency. Check all inline/outlined consumers.
-  Shared note 9253 preserves the byte-wrap evidence.
+  See the [byte-wrap review](reports/window-helper-scope-and-byte-wrap.md).
   Require unchanged conditional-arm typing and shift/mask folding as well:
   a mask on one byte-typed conditional arm can introduce a new narrowing
   instruction (`do_win_effect`), while a cast after a signed shift can prevent
@@ -3262,6 +3846,12 @@ Helper locals and web kind.
   the exact narrowing and shift instructions in every expanded consumer.
 
 One-row operand/constant/copy residue. One at a time:
+
+- Inline-argument spelling `!expr` vs `expr == 0` moves the issue order of
+  the inline helper's first constant (index `li` before/after the argument
+  load): REQUIRE an exact sibling that spells the same argument. TRY its
+  spelling (`mk_chess_drone_teleport_ai_casting`: `side == 0`, as
+  `mk_chess_drone_handle_get_the_king_strategy`).
 
 - Guarded field update loses a retail reload before backend optimization:
   REQUIRE initial/build PCode evidence and the same comparison, lazy guard
@@ -3374,6 +3964,23 @@ reuses another var's zero on failure path.
 
 ## H26
 
+- Swap-removal particle streams have genuine forward and tail cursors, but
+  tail setup leaves the wrong base/cursor copies, saved homes or stack slots:
+  REQUIRE unchanged getter order, runtime byte strides, and both cursors used
+  by the real loop. TRY acquire each source stream into its tail cursor, copy
+  that base to the forward cursor, then advance the tail in place
+  (`pfx_sh_grinder_crush_chunks`). GC2.7 can split the tail's base and advanced
+  values into different ownership classes; deriving every tail from its
+  forward cursor does not test this form. Retrace the complete allocation and
+  scheduler state before treating the old overlap as unavoidable. Preserve
+  actual offset products, reloads and stores; no extra base aliases, fake
+  dependencies or invented packed particle layout. See
+  [the stream-cursor recovery](reports/grinder-particle-stream-cursors.md).
+  The same ownership can change preallocation issue order even when all
+  tails spill; preserve the complete cursor family and retrace rather than
+  assuming a single return-adjacent copy suffices
+  ([glass-particle recurrence](reports/jdn-particle-tail-ownership.md)).
+
 - Signed-conversion stack roles rotate although the projection/viewport math
   and cast count agree: REQUIRE native conversion creation/resolver evidence,
   unchanged FP trees, and all inputs read before final output stores. TRY
@@ -3383,6 +3990,40 @@ reuses another var's zero on failure path.
   wrong. Keep every conversion, rounding boundary and final publication;
   no added scratch locals, casts, aliases or stack padding. Check each retail
   conversion role against the native resolver, not scratch-object UID order.
+
+- A float result derived from an int call result needs its own statement ahead
+  of the next call's receiver setup (XORIS before LIS, conversion temps
+  0x48/0x40/0x38 order): REQUIRE single-use staged locals measured as folding
+  back. TRY an in-place self-referencing derivation in one honest local:
+  `int time = GetInt(r); time = max * (time / 100.0f);`
+  (`mkScreenEngineClient::HandleAction`). IroPropagate never folds an
+  assignment whose RHS reads its own variable; a call-free multiply RHS
+  converts its left operand first. Do not reuse an unrelated local.
+  FP divisor `(cur - prev) / ((float)span * ticks)`: retail numbers the
+  conversion/fmuls cg-temps below the numerator loads (divisor emitted
+  first); a single-use `ticks` local or any divisor spelling propagates and
+  emits the numerator first. TRY `interval = (float)span; interval *=
+  ticks_per_hour;` then divide (`adjust_shadow_for_new_time_of_day` in
+  `p_adjust_directional_light`, star dome in `p_adjust_sky`).
+  Same cure when a single-use offset is spliced after later statements: write
+  it into the consumer and derive in place (`separation.x = own.x - wall.x;
+  separation.x = opp.x - separation.x;`, `beetle_lair_collision_cb`).
+  FP difference landing in the left operand's load register (`lfs f3,b;
+  lfsx f1,a; fsubs f1,f1,f3`) where ours coalesces the result with the right
+  (`fsubs f1,f3,f1`): `a - b` emits the left load first (lower cg-temp). TRY
+  `dx = a; dx -= b;` (`npc_turn_and_face_next_waypoint`); for a Vec delta
+  derive in the subtrahend vector, `t.x = p.x - t.x` (`npc_shadow_update`:
+  moves the zero/sqrt-result web above the fmadds). `dx = a - b`, pointer
+  locals and `-(b - a)` do not help. Raw and
+  normalized values sharing one web: read raw values from the pointer (CSE),
+  normalize into the local, then scale it in place (`d.x = 0.045f * d.x`).
+  Getter result built in the caller's saved home (`slwi r28,r4,16; add
+  r28,r28,r3`; ours shifts into a temp): TRY the getter deriving in place,
+  `pos = hi << 16; pos += lo; return pos;` (`i_AXVPB_GetVoice_CurrentPosition`
+  0x14, `iUpdate_AXUser`). Vector split into two weighted shares, retail
+  reuses the source registers for one share: TRY the other share in a `Vec`
+  local, scale the source in place (`d.x = c.x * -w; c.x *= 1 - w;` then
+  `pos += share`, `p_bone_matcher`); six float share locals propagate.
 
 - Plane coefficients need persistent scalar owners, but copying their record
   introduces stack traffic: REQUIRE an existing proven record type, all fields
@@ -3531,6 +4172,45 @@ then advanced. Never a second meaning or a copy of an in-scope value.
   all stores and the completion predicate; no extra reads or dead consumers.
   Evidence: [pebble displacement report](reports/pebble-angular-displacement-ownership.md).
 
+- Two-object displacement: retail reads the raw first operand into its own
+  volatile web (`lfs f1; fsubs f6,f1,f8`), the second operand's snapshot is a
+  named local reused later, and ours loads the raw value straight into the
+  delta's web (`lfs f6; fsubs f6,f6,f8`) or emits the second load first:
+  REQUIRE both operands plain member reads, the snapshot reused at a later
+  add, in-place normalization of the deltas. TRY the nested-assignment
+  subtraction `delta_x = a->pos.x - (opponent_x = b->pos.x);` (x then z),
+  exactly as the TU's exact siblings spell it
+  (`advance_my_sidekick_from_behind_with_moveset`; siblings
+  `kobra_teleport_position`, `scorpion_teleport_position`). The raw read stays
+  an expression temp, and the nested store fixes linear order: a separate
+  `opponent_x = b->pos.x;` statement lets the pre-RA scheduler tie-break the
+  opponent load first; `delta_x = a->pos.x; delta_x -= opponent_x;` shares the
+  web. If the sibling shape swaps the two pointer CSE homes (plyr r4/his r3 vs
+  retail r3/r4), put an existing earlier read of the first pointer
+  (`position_y = plyr_obj->pos.y`) before the deltas instead of rejecting the
+  shape. Check exact same-TU siblings for the shape FIRST; one earlier closed
+  control (pointer swap) hid it for 28 history entries.
+
+- Integer bit clear `x &= ~mask` after a single-use `mask = 1ULL << c`:
+  IRO propagates the shift, the AND right operand (shift call + `nor`) is
+  costlier and emitted before the field load; retail loads first (word in
+  r3/r5, `nor` in r0). TRY `mask = 1; mask <<= c; x &= ~mask;`
+  (`mark_as_locked`, all nine cases). The self-referencing shift stays a
+  variable, `~mask` costs the same as the load, codegen goes left to right.
+  `~(unsigned)mask` emits `andc`; operand order/casts/helpers are neutral.
+- Bit clear `g &= ~tbl[i]` after a call, retail `andc` loads the mask
+  (`lwzx`) before the global, ours the global first (register-blind rows
+  only): REQUIRE a matched same-TU sibling that clears through an unsigned
+  mask (`gc_format_procedure`: `removals &= (int)~mask;`). TRY
+  `mask = mcmasks[device]; g &= (int)~mask;` with `unsigned int mask`:
+  the complement of the unsigned value, cast back to int, makes codegen
+  materialise the mask operand first and the scheduler keeps it
+  (`update_storage_status_for_one_device`, inlined into
+  `update_storage_status`, both 100). `~tbl[i]`, `~(unsigned)tbl[i]`,
+  `~(int)mask`, reversed operands, a `clear_flag(int*, int)` helper and
+  statement order are neutral; the cast form on the pre-call clears
+  regresses, so apply it only where retail shows mask-first.
+
 ## H27
 
 Statement order follows retail schedule `[da]`. IF loads, stores, or pointer
@@ -3538,6 +4218,28 @@ advances ordered differently, REQUIRE unchanged semantics (no alias between
 moved accesses), TRY statements in retail order: compute packed words before
 storing, advance cursors after stores, load node output ptr before size store
 (mk-da `MCBlockDecDCNest`, `gop_decode`). Stack-member stores: H14.
+
+- Global address materialized for a sum before the compare's other operand
+  (codegen temps in emission order): REQUIRE the sum is an invented local.
+  TRY the sum inline in each compare and the store as `x += y`
+  (`ck_increment_bet`; sibling `ck_decrement_bet` uses `-=`). The left
+  operand is emitted first and the sum CSEs across compares and the RMW store.
+
+- Two loads tie in the pre-RA ready list and the input-pointer load issues
+  first: REQUIRE a real read-only input contract, unchanged sampling across
+  calls, and valid alias behavior for every caller. TRY `const T*`
+  for that parameter, prototype and definition (`load_plyr_model_async`). A
+  native dependency probe observes three fewer load-to-later-store edge
+  construction calls; the final value's register dependency remains. Its
+  height drops and the other load issues first, with reloads unchanged.
+  This is compiler evidence, not a C no-alias rule or proof of an internal
+  alias predicate. Recheck every header includer.
+- Earlier statement-order controls describe their original owner graph:
+  REQUIRE a demonstrated ownership/liveness change and independent moved
+  expressions before revisiting them. TRY deriving the real angle tail after
+  the other six tail addresses (`pfx_glass_break_run`); preserve all payload
+  accesses, publications and callback boundaries. Record search counts and
+  rejected orders in history, not this rule.
 
 - Paired position/UV streams retain scalar-owner rotation plus FP setup residue:
   REQUIRE identical pointed-store order, signed conversions, variable byte
@@ -3557,10 +4259,23 @@ storing, advance cursors after stores, load node output ptr before size store
   (`gc_generic_render`). Recheck the whole unit; this can restore emission
   order without solving saved-register allocation. See the
   [particle scaling evidence](reports/particle-scale-first-consumer.md).
-  The same rule applies to a reused subtraction input: capture `center_z`
-  in the first delta's right operand when retail loads the left operand
-  first (`fat_bgnd_char_setup_radius_check`, partial). See the
+  Reused record field as subtraction input (`center_x/z`): first drop the
+  named local and read the field in every delta (`check->center_z`); IRO
+  CSEs it into an FE temp, whose band the colouring needs. Then compute all
+  deltas before the norms; write each norm as one `x*x + z*z` sum
+  (`fat_bgnd_char_setup_radius_check` exact; the old `(center_z = ...)`
+  capture only reached partial). See the
   [radius-check evidence](reports/fatality-radius-first-consumer.md).
+
+- Independent stores to distinct globals in retail order, but address/zero
+  homes and the first `lfs`/`lis` order still differ: stores to different
+  objects carry no DAG edge, so source order only breaks priority ties and
+  the post-RA pass reorders them. REQUIRE no call/alias between the stores.
+  TRY hill-climbing the source order of the open-coded stores in a mini-TU
+  scratch (header + function, ~0.1 s per compile); retail order is not the
+  source order (`fade_fatality_screen`: `g_game_info.sky = 0` first,
+  retail emits background red first). Remove an invented setter helper
+  first (H07): its cursor/arg copies fix the wrong order.
 
 - A repeated traversal resets its cursor after a length call while retail
   sets it before: REQUIRE the same input pointer, call and later cursor uses.
@@ -3681,6 +4396,18 @@ Single-use local folded into its use `[da]`.
   result (`start_blood_particles_scripts` 99.43).
 - Find the web by gdb interference-graph capture (tier 4 hard stops), not by
   sweeps.
+- Reverse case, named local that must fold: IF every saved home from some point
+  on is shifted by one (ours r28/r27/r26 where retail has r27/r26/r29) and
+  why.py hints "a long-lived web missing/extra ... changes the claim order"
+  while decl-order sweeps of the later locals are neutral. REQUIRE a local
+  assigned from a reload (global/pointer chain) and consumed once as a call
+  argument, especially inside a loop or after a call. TRY passing the reload
+  expression as the argument itself (`f(plyr_pdata->plyr_info->collision_data,
+  ...)`): the named split webs claimed a saved home early; as an expression
+  temp the reload stays volatile and the later saved claims line up
+  (`generate_weapon_collision_nodes` 83 -> 12 colouring rows, 99.10 -> 99.85).
+  The same local used for two head reads is neutral either way; the read order
+  (`object->ang.y` before `attack_radius`) decides the volatile pair there.
 
 ## H29
 
@@ -3691,8 +4418,30 @@ independent `li rA,imm; li rB,imm` (same immediate) in one block and ours has
 the earlier constant's owner a real function-level named local at its FIRST
 text-order use: open-code the inline helper that owns it, or give each reset
 index a distinct block-scoped name. To get sharing instead (`li; mr`), make
-the owner an inline-helper local or a later use of the same variable. Never
-add a dummy zero local.
+the owner an inline-helper local or a later use of the same variable
+(`TextList::Move`: the whole `hit = 1; atEnd = 0; ...` boundary predicate as a
+static inline returning `unsigned char`, so `atEnd = 1` copies `hit`'s 1). Never
+add a dummy zero local. Loop body equal to a public function defined LATER in a
+non-deferred TU (call stays `bl`): an earlier static inline copy of the loop
+makes the index inline-owned (`p_player_body_explode`).
+
+- Reverse sharing: retail `li rA,0; mr rB,rA` with rB a backend
+  strength-reduced loop index, rA a running offset: REQUIRE two phases with
+  one offset meaning. TRY one accumulator for both phases (`offset = 0;` again
+  before the second loop, no second named local): the re-zero is an IRO split
+  web and the backend copies it into the index init (`fill_field_description`).
+  A separate named `property_offset` keeps `li`; zero the index second.
+
+- Retail produces a value in a short temp, then `mr rSaved,r0` into a named
+  local (`li r0,A; bne; li r0,B; ...; mr r31,r0`, or a call result
+  `mr r0,r3; ...; mr r28,r0`); ours writes the named local directly:
+  REQUIRE one producer feeding a named value live across calls. TRY a static
+  inline accessor/selector whose return type differs from the local
+  (`unsigned int` selector into `int pid`: `show_fighting_style`; `MkHdr*`
+  accessor cast to `AnimPdata*`: `active_sidekick_swap`). The conversion stops
+  IRO copy propagation, and `coalescenodes` merges a copy only when both
+  vregs are FE temporaries, so the temp->named MR survives. A same-type
+  helper propagates away; `?:` with adjacent constants goes branchless.
 
 - A one-object reset shares phase zero with an SR offset, or gives an indexed
   row store the wrong base/index ownership, while an exact sibling resets
@@ -3724,6 +4473,15 @@ add a dummy zero local.
   window only at its FIRST text-order use (later uses become IRO `@` temps).
   Hoisted zero + inline-local index both in the window and in one extended
   block -> `mr`.
+  Same numbering also orders a CTR preheader with two independent LIs: a
+  counter's FIRST text-order loop schedules its IV init before the hoisted
+  store zero (`li rIdx,0; li rZero,0`); a later loop of the same variable
+  schedules the zero first. IF only the preheader `li`/`li` pair is swapped,
+  REQUIRE both LIs in `initial`; TRY one real counter shared with an earlier
+  loop (`int index` for the signed moveset loop and the zeroing loops,
+  `destroy_background_extras`) instead of per-loop fresh names; keep
+  helper-owned loops in their helper (open-coding the collision loop with the
+  function's counter turned retail `li; mr` into `li; li`).
 - CSE never shares across a call (`bl` kills the chain). Registers made by
   strength reduction / CTR conversion usually lie above the window, but its
   upper bound is inclusive: the first new SR register can equal the old
@@ -3856,6 +4614,22 @@ add a dummy zero local.
   caller-owned typed traversal result; keep the existing-or-allocate helper's
   early return if retail has its shared-exit branch. Fully flattening that
   phase changes the CFG (`mk_chess_calc_all_attackers_in_turn`).
+- Phantom degree at the K boundary (`this` r26 vs retail r31, every saved
+  home shifted one slot; phantom_degree.py "pushed sweep 2 at degree K-1"):
+  REQUIRE 0 structural rows and the +1 what-if reproducing retail. TRY one
+  honest coalesced copy that IRO cannot propagate: a block-scoped named copy of
+  a call result assigned into a multi-definition variable
+  (`unsigned int visible = node->IsVisible(); lhs = visible;`,
+  `ScreenQuestionAction::Update` 100%). Named copies with a single consumer
+  (call arguments, compare operands) are propagated and add nothing
+  (`ScreenUserConfirmAction::Update` controls).
+- Byte flag produced masked (`rlwinm r30,r0,27,24,31`) but compared as a word
+  (`cmpwi r30,0`, ours `clrlwi. r0,r30,24`): an `unsigned char` local with a
+  second definition re-extends at every test; an `int` local assigned from a
+  uchar expression at the production keeps a conversion `mr`. TRY keeping the
+  uchar local across the call that makes it live in a saved register, then
+  `int flag = ucharLocal;` right after that call (the copy coalesces); later
+  `= 0` and tests stay on the int (`TextItem::RefreshOption` 100%).
 
 ## H30
 
@@ -3871,6 +4645,37 @@ add a dummy zero local.
   trace the actual input owner: passing a sole-use field address directly can
   give the outer inline argument its correct rank above the nested argument.
   Verify actual slot resolutions and every emitted function before linking.
+
+- GPR-only web swaps inside an inlined helper body (first expansion per side,
+  or one value at the wrong depth): REQUIRE equal operations and slot sizes.
+  GC2.7 creates inline locals breadth-first by nesting depth (all depth-1
+  before depth-2); register numbers and stack slots follow. TRY moving the
+  producer (image loader, center computation) one inline level above its
+  consumers, keeping address-taken outputs at one shared depth
+  (`mk_chess_advantage_hud`: `mk_chess_display_advantage` computes center_x,
+  then calls the width helper). Confirm a new helper against a MAP UNUSED
+  extent compiled out of line. In non-deferred units MAP UNUSED position is
+  not definition position: `-inline auto` never inlines a later definition.
+- A saved web must colour before a competing claim but needs a vreg number above
+  every named local: REQUIRE a captured-graph replay with custom scan order
+  showing the band it needs. TRY making it a level-0 inline object (local of a
+  real per-branch helper) and moving the competing owners one level deeper by
+  delegating to existing or nested helpers (`rope_controller_update`:
+  `rope_point_bone_at_parent`, `compute_bone_world_mat`). CInline_Expand is
+  breadth-first; `@` temps number after named locals. No pass-through wrappers.
+- Reverse case: an inline-helper local colours first but retail colours it
+  after IRO temps (why.py: CSE/split must be created before the inline object).
+  Inline `@` objects always number above every IRO CSE/split temp, so no decl
+  order fixes it. TRY deleting the helper local so the value becomes an IRO
+  CSE: repeat the owner expression (`MK_HDR_LIVE(player->slot.fighter->...)`
+  instead of a `FighterMirror* fighter` local). CSE creation order then sets
+  the homes (`skytemple_player_explode` via inlined
+  `init_plyr_severed_limb_list`; the standalone copy stays exact).
+- Named local must number above FE temps (why.py "make X a temp-kind web"):
+  an `if (c) p = A; else p = B;` selection is rebuilt by IRO into a conditional
+  expression; its codegen result temp carries the value and colours first
+  (`skytemple_player_explode` player r31). Default-then-override `p = B; if (c)
+  p = A;` keeps the named web.
 
 - Independent factory results reuse the wrong saved homes beside an inlined
   cache walk: REQUIRE exact native replay and a real allocation followed by
@@ -3979,6 +4784,16 @@ top-level expansion. Lift a nested call to top level for the reverse.
   returning that record, with the existing queue mutation nested
   (`pz_fighters_handle_next_pending_move`). Retrace: this can expose a second
   selector/local order constraint; keep all queue copies and event fallthroughs.
+
+- A helper's inline local needs a vreg right after the params (why.py scan:
+  "move vX after <param>") but outer named loop locals hold that band:
+  REQUIRE PS2 showing the loop as its own function. TRY the loop as an
+  explicit inline twin of that function (`bgnd_init_pebble_range(player, 0,
+  count)` = PS2 `bgnd_init_pebbles`, in `bgnd_create_pebbles_with_sobj`):
+  its locals join the inliner band and the later helper's local drops below.
+  Then clear new CSE copies: a `const` helper param, or an `int` field
+  stored from an `unsigned` param (shared `(int)count` CSE created before the
+  index product; field made `unsigned`).
 
 ## Traps
 

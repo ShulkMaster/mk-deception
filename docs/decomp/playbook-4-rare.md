@@ -55,6 +55,15 @@ check after another instruction occupies its unit or fills the queue
 supported by that distinction; an observed delay alone does not justify an
 invented dependency or address escape.
 
+Two instructions around a reused register swap and the pre-RA tie matches
+retail: REQUIRE a trace showing retail's order comes from a post-RA pass that
+our block never gets. GC2.7 reruns the scheduler after allocation only on
+blocks that allocation changed (a copy coalesced away). TRY computing the
+value into an honest named local and passing that local, so the block gains a
+copy that allocation deletes (`p_konquest_map_screen`: `cursor_x = ...;`
+before the call). Trace all blocks with `sched.py --trace SYM --block 1`;
+`--block N --phase post` prints nothing when block N has no post-RA pass.
+
 An unchanged opcode count or zero peephole-rule return is not an unchanged
 instruction: REQUIRE paired native operands and the actual store/scan path.
 The GC2.7 late MR-base arm can rewrite a load and return zero
@@ -89,12 +98,38 @@ write/read paths, frame offsets, caller reachability. Vary only incoming stack
 word in retail runtime scratch, inspect downstream result. Stack dependence !=
 reachable gameplay. Record unresolved path; initializer only with evidence.
 
+- IF ours has an extra `li 0`/`stfs`/`stw` store (or an extra `lfs`+`stfs`
+  copy) to a local slot that retail only ever loads (`lwz r0,0xC(r1)` with no
+  store from entry; a struct member read by a callee), and the rest of the
+  function is register-blind exact. REQUIRE the retail read path and that the
+  value is a local/aggregate member retail leaves unwritten on that path. TRY
+  deleting the initialiser: mirroring a retail read of a never-written local or
+  field is allowed (user ruling 2026-10-19; it is not a quality blocker). Do not
+  invent a zero store, `volatile` or an extra copy to keep the slot "defined".
+  Exemplars: `build_col_shape_vertical_box` (drop `axis_1.y = axis_2.y` before
+  the `shape->box.axis_1 = axis_1` copy; 98.43 -> 100), the `node.bone = 0`
+  store before the bone loop in `generate_weapon_collision_nodes` (the only
+  structural rows; 98.07 -> 99.10).
+
 ## N09
 
 Retail keeps explicit byte-swap sequence where compiler folds typed access to
 `lhbrx`/`stwbrx`. REQUIRE same CFG, endian result, width, dest. Stop at clean
 shift expression; no donor dead conditional or fake read to block fold
 (`SFH_AnlyMaxFrmNum`).
+Mechanism (mwcc `Peephole.c` RLWINM_RLWIMI_STW): post-RA peephole folds
+`rlwinm 8,8,15` + `rlwimi 24,0,7 / 24,16,23 / 8,24,31` -> `stw` into
+`stwbrx` through a per-block def table, right after
+`peepholemergeblocks(func,1)` joins fall-through blocks. Retail plain chain
++ `stw` = chain block still ended in a conditional branch at merge time,
+folded later by LI_CMP_BC (always-taken BF on `li; cmpi` of an own-local
+constant; IRO leaves those in compares). No swap spelling fixes it.
+Same LI_CMP_BC class = RE4 COMPILER-DIFF M4 dead arms (residue needs an
+RA-time def/use/edge or pre-RA join that leaves no code:
+`adxsjd_decexec_start`, `adxt_nlp_trap_entry`, `mwsffrm_AnalySofdecHeader`;
+RE4 `volatile` reloads in `sftim_GetTimeExtClock` are the join variant).
+Blocked until an honest construct leaves such a compare; donor-confirm by
+compiling the RE4 unit with MKD flags and deleting its dead arm.
 
 ## N10
 
@@ -102,6 +137,11 @@ Retail classifies float via IEEE word with `lwz`. REQUIRE 4-byte float/word +
 same-source donor word idiom. Test donor's narrow word view under MWCC,
 `memcpy` fallback for other compilers; plain `memcpy` under MWCC changes frame
 (`ADX_GetCoefficient`). No arbitrary alias casts or union overlays.
+Low-byte view: retail `fctiwz; stfd; lwz r0; stw r0,X(r1); lbz r0,X+3(r1)`
+with one slot X for every channel, PS2 `sw; addiu v0,sp,X; lbu 0(v0)`: one
+function-level `int value;` read as `((unsigned char*)&value)[3]`
+(`ScreenPoly::Render`). A per-call inline local gives one slot per call; an
+out-pointer inline param loses the address.
 
 ## N11
 
@@ -149,6 +189,15 @@ joint sweep of recorded neutrals before any soft ceiling.
 - `ShadowCameraUpdate`: direct canonical container macro alone byte-neutral;
   node/end/atomic declaration order alone regresses. Together they retain the
   named atomic owner and restore all three saved homes (H21).
+- A newly recovered helper can change which older controls compose. REQUIRE
+  a fresh native capture and a replay coupling every expansion of shared
+  declarations; TRY only the predicted pair, then recheck all consumers.
+  `mk_chess_end_of_turn`: after piece-cell/game-over recovery, a single
+  narrow-once deadpool initializer alone regresses, but pairing it with
+  side-before-index declarations in the shared live iterator makes both
+  expansions exact. A coarse frontend-band graph solution alone does not
+  justify crossing split/CSE/inline creation kinds. See
+  [the iterator recovery report](reports/chess-end-turn-iterator-recovery.md).
 
 ## N14
 
@@ -183,6 +232,56 @@ joint sweep of recorded neutrals before any soft ceiling.
   snapshots; an extra source copy, cast or aggregate parameter is not justified
   merely because it might create this chain. The native instruction-flag guard
   also applies; do not generalize this opcode test to every `FRSP`.
+
+- Inline-helper component stores through a pointer with the first stored
+  load unspliced in retail: IF our first `dst->x = x` takes its load directly
+  (`cg-temp` numbered after later loads) while retail keeps all three loads as
+  FE temps, REQUIRE a barrier in the retail stream between those loads and the
+  first store: an indirect store or call, a surviving branch, or a real second
+  use. GC2.7 IroPropagate splices every single-use load-initialized local or
+  inline param into the first store of a straight-line body; the other
+  components survive only because that store kills them (`generic_victory_camera`,
+  native iro_expr_probe: x spliced, y/z unavailable). `&local == 0` guards are
+  never folded (extra `addic.`/`beq`), a literal flag folds in the front end
+  (no block split), and only a propagated-constant variable or dead second use
+  blocks the splice without a trace. Those are dummy constructs: stop and
+  record the ceiling instead of adding them. The honest converse works when a
+  square/sum must stay unfused in its own volatile web: hold the first product
+  in a local that the block redefines and uses later (its later references
+  count as uses), then sum into the named owner
+  (`radial_move_to_game_position`: `next_radius = x*x; target_radius =
+  next_radius + z*z;` exact; a fresh single-use local fuses to `fmadds`).
+- Scalarized Vec holder for repeated scaled-offset pairs. IF a function adds
+  `K * v.x` / `K * v.z` into pointer components at several sites
+  (`p->x += (float)(K * v.x); p->z += (float)(K * v.z);`), the schedule already
+  agrees (separate `fmuls` + `fadds`, no fusion) and only FPR colours are off
+  block by block (why.py: the x product "consumes" its load with no flip
+  possible, the z read is a CSE temp, products "must be emitted after" the
+  later z product), REQUIRE two or more such sites. TRY one function-scope
+  `Vec offset;` holder redefined at every site: `offset.x = K * v.x; offset.z
+  = K * v.z; p->x += offset.x; p->z += offset.z;`. IRO scalarizes the holder:
+  the first non-propagated definition keeps the member object, later ranges
+  become split webs (lowest FE band), and IroPropagate folds only the member
+  whose definition is the block's last definition of that member. `(float)`
+  casts, named floats, product-first spelling, block-scoped holders and one
+  holder per source vector all measured worse (mk_chess
+  `choose_middle_control_points_for_zoom_cam_return` 98.95 -> 100,
+  `..._for_zoom_cam` 99.01 -> 99.94, `..._for_fight_cam` 97.83 -> 98.47). A
+  holder defined once in the function propagates away and is neutral
+  (`set_up_fight_cam`).
+- Surviving store-forwarded `FRSP` before a loop. IF retail rounds just-stored
+  vector outputs (`frsp fA,fP; stfs fP` per component) and feeds them to an
+  uncontracted norm (separate `fmuls` + `fadds`) right before a loop, while
+  inside the loop only the first component of that vector (and of the loop's
+  target vector) stays in a saved FPR and Y/Z reload from the stack after the
+  first store, REQUIRE the norm's only consumer to sit in the loop.
+  TRY computing the norm inside the loop's predicate from the vector pointer
+  (`gxMathFastSqrt(len_sq(step))`), not as a caller precompute or a cached
+  `step_x`: IRO LICM hoists the invariant loads and norm, the hoisted loads
+  become forwarded rounds that survive, and the branches' first-component reads
+  reuse the hoisted value. The predicate's pointer params need plain
+  `const Vec*`; top-level `const Vec* const` drops the branch reuse.
+  Exemplar `generic_victory_camera` (98.19 -> 99.60).
 
 - Missing byte masks after unique byte loads: REQUIRE the actual live producer
   and rewrite order, not just initial PCode. GC2.7 `GetKind2` can fold an inner

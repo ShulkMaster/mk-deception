@@ -46,6 +46,13 @@ across TU, REQUIRE sibling evidence + all-function and section baselines.
   master-off does not rule out that owner boundary. Require mode-alone raw
   neutrality, the retained caller successor copy and every reciprocal store;
   do not wrap a value copy or enable automatic expansion to force coloring.
+- MAP-UNUSED statics inlined at callers in a `-inline noauto` TU: noauto
+  never inlines a plain static and never emits an inlined `static inline`, so
+  retail was `auto`. REQUIRE each restored plain static compiles to its MAP
+  size under `auto` and every function is otherwise unchanged. Propose the
+  object flag (coordinator); then share real functions instead of copies
+  (io: six helpers exact under `auto,deferred`; `turn_switch_log_on` =
+  `sw_log_on = 1; init_switch_log();` closes, invented reset helper goes).
 - Repeated optimization options in canonical argv, but retail has invariant
   motion or CTR loops absent before allocation: REQUIRE the compiler's actual
   effective option state, not an assumption about which `-O` wins. TRY a
@@ -226,6 +233,14 @@ validation calls.
 
 FP operands + schedule. REQUIRE same math, grouping, rounding.
 
+- Cross-product dot operands are swapped during parsing: REQUIRE native
+  expression-cost evidence and an independent source witness for a vector
+  reused across the actual geometric phases. TRY that canonical vector's
+  cross/dot/cross lifetime (`ray_cyl_intersection`, partial), preserving the
+  rounded tree and inverse-root helper. Member reads can avoid compound-node
+  commutation without separate scalar lifetimes. Verify the retail frame,
+  operand identities and whole unit; no synthetic scratch use or declaration
+  sweep. See [the source and compiler evidence](reports/ray-cylinder-shared-vector.md).
 - Float-returning predicate compared with zero has reversed FCMPU operands:
   REQUIRE the same single call and zero/nonzero branch, and native commutation
   evidence that explicit equality moves the floating constant to the left.
@@ -254,7 +269,7 @@ FP operands + schedule. REQUIRE same math, grouping, rounding.
   rounded product before the initialized value, and native snapshots show
   shared-zero loads becoming a copy that cannot propagate across accumulator
   redefinitions. TRY `center = delta + center` instead of `center += delta`
-  (`pz_fighter_calculate_start_pos`, partial). Keep the real zero initialization,
+  (`pz_fighter_calculate_start_pos`). Keep the real zero initialization,
   separate multiply/add rounding and publications. Replacing the operation
   with a literal-zero expression can delete the required add; a copy-free
   result still needs independent allocation/scheduling verification.
@@ -322,11 +337,13 @@ FP operands + schedule. REQUIRE same math, grouping, rounding.
   (`mk_chess_activate_piece_properties`). Folded expr != decimal spelling:
   `3.0f * 0.075f` = 0x3e666667, `0.225f` = 0x3e666666.
   When that midpoint becomes a target-relative delta, REQUIRE the same real
-  component updates and preserved target snapshots. TRY retaining the mutable
-  Vec through subtraction (`mk_chess_pre_fight_cam_ended`, partial). Check all
-  shared-helper consumers; a sum and subtraction sharing one native web can
-  still require different retail homes. See the
-  [camera evidence](reports/chess-camera-midpoint-delta.md).
+  component updates and preserved target snapshots. TRY distinct absolute
+  midpoint and target-relative Vec values when retail needs separate producer
+  homes, then scale the actual delta through its approach phase before both
+  target updates (`mk_chess_pre_fight_cam_ended`). Keep separate rounded
+  products/adds and observed endpoint operand order. Check every shared-helper
+  consumer; an exact sibling may require a different operand orientation.
+  See the [camera evidence](reports/chess-pre-fight-camera-countdown.md).
 - Vec blend keeps three delta stores before scale/add: REQUIRE retail
   subtracts all components before modifying the output. TRY complete typed
   subtraction phase followed by component scale/add
@@ -448,6 +465,16 @@ width.
   Scalar-replaced members become FE objects rather than named scalar webs
   (`look_at_interaction_target`). Check the caller's inline decision and the
   whole object; do not invent an aggregate for unrelated scalars.
+- Three scalar coordinates already form one published position, but a named
+  coordinate and an unrelated split web take the wrong saved homes: REQUIRE
+  original coordinate producers/consumers, canonical `Vec` semantics and
+  native owner-kind evidence. TRY the real nonescaping `Vec position`, keeping
+  every member assignment and publication in place (`p_plyr_sidekick_charge`).
+  Scalarization can change owner numbering and saved-register availability
+  without changing interference. Verify the actual candidate graph; declaration
+  sweeps do not test a named-scalar versus scalarized-member boundary. Do not
+  pack unrelated values or add an escape, field, padding or lifetime. See the
+  [position ownership evidence](reports/sidekick-position-vector-ownership.md).
 - Inlined math results copy into mutable channel countdowns: REQUIRE real
   per-channel vector/countdown/norm semantics and native evidence that named
   owners are below the copy-coalescing boundary. TRY a nonescaping typed local
@@ -472,6 +499,20 @@ width.
   edge islands, reload boundaries and the whole object. Scalar snapshots or
   aggregate word copies are different controls. See the
   [vector ownership evidence](reports/sphere-quad-vector-scalarization.md).
+- Vector copy/capture FPR colouring differs only by which numbering band the
+  component loads occupy: REQUIRE why.py REQUIRED orders that cross kinds
+  (`inl-result` above a copy's temps, or cg-temps that must sit below FE
+  temps) with equal instructions. TRY choosing the band by the helper's local
+  kind, one site at a time (`generic_victory_camera` 58 -> 27 rows): three
+  `float` locals in a `static inline` copy helper number x<y<z (inliner
+  band); a nonescaping `Vec` local in the helper numbers x>y>z and sits below
+  inline results (scalarizer band); direct `dst->x = src->x` pointer copies
+  are codegen temps emitted at the store. Pass the squared-length sum as the
+  `gxMathFastSqrt`/`gxMathFastInvSqrt` argument instead of a named local when
+  the sqrt result must number above that sum (CSE band); verify the public
+  sibling that shares the inline stays exact. Reorder declarations only
+  within one helper; do not add escapes, by-value `Vec` params (word copies)
+  or struct assignment.
 - Localized-array base before index getter, then advance.
 - Four clipping-bound copies vanish after a tile-corner producer: REQUIRE
   retail corner stores, a complete producer boundary, and native evidence
@@ -672,6 +713,29 @@ are proven. Shared headers only for proven ownership; unused O0 param takes
   hypothesis but does not prove original instructions or a prototype. Preserve
   target-specific math and policy; removing a caller layer can change every
   address-taken output slot even when the initializer itself folds identically.
+  A calibrated boundary can also be code-neutral: `get_interaction_angle`
+  reproduces the original 0xe0 extent but adds no coalesced result owner in
+  `p_interaction_cam`. Record that native distinction before proposing combined
+  phases ([evidence](reports/camera-original-angle-helper.md)).
+- Calibrate by appending candidate bodies as plain `static` functions to a
+  scratch copy of the TU and reading their sizes with `llvm-nm -S` on the
+  scratch object (sc.py compiles it); several bodies can be measured in one
+  compile. The PS2 counterpart (`ps2.py`, or `llvm-objdump --triple=mipsel`
+  on the ELF when Ghidra is down) shows the inline nesting the MIPS build
+  did not flatten: `convert_cdf_quad_to_collision_box` calls
+  `get_center_for_box(Vec*, CollisionBox*)` (0x90 exact: one half_height
+  local, three direct per-component expressions) out of line while the radius
+  loop sits in the caller; `calculate_radius_for_vertical_box(CollisionShape*)`
+  with the `(int)type == 3` check inside is 0x12C exact only with a `Vec
+  center` from that helper (`CollisionBox*` form 0x120). Landing the
+  shape-typed wrapper fixed the box-pointer owner (98.69 -> 98.79) but every
+  `Vec` center form shifts the preheader schedule, so the open-coded two-float
+  center was retained; equal extents fix the boundary, not the body.
+  Distinguish neighboring helpers before using their extents: collision's
+  0x184 node transform and 0x1f4 global-owning body initializer have different
+  consumers. A calibrated boundary in an already-exact consumer does not reopen
+  unrelated partial consumers
+  ([evidence](reports/collision-original-helper-contracts.md)).
 - Repeated block: one `static inline` at each repeated site
   (`game_count_active_players`); leave already-exact spelled-out sites.
 - Balance-array base must select before a scaled-index CSE: REQUIRE native
@@ -791,6 +855,21 @@ builds `va_list` inline where SDK macro emits helper call: scope
 String/constant identity, placement, extent. REQUIRE ELF sizes, bytes, reloc
 addends, use. Use `-c functionRelocDiffs=data_value`.
 
+- An exact instruction recovery permutes a shared float pool: REQUIRE raw
+  baseline/candidate payloads and every consumer relocation, distinguishing
+  a pre-existing retail size difference from a new change. TRY restoring the
+  original phase of independent existing calculations while retaining the
+  recovered operation owners (`pz_fighter_calculate_start_pos`: early post
+  scales preserve the pool after global-center recovery). Never add a dummy
+  use or storage. See the [pool-preserving recovery](reports/puzzle-start-position-pool-preservation.md).
+- `.sdata2` first-use order differs and the MAP lists UNUSED helpers just
+  before the consumer: REQUIRE MAP sizes/positions and a non-deferred unit
+  with `-inline auto`. TRY restoring them as plain `static` (not `inline`)
+  functions in MAP order, called by the consumer. Bodies of <=15 statements
+  are auto-inlined and still emitted out of line (the linker strips them),
+  so their literals pool first (`lensflare_proc2`: seven fx helpers;
+  `clear_p1/p2_fstyle_sign` fix 5.0f/-1.0f). Every emitted size must equal
+  the MAP; then vlink. Studio rates the extra unscored bodies "mixed".
 - An unused reconstructed helper inserts a constant before retail's first use:
   REQUIRE no source calls or address-taking references and no original
   ELF/MAP owner supporting that helper. TRY removing the unused definition
@@ -806,6 +885,14 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   declaration where needed (`p_scripted_camera`: orbit/chase initializers).
   Prove the complete pool is a byte-preserving permutation and other data
   unchanged; never insert prefix storage or a dummy producer.
+- Reusing a real public helper removes a duplicate initializer: REQUIRE both
+  retail consumers' relocations resolve the same object and linked bytes.
+  TRY the evidenced call; compare every function, data payload and relocation
+  after accounting for the one merge. A lost anonymous pairing or lower pool
+  score alone does not prove deleted runtime data; trace the purportedly lost
+  object's actual consumers. Keep section-base displacements and approval
+  gates explicit; never restore dummy storage (`mk_chess_blend_into_cell_orgin_in_x_frames_by_caller`;
+  [shared-literal review](reports/chess-blend-original-duration-contract.md)).
 - Pooled literals for anonymous pools, named objects for real symbols,
   natural string bounds. Equal pool sizes != right strings (Krypt swapped
   coffin/dirt names). Reloc may name first aggregate as section-wide base;
@@ -898,6 +985,14 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   exact reverse decl order, late per-function float labels (`@4226` vs reused
   `@305`), named string stand-in where retail has `@stringBase0` (add `-str
   reuse,pool,readonly`, real literals).
+  Tau misses units whose lowest record belongs to an early helper or a shared
+  `.rodata` base (`bgnd_jtb` tau -0.33). Second test: every parse-time number
+  (`.rodata`/`.data`/`.bss` `@N`, `name$N`) below every `.sdata2` float = all
+  parsed before any codegen = deferred (`bgnd_jtb` @443..$880 < @1026; `krypt`
+  @438..$1690 < @2202). Then named file-scope `static const Vec` stand-ins are
+  inventions: retail anonymous `@N` = function-local `Vec v = {..}` created in
+  reverse-source order (`p_npc_on_pendulum_rope` research 97.42->98.42,
+  .rodata kept). Flag change = coordinator; land only on whole-unit gain.
 - Recovered ordinary helpers under deferred emission: REQUIRE retail inline
   expansions, donor body + MAP evidence, and every function/data comparison.
   TRY reversed helper definitions with paired `auto,deferred`
@@ -1120,6 +1215,15 @@ null guard.
 - Vtables emitted at TU end in reverse creation order. Key function creates
   vtable at its compile; none -> weak vtable at first codegen ref (derived
   ctor inlining base ctor, not derived dtor).
+- Template string pool (`@stringBase0`) order wrong in `.rodata`, so `addi`
+  string offsets differ in several template bodies: REQUIRE MAP order shows
+  the first string user emitted in the late template group, ours emits it
+  right after its first caller. In-class member of a class template = emitted
+  after first user; out-of-class template member = deferred instantiation.
+  TRY moving only the MAP-late member out of class (`reserve_priority_queue`
+  ctor restores the `mwFileServer` pool; 3 exact helpers change order only).
+  Judge function order (LCS vs retail), not just fuzzy; moving
+  `priority_queue`'s ctor too made order worse.
 - Outlining an in-class template destructor can restore retail calls while
   changing key-function and weak-vtable emission (`gcnHostFileHandle`). REQUIRE
   every consumer checked and the mixed layout change reviewed. Compare each

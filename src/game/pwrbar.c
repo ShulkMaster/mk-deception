@@ -713,7 +713,7 @@ static float p_extend_powerbars(void) {
             struct PbarExtendPdata* extend = (struct PbarExtendPdata*)pdata;
 
             extend->active = 0;
-            shake_camera(3, &extend->hdr, 0.01f);
+            shake_camera(3, 0.01f);
             snd_req(0xD9C);
             bar_speed = 0.01f;
             return -1.0f;

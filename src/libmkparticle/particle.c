@@ -248,11 +248,9 @@ void update_live_particles(PfxVm* pfx) {
     pfx->transforms[index].live = live;
 }
 
-/* TODO: [breakthrough needed] 98.01418%; cursor ID scan lacks retail LWZX;
- * typed/const indexing eagerly forms the record address; original producer missing. */
 void* pfx_get_field(PfxVm* pfx, int index, int field) {
     PfxRuntimeBuffer* buffer;
-    PfxFieldDescription* description;
+    PfxFieldDescription* descriptions;
     int i;
 
     switch (field) {
@@ -316,16 +314,16 @@ void* pfx_get_field(PfxVm* pfx, int index, int field) {
     default:
         return 0;
     }
-    description = pfx->typed_field_descriptions;
-    for (i = 0; i < pfx->field_count; i++, description++) {
-        if (field == description->description) {
+    descriptions = pfx->typed_field_descriptions;
+    for (i = 0; i < pfx->field_count; i++) {
+        if (field == descriptions[i].description) {
             unsigned char* data;
 
-            data = ((PfxFieldBuffer*)buffer)[description->stream].data;
+            data = ((PfxFieldBuffer*)buffer)[descriptions[i].stream].data;
             if (data != 0) {
-                data += description->offset;
+                data += descriptions[i].offset;
             }
-            if (description->stream == 2) {
+            if (descriptions[i].stream == 2) {
                 return 0;
             }
             return data;

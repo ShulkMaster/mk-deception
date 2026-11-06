@@ -285,7 +285,7 @@ struct mslLoadedBank {
 };
 
 typedef void (*mslAsyncSoundCallback)(
-    bool loaded, mslBankSoundEntry* bank_sound, _ListNode* node);
+    bool loaded, mslBankSoundEntry* bank_sound, void* data);
 
 #ifdef __cplusplus
 extern "C" {
@@ -295,11 +295,11 @@ int mslBankSoundUnUse(mslBankSoundEntry* bank_sound);
 _ListNode* mslBankSoundUse(
     mslBankSoundEntry* bank_sound, _mslSystem* system);
 void callbackPlay(
-    bool loaded, mslBankSoundEntry* bank_sound, _ListNode* node);
+    bool loaded, mslBankSoundEntry* bank_sound, void* data);
 void asyncLoadSound(
     _mslSystem* system, mslLoadedBank* bank,
     mslBankSoundEntry* bank_sound, mslAsyncSoundCallback callback,
-    _ListNode* node);
+    void* data);
 void* mslBankUnLoad(mslLoadedBank* bank);
 void* mslBankUpdatePtrs(mslLoadedBank* bank);
 int mslBankUse(_mslSystem* system, mslLoadedBank* bank);

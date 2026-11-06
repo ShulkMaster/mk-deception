@@ -51,7 +51,7 @@ typedef struct FontTableEntry {
     char* name;
     int tga_arg;
     int binary_id;
-    char* path;
+    int handle;
     PfxFontSlot slot;
 } FontTableEntry;
 

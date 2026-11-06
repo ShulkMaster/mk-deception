@@ -277,8 +277,8 @@ void ScreenObject::SetParent(ScreenObject* parent) {
     m_parent = parent;
 }
 
-/* TODO: [near miss] 99.35780%; opcode splits precede event/stack owners;
- * recover the original FE owner without changing saved snapshots. */
+/* TODO: [near miss] 99.35780%; 14 colouring rows: event must number below stack and above
+ * both actionType split webs; next: a web-kind change that adds no saved register. */
 void ScreenObject::ProcessSubActions(ScreenMgr* mgr, const ScreenAction* action,
                                      int match) {
     ScreenEvent* event;
@@ -345,8 +345,8 @@ void ScreenObject::ProcessSubActions(const ScreenAction* action, int match) {
     ProcessSubActions(mgr, action, match);
 }
 
-/* TODO: [near miss] 99.66667%; stack/arg homes swap; guarded stack assignment
- * extends mgr lifetime and regresses; original owner boundary remains missing. */
+/* TODO: [near miss] 99.66667%; named stack must number above the loop-invariant arg
+ * copy (FE temp); TU is -inline off, so no inline owner can lift stack. */
 void ScreenObject::ProcessEvent(ScreenMgr* mgr, int eventId, int arg) {
     unsigned int numEvents;
     unsigned int numActions;

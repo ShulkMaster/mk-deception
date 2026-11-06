@@ -4,6 +4,7 @@
 struct _mslBank;
 struct _GameCubeFileEntry;
 struct _AXVPB;
+struct SPSoundEntry;
 class MSLGCN_ARamBlock;
 class SoundBuffer_Playable;
 
@@ -52,6 +53,8 @@ public:
     virtual void FreeObject(void);
     virtual void FreeResources(void);
     virtual int GetNumChannels(void);
+    SPSoundEntry* GetSoundEntryLeft(void);
+    SPSoundEntry* GetSoundEntryRight(void);
 };
 
 class SoundBuffer_Playable : public SoundBuffer_Data {
@@ -80,6 +83,8 @@ public:
     static void AcquireVoiceCallback(void* voice);
     int iPlay(unsigned long flags, unsigned long acquire_priority,
               unsigned long active_priority);
+    void InitializeVoice(_AXVPB* voice, SPSoundEntry* sound,
+                         int stream_loop, int use_loop_address);
 
     SoundBuffer_Playable* next;     /* +0x14 */
     SoundBuffer_Playable* previous; /* +0x18 */

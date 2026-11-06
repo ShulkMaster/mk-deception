@@ -8,6 +8,7 @@ extern int mwFileStringCompareIgnoreCase(const char* left, const char* right);
 
 template <class T>
 struct pointer_less {
+    pointer_less() {}
     bool operator()(const T* a, const T* b) const
     {
         return mwFileStringCompareIgnoreCase(a->name, b->name) < 0;

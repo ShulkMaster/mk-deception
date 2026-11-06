@@ -450,7 +450,6 @@ void start_sweat_particles(
 void gut_bleed_me(int size);
 void face_bleed_me(int size);
 void plyr_bleed_mouth(PlyrPdata* player);
-void add_facial_damage(float amount);
 
 int get_player_number(MkObj* player);
 MkProc* get_player_proc(MkObj* player);
@@ -1060,7 +1059,7 @@ float go_into_major_pain(void) {
     switch (plyr_pdata->death_type) {
     case 4:
         if ((unsigned short)randu0(100) < 75 ||
-            g_game_info.feature_flags.bits.high_bit) {
+            g_game_info.feature_flags.bits.online_game) {
             init_ground_move_no_aniproc();
             plyr_anim_pdata->step = 0.6f;
             plyr_anim_pdata->transition_weight = 0.5f;
@@ -1194,7 +1193,7 @@ float getup_from_ground(void) {
         init_ground_move_no_aniproc();
         plyr_anim_pdata->step = 0.6f;
         if ((unsigned short)randu0(100) < 50 ||
-            g_game_info.feature_flags.bits.high_bit) {
+            g_game_info.feature_flags.bits.online_game) {
             plyr_anim_pdata->transition_weight = 0.5f;
             transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.field_33C, 3);
             AI_SLEEP(1.0f);

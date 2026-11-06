@@ -86,7 +86,7 @@ struct KonquestCharacterBits {
 };
 
 typedef struct KonquestTileRecord KonquestTileRecord;
-typedef struct KonquestLightRow KonquestLightRow;
+typedef struct KonquestColorRow KonquestColorRow;
 
 struct KonquestObjectState {
     int sound;
@@ -132,10 +132,10 @@ struct KonquestRegionTable {
     float far_clip_distance;
     float fog_distance;
     float fog_density;
-    KonquestLightRow* directional_light_table;
-    KonquestLightRow* ambient_light_table;
-    KonquestLightRow* sky_ambient_light_table;
-    void* sky_table;
+    KonquestColorRow* directional_light_table;
+    KonquestColorRow* ambient_light_table;
+    KonquestColorRow* sky_ambient_light_table;
+    KonquestColorRow* sky_table;
     char pad58[8];
     int ambient_sound_a;
     int ambient_sound_b;
@@ -149,22 +149,10 @@ struct KonquestRegionTable {
     void* pui_event_table;
 };
 
-struct KonquestSkyRow {
+struct KonquestColorRow {
     int hour;
     float alpha;
     RwRGBAReal color;
-};
-
-struct KonquestLightRow {
-    int hour;
-    int field_04;
-    RwRGBAReal color;
-};
-
-struct KonquestDirectionalLightRow {
-    int hour;
-    float strength;
-    char pad08[0x10];
 };
 
 struct KonquestTransitionPdata {
@@ -1434,7 +1422,9 @@ static void load_art_for_inventory_award(struct KonquestAwardArtPdata* pdata);
 int get_konquest_game_mode(void);
 int interaction_cam_glitched(void);
 static int adjust_sky_for_new_time_of_day(
-    struct KonquestSkyRow* sky_table, int last_row);
+    KonquestColorRow* sky_table, int last_row);
+static inline float get_previous_color_table_time_interval(
+    KonquestColorRow* table, int previous_index);
 static void correct_camera_angle(MkObj* hero, int snap);
 static union KonquestNpc* konquest_check_possible_interact_with_npc(
     float* distance, float* facing_angle);
@@ -1553,7 +1543,7 @@ int nav_what_area_is_point_in(const Vec* position, int previous_area);
 int is_point_inside_shadow_exclusion_zone(
     const Vec* position, float radius);
 static int adjust_light_for_new_time_of_day(
-    RpLight* light, KonquestLightRow* light_table, int last_row);
+    RpLight* light, KonquestColorRow* light_table, int last_row);
 static float p_control_konquest_monk(void);
 static float p_monk_unconscious(void);
 static float p_monk_getup(void);
@@ -2069,31 +2059,6 @@ static inline struct KonquestPuiRuntime* find_pui_runtime_by_numeric_id(
 }
 void pui_set_color( unsigned int id, unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha);
 
-static inline MkObj* konquest_pui_runtime_live_render_object(KonquestPuiRuntime* owner) {
-    MkObj* object = owner->render_object;
-    if (object != 0) {
-        if (object->hdr.instance == owner->render_object_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
-
-static inline struct KonquestChestOwner* konquest_pui_runtime_live_owner(KonquestPuiRuntime* owner) {
-    struct KonquestChestOwner* object = owner->owner;
-    if (object != 0) {
-        if (object->hdr.instance == owner->owner_instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
-}
 void pui_set_kill_time( KonquestPuiDefinition* item, int unit, int amount);
 void pui_delay_spawn(KonquestPuiDefinition* item, float delay);
 
@@ -2466,17 +2431,6 @@ static inline void calc_closest_point_on_line(
     out->z = projection * (end->z - start->z) + start->z;
 }
 
-static inline float door_path_distance_squared(
-    MkObj* hero, KonquestWaypoint* path, Vec* delta) {
-    Vec closest;
-    calc_closest_point_on_line(&closest, &hero->pos.value,
-        &path[0].position, &path[1].position);
-    delta->x = hero->pos.value.x - closest.x;
-    delta->y = hero->pos.value.y - closest.y;
-    delta->z = hero->pos.value.z - closest.z;
-    return delta->z * delta->z +
-           (delta->x * delta->x + delta->y * delta->y);
-}
 void turn_to_face_exterior_door(void);
 static inline KonquestChildObject* find_trigger_door(
     struct KonquestTriggerObject* object, int enumeration) {
@@ -2596,8 +2550,8 @@ static inline int konquest_sphere_visible(const RwSphere* sphere) {
     return RwCameraFrustumTestSphere(Camera, sphere) == 0 ? 0 : 1;
 }
 
-static inline void play_pui_effect_now(
-    KonquestPuiRuntime* pui, unsigned int handle) {
+static inline void pui_fire_pfx(
+    KonquestPuiRuntime* pui, int unused_mode, unsigned int handle) {
     struct KonquestChestOwner* owner;
     MkObj* object;
     MkSobj* child;
@@ -2607,7 +2561,7 @@ static inline void play_pui_effect_now(
     MkObj* emitter_object;
 
     object = MK_HDR_LIVE(pui->render_object, pui->render_object_instance);
-    owner = konquest_pui_runtime_live_owner(pui);
+    owner = MK_HDR_LIVE(pui->owner, pui->owner_instance);
     if (object != 0 && owner != 0) {
         float radius = owner->interaction->radius;
         sphere.center.x = object->pos.value.x;
@@ -2635,16 +2589,17 @@ static inline void play_pui_effect_now(
     }
 }
 
-static inline void play_pui_effect_sequence_now(
-    KonquestPuiRuntime* pui, KonquestPuiPfxSequenceRow* sequence) {
+static inline void pui_fire_pfx_sequence(
+    KonquestPuiRuntime* pui, int unused_mode,
+    KonquestPuiPfxSequenceRow* sequence) {
     struct KonquestChestOwner* owner;
     MkObj* object;
     MkSobj* child;
     struct KonquestPuiPfxSequencePdata* pdata;
     RwSphere sphere;
 
-    object = konquest_pui_runtime_live_render_object(pui);
-    owner = konquest_pui_runtime_live_owner(pui);
+    object = MK_HDR_LIVE(pui->render_object, pui->render_object_instance);
+    owner = MK_HDR_LIVE(pui->owner, pui->owner_instance);
     if (object != 0 && owner != 0) {
         float radius = owner->interaction->radius;
         sphere.center.x = object->pos.value.x;
@@ -3576,6 +3531,19 @@ int get_konquest_pui_inventory_bit_index(const KonquestPuiRuntime* pui) {
         return pui->inventory_index;
     }
     return -1;
+}
+
+static inline int pui_exists_in_world(KonquestPuiDefinition* item) {
+    int inventory_index;
+
+    inventory_index = find_pui_inventory_index(item);
+    if (inventory_index >= 0) {
+        return get_u8_bit(
+            konquest_pdata->pui_inventory_bits,
+            (konquest_pdata->pui_end - konquest_pdata->pui_begin) - 1,
+            inventory_index);
+    }
+    return 0;
 }
 
 void pui_update(void) {
@@ -5647,8 +5615,8 @@ static inline void get_door_position(KonquestChildObject* door, Vec* position) {
     }
 }
 
-/* TODO: [breakthrough needed] 98.19768%; angle guard loses its branch before
- * allocation; need live guard-copy provenance, then partner/saved ownership. */
+/* TODO: [breakthrough needed] 98.19768%; angle-null branch and partner/saved-owner mismatch remain;
+ * recover original guard/result ownership. */
 static void generate_door_paths(void) {
     int waypoint_index;
     int generated_count;
@@ -6195,8 +6163,6 @@ static float p_pui_pfx_sequence(void) {
     return 1.0f;
 }
 
-/* TODO: [near miss] 98.84956%; validation aliases keep PUI at the simplify
- * threshold; recover lower alias pressure while preserving both success branches. */
 static void handle_trigger_preprocess(struct KonquestTriggerStruct* trigger) {
     struct KonquestTriggerDefinition* definition;
     KonquestPuiRuntime* pui;
@@ -6214,7 +6180,7 @@ static void handle_trigger_preprocess(struct KonquestTriggerStruct* trigger) {
             return;
         }
 
-        object = konquest_pui_runtime_live_render_object(pui);
+        object = MK_HDR_LIVE(pui->render_object, pui->render_object_instance);
 
         attachment = obj_find_sobj_by_id(object, 1);
         child = obj_find_sobj_by_id(object, 2);
@@ -6263,9 +6229,9 @@ static void handle_trigger_preprocess(struct KonquestTriggerStruct* trigger) {
             sphere.radius = radius;
             if (konquest_sphere_visible(&sphere)) {
                 if (pui->flag_bits.bit4) {
-                    play_pui_effect_now(pui, pui->attached_effect);
+                    pui_fire_pfx(pui, 0, pui->attached_effect);
                 } else {
-                    play_pui_effect_sequence_now(pui, pui->effect_sequence);
+                    pui_fire_pfx_sequence(pui, 0, pui->effect_sequence);
                 }
             }
         }
@@ -6489,8 +6455,8 @@ static inline void update_child_object_matrix(
     }
 }
 
-/* TODO: [near miss] 99.01395%; retail operations and size agree;
- * scalarized norm/timer FPR ordering remains; stop at coloring. */
+/* TODO: [near miss] 99.01395%; one FPR sweep decision: +1 phantom degree on position remaining_ticks
+ * reproduces retail; find the float copy/inline boundary live across it. */
 static void object_transition_to_state(
     KonquestChildObject* record, int state, int play_sound) {
     struct KonquestObjectState* state_data;
@@ -6737,9 +6703,10 @@ void konquest_open_door(int enumeration, int remain_open) {
     }
 }
 
-/* TODO: [near miss] 98.01266%; projection load-order ties overlap retail FPR lifetimes;
- * recover load-emission/CSE ownership before further allocation changes. */
+/* TODO: [near miss] 98.36709%; inlined calc_closest_point_on_line projection loads/FPRs
+ * differ (MAP-size body 0xf8 kept); recover projection load/CSE ownership. */
 void turn_to_face_exterior_door(void) {
+    Vec closest;
     float point_delta_x;
     KonquestChildObject* door;
     KonquestWaypoint* path;
@@ -6793,8 +6760,14 @@ void turn_to_face_exterior_door(void) {
         turn_direction = 0;
     }
 
-    if ((distance_squared = door_path_distance_squared(hero, path, &delta)) >
-        0.8f) {
+    calc_closest_point_on_line(&closest, &hero->pos.value,
+        &path[0].position, &path[1].position);
+    delta.x = hero->pos.value.x - closest.x;
+    delta.y = hero->pos.value.y - closest.y;
+    delta.z = hero->pos.value.z - closest.z;
+    distance_squared = delta.z * delta.z +
+                       (delta.x * delta.x + delta.y * delta.y);
+    if (distance_squared > 0.8f) {
         if (turn_direction != 0) {
             transition_to_anim_script_frame(
                 konquest_pdata->hero_anim,
@@ -6810,7 +6783,13 @@ void turn_to_face_exterior_door(void) {
         int turning;
 
         turning = 0;
-        next_distance_squared = door_path_distance_squared(hero, path, &delta);
+        calc_closest_point_on_line(&closest, &hero->pos.value,
+            &path[0].position, &path[1].position);
+        delta.x = hero->pos.value.x - closest.x;
+        delta.y = hero->pos.value.y - closest.y;
+        delta.z = hero->pos.value.z - closest.z;
+        next_distance_squared = delta.z * delta.z +
+                                (delta.x * delta.x + delta.y * delta.y);
         previous_distance_squared = distance_squared;
         distance_squared = next_distance_squared;
         delta.x = path[2].position.x - hero->pos.value.x;
@@ -8099,8 +8078,8 @@ static inline void run_monk_move_frames(int initial_state)
     }
 }
 
-/* TODO: [breakthrough needed] 97.49020%; sole outside IRO jump hoists table setup;
- * guarded-do/for controls fail; original multi-entry or table-producer evidence is missing. */
+/* TODO: [breakthrough needed] 97.49020%; early table preheader persists;
+ * original entry edges or table producer remain unresolved after event-boundary recovery. */
 static float p_monk_move(void) {
     MkObj* hero;
     int initial_state;
@@ -8743,23 +8722,51 @@ void set_default_konquest_light_values(void) {
 }
 #pragma auto_inline reset
 
-/* TODO: [near miss] 98.43458%; named/CSE index and interpolation homes differ;
- * frontend lacks retail dead tail; recover original control structure. */
+static inline void adjust_shadow_for_new_time_of_day(
+    KonquestColorRow* light_table, int current_index) {
+    int last_row;
+    int previous_index;
+    int hour_span;
+    float interval;
+    float strength_step;
+
+    last_row = get_row_count_for_table_by_pointer(
+                   konquest_pdata->script_owner, light_table) - 1;
+    previous_index = current_index - 1;
+    if (previous_index < 0) {
+        previous_index = last_row;
+        hour_span = (24 - light_table[previous_index].hour) +
+                    light_table[current_index].hour;
+    } else {
+        hour_span = light_table[current_index].hour -
+                    light_table[previous_index].hour;
+    }
+    interval = (float)hour_span;
+    interval *= ticks_per_hour;
+    strength_step =
+        (light_table[current_index].alpha -
+         light_table[previous_index].alpha) / interval;
+    konquest_pdata->directional_light_strength =
+        konquest_pdata->sky_color_multiplier *
+        (strength_step *
+             get_previous_color_table_time_interval(light_table, previous_index) +
+         light_table[previous_index].alpha);
+    ShadowStrength = konquest_pdata->base_shadow_strength *
+                     konquest_pdata->directional_light_strength;
+    npc_shadow_set_alpha(
+        (255.0f * konquest_pdata->directional_light_strength));
+}
+
+/* TODO: [near miss] 99.06542%; only retail dead `b` to the loop preheader after the final
+ * return remains (H09: IRO header needs two outside predecessors); find original entry CFG. */
 float p_adjust_directional_light(void) {
-    struct KonquestDirectionalLightRow* light_table;
+    KonquestColorRow* light_table;
     struct KonquestLightAdjustPdata* pdata;
     MkObj* object;
     int last_row;
-    int wrap_row;
-    int previous_index;
     int current_index;
-    int hour_span;
-    float strength_step;
-    float interval_ticks;
-    float elapsed_hours;
 
-    light_table = (struct KonquestDirectionalLightRow*)
-        konquest_pdata->region_table->directional_light_table;
+    light_table = konquest_pdata->region_table->directional_light_table;
     last_row = get_row_count_for_table_by_pointer(
                    konquest_pdata->script_owner, light_table) - 1;
     pdata = (struct KonquestLightAdjustPdata*)pdata_of_proc(aproc);
@@ -8775,38 +8782,8 @@ float p_adjust_directional_light(void) {
     while (pdata != 0 && object != 0) {
         Vec angles;
         current_index = adjust_light_for_new_time_of_day(
-            pdata->light, (KonquestLightRow*)light_table, last_row);
-        wrap_row = get_row_count_for_table_by_pointer(
-                       konquest_pdata->script_owner, light_table) - 1;
-        previous_index = current_index - 1;
-        if (previous_index < 0) {
-            previous_index = wrap_row;
-            hour_span = (24 - light_table[previous_index].hour) +
-                        light_table[current_index].hour;
-        } else {
-            hour_span = light_table[current_index].hour -
-                        light_table[previous_index].hour;
-        }
-        interval_ticks = (float)hour_span * ticks_per_hour;
-        strength_step =
-            (light_table[current_index].strength -
-             light_table[previous_index].strength) / interval_ticks;
-        if (konquest_pdata->time_of_day <
-            (float)light_table[previous_index].hour) {
-            elapsed_hours = konquest_pdata->time_of_day +
-                (float)(24 - light_table[previous_index].hour);
-        } else {
-            elapsed_hours = konquest_pdata->time_of_day -
-                (float)light_table[previous_index].hour;
-        }
-        konquest_pdata->directional_light_strength =
-            konquest_pdata->sky_color_multiplier *
-            (strength_step * (elapsed_hours * ticks_per_hour) +
-             light_table[previous_index].strength);
-        ShadowStrength = konquest_pdata->base_shadow_strength *
-                         konquest_pdata->directional_light_strength;
-        npc_shadow_set_alpha(
-            (255.0f * konquest_pdata->directional_light_strength));
+            pdata->light, light_table, last_row);
+        adjust_shadow_for_new_time_of_day(light_table, current_index);
 
         object->ang.y =
             3.1415927f * (2.0f * (-konquest_pdata->time_of_day / 24.0f));
@@ -8945,7 +8922,7 @@ static void update_sun_moon_position(float angle) {
 }
 
 float p_adjust_ambient_light(void) {
-    KonquestLightRow* light_table;
+    KonquestColorRow* light_table;
     int last_row;
     struct KonquestLightAdjustPdata* pdata;
 
@@ -8967,7 +8944,7 @@ float p_adjust_ambient_light(void) {
 }
 
 float p_adjust_sky_ambient_light(void) {
-    KonquestLightRow* light_table;
+    KonquestColorRow* light_table;
     int last_row;
     struct KonquestLightAdjustPdata* pdata;
 
@@ -8988,7 +8965,6 @@ float p_adjust_sky_ambient_light(void) {
     return -1.0f;
 }
 
-#pragma opt_loop_invariants off
 static inline void set_sobj_alpha(MkObj* parent, unsigned int object_id,
                                   unsigned int material_id, float alpha) {
     MkSobj* object;
@@ -9008,11 +8984,10 @@ static inline void set_sobj_alpha(MkObj* parent, unsigned int object_id,
 }
 
 static inline void adjust_star_dome_for_new_time_of_day(
-    struct KonquestSkyRow* sky_table, int last_row, int current_index) {
+    KonquestColorRow* sky_table, unsigned int last_row, int current_index) {
     int previous_index;
     int hour_span;
-    float current_hour;
-    float elapsed_hours;
+    float interval;
     float alpha_step;
     float alpha;
 
@@ -9026,29 +9001,20 @@ static inline void adjust_star_dome_for_new_time_of_day(
                     sky_table[previous_index].hour;
     }
 
+    interval = (float)hour_span;
+    interval *= ticks_per_hour;
     alpha_step =
         (sky_table[current_index].alpha -
-         sky_table[previous_index].alpha) /
-        ((float)hour_span * ticks_per_hour);
-    current_hour = konquest_pdata->time_of_day;
-    if (current_hour < (float)sky_table[previous_index].hour) {
-        elapsed_hours =
-            current_hour +
-            (float)(24 - sky_table[previous_index].hour);
-    } else {
-        elapsed_hours =
-            current_hour - (float)sky_table[previous_index].hour;
-    }
-    alpha = alpha_step * (elapsed_hours * ticks_per_hour) +
+         sky_table[previous_index].alpha) / interval;
+    alpha = alpha_step *
+                get_previous_color_table_time_interval(sky_table, previous_index) +
             sky_table[previous_index].alpha;
 
     set_sobj_alpha(g_game_info.sky, 10, 1, alpha);
 }
 
-/* TODO: [near miss] 95.43651%; table/last-row and alpha owners differ;
- * no independent zero to reorder; original constant/owner lifetimes needed. */
 static float p_adjust_sky(void) {
-    struct KonquestSkyRow* sky_table;
+    KonquestColorRow* sky_table;
     int last_row;
     int current_index;
 
@@ -9065,14 +9031,13 @@ static float p_adjust_sky(void) {
     }
     return -1.0f;
 }
-#pragma opt_loop_invariants reset
 
-static inline int konquest_find_sky_row(
-    struct KonquestSkyRow* sky_table, int last_row, float current_hour) {
+static inline int get_current_color_table_index(
+    KonquestColorRow* table, int last_row) {
     int current_index;
 
     current_index = 0;
-    while ((float)sky_table[current_index].hour < current_hour) {
+    while ((float)table[current_index].hour < konquest_pdata->time_of_day) {
         current_index++;
         if (current_index > last_row) {
             return 0;
@@ -9081,26 +9046,79 @@ static inline int konquest_find_sky_row(
     return current_index;
 }
 
-/* TODO: [near miss] 99.32796%; GPR row/hour and FPR rate ownership differ;
- * final-channel staging is neutral; original snapshot ownership still needed. */
+static inline float get_previous_color_table_time_interval(
+    KonquestColorRow* table, int previous_index) {
+    float current_hour;
+    float elapsed_hours;
+
+    current_hour = konquest_pdata->time_of_day;
+    if (current_hour < (float)table[previous_index].hour) {
+        elapsed_hours = current_hour + (float)(24 - table[previous_index].hour);
+    } else {
+        elapsed_hours = current_hour - (float)table[previous_index].hour;
+    }
+    return elapsed_hours * ticks_per_hour;
+}
+
+static inline void get_new_color_delta(
+    RwRGBAReal* delta, KonquestColorRow* table, int next_index,
+    int previous_index, float interval) {
+    RwRGBAReal* next_color;
+    RwRGBAReal* previous_color;
+    float ticks;
+
+    ticks = interval * ticks_per_hour;
+    next_color = &table[next_index].color;
+    previous_color = &table[previous_index].color;
+    delta->red = (next_color->red - previous_color->red) / ticks;
+    delta->green = (next_color->green - previous_color->green) / ticks;
+    delta->blue = (next_color->blue - previous_color->blue) / ticks;
+    delta->alpha = (next_color->alpha - previous_color->alpha) / ticks;
+}
+
+static inline void get_new_color(
+    KonquestColorRow* table, int previous_index, RwRGBAReal* delta,
+    float* color) {
+    float elapsed_ticks;
+
+    elapsed_ticks = get_previous_color_table_time_interval(table, previous_index);
+    color[0] = konquest_pdata->sky_color_multiplier *
+               (delta->red * elapsed_ticks + table[previous_index].color.red);
+    if (color[0] > 1.0f) {
+        color[0] = 1.0f;
+    } else if (color[0] < 0.0f) {
+        color[0] = 0.0f;
+    }
+    color[1] = konquest_pdata->sky_color_multiplier *
+               (delta->green * elapsed_ticks + table[previous_index].color.green);
+    if (color[1] > 1.0f) {
+        color[1] = 1.0f;
+    } else if (color[1] < 0.0f) {
+        color[1] = 0.0f;
+    }
+    color[2] = konquest_pdata->sky_color_multiplier *
+               (delta->blue * elapsed_ticks + table[previous_index].color.blue);
+    if (color[2] > 1.0f) {
+        color[2] = 1.0f;
+    } else if (color[2] < 0.0f) {
+        color[2] = 0.0f;
+    }
+    color[3] = delta->alpha * elapsed_ticks + table[previous_index].color.alpha;
+    if (color[3] > 1.0f) {
+        color[3] = 1.0f;
+    } else if (color[3] < 0.0f) {
+        color[3] = 0.0f;
+    }
+}
+
 static int adjust_sky_for_new_time_of_day(
-    struct KonquestSkyRow* sky_table, int last_row) {
-    struct KonquestSkyRow* previous_row;
-    RwRGBAReal* current_color;
+    KonquestColorRow* sky_table, int last_row) {
     int current_index;
     int previous_index;
     int hour_span;
-    float current_hour;
-    float elapsed_hours;
-    float elapsed_ticks;
-    float alpha_step;
-    float blue_step;
-    float green_step;
-    float red_step;
+    RwRGBAReal delta;
 
-    current_hour = konquest_pdata->time_of_day;
-    current_index = konquest_find_sky_row(sky_table, last_row, current_hour);
-
+    current_index = get_current_color_table_index(sky_table, last_row);
     previous_index = current_index - 1;
     if (previous_index < 0) {
         previous_index = last_row;
@@ -9110,60 +9128,9 @@ static int adjust_sky_for_new_time_of_day(
         hour_span = sky_table[current_index].hour -
                     sky_table[previous_index].hour;
     }
-
-    current_color = &sky_table[current_index].color;
-    previous_row = &sky_table[previous_index];
-    red_step = (current_color->red - previous_row->color.red) /
-               ((float)hour_span * ticks_per_hour);
-    green_step = (current_color->green - previous_row->color.green) /
-                 ((float)hour_span * ticks_per_hour);
-    blue_step = (current_color->blue - previous_row->color.blue) /
-                ((float)hour_span * ticks_per_hour);
-    alpha_step = (current_color->alpha - previous_row->color.alpha) /
-                 ((float)hour_span * ticks_per_hour);
-
-    if (current_hour < (float)sky_table[previous_index].hour) {
-        elapsed_hours = current_hour + (float)(24 - previous_row->hour);
-    } else {
-        elapsed_hours = current_hour - (float)previous_row->hour;
-    }
-    elapsed_ticks = elapsed_hours * ticks_per_hour;
-
-    fog_color_real[0] =
-        konquest_pdata->sky_color_multiplier *
-        (red_step * elapsed_ticks + sky_table[previous_index].color.red);
-    if (fog_color_real[0] > 1.0f) {
-        fog_color_real[0] = 1.0f;
-    } else if (fog_color_real[0] < 0.0f) {
-        fog_color_real[0] = 0.0f;
-    }
-
-    fog_color_real[1] =
-        konquest_pdata->sky_color_multiplier *
-        (green_step * elapsed_ticks + sky_table[previous_index].color.green);
-    if (fog_color_real[1] > 1.0f) {
-        fog_color_real[1] = 1.0f;
-    } else if (fog_color_real[1] < 0.0f) {
-        fog_color_real[1] = 0.0f;
-    }
-
-    fog_color_real[2] =
-        konquest_pdata->sky_color_multiplier *
-        (blue_step * elapsed_ticks + sky_table[previous_index].color.blue);
-    if (fog_color_real[2] > 1.0f) {
-        fog_color_real[2] = 1.0f;
-    } else if (fog_color_real[2] < 0.0f) {
-        fog_color_real[2] = 0.0f;
-    }
-
-    fog_color_real[3] =
-        alpha_step * elapsed_ticks + sky_table[previous_index].color.alpha;
-    if (fog_color_real[3] > 1.0f) {
-        fog_color_real[3] = 1.0f;
-    } else if (fog_color_real[3] < 0.0f) {
-        fog_color_real[3] = 0.0f;
-    }
-
+    get_new_color_delta(&delta, sky_table, current_index, previous_index,
+                        hour_span);
+    get_new_color(sky_table, previous_index, &delta, fog_color_real);
     set_background_color(
         (255.0f * fog_color_real[0]),
         (255.0f * fog_color_real[1]),
@@ -9186,42 +9153,15 @@ inline void create_konquest_light(void) {
         (LightDef*)&konquest_pdata->sky_ambient_light, &special_light_list, 0);
 }
 
-static inline int konquest_find_light_row(
-    KonquestLightRow* light_table, int last_row, float current_hour) {
-    int current_index;
-
-    current_index = 0;
-    while ((float)light_table[current_index].hour < current_hour) {
-        current_index++;
-        if (current_index > last_row) {
-            return 0;
-        }
-    }
-    return current_index;
-}
-
-/* TODO: [near miss] 99.33544%; three GPR and two FPR owners differ;
- * final-channel staging is neutral; recover original rate and row owners. */
 static int adjust_light_for_new_time_of_day(
-    RpLight* light, KonquestLightRow* light_table, int last_row) {
+    RpLight* light, KonquestColorRow* light_table, int last_row) {
     int current_index;
     int previous_index;
     int hour_span;
-    KonquestLightRow* previous_row;
-    RwRGBAReal* current_color;
-    float elapsed_hours;
-    float elapsed_ticks;
-    float green_step;
-    float blue_step;
-    float alpha_step;
+    RwRGBAReal delta;
     RwRGBAReal color;
-    float current_hour;
-    float red_step;
-    float blue_level;
 
-    current_hour = konquest_pdata->time_of_day;
-    current_index = konquest_find_light_row(light_table, last_row, current_hour);
-
+    current_index = get_current_color_table_index(light_table, last_row);
     previous_index = current_index - 1;
     if (previous_index < 0) {
         previous_index = last_row;
@@ -9231,54 +9171,9 @@ static int adjust_light_for_new_time_of_day(
         hour_span = light_table[current_index].hour -
                     light_table[previous_index].hour;
     }
-
-    current_color = &light_table[current_index].color;
-    previous_row = &light_table[previous_index];
-    red_step = (current_color->red - previous_row->color.red) /
-               ((float)hour_span * ticks_per_hour);
-    green_step = (current_color->green - previous_row->color.green) /
-                 ((float)hour_span * ticks_per_hour);
-    blue_step = (current_color->blue - previous_row->color.blue) /
-                ((float)hour_span * ticks_per_hour);
-    alpha_step = (current_color->alpha - previous_row->color.alpha) /
-                 ((float)hour_span * ticks_per_hour);
-
-    if (current_hour < (float)light_table[previous_index].hour) {
-        elapsed_hours = current_hour + (float)(24 - previous_row->hour);
-    } else {
-        elapsed_hours = current_hour - (float)previous_row->hour;
-    }
-    elapsed_ticks = elapsed_hours * ticks_per_hour;
-
-    color.red = konquest_pdata->sky_color_multiplier *
-                (red_step * elapsed_ticks + light_table[previous_index].color.red);
-    if (color.red > 1.0f) {
-        color.red = 1.0f;
-    } else if (color.red < 0.0f) {
-        color.red = 0.0f;
-    }
-    color.green = konquest_pdata->sky_color_multiplier *
-                  (green_step * elapsed_ticks + light_table[previous_index].color.green);
-    if (color.green > 1.0f) {
-        color.green = 1.0f;
-    } else if (color.green < 0.0f) {
-        color.green = 0.0f;
-    }
-    blue_level = blue_step * elapsed_ticks + light_table[previous_index].color.blue;
-    color.blue = konquest_pdata->sky_color_multiplier * blue_level;
-    if (color.blue > 1.0f) {
-        color.blue = 1.0f;
-    } else if (color.blue < 0.0f) {
-        color.blue = 0.0f;
-    }
-    color.alpha =
-        alpha_step * elapsed_ticks + light_table[previous_index].color.alpha;
-    if (color.alpha > 1.0f) {
-        color.alpha = 1.0f;
-    } else if (color.alpha < 0.0f) {
-        color.alpha = 0.0f;
-    }
-
+    get_new_color_delta(&delta, light_table, current_index, previous_index,
+                        hour_span);
+    get_new_color(light_table, previous_index, &delta, &color.red);
     RpLightSetColor(light, &color);
     return current_index;
 }
@@ -10094,8 +9989,6 @@ static inline void configure_konquest_map_fade(ScreenObj* fade) {
     }
 }
 
-/* TODO: [near miss] 99.98276%; portal slot/OID LIS tie; retain projected-X
- * anchor order and recover original argument-emission ownership. */
 static float p_konquest_map_screen(void) {
     struct KonquestPdata* pdata;
     const MkObj* hero;
@@ -10162,10 +10055,10 @@ static float p_konquest_map_screen(void) {
         map_scale_z = 7.0f;
     }
 
-    cursor_x = (1.067f * (map_scale_x * hero->pos.value.x));
+    cursor_x = map_center_x +
+        (int)(1.067f * (map_scale_x * hero->pos.value.x)) - 0x10;
     cursor = load_named_2d_pfxobj_xy(
-        0x60027, 0x8313, "HERO", 0,
-        map_center_x + cursor_x - 0x10,
+        0x60027, 0x8313, "HERO", 0, cursor_x,
         map_center_y - (int)(map_scale_z * hero->pos.value.z) - 0x10,
         0x20);
     for (index = 0; index < 4; index++) {
@@ -10180,11 +10073,11 @@ static float p_konquest_map_screen(void) {
     blink_cursor(cursor, 0x8245, 0x1E, 0xA);
 
     if (konquest_pdata->objective.visible != 0) {
-        cursor_x = (1.067f *
-            (map_scale_x * pdata->objective.position.x));
+        cursor_x = map_center_x +
+            (int)(1.067f * (map_scale_x * pdata->objective.position.x)) -
+            0x10;
         cursor = load_named_2d_pfxobj_xy(
-            0x60027, 0x8313, "OBJECTIVE", 0,
-            map_center_x + cursor_x - 0x10,
+            0x60027, 0x8313, "OBJECTIVE", 0, cursor_x,
             map_center_y -
                     (int)(map_scale_z *
                           pdata->objective.position.z) -
@@ -10194,14 +10087,13 @@ static float p_konquest_map_screen(void) {
     }
     if (konquest_pdata->region_index != 1 &&
         konquest_pdata->region_index != 8) {
+        cursor_x = map_center_x +
+            (int)(1.067f *
+                  (map_scale_x * konquest_pdata->region_table
+                                     ->map_portal_position.x)) -
+            0x10;
         cursor = load_named_2d_pfxobj_xy(
-            0x60027, 0x8313, "PORTAL", 0,
-            map_center_x +
-                    (int)(1.067f *
-                          (map_scale_x *
-                           konquest_pdata->region_table
-                               ->map_portal_position.x)) -
-                0x10,
+            0x60027, 0x8313, "PORTAL", 0, cursor_x,
             map_center_y -
                     (int)(map_scale_z *
                           konquest_pdata->region_table
@@ -12222,16 +12114,7 @@ static int is_it_safe_to_spawn_pui(KonquestPuiDefinition* item) {
 
     inventory_index = find_pui_inventory_index(item);
     if (inventory_index >= 0) {
-        inventory_index = find_pui_inventory_index(item);
-        if (inventory_index >= 0) {
-            active = get_u8_bit(
-                konquest_pdata->pui_inventory_bits,
-                (konquest_pdata->pui_end - konquest_pdata->pui_begin) - 1,
-                inventory_index);
-        } else {
-            active = 0;
-        }
-        if (active != 0) {
+        if (pui_exists_in_world(item) != 0) {
             return 0;
         }
         if (item->type == 0) {
@@ -12259,8 +12142,6 @@ static inline int pui_bit_count(struct KonquestPdata* pdata) {
     return pdata->pui_end - pdata->pui_begin - 1;
 }
 
-/* TODO: [near miss] 99.84375%; index producer/copy direction remains;
- * direct assignment and consumed decrement regress; original producer ownership is missing. */
 static void update_pui_actions(
     KonquestPuiActionBuffer current, KonquestPuiActionBuffer previous) {
     int dynamic_end;
@@ -12278,7 +12159,7 @@ static void update_pui_actions(
         if (get_u8_bit(
                 previous,
                 pui_bit_count(konquest_pdata),
-                inventory_index) != 0) {
+                table_index - konquest_pdata->pui_begin - 1) != 0) {
             item = get_data_table(
                 konquest_pdata->script_owner, table_index);
             if (get_u8_bit(
@@ -12289,19 +12170,9 @@ static void update_pui_actions(
                     script_index = item->spawn_script_index;
                 }
             } else {
-                int active;
                 int item_inventory_index;
 
-                item_inventory_index = find_pui_inventory_index(item);
-                if (item_inventory_index >= 0) {
-                    active = get_u8_bit(
-                        konquest_pdata->pui_inventory_bits,
-                        pui_bit_count(konquest_pdata),
-                        item_inventory_index);
-                } else {
-                    active = 0;
-                }
-                if (active != 0) {
+                if (pui_exists_in_world(item) != 0) {
                     struct KonquestTriggerStruct* trigger;
                     unsigned int trigger_id;
 
@@ -12342,7 +12213,6 @@ void kill_pui(KonquestPuiDefinition* item) {
     unsigned int table_index;
     int inventory_index;
     int valid;
-    int active;
 
     if (item == 0) {
         valid = 0;
@@ -12359,16 +12229,7 @@ void kill_pui(KonquestPuiDefinition* item) {
     if (valid != 0) {
         inventory_index = find_pui_inventory_index(item);
         if (inventory_index >= 0) {
-            inventory_index = find_pui_inventory_index(item);
-            if (inventory_index >= 0) {
-                active = get_u8_bit(
-                    konquest_pdata->pui_inventory_bits,
-                    (konquest_pdata->pui_end - konquest_pdata->pui_begin) - 1,
-                    inventory_index);
-            } else {
-                active = 0;
-            }
-            if (active != 0) {
+            if (pui_exists_in_world(item) != 0) {
                 pui = find_pui_runtime_by_id(item);
                 if (pui != 0 && pui->hdr.instance != 0) {
                     pui->hdr.typed_vtbl->destroy(&pui->hdr);
@@ -13218,7 +13079,7 @@ void pui_play_pfx(
         }
         break;
     case 5:
-        object = konquest_pui_runtime_live_render_object(pui);
+        object = MK_HDR_LIVE(pui->render_object, pui->render_object_instance);
 
         owner = MK_HDR_LIVE(pui->owner, pui->owner_instance);
 
@@ -13486,8 +13347,8 @@ static inline void player_add_item_to_inventory_inline(KonquestPuiDefinition* it
     }
 }
 
-/* TODO: [near miss] 99.4662%; runtime/item homes remain reversed;
- * shared inventory-add operation is neutral; original lookup ownership unresolved. */
+/* TODO: [near miss] 99.4662%; item/pui homes swap: item needs +2 phantom degree (two copies live
+ * across item, not the find pui); recover that copy/inline boundary. */
 void pickup_pui(KonquestPuiDefinition* item) {
     KonquestPuiRuntime* pui;
     struct KonquestKoinAwardPdata* award;
@@ -13942,16 +13803,13 @@ int is_character_unlocked_in_profile(
     return 0;
 }
 
-/* TODO: [near miss] 99.81557%; all seven-live-local scan orders miss cursor/reload
- * homes; recover the GC-specific inline uppercase ownership boundary. */
 static void load_art_for_inventory_award(struct KonquestAwardArtPdata* pdata) {
     KonquestPuiDefinition* item;
     ScreenObj* object;
     StringObj* description;
     PfxFontSlot* font;
     const char* art_name;
-    char* write_cursor;
-    char* read_cursor;
+    int index;
     unsigned char character;
     unsigned int table_index;
     unsigned int first;
@@ -14028,16 +13886,15 @@ static void load_art_for_inventory_award(struct KonquestAwardArtPdata* pdata) {
     } else {
         strcpy(text, get_konq_profile_value_item_name(inventory_index));
     }
-    write_cursor = text;
-    read_cursor = write_cursor;
-    character = *write_cursor;
+    index = 0;
+    character = text[0];
     while (character != 0) {
         if ((character >= 'a' && character <= 'z') ||
             (character >= 0xE0 && character <= 0xFF)) {
-            *write_cursor -= 0x20;
+            text[index] -= 0x20;
         }
-        character = *++read_cursor;
-        write_cursor++;
+        index++;
+        character = text[index];
     }
 
     font = load_font(9);
@@ -16364,7 +16221,7 @@ static float p_konquest_fade_screen(void) {
     ScreenObj* object;
     int complete;
 
-    if (!g_game_info.feature_flags.bits.high_bit &&
+    if (!g_game_info.feature_flags.bits.online_game &&
         is_controller_removed() != 0) {
         return 1.0f;
     }

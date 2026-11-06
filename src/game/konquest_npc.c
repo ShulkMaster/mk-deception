@@ -806,19 +806,20 @@ static inline int npc_is_same(
     return 0;
 }
 
-static inline int npc_next_waypoint(KonquestNpc* npc) {
-    struct KonquestPathData* path = npc->path;
+static inline int npc_get_next_waypoint(KonquestNpc* npc) {
+    struct KonquestPathData* path;
     int waypoint_count;
     int next;
 
-    if (path->waypoints == 0) {
+    if (npc->path->waypoints == 0) {
         next = 0;
     } else {
+        path = npc->path;
         waypoint_count = path->waypoint_count;
         if (waypoint_count == 1) {
             next = 0;
         } else {
-            next = path->current_waypoint;
+            next = npc->path->current_waypoint;
             if (path->step_direction == 1) {
                 next++;
                 if (next >= waypoint_count) {
@@ -939,21 +940,10 @@ static inline int npc_get_navigation_direction(
     return 0;
 }
 
-static inline void npc_suspend_animation_wait(void) {
-    CmdScript* saved_script;
-    KonquestNpc* npc = g_active_npc;
+static inline void save_script_stack(KonquestNpc* npc, CmdScript* script) {
+    CmdScript* saved_script = active_cmdscript;
 
-    if (npc == 0) {
-        return;
-    }
-    npc->wait_ticks -= 1.0f;
-    if (g_active_npc->wait_ticks <= 0.0f) {
-        g_active_npc->wait_ticks = 0.0f;
-        return;
-    }
-    active_cmdscript->state = 2;
-    saved_script = active_cmdscript;
-    npc = g_active_npc;
+    active_cmdscript = script;
     cmdscript_step_backward();
     memcpy(
         npc->saved_script_state,
@@ -963,6 +953,19 @@ static inline void npc_suspend_animation_wait(void) {
         (unsigned int)active_cmdscript->pc;
     npc->saved_script_stack_depth = get_script_stack_depth();
     active_cmdscript = saved_script;
+}
+
+static inline void npc_suspend_animation_wait(void) {
+    if (g_active_npc == 0) {
+        return;
+    }
+    g_active_npc->wait_ticks -= 1.0f;
+    if (g_active_npc->wait_ticks <= 0.0f) {
+        g_active_npc->wait_ticks = 0.0f;
+        return;
+    }
+    active_cmdscript->state = 2;
+    save_script_stack(g_active_npc, active_cmdscript);
 }
 
 static inline void npc_manager_remove_visible_entry(KonquestNpc* npc) {
@@ -980,7 +983,7 @@ static inline void npc_manager_remove_visible_entry(KonquestNpc* npc) {
         }
     }
 }
-static inline void npc_manager_setup_model(MkObj* object) {
+static inline void initialize_object_for_npc_use(MkObj* object) {
     MkSobj* sobj;
 
     obj_create_sobjs(object);
@@ -1006,7 +1009,7 @@ static inline void npc_manager_setup_model(MkObj* object) {
     object->light_flags = 1;
 }
 
-static inline unsigned int npc_manager_find_mouth_art_id(MkObj* object) {
+static inline unsigned int find_mouth_wiff_artid(MkObj* object) {
     struct KonquestTextureSearch search;
 
     search.root_length = 10;
@@ -1267,7 +1270,7 @@ void npc_shadow_set_alpha(int alpha);
 void npc_shadow_set_light_angle(Vec* angles);
 void npc_shadow_teardown(void);
 void npc_shadow_init(void);
-void npc_assign_door_path(int door_id, int travel_mode);
+void npc_assign_door_path(long door_id, int travel_mode);
 void npc_assign_path_to_him( KonquestNpcData* data, void* path, int flags, int travel_mode);
 void npc_assign_path(void* path, int flags, int travel_mode);
 
@@ -1306,8 +1309,6 @@ void initialize_npc_data(void) {
     }
 }
 
-/* TODO: [near miss] 99.94615%; ordered <= return arms remain reversed;
- * recover frontend return-block layout while preserving the two failure exits. */
 static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
     struct KonquestTileOrigin* tile;
     KonquestNpcData* data;
@@ -1323,6 +1324,7 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
     float delta_y;
     float delta_z;
     float distance_squared;
+    int visible;
 
     if (npc->reaction_active) {
         KonquestNpcData* data = npc->data;
@@ -1369,20 +1371,25 @@ static int npc_check_visibility_and_calc_dist(KonquestNpc* npc) {
     sphere.center.z += direction_z;
     sphere.radius = 1.0f;
     if (RwCameraFrustumTestSphere(Camera, &sphere) == 0) {
-        return 0;
+        visible = 0;
+    } else {
+        data = npc->data;
+        camera = camera_obj;
+        delta_x = data->position.x - camera->pos.x;
+        delta_y = data->position.y - camera->pos.y;
+        delta_z = data->position.z - camera->pos.z;
+        distance_squared =
+            delta_z * delta_z +
+            (delta_x * delta_x + delta_y * delta_y);
+
+        npc->camera_distance_squared = distance_squared;
+        if (!(distance_squared <= 2500.0f)) {
+            visible = 0;
+        } else {
+            visible = 1;
+        }
     }
-
-    data = npc->data;
-    camera = camera_obj;
-    delta_x = data->position.x - camera->pos.x;
-    delta_y = data->position.y - camera->pos.y;
-    delta_z = data->position.z - camera->pos.z;
-    distance_squared =
-        delta_z * delta_z +
-        (delta_x * delta_x + delta_y * delta_y);
-
-    npc->camera_distance_squared = distance_squared;
-    return distance_squared <= 2500.0f ? 1 : 0;
+    return visible;
 }
 
 static RpMaterial* hide_npc_materials(
@@ -1477,7 +1484,7 @@ static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
                     if (lip_texture == 0) {
                         if (npc->art_id == 0) {
                             unsigned int mouth_art_id =
-                                npc_manager_find_mouth_art_id(
+                                find_mouth_wiff_artid(
                                     npc->animation->object);
 
                             if (mouth_art_id != 0) {
@@ -1501,7 +1508,7 @@ static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
                     animation = npc->animation;
                     animation->texture_latch = manager->models[index].texture_latch;
                 }
-                npc_manager_setup_model(manager->models[index].object);
+                initialize_object_for_npc_use(manager->models[index].object);
                 return;
             }
         }
@@ -1509,8 +1516,8 @@ static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
     npc_manager_load_new_npc_model(npc);
 }
 
-/* TODO: [near miss] 99.71983%; npc/art ID have 12/11 coalesced neighbors;
- * mouth-cache boundary preserves the graph; recover model-lookup copy ownership. */
+/* TODO: [near miss] 99.71983%; npc/art_id saved homes swap; retail needs art_id
+ * declared last plus one more coalesced copy across it (phantom what-if exact). */
 static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
     unsigned int art_id;
     AniTextureControl* lip_texture = 0;
@@ -1567,12 +1574,12 @@ static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
         return;
     }
 
-    npc_manager_setup_model(object);
+    initialize_object_for_npc_use(object);
     insert_ground_me_mkobj(object);
     if (konquest_editor_mode_on == 0) {
         if (npc->art_id == 0) {
             unsigned int mouth_art_id =
-                npc_manager_find_mouth_art_id(object);
+                find_mouth_wiff_artid(object);
 
             if (mouth_art_id != 0) {
                 npc->art_id = mouth_art_id;
@@ -2212,9 +2219,7 @@ void npc_assign_path_to_him(
     }
 }
 
-/* TODO: [near miss] 99.11%; door ID remains the earlier parameter web;
- * propagation removes copies before PCode; recover a genuine later owner. */
-void npc_assign_door_path(int door_id, int travel_mode) {
+void npc_assign_door_path(long door_id, int travel_mode) {
     KonquestWaypoint* path;
 
     path = get_door_path(door_id);
@@ -2434,8 +2439,6 @@ void npc_shadow_set_light_angle(Vec* angles) {
     npc_shadows.projection.up.z = -projection_z;
 }
 
-/* TODO: [near miss] 99.72826%; atomic/input and shared-zero/projection-Y
- * homes differ; recover original producers while preserving the shared zero. */
 void npc_shadow_update(void) {
     RwRGBA color = {0, 0, 0, 0};
     struct KonquestCameraPositionView* camera =
@@ -2482,14 +2485,11 @@ void npc_shadow_update(void) {
                         }
                         scale *= npc_shadows.scales[index];
                         if (!(scale < 0.1f)) {
-                            float projected_x;
-                            float projected_y;
-                            float projected_z;
                             float radius;
                             float distance_squared;
                             float shadow_scale;
                             int alpha;
-                            RpAtomic* atomic;
+                            RwSphere* sphere;
                             Vec point;
                             Vec transformed;
                             float delta_x;
@@ -2510,7 +2510,7 @@ void npc_shadow_update(void) {
                                 _rpAtomicResyncInterpolatedSphere(
                                     obj_first_sobj(shadow)->atomic);
                             }
-                            atomic = obj_first_sobj(shadow)->atomic;
+                            sphere = &obj_first_sobj(shadow)->atomic->boundingSphere;
                             point.x = object->pos.value.x;
                             point.y = 1.4f;
                             point.z = object->pos.value.z;
@@ -2527,14 +2527,14 @@ void npc_shadow_update(void) {
                                 point.y * npc_shadows.projection.up.z +
                                 point.z * npc_shadows.projection.at.z;
                             point.y = 0.0f;
-                            projected_x = point.x - transformed.x;
-                            projected_y = point.y - transformed.y;
-                            projected_z = point.z - transformed.z;
+                            transformed.x = point.x - transformed.x;
+                            transformed.y = point.y - transformed.y;
+                            transformed.z = point.z - transformed.z;
                             radius = gxMathFastSqrt(
-                                projected_z * projected_z +
-                                (projected_x * projected_x +
-                                 projected_y * projected_y));
-                            atomic->boundingSphere.radius = radius;
+                                transformed.z * transformed.z +
+                                (transformed.x * transformed.x +
+                                 transformed.y * transformed.y));
+                            sphere->radius = radius;
                             delta_x = camera_x - object->pos.value.x;
                             delta_y = 0.0f;
                             delta_z = camera_z - object->pos.value.z;
@@ -4358,21 +4358,23 @@ void npc_set_pinanim_flag(int enabled) {
     }
 }
 
-static inline float npc_angle_to_next_waypoint(void) {
-    struct KonquestPathData* path = g_active_npc->path;
+static inline float npc_find_angle_to_next_waypoint(KonquestNpc* npc) {
+    struct KonquestPathData* path = npc->path;
     int next;
+    float dx;
+    float dz;
 
-    if (path == 0 || path->waypoints == 0) {
+    if (path == 0 || npc->path->waypoints == 0) {
         return 0.0f;
     }
-    next = npc_next_waypoint(g_active_npc);
-    return gxMathArcTanYX(
-        g_active_npc->path->waypoints[next].position.x - g_active_npc->data->position.x,
-        g_active_npc->path->waypoints[next].position.z - g_active_npc->data->position.z);
+    next = npc_get_next_waypoint(g_active_npc);
+    dx = g_active_npc->path->waypoints[next].position.x;
+    dx -= g_active_npc->data->position.x;
+    dz = g_active_npc->path->waypoints[next].position.z;
+    dz -= g_active_npc->data->position.z;
+    return gxMathArcTanYX(dx, dz);
 }
 
-/* TODO: [near miss] 98.26%; IRO merges first-site path reads; X-load homes differ;
- * coordinate/heading/path-argument controls are neutral; recover original owners. */
 void npc_turn_and_face_next_waypoint(void) {
     int active;
     int turn_immediately;
@@ -4392,14 +4394,14 @@ void npc_turn_and_face_next_waypoint(void) {
         turn_immediately = 1;
     }
     if (turn_immediately != 0) {
-        g_active_npc->data->angle_y = npc_angle_to_next_waypoint();
+        g_active_npc->data->angle_y = npc_find_angle_to_next_waypoint(g_active_npc);
         return;
     }
 
     proc = _create_mkproc_generic_nostack(
         0xA01E, 0x1F, p_turn_and_face, sizeof(*pdata), (MkHdr**)&pdata);
     if (proc != 0) {
-        pdata->angle = npc_angle_to_next_waypoint();
+        pdata->angle = npc_find_angle_to_next_waypoint(g_active_npc);
         pdata->target_kind = 0xA002;
         pdata->target.npc = g_active_npc;
         pdata->use_angle = 1;
@@ -4413,11 +4415,10 @@ void npc_turn_and_face_next_waypoint(void) {
     }
 }
 
-/* TODO: [near miss] 99.65812%; NPC/animation CSE webs still swap r4/r5;
- * complete target selection is neutral; first-reuse ownership remains unresolved. */
 static float p_turn_and_face(void) {
     struct TurnAndFacePdata* pdata;
     MkObj* target_object;
+    KonquestNpc* npc;
     int use_npc_position;
     float target_angle;
     float difference;
@@ -4431,15 +4432,16 @@ static float p_turn_and_face(void) {
     } else {
         int use_data;
 
-        if (npc_event_has_active_animation(pdata->target.npc) == 1) {
-            use_data = !pdata->target.npc->wait_for_animation;
+        npc = pdata->target.npc;
+        if (npc_event_has_active_animation(npc) == 1) {
+            use_data = !npc->wait_for_animation;
         } else {
             use_data = 1;
         }
         if (use_data != 0) {
             use_npc_position = 1;
         } else {
-            target_object = pdata->target.npc->animation->object;
+            target_object = npc->animation->object;
         }
     }
 
@@ -4910,7 +4912,7 @@ static int is_npc_at_destination(
     struct KonquestPathData* path;
     int next;
 
-    next = npc_next_waypoint(npc);
+    next = npc_get_next_waypoint(npc);
     path = npc->path;
     if (path->current_waypoint < 0) {
         return 0;
@@ -5060,8 +5062,6 @@ static inline int npc_monk_in_greeting_range(KonquestNpc* npc) {
     return 0;
 }
 
-/* TODO: [near miss] 99.84271%; wait and waypoint owners differ; joint suspend/save
- * recovery regresses five exact callers; original shared boundary remains unresolved. */
 void npc_travel_path(
     int destination_type, int destination, int travel_mode) {
     if (g_active_npc == 0) {
@@ -5093,11 +5093,11 @@ void npc_travel_path(
     while (is_npc_at_destination(
                g_active_npc, destination_type, destination) == 0) {
         Vec target;
-        struct KonquestPathData* path = g_active_npc->path;
 
-        if (path->target_waypoint == path->current_waypoint) {
+        if (g_active_npc->path->target_waypoint ==
+            g_active_npc->path->current_waypoint) {
             g_active_npc->path->target_waypoint =
-                npc_next_waypoint(g_active_npc);
+                npc_get_next_waypoint(g_active_npc);
         }
         if (g_active_npc->path->current_waypoint == -1) {
             npc_get_path_position(g_active_npc, &target);
@@ -6032,7 +6032,7 @@ static int npc_update_pos_on_path(
     }
 
     if (npc->path->target_waypoint == npc->path->current_waypoint) {
-        npc->path->target_waypoint = npc_next_waypoint(npc);
+        npc->path->target_waypoint = npc_get_next_waypoint(npc);
     }
     target_waypoint = npc->path->target_waypoint;
     if (npc->path != 0) {

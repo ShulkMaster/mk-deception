@@ -330,16 +330,12 @@ def emit_fonts(elf: Elf32) -> dict[str, str]:
         if name_reloc is None:
             raise ValueError(f"fonts.o: missing font name relocation for row {row}")
         name = string_reloc_expr(name_reloc)
-        path_reloc = relocs.get(base + 12)
-        if path_reloc is not None:
-            path = string_reloc_expr(path_reloc)
-        elif row_words[3] == 0:
-            path = "0"
-        else:
-            path = f"(char*)0x{row_words[3]:08X}"
+        if base + 12 in relocs:
+            raise ValueError(f"fonts.o: unexpected asset handle relocation for row {row}")
+        handle = f"0x{row_words[3]:08X}"
         lines.append(
             "    { %s, 0x%08X, 0x%08X, %s, { 0x%08X, 0x%08X } },"
-            % (name, row_words[1], row_words[2], path, row_words[4], row_words[5])
+            % (name, row_words[1], row_words[2], handle, row_words[4], row_words[5])
         )
     lines.extend(["};", "", "FontStringRow string_table[155] = {"])
     for row in range(155):

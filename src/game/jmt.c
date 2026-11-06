@@ -160,15 +160,17 @@ int get_taunts_performed(void) {
 }
 
 int check_for_online_condition(PlyrPdata* pdata) {
-    if (g_game_info.feature_flags.bits.high_bit == 0) {
+    PlyrPdata* opponent;
+
+    if (g_game_info.feature_flags.bits.online_game == 0) {
         return 0;
     }
     if (pdata == 0) {
         return 0;
     }
 
-    pdata = pdata->his_plyr_pdata;
-    if (pdata != 0 && pdata->online_sync_index != -1) {
+    opponent = pdata->his_plyr_pdata;
+    if (opponent != 0 && opponent->danger_zone_callback != -1) {
         return 1;
     }
     return 0;
@@ -602,7 +604,7 @@ static float p_kabal_smoke(void) {
     if (check_for_throw(player->slot.pdata) != 0) {
         return 1.0f;
     }
-    if (g_game_info.feature_flags.bits.high_bit == 0) {
+    if (g_game_info.feature_flags.bits.online_game == 0) {
         center.x = pdata->origin.x;
         center.y = pdata->origin.y;
         center.z = pdata->origin.z;
@@ -888,7 +890,7 @@ static float p_decoy(void) {
     if (check_for_throw(player->slot.pdata) != 0) {
         return 1.0f;
     }
-    if (g_game_info.feature_flags.bits.high_bit == 0) {
+    if (g_game_info.feature_flags.bits.online_game == 0) {
         center.x = decoy->pos.value.x;
         center.y = decoy->pos.value.y;
         center.z = decoy->pos.value.z;
@@ -1423,25 +1425,25 @@ int rotate_towards_sync(float angle) {
 }
 
 void online_combo_record(void) {
-    if (g_game_info.feature_flags.bits.high_bit != 0) {
+    if (g_game_info.feature_flags.bits.online_game != 0) {
         return;
     }
 }
 
 void online_combo_adjust(float* horizontal, float* vertical) {
-    if (g_game_info.feature_flags.bits.high_bit != 0) {
+    if (g_game_info.feature_flags.bits.online_game != 0) {
         return;
     }
 }
 
 void enable_no_sync_anim_f(int enabled) {
-    if (g_game_info.feature_flags.bits.high_bit != 0) {
+    if (g_game_info.feature_flags.bits.online_game != 0) {
         return;
     }
 }
 
 void enable_no_adjustment_f(int enabled) {
-    if (g_game_info.feature_flags.bits.high_bit != 0) {
+    if (g_game_info.feature_flags.bits.online_game != 0) {
         return;
     }
 }
@@ -1451,7 +1453,7 @@ void kill_plyr_life(int player) {
 }
 
 int is_reaction_xfer_him_allowed(void) {
-    if (g_game_info.feature_flags.bits.high_bit == 0) {
+    if (g_game_info.feature_flags.bits.online_game == 0) {
         return 1;
     }
     if (jmt_is_local_plyr() == 1) {

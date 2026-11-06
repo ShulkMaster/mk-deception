@@ -393,7 +393,7 @@ typedef struct BgndPebblePlayerData {
     MkHdr hdr;
     BgndPebbleCollection* collection;
     MkSobj* sobj;
-    int count;
+    unsigned int count;
     int mode;
 } BgndPebblePlayerData;
 
@@ -1017,9 +1017,9 @@ static inline void beetle_lair_emit_glass_smoke(const Vec* smoke_position) {
         smoke_position->y, smoke_position->z);
 }
 
-static inline void beetle_lair_mark_player_sync(
-    PlyrPdata* player, int sync_index) {
-    player->online_sync_index = sync_index;
+static inline void register_danger_zone_callback(
+    PlyrPdata* player, int callback) {
+    player->danger_zone_callback = callback;
     if (player->plyr_num == 0) {
         g_game_info.plyr0.fighting_lights.green_trigger = 1;
     } else {
@@ -1473,8 +1473,6 @@ static inline void bgnd_set_randomized_component(float* destination,
 }
 void bgnd_pebble_burst_set_value(int player, unsigned int first, unsigned int end, int field, void* script, float x, float y, float z, float x_spread, float y_spread, float z_spread);
 float bgnd_pebble_fetch_current_info(unsigned int field);
-void bgnd_pebble_set_current_info(unsigned int field, void* script, float value);
-void bgnd_pebble_set_current_pebble(int player, int index);
 void bgnd_pebble_change_current_end_behavior(int end_behavior);
 void bgnd_pebble_change_current_behavior_to_bounce( float velocity_x, float velocity_y, float velocity_z, float angular_x, float angular_y, float angular_z, unsigned int ticks, int bounce_param);
 void bgnd_pebble_change_current_behavior( float velocity_x, float velocity_y, float velocity_z, float angular_x, float angular_y, float angular_z, unsigned int ticks, int behavior_param);
@@ -1482,7 +1480,7 @@ void bgnd_pebble_launch_at_time( int player, int index, float position_x, float 
 void bgnd_pebble_simple_launch_at_time(int player, int index, unsigned int delay, int behavior_param);
 
 static inline BgndPebbleCollection* bgnd_create_pebble_collection(
-    MkSobj* object, const unsigned int count) {
+    MkSobj* object, unsigned int count) {
     BgndPebbleCollection* collection;
     unsigned int i;
 
@@ -1532,7 +1530,6 @@ void bgnd_init_cracks(void);
 void bgnd_place_crack_when_plyr_hits_ground(unsigned int player_index);
 void bgnd_kill_fx(const char* name);
 void bgnd_set_fx_z_offset(const char* name, float z_offset);
-void bgnd_set_fx_ang_y(void* script, float angle);
 void bgnd_set_fx_ang_dir_to_i_vector(void);
 void bgnd_launch_fx_at_active_sobj_pos_with_offset( const char* name, float x_offset, float y_offset, float z_offset);
 unsigned int pfxhandle_bgnd_spawn_at_position( const char* name, float x, float y, float z);
@@ -1563,7 +1560,6 @@ static inline void bgnd_apply_collision_info(BgndObstacleEventData* event) {
     MkObj* player_object;
     PlyrPdata* opponent;
     PlyrPdata* player;
-    const Vec* impact;
 
     player = event->player_pdata;
     player_object = bgnd_get_live_tracked_obj(player);
@@ -1574,10 +1570,9 @@ static inline void bgnd_apply_collision_info(BgndObstacleEventData* event) {
             g_game_info.collision_player_info = player->plyr_info;
             g_game_info.active_player =
                 event->player_pdata->his_plyr_pdata->plyr_info;
-            impact = event->impact_vector;
-            g_game_info.impact_vector.x = impact->x;
-            g_game_info.impact_vector.y = impact->y;
-            g_game_info.impact_vector.z = impact->z;
+            g_game_info.impact_vector.x = event->impact_vector->x;
+            g_game_info.impact_vector.y = event->impact_vector->y;
+            g_game_info.impact_vector.z = event->impact_vector->z;
             g_game_info.player_objects[0] = opponent_object;
             g_game_info.player_objects[1] = player_object;
             g_game_info.collision_player_side = event->flag_bits.player_side;
@@ -1619,8 +1614,6 @@ void enable_bgnd_obj_repel(BgndDisplayedItem* item);
 int bgnd_get_exec_tick_ctr(void);
 void bgnd_run_camera_script(int argument, int flags);
 void* ncs_bgnd_OBSTACLE_EVENT_get_plyr_pdata(void);
-void spad_set_y_angle_plus_offset_from_xz_vector(int index, void* script, float x, float z, float offset);
-void spad_set_vector_setting( int index, void* script, float x, float y, float z);
 void spad_norm_vector(int index);
 void spad_rotate_xz_vector(int index, void* script, float angle);
 float spad_xz_dot_xz(int first, int second);
@@ -1629,9 +1622,7 @@ float spad_xz_length_vector(int index);
 float spad_get_pos(int index, unsigned int component);
 void spad_sub_vectors(int destination, int first, int second);
 void spad_add_vector(int index, void* script, float x, float y, float z);
-void spad_set_vector_y(int index, void* script, float y);
 float spad_xz_cos_two_vectors(int first, int second);
-void spad_set_heading_vector_to(int index, void* script, float heading, float offset);
 void spad_scale_vector(int destination, unsigned int source, void* script, float scale);
 void mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance( PlyrPdata* player);
 void dont_fence_plyr_in(int disabled);
@@ -1996,19 +1987,20 @@ static inline MkObj* bgnd_live_secondary_weapon(const GlobalMoveset* moveset) {
     return MK_HDR_LIVE(moveset->secondary_weapon, moveset->secondary_weapon_instance);
 }
 
-/* TODO: [breakthrough] 98.95977%; weapon cleanup agrees; camera owner reload
- * and validation-result boundary plus two zero homes remain. */
+static inline MkProc* bgnd_live_proc(MkProc* const* proc, const unsigned int* instance) {
+    return MK_HDR_LIVE(*proc, *instance);
+}
+
 void destroy_background_extras(void) {
-    unsigned int index;
-    int weapon_index;
+    int index;
     MkProc* process;
 
     unload_script(0xC);
     unload_script(0xD);
     bgnd_destroy_collision_to_script_lists();
 
-    for (weapon_index = 0; weapon_index < 2; weapon_index++) {
-        GlobalMoveset* moveset = &global_movesets[weapon_index + 6];
+    for (index = 0; index < 2; index++) {
+        GlobalMoveset* moveset = &global_movesets[index + 6];
         if (bgnd_live_primary_weapon(moveset) != 0) {
             MkObj* object = moveset->primary_weapon;
             if (object->hdr.instance != 0) {
@@ -2036,9 +2028,8 @@ void destroy_background_extras(void) {
         destroy_list(&g_game_info.npc_list);
     }
     g_game_info.wall_hider = 0;
-    process = MK_HDR_LIVE(
-        g_game_info.camera_proc, g_game_info.camera_proc_instance);
-    if (process != 0) {
+    if (bgnd_live_proc(&g_game_info.camera_proc, &g_game_info.camera_proc_instance) != 0) {
+        process = g_game_info.camera_proc;
         if (process->hdr.instance != 0) {
             process->hdr.typed_vtbl->destroy(&process->hdr);
         }
@@ -3678,7 +3669,7 @@ float bgnd_current_rx_get_info(int info_id) {
         return g_current_reaction_info.power_level;
     case 4:
         pdata = g_current_reaction_info.player_info->slot.pdata;
-        return pdata->online_sync_index;
+        return pdata->danger_zone_callback;
     case 5:
         return g_game_info.crack_count;
     case 6:
@@ -3690,15 +3681,13 @@ float bgnd_current_rx_get_info(int info_id) {
         return 0.0f;
     }
 }
-/* TODO: [breakthrough needed] 98.92857%; case-7 flags have no preceding store;
- * recover their initialization contract before tuning the base/Vec homes. */
 void bgnd_current_rx_set_info(int info_id, void* script_args, float value) {
     PlyrPdata* player;
 
     switch (info_id) {
     case 4:
         player = g_current_reaction_info.player_info->slot.pdata;
-        player->online_sync_index = value;
+        player->danger_zone_callback = value;
         if (player->plyr_num == 0) {
             g_game_info.plyr0.fighting_lights.green_trigger = 1;
         } else {
@@ -3750,15 +3739,10 @@ void bgnd_rx_notify(
     }
 }
 void bgnd_register_danger_zone_callback(PlyrPdata* pdata, int callback) {
-    pdata->online_sync_index = callback;
-    if (pdata->plyr_num == 0) {
-        g_game_info.plyr0.fighting_lights.green_trigger = 1;
-        return;
-    }
-    g_game_info.plyr1.fighting_lights.green_trigger = 1;
+    register_danger_zone_callback(pdata, callback);
 }
 void bgnd_clear_danger_zone_callback(PlyrPdata* pdata) {
-    pdata->online_sync_index = -1;
+    pdata->danger_zone_callback = -1;
     if (pdata->plyr_num == 0) {
         g_game_info.plyr0.fighting_lights.green_trigger = 0;
         return;
@@ -3934,7 +3918,7 @@ void bgnd_make_displayed_item_pickupable_at_active_sobj_pos(int item_id) {
             } else if (list_item->type == item_id) {
                 mk_pull_discard(&list_item->hdr, displayed_list);
                 if (list_item->obstacle != 0 &&
-                        !g_game_info.feature_flags.bits.high_bit) {
+                        !g_game_info.feature_flags.bits.online_game) {
                     list_item->obstacle->flags.bits.disabled = 0;
                 }
                 mk_insert(&list_item->hdr, &g_game_info.field_64);
@@ -4085,7 +4069,7 @@ float bgnd_process_collision_info(
     case 5: {
         PlyrPdata* player = g_game_info.collision_player_pdata;
 
-        player->online_sync_index = -1;
+        player->danger_zone_callback = -1;
         if (player->plyr_num == 0) {
             g_game_info.plyr0.fighting_lights.green_trigger = 0;
         } else {
@@ -4311,13 +4295,11 @@ void spad_scale_vector(int destination, unsigned int source, void* script,
     output->y = input->y * scale;
     output->z = input->z * scale;
 }
-void spad_set_heading_vector_to(int index, void* script, float heading,
-                                float offset) {
+void spad_set_heading_vector_to(int index, float heading, float offset) {
     Vec* vector;
     float angle;
     int normalized;
 
-    (void)script;
     vector = &g_bgnd_scratch_pad_vectors[index];
     heading += offset;
     normalized = (int)(166886.1f * heading) & 0xFFFFF;
@@ -4346,10 +4328,9 @@ float spad_xz_cos_two_vectors(int first, int second) {
             first_vector->z * second_vector->z) /
            (first_length * second_length);
 }
-void spad_set_vector_y(int index, void* script, float y) {
+void spad_set_vector_y(int index, float y) {
     Vec* vector;
 
-    (void)script;
     vector = &g_bgnd_scratch_pad_vectors[index];
     vector->y = y;
 }
@@ -4512,24 +4493,20 @@ void spad_norm_vector(int index) {
     vector->y *= inverse_length;
     vector->z *= inverse_length;
 }
-void spad_set_vector_setting(
-    int index, void* script, float x, float y, float z) {
+void spad_set_vector_setting(int index, float x, float y, float z) {
     Vec* vector;
 
-    (void)script;
     vector = &g_bgnd_scratch_pad_vectors[index];
     vector->x = x;
     vector->y = y;
     vector->z = z;
 }
-void spad_set_y_angle_plus_offset_from_xz_vector(int index, void* script,
-                                                 float x, float z,
-                                                 float offset) {
+void spad_set_y_angle_plus_offset_from_xz_vector(
+    int index, float x, float z, float offset) {
     Vec* output;
     Vec direction;
     Vec angles;
 
-    (void)script;
     direction.x = x;
     direction.y = 0.0f;
     direction.z = z;
@@ -4600,7 +4577,7 @@ void enable_bgnd_obj_repel(BgndDisplayedItem* item) {
     ArenaObstacle* obstacle;
 
     obstacle = item->obstacle;
-    if (obstacle != 0 && !g_game_info.feature_flags.bits.high_bit) {
+    if (obstacle != 0 && !g_game_info.feature_flags.bits.online_game) {
         obstacle->flags.bits.disabled = 0;
     }
 }
@@ -4608,7 +4585,7 @@ void disable_bgnd_obj_repel(BgndDisplayedItem* item) {
     ArenaObstacle* obstacle;
 
     obstacle = item->obstacle;
-    if (obstacle != 0 && !g_game_info.feature_flags.bits.high_bit) {
+    if (obstacle != 0 && !g_game_info.feature_flags.bits.online_game) {
         obstacle->flags.bits.disabled = 1;
     }
 }
@@ -4790,7 +4767,7 @@ void bgnd_place_weapon_at_position(
         if (permanent != 0) {
             if (item != 0) {
                 if (item->obstacle != 0 &&
-                    !g_game_info.feature_flags.bits.high_bit) {
+                    !g_game_info.feature_flags.bits.online_game) {
                     item->obstacle->flags.bits.disabled = 0;
                 }
                 mk_insert(&item->hdr, &g_game_info.field_64);
@@ -4815,7 +4792,7 @@ void bgnd_place_weapon_at_position(
             }
         } else {
             if (item->obstacle != 0 &&
-                !g_game_info.feature_flags.bits.high_bit) {
+                !g_game_info.feature_flags.bits.online_game) {
                 item->obstacle->flags.bits.disabled = 1;
             }
             mk_insert(&item->hdr, &g_game_info.displayed_items);
@@ -4912,7 +4889,7 @@ void bgnd_place_object_at_position(
 
         if (item != 0) {
             if (item->obstacle != 0 &&
-                !g_game_info.feature_flags.bits.high_bit) {
+                !g_game_info.feature_flags.bits.online_game) {
                 item->obstacle->flags.bits.disabled = 0;
             }
             mk_insert(&item->hdr, &g_game_info.field_64);
@@ -5540,7 +5517,7 @@ void bgnd_collision_if_rx_override(unsigned int collision_id) {
             g_active_obstacle_event_data->player_pdata);
     }
     player = g_active_obstacle_event_data->player_pdata;
-    player->online_sync_index = collision_id;
+    player->danger_zone_callback = collision_id;
     if (player->plyr_num == 0) {
         g_game_info.plyr0.fighting_lights.green_trigger = 1;
     } else {
@@ -5983,8 +5960,7 @@ void bgnd_set_fx_ang_dir_to_i_vector(void) {
             g_game_info.impact_vector.z, g_game_info.impact_vector.x);
     }
 }
-void bgnd_set_fx_ang_y(void* script, float angle) {
-    (void)script;
+void bgnd_set_fx_ang_y(float angle) {
     if (g_latest_obj_pfx != 0) {
         g_latest_obj_pfx->flags_08_bits.angular_velocity_enabled = 1;
         g_latest_obj_pfx->ang.y = angle;
@@ -6165,8 +6141,6 @@ void bgnd_start_cracks(void) {
         bgnd_reset_crack_pool();
     }
 }
-/* TODO: [near miss] 99.42857%; angular-call ADDI/MR setup still swaps;
- * GC2.6 is byte-neutral; recover the original argument-emission boundary. */
 static float p_pebble_path_monitor(void) {
     BgndPebbleMonitor* monitor;
     BgndPebbleControl* pebble;
@@ -6270,13 +6244,13 @@ static float p_pebble_path_monitor(void) {
             continue;
         }
 
-        v3_add_v3_scaled(&pebble->position, &pebble->position,
-                         &pebble->velocity, game_speed);
+        v3_add_v3_scaled(&pebbles[i].position, &pebbles[i].position,
+                         &pebbles[i].velocity, game_speed);
         if (pebble->state != 5) {
             pebble->velocity.y += -0.003f * game_speed;
         }
-        v3_add_v3_scaled(&pebble->angles, &pebble->angles,
-                         &pebble->angular_velocity, game_speed);
+        v3_add_v3_scaled(&pebbles[i].angles, &pebbles[i].angles,
+                         &pebbles[i].angular_velocity, game_speed);
         if (pebble->angles.x > 360.0f) {
             pebble->angles.x -= 360.0f;
         }
@@ -6526,7 +6500,8 @@ static float p_pebble_manual_monitor(void) {
     }
     return 1.0f;
 }
-void bgnd_init_pebbles(int player, unsigned int first, unsigned int end) {
+static inline void bgnd_init_pebble_range(unsigned int player, unsigned int first,
+                                          unsigned int end) {
     BgndPebbleControl* pebble;
     unsigned int index;
 
@@ -6556,10 +6531,14 @@ void bgnd_init_pebbles(int player, unsigned int first, unsigned int end) {
         pebble->bounce_velocity.z = 0.0f;
         pebble->bounce_velocity.y = 0.5f;
         MKMatrixRotatXZYScaleTranslate(
-            &g_pebbles[player]->matrices[index], pebble->angles.x,
-            pebble->angles.z, pebble->angles.y,
+            &g_pebbles[player]->matrices[index],
+            pebble->angles.x, pebble->angles.z, pebble->angles.y,
             &pebble->scale, &pebble->position);
     }
+}
+
+void bgnd_init_pebbles(int player, unsigned int first, unsigned int end) {
+    bgnd_init_pebble_range(player, first, end);
 }
 void bgnd_pebble_gravity(int player, void* script, float gravity) {
     BgndPebbleControl* pebbles;
@@ -6567,7 +6546,7 @@ void bgnd_pebble_gravity(int player, void* script, float gravity) {
 
     (void)script;
     pebbles = g_pebbles[player]->pebbles;
-    for (index = 0; index < (unsigned int)g_pebbles_pdata[player]->count;
+    for (index = 0; index < g_pebbles_pdata[player]->count;
          index++) {
         pebbles[index].gravity = gravity;
     }
@@ -6581,7 +6560,7 @@ void bgnd_pebble_rand_scale(int player, void* script, float base,
 
     (void)script;
     pebbles = g_pebbles[player]->pebbles;
-    for (index = 0; index < (unsigned int)g_pebbles_pdata[player]->count;
+    for (index = 0; index < g_pebbles_pdata[player]->count;
          index++) {
         pebble = &pebbles[index];
         scale = base + frand(range);
@@ -6595,7 +6574,7 @@ void bgnd_hide_pebbles(int player) {
     BgndPebbleControl* pebbles;
 
     pebbles = g_pebbles[player]->pebbles;
-    for (index = 0; index < (unsigned int)g_pebbles_pdata[player]->count;
+    for (index = 0; index < g_pebbles_pdata[player]->count;
          index++) {
         pebbles[index].state = 0;
         pebbles[index].position.y = -200.0f;
@@ -6660,15 +6639,13 @@ void bgnd_create_pebbles(
     bgnd_create_pebbles_with_sobj(object, player, mode, count);
 }
 static inline BgndPebblePlayerData* bgnd_create_pebble_process(
-    MkSobj* object, unsigned int player, int mode, unsigned int count) {
+    MkSobj* object, BgndPebbleCollection* collection, int mode, unsigned int count) {
     MkProc* process;
-    BgndPebbleCollection* collection;
     BgndPebblePlayerData* player_data;
     BgndPebblePlayerData* result;
 
     process = 0;
     player_data = 0;
-    collection = g_pebbles[player];
     switch (mode) {
     case 0:
         process = _create_mkproc_generic_tinystack(
@@ -6700,13 +6677,9 @@ static inline BgndPebblePlayerData* bgnd_create_pebble_process(
     return result;
 }
 
-/* TODO: [near miss] 99.78022%; process selects before the loop index claims r24;
- * recover genuine process/index ownership without changing the shared zero. */
 BgndPebbleControl* bgnd_create_pebbles_with_sobj(
     MkSobj* object, unsigned int player, int mode, unsigned int count) {
-    unsigned int index;
     BgndPebblePlayerData* result;
-    BgndPebbleControl* pebble;
 
     if (player >= 20) {
         return 0;
@@ -6722,38 +6695,9 @@ BgndPebbleControl* bgnd_create_pebbles_with_sobj(
     }
     hide_sobj(object);
 
-    for (index = 0; index < count; index++) {
-        pebble = &g_pebbles[player]->pebbles[index];
-        pebble->position.z = 0.0f;
-        pebble->position.y = 0.0f;
-        pebble->position.x = 0.0f;
-        pebble->scale.z = 1.0f;
-        pebble->scale.y = 1.0f;
-        pebble->scale.x = 1.0f;
-        pebble->angles.z = 0.0f;
-        pebble->angles.y = 0.0f;
-        pebble->angles.x = 0.0f;
-        pebble->angular_velocity.z = 0.0f;
-        pebble->angular_velocity.y = 0.0f;
-        pebble->angular_velocity.x = 0.0f;
-        pebble->velocity.z = 0.0f;
-        pebble->velocity.y = 0.0f;
-        pebble->velocity.x = 0.0f;
-        pebble->bounce_flags = 0;
-        pebble->state = 0;
-        pebble->bounce_ticks = 0;
-        pebble->launch_ticks = 0;
-        pebble->gravity = 0.0f;
-        pebble->bounce_velocity.x = 0.0f;
-        pebble->bounce_velocity.z = 0.0f;
-        pebble->bounce_velocity.y = 0.5f;
-        MKMatrixRotatXZYScaleTranslate(
-            &g_pebbles[player]->matrices[index],
-            pebble->angles.x, pebble->angles.z, pebble->angles.y,
-            &pebble->scale, &pebble->position);
-    }
+    bgnd_init_pebble_range(player, 0, count);
 
-    result = bgnd_create_pebble_process(object, player, mode, count);
+    result = bgnd_create_pebble_process(object, g_pebbles[player], mode, count);
     g_pebbles_pdata[player] = result;
     return result->collection->pebbles;
 }
@@ -6896,9 +6840,7 @@ void bgnd_pebble_set_current_pebble(int player, int index) {
     g_current_pebble =
         &g_pebbles_pdata[player]->collection->pebbles[index];
 }
-void bgnd_pebble_set_current_info(unsigned int field, void* script,
-                                  float value) {
-    (void)script;
+void bgnd_pebble_set_current_info(unsigned int field, float value) {
     switch (field) {
     case 0:
         g_current_pebble->velocity.x = value;
@@ -6995,8 +6937,8 @@ static void bgnd_pebble_burst_at(int player, const Vec* position,
     unsigned int index;
     BgndPebbleControl* pebble;
 
-    if (first >= (unsigned int)g_pebbles_pdata[player]->count ||
-        end > (unsigned int)g_pebbles_pdata[player]->count || first >= end) {
+    if (first >= g_pebbles_pdata[player]->count ||
+        end > g_pebbles_pdata[player]->count || first >= end) {
         return;
     }
 
@@ -7076,8 +7018,8 @@ void bgnd_pebble_burst_set_value(int player, unsigned int first,
     Vec* value;
 
     (void)script;
-    if (first >= (unsigned int)g_pebbles_pdata[player]->count ||
-        end > (unsigned int)g_pebbles_pdata[player]->count || first >= end) {
+    if (first >= g_pebbles_pdata[player]->count ||
+        end > g_pebbles_pdata[player]->count || first >= end) {
         return;
     }
 
@@ -7125,8 +7067,8 @@ void bgnd_pebble_burst_set_value_min_max(int player, unsigned int first,
     float magnitude;
 
     (void)script;
-    if (first >= (unsigned int)g_pebbles_pdata[player]->count ||
-        end > (unsigned int)g_pebbles_pdata[player]->count || first >= end) {
+    if (first >= g_pebbles_pdata[player]->count ||
+        end > g_pebbles_pdata[player]->count || first >= end) {
         return;
     }
 
@@ -7177,8 +7119,8 @@ void bgnd_pebble_burst_set_end_state(int player, unsigned int first,
     BgndPebbleControl* pebbles;
     unsigned int index;
 
-    if (first >= (unsigned int)g_pebbles_pdata[player]->count ||
-        end > (unsigned int)g_pebbles_pdata[player]->count || first >= end) {
+    if (first >= g_pebbles_pdata[player]->count ||
+        end > g_pebbles_pdata[player]->count || first >= end) {
         return;
     }
 
@@ -8530,7 +8472,6 @@ static inline int beetle_lair_player_faces_wall(PlyrPdata* player) {
     MkObj* opponent;
     float separation_length;
     float opponent_length;
-    Vec own_offset;
     Vec opponent_offset;
     Vec separation;
 
@@ -8539,12 +8480,12 @@ static inline int beetle_lair_player_faces_wall(PlyrPdata* player) {
     }
     own = player->plyr_info->slot.mirror_a;
     opponent = player->his_plyr_pdata->plyr_info->slot.mirror_a;
-    own_offset.x = own->pos.value.x - wall_target.x;
+    separation.x = own->pos.value.x - wall_target.x;
     opponent_offset.x = opponent->pos.value.x - wall_target.x;
-    own_offset.z = own->pos.value.z - wall_target.z;
+    separation.z = own->pos.value.z - wall_target.z;
     opponent_offset.z = opponent->pos.value.z - wall_target.z;
-    separation.x = opponent_offset.x - own_offset.x;
-    separation.z = opponent_offset.z - own_offset.z;
+    separation.x = opponent_offset.x - separation.x;
+    separation.z = opponent_offset.z - separation.z;
     separation_length = gxMathFastSqrt(separation.x * separation.x +
         separation.z * separation.z);
     opponent_length = gxMathFastSqrt(opponent_offset.x * opponent_offset.x +
@@ -9661,7 +9602,7 @@ float r_beetle_lair_transition(void) {
         }
     }
     delete_obstacle_from_background_by_id(0x42);
-    player->online_sync_index = -1;
+    player->danger_zone_callback = -1;
     if (player->plyr_num == 0) {
         g_game_info.plyr0.fighting_lights.green_trigger = 0;
     } else {
@@ -9686,17 +9627,12 @@ float r_beetle_lair_transition(void) {
     return 0.0f;
 }
 
-/* TODO: [breakthrough needed] 99.67886%; wall-offset splices and raw/normalized
- * FP owners remain; preserve reloads and recover arithmetic producer boundaries. */
 static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
     MkObj* player_object;
     MkObj* opponent_object;
     Vec direction;
     Vec smoke_position;
     float inverse_length;
-    float x_squared;
-    float y_squared;
-    float z_squared;
     float reaction_flag;
     int eligible;
     int aligned;
@@ -9718,12 +9654,12 @@ static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
         if (event->event_id == 0x12C) {
             if (beetle_lair_react_to_wall_danger_zone_cb(
                     event->player_pdata)) {
-                beetle_lair_mark_player_sync(event->player_pdata, 0x131);
+                register_danger_zone_callback(event->player_pdata, 0x131);
             }
         } else if (event->event_id == 0x12D && event->player_pdata != 0) {
             aligned = beetle_lair_player_faces_wall(event->player_pdata);
             if (aligned) {
-                beetle_lair_mark_player_sync(event->player_pdata, 0xE3);
+                register_danger_zone_callback(event->player_pdata, 0xE3);
             }
         }
     } else if (event->field_04 == 5) {
@@ -9737,20 +9673,19 @@ static int beetle_lair_collision_cb(BgndObstacleEventData* event) {
                 damage_player(event->player_pdata->his_plyr_pdata, 0.04f);
             }
 
-            direction.x = event->impact_vector->x;
-            direction.y = event->impact_vector->y;
-            direction.z = event->impact_vector->z;
-            x_squared = direction.x * direction.x;
-            y_squared = direction.y * direction.y;
-            z_squared = direction.z * direction.z;
-            inverse_length = gxMathFastInvSqrt(z_squared +
-                (x_squared + y_squared));
-            direction.x *= inverse_length;
-            direction.y *= inverse_length;
-            direction.z *= inverse_length;
-            event->impact_vector->x = 0.045f * direction.x;
-            event->impact_vector->y = 0.045f * direction.y;
-            event->impact_vector->z = 0.045f * direction.z;
+            inverse_length = gxMathFastInvSqrt(
+                event->impact_vector->z * event->impact_vector->z +
+                (event->impact_vector->x * event->impact_vector->x +
+                 event->impact_vector->y * event->impact_vector->y));
+            direction.x = event->impact_vector->x * inverse_length;
+            direction.y = event->impact_vector->y * inverse_length;
+            direction.z = event->impact_vector->z * inverse_length;
+            direction.x = 0.045f * direction.x;
+            direction.y = 0.045f * direction.y;
+            direction.z = 0.045f * direction.z;
+            event->impact_vector->x = direction.x;
+            event->impact_vector->y = direction.y;
+            event->impact_vector->z = direction.z;
 
             player_object = MK_HDR_LIVE(event->player_pdata->tracked_obj, event->player_pdata->tracked_obj_instance);
             if (player_object != 0) {
@@ -9867,274 +9802,141 @@ static inline void bl_init_beetle(
                                  beetle->heading_degrees, &scale,
                                  &beetle->position);
 }
-/* TODO: [near miss] 99.93517%; ranges 2/3 duration and pebble owners remain;
- * preserve early complete sums while recovering their original producer scope. */
 static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data) {
     BlBeetleControl* beetles;
-    Vec position;
-    int random_ticks;
     int index;
 
     beetles = data->pebble_data->user_data;
     index = 0;
     for (; index < 6; index++) {
-        float local_scale = 1.0f + frand(0.45f);
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.z = 1.99f + sfrand(0.8f);
-        position.x = -1.0f + sfrand(0.8f);
-        position.y = 0.0f;
         bl_init_beetle(
-            &data->pebble_data->pebbles[index], &beetles[index], position.x, position.y, position.z, 1.0f, 1,
-            0, random_ticks, local_scale, 0, 0);
+            &data->pebble_data->pebbles[index], &beetles[index], -1.0f + sfrand(0.8f), 0.0f,
+            1.99f + sfrand(0.8f), 1.0f, 1, 0, (unsigned short)randu0(180) + 180, 1.0f + frand(0.45f), 0, 0);
     }
     for (; index < 9; index++) {
-        float local_scale = 1.0f + frand(0.45f);
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.z = 5.0f + sfrand(0.15f);
-        position.x = -4.0f + sfrand(0.15f);
-        position.y = 0.0f;
         bl_init_beetle(
-            &data->pebble_data->pebbles[index], &beetles[index], position.x, position.y, position.z, 1.0f, 0,
-            0, random_ticks, local_scale, 0, 0);
+            &data->pebble_data->pebbles[index], &beetles[index], -4.0f + sfrand(0.15f), 0.0f,
+            5.0f + sfrand(0.15f), 1.0f, 0, 0, (unsigned short)randu0(180) + 180, 1.0f + frand(0.45f), 0, 0);
     }
     for (; index < 21; index++) {
-        float local_scale = 1.0f + frand(0.45f);
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.z = 1.99f + sfrand(0.25f);
-        position.x = -1.0f + sfrand(0.25f);
-        position.y = 0.0f;
         bl_init_beetle(
-            &data->pebble_data->pebbles[index], &beetles[index], position.x, position.y, position.z, 0.55f,
-            4, 0, random_ticks, local_scale, 0, 0);
+            &data->pebble_data->pebbles[index], &beetles[index], -1.0f + sfrand(0.25f), 0.0f,
+            1.99f + sfrand(0.25f), 0.55f, 4, 0, (unsigned short)randu0(180) + 180, 1.0f + frand(0.45f), 0,
+            0);
     }
     for (; index < 23; index++) {
-        float local_scale = 1.0f + frand(0.45f);
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.z = sfrand(7.0f);
-        position.x = sfrand(7.0f);
-        position.y = 0.0f;
         bl_init_beetle(
-            &data->pebble_data->pebbles[index], &beetles[index], position.x, position.y, position.z, 9.0f, 2,
-            0, random_ticks, local_scale, 0, 0);
+            &data->pebble_data->pebbles[index], &beetles[index], sfrand(7.0f), 0.0f, sfrand(7.0f), 9.0f, 2,
+            0, (unsigned short)randu0(180) + 180, 1.0f + frand(0.45f), 0, 0);
     }
     for (; index < 27; index++) {
-        float position_y;
-        float local_scale = 1.0f + frand(0.45f);
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position_y = 2.0f + sfrand(1.5f);
-        position.x = sfrand(2.5f);
-        position.y = position_y;
-        position.z = 15.17f;
         bl_init_beetle(
-            &data->pebble_data->pebbles[index], &beetles[index], position.x, position.y, position.z, 9.0f, 2,
-            5, random_ticks, local_scale, 0, 1);
+            &data->pebble_data->pebbles[index], &beetles[index], sfrand(2.5f), 2.0f + sfrand(1.5f), 15.17f,
+            9.0f, 2, 5, (unsigned short)randu0(180) + 180, 1.0f + frand(0.45f), 0, 1);
     }
     for (; index < 31; index++) {
         float local_scale = 1.0f + frand(0.45f);
-        unsigned short random_ticks;
-        random_ticks = randu0(60);
-        position.z = sfrand(7.0f);
-        position.x = sfrand(7.0f);
-        position.y = 0.0f;
+        unsigned short random_ticks = randu0(60);
         bl_init_beetle(
-            &data->pebble_data->pebbles[index], &beetles[index], position.x, position.y, position.z, 9.0f, 3,
+            &data->pebble_data->pebbles[index], &beetles[index], sfrand(7.0f), 0.0f, sfrand(7.0f), 9.0f, 3,
             0, random_ticks, local_scale, 0, 0);
     }
     data->pebble_data->count = 31;
 }
 
-static inline float bl_jittered_scale(float base, float jitter) {
-    return base + frand(jitter);
-}
-
-/* TODO: [near miss] 99.79608%; loop-2 GPR cycle and first/seventh scale/Z homes remain;
- * original sampling scope is unresolved; preserve verified constructor roles. */
 static void bl_init_beetle_pebbles_second_floor(BlBeetlePdata* data) {
-    BlBeetleControl* beetle;
     BlBeetleControl* beetles;
-    Pebble* pebble;
-    int random_ticks;
     int index;
 
     beetles = data->pebble_data->user_data;
     index = 0;
     for (; index < 5; index++) {
-        Vec position;
-        float local_scale = bl_jittered_scale(1.7f, 0.25f);
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.z = 37.0f + sfrand(1.4f);
-        position.x = 0.2f + sfrand(1.4f);
-        position.y = -10.0f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
         bl_init_beetle(
-            pebble, beetle, position.x, position.y, position.z, 1.0f, 5, 0, random_ticks, local_scale, 0x136,
+            &data->pebble_data->pebbles[index], &beetles[index], 0.2f + sfrand(1.4f), -10.0f,
+            37.0f + sfrand(1.4f), 1.0f, 5, 0, (unsigned short)randu0(180) + 180, 1.7f + frand(0.25f), 0x136,
             0);
     }
     for (; index < 7; index++) {
-        Vec position;
-        float local_scale = bl_jittered_scale(1.0f, 0.25f);
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.z = 40.0f + sfrand(0.25f);
-        position.x = 0.2f + sfrand(0.85f);
-        position.y = -9.9f;
-        pebble = &data->pebble_data->pebbles[index];
         bl_init_beetle(
-            pebble, &beetles[index], position.x, position.y, position.z, 0.5f, 2, 0, random_ticks,
-            local_scale, 0, 0);
+            &data->pebble_data->pebbles[index], &beetles[index], 0.2f + sfrand(0.85f), -9.9f,
+            40.0f + sfrand(0.25f), 0.5f, 2, 0, (unsigned short)randu0(180) + 180, 1.0f + frand(0.25f), 0,
+            0);
     }
     for (; index < 10; index++) {
-        Vec position;
-        float local_scale = bl_jittered_scale(1.35f, 0.15f);
-        unsigned int random_ticks;
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.z = 34.25f + sfrand(0.45f);
-        position.x = -0.03f + sfrand(0.05f);
-        position.y = -10.0f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
         bl_init_beetle(
-            pebble, beetle, position.x, position.y, position.z, 0.5f, 2, 0, random_ticks, local_scale, 0, 0);
+            &data->pebble_data->pebbles[index], &beetles[index], -0.03f + sfrand(0.05f), -10.0f,
+            34.25f + sfrand(0.45f), 0.5f, 2, 0, (unsigned short)randu0(180) + 180, 1.35f + frand(0.15f), 0,
+            0);
     }
     for (; index < 12; index++) {
-        Vec position;
-        float local_scale = bl_jittered_scale(1.0f, 0.45f);
-        unsigned int random_ticks;
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.y = -7.0f + sfrand(1.5f);
-        position.x = sfrand(2.5f);
-        position.z = 47.9f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
         bl_init_beetle(
-            pebble, beetle, position.x, position.y, position.z, 2.0f, 2, 5, random_ticks, local_scale, 0, 1);
-        beetle->movement_target.x = sfrand(0.5f);
-        beetle->movement_target.y = -7.0f + sfrand(1.0f);
-        beetle->movement_target.z = 47.9f;
+            &data->pebble_data->pebbles[index], &beetles[index], sfrand(2.5f), -7.0f + sfrand(1.5f), 47.9f,
+            2.0f, 2, 5, (unsigned short)randu0(180) + 180, 1.0f + frand(0.45f), 0, 1);
+        beetles[index].movement_target.x = sfrand(0.5f);
+        beetles[index].movement_target.y = -7.0f + sfrand(1.0f);
+        beetles[index].movement_target.z = 47.9f;
     }
     for (; index < 14; index++) {
-        Vec position;
-        float local_scale = bl_jittered_scale(1.0f, 0.45f);
-        unsigned int random_ticks;
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.y = -7.0f + sfrand(1.5f);
-        position.x = 7.6f + sfrand(2.5f);
-        position.z = 47.7f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
         bl_init_beetle(
-            pebble, beetle, position.x, position.y, position.z, 4.0f, 2, 5, random_ticks, local_scale, 0, 1);
-        beetle->movement_target.x = 7.6f + sfrand(1.0f);
-        beetle->movement_target.y = -7.0f + sfrand(1.0f);
-        beetle->movement_target.z = 47.7f;
+            &data->pebble_data->pebbles[index], &beetles[index], 7.6f + sfrand(2.5f), -7.0f + sfrand(1.5f),
+            47.7f, 4.0f, 2, 5, (unsigned short)randu0(180) + 180, 1.0f + frand(0.45f), 0, 1);
+        beetles[index].movement_target.x = 7.6f + sfrand(1.0f);
+        beetles[index].movement_target.y = -7.0f + sfrand(1.0f);
+        beetles[index].movement_target.z = 47.7f;
     }
     for (; index < 16; index++) {
-        Vec position;
-        float local_scale = bl_jittered_scale(1.0f, 0.45f);
-        unsigned int random_ticks;
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.y = -7.0f + sfrand(1.5f);
-        position.x = -7.6f + sfrand(2.5f);
-        position.z = 47.7f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
         bl_init_beetle(
-            pebble, beetle, position.x, position.y, position.z, 4.0f, 2, 5, random_ticks, local_scale, 0, 1);
-        beetle->movement_target.x = -7.6f + sfrand(1.0f);
-        beetle->movement_target.y = -7.0f + sfrand(1.0f);
-        beetle->movement_target.z = 47.7f;
+            &data->pebble_data->pebbles[index], &beetles[index], -7.6f + sfrand(2.5f), -7.0f + sfrand(1.5f),
+            47.7f, 4.0f, 2, 5, (unsigned short)randu0(180) + 180, 1.0f + frand(0.45f), 0, 1);
+        beetles[index].movement_target.x = -7.6f + sfrand(1.0f);
+        beetles[index].movement_target.y = -7.0f + sfrand(1.0f);
+        beetles[index].movement_target.z = 47.7f;
     }
     for (; index < 19; index++) {
-        Vec position;
-        float local_scale = bl_jittered_scale(1.0f, 0.45f);
-        unsigned int random_ticks;
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.z = 21.5f + sfrand(0.85f);
-        position.x = 8.25f + sfrand(0.85f);
-        position.y = -10.0f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
         bl_init_beetle(
-            pebble, beetle, position.x, position.y, position.z, 1.5f, 2, 6, random_ticks, local_scale, 0, 0);
-        beetle->speed_scale = 0.5f + frand(0.25f);
+            &data->pebble_data->pebbles[index], &beetles[index], 8.25f + sfrand(0.85f), -10.0f,
+            21.5f + sfrand(0.85f), 1.5f, 2, 6, (unsigned short)randu0(180) + 180, 1.0f + frand(0.45f), 0,
+            0);
+        beetles[index].speed_scale = 0.5f + frand(0.25f);
     }
     for (; index < 21; index++) {
-        Vec position;
-        float local_scale = bl_jittered_scale(1.0f, 0.45f);
-        unsigned int random_ticks;
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.z = 44.0f + sfrand(1.5f);
-        position.y = -7.0f + sfrand(2.5f);
-        position.x = 14.3f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
         bl_init_beetle(
-            pebble, beetle, position.x, position.y, position.z, 4.0f, 2, 7, random_ticks, local_scale, 0, 3);
-        beetle->movement_target.x = 14.3f;
-        beetle->movement_target.y = -7.0f;
-        beetle->movement_target.z = 44.0f;
+            &data->pebble_data->pebbles[index], &beetles[index], 14.3f, -7.0f + sfrand(2.5f),
+            44.0f + sfrand(1.5f), 4.0f, 2, 7, (unsigned short)randu0(180) + 180, 1.0f + frand(0.45f), 0, 3);
+        beetles[index].movement_target.x = 14.3f;
+        beetles[index].movement_target.y = -7.0f;
+        beetles[index].movement_target.z = 44.0f;
     }
     for (; index < 22; index++) {
-        Vec position;
-        float local_scale = bl_jittered_scale(1.0f, 0.45f);
-        unsigned int random_ticks;
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.z = 44.0f + sfrand(1.5f);
-        position.y = -7.0f + sfrand(2.5f);
-        position.x = -14.0f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
         bl_init_beetle(
-            pebble, beetle, position.x, position.y, position.z, 4.0f, 2, 7, random_ticks, local_scale, 0, 4);
-        beetle->movement_target.x = -14.0f;
-        beetle->movement_target.y = -7.0f;
-        beetle->movement_target.z = 44.0f;
+            &data->pebble_data->pebbles[index], &beetles[index], -14.0f, -7.0f + sfrand(2.5f),
+            44.0f + sfrand(1.5f), 4.0f, 2, 7, (unsigned short)randu0(180) + 180, 1.0f + frand(0.45f), 0, 4);
+        beetles[index].movement_target.x = -14.0f;
+        beetles[index].movement_target.y = -7.0f;
+        beetles[index].movement_target.z = 44.0f;
     }
     for (; index < 24; index++) {
-        Vec position;
-        float local_scale = bl_jittered_scale(1.0f, 0.45f);
-        unsigned int random_ticks;
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.z = 23.0f + sfrand(1.5f);
-        position.y = -7.0f + sfrand(2.5f);
-        position.x = 14.3f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
         bl_init_beetle(
-            pebble, beetle, position.x, position.y, position.z, 4.0f, 2, 7, random_ticks, local_scale, 0, 3);
-        beetle->movement_target.x = 14.3f;
-        beetle->movement_target.y = -7.0f;
-        beetle->movement_target.z = 23.0f;
+            &data->pebble_data->pebbles[index], &beetles[index], 14.3f, -7.0f + sfrand(2.5f),
+            23.0f + sfrand(1.5f), 4.0f, 2, 7, (unsigned short)randu0(180) + 180, 1.0f + frand(0.45f), 0, 3);
+        beetles[index].movement_target.x = 14.3f;
+        beetles[index].movement_target.y = -7.0f;
+        beetles[index].movement_target.z = 23.0f;
     }
     for (; index < 25; index++) {
-        Vec position;
-        float local_scale = bl_jittered_scale(1.0f, 0.45f);
-        unsigned int random_ticks;
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.z = 23.0f + sfrand(1.5f);
-        position.y = -7.0f + sfrand(2.5f);
-        position.x = -14.0f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
         bl_init_beetle(
-            pebble, beetle, position.x, position.y, position.z, 4.0f, 2, 7, random_ticks, local_scale, 0, 4);
-        beetle->movement_target.x = -14.0f;
-        beetle->movement_target.y = -7.0f;
-        beetle->movement_target.z = 23.0f;
+            &data->pebble_data->pebbles[index], &beetles[index], -14.0f, -7.0f + sfrand(2.5f),
+            23.0f + sfrand(1.5f), 4.0f, 2, 7, (unsigned short)randu0(180) + 180, 1.0f + frand(0.45f), 0, 4);
+        beetles[index].movement_target.x = -14.0f;
+        beetles[index].movement_target.y = -7.0f;
+        beetles[index].movement_target.z = 23.0f;
     }
     for (; index < 28; index++) {
-        Vec position;
-        float local_scale = bl_jittered_scale(1.0f, 0.45f);
-        unsigned int random_ticks;
-        random_ticks = (unsigned short)randu0(180) + 180;
-        position.z = 21.5f + sfrand(0.85f);
-        position.x = -8.25f + sfrand(0.85f);
-        position.y = -10.0f;
-        pebble = &data->pebble_data->pebbles[index];
-        beetle = &beetles[index];
         bl_init_beetle(
-            pebble, beetle, position.x, position.y, position.z, 1.5f, 2, 6, random_ticks, local_scale, 0, 0);
-        beetle->speed_scale = 0.5f + frand(0.25f);
+            &data->pebble_data->pebbles[index], &beetles[index], -8.25f + sfrand(0.85f), -10.0f,
+            21.5f + sfrand(0.85f), 1.5f, 2, 6, (unsigned short)randu0(180) + 180, 1.0f + frand(0.45f), 0,
+            0);
+        beetles[index].speed_scale = 0.5f + frand(0.25f);
     }
     data->pebble_data->count = 10;
 }
@@ -12280,7 +12082,7 @@ int is_bgnd_locked(int bgnd_id) {
         return 1;
     }
 
-    if (g_game_info.feature_flags.bits.high_bit && !g_game_info.feature_flags.bits.pad_6) {
+    if (g_game_info.feature_flags.bits.online_game && !g_game_info.feature_flags.bits.field_bit6) {
         return 0;
     }
 

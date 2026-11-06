@@ -934,12 +934,12 @@ static float p_pause_menu(void) {
     load_screen(screen_name, screen_slot, 0, 0);
     pause_all_game_sounds();
 
-    if (g_game_info.feature_flags.bits.high_bit != 0) {
+    if (g_game_info.feature_flags.bits.online_game != 0) {
         g_game_info.field_214 = 0x1E;
     }
 
     while (find_mkproc_pid(0x9011) != 0) {
-        if (g_game_info.feature_flags.bits.high_bit == 0) {
+        if (g_game_info.feature_flags.bits.online_game == 0) {
             pause_procs(1);
         } else {
             g_game_info.pause_flag_bits.controllers_disabled = 0;
@@ -977,7 +977,7 @@ static float p_pause_menu(void) {
 
     flush_controller_switch_buffers();
     eat_switch_edge(pdata->player, 0xB);
-    if (g_game_info.feature_flags.bits.high_bit != 0) {
+    if (g_game_info.feature_flags.bits.online_game != 0) {
         eat_switch_edge(pdata->player, 6);
         eat_switch_edge(pdata->player, 4);
         eat_switch_edge(pdata->player, 5);
@@ -1095,7 +1095,7 @@ float p_pause_menu_switch(void) {
             was_paused = g_game_info.pause_flag_bits.controllers_disabled;
             turn_controllers_on();
             pdata->was_paused = was_paused;
-            if (g_game_info.feature_flags.bits.high_bit == 0) {
+            if (g_game_info.feature_flags.bits.online_game == 0) {
                 pause_procs(1);
             }
         }
@@ -1156,7 +1156,7 @@ float p_main_menu(void) {
     unassign_player(p2);
     set_player_state(p1, 0);
     set_player_state(p2, 0);
-    g_game_info.feature_flags.bits.high_bit = 0;
+    g_game_info.feature_flags.bits.online_game = 0;
     init_plyr_info_struct(p1);
     init_plyr_info_struct(p2);
     init_bet_info_struct();

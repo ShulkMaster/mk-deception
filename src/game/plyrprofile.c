@@ -287,9 +287,6 @@ void erase_player_profile(int device, int slot) {
 }
 
 static inline void delete_selected_profile(void) {
-    unsigned int* freeBlocks;
-    int* freeBytes;
-    StorageDevice* storage;
     int device;
     int slot;
     int region;
@@ -299,22 +296,19 @@ static inline void delete_selected_profile(void) {
     slot = pos_slot;
     if ((device = pos_device) >= 0 && device < STORAGE_MAX_DEVICES && slot >= 0 &&
         slot < STORAGE_MAX_SLOTS) {
-        storage = DEVICE_AT(device);
-        reset_sg_status(storage, slot);
+        reset_sg_status(DEVICE_AT(device), slot);
         storage_status_change_calculations(device);
         mcard_msg_deleting_data(device);
         clear_region_buffer();
 
         region = 1;
-        freeBlocks = &storage->freeBlocks;
-        freeBytes = &storage->freeBytes;
         ok = 1;
         while (region < 9 && ok != 0) {
             title = nbc_find_text(NBC_MEMCARD_TITLE, 1);
             ok = save_konquest_region_to_memcard_w_error(
                 device, slot, 5, title, region,
-                konq_region_data_buffer, 0, freeBlocks,
-                freeBytes);
+                konq_region_data_buffer, 0, &DEVICE_AT(device)->freeBlocks,
+                &DEVICE_AT(device)->freeBytes);
             if (ok != 0 && mcard_msg_active != MCARD_MSG_ACTIVE_PROGRESS) {
                 mcard_msg_end();
                 mcard_msg_deleting_data(device);
@@ -325,8 +319,8 @@ static inline void delete_selected_profile(void) {
         if (ok != 0) {
             title = nbc_find_text(NBC_MEMCARD_TITLE, 1);
             ok = save_to_memcard_w_error(
-                device, 4, title, &storage->settings, 0,
-                freeBlocks, freeBytes);
+                device, 4, title, &DEVICE_AT(device)->settings, 0,
+                &DEVICE_AT(device)->freeBlocks, &DEVICE_AT(device)->freeBytes);
         }
         if (ok != 0) {
             mcard_msg_delete_successful_generic();
@@ -337,8 +331,6 @@ static inline void delete_selected_profile(void) {
     }
 }
 
-/* TODO: [near miss] 99.18699%; pre-RA scheduling moves status MR before output addresses;
- * retain the entry test and recover a supported scheduling boundary. */
 float p_delete_profile(void) {
     int statusChanged;
 
@@ -1476,13 +1468,6 @@ int is_mark_as_unlocked(PlayerProfile* profile, int category, int character) {
     return unlocked != 0;
 }
 
-static inline void mark_bitset_locked(
-    ProfileUnlockBits64* bits, unsigned long long mask) {
-    bits->value &= mask;
-}
-
-/* TODO: [near miss] 98.92857%; nine word loads need earlier codegen owners
- * than their complements; scheduled order agrees, source boundary unresolved. */
 void mark_as_locked(PlayerProfile* profile, int category, int character) {
     unsigned long long mask;
     ProfileUnlockBits64* bits;
@@ -1493,50 +1478,59 @@ void mark_as_locked(PlayerProfile* profile, int category, int character) {
     switch (category) {
     case 1:
         if (character < 0 || character >= 44) return;
-        mask = ~(1ULL << character);
-        mark_bitset_locked(&profile->unlock_cat1, mask);
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat1.value &= ~mask;
         return;
     case 2:
         if (character < 0 || character >= 44) return;
-        mask = ~(1ULL << character);
-        mark_bitset_locked(&profile->unlock_cat2, mask);
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat2.value &= ~mask;
         return;
     case 3:
         if (character < 0 || character >= 35) return;
-        mask = ~(1ULL << character);
-        profile->unlock_cat3 &= (unsigned int)mask;
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat3 &= ~mask;
         return;
     case 6:
         if (character < 0 || character >= 44) return;
-        mask = ~(1ULL << character);
-        mark_bitset_locked(&profile->unlock_cat4, mask);
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat4.value &= ~mask;
         return;
     case 4:
         if (character < 0 || character >= 11) return;
-        mask = ~(1ULL << character);
-        profile->unlock_cat5 &= (unsigned int)mask;
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat5 &= ~mask;
         return;
     case 5:
         if (character < 0 || character >= 11) return;
-        mask = ~(1ULL << (character + 10));
-        profile->unlock_cat6 &= (unsigned int)mask;
+        mask = 1;
+        mask <<= character + 10;
+        profile->unlock_cat6 &= ~mask;
         return;
     case 7:
     case 8:
         if (character < 0 || character >= 44) return;
         bits = category == 7 ? &profile->unlock_cat7 : &profile->unlock_cat8;
-        mask = ~(1ULL << character);
-        mark_bitset_locked(bits, mask);
+        mask = 1;
+        mask <<= character;
+        bits->value &= ~mask;
         return;
     case 9:
         if (character < 0 || character >= 44) return;
-        mask = ~(1ULL << character);
-        mark_bitset_locked(&profile->unlock_cat9, mask);
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat9.value &= ~mask;
         return;
     case 10:
         if (character < 0 || character >= 35) return;
-        mask = ~(1ULL << character);
-        profile->unlock_cat10 &= (unsigned int)mask;
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat10 &= ~mask;
         return;
     default:
         return;

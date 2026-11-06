@@ -635,7 +635,7 @@ int check_for_winner(void) {
             winner = 2;
             g_game_info.plyr0.field_0C = 0.0f;
         } else if (g_game_info.plyr0.field_0C == g_game_info.plyr1.field_0C) {
-            if (!g_game_info.feature_flags.bits.high_bit &&
+            if (!g_game_info.feature_flags.bits.online_game &&
                 g_game_info.plyr0.field_0C == g_game_info.plyr0.field_10 &&
                 g_game_info.plyr1.field_0C == g_game_info.plyr1.field_10) {
                 winner = 3;
@@ -960,17 +960,17 @@ static inline int game_count_active_players(void) {
     return count;
 }
 
-/* TODO: [near miss] 99.58884%; if/else fade-in step keeps all operations;
- * recover original instance-load ownership and table/alpha register homes. */
+/* TODO: [near miss] 99.91924%; fatality/deathtrap table-address colouring (addi r3/add r4, addi r4/add r4)
+ * needs an r0-busy GPR web plus row base/index live past the add; no honest producer found yet. */
 void do_win_effect(void) {
     PlyrInfo* victor;
     PlyrInfo* defeated;
-    int timing_index;
-    int deathtrap_index;
-    StringObj* winner_text;
     StringObj* flawless_text;
+    int deathtrap_index;
     ScreenObj* fatality_left;
     ScreenObj* fatality_right;
+    unsigned char alpha;
+    int sound_id;
     ScreenObjLatch fatality_left_latch;
     ScreenObjLatch fatality_right_latch;
     StringObjLatch winner_text_latch;
@@ -978,23 +978,23 @@ void do_win_effect(void) {
     float intro_ticks;
     float hold_ticks;
     float tail_ticks;
-    unsigned char alpha;
-    int sound_id;
     const char* player_name;
-    const char* draw_text;
-    int active_profiles;
     int icon_x;
+    int timing_index;
+    const char* format;
+    int active_profiles;
+    StringObj* winner_text;
     char message[0x50];
 
     fatality_left_latch.obj = 0;
     fatality_left_latch.instance = 0;
     fatality_left = 0;
     fatality_right_latch.obj = 0;
-    flawless_text_latch.instance = 0;
+    fatality_right_latch.instance = 0;
     winner_text_latch.obj = 0;
     winner_text_latch.instance = 0;
     flawless_text_latch.obj = 0;
-    fatality_right_latch.instance = 0;
+    flawless_text_latch.instance = 0;
     fatality_right = 0;
     flawless_text = 0;
     victor = 0;
@@ -1048,8 +1048,8 @@ void do_win_effect(void) {
     }
 
     if (round_winner == 3) {
-        draw_text = get_string_by_id(0x10005);
-        sprintf(message, draw_text);
+        format = get_string_by_id(0x10005);
+        sprintf(message, format);
     } else {
         if (mode_of_play == 8 && round_winner == 0) {
             sound_id = 0x7D;
@@ -1058,7 +1058,8 @@ void do_win_effect(void) {
             player_name = global_player_data[victor->player_index].name;
             sound_id = victor->slot.fighter->runtime_data->win_sound_id;
         }
-        sprintf(message, get_string_by_id(0x10004), player_name);
+        format = get_string_by_id(0x10004);
+        sprintf(message, format, player_name);
         if (sound_id != 0) {
             snd_req(sound_id);
         }
@@ -1103,16 +1104,25 @@ void do_win_effect(void) {
 
         alpha = 0;
         if (fatality_left != 0 && fatality_right != 0) {
+            unsigned int* left_instance_address = &fatality_left->instance;
+            unsigned int* right_instance_address = &fatality_right->instance;
+
             fatality_left_latch.obj = fatality_left;
-            fatality_left_latch.instance = fatality_left->instance;
+            fatality_left_latch.instance = *left_instance_address;
             fatality_right_latch.obj = fatality_right;
-            fatality_right_latch.instance = fatality_right->instance;
+            fatality_right_latch.instance = *right_instance_address;
 
             while (alpha < 0xFF) {
-                fatality_left = MK_LIVE(
-                    fatality_left_latch.obj, fatality_left_latch.instance);
-                fatality_right = MK_LIVE(
-                    fatality_right_latch.obj, fatality_right_latch.instance);
+                fatality_left = fatality_left_latch.obj != 0
+                    ? (*left_instance_address == fatality_left_latch.instance
+                           ? fatality_left_latch.obj
+                           : 0)
+                    : 0;
+                fatality_right = fatality_right_latch.obj != 0
+                    ? (*right_instance_address == fatality_right_latch.instance
+                           ? fatality_right_latch.obj
+                           : 0)
+                    : 0;
                 if (fatality_left != 0) {
                     pfx_2d_obj_set_alpha(fatality_left, alpha);
                 }
@@ -1127,10 +1137,16 @@ void do_win_effect(void) {
                 win_effect_sleep(1.0f);
             }
 
-            fatality_left = MK_LIVE(
-                fatality_left_latch.obj, fatality_left_latch.instance);
-            fatality_right = MK_LIVE(
-                fatality_right_latch.obj, fatality_right_latch.instance);
+            fatality_left = fatality_left_latch.obj != 0
+                ? (*left_instance_address == fatality_left_latch.instance
+                       ? fatality_left_latch.obj
+                       : 0)
+                : 0;
+            fatality_right = fatality_right_latch.obj != 0
+                ? (*right_instance_address == fatality_right_latch.instance
+                       ? fatality_right_latch.obj
+                       : 0)
+                : 0;
             if (fatality_left != 0) {
                 pfx_2d_obj_set_alpha(fatality_left, alpha);
             }
@@ -1408,7 +1424,7 @@ int round_over(void) {
     g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
 
     if (mode_of_play != 4 && mode_of_play != 10 &&
-        !g_game_info.feature_flags.bits.high_bit &&
+        !g_game_info.feature_flags.bits.online_game &&
         g_game_info.plyr0.field_0C + g_game_info.plyr1.field_0C ==
             g_game_info.plyr0.field_10 + g_game_info.plyr1.field_10) {
         ck_restore_kiddy();
@@ -1440,7 +1456,7 @@ int round_over(void) {
             break;
         default:
             round_winner_info->field_40++;
-            if (g_game_info.feature_flags.bits.high_bit) {
+            if (g_game_info.feature_flags.bits.online_game) {
                 rounds_to_win = 2;
             } else {
                 rounds_to_win = game_settings.round_time;
@@ -1547,7 +1563,7 @@ int round_over(void) {
             (mode_of_play == 1 || mode_of_play == 0)) {
             int winning_side = winner;
 
-            if (!g_game_info.feature_flags.bits.high_bit) {
+            if (!g_game_info.feature_flags.bits.online_game) {
                 if (winning_side == 1) {
                     if (p1_profile_status == 1) {
                         p1_profile.versus_wins++;
@@ -1661,7 +1677,7 @@ static void reset_game_timer(void) {
         if (g_game_info.feature_flags.bits.powerbars_locked) {
             g_game_info.field_204 = 0x5F;
         } else {
-            if (g_game_info.feature_flags.bits.high_bit) {
+            if (g_game_info.feature_flags.bits.online_game) {
                 g_game_info.field_204 = 0x3C;
             } else {
                 g_game_info.field_204 = game_settings.round_timer_value;
@@ -2688,7 +2704,7 @@ float p_game_loop(void) {
             return 0.0f;
         }
 
-        if (g_game_info.feature_flags.bits.high_bit) {
+        if (g_game_info.feature_flags.bits.online_game) {
             return -1.0f;
         }
         if (g_game_info.plyr0.field_0C + g_game_info.plyr1.field_0C ==
@@ -2790,7 +2806,7 @@ float p_gamelogic(void) {
     }
 
     turn_camera_on();
-    if (g_game_info.feature_flags.bits.high_bit) {
+    if (g_game_info.feature_flags.bits.online_game) {
         ck_for_controller_removed();
     }
     load_ssf(gameart_file_table);

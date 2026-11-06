@@ -15,6 +15,7 @@
 #include "runtime/asset.h"
 #include "runtime/cstdio.h"
 #include "game/plyr_globals.h"
+#include "game/plyr.h"
 #include "runtime/sound.h"
 #include "runtime/light.h"
 
@@ -188,7 +189,6 @@ void limb_sever_show_z_meat_chunks_all(MkObj* object);
 void bgnd_hide_mirror_guys(void);
 float p_anim_idle(void);
 void mkobj_zero_bone_rots(MkObj* object);
-void add_facial_damage(FighterMirror* fighter, float amount);
 extern MkPtr* gusher_list;
 static float p_monitor_objs_sobjs(void);
 static void p_statue_xpd_callback(MkSobj* object);
@@ -462,8 +462,8 @@ void debug_create_axis_indicator(PlyrInfo* player, Vec* position) {
     }
 }
 
-/* TODO: [breakthrough needed] 98.00%; two retail branches are absent before PCode;
- * explicit loop else-return does not recover the original CFG retention. */
+/* TODO: [breakthrough needed] 98.00%; IRO append-preheader is chained away (no loop
+ * invariant hoisted into it); need the original invariant expression. */
 static float p_fish_attack_bloodsplat(void) {
     Vec effect_origin = {0.0f, 1.6f, 0.0f};
     struct MkObjRef splat;
@@ -502,20 +502,6 @@ static float p_fish_attack_bloodsplat(void) {
         aproc->vtbl->sleep();
     }
     return -1.0f;
-}
-
-static inline MkObj* fighter_severed_limb_live_object(
-    FighterMirror* fighter, int limb) {
-    MkObj* object = fighter->severed_limbs[limb].object;
-    if (object != 0) {
-        if (object->hdr.instance == fighter->severed_limbs[limb].instance) {
-            return object;
-        }
-        object = 0;
-    } else {
-        object = 0;
-    }
-    return object;
 }
 
 static float p_fish_attack(void) {
@@ -857,14 +843,33 @@ void start_fish_attack(MkObj* target, int attack_kind, int target_kind) {
     }
 }
 
-/* TODO: [near miss] 99.53846%; first-loop zero owner misses VN coalescing;
- * retain LI/MR ceiling until a boundary preserves the exact public initializer. */
+static inline void sever_missing_limbs(PlyrInfo* player) {
+    int limb_index;
+
+    for (limb_index = 0; limb_index < 15; limb_index++) {
+        MkObj* limb = MK_HDR_LIVE(
+            player->slot.fighter->severed_limbs[limb_index].object,
+            player->slot.fighter->severed_limbs[limb_index].instance);
+
+        if (limb == 0) {
+            limb = obj_sever_limb(
+                player->slot.mirror_a, limb_index,
+                player->slot.fighter->runtime_data->half_sever_velocities, 1);
+            if (limb != 0) {
+                player->slot.fighter->severed_limbs[limb_index].object =
+                    limb;
+                player->slot.fighter->severed_limbs[limb_index].instance =
+                    limb->hdr.instance;
+            }
+        }
+    }
+}
+
 static float p_player_body_explode(void) {
     PlyrInfo* player;
     struct PlayerBodyExplodePdata* pdata;
     MkProc* anim_proc;
     MkObj* object;
-    int limb;
     int body_part;
 
     pdata = (struct PlayerBodyExplodePdata*)apdata;
@@ -873,22 +878,7 @@ static float p_player_body_explode(void) {
     player->slot.mirror_a->flags_09_bits.head_tracking = 0;
     bgnd_hide_mirror_guys();
 
-    for (limb = 0; limb < 15; limb++) {
-        FighterMirror* fighter;
-
-        fighter = player->slot.fighter;
-        object = MK_HDR_LIVE(fighter->severed_limbs[limb].object, fighter->severed_limbs[limb].instance);
-        if (object == 0) {
-            object = obj_sever_limb(
-                player->slot.mirror_a, limb,
-                fighter->runtime_data->half_sever_velocities, 1);
-            if (object != 0) {
-                player->slot.fighter->severed_limbs[limb].object = object;
-                player->slot.fighter->severed_limbs[limb].instance =
-                    object->hdr.instance;
-            }
-        }
-    }
+    sever_missing_limbs(player);
 
     limb_sever_show_z_meat_chunks_all(player->slot.mirror_a);
     anim_proc = MK_LIVE(player->slot.fighter->anim_proc, player->slot.fighter->anim_proc_instance);
@@ -899,8 +889,8 @@ static float p_player_body_explode(void) {
         FighterMirror* fighter;
 
         fighter = player->slot.fighter;
-        object = fighter->severed_limbs[body_part].object;
-        object = MK_HDR_LIVE(object, fighter->severed_limbs[body_part].instance);
+        object = MK_HDR_LIVE(fighter->severed_limbs[body_part].object,
+            fighter->severed_limbs[body_part].instance);
         if (object != 0) {
             object->flags_08_bits.gravity_enabled = 1;
             object->flags_08_bits.angular_velocity_enabled = 1;
@@ -943,13 +933,14 @@ void init_plyr_severed_limb_list(PlyrInfo* player) {
     int limb_index;
 
     for (limb_index = 0; limb_index < 15; limb_index++) {
-        FighterMirror* fighter = player->slot.fighter;
-        MkObj* limb = fighter_severed_limb_live_object(fighter, limb_index);
+        MkObj* limb = MK_HDR_LIVE(
+            player->slot.fighter->severed_limbs[limb_index].object,
+            player->slot.fighter->severed_limbs[limb_index].instance);
 
         if (limb == 0) {
             limb = obj_sever_limb(
                 player->slot.mirror_a, limb_index,
-                fighter->runtime_data->half_sever_velocities, 1);
+                player->slot.fighter->runtime_data->half_sever_velocities, 1);
             if (limb != 0) {
                 player->slot.fighter->severed_limbs[limb_index].object =
                     limb;
@@ -1404,11 +1395,10 @@ static float p_cam_bounce_monitor(void) {
     return -1.0f;
 }
 
-/* TODO: [breakthrough needed] 99.51136%; initializer/final-limb homes and
- * moving-bit/shake LI differ; recover their original shared producer. */
 void skytemple_player_explode(
     unsigned int player_index, float x, float y, float z) {
-    PlyrInfo* player = &g_game_info.plyr1;
+    int limb_index;
+    PlyrInfo* player;
     MkProc* anim_proc;
     MkProc* bounce_proc;
     MkObj* limb;
@@ -1417,10 +1407,11 @@ void skytemple_player_explode(
     float saved_gravity;
     float limb_y;
     float saved_facial_damage;
-    int limb_index;
 
     if (player_index == 0) {
         player = &g_game_info.plyr0;
+    } else {
+        player = &g_game_info.plyr1;
     }
 
     if (player->slot.mirror_a == 0) {
@@ -1442,12 +1433,13 @@ void skytemple_player_explode(
     xfer_proc(anim_proc, p_anim_idle);
 
     saved_facial_damage = player->slot.fighter->facial_damage;
-    add_facial_damage(player->slot.fighter, 1.0f);
+    add_facial_damage(1.0f);
 
     limb_y = y + 0.35f;
     for (limb_index = 0; limb_index < 15; limb_index++) {
-        limb = fighter_severed_limb_live_object(
-            player->slot.fighter, limb_index);
+        limb = MK_HDR_LIVE(
+            player->slot.fighter->severed_limbs[limb_index].object,
+            player->slot.fighter->severed_limbs[limb_index].instance);
         if (limb == 0) {
             continue;
         }
@@ -1583,13 +1575,14 @@ void skytemple_player_explode(
         aproc->vtbl->sleep();
     }
 
-    limb = fighter_severed_limb_live_object(player->slot.fighter, 0);
+    limb = MK_HDR_LIVE(player->slot.fighter->severed_limbs[0].object,
+        player->slot.fighter->severed_limbs[0].instance);
     if (limb != 0) {
         ScreenObj* effect;
 
         limb->gravity = -0.003f;
         limb->flags_08_bits.moving = 1;
-        shake_camera(3, (MkHdr*)1, 0.01f);
+        shake_camera(3, 0.01f);
         effect = load_named_2d_pfxobj(
             0x2001E, 0x2094, "ST_BLOODSPLAT", 0, 0x29);
         if (effect != 0) {

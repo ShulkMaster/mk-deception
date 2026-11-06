@@ -113,7 +113,7 @@ static inline int nav_begin_area_search(struct KonquestNavData* nav, int startAr
     return areaCount;
 }
 
-static inline int nav_area_contains_point(struct NavArea* area, const Vec* position) {
+static inline int is_point_in_this_area(struct NavArea* area, const Vec* position) {
     struct NavBoundary* boundary = area->boundaries;
     int i;
 
@@ -131,7 +131,7 @@ static inline int nav_area_contains_point(struct NavArea* area, const Vec* posit
     return 1;
 }
 
-static inline int nav_find_area_in_tile(const Vec* position) {
+static inline int nav_find_area_for_point(const Vec* position) {
     int tileIndex = get_tile_from_position(position);
     struct NavTile* tile;
     int i;
@@ -153,7 +153,7 @@ static inline int nav_find_area_in_tile(const Vec* position) {
         } else {
             area = konquest_pdata->navData->areas[areaIndex];
         }
-        if (nav_area_contains_point(area, position)) {
+        if (is_point_in_this_area(area, position)) {
             return areaIndex;
         }
         i++;
@@ -162,8 +162,8 @@ static inline int nav_find_area_in_tile(const Vec* position) {
     return -1;
 }
 
-/* TODO: [near miss] 97.80220%; X displacement agrees; portal-entry ADDI
- * precedes MTCTR/CMPWI setup; recover the entry-address producer. */
+/* TODO: [near miss] 97.80220%; retail preheader got a post-RA reschedule (a copy
+ * deleted by allocation) that ours lacks; entry ADDI issues before MTCTR. */
 void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int portalId) {
     struct KonquestPdata* pdata = konquest_pdata;
     struct KonquestNavData* nav = pdata->navData;
@@ -393,8 +393,8 @@ void nav_get_unit_vector_to_area(int areaIndex, Vec* out, Vec* pos) {
     out->y = 0.0f;
 }
 
-/* TODO: [near miss] 98.05556%; scalar plane fields retain all operations;
- * six FPR owners still cross scalarized/named/codegen creation bands. */
+/* TODO: [near miss] 98.05556%; 18 FPR rows across zero, plane and distance;
+ * retain raw plane snapshot; recover original distance/normal ownership. */
 static struct NavArea* unit_vector_to_area(struct NavArea* area, Vec* nearestNormal,
                                     float* nearestDistance,
                                     Vec* farthestNormal,
@@ -448,44 +448,44 @@ static struct NavArea* unit_vector_to_area(struct NavArea* area, Vec* nearestNor
     return (struct NavArea*)cursor;
 }
 
-/* TODO: [near miss] 99.59840%; nav/global CSE homes and portal owners remain;
- * count/entry initializer fixes count but swaps iterator/index; retain direct scan. */
 int nav_what_area_is_point_in(Vec* pos, int hintArea) {
     struct KonquestNavData* nav;
     struct NavArea* area;
-    struct NavPortalList* portals;
-    struct NavPortalEntry* portal;
-    int areaCount;
     int portalIndex;
+    unsigned char* portalCursor;
+    int portalCount;
+    int areaCount;
 
-    nav = konquest_pdata->navData;
-    if (nav == 0) {
+    if (konquest_pdata->navData == 0) {
         return -1;
     }
+    nav = konquest_pdata->navData;
     if (hintArea < 0) {
-        return nav_find_area_in_tile(pos);
+        return nav_find_area_for_point(pos);
     }
     area = nav_get_area(nav, hintArea);
-    if (nav_area_contains_point(area, pos)) {
+    if (is_point_in_this_area(area, pos)) {
         return hintArea;
     }
     areaCount = nav_begin_area_search(nav, hintArea);
     if (areaCount < 0) {
         return -1;
     }
-    portals = nav_get_portals(area);
-    portal = portals->entries;
-    for (portalIndex = 0; portalIndex < portals->count;
-         portal++, portalIndex++) {
-        int adjacentAreaIndex = portal->adjacentArea;
+    portalCursor = (unsigned char*)area->boundaries;
+    portalCursor += area->boundaryCount * sizeof(struct NavBoundary);
+    portalCount = ((struct NavPortalList*)portalCursor)->count;
+    portalCursor += sizeof(((struct NavPortalList*)0)->count);
+    for (portalIndex = 0; portalIndex < portalCount;
+         portalCursor += sizeof(struct NavPortalEntry), portalIndex++) {
+        int adjacentAreaIndex = ((struct NavPortalEntry*)portalCursor)->adjacentArea;
         struct NavArea* adjacentArea = nav_get_area(konquest_pdata->navData,
                                              adjacentAreaIndex);
 
-        if (nav_area_contains_point(adjacentArea, pos)) {
+        if (is_point_in_this_area(adjacentArea, pos)) {
             return adjacentAreaIndex;
         }
     }
-    return nav_find_area_in_tile(pos);
+    return nav_find_area_for_point(pos);
 }
 
 void konquest_nav_init(void) {
@@ -598,8 +598,8 @@ static inline void add_nav_area_to_tile(
     }
 }
 
-/* TODO: [near miss] 99.31884%; 42 GPR rows remain in area/tile/index and flag homes;
- * vertex and inside flag owners agree; original root ownership is missing. */
+/* TODO: [near miss] 99.37681%; 40 area/count, tile and flag GPR rows remain;
+ * tile-index home agrees; recover remaining owner kinds before further tuning. */
 static void setup_per_tile_navigations(void) {
     static int most_navigation_per_tile;
     int cornerIndex;
@@ -610,6 +610,7 @@ static void setup_per_tile_navigations(void) {
     int areaIndex;
     int boundaryCount;
     int tileCount;
+    struct NavTile* tile;
     int tileIndex;
 
     areaIndex = 0;
@@ -622,7 +623,6 @@ static void setup_per_tile_navigations(void) {
 
         tileIndex = 0;
         while (tileIndex < tileCount) {
-            struct NavTile* tile = &konquest_pdata->navTiles[tileIndex];
             float minX;
             float maxX;
             float minZ;
@@ -637,6 +637,7 @@ static void setup_per_tile_navigations(void) {
             int vertexIndex;
             struct NavBoundary* boundary;
 
+            tile = &konquest_pdata->navTiles[tileIndex];
             calc_tile_points(tile, tileCorners);
             minX = tileCorners[0].x;
             maxX = tileCorners[2].x;

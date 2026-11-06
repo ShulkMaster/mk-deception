@@ -321,6 +321,7 @@ static inline int mwsfcre_CalcFrameSize(int source_width, int source_height)
     return luma_size + chroma_size * 2 + 0x20;
 }
 
+/* TODO: [Scope warn] case 5 has no known ftype (retail switch tree only); donor case 4 arm: 100% -> 99.78%. */
 static inline int mwsfcre_UsesAudio(int file_type)
 {
     int uses_audio;
@@ -329,7 +330,7 @@ static inline int mwsfcre_UsesAudio(int file_type)
     case 3:
         uses_audio = 0;
         break;
-    case 4:
+    case 5:
     default:
         uses_audio = 1;
         break;
@@ -778,8 +779,6 @@ static inline void* mwsfcre_MallocX(MwsPlayer* player, int size)
     return mwsfcre_Alloc(player, size);
 }
 
-/* TODO: [breakthrough needed] 99.78355%; two switch-tree branches are missing;
- * recover the original file-type case set or meaningful arm boundary. */
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
                                     MwsCreateParams* params)
 {

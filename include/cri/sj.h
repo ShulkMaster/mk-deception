@@ -40,6 +40,6 @@ int SJMEM_GetBufSize(SJ* sj);
 
 unsigned char* SJ_SearchTag(
     SJCK* source, const char* tag, const char* terminator, SJCK* result);
-void SJ_SplitChunk(const SJCK* source, int nbyte, SJCK* first, SJCK* remainder);
+void SJ_SplitChunk(const SJCK* source, long nbyte, SJCK* first, SJCK* remainder);
 
 #endif

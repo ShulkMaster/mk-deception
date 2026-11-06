@@ -282,26 +282,9 @@ PlyrInfo* get_player_for_port(int port) {
     return player;
 }
 
-/* TODO: [near miss] 91.58537%; typed copy rows remain CG temporaries above bases;
- * recover earlier row ownership without changing shared loop-zero setup. */
 void init_player_switch_maps(void) {
-    SwitchMapEntry* dest;
-    SwitchMapEntry* src;
-    int i;
-
-    dest = p1_temp_switch_map;
-    p1_use_temp_switch_map = 0;
-    src = default_switch_map;
-    for (i = 0; i < PROFILE_SWITCHMAP_COUNT; i++) {
-        dest[i] = src[i];
-    }
-
-    dest = p2_temp_switch_map;
-    p2_use_temp_switch_map = 0;
-    src = default_switch_map;
-    for (i = 0; i < PROFILE_SWITCHMAP_COUNT; i++) {
-        dest[i] = src[i];
-    }
+    init_temp_switch_map(0, 0);
+    init_temp_switch_map(1, 0);
     p1_rumble_on = 0;
     p2_rumble_on = 0;
 }
@@ -771,7 +754,7 @@ static float p_do_controller_removed(void) {
     }
 
     DRAW_CONTROLLER_REMOVED_TEXT(screen_oid, player_x, player_pad, initial_text);
-    if (!g_game_info.feature_flags.bits.high_bit) {
+    if (!g_game_info.feature_flags.bits.online_game) {
         pause_procs(1);
     }
 
@@ -809,7 +792,7 @@ static float p_do_controller_removed(void) {
             break;
         }
 
-        if (!g_game_info.feature_flags.bits.high_bit) {
+        if (!g_game_info.feature_flags.bits.online_game) {
             if ((int)display_off == 0) {
                 pause_procs(1);
             } else {
