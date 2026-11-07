@@ -1050,6 +1050,18 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   user; extern-only file-scope const tables -> define with retail bytes at
   the parse slot between the owners of the neighbouring `@N` records
   (`mk_chess` `.rodata` 72.6->99.0, fight_cam pool-offset rows gone).
+  `auto,deferred` callee policy: native candidacy (0x55cd60) = <= 30
+  statements excluding kinds 1/2, locals <= 0x400, fixed at the closing
+  brace. Retail `bl` to a small static = it had > 30 statements (merge an
+  invented impl helper back: `start_opening_coffin_effects` 34) or a pin;
+  helper reuse that drops a retail-called function to <= 30 inlines it
+  (`deduct_koins`: 32 -> 30 with `get_konquest_key_bit`, then inlined into
+  `handle_controller_input` 88.66). Probes (`.agent-work/tooling/scratch/
+  opus-f4/`): `cand/cand.py` (counts), `kip.py` (accept/cost), `ks.py`
+  (score with an extra flag). After the conversion rerun decl-order
+  search under the new flag: old near-miss sweeps are void (`krypt`
+  `start_opening_coffin_effects` 97.60 -> 100: exhaustive 7-local declclimb
+  + named call result passed on, H31).
 - Recovered ordinary helpers under deferred emission: REQUIRE retail inline
   expansions, donor body + MAP evidence, and every function/data comparison.
   TRY reversed helper definitions with paired `auto,deferred`

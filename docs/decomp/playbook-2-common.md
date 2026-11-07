@@ -1135,6 +1135,15 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   `start_fatality`, `start_2nd_fatality` and `fade_fatality_screen`
   together). Define it after the callee: non-deferred `-inline auto` never
   inlines a later definition.
+- One function holds 2+ identical open-coded copies of a body that an
+  existing helper (any name) already performs, residue = base folding /
+  AddPropagation through the element pointer ("no use boundary"): REQUIRE
+  helper out-of-line size = a MAP UNUSED entry. TRY a helper call per copy
+  (`transform_collision_node(&c->joints[i])`, `(&c->active_nodes[i])`): the
+  inline param is the boundary; retail folds the first call's args, then
+  materialises source/destination bases. `update_player_collision_nodes`
+  97.01 -> 100 (helper 0x184 = MAP `update_col_node`). Audit cheaply: wrapper
+  `void t_H(args) { H(args); }` per static inline, compare sizes with UNUSED.
 - Several bodies hit the MAP size: pick by caller codegen, not by size alone.
   IF a value the helper writes into a caller Vec is consumed by one later
   caller statement and retail emits the caller's other operands first (cg-temp
