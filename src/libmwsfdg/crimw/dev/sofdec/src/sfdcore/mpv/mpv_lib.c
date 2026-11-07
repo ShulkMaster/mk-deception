@@ -8,7 +8,7 @@
 
 struct MPVLibWork {
     int conditions[17];
-    u32 field_44;
+    int field_44;
     u32 flags;
     void* field_4C;
     void* index_work;
@@ -331,45 +331,47 @@ static void mpvlib_InitPicAtr(MPVPictureAttributes* attributes)
     attributes->field_63 = 0xFF;
     attributes->field_64 = 0xFF;
 }
-/* TODO: [breakthrough] 76.89%; locked-cache loop is an approved asm block; remaining:
- * error-ladder CFG (retail hang is a bctrl through null), HID2 spill slot, rodata/BSS layout. */
+/* TODO: [blocked] 91.43%; C shape agrees; retail reads HID2 by asm mfspr into a stack slot (needs an
+ * approved block), "1.933" needs -str readonly, .bss pool order differs (compiler build). */
 int MPV_Init(int handle_count, void* work)
 {
     static const u32 test_wrok = 0x01020304;
     static const char version_check[] = "1.933";
-    MPVContext* handles;
+    s32 siz_mcbuf = 0x380;
+    s32 siz_obj = sizeof(MPVContext);
     u8* after_handles;
+    MPVContext* handles;
     register u8* index_work;
     register int i;
     u32 hid2;
-    u32 work_address;
     int error;
-    int remaining;
+    u8* wk;
     u8* clip;
-    u8 value;
+    int count;
     MPVContext* current;
 
     cri_verstr_ptr = MPVLIB_version_str;
-    if ((0x380 & 31) != 0) {
+    if ((siz_mcbuf & 0x1F) != 0) {
         error = MPVERR_SetCode(0, 0xFF03FF06);
     } else if (MPVVLC_IsVlcSizErr() != 0) {
         error = MPVERR_SetCode(0, 0xFF03FF03);
-    } else if (sizeof(MPVContext) > 0x2000) {
+    } else if ((u32)siz_obj > 0x2000) {
         error = MPVERR_SetCode(0, 0xFF03FF01);
     } else if (mpvlib_cond_dfl[16] != 0x5A5A5A5A) {
         error = MPVERR_SetCode(0, 0xFF03FF02);
-    } else if (MPVDEC_CheckVersion(version_check,
-                                   MPV_DECODER_VERSION_SIZE, sizeof(MPVPictureAttributes)) != 0) {
+    } else if (MPVDEC_CheckVersion(version_check, MPV_DECODER_VERSION_SIZE,
+                                   sizeof(MPVPictureAttributes)) != 0) {
         error = MPVERR_SetCode(0, 0xFF03FF07);
     } else {
         if (*(const u8*)&test_wrok != 1) {
             for (;;) {
+                ((void (*)(void))-1)();
             }
         }
         error = 0;
     }
     if (error != 0) {
-        if (error == 0xFF030005) {
+        if (error == 0xFF03FF05) {
             return error;
         }
         for (;;) {
@@ -381,15 +383,13 @@ int MPV_Init(int handle_count, void* work)
         hid2 &= ~0x10000000;
     }
     mpvlib_libwork.flags = hid2;
-
-    work_address = (u32)work;
+    wk = work;
     if (mpvlib_libwork.field_44 != 0) {
-        work_address |= 0x02000000;
+        wk = (u8*)((u32)work | 0x02000000);
     }
-    handles = (MPVContext*)((work_address + 31) & ~31);
+    handles = (MPVContext*)(((u32)wk + 0x1F) & ~0x1F);
     UTY_MemsetDword((unsigned int*)handles, 0,
                     (((u32)handle_count << 13) + 0x2000) >> 2);
-
     after_handles = (u8*)handles + handle_count * sizeof(MPVContext);
     index_work = after_handles + 0x3A0;
     if ((mpvlib_libwork.flags & 0x10000000) != 0) {
@@ -415,56 +415,25 @@ int MPV_Init(int handle_count, void* work)
     MPVCMC_Init();
 
     clip = mpv_clip_0_255_tbl;
-    remaining = 0x30;
-    do {
-        clip[0] = 0;
-        clip[1] = 0;
-        clip[2] = 0;
-        clip[3] = 0;
-        clip[4] = 0;
-        clip[5] = 0;
-        clip[6] = 0;
-        clip[7] = 0;
-        clip += 8;
-    } while (--remaining != 0);
-
-    value = 0;
-    remaining = 0x20;
-    do {
-        clip[0] = value++;
-        clip[1] = value++;
-        clip[2] = value++;
-        clip[3] = value++;
-        clip[4] = value++;
-        clip[5] = value++;
-        clip[6] = value++;
-        clip[7] = value++;
-        clip += 8;
-    } while (--remaining != 0);
-
-    remaining = 0x30;
-    do {
-        clip[0] = 0xFF;
-        clip[1] = 0xFF;
-        clip[2] = 0xFF;
-        clip[3] = 0xFF;
-        clip[4] = 0xFF;
-        clip[5] = 0xFF;
-        clip[6] = 0xFF;
-        clip[7] = 0xFF;
-        clip += 8;
-    } while (--remaining != 0);
-    mpv_clip_0_255_base = mpv_clip_0_255_tbl + 0x180;
+    for (i = 0; i < 0x180; i++) {
+        *clip++ = 0;
+    }
+    for (i = 0; i < 0x100; i++) {
+        *clip++ = i;
+    }
+    for (i = 0; i < 0x180; i++) {
+        *clip++ = 0xFF;
+    }
+    mpv_clip_0_255_base = &mpv_clip_0_255_tbl[0x180];
     if (index_work + 0x1860 != 0) {
         UTY_MemcpyDword((unsigned int*)(index_work + 0x1860),
                         (unsigned int*)mpv_clip_0_255_tbl,
                         sizeof(mpv_clip_0_255_tbl) / sizeof(unsigned int));
         mpv_clip_0_255_base = index_work + 0x19E0;
     }
-
-    current = handles;
-    remaining = handle_count;
-    while (remaining-- > 0) {
+    count = mpvlib_libwork.handle_count;
+    current = mpvlib_libwork.handles;
+    for (i = 0; i < count; i++) {
         current->state = 1;
         current++;
     }

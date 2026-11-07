@@ -130,6 +130,16 @@ RA-time def/use/edge or pre-RA join that leaves no code:
 RE4 `volatile` reloads in `sftim_GetTimeExtClock` are the join variant).
 Blocked until an honest construct leaves such a compare; donor-confirm by
 compiling the RE4 unit with MKD flags and deleting its dead arm.
+- Which constants survive: IRO keeps a compare of a `long`-typed local
+  (`s32`/`u32`/CRI `Sint32`) assigned a constant; an `int` local and a
+  constant inline-helper argument are folded away (measured on `sfh_main`
+  readers: `int size = 4; if (size == 2)` and `helper(..., 4L)` both fold).
+  IF retail shows a runtime test of a constant (`li rX,0x380; clrlwi.` or
+  `li rX,0x1380; cmplwi rX,0x2000`) | REQUIRE the compare/branch rows exist in
+  retail (a size/alignment sanity check, not an invisible arm) | TRY one `s32`
+  local per checked constant (`siz_mcbuf = 0x380; if ((siz_mcbuf & 0x1F) != 0)`,
+  `siz_obj = sizeof(T); if ((u32)siz_obj > 0x2000)`; `MPV_Init`, RE4 donor).
+  This does not license the invisible dead arm above: retail must keep the code.
 
 ## N10
 
