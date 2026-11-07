@@ -1,29 +1,9 @@
 #include "sofdec/mpv_mc.h"
 
+#include "runtime/asm_sequences.inc"
+
 static const MPVMCFunction mpvmc_oneref1p_func_table[4] = {0, 0, 0, 0};
 
-
-static inline void mpvmc_copy_shift1_row(const u8* reference, u8* destination)
-{
-    const u32* words = (const u32*)reference;
-    ((u32*)destination)[0] = (words[0] << 8) | (words[1] >> 24);
-    ((u32*)destination)[1] = (words[1] << 8) | reference[8];
-}
-
-static inline void mpvmc_copy_shift2_row(const u16* reference, u8* destination)
-{
-    u32 middle = *(const u32*)(reference + 1);
-    ((u32*)destination)[0] = ((u32)reference[0] << 16) | (middle >> 16);
-    ((u32*)destination)[1] = (middle << 16) |
-                             reference[3];
-}
-
-static inline void mpvmc_copy_shift3_row(const u8* reference, u8* destination)
-{
-    const u32* words = (const u32*)reference;
-    ((u32*)destination)[0] = (words[0] << 24) | (words[1] >> 8);
-    ((u32*)destination)[1] = (words[1] << 24) | (words[2] >> 8);
-}
 
 /* Pack eight rounded 2x2 pixel averages from the two reference rows. */
 void MPVMC08_OneRef4p_TuneC(MPVMCContext* context)
@@ -321,98 +301,50 @@ void MPVMC08_OneRefV2_TuneC(MPVMCContext *context)
     }
 }
 
-/* TODO: [blocked] 24.18%; vendor indexed-update assembly lacks specific authorization; retain C fallback. */
 void MPVMC08_OneRef1p_TuneC(MPVMCContext* context)
 {
-    int row;
-    int alignment = (unsigned long)context->reference0 & 7;
-    u32 stride = context->reference_stride;
-    const u8* reference = context->reference0;
-    u8* destination = context->destination;
+    register const u8* s = context->reference0;
 
-    switch (alignment) {
+    asm { SEQ_MPVMC08_OneRef1p_TuneC_Dcbt(s) }
+    switch ((u32)s & 7) {
     case 0: {
-        double* double_destination = (double*)destination;
-        double row0;
-        double row1;
-        double row2;
-        double row3;
-        double row4;
-        double row5;
-        double row6;
-        double row7;
+        register s32 st;
 
-        row0 = *(const double*)reference;
-        reference += stride;
-        row1 = *(const double*)reference;
-        reference += stride;
-        row2 = *(const double*)reference;
-        reference += stride;
-        row3 = *(const double*)reference;
-        reference += stride;
-        row4 = *(const double*)reference;
-        reference += stride;
-        row5 = *(const double*)reference;
-        reference += stride;
-        row6 = *(const double*)reference;
-        reference += stride;
-        row7 = *(const double*)reference;
-        double_destination[0] = row0;
-        double_destination[1] = row1;
-        double_destination[2] = row2;
-        double_destination[3] = row3;
-        double_destination[4] = row4;
-        double_destination[5] = row5;
-        double_destination[6] = row6;
-        double_destination[7] = row7;
+        asm { SEQ_MPVMC08_OneRef1p_TuneC_Copy0(st, s) }
         break;
     }
     case 4: {
-        u32* word_destination = (u32*)destination;
-        for (row = 0; row < 8; row++) {
-            word_destination[0] = ((const u32*)reference)[0];
-            word_destination[1] = ((const u32*)reference)[1];
-            reference += stride;
-            word_destination += 2;
-        }
+        register s32 st;
+        register const u8* p;
+        register u32 w;
+
+        asm { SEQ_MPVMC08_OneRef1p_TuneC_Copy4(st, p, s, w) }
         break;
     }
     case 2:
     case 6: {
-        const u16* source = (const u16*)reference;
-        u32 pitch = stride / 2;
+        register u32 t0;
+        register u32 st;
 
-        for (row = 0; row < 2; row++) {
-            mpvmc_copy_shift2_row(source, destination);
-            source += pitch;
-            mpvmc_copy_shift2_row(source, destination + 8);
-            source += pitch;
-            mpvmc_copy_shift2_row(source, destination + 16);
-            source += pitch;
-            mpvmc_copy_shift2_row(source, destination + 24);
-            source += pitch;
-            destination += 32;
-        }
+        asm { SEQ_MPVMC08_OneRef1p_TuneC_Copy2(st, s, t0) }
         break;
     }
     case 1:
-    case 5:
-        reference -= 1;
-        for (row = 0; row < 8; row++) {
-            mpvmc_copy_shift1_row(reference, destination);
-            reference += stride;
-            destination += 8;
-        }
+    case 5: {
+        register s32 st;
+        register u32* d;
+
+        asm { SEQ_MPVMC08_OneRef1p_TuneC_Copy1(st, s, d) }
         break;
+    }
     case 3:
-    case 7:
-        reference -= 3;
-        for (row = 0; row < 8; row++) {
-            mpvmc_copy_shift3_row(reference, destination);
-            reference += stride;
-            destination += 8;
-        }
+    case 7: {
+        register s32 st;
+        register u32* d;
+
+        asm { SEQ_MPVMC08_OneRef1p_TuneC_Copy3(st, s, d) }
         break;
+    }
     }
 }
 

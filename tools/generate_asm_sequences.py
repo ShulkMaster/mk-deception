@@ -148,6 +148,7 @@ def emit_macro(
     symbols: dict[str, str] | None = None,
     text: bool = False,
     stack: tuple[str, int, int] | None = None,
+    rebind: dict[str, tuple[str, int]] | None = None,
 ) -> list[str]:
     """Emit SEQ_<name>.  A whole function is a `nofralloc` asm function body.
     A block is a run of instructions inside a C function, invoked from an
@@ -156,8 +157,11 @@ def emit_macro(
     those registers replaced by the C operands passed to the macro.
     `symbols` renames retail relocation targets (@h/@ha/@l) to source
     spellings; a `text` block emits every instruction as text, with local
-    branch targets as labels, so the compiler sees its registers."""
-    parameters = list(operands) if operands else []
+    branch targets as labels, so the compiler sees its registers.
+    `rebind` (macro parameter -> (register, address)) spells a register that
+    the block redefines with a second C operand: the destination of the
+    instruction at `address` and every later use of that register."""
+    parameters = (list(operands) if operands else []) + list(rebind or {})
     register_to_parameter = {register: name for name, register in (operands or {}).items()}
     lines = [f"#define SEQ_{sequence.name}({', '.join(parameters)}) \\"]
     if not block:
@@ -206,7 +210,13 @@ def emit_macro(
                 assembly = substitute_operands(assembly, register_to_parameter)
             lines.append(f"    {assembly};{suffix}")
         elif register_to_parameter or text:
+            address = sequence.address + 4 * index
+            rebound = [(name, register) for name, (register, at) in (rebind or {}).items() if at == address]
+            for name, register in rebound:
+                assembly = REGISTER_TOKEN_RE.sub(lambda _m: name, assembly, count=1)
             lines.append(f"    {substitute_operands(assembly, register_to_parameter)};{suffix}")
+            for name, register in rebound:
+                register_to_parameter = {**register_to_parameter, register: name}
         elif EXTERNAL_BRANCH_RE.fullmatch(assembly) or SYMBOL_RELOCATION_RE.fullmatch(
             assembly
         ):
@@ -312,6 +322,44 @@ def block_sequence(
     return Sequence(name, address, tuple(instructions))
 
 
+def block_rebind(
+    name: str,
+    sequence: Sequence,
+    operands: dict[str, str] | None,
+    raw: object,
+) -> dict[str, tuple[str, int]] | None:
+    """Validate a block's `rebind` map: {"param": {"register": "rN", "at": "0x..."}}.
+    The instruction at `at` must write `register` (its first register operand)
+    while that register is another operand's; from then on the register is
+    spelled `param` (one register reused for a second C variable)."""
+    if raw is None:
+        return None
+    if not operands or not isinstance(raw, dict):
+        raise ValueError(f"{name}.rebind: needs operands and an object")
+    rebind: dict[str, tuple[str, int]] = {}
+    for parameter, spec in raw.items():
+        if not SYMBOL_RE.fullmatch(parameter) or parameter in operands:
+            raise ValueError(f"{name}.rebind: invalid or duplicate parameter {parameter!r}")
+        if not isinstance(spec, dict) or not isinstance(spec.get("register"), str):
+            raise ValueError(f"{name}.rebind.{parameter}: expected {{register, at}}")
+        register = spec["register"]
+        if register not in operands.values():
+            raise ValueError(f"{name}.rebind.{parameter}: {register} is not an operand register")
+        at = parse_int(spec.get("at"), f"{name}.rebind.{parameter}.at")
+        index = (at - sequence.address) // 4
+        if at % 4 or not 0 <= index < len(sequence.instructions):
+            raise ValueError(f"{name}.rebind.{parameter}: 0x{at:X} is outside the block")
+        assembly = sequence.instructions[index][1]
+        tokens = REGISTER_TOKEN_RE.findall(assembly)
+        mnemonic = assembly.split()[0]
+        if not tokens or tokens[0] != register or re.match(r"^(st|cmp|dcb|icb|b|tw)", mnemonic):
+            raise ValueError(
+                f"{name}.rebind.{parameter}: 0x{at:X} ({assembly}) does not write {register}"
+            )
+        rebind[parameter] = (register, at)
+    return rebind
+
+
 def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path, str]:
     assembly_relative, output_relative, entries = load_manifest(manifest_path, version)
     assembly_cache: dict[Path, dict[str, Sequence]] = {}
@@ -404,6 +452,7 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
             if raw_operands is not None and not isinstance(raw_operands, dict):
                 raise ValueError(f"{name}.operands: expected an object")
             sequence = block_sequence(name, parent, address, size, raw_operands, text)
+            rebind = block_rebind(name, sequence, raw_operands, entry.get("rebind"))
             lines.extend(
                 emit_macro(
                     sequence,
@@ -413,11 +462,12 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
                     symbols=symbols,
                     text=text,
                     stack=stack,
+                    rebind=rebind,
                 )
             )
             lines.append("")
             continue
-        if raw_operands is not None:
+        if raw_operands is not None or "rebind" in entry:
             raise ValueError(f'{name}.operands: only blocks (with "function") take operands')
         if text:
             raise ValueError(f'{name}.text: only blocks (with "function") take text mode')
