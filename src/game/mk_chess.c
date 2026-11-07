@@ -617,7 +617,7 @@ static float p_mk_chess_loop(void);
 
 extern MkFileInfo sec_mkchess_ingame_art;
 extern MkFileInfo sec_mkchess_ingame_anims;
-extern int mkc_in_fight_anims[89];
+int mkc_in_fight_anims[89];
 static void mk_chess_team_init(int side);
 static void mk_chess_load_team_art(unsigned int side);
 static void mk_chess_camera_init_for_place_traps(void);
@@ -2181,7 +2181,7 @@ static inline void mk_chess_start_cell_emitter(int emitter, float x, float y, fl
 
 extern MkFileInfo sec_mk_chess;
 extern MkFileInfo sec_chess_fast_anims;
-extern int mkc_anims[89];
+int mkc_anims[89];
 extern MkPtr* board_piece_light_list;
 
 static inline void mk_chess_load_common_cursor(int cursor_index, unsigned int art_id, int selection)
@@ -3395,8 +3395,8 @@ static int mk_chess_drone_handle_get_the_king_strategy(ChessDroneState* drone)
     return 0;
 }
 
-/* TODO: [breakthrough needed] 98.40529%; count normalization lacks compatible lifetimes;
- * distance-output control regresses; preserve selected/save-base spill ownership. */
+/* TODO: [near miss] 99.1%; count/move must number above the inline distance web; retail
+ * u16 count at randu0 (clrlwi) flips our round-1 spill from the board base to selected. */
 static int mk_chess_drone_get_close_to_piece(ChessDroneState* drone,
     ChessPiece* target, ChessPiece** selected, int* next_x, int* next_y) {
     ChessAttackerInfo candidates[16];
@@ -3407,13 +3407,12 @@ static int mk_chess_drone_get_close_to_piece(ChessDroneState* drone,
     for (index = 0; index < drone->live_piece_count; index++) {
         unsigned int best_distance;
         unsigned int x, y;
-        ChessPiece* piece = drone->pieces[index];
-        if (mk_chess_pdata->board[piece->cell_x].cells[piece->cell_y].square_type == 1) {
+        if (mk_chess_pdata->board[drone->pieces[index]->cell_x].cells[drone->pieces[index]->cell_y].square_type == 1) {
             continue;
         }
         if (board_game_save_data.input_flags.input_locked == 0 && drone->live_piece_count > 6) {
             ChessPiece* king = mk_chess_drone_pick_piece_by_type_on_team(drone->piece->side, 5);
-            if (mk_chess_pieces_are_neighbors(piece, king) != 0 &&
+            if (mk_chess_pieces_are_neighbors(drone->pieces[index], king) != 0 &&
                 (unsigned short)randu0(100) < 100) {
                 continue;
             }
@@ -7627,8 +7626,8 @@ static void mk_chess_calc_knowledge_base(ChessPiece* first, ChessPiece* second, 
     }
 }
 
-/* TODO: [breakthrough needed] 99.18874%; same-unit BSS address remains;
- * recover message first-reference ownership or original compiler boundary. */
+/* TODO: [near miss] 99.997%; mkc_in_fight_anims at base+0x2040, retail 0x2078: retail .bss (deferred,
+ * reverse decl order) puts the unreferenced __chess_trap/team/buttons_msg (0x38 B) before it. */
 static float p_mk_chess_game_setup(void)
 {
     int pause_slot;

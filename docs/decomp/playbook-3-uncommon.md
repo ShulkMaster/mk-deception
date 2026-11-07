@@ -1173,6 +1173,15 @@ built objects; only linked DOL hash catches wrong layout.
   wrongly move them to `.data`. Verify every consumer and data value. Leave
   unknown suffix objects undefined; no guessed arrays, padding, or aggregate
   overlay. A correct partial prefix is not full-BSS or link exactness.
+  Unreferenced statics between used objects (retail map: used, unused, used):
+  under `-inline auto` "first use" = reference surviving codegen; `if (0)`,
+  IRO-dead branch, empty-inline arg, data initializer `&x` do not count, an
+  unreferenced static function does; never-used statics go last, reverse decl.
+  Under `-inline auto,deferred` all tentatives incl. never-used statics = reverse
+  decl order: such a map is deferred evidence, not a lost user. In a unit kept
+  non-deferred, only a MAP-UNUSED owner of MAP size referencing them in retail
+  order places them (`p_mk_chess_game_setup` messages): user decision, not
+  original shape.
 - Small object's first `extern` must see complete type for SDA (DVD thread
   queue); multi-record table declared as pointer falsely picks SDA. All small
   globals in `.bss` with `lis` addressing where ours uses `@sda21`: object
