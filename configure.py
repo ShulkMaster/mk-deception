@@ -2277,7 +2277,7 @@ config.libs = [
                 NonMatching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileGCPlatform.o",
                 source="mw/mwFileGCPlatform.cpp",
-                extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline noauto"],
+                extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline auto,deferred,level=2", "-str reuse,pool,readonly"],
             ),
         ],
     },
