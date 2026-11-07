@@ -1107,6 +1107,10 @@ built objects; only linked DOL hash catches wrong layout.
   Retail `at_cam_data, g_DroneAI2,
   g_DroneAI1` = static used first + `g_DroneAI1; g_DroneAI2;` defined at file
   end, externs at top. All functions byte-identical either way.
+  Sole live user references them in another order: REQUIRE a MAP-UNUSED
+  function of the unit whose out-of-line size = MAP. TRY it as a plain unused
+  static before the user, referencing in retail order (`SetupGamecubeVtxFmts`
+  0xd0, generic first; DS rates the new unscored function mixed -> approval).
 - Deferred unit, functions address several statics off one section base
   (`lis/addi base; addi rX,base,OFF`), offsets and base symbol wrong: REQUIRE
   retail `nm -n -S` map = reverse parse order, and owner evidence for any

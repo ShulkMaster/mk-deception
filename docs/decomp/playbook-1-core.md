@@ -169,6 +169,7 @@ Tools:
 | Stack slots, frame size, store order | H14, H24 |
 | Local struct in stack (`lfs`/`stfs` off r1) vs FPRs, or reverse | M07 |
 | Dead `b` after loop arm, `li r,0` on normal exit | H11, M13 |
+| Unreachable `bl` (no arg setup) jumped by `b`; test with empty arm; empty counted loop | H07, H11, H09 (debug residue) |
 | `li rX,0` vs `mr rX,rZero`; `li;li` vs `li;mr` in a preheader | H29, H15, H11 |
 | Retail-only `b` to a case body between switch dispatch and first arm | N14 |
 | Differing instruction absent from pre-RA `initial` pcode | H29, N14 (not coloring) |

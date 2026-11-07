@@ -1578,6 +1578,15 @@ settings. Verify emitted calls, helper symbols, every consumer.
   `pz_fighter_check_to_toggle_obj_and_ani_flips`). IRO CSE folds `x == @arg`
   to 1 after branch folding. Literal 1, const/flag locals, sizeof, comma,
   switch, float compares fold; `&global != 0` emits a reloc + `cmplwi`.
+- Retail-only unreachable block jumped by `b` (`b L; bl f` with no arg
+  setup or `crclr`, `li r3,K; b exit; L:`): error arm of a check whose test
+  IRO CSE folds after branch folding; arm stays, its arg setup is dead.
+  REQUIRE the arm's message in the pool with no reference (stubbed
+  debug/metrics feature). TRY `x = STUB(field); if (x != field) { f(msg);
+  return K; }`, release stub `#define STUB(n) (n)` (`mwFileInit`: file-handle
+  tracking). Constant/flag/inline-true, `while (0)`, `switch (0)`, `goto`
+  tests vanish whole; `&local == 0` or param re-tests keep compare + args;
+  identity inline compared outside the helper leaves `cmplw r0,r0`.
 - Retail inlined helper keeps a dead loop accumulation (`nor; clrlwi; srwi;
   mullw; add` into a register overwritten later): REQUIRE a MAP-UNUSED
   helper whose out-of-line size needs it. TRY a never-read accumulator local
@@ -1817,6 +1826,11 @@ Loops. REQUIRE zero-trip behavior + test/update order.
   original macro/view type is missing evidence (`sfmps_DecodeOneUnit`,
   `sfmps_ProcPrep`; RE4 used a cast macro); do not invent a padded view.
   FE expression shape, not BE SR.
+- Retail counted loop with no body (`cmpwi n,0; ble; srwi. 3; mtctr; bdnz .`
+  + `andi. 7` remainder `mtctr; bdnz .`): loop whose body a config `#ifdef`
+  compiled out (user ruling 2026-11-06). GC2.7 never deletes an empty counted
+  loop. TRY `p = base; for (i = 0; i < n; i++, p++) { }`; index-only loop
+  unrolls differently (`mslBankUpdatePtrs`, MSL_SKIP_SOUND_NAMES).
 
 ## H10
 
@@ -2116,6 +2130,14 @@ Joins. REQUIRE real branch destinations + effect ownership.
   return result;`. Spell the late test as a comparison: `!test` computes into
   r0 + `mr r3`; reusing `flag` itself or returning inside the `if` regresses
   (`mwFileServerNotQueued::queryActive`).
+- Retail test with no code in its arm (`beq J; ...; bne J; b J`): compiled-out
+  debug arm; user ruling 2026-11-06 allows it only with a debug/assert story.
+  GC2.7 deletes an arm empty at IRO time (`{}`, `;`, `do {} while (0)`,
+  `((void)0)`, empty inline/static calls, dead int stores). TRY a float
+  identity through a release macro (`f = DEBUG_HOOK(f)`, `#define
+  DEBUG_HOOK(x) (x)`): the copy survives IRO, coalesces at RA, both branches
+  stay (`SetupMKPipelinesOnAtomic` scroll guard). Float `!f` emits `fcmpu
+  f,const`; `f == 0.0f` and `0.0f == f` emit `fcmpu const,f`.
 
 ## H12
 
