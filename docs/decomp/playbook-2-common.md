@@ -5000,3 +5000,19 @@ at that moment; its whole long-lived cluster follows (velocity x6 + ticks in
   splices it into the inner loop and re-hoists it after `z_far`) can cost
   more fuzzy than the colouring gains (`set_number_positions_and_values`
   18 colouring rows -> 2 structural rows = 99.62 -> 99.31).
+- The lever names a KIND or an EMISSION ORDER, not a single-statement
+  spelling: `leverspell.py SYMBOL [--all-spell] [--probe]` generates them on
+  the lever window (kind: sub-expression -> probed-type local, named ->
+  expression at all reads, repeated expression -> named, helper result
+  through a local, int/long flip; order: 1..3 statements or whole blocks
+  moved as a unit, operands of one commutative op at any depth, in-place
+  split/join) AND inside every inline helper called from the window: an
+  inline body's objects and temps belong to the call line, so a line-ranked
+  sweep never reaches them. A named `current_stride` assigned before the
+  first cursor (the only read of `current->stride`) removed the stride CSE
+  temp and numbered `field_offset` above the stream-base CSE
+  (`pfxvm_execute_behavior_update`). Judge every candidate by the SIBLINGS
+  too: the byte-exact `gxVectScale(movement, &direction, units_per_tick)`
+  body of `generic_victory_camera` reloads the static once in the out-of-line
+  wrapper (retail: three reads), and the MAP's single `units_per_tick$1422`
+  proves one body serves both sites, so it is not landable.

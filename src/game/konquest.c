@@ -7988,6 +7988,13 @@ static inline void run_monk_move_frames(int initial_state)
     struct MonkStateData* event_state;
     AnimPdata* animation;
 
+    if (anim_pdata->animation != monk_state_data[konquest_pdata->hero_state].animation) {
+        transition_to_anim_script(
+            anim_pdata, monk_state_data[konquest_pdata->hero_state].animation, monk_state_data[konquest_pdata->hero_state].transition, 0.1f);
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+
     while (konquest_pdata->hero_state == initial_state) {
         current_state = konquest_pdata->hero_state;
         state = &monk_state_data[current_state];
@@ -8078,8 +8085,6 @@ static inline void run_monk_move_frames(int initial_state)
     }
 }
 
-/* TODO: [breakthrough needed] 97.49020%; early table preheader persists;
- * original entry edges or table producer remain unresolved after event-boundary recovery. */
 static float p_monk_move(void) {
     MkObj* hero;
     int initial_state;
@@ -8093,13 +8098,6 @@ static float p_monk_move(void) {
 
     hero->hide_flag_bits.pin_animation = 0;
     konquest_pdata->animation_event_index = 0;
-    if (anim_pdata->animation != monk_state_data[konquest_pdata->hero_state].animation) {
-        transition_to_anim_script(
-            anim_pdata, monk_state_data[konquest_pdata->hero_state].animation, monk_state_data[konquest_pdata->hero_state].transition, 0.1f);
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-
     run_monk_move_frames(initial_state);
 
     aproc->vtbl->jump_sleep(p_control_konquest_monk, 0.0f);

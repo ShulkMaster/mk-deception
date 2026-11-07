@@ -524,8 +524,9 @@ static void do_assign_constant_v3(unsigned char* destination, int stride,
     }
 }
 
-/* TODO: [near miss] 99.89766%; first-cursor field_offset (named) colours below the
- * stream-base CSE (r4/r5 swap); needs the offset as a temp-kind web. */
+/* TODO: [near miss] 99.906%; current_stride assigned before the first cursor gives field_offset its
+ * retail colour; the stream-base CSE still takes r3 (retail r5): its data load must be emitted before the
+ * stride load while the stride stays a named web. */
 void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
 {
     int current_stride;
@@ -552,9 +553,9 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
         }
         field_offset = instruction->field.offset;
         previous_value = previous->data + field_offset;
-        current_value = current->data + field_offset +
-                        current->stride * behavior->active_particle_count;
         current_stride = current->stride;
+        current_value = current->data + field_offset +
+                        current_stride * behavior->active_particle_count;
         switch (instruction->opcode) {
         case 2:
         case 9:
