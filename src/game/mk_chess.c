@@ -13566,14 +13566,10 @@ void mk_chess_spell_rescue_current_target(void) {
     }
 }
 
-static inline ChessPiece** mk_chess_spell_target_slot(
-    ChessSpellState* spell, unsigned int target) {
-    unsigned char x;
-    unsigned char y;
+static inline ChessPiece* mk_chess_get_piece_at_cell(unsigned char x, unsigned char y) {
+    ChessCell* cell = &mk_chess_pdata->board[x].cells[y];
 
-    x = spell->target_x[target];
-    y = spell->target_y[target];
-    return &mk_chess_pdata->board[x].cells[y].piece;
+    return cell->piece;
 }
 
 void mk_chess_spell_target_add_access_restrictions(unsigned int target,
@@ -13581,7 +13577,7 @@ void mk_chess_spell_target_add_access_restrictions(unsigned int target,
                                                    int duration, int reset) {
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
     unsigned int* expires =
-        mk_chess_piece_restriction(*mk_chess_spell_target_slot(spell, target), restriction);
+        mk_chess_piece_restriction(mk_chess_get_piece_at_cell(spell->target_x[target], spell->target_y[target]), restriction);
     ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
     unsigned int expiry = *expires;
     unsigned int clock = manager->clock;
@@ -13595,7 +13591,7 @@ void mk_chess_spell_target_add_access_restrictions(unsigned int target,
 
 void mk_chess_spell_force_fight(void) {
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
-    ChessPiece* piece = *mk_chess_spell_target_slot(spell, 0);
+    ChessPiece* piece = mk_chess_get_piece_at_cell(spell->target_x[0], spell->target_y[0]);
 
     board_game_save_data.sides[spell->side].forced_fight_count++;
     mk_chess_request_piece_fight(
@@ -13665,7 +13661,7 @@ void mk_chess_spell_move_target_to_temp_area(unsigned int target) {
     ChessPiece* piece;
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
 
-    piece = *mk_chess_spell_target_slot(spell, target);
+    piece = mk_chess_get_piece_at_cell(spell->target_x[target], spell->target_y[target]);
     mk_chess_remove_piece_from_board(piece);
     spell->temporary_piece = piece;
 }
@@ -13673,7 +13669,7 @@ void mk_chess_spell_move_target_to_temp_area(unsigned int target) {
 void mk_chess_spell_move_target_to_target(unsigned int source_target,
                                           unsigned int destination_target) {
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
-    ChessPiece* piece = *mk_chess_spell_target_slot(spell, source_target);
+    ChessPiece* piece = mk_chess_get_piece_at_cell(spell->target_x[source_target], spell->target_y[source_target]);
 
     mk_chess_remove_piece_from_board(piece);
     mk_chess_place_piece_at_cell(piece,
@@ -13688,14 +13684,14 @@ void mk_chess_spell_move_target_to_target(unsigned int source_target,
 float mk_chess_spell_get_target_health(unsigned int target) {
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
 
-    return (*mk_chess_spell_target_slot(spell, target))->health;
+    return mk_chess_get_piece_at_cell(spell->target_x[target], spell->target_y[target])->health;
 }
 
 /* TODO: [near miss] 99.34782%; side CSE35 must precede selected inline43;
  * recover their real owner boundary without changing unsigned comparison. */
 void mk_chess_spell_set_target_health(unsigned int target, float health) {
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
-    ChessPiece* piece = *mk_chess_spell_target_slot(spell, target);
+    ChessPiece* piece = mk_chess_get_piece_at_cell(spell->target_x[target], spell->target_y[target]);
     unsigned char side_index;
 
     piece->health = health;
@@ -13703,11 +13699,9 @@ void mk_chess_spell_set_target_health(unsigned int target, float health) {
     mk_chess_refresh_side_health(side_index);
 }
 
-/* TODO: [near miss] 96.66666%; table-base/piece-load emission order controls
- * spell/lookup homes; recover the original lookup owner boundary. */
 float mk_chess_spell_get_target_max_health(unsigned int target) {
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
-    ChessPiece* piece = *mk_chess_spell_target_slot(spell, target);
+    ChessPiece* piece = mk_chess_get_piece_at_cell(spell->target_x[target], spell->target_y[target]);
 
     return g_board_game_controller.class_definitions[piece->type].initial_power;
 }
@@ -13715,7 +13709,7 @@ float mk_chess_spell_get_target_max_health(unsigned int target) {
 void mk_chess_spell_show_target_portrait(unsigned int target) {
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
 
-    mk_chess_hud_set_piece_portrait(*mk_chess_spell_target_slot(spell, target));
+    mk_chess_hud_set_piece_portrait(mk_chess_get_piece_at_cell(spell->target_x[target], spell->target_y[target]));
 }
 
 static inline void mk_chess_blink_string(StringObj* text, int interval) {
