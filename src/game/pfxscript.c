@@ -2376,8 +2376,8 @@ static inline unsigned int get_new_bank(int effect_count, char* name) {
     return build_bank_handle(bank_index);
 }
 
-/* TODO: [breakthrough needed] 99.19876%; retail zeroes an extra stack word at 0xc
- * each row (load latch moves to 0x10); owner unknown; bank_alloc loop li order. */
+/* TODO: [near miss] 99.96894%; bank_alloc zero-init loop: the stored zero reuses the
+ * counter init li in ours (VN), retail emits it after the two SR induction inits. */
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     struct PfxLoadScriptLatch load;
     struct PfxBankLoadRow* rows;
@@ -2387,7 +2387,7 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     unsigned int row_number;
     unsigned int bank_handle;
     int total_effects;
-    int remaining_effects;
+    int remaining_effects[2];
     int language;
     int owner;
     MkObj* parent;
@@ -2482,13 +2482,14 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
             saved_command = active_cmdscript;
             active_cmdscript = load.command;
             load.script->load_ctx = context;
-            remaining_effects = rows[row_number - 1].effect_count;
+            remaining_effects[1] = 0;
+            remaining_effects[0] = rows[row_number - 1].effect_count;
             if (pfxscript_environment.active == 0) {
                 memset(
                     &pfxscript_environment, 0,
                     sizeof(pfxscript_environment));
                 pfxscript_environment.active = 1;
-                active_pfx_environment()->remaining_effects = &remaining_effects;
+                active_pfx_environment()->remaining_effects = remaining_effects;
             }
             cmdscript_setup_execution(load.script, rows[row_number - 1].function_index);
             cmdscript_execute(load.script);
