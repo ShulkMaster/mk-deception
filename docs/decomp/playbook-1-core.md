@@ -5,7 +5,7 @@ Read every task. Deeper tier only when triage points there.
 | Tier | File | Holds |
 |---|---|---|
 | 1 | this | protocol, gates, triage, H index, stops |
-| 2 | [playbook-2-common.md](playbook-2-common.md) | H01-H30 detail |
+| 2 | [playbook-2-common.md](playbook-2-common.md) | H01-H32 detail |
 | 3 | [playbook-3-uncommon.md](playbook-3-uncommon.md) | M01-M17: modes, FP, ABI shape, inline/macro, data/link |
 | 4 | [playbook-4-rare.md](playbook-4-rare.md) | N01-N14, trace procedure, hard stops, dead ends, permuter |
 
@@ -196,6 +196,7 @@ Tools:
 | Byte-swap folding, float word view, uninit stack | N08-N10 |
 | Asm-sequence ICE | N12 |
 | Several honest byte-neutral edits, no single fix | N13 |
+| Saved homes swap, phantomsearch says no twin, decl/spelling sweeps neutral | H32 sweep lever |
 | Only coloring left, permuter | tier 4 |
 
 ## H index
@@ -288,6 +289,15 @@ Core line only; detail = `## Hxx` in tier 2.
   honest surviving copies in that range from the measured catalogue (hero-shape
   live helper, block-local call result in a multi-def helper, call result
   passed twice, join with a call arm); plain hoists add none.
+- **H32 Sweep lever** | saved homes swap, pop order needs a kind change or
+  no pop order, no twin (H31), decl sweeps neutral | `numedge.py` Step A: the
+  web is pushed at degree K-1 (or K) in its simplify sweep; one exact
+  zero-collateral lever printed (copy / numbering / survival / edge) with
+  the compiler creation rule | realise that lever only: scalarizer temps =
+  first member access order; CSE = first repeated read; inline objects =
+  expansion order; codegen temps = emission order; a constant codegen temp
+  never becomes a front-end object. Check register-blind rows and fuzzy:
+  a lever that reorders IroPropagate hoists can cost more than it gains.
 
 ## Stop
 

@@ -4928,3 +4928,37 @@ stream, N copies more or fewer; pop-order solver says "moves a parameter" or
   behavior evidence.
 - Renaming locals never changes MWCC coloring `[da]`. "Neutral across decl
   orders" is not a name effect.
+
+## H32
+
+Sweep lever. Coloring.c simplify pushes a web when its degree at SCAN time
+drops below K; the sweep it is pushed in fixes its pop order and so its saved
+home. A web scanned at degree K-1 flips sweep with ONE more neighbour present
+at that moment; its whole long-lived cluster follows (velocity x6 + ticks in
+`object_transition_to_state`: f31..f25 all from one lever).
+
+- REQUIRE `numedge.py SYMBOL --analyze-only`: per differing web the degree at
+  scan = physical + present neighbours + phantom copies, and the EXACT levers
+  (0 wrong, 0 collateral) with their reading. No exact lever = two levers,
+  stall pick (cost tie) or volatile-only residue (sweep 1): not this rule.
+- TRY the one honest change the lever names:
+  - numbering: X scanned after W = X created before W. Two
+    `IRO_ScalarizeClassDataMembers` temps = order of the FIRST access of the
+    two members in the IR walk (IroVars.c `record_var_part_use`); CSE temp =
+    first repeated read; inline object = text order of the inline calls
+    (H30); codegen temp = emission order (statement, operand left to right).
+  - survival: X pushed in an earlier sweep only because it is scanned late;
+    the printed band is the kind it must have. A constant codegen temp
+    (`_mkproc_sleep_ticks = 1.0f`) can NOT move to the front-end band: the
+    inliner substitutes constant arguments (`CInline_00513910`) and IRO
+    propagates float constants (`fn_0044d520`).
+  - copy: H31 construct, live where W HOLDS a value (a copy in the gap
+    between two definitions of W adds nothing: ticks helper neutral).
+  - edge: X and W must overlap: statement order / last use around the point
+    where one is defined.
+- Measure register-blind rows AND fuzzy after the change: moving the first
+  access of a member (`angle_motion.length_squared` early = 13 structural
+  rows) or un-propagating a single-use local (`row_base`: IroPropagate
+  splices it into the inner loop and re-hoists it after `z_far`) can cost
+  more fuzzy than the colouring gains (`set_number_positions_and_values`
+  18 colouring rows -> 2 structural rows = 99.62 -> 99.31).
