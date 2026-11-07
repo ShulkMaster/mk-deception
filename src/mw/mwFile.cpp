@@ -152,7 +152,10 @@ inline void* operator new(unsigned long, void* storage)
 }
 
 extern void _mwFileNoOp(...);
-#define MWFILE_TRACK_HANDLES(count) (count)
+static inline unsigned long _mwFileInitHandleTracking(mwFileInitParam* parameters)
+{
+    return parameters->file_handle_tracking_size;
+}
 extern void _mwFilePlatformTick();
 extern bool _mwFilePlatformIsInServiceThread();
 extern int _mwFilePlatformInit(mwFileInitParam*);
@@ -320,15 +323,14 @@ extern "C" int mwFileInit(mwFileInitParam* parameters)
 {
     mwFileInitParam default_parameters;
     int result;
-    unsigned long tracked_handles;
 
     if (parameters == 0) {
         setDefaultInitParam(&default_parameters);
         parameters = &default_parameters;
     }
 
-    tracked_handles = MWFILE_TRACK_HANDLES(parameters->file_handle_tracking_size);
-    if (tracked_handles != parameters->file_handle_tracking_size) {
+    if (_mwFileInitHandleTracking(parameters) !=
+        parameters->file_handle_tracking_size) {
         _mwFileNoOp(&stringBase0[TRACKING_INIT_MESSAGE]);
         return 0;
     }

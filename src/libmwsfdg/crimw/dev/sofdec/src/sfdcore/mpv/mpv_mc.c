@@ -4,6 +4,11 @@
 
 static const MPVMCFunction mpvmc_oneref1p_func_table[4] = {0, 0, 0, 0};
 
+typedef enum MPVMCByteMask {
+    MPVMC_BYTE_HIGH_BITS = 0xFEFEFEFE,
+    MPVMC_BYTE_LOW_BIT = 0x01010101
+} MPVMCByteMask;
+
 
 /* Pack eight rounded 2x2 pixel averages from the two reference rows. */
 void MPVMC08_OneRef4p_TuneC(MPVMCContext* context)
@@ -56,11 +61,12 @@ void MPVMC08_OneRef4p_TuneC(MPVMCContext* context)
     }
 }
 
-/* TODO: [breakthrough needed] 44.91%; packs reach rlwimi in C; retail keeps masks unpropagated (IRO off: side-effect asm stmt or pragma). */
+/* TODO: [blocked] 63.28%; enum masks stay unpropagated; retail row webs are unsplit across cases (asm operands or
+ * opt_lifetimes off): honest C splits them -> free schedule, r31 frame, other colours. */
 void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
 {
-    u32 m2;
-    u32 m1;
+    MPVMCByteMask m2;
+    MPVMCByteMask m1;
     u32 x0;
     u32 a1, w1;
     const u8* s = context->reference0;
@@ -70,8 +76,8 @@ void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
     u32 x1;
     s32 i;
 
-    m1 = 0xFEFEFEFE;
-    m2 = 0x01010101;
+    m1 = MPVMC_BYTE_HIGH_BITS;
+    m2 = MPVMC_BYTE_LOW_BIT;
 
     switch ((u32)s & 3) {
     case 0:
@@ -79,25 +85,25 @@ void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
             __dcbt((void*)s, stride);
             w0 = ((const u32*)s)[0];
             w1 = ((const u32*)s)[1];
-            a1 = s[8];
             a0 = (w1 >> 24) | (w0 << 8);
-            a1 = (w1 << 8) | a1;
             x0 = w0 ^ a0;
-            s += stride;
-            w0 &= a0;
+            a1 = s[8];
+            a1 = (w1 << 8) | a1;
             x1 = w1 ^ a1;
-            a0 = x0 & m1;
-            x0 &= m2;
+            w0 &= a0;
             w1 &= a1;
+            a0 = x0 & m1;
+            s += stride;
             a1 = x1 & m1;
+            x0 &= m2;
             x1 &= m2;
-            a0 >>= 1;
-            w0 += x0;
-            a1 >>= 1;
-            w0 += a0;
             w1 += x1;
-            d[0] = w0;
+            a1 >>= 1;
+            w0 += x0;
             w1 += a1;
+            a0 >>= 1;
+            w0 += a0;
+            d[0] = w0;
             d[1] = w1;
             d += 2;
         }
@@ -108,30 +114,28 @@ void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
             __dcbt((void*)s, stride);
             w1 = ((const u32*)s)[1];
             a0 = ((const u32*)s)[0];
-            a1 = *(const u16*)(s + 8);
             w0 = w1 >> 24;
+            a1 = *(const u16*)(s + 8);
             w0 = __rlwimi(w0, a0, 8, 0, 23);
-            a0 = (w1 & 0xFFFF0000) | (a0 & 0xFFFF);
-            a0 = __rlwinm(a0, 16, 0, 31);
-            a1 = __rlwimi(a1, w1, 16, 0, 15);
+            a0 = __rlwinm(__rlwimi(a0, w1, 0, 0, 15), 16, 0, 31);
+            a1 |= w1 << 16;
+            w1 = ((a1 >> 8) & 0xFF) | (w1 << 8);
             x0 = w0 ^ a0;
-            w1 <<= 8;
-            w1 = __rlwimi(w1, a1, 24, 24, 31);
+            s += stride;
             w0 &= a0;
-            a0 = x0 & m1;
-            x0 &= m2;
             x1 = w1 ^ a1;
             w1 &= a1;
+            a0 = x0 & m1;
+            x0 &= m2;
             a1 = x1 & m1;
             a0 >>= 1;
-            w0 += x0;
             x1 &= m2;
+            w0 += x0;
+            w1 += x1;
             w0 += a0;
             a1 >>= 1;
-            w1 += x1;
-            d[0] = w0;
             w1 += a1;
-            s += stride;
+            d[0] = w0;
             d[1] = w1;
             d += 2;
         }
@@ -142,26 +146,27 @@ void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
             __dcbt((void*)s, stride);
             w0 = ((const u32*)s)[0];
             w1 = ((const u32*)s)[1];
-            x1 = ((const u32*)s)[2];
             a0 = __rlwimi(w0 << 24, w1, 24, 8, 31);
+            a1 = w1 << 24;
+            x1 = ((const u32*)s)[2];
             w0 = __rlwimi(w0 << 16, w1, 16, 16, 31);
+            a1 = __rlwimi(a1, x1, 24, 8, 31);
             x0 = w0 ^ a0;
             w0 &= a0;
-            a1 = __rlwimi(w1 << 24, x1, 24, 8, 31);
             a0 = x0 & m1;
-            w1 = __rlwimi(w1 << 16, x1, 16, 16, 31);
-            x0 &= m2;
+            a0 >>= 1;
             s += stride;
+            x0 &= m2;
+            w0 += x0;
+            w0 += a0;
+            w1 = __rlwimi(w1 << 16, x1, 16, 16, 31);
+            d[0] = w0;
             x1 = w1 ^ a1;
             w1 &= a1;
             a1 = x1 & m1;
-            a0 >>= 1;
-            w0 += x0;
             x1 &= m2;
-            w0 += a0;
             a1 >>= 1;
             w1 += x1;
-            d[0] = w0;
             w1 += a1;
             d[1] = w1;
             d += 2;
@@ -171,33 +176,34 @@ void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
         s -= 3;
         for (i = 0; i < 8; i++) {
             __dcbt((void*)s, stride);
-            a0 = ((const u32*)s)[1];
-            w0 = __lwbrx((void*)s, 0);
-            w0 = __rlwimi(w0, a0, 24, 8, 31);
             a1 = ((const u32*)s)[2];
-            x0 = w0 ^ a0;
+            w0 = __lwbrx((void*)s, 0);
+            a0 = ((const u32*)s)[1];
+            w0 = (a0 >> 8) | (w0 & 0xFF000000);
             w1 = __rlwimi(a0 << 24, a1, 24, 8, 31);
+            x0 = w0 ^ a0;
             w0 &= a0;
             a0 = x0 & m1;
-            x0 &= m2;
             x1 = w1 ^ a1;
+            s += stride;
+            x0 &= m2;
+            w0 += x0;
             w1 &= a1;
             a1 = x1 & m1;
             a0 >>= 1;
-            w0 += x0;
-            x1 &= m2;
             w0 += a0;
             a1 >>= 1;
+            x1 &= m2;
             w1 += x1;
-            d[0] = w0;
             w1 += a1;
-            s += stride;
+            d[0] = w0;
             d[1] = w1;
             d += 2;
         }
         break;
     }
 }
+
 
 static inline u32 mpvmc_avg_masked(u32 w, u32 a, u32 m1, u32 m2)
 {

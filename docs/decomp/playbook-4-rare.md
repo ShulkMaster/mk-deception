@@ -623,6 +623,12 @@ Don't repeat without new evidence:
 - Asm stubs for coloring ceilings: rejected by user, regress callers `[da]`.
 - Renaming locals (H21/Traps); moving inline boundaries around already-right
   code (H21).
+- Retail row order = WAR edges on ONE web per reused variable across switch
+  cases/ranges (`and w0,a0` before `x0 & m1`, in-place `rlwimi`): GC2.7
+  IRO_SplitLifetimes gives every fresh assignment its own temp unless the
+  variable is an asm operand or `opt_lifetimes` is off. Statement/decl
+  orders, block-scoped or renamed temps, intrinsic/or-pack spellings only
+  move the free schedule (`MPVMC08_OneRefH2_TuneC`: asm/pragma-only).
 
 ## Permuter and search
 

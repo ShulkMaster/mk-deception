@@ -25,8 +25,6 @@ RpGameCubeVtxFmt gamecube_vtxfmt_skinned2;
 RpGameCubeVtxFmt gamecube_vtxfmt_generic;
 static int bInitVtxFmts;
 
-#define MK_DEBUG_SCROLL_SPEED(speed) (speed)
-
 DpMaterialCallback DPObjectRenderSetup(int flags, unsigned int light_mask,
                                        int use_matfx, int use_alpha) {
     DpMaterialCallback callback = 0;
@@ -485,7 +483,7 @@ static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, MkObj* owner) {
             u2 = scroll->u2;
             v2 = scroll->v2;
             if ((data->flags & 0x10000000) && !u1) {
-                u1 = MK_DEBUG_SCROLL_SPEED(u1);
+                u1 = scroll->u1;
             }
         } else {
             u1 = v1 = u2 = v2 = 0.0f;

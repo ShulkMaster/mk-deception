@@ -638,6 +638,18 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   `a[i].stream`, `a[i].offset`). A stepped `p++` cursor or a block-local
   `entry = &a[i]` hoists the address before the compare (`pfx_get_field`).
 
+- Retail materialises a constant ONCE at entry (`lis; addi` above a switch,
+  one register read by every case loop); ours rematerialises it in each
+  loop preheader: IRO constant propagation takes every `local = CONST`
+  (u32/s32/`const`/`register`/`~m`/casts/helper param or local/scalarised
+  struct member all fold). REQUIRE retail's single materialisation and
+  siblings that want the per-loop form untouched. TRY typing the local with
+  a file-scope enum that holds the value (`MPVMCByteMask m1 =
+  MPVMC_BYTE_HIGH_BITS;`): an enum-typed assignment is no propagation
+  candidate and emits nothing extra under `-enum int` (same family as H28;
+  `MPVMC08_OneRefH2_TuneC` masks, partial). Replaces `opt_propagation off`
+  for that one local; TU-level `-opt nopropagation` regresses siblings.
+
 - Retail recomputes an index product (`mulli r0,rSel,40` in each arm after a
   call) that ours keeps live from an earlier table access: REQUIRE a
   MAP-UNUSED accessor whose out-of-line size matches. TRY that accessor with a
@@ -1123,6 +1135,18 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   `start_fatality`, `start_2nd_fatality` and `fade_fatality_screen`
   together). Define it after the callee: non-deferred `-inline auto` never
   inlines a later definition.
+- Several bodies hit the MAP size: pick by caller codegen, not by size alone.
+  IF a value the helper writes into a caller Vec is consumed by one later
+  caller statement and retail emits the caller's other operands first (cg-temp
+  numbering; why.py "must be a cg-temp"), REQUIRE the in-place form to give
+  that member two defs (copy-in + result). TRY a separate result pointer:
+  the member gets one def, IroPropagate substitutes the expression into the
+  consumer. Out of line MWCC drops a `v->y = temp.y` re-store of a just-read
+  member (size unchanged); inlined it survives (retail load-after-store,
+  store-last). Exemplar `nb_npc_slave_plyr_process_collision`:
+  `convert_to_new_coord_sys(v, new_x, new_z, result, orig_x, orig_z)` 0xf4
+  (axis records as its local initializers), `restore_to_orig_coord_sys` 0x34
+  with `Vec temp` + `v->y = temp.y` last.
 - Accessor near miss through a helper absent from MAP: REQUIRE a MAP-UNUSED
   entry equal to the out-of-line size of a real accessor shape. TRY that shape
   at every site, delete the invention, keep other sites byte-identical:
@@ -1582,11 +1606,15 @@ settings. Verify emitted calls, helper symbols, every consumer.
   setup or `crclr`, `li r3,K; b exit; L:`): error arm of a check whose test
   IRO CSE folds after branch folding; arm stays, its arg setup is dead.
   REQUIRE the arm's message in the pool with no reference (stubbed
-  debug/metrics feature). TRY `x = STUB(field); if (x != field) { f(msg);
-  return K; }`, release stub `#define STUB(n) (n)` (`mwFileInit`: file-handle
-  tracking). Constant/flag/inline-true, `while (0)`, `switch (0)`, `goto`
-  tests vanish whole; `&local == 0` or param re-tests keep compare + args;
-  identity inline compared outside the helper leaves `cmplw r0,r0`.
+  debug/metrics feature). TRY a static inline release stub that reads the
+  field through the owner pointer, result compared directly: `static inline
+  T stub(P* p) { return p->field; }` + `if (stub(p) != p->field) { f(msg);
+  return K; }` (`mwFileInit`: `_mwFileInitHandleTracking`). No macro needed.
+  Constant/flag/inline-true, `while (0)`, `switch (0)`, `goto` tests vanish
+  whole; `&local == 0` or param re-tests keep compare + args; a stub on the
+  value (`stub(p->field)`), `const` pointee, result copied to a local, local
+  inside the stub, reference param or non-inline static stub leave
+  `cmplw r0,r0` + args.
 - Retail inlined helper keeps a dead loop accumulation (`nor; clrlwi; srwi;
   mullw; add` into a register overwritten later): REQUIRE a MAP-UNUSED
   helper whose out-of-line size needs it. TRY a never-read accumulator local
@@ -2139,11 +2167,13 @@ Joins. REQUIRE real branch destinations + effect ownership.
 - Retail test with no code in its arm (`beq J; ...; bne J; b J`): compiled-out
   debug arm; user ruling 2026-11-06 allows it only with a debug/assert story.
   GC2.7 deletes an arm empty at IRO time (`{}`, `;`, `do {} while (0)`,
-  `((void)0)`, empty inline/static calls, dead int stores). TRY a float
-  identity through a release macro (`f = DEBUG_HOOK(f)`, `#define
-  DEBUG_HOOK(x) (x)`): the copy survives IRO, coalesces at RA, both branches
-  stay (`SetupMKPipelinesOnAtomic` scroll guard). Float `!f` emits `fcmpu
-  f,const`; `f == 0.0f` and `0.0f == f` emit `fcmpu const,f`.
+  `((void)0)`, empty inline/static calls, dead int stores). TRY re-reading
+  the float's authoritative field in the arm (`u1 = scroll->u1;`, the
+  stripped debug code's reload): IRO CSE makes it a float copy, which
+  survives IRO, coalesces at RA, both branches stay (`SetupMKPipelinesOnAtomic`
+  scroll guard). Same bytes as an identity macro/inline; no invented hook
+  needed. Float `!f` emits `fcmpu f,const`; `f == 0.0f` and `0.0f == f` emit
+  `fcmpu const,f`.
 
 ## H12
 
@@ -4365,6 +4395,16 @@ then advanced. Never a second meaning or a copy of an in-scope value.
   `~(int)mask`, reversed operands, a `clear_flag(int*, int)` helper and
   statement order are neutral; the cast form on the pre-call clears
   regresses, so apply it only where retail shows mask-first.
+
+- Inlined projection loads the shared operand late (retail `start.x` before
+  `end.x`; ours `end - start` loads end first) and statement-order sweeps are
+  all byte-identical: REQUIRE the shared operand read in two differences
+  (`end - start`, `point - start`). TRY the offset first, then the edge, and
+  form the product in place: `x_product = point->x - start->x; edge_x =
+  end->x - start->x; x_product *= edge_x;`, plus the natural
+  `x*x + y*y + z*z` length sum (`turn_to_face_exterior_door` via
+  `calc_closest_point_on_line` 0xf8: 19 -> 1 structural rows). Separate
+  `offset_x` locals keep the old order (the product must reuse the offset web).
 
 ## H27
 
