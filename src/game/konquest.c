@@ -2420,10 +2420,10 @@ static inline void calc_closest_point_on_line(
     edge_y = end->y - start->y;
     length_squared = edge_y * edge_y;
     edge_z = end->z - start->z;
-    length_squared = edge_z * edge_z + (edge_x * edge_x + length_squared);
     x_product = (point->x - start->x) * edge_x;
     z_product = (point->z - start->z) * edge_z;
     projection_numerator = x_product + z_product;
+    length_squared = edge_z * edge_z + (edge_x * edge_x + length_squared);
     length = gxMathFastSqrt(length_squared);
     projection = projection_numerator / (length * length);
     out->x = projection * (end->x - start->x) + start->x;
@@ -2466,11 +2466,11 @@ void konquest_open_door(int enumeration, int remain_open);
 
 static inline KonquestChildObject* find_door_partner_inline(
     KonquestChildObject* door) {
+    MkPtr* next;
     struct KonquestEnumerationEntry* entry;
     MkPtr* link;
     int uid;
     int partner_uid;
-    MkPtr* next;
 
     if (door == 0) {
         return 0;
@@ -5588,7 +5588,7 @@ static inline float find_door_normal_vector_and_angle(KonquestChildObject* door,
     Vec rotated = {0.0f, 0.0f, 0.0f};
     float angle;
 
-    if (door == 0) {
+    if (!door || !normal) {
         return 0.0f;
     }
     angle = norm_angle_inline(door->base_angles.y +
@@ -5615,8 +5615,8 @@ static inline void get_door_position(KonquestChildObject* door, Vec* position) {
     }
 }
 
-/* TODO: [breakthrough needed] 98.19768%; angle-null branch and partner/saved-owner mismatch remain;
- * recover original guard/result ownership. */
+/* TODO: [breakthrough] 98.51744%; CFG exact (angle helper guards both pointers, MAP 0xfc);
+ * 13 saved homes rotate (partner inline result vs partner copy across the center call). */
 static void generate_door_paths(void) {
     int waypoint_index;
     int generated_count;
@@ -6665,8 +6665,8 @@ static inline void konquest_start_door_proc(KonquestChildObject* door,
     }
 }
 
-/* TODO: [near miss] 97.00603%; search/latch owners retain a 114-GPR graph;
- * saved-home interference and enumeration-load scheduling remain. */
+/* TODO: [near miss] 97.66868%; partner_uid address: retail adds 4 to the enumerations base
+ * (ours to idx*28) and remain_open/partner_uid saved homes swap; recover the entry read owner. */
 void konquest_open_door_sobj(
     KonquestChildObject* door, int remain_open) {
     KonquestChildObject* partner;
@@ -6703,8 +6703,8 @@ void konquest_open_door(int enumeration, int remain_open) {
     }
 }
 
-/* TODO: [near miss] 98.36709%; inlined calc_closest_point_on_line projection loads/FPRs
- * differ (MAP-size body 0xf8 kept); recover projection load/CSE ownership. */
+/* TODO: [near miss] 98.77215%; inlined calc_closest_point_on_line projection loads/FPRs
+ * still differ (MAP-size body 0xf8 kept); recover projection load/CSE ownership. */
 void turn_to_face_exterior_door(void) {
     Vec closest;
     float point_delta_x;
@@ -6751,7 +6751,8 @@ void turn_to_face_exterior_door(void) {
     next_x = path[1].position.x;
     next_z = path[1].position.z;
     start_z = path[0].position.z;
-    side_edge_x = next_x - start_x;
+    side_edge_x = next_x;
+    side_edge_x -= start_x;
     side_edge_z = next_z - start_z;
     delta.x = point_delta_x;
     delta.y = hero->pos.value.y - path[0].position.y;
@@ -6787,7 +6788,8 @@ void turn_to_face_exterior_door(void) {
             &path[0].position, &path[1].position);
         delta.x = hero->pos.value.x - closest.x;
         delta.y = hero->pos.value.y - closest.y;
-        delta.z = hero->pos.value.z - closest.z;
+        delta.z = hero->pos.value.z;
+        delta.z -= closest.z;
         next_distance_squared = delta.z * delta.z +
                                 (delta.x * delta.x + delta.y * delta.y);
         previous_distance_squared = distance_squared;
@@ -8755,8 +8757,8 @@ static inline void adjust_shadow_for_new_time_of_day(
         (255.0f * konquest_pdata->directional_light_strength));
 }
 
-/* TODO: [near miss] 99.06542%; only retail dead `b` to the loop preheader after the final
- * return remains (H09: IRO header needs two outside predecessors); find original entry CFG. */
+/* TODO: [blocked] 99.06542%; retail dead `b` = IRO-appended preheader from pre-IRO COpt goto
+ * chaining (auto_inline candidate body); fix needs a scoped auto_inline region (approval). */
 float p_adjust_directional_light(void) {
     KonquestColorRow* light_table;
     struct KonquestLightAdjustPdata* pdata;
