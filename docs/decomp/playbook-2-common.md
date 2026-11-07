@@ -3853,6 +3853,16 @@ One-row operand/constant/copy residue. One at a time:
   spelling (`mk_chess_drone_teleport_ai_casting`: `side == 0`, as
   `mk_chess_drone_handle_get_the_king_strategy`).
 
+- Two consecutive compound assignments to one local emit one `add` with the
+  operands in the wrong order (`add r3,r3,r5` for `add r3,r5,r3`): REQUIRE
+  equal-width unsigned/associative arithmetic and no other use between them.
+  TRY one expression with the other operand first:
+  `value -= 1; value += strings;` -> `value = strings + value - 1;`
+  (`get_script_string_arg`). Commuting only the second statement
+  (`value = strings + value`) or joining without the commute leaves the row.
+  Enumerate the spellings mechanically: `spellsearch.py SYMBOL` (ops `join`,
+  `commute`, `.agent-work/tooling/README.md`).
+
 - Guarded field update loses a retail reload before backend optimization:
   REQUIRE initial/build PCode evidence and the same comparison, lazy guard
   and actual read-modify-write. TRY the natural compound field update

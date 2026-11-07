@@ -390,8 +390,6 @@ void parse_args(const char* fmt, ...) {
     va_end(ap);
 }
 
-/* TODO: [near miss] 99.44444%; selector forces indexed pair(value, strings);
- * base-owned/predecrement forms reassociate; recover the original address producer. */
 char* get_script_string_arg(int index) {
     unsigned int value;
     ScriptSlot* script;
@@ -405,8 +403,7 @@ char* get_script_string_arg(int index) {
     strings = script->string_base;
     if (value < strings) {
         if (value < script->string_limit) {
-            value -= 1;
-            value += strings;
+            value = strings + value - 1;
         }
     }
     return (char*)value;

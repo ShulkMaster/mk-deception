@@ -183,6 +183,13 @@ joint sweep of recorded neutrals before any soft ceiling.
   each subset also + each partial-improving edit. Pool holds decls/types ->
   cross with decl-order x type sweep. Winner -> full-TU compile, then `try`.
 - Land winning subset only. Extra neutral stays only if source clearer.
+- Host sweep tool: `spellsearch.py SYMBOL [--helpers 1] [--pairs N]`
+  enumerates honest single-statement spellings (argument hoist/fold,
+  in-place derivation, condition split, statement move, operand commute,
+  compound-assignment join, scope/declaration moves, CSE-vs-local), compiles
+  each with the unit flags, scores target + every sibling, then sweeps pairs
+  of the byte-neutral ones and hill-climbs. `results.json` keeps the neutral
+  pool for a later subset sweep.
 - Exemplar: `_mwMemRealloc`: MAP-helper restore (`privGeneralGetHeapFromPtr`
   + `privGetUserSizeFromBlock`) alone byte-identical; `unsigned int copySize`
   alone still off; both -> exact.
