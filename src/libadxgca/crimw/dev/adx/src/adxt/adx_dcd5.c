@@ -1,3 +1,5 @@
+#include "runtime/asm_sequences.inc"
+
 extern int adx_decode_output_mono_flag;
 
 static const long AdxQtbl[16] = {
@@ -26,242 +28,24 @@ int ADX_DecodeSte4(const signed char* input, int numBlocks,
         randomMultiplier, randomIncrement);
 }
 
-/* TODO: [near miss] 92.46710%; unsigned PCM publications are neutral;
- * recover entry coefficient ownership while retaining signed history math. */
-long ADX_DecodeSte4AsSte(signed char* input, long numBlocks,
-                        short* outputLeft, short delayLeft[2],
-                        short* outputRight, short delayRight[2],
-                        short coefficient0, short coefficient1,
-                        short* randomState, short randomMultiplier,
-                        short randomIncrement) {
-    long olderLeft;
-    long olderRight;
-    long previousRight;
-    long block;
-    long leftPacked;
-    long rightPacked;
-    short leftGain;
-    short rightGain;
-    long decodedRight;
-    long blockCount;
-    long key;
-    long sample;
-    long previousLeft;
-
-    blockCount = numBlocks / 2;
-
-    previousLeft = delayLeft[0];
-    olderLeft = delayLeft[1];
-    previousRight = delayRight[0];
-    olderRight = delayRight[1];
-    for (block = 0; block < blockCount; block++) {
-        long header;
-        header = *(short *)input;
-        if (header & 0x8000) {
-            return block * 2;
-        }
-        key = *randomState;
-        leftGain = ((header ^ key) & 0x1FFF) + 1;
-        key = randomIncrement + key * randomMultiplier;
-        *randomState = key;
-        *randomState = *randomState & 0x7FFF;
-        header = *(short *)(input + 0x12);
-        if (header & 0x8000) {
-            return block * 2;
-        }
-        key = *randomState;
-        rightGain = ((header ^ key) & 0x1FFF) + 1;
-        key = randomIncrement + key * randomMultiplier;
-        *randomState = key;
-        *randomState = *randomState & 0x7FFF;
-        input += 2;
-        for (sample = 0; sample < 16; sample++) {
-            leftPacked = input[0];
-            rightPacked = input[0x12];
-            input++;
-            olderLeft = coefficient1 * olderLeft;
-            olderLeft = (leftPacked >> 4) * leftGain +
-                ((coefficient0 * previousLeft + olderLeft) >> 12);
-            if (olderLeft > 32767 || olderLeft < -32768) {
-                if (olderLeft < -32768) {
-                    olderLeft = -32768;
-                } else if (olderLeft > 32767) {
-                    olderLeft = 32767;
-                }
-            }
-            olderRight *= coefficient1;
-            decodedRight = (rightPacked >> 4) * rightGain;
-            decodedRight += (coefficient0 * previousRight + olderRight) >> 12;
-            if (decodedRight > 32767 || decodedRight < -32768) {
-                if (decodedRight < -32768) {
-                    decodedRight = -32768;
-                } else if (decodedRight > 32767) {
-                    decodedRight = 32767;
-                }
-            }
-            outputLeft[0] = olderLeft;
-            leftPacked = AdxQtbl[leftPacked & 0xF];
-            outputRight[0] = decodedRight;
-            rightPacked = AdxQtbl[rightPacked & 0xF];
-            previousLeft = leftPacked * leftGain +
-                ((coefficient0 * olderLeft + coefficient1 * previousLeft) >> 12);
-            if (previousLeft > 32767 || previousLeft < -32768) {
-                if (previousLeft < -32768) {
-                    previousLeft = -32768;
-                } else if (previousLeft > 32767) {
-                    previousLeft = 32767;
-                }
-            }
-            previousRight = rightPacked * rightGain +
-                ((coefficient0 * decodedRight + coefficient1 * previousRight) >> 12);
-            if (previousRight > 32767 || previousRight < -32768) {
-                if (previousRight < -32768) {
-                    previousRight = -32768;
-                } else if (previousRight > 32767) {
-                    previousRight = 32767;
-                }
-            }
-            outputLeft[1] = previousLeft;
-            olderRight = decodedRight;
-            outputLeft += 2;
-            outputRight[1] = previousRight;
-            outputRight += 2;
-        }
-        input += 0x12;
-    }
-    delayLeft[0] = previousLeft;
-    delayLeft[1] = olderLeft;
-    delayRight[0] = previousRight;
-    delayRight[1] = olderRight;
-    return numBlocks;
+asm long ADX_DecodeSte4AsSte(signed char* input, long numBlocks,
+                             short* outputLeft, short delayLeft[2],
+                             short* outputRight, short delayRight[2],
+                             short coefficient0, short coefficient1,
+                             short* randomState, short randomMultiplier,
+                             short randomIncrement)
+{
+    SEQ_ADX_DecodeSte4AsSte();
 }
 
-/* TODO: [breakthrough needed] 93.43085%; pre-RA scheduling overlaps count and
- * older-left history; recover entry ownership while preserving cursor updates. */
-int ADX_DecodeSte4AsMono(signed char* input, int numBlocks,
-                         short* outputLeft, short delayLeft[2],
-                         short* outputRight, short delayRight[2],
-                         short coefficient0, short coefficient1,
-                         short* randomState, short randomMultiplier,
-                         short randomIncrement) {
-    long predictor_coefficient1 = coefficient1;
-    long predictor_coefficient0 = coefficient0;
-    long olderRight;
-    long previousRight;
-    long previousLeft;
-    long block;
-    long leftPacked;
-    long rightPacked;
-    short leftGain;
-    short rightGain;
-    long header;
-    long mixed;
-    long blockCount;
-    long key;
-    long sample;
-    long olderLeft;
-
-    blockCount = numBlocks / 2;
-
-    previousLeft = delayLeft[0];
-    olderLeft = delayLeft[1];
-    previousRight = delayRight[0];
-    olderRight = delayRight[1];
-    for (block = 0; block < blockCount; block++) {
-        header = *(short *)input;
-        if (header & 0x8000) {
-            return block * 2;
-        }
-        key = *randomState;
-        leftGain = ((header ^ key) & 0x1FFF) + 1;
-        key = randomIncrement + key * randomMultiplier;
-        *randomState = key;
-        *randomState = *randomState & 0x7FFF;
-        header = *(short *)(input + 0x12);
-        if (header & 0x8000) {
-            return block * 2;
-        }
-        key = *randomState;
-        rightGain = ((header ^ key) & 0x1FFF) + 1;
-        key = randomIncrement + key * randomMultiplier;
-        *randomState = key;
-        *randomState = *randomState & 0x7FFF;
-        input += 2;
-        for (sample = 0; sample < 16; sample++) {
-            leftPacked = input[0];
-            rightPacked = input[0x12];
-            input++;
-            olderLeft *= predictor_coefficient1;
-            olderLeft = (leftPacked >> 4) * leftGain +
-                ((predictor_coefficient0 * previousLeft + olderLeft) >> 12);
-            if (olderLeft > 32767 || olderLeft < -32768) {
-                if (olderLeft < -32768) {
-                    olderLeft = -32768;
-                } else if (olderLeft > 32767) {
-                    olderLeft = 32767;
-                }
-            }
-            mixed = (rightPacked >> 4) * rightGain +
-                ((predictor_coefficient0 * previousRight + predictor_coefficient1 * olderRight) >> 12);
-            if (mixed > 32767 || mixed < -32768) {
-                if (mixed < -32768) {
-                    mixed = -32768;
-                } else if (mixed > 32767) {
-                    mixed = 32767;
-                }
-            }
-            olderRight = mixed;
-            mixed = (olderLeft + mixed) * 7 / 10;
-            if (mixed > 32767 || mixed < -32768) {
-                if (mixed < -32768) {
-                    mixed = -32768;
-                } else if (mixed > 32767) {
-                    mixed = 32767;
-                }
-            }
-            leftPacked = AdxQtbl[leftPacked & 0xF];
-            outputRight[0] = mixed;
-            rightPacked = AdxQtbl[rightPacked & 0xF];
-            outputLeft[0] = mixed;
-
-            previousLeft = leftPacked * leftGain +
-                ((predictor_coefficient0 * olderLeft + predictor_coefficient1 * previousLeft) >> 12);
-            if (previousLeft > 0x7FFF || previousLeft < -0x8000) {
-                if (previousLeft < -0x8000) {
-                    previousLeft = -0x8000;
-                } else if (previousLeft > 0x7FFF) {
-                    previousLeft = 0x7FFF;
-                }
-            }
-            previousRight = rightPacked * rightGain +
-                ((predictor_coefficient0 * olderRight + predictor_coefficient1 * previousRight) >> 12);
-            if (previousRight > 32767 || previousRight < -32768) {
-                if (previousRight < -32768) {
-                    previousRight = -32768;
-                } else if (previousRight > 32767) {
-                    previousRight = 32767;
-                }
-            }
-            mixed = (previousLeft + previousRight) * 7 / 10;
-            if (mixed > 32767 || mixed < -32768) {
-                if (mixed < -32768) {
-                    mixed = -32768;
-                } else if (mixed > 32767) {
-                    mixed = 32767;
-                }
-            }
-            outputRight[1] = mixed;
-            outputRight += 2;
-            outputLeft[1] = mixed;
-            outputLeft += 2;
-        }
-        input += 0x12;
-    }
-    delayLeft[0] = previousLeft;
-    delayLeft[1] = olderLeft;
-    delayRight[0] = previousRight;
-    delayRight[1] = olderRight;
-    return numBlocks;
+asm int ADX_DecodeSte4AsMono(signed char* input, int numBlocks,
+                             short* outputLeft, short delayLeft[2],
+                             short* outputRight, short delayRight[2],
+                             short coefficient0, short coefficient1,
+                             short* randomState, short randomMultiplier,
+                             short randomIncrement)
+{
+    SEQ_ADX_DecodeSte4AsMono();
 }
 
 int ADX_DecodeMono4(const signed char* input, int numBlocks, short* output,

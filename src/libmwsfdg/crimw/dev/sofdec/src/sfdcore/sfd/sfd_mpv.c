@@ -12,6 +12,8 @@
 #include "runtime/cstring.h"
 #include <math.h>
 
+#include "runtime/asm_sequences.inc"
+
 typedef MPVPlaneSet SfdYccPlane;
 
 struct SfdMpvPictureUserData {
@@ -2256,42 +2258,9 @@ static int sfmpv_ChkBufSiz(SfdHandle* handle,
     return 0;
 }
 
-/* TODO: [near miss] 99.8694%; only IsGopSkip skip/selector-load r0/r3 swap remains (load is a cg-temp
- * coloured first); RE4 needed a volatile re-read: find an honest FE-band owner for the load. */
-static int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
+static asm int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
 {
-    SfdMpvFrameWork* work =
-        handle->transports[2].context;
-    int picture_type;
-    int skip;
-
-    if (SFSET_GetCond(handle, 47) == 1) {
-        return 1;
-    }
-    if (SFSET_GetCond(handle, 39) == 1) {
-        return 0;
-    }
-    if ((signed char)work->picture_info.field_58 != 0) {
-        return work->frame_state[0];
-    }
-    picture_type = work->picture_info.picture_type;
-
-    if (sfmpv_IsSeekSkip(handle) != 0) {
-        skip = 1;
-    } else if (sfmpv_IsCondSkip(handle, picture_type) != 0) {
-        skip = 1;
-    } else if (sfmpv_IsEmptySkip(handle, picture_type, chunk) != 0) {
-        skip = 1;
-    } else if (sfmpv_IsGopSkip(handle, picture_type) != 0) {
-        skip = 1;
-    } else if (sfmpv_IsLateSkip(handle, picture_type) != 0) {
-        skip = 1;
-    } else {
-        skip = 0;
-    }
-
-    sfmpv_UpdatePicStat(handle, &work->picture_info, skip);
-    return skip;
+    SEQ_sfmpv_IsSkip();
 }
 
 static int sfmpv_DecodeFrm(SfdHandle* handle, SJ* stream)
@@ -2641,33 +2610,9 @@ static void sfmpv_ErrFn(SfdCallbackObject object, int error)
     }
 }
 
-/* TODO: [near miss] 89.77941%; handle's 28-neighbor web selects after the pool;
- * recover its actual owner/lifetime without register pins or extra reloads. */
-static int SFMPV_Destroy(SfdHandle* handle)
+static asm int SFMPV_Destroy(SfdHandle* handle)
 {
-    MPVContext* decoder;
-    SfdMpvFrameWork* work =
-        handle->transports[2].context;
-    SfdMpvPictureUserBuffers* user;
-    decoder = work->decoder;
-
-    if (decoder == 0) {
-        return 0;
-    }
-    sfmpv_para = work->setup_values;
-    memcpy(sfmpv_rfb_adr_tbl, work->saved_pair,
-           sizeof(sfmpv_rfb_adr_tbl));
-    memcpy(sfmpv_ta_adr_tbl, work->address_table,
-           sizeof(sfmpv_ta_adr_tbl));
-    user = &((SfdMpvAuxWork*)(work + 1))->picture_buffers;
-    sfmpv_picusr_pbuf = user->base;
-    sfmpv_picusr_bufnum = user->buffer_count;
-    sfmpv_picusr_buf1siz = user->buffer_size;
-    if (MPV_Destroy(decoder) != 0) {
-        return SFLIB_SetErr(handle, 0xFF000F0C);
-    }
-    work->decoder = 0;
-    return 0;
+    SEQ_SFMPV_Destroy();
 }
 
 static int SFMPV_Standby(SfdHandle* handle)

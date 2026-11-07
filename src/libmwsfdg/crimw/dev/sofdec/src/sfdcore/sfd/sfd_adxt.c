@@ -10,6 +10,8 @@
 #include "sofdec/uty_timer.h"
 #include "fdlibm.h"
 
+#include "runtime/asm_sequences.inc"
+
 
 typedef SfdTimerTestWork SfdTestWork;
 typedef SfdTimerTestTime SfdTestTime;
@@ -611,30 +613,10 @@ static inline int sfadxt_SearchAlign(SfdHandle* handle,
     return offset - data;
 }
 
-/* TODO: [near miss] 98.06451%; caller/scan GPR owners rotate (SearchAlign: position declared first);
- * original input lifetimes remain unresolved beyond the complete scan. */
-static void sfadxt_ExcludeHdr(SfdHandle* handle, const unsigned char* data,
-                              int size, int* consumed)
+static asm void sfadxt_ExcludeHdr(SfdHandle* handle, const unsigned char* data,
+                                  int size, int* consumed)
 {
-    SfdAdxtWork* work;
-    int excluded;
-    int header_size;
-
-    *consumed = 0;
-    work = sfadxt_GetWork(handle);
-    if (size < 0x120) {
-        return;
-    }
-    if (ADXT_IsHeader(data, size, &header_size) != 0) {
-        excluded = header_size;
-    } else if (SFHDS_GetMuxVerNum(handle) >= 108) {
-        excluded = 0;
-    } else {
-        excluded = sfadxt_SearchAlign(handle, data, size);
-    }
-    work->copy = sfadxt_AdjustSync;
-    *consumed = excluded;
-    handle->playback_runtime.time_values[8] += excluded;
+    SEQ_sfadxt_ExcludeHdr();
 }
 
 static inline int sfadxt_SearchEndcode(const unsigned char* data, int limit,

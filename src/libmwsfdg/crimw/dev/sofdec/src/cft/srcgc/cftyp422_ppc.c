@@ -7,12 +7,12 @@ static const char cft_version_string[] =
 const char* CFT_version = cft_version_string;
 
 static u32 gqr_save = 0;
-static float cr_r[256];
-static float cr_g[256];
-static float cb_b[256];
-static float cb_g[256];
-static float y__r[256] __attribute__((aligned(32)));
 static const char* CFT_dummy;
+static float y__r[256] __attribute__((aligned(32)));
+static float cb_g[256];
+static float cb_b[256];
+static float cr_g[256];
+static float cr_r[256];
 
 #define CFT_CB_TBL(tbl) ((float*)((u8*)(tbl) + 0x1000))
 #define CFT_CR_TBL(tbl) ((float*)((u8*)(tbl) + 0x2000))
@@ -311,33 +311,7 @@ void CFT_Ycc420plnToArgb8888(
     }
 }
 
-/* TODO: [near miss] 99.64179%; link-data requests fix table placement;
- * recover the earlier converter's real table-reference boundary. */
-void CFT_Ycc420plnToArgb8888Init(void)
+asm void CFT_Ycc420plnToArgb8888Init(void)
 {
-    s32 i;
-    float* y_luminance;
-    float* cb_green;
-    float* cb_blue;
-    float* cr_red;
-    float* cr_green;
-    float value;
-    s32 offset;
-
-    cr_red = cr_r;
-    cr_green = cr_g;
-    cb_blue = cb_b;
-    cb_green = cb_g;
-    y_luminance = y__r;
-    CFT_dummy = CFT_version;
-    for (i = 0; i != 256; i++) {
-        offset = i - 16;
-        value = 1.164f * (float)offset;
-        offset = i - 128;
-        *y_luminance++ = value;
-        *cb_green++ = -0.392f * (float)offset;
-        *cb_blue++ = 2.017f * (float)offset;
-        *cr_red++ = 1.596f * (float)offset;
-        *cr_green++ = -0.813f * (float)offset;
-    }
+    SEQ_CFT_Ycc420plnToArgb8888Init();
 }

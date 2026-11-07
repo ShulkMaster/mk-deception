@@ -3,6 +3,8 @@
 #include "runtime/cstring.h"
 #include "sofdec/mws_ycc.h"
 
+#include "runtime/asm_sequences.inc"
+
 typedef struct SFHHandle SFHHandle;
 
 typedef struct MwsSfhInfo {
@@ -185,83 +187,15 @@ static inline int mwsffrm_IsPicUsrDat(MwsPlayer* player)
     return player->picture_user_data != 0 ? 1 : 0;
 }
 
-/* TODO: [near miss] 99.49152%; header enters allocation before player;
- * full local-order controls fail; recover a real lifetime/ABI boundary. */
 static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
-                                      const void* data, unsigned int size)
+                                      const void* data, unsigned int size);
+static void* mwsffrm_AnalySofdecHeader_jumptable[] =
+    SEQ_mwsffrm_AnalySofdecHeader_jumptable;
+
+static asm void mwsffrm_AnalySofdecHeader(MwsPlayer* player, const void* data,
+                                          unsigned int size)
 {
-    SFHHandle* header;
-    int effect_type;
-    int maximum_frames;
-    int is_header;
-    int color_type;
-    int stream_exists;
-    int frame_count;
-    int wr;
-    int source_effect;
-    int color_adjustment;
-
-    player->header_count++;
-    if (size < 0x800 || data == 0) {
-        return;
-    }
-    header = SFH_Create(data, size);
-    if (header == 0) {
-        return;
-    }
-    if (SFH_IsSfdHeader(header, &is_header) == 0 || is_header == 0) {
-        SFH_Destroy(header);
-        return;
-    }
-
-    color_adjustment = 0;
-    if (SFH_IsExistStmId(header, 0xE0, &stream_exists) == 0 ||
-        stream_exists == 0) {
-        color_adjustment = 0;
-    } else if (SFH_AnlyFtrColType(header, 0xE0, &color_type) == 0) {
-        color_adjustment = 0;
-    } else if (color_type == 3) {
-        color_adjustment = 1;
-    }
-    if (SFH_AnlyMaxFrmNum(header, &frame_count) == 0) {
-        maximum_frames = -1;
-    } else {
-        maximum_frames = frame_count;
-    }
-    if (SFH_AnlyFtrFxType(header, 0xE0, &source_effect) == 0) {
-        effect_type = 0x11;
-    } else {
-        switch (source_effect) {
-        case 1:
-            effect_type = 0x21;
-            break;
-        case 3:
-            effect_type = 0x51;
-            break;
-        case 6:
-            effect_type = 0x61;
-            break;
-        case 0:
-        case 2:
-        case 4:
-        case 5:
-        case 7:
-        case 8:
-        default:
-            effect_type = 0x11;
-            break;
-        }
-    }
-
-    wr = player->next_header;
-    player->headers[wr].header_number = player->header_count - 1;
-    player->headers[wr].color_adjustment = color_adjustment;
-    player->headers[wr].maximum_frames = maximum_frames;
-    player->headers[wr].effect_type = effect_type;
-    player->headers[wr].valid = 1;
-    player->next_header++;
-    player->next_header %= 8;
-    SFH_Destroy(header);
+    SEQ_mwsffrm_AnalySofdecHeader();
 }
 
 void MWSFFRM_SetShfCbFn(MwsPlayer* player)

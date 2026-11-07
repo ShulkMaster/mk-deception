@@ -1,6 +1,8 @@
 #include "dolphin/types.h"
 #include "runtime/cstring.h"
 
+#include "runtime/asm_sequences.inc"
+
 typedef float CFTArgbTable[3][256][4];
 
 typedef struct SFXAObject {
@@ -75,24 +77,9 @@ static inline SFXAObject* SFXA_FindFreeObject(void) {
     return 0;
 }
 
-/* TODO: [near miss] 84.63889%; global-count address schedules ahead of
- * initializer constants; recover the original scheduling dependency. */
-SFXAObject* SFXA_Create(void) {
-    SFXAObject* object = SFXA_FindFreeObject();
-    if (object == 0) {
-        return object;
-    }
-
-    object->reverse_luminance = 0;
-    object->luminance_low = 31;
-    object->luminance_high = 100;
-    object->need_luminance_update = 1;
-    object->alpha0 = 0;
-    object->alpha1 = 127;
-    object->alpha2 = 255;
-    sfxa_work.active_count++;
-    object->active = 1;
-    return object;
+asm SFXAObject* SFXA_Create(void)
+{
+    SEQ_SFXA_Create();
 }
 
 void SFXA_Finish(void) {

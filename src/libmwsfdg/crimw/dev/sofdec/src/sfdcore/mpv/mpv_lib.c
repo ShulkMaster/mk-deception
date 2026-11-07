@@ -330,8 +330,8 @@ static void mpvlib_InitPicAtr(MPVPictureAttributes* attributes)
     attributes->field_63 = 0xFF;
     attributes->field_64 = 0xFF;
 }
-/* TODO: [blocked] 91.43%; C shape agrees; retail reads HID2 by asm mfspr into a stack slot (needs an
- * approved block), "1.933" needs -str readonly, .bss pool order differs (compiler build). */
+/* TODO: [near miss] 99.94%; code agrees; pooled .bss/.rodata offsets differ: MAP-UNUSED
+ * first-reference owners fix .bss order, "1.933" needs -str readonly. */
 int MPV_Init(int handle_count, void* work)
 {
     static const u32 test_wrok = 0x01020304;
@@ -377,7 +377,10 @@ int MPV_Init(int handle_count, void* work)
         }
     }
 
-    hid2 = PPCMfhid2();
+    asm {
+        SEQ_MPV_Init_MfHid2()
+        SEQ_MPV_Init_StHid2()
+    }
     if (mpvlib_use_lc == 0) {
         hid2 &= ~0x10000000;
     }
