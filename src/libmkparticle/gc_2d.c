@@ -156,9 +156,9 @@ void native2d_instance_geometry(Pfx2dObj* obj) {
     }
 }
 
-/* TODO: [breakthrough needed] 88.54546%; copy folding exposes the ADDI sink;
- * bounded compiler revisions do not recover the original memset boundary. */
+#pragma peephole off
 void native2d_init_object(Pfx2dObj* obj) {
     memset(obj->gpu, 0,
            RW_OFFSET_OF(Pfx2dObj, padB8) - RW_OFFSET_OF(Pfx2dObj, gpu));
 }
+#pragma peephole reset

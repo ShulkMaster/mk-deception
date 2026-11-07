@@ -5088,7 +5088,7 @@ stream, N copies more or fewer; pop-order solver says "moves a parameter" or
   Each nested level adds inline-result copies at every call site, so measure
   every caller (`mwsfcre_MallocCompoWork`: `mwsfcre_OrgMalloc` 0x3c +
   `mwsfcre_UsrMalloc` 0x40 inside the 0xe8 allocator = 100; sibling
-  `mwsfcre_MallocRfb` drops, so not landed yet).
+  `mwsfcre_MallocRfb` then needs its own lever, H32 CSE-type split).
 - STOP when Step A finds no N <= 3, no minus and no minus + numbering pair:
   interference edge or numbering, not this rule (`do_dialog`,
   `render_player_joints`, `pfxvm`).
@@ -5155,3 +5155,14 @@ at that moment; its whole long-lived cluster follows (velocity x6 + ticks in
   body of `generic_victory_camera` reloads the static once in the out-of-line
   wrapper (retail: three reads), and the MAP's single `units_per_tick$1422`
   proves one body serves both sites, so it is not landable.
+- IF the lever wants an IRO CSE temp of a repeated global load (FE band)
+  scanned after the codegen temps of the same block | REQUIRE the load
+  reaches the backend as two loads in one extended block (scratch `#pragma
+  opt_common_subs off` on the function reproduces retail: lead only) | TRY
+  making the two read trees differ in type, not in value: IRO CSE needs
+  `IRO_TypesEqual`, the backend still merges the loads into the first
+  (late) codegen temp. MWCC narrows a `long` switch selector to `int`, so a
+  CRI `Sint32` (long) global tested by a single-case switch and compared
+  again inside it is not CSE'd (`mwsfcre_MallocRfb`: `switch
+  (mwsfdcre_bufnum) { default: ...; case 0: ... }`, `default` first keeps
+  the block order). Widening an `int` read (`(long)x`) keeps the CSE.

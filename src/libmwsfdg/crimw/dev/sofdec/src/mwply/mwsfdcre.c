@@ -246,8 +246,8 @@ static SfdAdxtParameters mwsfd_adxtpara = {0x5DCC, 0x120, 0, 2, 0xBB80, 0xC1C0, 
 static long mwsfd_packsize = 0x800;
 
 
-static int mwsfdcre_bufnum;
-static int mwsfdcre_bufsize;
+static long mwsfdcre_bufnum;
+static long mwsfdcre_bufsize;
 static void* mwsfdcre_bufptr[16];
 
 static int adxibuf;
@@ -260,9 +260,29 @@ static long sib;
 static int sjb;
 static unsigned char* mwsfd_sisjadr;
 
+static inline void* mwsfcre_UsrMalloc(long size)
+{
+    MwsLibraryWork* work = MWSFLIB_GetLibWorkPtr();
+
+    return work->malloc_fn(work->allocator_object, size);
+}
+
+static inline void* mwsfcre_OrgMalloc(MwsPlayer* player, long size)
+{
+    void* memory;
+
+    if (player->arena_used + size > player->arena_size) {
+        memory = 0;
+    } else {
+        memory = player->arena_cursor;
+        player->arena_cursor += size;
+        player->arena_used += size;
+    }
+    return memory;
+}
+
 static inline void* mwsfcre_Alloc(MwsPlayer* player, long size)
 {
-    MwsLibraryWork* work;
     void* memory;
     if (player->allocation_count >= 32) {
         MWSFSVM_Error(allocation_count_exceeded);
@@ -270,16 +290,9 @@ static inline void* mwsfcre_Alloc(MwsPlayer* player, long size)
     }
     if (size < 0) return 0;
     if (player->arena != 0) {
-        if (player->arena_used + size > player->arena_size) {
-            memory = 0;
-        } else {
-            memory = player->arena_cursor;
-            player->arena_cursor += size;
-            player->arena_used += size;
-        }
+        memory = mwsfcre_OrgMalloc(player, size);
     } else {
-        work = MWSFLIB_GetLibWorkPtr();
-        memory = work->malloc_fn(work->allocator_object, size);
+        memory = mwsfcre_UsrMalloc(size);
     }
     if (memory != 0) {
         player->allocations[player->allocation_count] = memory;
@@ -404,8 +417,6 @@ void mwSfdDestroy(MWPLY handle)
     MWSFCRE_DestroySfd(player);
 }
 
-/* TODO: [breakthrough] 97.76836%; MAP nested allocator (Org/UsrMalloc in Alloc) scores 100 here but
- * MallocRfb 97.95 (one coalesced copy too many there); find the shape exact for both. */
 static int mwsfcre_MallocCompoWork(MwsPlayer* player)
 {
     const MwsCreateParams* create = &player->create;
@@ -992,7 +1003,8 @@ static int mwsfcre_MallocRfb(MwsPlayer* player,
     int frame_size;
 
     frame_size = mwsfcre_CalcFrameSize(params->width, params->height);
-    if (mwsfdcre_bufnum != 0) {
+    switch (mwsfdcre_bufnum) {
+    default:
         if (mwsfdcre_bufnum < 2 ||
             mwsfdcre_bufsize < frame_size ||
             mwsfdcre_bufsize < frame_size) {
@@ -1003,9 +1015,11 @@ static int mwsfcre_MallocRfb(MwsPlayer* player,
             output->buffers[0] = mwsfdcre_bufptr[0];
             output->buffers[1] = mwsfdcre_bufptr[1];
         }
-    } else {
+        break;
+    case 0:
         output->buffers[0] = mwsfcre_Alloc(player, frame_size);
         output->buffers[1] = mwsfcre_Alloc(player, frame_size);
+        break;
     }
     if (output->buffers[0] == 0 || output->buffers[1] == 0) result = -1;
     return result;
