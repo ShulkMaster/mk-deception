@@ -1,3 +1,6 @@
+/* BUILD: -inline auto,deferred: retail emits functions in reverse source order and
+ * auto-inlines plain static helpers (MAP UNUSED scan_for_next_available_key_coffin,
+ * move_coffin_to_position, start_closing_coffin_effects). */
 #include "game/krypt.h"
 #include "runtime/anim_transition.h"
 #include "runtime/anim_api_ext.h"
@@ -138,15 +141,13 @@ struct KryptPointLightDef {
     float field_28;
 };
 
+static float p_follow_camera(void);
+
 struct KryptPointLightDef camera_point_light = {
-    2, 0, 3, {1.0f, 1.0f, 1.0f, 1.0f}, 8.0f, 0.0f, 3.0f, 0.0f,
+    2, p_follow_camera, 3, {1.0f, 1.0f, 1.0f, 1.0f}, 8.0f, 0.0f, 3.0f, 0.0f,
 };
 int footstep_frames[2][2] = {{20, 60}, {15, 37}};
 unsigned int filter_masks[6] = {0x6000, 0x10004, 0, 0x48, 0x220, 0x10};
-
-static const CamVec3 s_cam_pos = {-1.126f, 6.534f, 58.529f};
-static const CamVec3 s_cam_ang = {0.215f, 0.38f, 0.0f};
-static const Vec s_lid_offset = {0.0f, 0.0f, 1.75f};
 
 static const float s_tomb_col_spacing = 3.0f;
 static const float s_tomb_col_origin = -28.5f;
@@ -162,12 +163,12 @@ static const float s_tomb_koin_z_near = 0.22f;
 static const float s_tomb_koin_z_far = 0.085f;
 static const float s_tomb_koin_open_uv_bias = 1.0f;
 
-int krypt_data_loaded;
-int gallery_data_loaded;
-KontentPdata* kontent_pdata;
-void* prize_description_block;
-CoffinEntry* coffin_data;
+int krypt_data_loaded = 0;
 KryptPdata* krypt_pdata;
+CoffinEntry* coffin_data;
+void* prize_description_block;
+KontentPdata* kontent_pdata;
+int gallery_data_loaded;
 
 static void set_letter_positions_and_values(PfxVm* pfx);
 static void set_number_positions_and_values(PfxVm* pfx);
@@ -183,6 +184,18 @@ static int deduct_koins(int amount, unsigned int koin_type);
 static void start_opening_coffin_effects(Vec* origin);
 static void update_use_key_string(void);
 static float p_fog_follow_camera(void);
+static void start_closing_coffin_effects(Vec* origin);
+static void move_coffin_to_position(Vec* position);
+static float p_run_character_animation(void);
+static float p_monitor_krypt_characters(void);
+static float p_play_random_noise(void);
+static float p_move_camera_and_open_coffin(void);
+static float handle_controller_input(void);
+static void init_konquest_keys(void);
+static inline void rebuild_visible_coffin_rows(void);
+void force_wallet_to_open_position(void);
+void heads_up_display_visible(int visible);
+void init_heads_up_display(void);
 
 static inline void mkproc_jump_sleep(MkProcEntryFn entry) {
     aproc->vtbl->jump_sleep(entry, 0.0f);
@@ -234,97 +247,12 @@ static inline void place_visible_coffin_rows_from(Vec* origin) {
     }
 }
 
-static inline void rebuild_visible_coffin_rows(void) {
-    Vec origin = {0.0f, 0.0f, 0.0f};
-    krypt_pdata->coffin_pebble_type0->count = 0;
-    krypt_pdata->coffin_pebble_type1->count = 0;
-    krypt_pdata->coffin_pebble_type2->count = 0;
-    krypt_pdata->coffin_pebble_type3->count = 0;
-    krypt_pdata->lid_closed_pebbles->count = 0;
-    krypt_pdata->lid_open_pebbles->count = 0;
-    place_visible_coffin_rows_from(&origin);
-}
-
-static const Vec s_coffin_offset = {-0.582f, -0.503f, 1.4008f};
-
 static inline MkHdr* krypt_object_header(MkObj* object) {
     if (object != 0) {
         return as_mkhdr(&object->hdr);
     }
     return 0;
 }
-
-static inline void opening_coffin_effects_impl(Vec* origin) {
-    Vec object_offsets[5] = {
-        {-0.1f, 0.0f, 0.8f},
-        {-0.1f, 0.0f, 2.2f},
-        {0.0f, 0.0f, 2.5f},
-        {0.1f, 0.0f, 2.2f},
-        {0.1f, 0.0f, 0.8f},
-    };
-    float object_angles[5] = {-1.5707964f, -1.5707964f, 0.0f, 1.5707964f, 1.5707964f};
-    Vec dust_offset = {0.0f, 0.25f, 2.0f};
-    Vec dust_position = {0.0f, 0.0f, 0.0f};
-    unsigned int dirt_effect;
-    unsigned int dust_effect;
-    unsigned int emitter;
-    MkObj* object;
-    MkPfx* particle;
-    int i;
-
-    dirt_effect = fx_by_owner("dirt_fountain", 4);
-    fx_reset(dirt_effect);
-    fx_set(dirt_effect, 0x204, 0.0f);
-    for (i = 0; i < 5; i++) {
-        object = get_mkobj_frame(0x8311, 0);
-        if (object != 0) {
-            object->pos.value.x = origin->x + object_offsets[i].x;
-            object->pos.value.y = origin->y + object_offsets[i].y;
-            object->pos.value.z = origin->z + object_offsets[i].z;
-            object->ang.y = object_angles[i];
-            insert_particle_mkobj(object);
-            update_mkobj(krypt_object_header(object));
-            emitter = fx_next_emitter(dirt_effect);
-            particle = pfx_from_emitter(emitter);
-            if (particle == 0) {
-                return;
-            }
-            pfx_bind_emitter_num_to_obj(
-                particle, object, 0, emitter_id_from_handle(emitter));
-            fx_restart_emit(emitter);
-        }
-    }
-    dust_effect = fx_by_owner("coffin_dust_pfx", 4);
-    fx_reset(dust_effect);
-    dust_position.x = origin->x + dust_offset.x;
-    dust_position.y = origin->y + dust_offset.y;
-    dust_position.z = origin->z + dust_offset.z;
-    fx_set_param_v3(dust_effect, 0x202, dust_position.x, dust_position.y, dust_position.z);
-    fx_restart_emit(dust_effect);
-}
-
-static inline void start_closing_coffin_effects(Vec* origin) {
-    Vec dust_offset = {0.0f, 0.25f, 2.0f};
-    Vec effect_position = {0.0f, 0.0f, 0.0f};
-    unsigned int dust;
-    int fountain;
-    dust = fx_by_owner("coffin_dust_pfx", 4);
-    fx_reset(dust);
-    effect_position.x = origin->x + dust_offset.x;
-    effect_position.y = origin->y + dust_offset.y;
-    effect_position.z = origin->z + dust_offset.z;
-    fx_set_param_v3(
-        dust, 0x202, effect_position.x, effect_position.y,
-        effect_position.z);
-    fx_restart_emit(dust);
-    fountain = fx_by_owner("dirt_fountain", 4);
-    if (fountain != 0) {
-        fx_set(fountain, 0x204, 1.0f);
-    }
-}
-
-static const Vec s_coffin_camera_angles = {1.0f, 3.4415927f, 0.0f};
-static const Vec s_coffin_camera_offset = {0.8f, 5.0f, 4.0f};
 
 static inline StringObj* kontent_bio_text_live(void) {
     StringObj* raw;
@@ -333,42 +261,6 @@ static inline StringObj* kontent_bio_text_live(void) {
     raw = kontent_pdata->bio_text;
     live = MK_LIVE(raw, kontent_pdata->bio_text_instance);
     return live;
-}
-
-void hide_kontent_bio_text(void) {
-    StringObj* text;
-
-    text = kontent_bio_text_live();
-    if (text != 0) {
-        hide_string_obj(text);
-    }
-}
-
-void unhide_kontent_bio_text(void) {
-    StringObj* text;
-
-    text = kontent_bio_text_live();
-    if (text != 0) {
-        unhide_string_obj(text);
-    }
-}
-
-void kill_kontent_bio_text(void) {
-    StringObj* text;
-
-    text = kontent_bio_text_live();
-    if (text != 0) {
-        if (text->instance != 0) {
-            text->typed_vtbl->destroy(text);
-        }
-        kontent_pdata->bio_text = 0;
-        kontent_pdata->bio_text_instance = 0;
-    }
-}
-
-void get_gallery_page_number_string(char* out) {
-    sprintf(out, "%d of %d", kontent_pdata->current_selection / 12 + 1,
-            (kontent_pdata->item_count - 1) / 12 + 1);
 }
 
 static inline char* gallery_coffin_long_description(int coffin) {
@@ -384,167 +276,7 @@ static inline char* gallery_coffin_long_description(int coffin) {
     return entries[coffin].long_description;
 }
 
-char* get_long_coffin_description(void) {
-    return gallery_coffin_long_description(kontent_pdata->items[kontent_pdata->current_selection]);
-}
-
-char* get_coffin_blurb(void) {
-    int selection;
-    int coffin;
-    CoffinEntry* entries;
-
-    selection = kontent_pdata->current_selection;
-    coffin = kontent_pdata->items[selection];
-    if (selection < kontent_pdata->item_count) {
-        if (kontent_pdata->category == 2) {
-            return global_player_data[coffin].name;
-        }
-        entries = coffin_data;
-        if (gallery_data_loaded == 0) {
-            return 0;
-        }
-        if (coffin < 0 || coffin > 0x1B7) {
-            return 0;
-        }
-        return entries[coffin].blurb;
-    }
-    return "";
-}
-void create_fullscreen_gallery_image_list(GVTexturePair out, int count) {
-    int coffin;
-    MkFileInfo* section;
-    unsigned int oid;
-    int gallery_art;
-    int i;
-    StringObj* text;
-    CoffinEntry* entry;
-
-    coffin = kontent_pdata->items[kontent_pdata->current_selection];
-    entry = coffin_data;
-    if (gallery_data_loaded == 0) {
-        oid = 0;
-    } else {
-        gallery_art = entry[coffin].gallery_art;
-        section = get_mk_file_info_from_current_ssf(gallery_art);
-        if (is_section_loading_or_loaded(0x150067, section) == 0) {
-            unload_section_slot(0x150067);
-        }
-        load_art_section(0x150067, section);
-        oid = (gallery_art + 0x3EA) * 0x10000U | 2;
-    }
-    for (i = 0; i < count; i++) {
-        out.colors[i] = load_tga(0x150067, oid + i);
-    }
-
-    if (kontent_pdata->category == 0) {
-        load_ssf(bio_text_file_table);
-        load_string_bank(0x20000, "bio_strings_eng.mko");
-        load_ssf(bios_file_table);
-        load_art_section(0x11005C, &sec_eu_biofont);
-        load_font_in_slot(0x10, 0x11005C, 0x1490001, 0x1490000);
-        entry = &coffin_data[coffin];
-        text = put_bio_text(entry->unlock_or_movie, entry->kontent_type != 0xD);
-        if (text != 0) {
-            kontent_pdata->bio_text = text;
-            kontent_pdata->bio_text_instance = text->instance;
-        }
-    }
-}
-
 static int kontent_gallery_movie_tapout(void);
-
-void start_loading_kontent_image(void) {
-    CoffinEntry* entries;
-    int coffin;
-    int type;
-    int movie;
-    MkFileInfo* section;
-
-    coffin = kontent_pdata->items[kontent_pdata->current_selection];
-    if (kontent_pdata->item_count == 0) {
-        return;
-    }
-    eat_switch_edge(kontent_pdata->player_port, 6);
-    if (kontent_pdata->category == 2) {
-        if (kontent_pdata->current_selection < kontent_pdata->item_count) {
-            pause_screen_engine(1);
-            run_ending(coffin);
-            eat_switch_edge(kontent_pdata->player_port, 6);
-            pause_screen_engine(0);
-            fade_from_black(8, 1);
-        }
-        return;
-    }
-
-    entries = coffin_data;
-    if (gallery_data_loaded == 0) {
-        type = -1;
-    } else if (coffin < 0 || coffin > 0x1B7) {
-        type = -1;
-    } else {
-        type = coffin_data[coffin].kontent_type;
-    }
-    if (type == 5 || type == 9) {
-        if (gallery_data_loaded == 0) {
-            movie = -1;
-        } else if (coffin < 0 || coffin > 0x1B7) {
-            movie = -1;
-        } else if ((unsigned int)entries[coffin].movie_kind == 0x14U) {
-            movie = entries[coffin].unlock_or_movie;
-        } else {
-            movie = -1;
-        }
-        if (movie != -1) {
-            play_movie(movie, kontent_gallery_movie_tapout);
-        }
-    } else if (kontent_pdata->current_selection < kontent_pdata->item_count) {
-        load_ssf(krypt_art_file_table);
-        entries = coffin_data;
-        if (gallery_data_loaded != 0) {
-            section = get_mk_file_info_from_current_ssf(entries[coffin].gallery_art);
-            unload_section_slot(0x150067);
-            load_art_section_async(0x150067, section);
-        }
-        fire_screen_studio_event(0x1FEA, 1);
-    }
-}
-
-static int kontent_gallery_movie_tapout(void) {
-    scan_switches();
-    if (check_switch_edge(kontent_pdata->player_port, 0xB) != 0 ||
-        check_switch_edge(kontent_pdata->player_port, 6) != 0) {
-        return 1;
-    }
-    return 0;
-}
-
-void kontent_set_current_selection(int selection) {
-    kontent_pdata->current_selection = selection;
-}
-void create_gallery_image_list(GVTexturePair out, int count) {
-    int i;
-    int coffin;
-    unsigned int oid;
-    char* name;
-
-    for (i = 0; i < count; i++) {
-        if (kontent_pdata->category == 2) {
-            coffin = kontent_pdata->items[i];
-            name = get_ending_thumbnail_name(coffin);
-            out.colors[i] = load_named_tga_from_slot(0x150068, name);
-        } else {
-            coffin = kontent_pdata->items[i];
-            if (gallery_data_loaded == 0) {
-                oid = 0;
-            } else if (coffin < 0 || coffin > 0x1B7) {
-                oid = 0;
-            } else {
-                oid = (unsigned int)coffin_data[coffin].gallery_art | 0x03E90000;
-            }
-            out.colors[i] = load_tga(0x150068, oid);
-        }
-    }
-}
 
 static inline int coffin_matches_kontent_category(CoffinEntry* entry) {
     if (entry == 0) {
@@ -555,50 +287,6 @@ static inline int coffin_matches_kontent_category(CoffinEntry* entry) {
         return 1;
     }
     return 0;
-}
-
-int get_number_kontent_items(void) {
-    int i;
-    int valid;
-    CoffinEntry* entry;
-
-    kontent_pdata->item_count = 0;
-    switch (kontent_pdata->category) {
-    case 2:
-        for (i = 0; i < 0x2C; i++) {
-            if (is_mark_as_unlocked(kontent_pdata->profile, 6, i) != 0 &&
-                get_ending_thumbnail_name(i) != 0) {
-                kontent_pdata->items[kontent_pdata->item_count] = i;
-                kontent_pdata->item_count++;
-            }
-        }
-        break;
-    case 0:
-    case 1:
-    case 4:
-        for (i = 400; i < 439; i++) {
-            entry = &coffin_data[i];
-            valid = coffin_matches_kontent_category(entry);
-            if (valid != 0) {
-                kontent_pdata->items[kontent_pdata->item_count] = i;
-                kontent_pdata->item_count++;
-            }
-        }
-    default:
-    case 3:
-        for (i = 0; i < 400; i++) {
-            if (get_coffin_bit(kontent_pdata->profile_common->coffin_bits, i) != 0) {
-                entry = &coffin_data[i];
-                valid = coffin_matches_kontent_category(entry);
-                if (valid != 0) {
-                    kontent_pdata->items[kontent_pdata->item_count] = i;
-                    kontent_pdata->item_count++;
-                }
-            }
-        }
-        break;
-    }
-    return kontent_pdata->item_count;
 }
 
 static inline void rebase_coffin_strings(char* strings) {
@@ -631,368 +319,6 @@ static inline void krypt_load_gallery_data(void) {
             }
         }
     }
-}
-
-float p_kontent_setup(void) {
-    zero_pdata_payload(sizeof(struct KontentPdata), (MkHdr*)kontent_pdata);
-    mode_of_play = 5;
-    if (menu_player == 0) {
-        kontent_pdata->player_port = g_game_info.plyr0.pad_index;
-        set_player_state(&g_game_info.plyr0, 2);
-        kontent_pdata->profile = &p1_profile;
-        kontent_pdata->profile_common = p1_profile_common;
-        winner_for_ending = 0;
-    } else {
-        kontent_pdata->player_port = g_game_info.plyr1.pad_index;
-        set_player_state(&g_game_info.plyr1, 2);
-        move_profile_p1_to_p2();
-        kontent_pdata->profile = &p2_profile;
-        kontent_pdata->profile_common = p2_profile_common;
-        winner_for_ending = 1;
-    }
-    gallery_data_loaded = 0;
-    kontent_pdata->category = get_menu_mode_sub_var() - 0x2BE;
-    load_ssf(galleryart_file_table);
-    if (gallery_data_loaded == 0) {
-        krypt_load_gallery_data();
-    }
-    switch (kontent_pdata->category) {
-    case 2:
-        load_art_section(0x150068, &sec_ending_thumbs);
-        break;
-    default:
-        load_art_section(0x150068, &sec_krypt_thumbs);
-        break;
-    }
-    load_ssf(krypt_art_file_table);
-    load_screen("common/kontent/kontent_main", 0x140064, 0, 1);
-    turn_camera_on();
-    turn_controllers_on();
-    disable_all_ports_but_me(kontent_pdata->player_port);
-    wait_for_screen_close();
-    if (prize_description_block != 0) {
-        free_mem(prize_description_block);
-    }
-    if (coffin_data != 0) {
-        free_mem(coffin_data);
-        coffin_data = 0;
-    }
-    gamelogic_jump(6, p_main_menu);
-    return -1.0f;
-}
-float p_kontent(void) {
-    MkProc* proc;
-
-    set_section_memory_scheme(7);
-    proc = _create_mkproc_generic_bigstack(0x2001, 0x23, p_kontent_setup, sizeof(struct KontentPdata),
-                                           (MkHdr**)&kontent_pdata);
-    if (proc != 0) {
-        return -1.0f;
-    }
-    gamelogic_jump(0, p_atm_loop);
-    return -1.0f;
-}
-
-void* get_krypt_anim_pdata(void) {
-    return krypt_pdata->anim_pdata;
-}
-
-void* get_krypt_character_obj(void) {
-    MkObjLatch* pdata;
-    MkHdr* obj;
-
-    pdata = (MkObjLatch*)pdata_of_proc(aproc);
-    if (pdata == 0) {
-        return 0;
-    }
-
-    obj = MK_LIVE(pdata->obj, pdata->obj_instance);
-    if (obj != 0) {
-        return obj;
-    }
-    return 0;
-}
-
-int get_krypt_current_column(void) {
-    return krypt_pdata->current_column;
-}
-
-int get_krypt_current_row(void) {
-    return krypt_pdata->current_row;
-}
-
-void transition_to_krypt_character_anim_script(
-    int animation_id, int flags, int step) {
-    krypt_pdata->footstep_frame_index = 0;
-    transition_to_anim_script(0.1f, krypt_pdata->anim_pdata, get_animation(animation_id), flags);
-    krypt_pdata->anim_pdata->step = step;
-}
-void set_krypt_character_anim_script(
-    int animation_id, int flags, void* script_args, float step) {
-    krypt_pdata->footstep_frame_index = 0;
-    set_anim_script(
-        krypt_pdata->anim_pdata,
-        get_animation(animation_id), flags);
-    krypt_pdata->anim_pdata->step = step;
-}
-void set_krypt_character_previous_root_angle(void* script_args, float angle) {
-    MkObjLatch* pdata;
-    MkObj* obj;
-
-    pdata = (MkObjLatch*)pdata_of_proc(aproc);
-    if (pdata != 0) {
-        obj = (MkObj*)MK_LIVE(pdata->obj, pdata->obj_instance);
-        if (obj != 0) {
-            obj->bone_angle_68 = angle;
-            update_mkobj(obj);
-        }
-    }
-}
-void set_krypt_character_angle(void* script_args, float angle) {
-    MkObjLatch* pdata;
-    MkObj* obj;
-
-    pdata = (MkObjLatch*)pdata_of_proc(aproc);
-    if (pdata != 0) {
-        obj = (MkObj*)MK_LIVE(pdata->obj, pdata->obj_instance);
-        if (obj != 0) {
-            obj->hide_flag_bits.pin_animation = 0;
-            obj->ang.y = angle;
-            update_mkobj(obj);
-        }
-    }
-}
-void set_krypt_character_pos(Vec* position) {
-    MkObjLatch* pdata;
-    MkObj* obj;
-
-    pdata = (MkObjLatch*)pdata_of_proc(aproc);
-    if (pdata != 0) {
-        obj = (MkObj*)MK_LIVE(pdata->obj, pdata->obj_instance);
-        if (obj != 0) {
-            obj->hide_flag_bits.pin_animation = 0;
-            obj->pos.value.x = position->x;
-            obj->pos.value.y = position->y;
-            obj->pos.value.z = position->z;
-            update_mkobj(obj);
-        }
-    }
-}
-
-static float p_run_character_animation(void) {
-    struct KryptCharacterAnimProcPdata* pdata;
-    MkHdr* obj;
-    AnimPdata* animation;
-
-    pdata = (struct KryptCharacterAnimProcPdata*)pdata_of_proc(aproc);
-    if (pdata == 0) {
-        return -1.0f;
-    }
-    cmdscript_setup_execution(g_game_info.cmdscript, pdata->script_index);
-    cmdscript_execute(g_game_info.cmdscript);
-
-    obj = MK_LIVE(pdata->obj, pdata->obj_instance);
-
-    if (obj != 0) {
-        if (MK_LIVE(krypt_pdata->anim_pdata->proc, krypt_pdata->anim_pdata->proc_instance) != 0) {
-            animation = krypt_pdata->anim_pdata;
-            if (animation->proc->instance != 0) {
-                animation->proc->hdr.typed_vtbl->destroy((MkHdr*)animation->proc);
-            }
-            krypt_pdata->anim_pdata->proc = 0;
-            krypt_pdata->anim_pdata->proc_instance = 0;
-        }
-        if (krypt_pdata->anim_pdata->hdr.instance != 0) {
-            krypt_pdata->anim_pdata->hdr.typed_vtbl->destroy(
-                (MkHdr*)krypt_pdata->anim_pdata);
-        }
-        krypt_pdata->anim_pdata = 0;
-        krypt_pdata->anim_proc = 0;
-    }
-    return -1.0f;
-}
-static inline MkObj* load_krypt_character_model(char* character_name) {
-    MkObj* object;
-    MkSobj* sobj;
-    char section_name[0x40];
-
-    load_ssf(kon_unique_npcs_file_table);
-    sprintf(section_name, "kon_%s.sec", character_name);
-    strlwr(section_name);
-    load_art_section_by_name(0x140065, section_name);
-    object = load_named_model_from_slot(0x140065, "NPC", 0x8312, 0);
-    if (object != 0) {
-        Vec scale = {1.7f, 1.7f, 1.7f};
-
-        obj_create_sobjs(object);
-        sobj = obj_first_sobj(object);
-        if (sobj != 0) {
-            sobj->flags09_bits.bit4 = 0;
-            sobj->flags09_bits.bit2 = 0;
-        }
-        object->flags_08_bits.airborne = 1;
-        object->flags_08_bits.angular_velocity_enabled = 1;
-        object->flags_08_bits.scale_active = 1;
-        build_bones_tbl(object, konquest_human_bones);
-        object->flipped_bone_map = &flipped_konquest_human_bones;
-        object->flags_09_bits.launched = 1;
-        object->flags_09_bits.bit6 = 1;
-        object->ground_colls = monk_ground_colls;
-        object->light_flags = 4;
-        hide_obj(object);
-        object->scale.x = scale.x;
-        object->scale.y = scale.y;
-        object->scale.z = scale.z;
-        krypt_pdata->anim_proc =
-            create_mkproc_anim(0x5002, p_krypt_animate, &krypt_pdata->anim_pdata);
-        if (krypt_pdata->anim_proc != 0) {
-            krypt_pdata->anim_pdata->obj = object;
-            krypt_pdata->anim_pdata->obj_instance = object->hdr.instance;
-            set_root_and_obj_movement_weights(krypt_pdata->anim_pdata, 0.0f, 1.0f);
-            krypt_pdata->anim_pdata->step = 1.0f;
-            set_anim_script(
-                krypt_pdata->anim_pdata,
-                bgnd_animations[0], 0);
-        }
-        insert_ground_me_mkobj(object);
-        insert_fgnd_mkobj(object);
-        update_mkobj(object);
-    }
-    return object;
-}
-
-MkObj* load_krypt_character(char* character_name) {
-    if (find_mkproc_pid(0x8240) != 0) {
-        return 0;
-    }
-    return load_krypt_character_model(character_name);
-}
-
-static float p_krypt_animate(void) {
-    AnimPdata* animation;
-    MkObj* object;
-    float frame_delta;
-    float volume;
-
-    if (krypt_pdata->anim_pdata->last_update_tick != (unsigned int)exec_tick_ctr) {
-        advance_anim(krypt_pdata->anim_pdata);
-        pose_anim(krypt_pdata->anim_pdata, 1);
-        animation = krypt_pdata->anim_pdata;
-        if (animation->high_frame == 76.0f) {
-            frame_delta = animation->frame -
-                          (float)footstep_frames[0][krypt_pdata->footstep_frame_index];
-            frame_delta = frame_delta >= 0.0f ? frame_delta : -frame_delta;
-            if (frame_delta < animation->step) {
-                object = MK_HDR_LIVE(animation->obj, animation->obj_instance);
-
-                volume = get_volume_from_distance(&object->pos.value, 40.0f, 10.0f);
-                if (volume) {
-                    pan_vol_pitch_random_snd_req(
-                        0x2B, get_pan_value(&object->pos.value), volume, 1.0f);
-                }
-            }
-            krypt_pdata->footstep_frame_index++;
-            if (krypt_pdata->footstep_frame_index >= 2) {
-                krypt_pdata->footstep_frame_index = 0;
-            }
-        } else if (animation->high_frame == 43.0f) {
-            frame_delta = animation->frame -
-                          (float)footstep_frames[1][krypt_pdata->footstep_frame_index];
-            frame_delta = frame_delta >= 0.0f ? frame_delta : -frame_delta;
-            if (frame_delta < animation->step) {
-                object = MK_HDR_LIVE(animation->obj, animation->obj_instance);
-
-                volume = get_volume_from_distance(&object->pos.value, 40.0f, 10.0f);
-                if (volume) {
-                    pan_vol_pitch_random_snd_req(
-                        0x2A, get_pan_value(&object->pos.value), volume, 1.0f);
-                }
-            }
-            krypt_pdata->footstep_frame_index++;
-            if (krypt_pdata->footstep_frame_index >= 2) {
-                krypt_pdata->footstep_frame_index = 0;
-            }
-        }
-    }
-    return 1.0f;
-}
-static float p_monitor_krypt_characters(void) {
-    struct KryptCharacterMonitorPdata* pdata;
-    struct KryptCharacterAnimProcPdata* animation_pdata;
-    CameraPdata* camera;
-    char** character_names;
-    unsigned int* character_scripts;
-    MkObj* object;
-    MkProc* proc;
-    unsigned int script_index;
-    unsigned int script_row;
-
-    pdata = (struct KryptCharacterMonitorPdata*)pdata_of_proc(aproc);
-    camera = get_pdata_of_camera();
-    if (camera == 0) {
-        return -1.0f;
-    }
-    if (pdata->elapsed_ticks >= pdata->delay_ticks && camera->flags_bits.pos_done != 0) {
-        character_names = get_data_table_by_name("krypt_character_names");
-        character_scripts =
-            get_data_table_by_name("krypt_character_info_table");
-        object = load_krypt_character(
-            character_names[(unsigned short)randu0((unsigned short)get_row_count_for_table_by_pointer(
-                g_game_info.cmdscript, character_names))]);
-        script_row = (unsigned short)randu0(
-            (unsigned short)get_row_count_for_table_by_pointer(
-                g_game_info.cmdscript, character_scripts));
-        if (object != 0) {
-            script_index = character_scripts[script_row];
-            animation_pdata = 0;
-            proc = _create_mkproc_generic_bigstack(
-                0x8240, 0x1F, p_run_character_animation,
-                sizeof(struct KryptCharacterAnimProcPdata),
-                (MkHdr**)&animation_pdata);
-            if (proc != 0 && animation_pdata != 0) {
-                zero_pdata_payload(sizeof(struct KryptCharacterAnimProcPdata),
-                                   &animation_pdata->hdr);
-                animation_pdata->obj = &object->hdr;
-                animation_pdata->obj_instance = object->hdr.instance;
-                animation_pdata->script_index = script_index;
-                set_process_as_scriptable(proc);
-                mk_insert(&object->hdr, &proc->pdata_list_b);
-            }
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        mkproc_sleep();
-        while (find_mkproc_pid(0x8240) != 0) {
-            _mkproc_sleep_ticks = 1.0f;
-            mkproc_sleep();
-        }
-        pdata->delay_ticks = (unsigned short)randu0(0x12C) + 0x12C;
-        pdata->elapsed_ticks = 0;
-    } else {
-        pdata->elapsed_ticks++;
-    }
-    return 1.0f;
-}
-static float p_play_random_noise(void) {
-    static unsigned short number_of_sounds_left = 35;
-    unsigned short index;
-    unsigned int sound;
-    int last_sound;
-    float pan;
-    unsigned int delay;
-
-    index = randu0(number_of_sounds_left);
-    sound = background_sounds[index];
-    last_sound = background_sounds[number_of_sounds_left - 1];
-    background_sounds[number_of_sounds_left - 1] = background_sounds[index];
-    background_sounds[index] = last_sound;
-    if (--number_of_sounds_left == 0) {
-        number_of_sounds_left = 35;
-    }
-
-    pan = sfrand(2.0f);
-    delay = (unsigned short)randu0(180) + 480;
-    pan_snd_req(sound, pan);
-    return delay;
 }
 
 static inline float update_tombstone_common(void (*rebuild)(PfxVm* pfx)) {
@@ -1029,18 +355,6 @@ static inline float update_tombstone_common(void (*rebuild)(PfxVm* pfx)) {
     return 1.0f;
 }
 
-static float update_tombstone_letters(void) {
-    return update_tombstone_common(set_letter_positions_and_values);
-}
-
-static float update_tombstone_numbers(void) {
-    return update_tombstone_common(set_number_positions_and_values);
-}
-
-static float update_tombstone_koins(void) {
-    return update_tombstone_common(set_koin_positions_and_colors);
-}
-
 static inline void init_tombstone_common(PfxVm* pfx, int particle_count, float scale,
                                   unsigned int tex_name, int anim_a, int anim_b, int anim_c,
                                   int anim_d) {
@@ -1073,18 +387,6 @@ static inline void init_tombstone_common(PfxVm* pfx, int particle_count, float s
     pfx->texture_mode = 0;
 }
 
-static void init_tombstone_letters(void* pfx) {
-    init_tombstone_common(pfx, 0x48, 0.3f, 0x012a0005, 0x100, 0x20, 0x20, 0x40);
-}
-
-static void init_tombstone_numbers(void* pfx) {
-    init_tombstone_common(pfx, 0x90, 0.18f, 0x012a0006, 0x80, 0x20, 0x2a, 0xa);
-}
-
-static void init_tombstone_koins(void* pfx) {
-    init_tombstone_common(pfx, 0x24, 0.4f, 0x012a0004, 0x80, 0x2a, 0x2a, 0x8);
-}
-
 static inline void tombstone_viewport_origin(int* out_row, int* out_col) {
     int col;
     int row;
@@ -1113,342 +415,11 @@ static inline int coffin_uses_near_tombstone(int index) {
     return 0;
 }
 
-static void set_letter_positions_and_values(PfxVm* pfx) {
-    int col;
-    int uv_stride;
-    float origin_x;
-    float base_x;
-    int pos_stride;
-    int view_row;
-    int view_col;
-    int row_off;
-    Vec* pos;
-    float* uv;
-    float base_z;
-    int opened;
-    int coffin_idx;
-    int is_near;
-
-    uv = pfx_get_field(pfx, -2, 0x301);
-    uv_stride = pfx_get_struct_size(pfx, 0x301);
-    pos = pfx_get_field(pfx, -2, 0x100);
-    pos_stride = pfx_get_struct_size(pfx, 0x100);
-    tombstone_viewport_origin(&view_row, &view_col);
-    origin_x = s_tomb_col_spacing * (float)view_col + s_tomb_col_origin;
-    base_x = origin_x;
-    base_z = s_tomb_row_origin - s_tomb_row_spacing * (float)view_row;
-
-    for (row_off = 0; row_off < 4; row_off++) {
-        int col_off;
-        float z_near;
-        float z_far;
-        z_near = s_tomb_z_near + base_z;
-        z_far = s_tomb_z_far + base_z;
-        for (col_off = 0; col_off < 9; col_off++) {
-            int letter_bias;
-            opened = get_coffin_bit(
-                krypt_pdata->profile_common->coffin_bits,
-                col_off + (view_col + (view_row + row_off) * 0x14));
-            col = view_col + col_off;
-            coffin_idx = col + (view_row + row_off) * 0x14;
-            if (opened) letter_bias = 0x20;
-            else letter_bias = 0;
-
-            pos->x = base_x - 0.14f;
-            pos->y = 1.9f;
-            is_near = coffin_uses_near_tombstone(coffin_idx);
-            if (is_near != 0) pos->z = z_near;
-            else pos->z = z_far;
-            *uv = letter_bias + (view_row + row_off);
-            uv = (float*)((char*)uv + uv_stride);
-            pos = (Vec*)((char*)pos + pos_stride);
-
-            pos->x = base_x + 0.14f;
-            pos->y = 1.9f;
-            if ((unsigned int)coffin_data[coffin_idx].coffin_type == 4U)
-                pos->z = z_near;
-            else pos->z = z_far;
-            base_x += s_tomb_col_spacing;
-            *uv = letter_bias + col;
-            uv = (float*)((char*)uv + uv_stride);
-            pos = (Vec*)((char*)pos + pos_stride);
-        }
-        base_z -= s_tomb_row_spacing;
-        base_x = origin_x;
-    }
-}
-
-/* TODO: [near miss] 99.61938%; named row_base numbers below the coffin-offset CSE; row*20
- * must reach pcode before z_far; recover the row-scale owner. */
-static void set_number_positions_and_values(PfxVm* pfx) {
-    Vec* pos;
-    float* uv;
-    int uv_stride;
-    int pos_stride;
-    int view_row;
-    int view_col;
-    int row_base;
-    int row_off;
-    int col_off;
-    int fill;
-    float origin_x;
-    float base_x;
-    float base_z;
-    float column_coordinate;
-    float row_coordinate;
-    float z_near;
-    float z_far;
-    int row;
-    int col;
-    int coffin_idx;
-    unsigned int cost;
-    unsigned int ones;
-    unsigned int tens;
-    unsigned int hundreds;
-    unsigned int thousands;
-    unsigned int slot;
-    int particle;
-
-    particle = 0;
-    uv = pfx_get_field(pfx, -2, 0x301);
-    uv_stride = pfx_get_struct_size(pfx, 0x301);
-    pos = pfx_get_field(pfx, -2, 0x100);
-    pos_stride = pfx_get_struct_size(pfx, 0x100);
-    tombstone_viewport_origin(&view_row, &view_col);
-    column_coordinate = (float)view_col;
-    row_coordinate = (float)view_row;
-    origin_x = s_tomb_col_spacing * column_coordinate + s_tomb_col_origin;
-    base_x = origin_x;
-    base_z = s_tomb_row_origin - s_tomb_row_spacing * row_coordinate;
-
-    for (row_off = 0; row_off < 4; row_off++) {
-        row = view_row + row_off;
-        z_near = s_tomb_z_near + base_z;
-        row_base = row * 0x14;
-        z_far = s_tomb_z_far + base_z;
-        for (col_off = 0; col_off < 9; col_off++) {
-            col = view_col + col_off;
-            coffin_idx = col + row_base;
-            cost = coffin_data[coffin_idx].cost;
-            thousands = cost / 1000;
-            hundreds = (cost / 100) - thousands * 10;
-            tens = (cost / 10) - thousands * 100 - hundreds * 10;
-            ones = cost - thousands * 1000 - hundreds * 100 - tens * 10;
-            slot = 0;
-
-            if (thousands != 0) {
-                pos->x = base_x - s_tomb_digit_x_outer;
-                if ((unsigned int)coffin_data[coffin_idx].prize_kind == 6U)
-                    pos->y = -10.0f;
-                else pos->y = 1.6f;
-                if ((unsigned int)coffin_data[coffin_idx].coffin_type == 4U)
-                    pos->z = z_near;
-                else pos->z = z_far;
-                pos = (Vec*)((char*)pos + pos_stride);
-                particle += 1;
-                slot = 4;
-                *uv = thousands;
-                uv = (float*)((char*)uv + uv_stride);
-            }
-
-            if (slot == 4) {
-                pos->x = base_x - s_tomb_digit_x_inner;
-            } else if (hundreds != 0) {
-                slot = 3;
-                pos->x = base_x - s_tomb_digit_x_mid;
-            }
-
-            if (slot >= 3) {
-                if ((unsigned int)coffin_data[coffin_idx].prize_kind == 6U)
-                    pos->y = -10.0f;
-                else pos->y = 1.6f;
-                if ((unsigned int)coffin_data[coffin_idx].coffin_type == 4U)
-                    pos->z = z_near;
-                else pos->z = z_far;
-                pos = (Vec*)((char*)pos + pos_stride);
-                particle += 1;
-                *uv = hundreds;
-                uv = (float*)((char*)uv + uv_stride);
-            }
-
-            if (slot == 4) {
-                pos->x = base_x + s_tomb_digit_x_inner;
-            } else if (slot == 3) {
-                pos->x = base_x;
-            } else if (tens != 0) {
-                slot = 2;
-                pos->x = base_x - s_tomb_digit_x_inner;
-            }
-
-            if (slot >= 2) {
-                if ((unsigned int)coffin_data[coffin_idx].prize_kind == 6U)
-                    pos->y = -10.0f;
-                else pos->y = 1.6f;
-                if ((unsigned int)coffin_data[coffin_idx].coffin_type == 4U)
-                    pos->z = z_near;
-                else pos->z = z_far;
-                pos = (Vec*)((char*)pos + pos_stride);
-                particle += 1;
-                *uv = tens;
-                uv = (float*)((char*)uv + uv_stride);
-            }
-
-            if (slot == 4) {
-                pos->x = base_x + s_tomb_digit_x_outer;
-            } else if (slot == 3) {
-                pos->x = base_x + s_tomb_digit_x_mid;
-            } else if (slot == 2) {
-                pos->x = base_x + s_tomb_digit_x_inner;
-            } else {
-                pos->x = base_x;
-                slot = 1;
-            }
-
-            if (slot >= 1) {
-                if ((unsigned int)coffin_data[coffin_idx].prize_kind == 6U)
-                    pos->y = -10.0f;
-                else pos->y = 1.6f;
-                if ((unsigned int)coffin_data[coffin_idx].coffin_type == 4U)
-                    pos->z = z_near;
-                else pos->z = z_far;
-                pos = (Vec*)((char*)pos + pos_stride);
-                particle += 1;
-                *uv = ones;
-                uv = (float*)((char*)uv + uv_stride);
-            }
-
-            base_x += s_tomb_col_spacing;
-        }
-        base_z -= s_tomb_row_spacing;
-        base_x = origin_x;
-    }
-
-    fill = particle;
-    while (fill < pfx->particle_cursor) {
-        pos->x = 0.0f;
-        pos->y = -1.0f;
-        pos->z = 0.0f;
-        pos = (Vec*)((char*)pos + pos_stride);
-        *uv = 0.0f;
-        uv = (float*)((char*)uv + uv_stride);
-        fill += 1;
-    }
-}
-
 static inline void tombstone_grid_origin(
     int row, int col, float* x, float* z) {
     *x = s_tomb_col_spacing * (float)col + s_tomb_col_origin;
     *z = s_tomb_row_origin - s_tomb_row_spacing * (float)row;
 }
-
-static void set_koin_positions_and_colors(PfxVm* pfx) {
-    int pos_stride;
-    int view_row;
-    int view_col;
-    int row_base;
-    int row_off;
-    int uv_stride;
-    float origin_x;
-    float base_x;
-    int col_off;
-    float base_z;
-    Vec* pos;
-    float z_near;
-    float z_far;
-    int is_open;
-    int row;
-    int col;
-    int coffin_idx;
-    int is_near;
-    float* uv;
-
-    uv = pfx_get_field(pfx, -2, 0x301);
-    uv_stride = pfx_get_struct_size(pfx, 0x301);
-    pos = pfx_get_field(pfx, -2, 0x100);
-    pos_stride = pfx_get_struct_size(pfx, 0x100);
-    tombstone_viewport_origin(&view_row, &view_col);
-    tombstone_grid_origin(view_row, view_col, &origin_x, &base_z);
-    base_x = origin_x;
-
-    for (row_off = 0; row_off < 4; row_off++) {
-        row = view_row + row_off;
-        z_near = s_tomb_koin_z_near + base_z;
-        row_base = row * 0x14;
-        z_far = s_tomb_koin_z_far + base_z;
-        for (col_off = 0; col_off < 9; col_off++) {
-            col = view_col + col_off;
-            coffin_idx = col + row_base;
-            pos->x = base_x;
-            pos->y = 2.5f;
-            is_near = coffin_uses_near_tombstone(coffin_idx);
-            if (is_near != 0) pos->z = z_near;
-            else pos->z = z_far;
-            *uv = (unsigned int)coffin_data[coffin_idx].prize_kind;
-            if ((unsigned int)coffin_data[coffin_idx].prize_kind == 6U) {
-                is_open = get_coffin_bit(
-                    krypt_pdata->profile_common->coffin_bits, coffin_idx) != 0;
-                if (is_open != 0) *uv += 1.0f;
-            }
-            uv = (float*)((char*)uv + uv_stride);
-            pos = (Vec*)((char*)pos + pos_stride);
-            base_x += s_tomb_col_spacing;
-        }
-        base_z -= s_tomb_row_spacing;
-        base_x = origin_x;
-    }
-}
-
-#pragma auto_inline off
-static inline void krypt_set_wallet_text_y(int y) {
-    KryptStringObjLatch* wallet_text;
-    StringObj* text;
-    int i;
-
-    for (i = 0; i < 6; i++) {
-        wallet_text = krypt_pdata->wallet_text;
-        text = MK_LIVE(wallet_text[i].obj, wallet_text[i].obj_instance);
-        if (text != 0) {
-            text->y = y;
-        }
-    }
-}
-
-void force_wallet_to_open_position(void) {
-    ScreenObj* wallet_back;
-    ScreenObj* wallet_front;
-    StringObj* text;
-    KryptStringObjLatch* wallet_text;
-    char value[8];
-    int i;
-
-    wallet_back = MK_LIVE(krypt_pdata->wallet_back.obj, krypt_pdata->wallet_back.obj_instance);
-
-    wallet_front = MK_LIVE(krypt_pdata->wallet_front.obj, krypt_pdata->wallet_front.obj_instance);
-
-    if (wallet_back != 0 && wallet_front != 0) {
-        wallet_back->y = 0;
-        wallet_front->y = 0;
-    }
-
-    krypt_set_wallet_text_y(0x22);
-
-    for (i = 0; i < 6; i++) {
-        format_value_to_display(value, krypt_pdata->profile_common->koin_totals[i]);
-        wallet_text = krypt_pdata->wallet_text;
-        text = MK_LIVE(wallet_text[i].obj, wallet_text[i].obj_instance);
-        if (text != 0) {
-            update_string_obj(text, 0, value);
-        } else {
-            text = string_center_xy(0x8310, 0, value,
-                                    screen_width / 2 + koin_position_offsets[i], 0x22, 0x4B);
-            krypt_pdata->wallet_text[i].obj = text;
-            krypt_pdata->wallet_text[i].obj_instance = text->instance;
-        }
-    }
-    krypt_pdata->wallet_open_ticks = 0x78;
-    krypt_pdata->wallet_open = 1;
-}
-#pragma auto_inline reset
 
 static inline ScreenObj* krypt_pdata_live_open_button_obj(KryptPdata* owner) {
     ScreenObj* object = owner->open_button.obj;
@@ -1487,65 +458,6 @@ static inline void krypt_set_wallet_text_visible(int visible) {
         }
     }
 }
-
-void heads_up_display_visible(int visible) {
-    ScreenObj* wallet_back;
-    ScreenObj* wallet_front;
-    ScreenObj* icon_a;
-    ScreenObj* icon_b;
-    StringObj* label_a;
-    StringObj* label_b;
-    StringObj* value_a;
-    StringObj* value_b;
-
-    wallet_back = MK_LIVE(krypt_pdata->wallet_back.obj, krypt_pdata->wallet_back.obj_instance);
-
-    wallet_front = MK_LIVE(krypt_pdata->wallet_front.obj, krypt_pdata->wallet_front.obj_instance);
-
-    icon_a = MK_LIVE(krypt_pdata->open_button.obj, krypt_pdata->open_button.obj_instance);
-
-    icon_b = MK_LIVE(krypt_pdata->exit_button.obj, krypt_pdata->exit_button.obj_instance);
-
-    label_a = MK_LIVE(krypt_pdata->hud_label_l.obj, krypt_pdata->hud_label_l.obj_instance);
-
-    value_a = MK_LIVE(krypt_pdata->hud_string_20011.obj, krypt_pdata->hud_string_20011.obj_instance);
-
-    label_b = MK_LIVE(krypt_pdata->hud_label_r.obj, krypt_pdata->hud_label_r.obj_instance);
-
-    value_b = MK_LIVE(krypt_pdata->use_key_string.obj, krypt_pdata->use_key_string.obj_instance);
-
-    if (wallet_back != 0) {
-        if (visible) unhide_screen_obj(wallet_back); else hide_screen_obj(wallet_back);
-    }
-    if (wallet_front != 0) {
-        if (visible) unhide_screen_obj(wallet_front); else hide_screen_obj(wallet_front);
-    }
-    if (icon_a != 0) {
-        if (visible) unhide_screen_obj(icon_a); else hide_screen_obj(icon_a);
-    }
-    if (icon_b != 0) {
-        if (visible) unhide_screen_obj(icon_b); else hide_screen_obj(icon_b);
-    }
-    if (label_a != 0 && value_a != 0) {
-        if (visible) {
-            unhide_string_obj(label_a);
-            unhide_string_obj(value_a);
-        } else {
-            hide_string_obj(label_a);
-            hide_string_obj(value_a);
-        }
-    }
-    if (label_b != 0 && value_b != 0) {
-        if (krypt_pdata->available_key_coffin && visible) {
-            unhide_string_obj(label_b);
-            unhide_string_obj(value_b);
-        } else {
-            hide_string_obj(label_b);
-            hide_string_obj(value_b);
-        }
-    }
-    krypt_set_wallet_text_visible(visible);
-}
 static inline void krypt_update_wallet_text(void) {
     StringObj* string_obj;
     char value[8];
@@ -1563,99 +475,6 @@ static inline void krypt_update_wallet_text(void) {
             krypt_pdata->wallet_text[i].obj = string_obj;
             krypt_pdata->wallet_text[i].obj_instance = string_obj->instance;
         }
-    }
-}
-
-void init_heads_up_display(void) {
-    ScreenObj* screen_obj;
-    StringObj* string_obj;
-    ScreenObj* award_notice_top;
-    ScreenObj* award_notice_left;
-    ScreenObj* award_notice_right;
-    ScreenObj* award_notice_bottom;
-    ScreenObj* award_frame;
-    StringObj* right_label;
-    StringObj* right_text;
-    char* string;
-
-    screen_obj = load_named_2d_pfxobj(0x140066, 0x830F, "OPEN_BUTTON", 0, 0x4C);
-    if (screen_obj != 0) {
-        screen_obj->x = screen_width - 0x32 - screen_obj->pfx2d->tex_w;
-        screen_obj->y = screen_height - 0x52;
-        krypt_pdata->open_button.obj = screen_obj;
-        krypt_pdata->open_button.obj_instance = screen_obj->instance;
-    }
-    screen_obj = load_named_2d_pfxobj_xy(
-        0x140066, 0x830F, "EXIT_BUTTON", 0, 0x32, screen_height - 0x52, 0x4C);
-    krypt_pdata->exit_button.obj = screen_obj;
-    krypt_pdata->exit_button.obj_instance = screen_obj->instance;
-
-    string_obj = string_left_xy(0x8310, 7, "l", 0x32, 0x32, 0x4D);
-    krypt_pdata->hud_label_l.obj = string_obj;
-    krypt_pdata->hud_label_l.obj_instance = string_obj->instance;
-    string = get_string_by_id(0x20011);
-    string_obj = string_left_xy(0x8310, 0, string, 0x56, 0x37, 0x4D);
-    krypt_pdata->hud_string_20011.obj = string_obj;
-    krypt_pdata->hud_string_20011.obj_instance = string_obj->instance;
-    right_label = string_right_xy(
-        0x8310, 7, "R", screen_width - 0x32, 0x32, 0x4D);
-    krypt_pdata->hud_label_r.obj = right_label;
-    krypt_pdata->hud_label_r.obj_instance = right_label->instance;
-    string = get_string_by_id(0x20012);
-    right_text = string_right_xy(
-        0x8310, 0, string, screen_width - 0x5A, 0x37, 0x4D);
-    krypt_pdata->use_key_string.obj = right_text;
-    krypt_pdata->use_key_string.obj_instance = right_text->instance;
-
-    screen_obj = load_named_2d_pfxobj_xy(
-        0x140066, 0x830F, "WALLET_A", 0, screen_width / 2 - 0x140, 0, 0x4C);
-    krypt_pdata->wallet_back.obj = screen_obj;
-    krypt_pdata->wallet_back.obj_instance = screen_obj->instance;
-    screen_obj = load_named_2d_pfxobj_xy(
-        0x140066, 0x830F, "WALLET_B", 0, screen_width / 2 + 0xC0, 0, 0x4C);
-    krypt_pdata->wallet_front.obj = screen_obj;
-    krypt_pdata->wallet_front.obj_instance = screen_obj->instance;
-
-    krypt_update_wallet_text();
-
-    award_notice_top = load_named_2d_pfxobj_xy(
-        0x140066, 0x830F, "AWARD_NOTICE_TOP", 0,
-        screen_width / 2 - 0x100, screen_height / 2 + 0x80, 0x4C);
-    krypt_pdata->award_notice_top.obj = award_notice_top;
-    krypt_pdata->award_notice_top.obj_instance = award_notice_top->instance;
-    award_notice_left = load_named_2d_pfxobj_xy(
-        0x140066, 0x830F, "AWARD_NOTICE_LEFT", 0,
-        screen_width / 2 - 0xD0, screen_height / 2 - 0x80, 0x4C);
-    krypt_pdata->award_notice_left.obj = award_notice_left;
-    krypt_pdata->award_notice_left.obj_instance = award_notice_left->instance;
-    award_notice_right = load_named_2d_pfxobj_xy(
-        0x140066, 0x830F, "AWARD_NOTICE_RIGHT", 0,
-        screen_width / 2 + 0xC0, screen_height / 2 - 0x80, 0x4C);
-    krypt_pdata->award_notice_right.obj = award_notice_right;
-    krypt_pdata->award_notice_right.obj_instance = award_notice_right->instance;
-    award_notice_bottom = load_named_2d_pfxobj_xy(
-        0x140066, 0x830F, "AWARD_NOTICE_BOTTOM", 0,
-        screen_width / 2 - 0x100, screen_height / 2 - 0xC0, 0x4C);
-    krypt_pdata->award_notice_bottom.obj = award_notice_bottom;
-    krypt_pdata->award_notice_bottom.obj_instance = award_notice_bottom->instance;
-    award_frame = load_named_2d_pfxobj_xy(
-        0x140066, 0x830F, "AWARDFRAME", 0,
-        screen_width / 2 - 0x80, screen_height / 2 - 0x80, 0x4C);
-    krypt_pdata->award_frame.obj = award_frame;
-    krypt_pdata->award_frame.obj_instance = award_frame->instance;
-
-    krypt_pdata->wallet_open_ticks = 0x78;
-    krypt_pdata->wallet_open = 1;
-    hide_screen_obj(award_notice_top);
-    hide_screen_obj(award_notice_left);
-    hide_screen_obj(award_notice_right);
-    hide_screen_obj(award_notice_bottom);
-    hide_screen_obj(award_frame);
-    if (krypt_pdata->available_key_coffin != 0) {
-        update_use_key_string();
-    } else {
-        hide_string_obj(right_label);
-        hide_string_obj(right_text);
     }
 }
 
@@ -1813,270 +632,6 @@ static inline void award_koins(void) {
     }
 }
 
-static float p_move_camera_and_open_coffin(void) {
-    Vec coffin_position;
-    Vec camera_angles = s_coffin_camera_angles;
-    Vec camera_offset = s_coffin_camera_offset;
-    CameraPdata* camera;
-    CoffinEntry* entry;
-    MkSobj* coffin;
-    MkSobj* lid;
-    ScreenObj* object;
-    ScreenObj* notice_top;
-    ScreenObj* notice_left;
-    ScreenObj* notice_right;
-    ScreenObj* notice_bottom;
-    int selected;
-    int column;
-    int row;
-    Vec coffin_offset;
-    struct KryptFogFadePdata* fade_out_pdata;
-    struct KryptFogFadePdata* fade_in_pdata;
-
-    selected = krypt_pdata->current_column + krypt_pdata->current_row * 20;
-    camera = get_pdata_of_camera();
-    if (camera == 0) {
-        return -1.0f;
-    }
-    camera->speed = 0.5f;
-    heads_up_display_visible(0);
-
-    column = krypt_pdata->current_column;
-    row = krypt_pdata->current_row;
-
-    coffin_position.x = 3.0f * column + -28.5f;
-    coffin_position.y = 0.0f;
-    coffin_position.z = -(5.0f * row - 50.0f);
-    coffin_offset = s_coffin_offset;
-
-    coffin = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3C);
-    if (coffin != 0) {
-        coffin->pos.x = coffin_position.x + coffin_offset.x;
-        coffin->pos.y = coffin_position.y + coffin_offset.y;
-        coffin->pos.z = coffin_position.z + coffin_offset.z;
-    }
-    rebuild_visible_coffin_rows();
-    krypt_pdata->tombstone_hud_ticks = 3;
-
-    fade_out_pdata = 0;
-    if (_create_mkproc_generic_tinystack(
-            0x823F, 0x1F, p_fade_fog, sizeof(struct KryptFogFadePdata),
-            (MkHdr**)&fade_out_pdata) != 0 && fade_out_pdata != 0) {
-        fade_out_pdata->alpha_step = -8;
-    }
-
-    camera->target_pos.x = coffin_position.x + camera_offset.x;
-    camera->target_pos.y = coffin_position.y + camera_offset.y;
-    camera->target_pos.z = coffin_position.z + camera_offset.z;
-    camera->target_ang.x = camera_angles.x;
-    camera->target_ang.y = camera_angles.y;
-    camera->target_ang.z = camera_angles.z;
-    camera->flags_bits.pos_done = 0;
-    _mkproc_sleep_ticks = 1.0f;
-    mkproc_sleep();
-
-    start_opening_coffin_effects(&coffin_position);
-    shake_camera(10, 0.0075f);
-    coffin = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3C);
-    if (coffin != 0) {
-        snd_req(0x3BB);
-        snd_req(0x3BC);
-        coffin->pos_vel.y = 0.02f;
-        while (coffin->pos.y < 0.5f) {
-            _mkproc_sleep_ticks = 1.0f;
-            mkproc_sleep();
-        }
-        coffin->pos_vel.y = 0.0f;
-    }
-
-    lid = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3D);
-    if (lid != 0) {
-        snd_req(0x3BD);
-        lid->ang_vel.z = 0.06f;
-        while (lid->ang.z < 2.3561945f) {
-            _mkproc_sleep_ticks = 1.0f;
-            mkproc_sleep();
-        }
-        lid->ang_vel.z = 0.0f;
-    }
-
-    move_picture_to_camera_impl(&krypt_pdata->award_frame);
-    notice_top = MK_LIVE(krypt_pdata->award_notice_top.obj, krypt_pdata->award_notice_top.obj_instance);
-    notice_left = MK_LIVE(krypt_pdata->award_notice_left.obj, krypt_pdata->award_notice_left.obj_instance);
-    notice_right = MK_LIVE(krypt_pdata->award_notice_right.obj, krypt_pdata->award_notice_right.obj_instance);
-    notice_bottom = MK_LIVE(krypt_pdata->award_notice_bottom.obj, krypt_pdata->award_notice_bottom.obj_instance);
-    unhide_screen_obj(notice_top);
-    unhide_screen_obj(notice_left);
-    unhide_screen_obj(notice_right);
-    unhide_screen_obj(notice_bottom);
-
-    show_coffin_award(selected);
-    entry = selected_coffin_entry();
-    snd_req(award_sound_table[entry->award_sound_index]);
-
-    object = load_named_2d_pfxobj(0x140066, 0x830F, "OK_BUTTON", 0, 0x4C);
-    if (object != 0) {
-        object->x = screen_width - 0x32 - object->pfx2d->tex_w;
-        object->y = 0x32;
-    }
-    for (;;) {
-        if (check_switch_edge(krypt_pdata->player_port, 6) != 0) {
-            _mkproc_sleep_ticks = 1.0f;
-            mkproc_sleep();
-            break;
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        mkproc_sleep();
-    }
-    if (object->instance != 0) {
-        object->typed_vtbl->destroy(object);
-    }
-
-    destroy_mkobjs_oid(0x8311);
-    notice_top = MK_LIVE(krypt_pdata->award_notice_top.obj, krypt_pdata->award_notice_top.obj_instance);
-    notice_left = MK_LIVE(krypt_pdata->award_notice_left.obj, krypt_pdata->award_notice_left.obj_instance);
-    notice_right = MK_LIVE(krypt_pdata->award_notice_right.obj, krypt_pdata->award_notice_right.obj_instance);
-    notice_bottom = MK_LIVE(krypt_pdata->award_notice_bottom.obj, krypt_pdata->award_notice_bottom.obj_instance);
-    hide_screen_obj(notice_top);
-    hide_screen_obj(notice_left);
-    hide_screen_obj(notice_right);
-    hide_screen_obj(notice_bottom);
-    object = krypt_pdata->award_image_left;
-    hide_screen_obj(object);
-    object = krypt_pdata->award_image_left;
-    if (object->instance != 0) object->typed_vtbl->destroy(object);
-    krypt_pdata->award_image_left = 0;
-    object = krypt_pdata->award_image_right;
-    hide_screen_obj(object);
-    object = krypt_pdata->award_image_right;
-    if (object->instance != 0) object->typed_vtbl->destroy(object);
-    krypt_pdata->award_image_right = 0;
-    del_string_obj_by_id(0xA00F);
-
-    lid = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3D);
-    if (lid != 0) {
-        snd_req(0x3BE);
-        lid->ang_vel.z = -0.06f;
-        while (lid->ang.z - 0.08f > 0.0f) {
-            _mkproc_sleep_ticks = 1.0f;
-            mkproc_sleep();
-        }
-        lid->ang_vel.z = 0.0f;
-        lid->ang.z = 0.0f;
-        snd_req(0x3BF);
-    }
-
-    camera->target_pos.x = coffin_position.x;
-    camera->target_pos.y = coffin_position.y;
-    camera->target_pos.z = coffin_position.z;
-    camera->target_pos.y = 4.4f;
-    camera->target_pos.z += 5.0f;
-    camera->target_ang.x = 0.42f;
-    camera->target_ang.y = 3.1415927f;
-    camera->speed = 1.0f;
-    shake_camera(8, 0.0075f);
-    fade_in_pdata = 0;
-    if (_create_mkproc_generic_tinystack(
-            0x823F, 0x1F, p_fade_fog, sizeof(struct KryptFogFadePdata),
-            (MkHdr**)&fade_in_pdata) != 0 && fade_in_pdata != 0) {
-        fade_in_pdata->alpha_step = 8;
-    }
-
-    start_closing_coffin_effects(&coffin_position);
-
-    coffin = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3C);
-    if (coffin != 0) {
-        snd_req(0x3C0);
-        coffin->pos_vel.y = -0.02f;
-        while (coffin->pos.y > -0.503f) {
-            _mkproc_sleep_ticks = 1.0f;
-            mkproc_sleep();
-        }
-        coffin->pos_vel.y = 0.0f;
-        coffin->pos.y = -0.503f;
-    }
-    heads_up_display_visible(1);
-
-    award_koins();
-    mkproc_jump_sleep(p_krypt_loop);
-    return 0.0f;
-}
-static float p_fade_fog(void) {
-    struct KryptFogFadePdata* pdata;
-    unsigned int alpha;
-    int step;
-
-    pdata = (struct KryptFogFadePdata*)pdata_of_proc(aproc);
-    if (pdata == 0) {
-        return -1.0f;
-    }
-
-    step = pdata->alpha_step;
-    if (obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x46) != 0) {
-        if (step < 0) {
-            alpha = 0xFF;
-        } else {
-            alpha = 0;
-        }
-
-        while (alpha <= 0xFF) {
-            obj_set_sobj_alpha(g_game_info.bgnd_obj, 0x46, alpha);
-            _mkproc_sleep_ticks = 1.0f;
-            alpha += step;
-            mkproc_sleep();
-        }
-    }
-
-    return -1.0f;
-}
-void remove_prize_description(void) {
-    del_string_obj_by_id(0xA00F);
-}
-#pragma opt_propagation off
-void display_prize_description(CoffinEntry* entries, int index, int last_index, int available,
-                               unsigned int string_bank, int priority) {
-    const char* title;
-    const char* description;
-    StringObj* description_obj;
-    int kontent_type;
-
-    if (!available) {
-        kontent_type = -1;
-    } else if (index < 0 || index > last_index) {
-        kontent_type = -1;
-    } else {
-        kontent_type = entries[index].kontent_type;
-    }
-    title = get_string_by_id(string_bank | kontent_type);
-    string_center_xy(
-        0xA00F, 9, title, screen_width / 2,
-        screen_height / 2 + 0x8A, priority);
-    description = prize_description_text(entries, index, last_index, available);
-    if ((unsigned int)entries[index].kontent_type == 0xC &&
-        (get_language() == 0 || get_language() == 5)) {
-        char* separator = strchr(description, ':');
-        if (separator != 0) *separator = '\n';
-    }
-    if (description != 0) {
-        description_obj = create_wrapped_string(
-            0xA00F, load_font(9), description, screen_width / 2 - 0xC0,
-            screen_height / 2 - 0x87, 0x180, 0, 1, 0);
-        if (description_obj != 0) {
-            description_obj->priority = priority;
-            insert_2d_obj((ScreenObj*)description_obj);
-        }
-    }
-}
-#pragma opt_propagation reset
-void move_picture_to_camera(KryptScreenObjLatch* picture_latch) {
-    move_picture_to_camera_impl(picture_latch);
-}
-/* TODO: [breakthrough needed] 97.59559%; recover early initializer owner without
- * changing late function order; aggregate slots and register homes remain. */
-static void start_opening_coffin_effects(Vec* origin) {
-    opening_coffin_effects_impl(origin);
-}
-
 static inline void move_krypt_selection(CameraPdata* camera, int direction) {
     if (camera == 0) {
         return;
@@ -2157,12 +712,827 @@ static inline void handle_held_krypt_direction(
     }
 }
 
+static inline void sobj_enable_pebble_bit(MkSobj* sobj) {
+    sobj->flags09_bits.bit4 = 1;
+}
+
+float p_krypt_mode(void) {
+    MkProc* proc;
+
+    set_section_memory_scheme(7);
+    proc = _create_mkproc_generic_bigstack(
+        0x2001, 0x23, p_init_krypt_mode, sizeof(KryptPdata),
+        (MkHdr**)&krypt_pdata);
+    if (proc != 0) {
+        set_process_as_scriptable(proc);
+        return -1.0f;
+    }
+    gamelogic_jump(0, p_atm_loop);
+    return -1.0f;
+}
+
+static float p_init_krypt_mode(void) {
+    RwResourcesSetArenaSize(0x100000);
+    zero_pdata_payload(sizeof(KryptPdata), (MkHdr*)krypt_pdata);
+    if (menu_player == 0) {
+        krypt_pdata->player_port = g_game_info.plyr0.pad_index;
+        set_player_state(&g_game_info.plyr0, 2);
+        krypt_pdata->player_profile = &p1_profile;
+        krypt_pdata->profile_common = p1_profile_common;
+        krypt_pdata->profile_konquest = p1_profile_konquest;
+    } else {
+        krypt_pdata->player_port = g_game_info.plyr1.pad_index;
+        set_player_state(&g_game_info.plyr1, 2);
+        move_profile_p1_to_p2();
+        krypt_pdata->player_profile = &p2_profile;
+        krypt_pdata->profile_common = p2_profile_common;
+        krypt_pdata->profile_konquest = p2_profile_konquest;
+    }
+    krypt_data_loaded = 0;
+    krypt_pdata->tombstone_hud_ticks = 3;
+    set_mode_of_play(0xB);
+    push_game_state(0xB);
+    mkproc_jump_sleep(p_setup_krypt);
+    return 0.0f;
+}
+
+static float p_setup_krypt(void) {
+    char* string_pool;
+    const MkFileEntry* file;
+    int file_len;
+    int string_len;
+    MkObj* light;
+    CamVec3 cam_pos = {-1.126f, 6.534f, 58.529f};
+    CamVec3 cam_ang = {0.215f, 0.38f, 0.0f};
+    MkHdr* random_noise_pdata;
+    struct KryptCharacterMonitorPdata* monitor_pdata;
+
+    start_sound_tracking_process(&krypt_pdata->tracked_sound_list);
+    load_background(0x18);
+    load_art_section_language(0x140066, &sec_krypt_screen_art);
+    add_art_section(0x140066, &sec_krypt_award_art);
+    load_font(9);
+    load_font(0);
+    load_font(7);
+
+    if (krypt_data_loaded == 0) {
+        file = mk_file_open_language(&sec_kryptdata, "rb", (void*)1);
+        if (file != 0) {
+            file_len = mk_file_length(file);
+            string_len = file_len - 0x4498;
+            string_pool = get_mem(string_len);
+            if (string_pool != 0) {
+                coffin_data = get_mem(sizeof(CoffinEntry) * 0x1B7);
+                if (coffin_data != 0) {
+                    mk_file_read(coffin_data, sizeof(CoffinEntry), 0x1B7, file);
+                    mk_file_read(string_pool, 1, string_len, file);
+                    mk_file_close(file);
+                    rebase_coffin_strings(string_pool);
+                    krypt_data_loaded = 1;
+                }
+            }
+        }
+    }
+
+    setup_sound_banks(4);
+    wait_for_sound_banks_to_load();
+    start_tunes();
+    _create_mkproc_generic_tinystack(
+        0x823E, 0x1F, p_play_random_noise, 8, &random_noise_pdata);
+
+    load_string_bank(0x20000, "krypt_strings_eng.mko");
+    setup_tombstones();
+    active_cmdscript->mko = g_game_info.cmdscript;
+    load_ssf(krypt_art_file_table);
+    xfer_camera(p_krypt_camera_proc, 1);
+    _mkproc_sleep_ticks = 2.0f;
+    mkproc_sleep();
+    set_camera_position(&cam_pos);
+    set_camera_angle(&cam_ang);
+
+    rebuild_visible_coffin_rows();
+
+    pfx_create_raw_userdata(0, 0, 0x24, 0x202, 2, init_tombstone_koins, 0x823B,
+                            update_tombstone_koins, (void**)&krypt_pdata->pfx_koins);
+    krypt_pdata->pfx_koins->flag_bits.visible = 1;
+    pfx_create_raw_userdata(0, 0, 0x48, 0x202, 2, init_tombstone_letters, 0x823C,
+                            update_tombstone_letters, (void**)&krypt_pdata->pfx_letters);
+    krypt_pdata->pfx_letters->flag_bits.visible = 1;
+    pfx_create_raw_userdata(0, 0, 0x90, 0x202, 2, init_tombstone_numbers, 0x823D,
+                            update_tombstone_numbers, (void**)&krypt_pdata->pfx_numbers);
+    krypt_pdata->pfx_numbers->flag_bits.visible = 1;
+
+    krypt_pdata->footstep_frame_index = 0;
+    light = load_light((LightDef*)&camera_point_light, &point_light_list, 0);
+    if (light != 0) {
+        light->flags_08_bits.airborne = 1;
+    }
+
+    bgnd_anim_camera_setup();
+    cam_set_intro_cam_pause_ticks(60.0f);
+    camera_init_animation(bgnd_animations[30], 0);
+    camera_run_animation(0);
+    turn_camera_on();
+    fade_from_black(0x14, 0);
+    camera_wait_for_animation_completion();
+    bgnd_anim_camera_ended();
+
+    turn_controllers_on();
+    init_konquest_keys();
+    init_heads_up_display();
+    monitor_pdata = 0;
+    if (_create_mkproc_generic_bigstack(
+            0x8241, 0x1F, p_monitor_krypt_characters,
+            sizeof(struct KryptCharacterMonitorPdata), (MkHdr**)&monitor_pdata) != 0 &&
+        monitor_pdata != 0) {
+        monitor_pdata->elapsed_ticks = 0;
+        monitor_pdata->delay_ticks = 0;
+    }
+
+    mkproc_jump_sleep(p_krypt_loop);
+    return 0.0f;
+}
+
+static float p_krypt_loop(void) {
+    handle_controller_input();
+    if (krypt_pdata->layout_dirty != 0) {
+        krypt_pdata->tombstone_hud_ticks = 3;
+        rebuild_visible_coffin_rows();
+        krypt_pdata->layout_dirty = 0;
+    }
+    return 1.0f;
+}
+
+static int coffin_n_already_opened(int coffin) {
+    return get_coffin_bit(krypt_pdata->profile_common->coffin_bits, coffin) != 0;
+}
+
+static void get_coffin_letters(int coffin, char* letters) {
+    sprintf(letters, "%c%c", coffin / 20 + 'A', coffin % 20 + 'A');
+}
+
+static int get_konquest_key_bit(int cost) {
+    if (cost > krypt_pdata->konquest_key_max) {
+        return -1;
+    }
+    return krypt_pdata->konquest_key_table[cost] - krypt_pdata->konquest_key_table[0] - 1;
+}
+
+static int scan_for_next_available_key_coffin(void) {
+    CoffinEntry* entry;
+    int key_bit;
+    int index;
+    int opened;
+
+    for (index = 1; index < 400; index++) {
+        entry = &coffin_data[index];
+        if ((unsigned int)entry->prize_kind == 6) {
+            key_bit = get_konquest_key_bit(entry->cost);
+            if (get_u8_bit(krypt_pdata->profile_konquest->key_bits,
+                           krypt_pdata->konquest_key_bit_count, key_bit) != 0) {
+                opened = coffin_n_already_opened(index);
+                if (opened == 0) {
+                    return index;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+#pragma auto_inline off
+static void update_use_key_string(void) {
+    StringObj* use_key_text;
+    KryptPdata* pdata;
+    const char* use_key_label;
+    char key_name[4];
+    char text[32];
+
+    pdata = krypt_pdata;
+    use_key_text = MK_LIVE(pdata->use_key_string.obj, pdata->use_key_string.obj_instance);
+
+    krypt_pdata->available_key_coffin = scan_for_next_available_key_coffin();
+    if (krypt_pdata->available_key_coffin != 0) {
+        use_key_label = get_string_by_id(0x20012);
+        get_coffin_letters(krypt_pdata->available_key_coffin, key_name);
+        sprintf(text, "%s %s", use_key_label, key_name);
+        update_string_obj(use_key_text, 0, text);
+    }
+}
+
+static void init_konquest_keys(void) {
+    krypt_pdata->konquest_key_table = get_data_table_by_name("konquest_keys");
+    if (krypt_pdata->konquest_key_table != 0) {
+        krypt_pdata->konquest_key_max = get_row_count_for_table_by_pointer(
+            g_game_info.cmdscript, krypt_pdata->konquest_key_table);
+        krypt_pdata->konquest_key_bit_count =
+            krypt_pdata->konquest_key_table[krypt_pdata->konquest_key_max - 1] -
+            krypt_pdata->konquest_key_table[0] - 1;
+        krypt_pdata->konquest_key_max -= 2;
+
+        krypt_pdata->available_key_coffin = scan_for_next_available_key_coffin();
+    }
+}
+#pragma auto_inline reset
+
+int load_binary_data(
+    MkFileInfo* file_info, CoffinEntry** entries, char* strings,
+    int* loaded, int entry_count) {
+    int strings_size;
+    const MkFileEntry* file;
+    int i;
+
+    if (*loaded != 0) {
+        return 1;
+    } else {
+        file = mk_file_open_language(file_info, "rb", (void*)1);
+        if (file == 0) {
+            return 0;
+        }
+
+        strings_size = mk_file_length(file) - entry_count * sizeof(CoffinEntry);
+        strings = get_mem(strings_size);
+        if (strings == 0) {
+            return 0;
+        }
+
+        *entries = get_mem(entry_count * sizeof(CoffinEntry));
+        if (*entries == 0) {
+            return 0;
+        }
+
+        mk_file_read(*entries, sizeof(CoffinEntry), entry_count, file);
+        mk_file_read(strings, 1, strings_size, file);
+        mk_file_close(file);
+
+        for (i = 0; i < entry_count; i++) {
+            (*entries)[i].blurb = strings + (unsigned int)(*entries)[i].blurb;
+            (*entries)[i].long_description =
+                strings + (unsigned int)(*entries)[i].long_description;
+        }
+
+        *loaded = 1;
+    }
+    return 1;
+}
+int load_pix_section(
+    int slot, const CoffinEntry* entries, int index, int enabled, int flags) {
+    MkFileInfo* section;
+    int gallery_art;
+
+    if (enabled == 0) {
+        return 0;
+    }
+
+    gallery_art = entries[index].gallery_art;
+    section = get_mk_file_info_from_current_ssf(gallery_art);
+    if (is_section_loading_or_loaded(slot, section) == 0) {
+        unload_section_slot(slot);
+    }
+    load_art_section(slot, section);
+    return ((gallery_art + 0x3EA) << 16) | flags;
+}
+
+static float p_follow_camera(void) {
+    CameraObj* camera;
+    struct KryptCameraFollowPdata* pdata;
+    MkObj* obj;
+
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
+
+    pdata = (struct KryptCameraFollowPdata*)pdata_of_proc(aproc);
+    if (pdata == 0) {
+        return -1.0f;
+    }
+
+    obj = MK_HDR_LIVE(pdata->obj, pdata->obj_instance);
+
+    if (obj == 0) {
+        return -1.0f;
+    }
+
+    if (pdata != 0 && obj != 0 && camera != 0) {
+        obj->pos.value.x = camera->pos.x;
+        obj->pos.value.y = camera->pos.y;
+        obj->pos.value.z = camera->pos.z;
+
+        if (krypt_pdata->pfx_koins != 0) {
+            krypt_pdata->pfx_koins->camera_follow_position.x = camera->pos.x;
+            krypt_pdata->pfx_koins->camera_follow_position.y = 2.0f;
+            krypt_pdata->pfx_koins->camera_follow_position.z = camera->pos.z - 3.0f;
+        }
+        if (krypt_pdata->pfx_numbers != 0) {
+            krypt_pdata->pfx_numbers->camera_follow_position.x = camera->pos.x;
+            krypt_pdata->pfx_numbers->camera_follow_position.y = 2.0f;
+            krypt_pdata->pfx_numbers->camera_follow_position.z = camera->pos.z - 3.0f;
+        }
+        if (krypt_pdata->pfx_letters != 0) {
+            krypt_pdata->pfx_letters->camera_follow_position.x = camera->pos.x;
+            krypt_pdata->pfx_letters->camera_follow_position.y = 2.0f;
+            krypt_pdata->pfx_letters->camera_follow_position.z = camera->pos.z - 3.0f;
+        }
+    }
+    return 1.0f;
+}
+
+static float p_fog_follow_camera(void) {
+    CameraObj* camera;
+    MkObjLatch* pdata;
+    MkSobj* fog;
+
+    pdata = (MkObjLatch*)pdata_of_proc(aproc);
+    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
+
+    if (pdata != 0 && camera != 0) {
+        fog = MK_HDR_LIVE((MkSobj*)pdata->obj, pdata->obj_instance);
+        if (fog != 0) {
+            fog->pos.z = camera->pos.z;
+        }
+    }
+    return 1.0f;
+}
+
+static void position_fire_pots(void) {
+    PebbleData* pots;
+    int i;
+
+    pots = krypt_pdata->fire_pot_pebbles;
+    pots->pebbles[0].matrix.pos.x = -9.069f;
+    pots->pebbles[0].matrix.pos.y = 0.0f;
+    pots->pebbles[0].matrix.pos.z = -51.581f;
+    pots->pebbles[1].matrix.pos.x = 9.3f;
+    pots->pebbles[1].matrix.pos.y = 0.0f;
+    pots->pebbles[1].matrix.pos.z = -51.581f;
+    pots->pebbles[2].matrix.pos.x = -32.944f;
+    pots->pebbles[2].matrix.pos.y = 0.0f;
+    pots->pebbles[2].matrix.pos.z = 7.598f;
+    pots->pebbles[3].matrix.pos.x = -33.134f;
+    pots->pebbles[3].matrix.pos.y = 0.0f;
+    pots->pebbles[3].matrix.pos.z = 21.839f;
+    pots->pebbles[4].matrix.pos.x = 32.963f;
+    pots->pebbles[4].matrix.pos.y = 0.0f;
+    pots->pebbles[4].matrix.pos.z = 7.355f;
+    pots->pebbles[5].matrix.pos.x = 33.2f;
+    pots->pebbles[5].matrix.pos.y = 0.0f;
+    pots->pebbles[5].matrix.pos.z = 22.056f;
+
+    for (i = 0; i < 6; i++) {
+        krypt_pdata->fire_pot_sounds[i] = get_sound_tracker_data();
+        krypt_pdata->fire_pot_sounds[i]->pos_x = pots->pebbles[i].matrix.pos.x;
+        krypt_pdata->fire_pot_sounds[i]->pos_y = pots->pebbles[i].matrix.pos.y;
+        krypt_pdata->fire_pot_sounds[i]->pos_z = pots->pebbles[i].matrix.pos.z;
+        krypt_pdata->fire_pot_sounds[i]->pos_y = 1.0f;
+        krypt_pdata->fire_pot_sounds[i]->sound_id = 0x3C3;
+        krypt_pdata->fire_pot_sounds[i]->min_dist = 5.0f;
+        krypt_pdata->fire_pot_sounds[i]->max_dist = 20.0f;
+        krypt_pdata->fire_pot_sounds[i]->positional_pan = 1;
+        make_new_tracked_sound(
+            &krypt_pdata->tracked_sound_list, krypt_pdata->fire_pot_sounds[i]);
+    }
+}
+
+void setup_tombstones(void) {
+    MkSobj* sobj;
+    MkSobj* sobj_b;
+    PebbleData* pebble;
+    RwV3d* position;
+    int i;
+    int col;
+    int row;
+
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x15);
+    if (sobj != 0) {
+        sobj_enable_pebble_bit(sobj);
+        pebble = create_pebble_userdata(sobj, 5, 0);
+        krypt_pdata->pebble_wall_a = pebble;
+        for (i = 0; i < 5; i++) {
+            krypt_pdata->pebble_wall_a->pebbles[i].matrix.pos.z =
+                -(5.0f * (4.0f * (float)i) - 50.0f);
+        }
+    }
+
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x16);
+    if (sobj != 0) {
+        sobj_enable_pebble_bit(sobj);
+        pebble = create_pebble_userdata(sobj, 5, 0);
+        krypt_pdata->pebble_wall_b = pebble;
+        for (i = 0; i < 5; i++) {
+            krypt_pdata->pebble_wall_b->pebbles[i].matrix.pos.z =
+                -(5.0f * (4.0f * (float)i) - 45.0f);
+        }
+    }
+
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x17);
+    if (sobj != 0) {
+        sobj_enable_pebble_bit(sobj);
+        pebble = create_pebble_userdata(sobj, 5, 0);
+        krypt_pdata->pebble_wall_c = pebble;
+        for (i = 0; i < 5; i++) {
+            krypt_pdata->pebble_wall_c->pebbles[i].matrix.pos.z =
+                -(5.0f * (4.0f * (float)i) - 40.0f);
+        }
+    }
+
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x18);
+    if (sobj != 0) {
+        sobj_enable_pebble_bit(sobj);
+        pebble = create_pebble_userdata(sobj, 5, 0);
+        krypt_pdata->pebble_wall_d = pebble;
+        for (i = 0; i < 5; i++) {
+            krypt_pdata->pebble_wall_d->pebbles[i].matrix.pos.z =
+                -(5.0f * (4.0f * (float)i) - 35.0f);
+        }
+    }
+
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 9);
+    if (sobj != 0) {
+        sobj_b = obj_find_sobj_by_id(g_game_info.bgnd_obj, 10);
+        if (sobj_b != 0) {
+            sobj_enable_pebble_bit(sobj_b);
+            sobj_enable_pebble_bit(sobj);
+            krypt_pdata->pebble_grid_a = create_pebble_userdata(sobj, 0xc, 0);
+            krypt_pdata->pebble_grid_b = create_pebble_userdata(sobj_b, 0xc, 0);
+            for (i = 0; i < 0xc; i++) {
+                col = i % 3;
+                row = i / 3;
+                position = &krypt_pdata->pebble_grid_a->pebbles[i].matrix.pos;
+                position->x =
+                    3.0f * (float)((col + 1) * 5 - 1) + -28.5f;
+                position->y = 0.0f;
+                position->z =
+                    -(5.0f * (float)((row + 1) * 4 - 1) - 50.0f);
+                krypt_pdata->pebble_grid_b->pebbles[i].matrix.pos.x =
+                    krypt_pdata->pebble_grid_a->pebbles[i].matrix.pos.x;
+                krypt_pdata->pebble_grid_b->pebbles[i].matrix.pos.y =
+                    krypt_pdata->pebble_grid_a->pebbles[i].matrix.pos.y;
+                krypt_pdata->pebble_grid_b->pebbles[i].matrix.pos.z =
+                    krypt_pdata->pebble_grid_a->pebbles[i].matrix.pos.z;
+            }
+        }
+    }
+
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 1);
+    if (sobj != 0) {
+        sobj_enable_pebble_bit(sobj);
+        krypt_pdata->coffin_pebble_type0 = create_pebble_userdata(sobj, 10, 0);
+    }
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 3);
+    if (sobj != 0) {
+        sobj_enable_pebble_bit(sobj);
+        krypt_pdata->coffin_pebble_type1 = create_pebble_userdata(sobj, 10, 0);
+    }
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 5);
+    if (sobj != 0) {
+        sobj_enable_pebble_bit(sobj);
+        krypt_pdata->coffin_pebble_type2 = create_pebble_userdata(sobj, 10, 0);
+    }
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 7);
+    if (sobj != 0) {
+        sobj_enable_pebble_bit(sobj);
+        krypt_pdata->coffin_pebble_type3 = create_pebble_userdata(sobj, 10, 0);
+    }
+
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3c);
+    if (sobj != 0) {
+        sobj->flags_08_bits.bit6 = 1;
+        sobj->flags_08_bits.bit5 = 1;
+    }
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3d);
+    if (sobj != 0) {
+        sobj->flags_08_bits.angular_velocity_enabled = 1;
+    }
+
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x5a);
+    if (sobj != 0) {
+        sobj_enable_pebble_bit(sobj);
+        krypt_pdata->lid_closed_pebbles = create_pebble_userdata(sobj, 0x24, 0);
+    }
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x5b);
+    if (sobj != 0) {
+        sobj_enable_pebble_bit(sobj);
+        krypt_pdata->lid_open_pebbles = create_pebble_userdata(sobj, 0x24, 0);
+    }
+
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x32);
+    if (sobj != 0) {
+        sobj_enable_pebble_bit(sobj);
+        krypt_pdata->fire_pot_pebbles = create_pebble_userdata(sobj, 6, 0);
+        position_fire_pots();
+    }
+
+    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x46);
+    if (sobj != 0) {
+        MkObjLatch* fog_pdata;
+
+        sobj_set_priority(sobj, 0x14);
+        sobj->flags_08_bits.bit6 = 1;
+        fog_pdata = 0;
+        if (_create_mkproc_generic_tinystack(
+                0x823a, 0x1f, p_fog_follow_camera, 0x10,
+                (MkHdr**)&fog_pdata) != 0 && fog_pdata != 0) {
+            fog_pdata->obj = (MkHdr*)sobj;
+            fog_pdata->obj_instance = ((MkHdr*)sobj)->instance;
+        }
+    }
+
+    for (i = 0; i < 5; i++) {
+        sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, i + 0x1e);
+        if (sobj != 0) {
+            sobj->flags_08_bits.bit6 = 1;
+            sobj->flags_08_bits.bit3 = 1;
+            hide_sobj(sobj);
+        }
+    }
+}
+
+void set_pebble_positions_for_row(int row, int start_col, int count, Vec* origin) {
+    Vec lid_offset = {0.0f, 0.0f, 1.75f};
+    int i;
+    int col;
+    int pattern;
+    int opened;
+    PebbleData* pebble;
+    RwV3d* position;
+    int lid_count;
+
+    col = start_col;
+    pebble = 0;
+    position = 0;
+    i = 0;
+    while (i < count) {
+        pattern = tombstone_pattern[row % 4][col % 4];
+        switch (pattern) {
+        case 0:
+            pebble = krypt_pdata->coffin_pebble_type0;
+            break;
+        case 1:
+            pebble = krypt_pdata->coffin_pebble_type1;
+            break;
+        case 2:
+            pebble = krypt_pdata->coffin_pebble_type2;
+            break;
+        case 3:
+            pebble = krypt_pdata->coffin_pebble_type3;
+            break;
+        }
+
+        if (pebble != 0) {
+            position = &pebble->pebbles[pebble->count].matrix.pos;
+            if (position == 0) {
+                return;
+            }
+            position->x = 3.0f * (float)i + origin->x;
+            position->y = 0.0f;
+            position->z = origin->z;
+            pebble->count = pebble->count + 1;
+        }
+
+        opened = get_coffin_bit(krypt_pdata->profile_common->coffin_bits,
+                                col + row * 0x14) != 0;
+        if (opened != 0) {
+            pebble = krypt_pdata->lid_open_pebbles;
+        } else {
+            pebble = krypt_pdata->lid_closed_pebbles;
+        }
+
+        if (pebble != 0) {
+            lid_count = pebble->count;
+            pebble->pebbles[lid_count].matrix.pos.x = position->x + lid_offset.x;
+            pebble->pebbles[lid_count].matrix.pos.y = position->y + lid_offset.y;
+            pebble->pebbles[lid_count].matrix.pos.z = position->z + lid_offset.z;
+            pebble->pebbles[lid_count].matrix.pos.y = 0.0f;
+            pebble->count++;
+        }
+        col++;
+        i++;
+    }
+}
+
+static inline void rebuild_visible_coffin_rows(void) {
+    Vec origin = {0.0f, 0.0f, 0.0f};
+    krypt_pdata->coffin_pebble_type0->count = 0;
+    krypt_pdata->coffin_pebble_type1->count = 0;
+    krypt_pdata->coffin_pebble_type2->count = 0;
+    krypt_pdata->coffin_pebble_type3->count = 0;
+    krypt_pdata->lid_closed_pebbles->count = 0;
+    krypt_pdata->lid_open_pebbles->count = 0;
+    place_visible_coffin_rows_from(&origin);
+}
+static float p_counting_sound(void) {
+    static int counter = 0;
+
+    if (counter <= 0) {
+        counter = 5;
+        snd_req(0x3BA);
+    } else {
+        counter--;
+    }
+
+    return 1.0f;
+}
+static int deduct_koins(int amount, unsigned int koin_type) {
+    unsigned int* totals;
+    ProfileCommon* profile;
+    StringObj* wallet_text;
+    int old_total;
+
+    if (koin_type == 6) {
+        if (amount > krypt_pdata->konquest_key_max) {
+            amount = -1;
+        } else {
+            amount = krypt_pdata->konquest_key_table[amount] -
+                      krypt_pdata->konquest_key_table[0] - 1;
+        }
+        if (amount < 0) {
+            return 0;
+        }
+        set_u8_bit(krypt_pdata->profile_konquest->key_bits,
+                   krypt_pdata->konquest_key_bit_count, amount, 0);
+        if (save_profile(menu_player, 2) == 0) {
+            set_u8_bit(krypt_pdata->profile_konquest->key_bits,
+                       krypt_pdata->konquest_key_bit_count, amount, 1);
+            return 0;
+        }
+        update_use_key_string();
+        snd_req(0x3C2);
+        _mkproc_sleep_ticks = 60.0f;
+        mkproc_sleep();
+        return 1;
+    }
+
+    totals = krypt_pdata->profile_common->koin_totals;
+    profile = krypt_pdata->profile_common;
+    old_total = totals[koin_type];
+    totals[koin_type] = old_total - amount;
+    profile->koin_spent[koin_type] += amount;
+    if (save_profile(menu_player, 2) == 0) {
+        totals[koin_type] += amount;
+        profile->koin_spent[koin_type] -= amount;
+        return 0;
+    }
+
+    _create_mkproc_generic_tinystack(
+        0x8246, 0x1F, p_counting_sound, 8, &empty_pdata);
+    wallet_text = MK_LIVE(krypt_pdata->wallet_text[koin_type].obj, krypt_pdata->wallet_text[koin_type].obj_instance);
+    display_numerical_change(wallet_text, 0, old_total, -amount, 1, 0x14);
+    destroy_mkprocs_pid(0x8246);
+    _mkproc_sleep_ticks = 30.0f;
+    mkproc_sleep();
+    return 1;
+}
+static float p_single_move_footstep_proc(void) {
+    random_snd_req(0x2B);
+    _mkproc_sleep_ticks = 19.0f;
+    mkproc_sleep();
+    random_snd_req(0x2B);
+    _mkproc_sleep_ticks = 17.0f;
+    mkproc_sleep();
+    snd_req(0x3CC);
+    return -1.0f;
+}
+static float p_running_footstep_proc(void) {
+    MkHdr* footstep_pdata;
+
+    for (;;) {
+        if (krypt_pdata->field_0x108 != 0) {
+            break;
+        }
+        random_snd_req(0x2A);
+        _mkproc_sleep_ticks = 14.0f;
+        mkproc_sleep();
+    }
+
+    if (find_mkproc_pid(0x8242) == 0) {
+        footstep_pdata = 0;
+        _create_mkproc_generic_tinystack(
+            0x8242, 0x1F, p_single_move_footstep_proc, 8,
+            &footstep_pdata);
+    }
+    return -1.0f;
+}
+/* TODO: [near miss] 99.58334%; 31 saved-GPR rows remain;
+ * dialog-type copy/lifetime ownership is unresolved; stop at coloring. */
+static int do_dialog(int dialog_type) {
+    int result;
+    ScreenObj* dialog_left;
+    ScreenObj* dialog_right;
+    ScreenObj* yes_button = 0;
+    ScreenObj* no_button = 0;
+    ScreenObj* ok_button;
+    ScreenObj* hud_icon_a;
+    ScreenObj* hud_icon_b;
+    ScreenObj* dialog_bottom = 0;
+    StringObj* dialog_text;
+    const char* message;
+
+    ok_button = 0;
+    hud_icon_a = MK_LIVE(krypt_pdata->open_button.obj, krypt_pdata->open_button.obj_instance);
+    hud_icon_b = krypt_pdata_live_exit_button_obj(krypt_pdata);
+    message = 0;
+    dialog_left = load_named_2d_pfxobj(0x140066, 0x830F, "DIALOG_LEFT", 0, 0x4C);
+    dialog_left->x = screen_width / 2 - 0xC0;
+    dialog_left->y = screen_height / 2 + 0x32;
+    dialog_right = load_named_2d_pfxobj(0x140066, 0x830F, "DIALOG_RIGHT", 0, 0x4C);
+    dialog_right->x = dialog_left->x + 0x100;
+    dialog_right->y = dialog_left->y;
+    eat_switch_edge(krypt_pdata->player_port, 6);
+    eat_switch_edge(krypt_pdata->player_port, 0xB);
+    force_wallet_to_open_position();
+
+    switch (dialog_type) {
+    case 0:
+        dialog_bottom = load_named_2d_pfxobj(
+            0x140066, 0x830F, "DIALOG_BOTTOM", 0, 0x4C);
+        dialog_bottom->x = dialog_left->x;
+        dialog_bottom->y = dialog_left->y - 7;
+        yes_button = load_named_2d_pfxobj(0x140066, 0x830F, "YES_BUTTON", 0, 0x4B);
+        yes_button->x = dialog_left->x + 0x163 - yes_button->pfx2d->tex_w;
+        yes_button->y = dialog_left->y - 3;
+        no_button = load_named_2d_pfxobj(0x140066, 0x830F, "NO_BUTTON", 0, 0x4B);
+        no_button->x = dialog_left->x + 0x1C;
+        no_button->y = dialog_left->y - 3;
+        message = get_string_by_id(0x20018);
+        snd_req(0x1AA4);
+        break;
+    case 1:
+        ok_button = load_named_2d_pfxobj(0x140066, 0x830F, "OK_BUTTON", 0, 0x4B);
+        if (ok_button != 0) {
+            ok_button->x = dialog_left->x + 0x163 - ok_button->pfx2d->tex_w;
+            ok_button->y = dialog_left->y - 3;
+        }
+        message = get_string_by_id(0x20019);
+        snd_req(0x1AA8);
+        break;
+    case 2:
+        ok_button = load_named_2d_pfxobj(0x140066, 0x830F, "OK_BUTTON", 0, 0x4B);
+        if (ok_button != 0) {
+            ok_button->x = dialog_left->x + 0x163 - ok_button->pfx2d->tex_w;
+            ok_button->y = dialog_left->y - 3;
+        }
+        message = get_string_by_id(0x2001A);
+        snd_req(0x1AA8);
+        break;
+    }
+    dialog_text = create_wrapped_string(
+        0x8310, load_font(9), message, screen_width / 2 - 0x96,
+        dialog_left->y + 0x5A, 0x12C, 0, 1, 0);
+    if (dialog_text != 0) {
+        dialog_text->priority = 0x4B;
+        insert_2d_obj((ScreenObj*)dialog_text);
+    }
+    hide_screen_obj(hud_icon_a);
+    hide_screen_obj(hud_icon_b);
+
+    for (;;) {
+        if (check_switch_edge(krypt_pdata->player_port, 6) != 0) {
+            if (dialog_type == 0) {
+                snd_req(0x1AA5);
+            } else {
+                snd_req(0x1AA5);
+                unhide_screen_obj(hud_icon_a);
+                unhide_screen_obj(hud_icon_b);
+            }
+            result = 1;
+            eat_switch_edge(krypt_pdata->player_port, 6);
+            eat_switch_edge(krypt_pdata->player_port, 0xB);
+            break;
+        }
+        if (check_switch_edge(krypt_pdata->player_port, 7) != 0) {
+            if (dialog_type == 0) {
+                result = 0;
+                unhide_screen_obj(hud_icon_a);
+                unhide_screen_obj(hud_icon_b);
+                break;
+            }
+            eat_switch_edge(krypt_pdata->player_port, 5);
+            eat_switch_edge(krypt_pdata->player_port, 7);
+            eat_switch_edge(krypt_pdata->player_port, 4);
+            eat_switch_edge(krypt_pdata->player_port, 8);
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        mkproc_sleep();
+    }
+
+    if (dialog_left->instance != 0) dialog_left->typed_vtbl->destroy(dialog_left);
+    if (dialog_right->instance != 0) dialog_right->typed_vtbl->destroy(dialog_right);
+    if (dialog_bottom != 0 && dialog_bottom->instance != 0)
+        dialog_bottom->typed_vtbl->destroy(dialog_bottom);
+    if (dialog_text->instance != 0) dialog_text->typed_vtbl->destroy(dialog_text);
+    if (yes_button != 0 && yes_button->instance != 0)
+        yes_button->typed_vtbl->destroy(yes_button);
+    if (no_button != 0 && no_button->instance != 0)
+        no_button->typed_vtbl->destroy(no_button);
+    if (ok_button != 0 && ok_button->instance != 0)
+        ok_button->typed_vtbl->destroy(ok_button);
+    return result;
+}
+
 static float handle_controller_input(void) {
-    static int right_button_down;
-    static int left_button_down;
-    static int up_button_down;
-    static int down_button_down;
-    static unsigned int counter;
+    static int right_button_down = 0;
+    static int left_button_down = 0;
+    static int up_button_down = 0;
+    static int down_button_down = 0;
+    static unsigned int counter = 0;
     CameraPdata* camera;
     CoffinEntry* entry;
     unsigned int* totals;
@@ -2234,18 +1604,13 @@ static float handle_controller_input(void) {
         entry = &coffin_data[index];
         cost = entry->cost;
         kind = entry->prize_kind;
-        opened = get_coffin_bit(krypt_pdata->profile_common->coffin_bits, index) != 0;
+        opened = coffin_n_already_opened(index);
         if (opened != 0) {
             snd_req(0x1AA8);
         } else {
             totals = krypt_pdata->profile_common->koin_totals;
             if ((unsigned int)kind == 6) {
-                if (cost > krypt_pdata->konquest_key_max) {
-                    key_bit = -1;
-                } else {
-                    key_bit = krypt_pdata->konquest_key_table[cost] -
-                              krypt_pdata->konquest_key_table[0] - 1;
-                }
+                key_bit = get_konquest_key_bit(cost);
                 if (key_bit < 0) {
                     available = 0;
                 } else if (get_u8_bit(krypt_pdata->profile_konquest->key_bits,
@@ -2411,796 +1776,1445 @@ static float handle_controller_input(void) {
     }
     return 1.0f;
 }
-/* TODO: [near miss] 99.58334%; 31 saved-GPR rows remain;
- * dialog-type copy/lifetime ownership is unresolved; stop at coloring. */
-static int do_dialog(int dialog_type) {
-    int result;
-    ScreenObj* dialog_left;
-    ScreenObj* dialog_right;
-    ScreenObj* yes_button = 0;
-    ScreenObj* no_button = 0;
-    ScreenObj* ok_button;
-    ScreenObj* hud_icon_a;
-    ScreenObj* hud_icon_b;
-    ScreenObj* dialog_bottom = 0;
-    StringObj* dialog_text;
-    const char* message;
 
-    ok_button = 0;
-    hud_icon_a = MK_LIVE(krypt_pdata->open_button.obj, krypt_pdata->open_button.obj_instance);
-    hud_icon_b = krypt_pdata_live_exit_button_obj(krypt_pdata);
-    message = 0;
-    dialog_left = load_named_2d_pfxobj(0x140066, 0x830F, "DIALOG_LEFT", 0, 0x4C);
-    dialog_left->x = screen_width / 2 - 0xC0;
-    dialog_left->y = screen_height / 2 + 0x32;
-    dialog_right = load_named_2d_pfxobj(0x140066, 0x830F, "DIALOG_RIGHT", 0, 0x4C);
-    dialog_right->x = dialog_left->x + 0x100;
-    dialog_right->y = dialog_left->y;
-    eat_switch_edge(krypt_pdata->player_port, 6);
-    eat_switch_edge(krypt_pdata->player_port, 0xB);
-    force_wallet_to_open_position();
+static void move_coffin_to_position(Vec* position) {
+    Vec offset = {-0.582f, -0.503f, 1.4008f};
+    MkSobj* coffin;
 
-    switch (dialog_type) {
-    case 0:
-        dialog_bottom = load_named_2d_pfxobj(
-            0x140066, 0x830F, "DIALOG_BOTTOM", 0, 0x4C);
-        dialog_bottom->x = dialog_left->x;
-        dialog_bottom->y = dialog_left->y - 7;
-        yes_button = load_named_2d_pfxobj(0x140066, 0x830F, "YES_BUTTON", 0, 0x4B);
-        yes_button->x = dialog_left->x + 0x163 - yes_button->pfx2d->tex_w;
-        yes_button->y = dialog_left->y - 3;
-        no_button = load_named_2d_pfxobj(0x140066, 0x830F, "NO_BUTTON", 0, 0x4B);
-        no_button->x = dialog_left->x + 0x1C;
-        no_button->y = dialog_left->y - 3;
-        message = get_string_by_id(0x20018);
-        snd_req(0x1AA4);
-        break;
-    case 1:
-        ok_button = load_named_2d_pfxobj(0x140066, 0x830F, "OK_BUTTON", 0, 0x4B);
-        if (ok_button != 0) {
-            ok_button->x = dialog_left->x + 0x163 - ok_button->pfx2d->tex_w;
-            ok_button->y = dialog_left->y - 3;
-        }
-        message = get_string_by_id(0x20019);
-        snd_req(0x1AA8);
-        break;
-    case 2:
-        ok_button = load_named_2d_pfxobj(0x140066, 0x830F, "OK_BUTTON", 0, 0x4B);
-        if (ok_button != 0) {
-            ok_button->x = dialog_left->x + 0x163 - ok_button->pfx2d->tex_w;
-            ok_button->y = dialog_left->y - 3;
-        }
-        message = get_string_by_id(0x2001A);
-        snd_req(0x1AA8);
-        break;
+    coffin = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3C);
+    if (coffin != 0) {
+        coffin->pos.x = position->x + offset.x;
+        coffin->pos.y = position->y + offset.y;
+        coffin->pos.z = position->z + offset.z;
     }
-    dialog_text = create_wrapped_string(
-        0x8310, load_font(9), message, screen_width / 2 - 0x96,
-        dialog_left->y + 0x5A, 0x12C, 0, 1, 0);
-    if (dialog_text != 0) {
-        dialog_text->priority = 0x4B;
-        insert_2d_obj((ScreenObj*)dialog_text);
-    }
-    hide_screen_obj(hud_icon_a);
-    hide_screen_obj(hud_icon_b);
-
-    for (;;) {
-        if (check_switch_edge(krypt_pdata->player_port, 6) != 0) {
-            if (dialog_type == 0) {
-                snd_req(0x1AA5);
-            } else {
-                snd_req(0x1AA5);
-                unhide_screen_obj(hud_icon_a);
-                unhide_screen_obj(hud_icon_b);
-            }
-            result = 1;
-            eat_switch_edge(krypt_pdata->player_port, 6);
-            eat_switch_edge(krypt_pdata->player_port, 0xB);
-            break;
-        }
-        if (check_switch_edge(krypt_pdata->player_port, 7) != 0) {
-            if (dialog_type == 0) {
-                result = 0;
-                unhide_screen_obj(hud_icon_a);
-                unhide_screen_obj(hud_icon_b);
-                break;
-            }
-            eat_switch_edge(krypt_pdata->player_port, 5);
-            eat_switch_edge(krypt_pdata->player_port, 7);
-            eat_switch_edge(krypt_pdata->player_port, 4);
-            eat_switch_edge(krypt_pdata->player_port, 8);
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        mkproc_sleep();
-    }
-
-    if (dialog_left->instance != 0) dialog_left->typed_vtbl->destroy(dialog_left);
-    if (dialog_right->instance != 0) dialog_right->typed_vtbl->destroy(dialog_right);
-    if (dialog_bottom != 0 && dialog_bottom->instance != 0)
-        dialog_bottom->typed_vtbl->destroy(dialog_bottom);
-    if (dialog_text->instance != 0) dialog_text->typed_vtbl->destroy(dialog_text);
-    if (yes_button != 0 && yes_button->instance != 0)
-        yes_button->typed_vtbl->destroy(yes_button);
-    if (no_button != 0 && no_button->instance != 0)
-        no_button->typed_vtbl->destroy(no_button);
-    if (ok_button != 0 && ok_button->instance != 0)
-        ok_button->typed_vtbl->destroy(ok_button);
-    return result;
 }
-static float p_running_footstep_proc(void) {
-    MkHdr* footstep_pdata;
-
-    for (;;) {
-        if (krypt_pdata->field_0x108 != 0) {
-            break;
-        }
-        random_snd_req(0x2A);
-        _mkproc_sleep_ticks = 14.0f;
-        mkproc_sleep();
-    }
-
-    if (find_mkproc_pid(0x8242) == 0) {
-        footstep_pdata = 0;
-        _create_mkproc_generic_tinystack(
-            0x8242, 0x1F, p_single_move_footstep_proc, 8,
-            &footstep_pdata);
-    }
-    return -1.0f;
-}
-static float p_single_move_footstep_proc(void) {
-    random_snd_req(0x2B);
-    _mkproc_sleep_ticks = 19.0f;
-    mkproc_sleep();
-    random_snd_req(0x2B);
-    _mkproc_sleep_ticks = 17.0f;
-    mkproc_sleep();
-    snd_req(0x3CC);
-    return -1.0f;
-}
-static int deduct_koins(int amount, unsigned int koin_type) {
-    unsigned int* totals;
-    ProfileCommon* profile;
-    StringObj* wallet_text;
-    int old_total;
-
-    if (koin_type == 6) {
-        if (amount > krypt_pdata->konquest_key_max) {
-            amount = -1;
-        } else {
-            amount = krypt_pdata->konquest_key_table[amount] -
-                      krypt_pdata->konquest_key_table[0] - 1;
-        }
-        if (amount < 0) {
-            return 0;
-        }
-        set_u8_bit(krypt_pdata->profile_konquest->key_bits,
-                   krypt_pdata->konquest_key_bit_count, amount, 0);
-        if (save_profile(menu_player, 2) == 0) {
-            set_u8_bit(krypt_pdata->profile_konquest->key_bits,
-                       krypt_pdata->konquest_key_bit_count, amount, 1);
-            return 0;
-        }
-        update_use_key_string();
-        snd_req(0x3C2);
-        _mkproc_sleep_ticks = 60.0f;
-        mkproc_sleep();
-        return 1;
-    }
-
-    totals = krypt_pdata->profile_common->koin_totals;
-    profile = krypt_pdata->profile_common;
-    old_total = totals[koin_type];
-    totals[koin_type] = old_total - amount;
-    profile->koin_spent[koin_type] += amount;
-    if (save_profile(menu_player, 2) == 0) {
-        totals[koin_type] += amount;
-        profile->koin_spent[koin_type] -= amount;
-        return 0;
-    }
-
-    _create_mkproc_generic_tinystack(
-        0x8246, 0x1F, p_counting_sound, 8, &empty_pdata);
-    wallet_text = MK_LIVE(krypt_pdata->wallet_text[koin_type].obj, krypt_pdata->wallet_text[koin_type].obj_instance);
-    display_numerical_change(wallet_text, 0, old_total, -amount, 1, 0x14);
-    destroy_mkprocs_pid(0x8246);
-    _mkproc_sleep_ticks = 30.0f;
-    mkproc_sleep();
-    return 1;
-}
-static float p_counting_sound(void) {
-    static int counter;
-
-    if (counter <= 0) {
-        counter = 5;
-        snd_req(0x3BA);
-    } else {
-        counter--;
-    }
-
-    return 1.0f;
-}
-
-void set_pebble_positions_for_row(int row, int start_col, int count, Vec* origin) {
-    Vec lid_offset = s_lid_offset;
+static void start_opening_coffin_effects(Vec* origin) {
+    Vec object_offsets[5] = {
+        {-0.1f, 0.0f, 0.8f},
+        {-0.1f, 0.0f, 2.2f},
+        {0.0f, 0.0f, 2.5f},
+        {0.1f, 0.0f, 2.2f},
+        {0.1f, 0.0f, 0.8f},
+    };
+    float object_angles[5] = {-1.5707964f, -1.5707964f, 0.0f, 1.5707964f, 1.5707964f};
+    Vec dust_offset = {0.0f, 0.25f, 2.0f};
+    Vec dust_position = {0.0f, 0.0f, 0.0f};
+    unsigned int dust_effect;
+    MkObj* object;
+    unsigned int emitter;
+    MkPfx* particle;
     int i;
-    int col;
-    int pattern;
-    int opened;
-    PebbleData* pebble;
-    RwV3d* position;
-    int lid_count;
+    unsigned int dirt_effect;
+    int emitter_id;
 
-    col = start_col;
-    pebble = 0;
-    position = 0;
-    i = 0;
-    while (i < count) {
-        pattern = tombstone_pattern[row % 4][col % 4];
-        switch (pattern) {
-        case 0:
-            pebble = krypt_pdata->coffin_pebble_type0;
-            break;
-        case 1:
-            pebble = krypt_pdata->coffin_pebble_type1;
-            break;
-        case 2:
-            pebble = krypt_pdata->coffin_pebble_type2;
-            break;
-        case 3:
-            pebble = krypt_pdata->coffin_pebble_type3;
-            break;
-        }
-
-        if (pebble != 0) {
-            position = &pebble->pebbles[pebble->count].matrix.pos;
-            if (position == 0) {
+    dirt_effect = fx_by_owner("dirt_fountain", 4);
+    fx_reset(dirt_effect);
+    fx_set(dirt_effect, 0x204, 0.0f);
+    for (i = 0; i < 5; i++) {
+        object = get_mkobj_frame(0x8311, 0);
+        if (object != 0) {
+            object->pos.value.x = origin->x + object_offsets[i].x;
+            object->pos.value.y = origin->y + object_offsets[i].y;
+            object->pos.value.z = origin->z + object_offsets[i].z;
+            object->ang.y = object_angles[i];
+            insert_particle_mkobj(object);
+            update_mkobj(krypt_object_header(object));
+            emitter = fx_next_emitter(dirt_effect);
+            particle = pfx_from_emitter(emitter);
+            if (particle == 0) {
                 return;
             }
-            position->x = 3.0f * (float)i + origin->x;
-            position->y = 0.0f;
-            position->z = origin->z;
-            pebble->count = pebble->count + 1;
+            emitter_id = emitter_id_from_handle(emitter);
+            pfx_bind_emitter_num_to_obj(particle, object, 0, emitter_id);
+            fx_restart_emit(emitter);
         }
-
-        opened = get_coffin_bit(krypt_pdata->profile_common->coffin_bits,
-                                col + row * 0x14) != 0;
-        if (opened != 0) {
-            pebble = krypt_pdata->lid_open_pebbles;
-        } else {
-            pebble = krypt_pdata->lid_closed_pebbles;
-        }
-
-        if (pebble != 0) {
-            lid_count = pebble->count;
-            pebble->pebbles[lid_count].matrix.pos.x = position->x + lid_offset.x;
-            pebble->pebbles[lid_count].matrix.pos.y = position->y + lid_offset.y;
-            pebble->pebbles[lid_count].matrix.pos.z = position->z + lid_offset.z;
-            pebble->pebbles[lid_count].matrix.pos.y = 0.0f;
-            pebble->count++;
-        }
-        col++;
-        i++;
     }
+    dust_effect = fx_by_owner("coffin_dust_pfx", 4);
+    fx_reset(dust_effect);
+    dust_position.x = origin->x + dust_offset.x;
+    dust_position.y = origin->y + dust_offset.y;
+    dust_position.z = origin->z + dust_offset.z;
+    fx_set_param_v3(dust_effect, 0x202, dust_position.x, dust_position.y, dust_position.z);
+    fx_restart_emit(dust_effect);
 }
 
-static inline void sobj_enable_pebble_bit(MkSobj* sobj) {
-    sobj->flags09_bits.bit4 = 1;
+static void start_closing_coffin_effects(Vec* origin) {
+    Vec dust_offset = {0.0f, 0.25f, 2.0f};
+    Vec effect_position = {0.0f, 0.0f, 0.0f};
+    unsigned int dust;
+    int fountain;
+    dust = fx_by_owner("coffin_dust_pfx", 4);
+    fx_reset(dust);
+    effect_position.x = origin->x + dust_offset.x;
+    effect_position.y = origin->y + dust_offset.y;
+    effect_position.z = origin->z + dust_offset.z;
+    fx_set_param_v3(
+        dust, 0x202, effect_position.x, effect_position.y,
+        effect_position.z);
+    fx_restart_emit(dust);
+    fountain = fx_by_owner("dirt_fountain", 4);
+    if (fountain != 0) {
+        fx_set(fountain, 0x204, 1.0f);
+    }
 }
+void move_picture_to_camera(KryptScreenObjLatch* picture_latch) {
+    move_picture_to_camera_impl(picture_latch);
+}
+#pragma opt_propagation off
+void display_prize_description(CoffinEntry* entries, int index, int last_index, int available,
+                               unsigned int string_bank, int priority) {
+    const char* title;
+    const char* description;
+    StringObj* description_obj;
+    int kontent_type;
 
-void setup_tombstones(void) {
-    MkSobj* sobj;
-    MkSobj* sobj_b;
-    PebbleData* pebble;
-    RwV3d* position;
-    int i;
-    int col;
-    int row;
-
-    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x15);
-    if (sobj != 0) {
-        sobj_enable_pebble_bit(sobj);
-        pebble = create_pebble_userdata(sobj, 5, 0);
-        krypt_pdata->pebble_wall_a = pebble;
-        for (i = 0; i < 5; i++) {
-            krypt_pdata->pebble_wall_a->pebbles[i].matrix.pos.z =
-                -(5.0f * (4.0f * (float)i) - 50.0f);
-        }
+    if (!available) {
+        kontent_type = -1;
+    } else if (index < 0 || index > last_index) {
+        kontent_type = -1;
+    } else {
+        kontent_type = entries[index].kontent_type;
     }
-
-    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x16);
-    if (sobj != 0) {
-        sobj_enable_pebble_bit(sobj);
-        pebble = create_pebble_userdata(sobj, 5, 0);
-        krypt_pdata->pebble_wall_b = pebble;
-        for (i = 0; i < 5; i++) {
-            krypt_pdata->pebble_wall_b->pebbles[i].matrix.pos.z =
-                -(5.0f * (4.0f * (float)i) - 45.0f);
-        }
+    title = get_string_by_id(string_bank | kontent_type);
+    string_center_xy(
+        0xA00F, 9, title, screen_width / 2,
+        screen_height / 2 + 0x8A, priority);
+    description = prize_description_text(entries, index, last_index, available);
+    if ((unsigned int)entries[index].kontent_type == 0xC &&
+        (get_language() == 0 || get_language() == 5)) {
+        char* separator = strchr(description, ':');
+        if (separator != 0) *separator = '\n';
     }
-
-    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x17);
-    if (sobj != 0) {
-        sobj_enable_pebble_bit(sobj);
-        pebble = create_pebble_userdata(sobj, 5, 0);
-        krypt_pdata->pebble_wall_c = pebble;
-        for (i = 0; i < 5; i++) {
-            krypt_pdata->pebble_wall_c->pebbles[i].matrix.pos.z =
-                -(5.0f * (4.0f * (float)i) - 40.0f);
-        }
-    }
-
-    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x18);
-    if (sobj != 0) {
-        sobj_enable_pebble_bit(sobj);
-        pebble = create_pebble_userdata(sobj, 5, 0);
-        krypt_pdata->pebble_wall_d = pebble;
-        for (i = 0; i < 5; i++) {
-            krypt_pdata->pebble_wall_d->pebbles[i].matrix.pos.z =
-                -(5.0f * (4.0f * (float)i) - 35.0f);
-        }
-    }
-
-    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 9);
-    if (sobj != 0) {
-        sobj_b = obj_find_sobj_by_id(g_game_info.bgnd_obj, 10);
-        if (sobj_b != 0) {
-            sobj_enable_pebble_bit(sobj_b);
-            sobj_enable_pebble_bit(sobj);
-            krypt_pdata->pebble_grid_a = create_pebble_userdata(sobj, 0xc, 0);
-            krypt_pdata->pebble_grid_b = create_pebble_userdata(sobj_b, 0xc, 0);
-            for (i = 0; i < 0xc; i++) {
-                col = i % 3;
-                row = i / 3;
-                position = &krypt_pdata->pebble_grid_a->pebbles[i].matrix.pos;
-                position->x =
-                    3.0f * (float)((col + 1) * 5 - 1) + -28.5f;
-                position->y = 0.0f;
-                position->z =
-                    -(5.0f * (float)((row + 1) * 4 - 1) - 50.0f);
-                krypt_pdata->pebble_grid_b->pebbles[i].matrix.pos.x =
-                    krypt_pdata->pebble_grid_a->pebbles[i].matrix.pos.x;
-                krypt_pdata->pebble_grid_b->pebbles[i].matrix.pos.y =
-                    krypt_pdata->pebble_grid_a->pebbles[i].matrix.pos.y;
-                krypt_pdata->pebble_grid_b->pebbles[i].matrix.pos.z =
-                    krypt_pdata->pebble_grid_a->pebbles[i].matrix.pos.z;
-            }
-        }
-    }
-
-    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 1);
-    if (sobj != 0) {
-        sobj_enable_pebble_bit(sobj);
-        krypt_pdata->coffin_pebble_type0 = create_pebble_userdata(sobj, 10, 0);
-    }
-    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 3);
-    if (sobj != 0) {
-        sobj_enable_pebble_bit(sobj);
-        krypt_pdata->coffin_pebble_type1 = create_pebble_userdata(sobj, 10, 0);
-    }
-    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 5);
-    if (sobj != 0) {
-        sobj_enable_pebble_bit(sobj);
-        krypt_pdata->coffin_pebble_type2 = create_pebble_userdata(sobj, 10, 0);
-    }
-    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 7);
-    if (sobj != 0) {
-        sobj_enable_pebble_bit(sobj);
-        krypt_pdata->coffin_pebble_type3 = create_pebble_userdata(sobj, 10, 0);
-    }
-
-    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3c);
-    if (sobj != 0) {
-        sobj->flags_08_bits.bit6 = 1;
-        sobj->flags_08_bits.bit5 = 1;
-    }
-    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3d);
-    if (sobj != 0) {
-        sobj->flags_08_bits.angular_velocity_enabled = 1;
-    }
-
-    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x5a);
-    if (sobj != 0) {
-        sobj_enable_pebble_bit(sobj);
-        krypt_pdata->lid_closed_pebbles = create_pebble_userdata(sobj, 0x24, 0);
-    }
-    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x5b);
-    if (sobj != 0) {
-        sobj_enable_pebble_bit(sobj);
-        krypt_pdata->lid_open_pebbles = create_pebble_userdata(sobj, 0x24, 0);
-    }
-
-    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x32);
-    if (sobj != 0) {
-        sobj_enable_pebble_bit(sobj);
-        krypt_pdata->fire_pot_pebbles = create_pebble_userdata(sobj, 6, 0);
-        position_fire_pots();
-    }
-
-    sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x46);
-    if (sobj != 0) {
-        MkObjLatch* fog_pdata;
-
-        sobj_set_priority(sobj, 0x14);
-        sobj->flags_08_bits.bit6 = 1;
-        fog_pdata = 0;
-        if (_create_mkproc_generic_tinystack(
-                0x823a, 0x1f, p_fog_follow_camera, 0x10,
-                (MkHdr**)&fog_pdata) != 0 && fog_pdata != 0) {
-            fog_pdata->obj = (MkHdr*)sobj;
-            fog_pdata->obj_instance = ((MkHdr*)sobj)->instance;
-        }
-    }
-
-    for (i = 0; i < 5; i++) {
-        sobj = obj_find_sobj_by_id(g_game_info.bgnd_obj, i + 0x1e);
-        if (sobj != 0) {
-            sobj->flags_08_bits.bit6 = 1;
-            sobj->flags_08_bits.bit3 = 1;
-            hide_sobj(sobj);
+    if (description != 0) {
+        description_obj = create_wrapped_string(
+            0xA00F, load_font(9), description, screen_width / 2 - 0xC0,
+            screen_height / 2 - 0x87, 0x180, 0, 1, 0);
+        if (description_obj != 0) {
+            description_obj->priority = priority;
+            insert_2d_obj((ScreenObj*)description_obj);
         }
     }
 }
-
-static void position_fire_pots(void) {
-    PebbleData* pots;
-    int i;
-
-    pots = krypt_pdata->fire_pot_pebbles;
-    pots->pebbles[0].matrix.pos.x = -9.069f;
-    pots->pebbles[0].matrix.pos.y = 0.0f;
-    pots->pebbles[0].matrix.pos.z = -51.581f;
-    pots->pebbles[1].matrix.pos.x = 9.3f;
-    pots->pebbles[1].matrix.pos.y = 0.0f;
-    pots->pebbles[1].matrix.pos.z = -51.581f;
-    pots->pebbles[2].matrix.pos.x = -32.944f;
-    pots->pebbles[2].matrix.pos.y = 0.0f;
-    pots->pebbles[2].matrix.pos.z = 7.598f;
-    pots->pebbles[3].matrix.pos.x = -33.134f;
-    pots->pebbles[3].matrix.pos.y = 0.0f;
-    pots->pebbles[3].matrix.pos.z = 21.839f;
-    pots->pebbles[4].matrix.pos.x = 32.963f;
-    pots->pebbles[4].matrix.pos.y = 0.0f;
-    pots->pebbles[4].matrix.pos.z = 7.355f;
-    pots->pebbles[5].matrix.pos.x = 33.2f;
-    pots->pebbles[5].matrix.pos.y = 0.0f;
-    pots->pebbles[5].matrix.pos.z = 22.056f;
-
-    for (i = 0; i < 6; i++) {
-        krypt_pdata->fire_pot_sounds[i] = get_sound_tracker_data();
-        krypt_pdata->fire_pot_sounds[i]->pos_x = pots->pebbles[i].matrix.pos.x;
-        krypt_pdata->fire_pot_sounds[i]->pos_y = pots->pebbles[i].matrix.pos.y;
-        krypt_pdata->fire_pot_sounds[i]->pos_z = pots->pebbles[i].matrix.pos.z;
-        krypt_pdata->fire_pot_sounds[i]->pos_y = 1.0f;
-        krypt_pdata->fire_pot_sounds[i]->sound_id = 0x3C3;
-        krypt_pdata->fire_pot_sounds[i]->min_dist = 5.0f;
-        krypt_pdata->fire_pot_sounds[i]->max_dist = 20.0f;
-        krypt_pdata->fire_pot_sounds[i]->positional_pan = 1;
-        make_new_tracked_sound(
-            &krypt_pdata->tracked_sound_list, krypt_pdata->fire_pot_sounds[i]);
-    }
+#pragma opt_propagation reset
+void remove_prize_description(void) {
+    del_string_obj_by_id(0xA00F);
 }
+static float p_fade_fog(void) {
+    struct KryptFogFadePdata* pdata;
+    unsigned int alpha;
+    int step;
 
-static float p_fog_follow_camera(void) {
-    CameraObj* camera;
-    MkObjLatch* pdata;
-    MkSobj* fog;
-
-    pdata = (MkObjLatch*)pdata_of_proc(aproc);
-    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
-
-    if (pdata != 0 && camera != 0) {
-        fog = MK_HDR_LIVE((MkSobj*)pdata->obj, pdata->obj_instance);
-        if (fog != 0) {
-            fog->pos.z = camera->pos.z;
-        }
-    }
-    return 1.0f;
-}
-
-static float p_follow_camera(void) {
-    CameraObj* camera;
-    struct KryptCameraFollowPdata* pdata;
-    MkObj* obj;
-
-    camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
-
-    pdata = (struct KryptCameraFollowPdata*)pdata_of_proc(aproc);
+    pdata = (struct KryptFogFadePdata*)pdata_of_proc(aproc);
     if (pdata == 0) {
         return -1.0f;
     }
 
-    obj = MK_HDR_LIVE(pdata->obj, pdata->obj_instance);
+    step = pdata->alpha_step;
+    if (obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x46) != 0) {
+        if (step < 0) {
+            alpha = 0xFF;
+        } else {
+            alpha = 0;
+        }
 
-    if (obj == 0) {
+        while (alpha <= 0xFF) {
+            obj_set_sobj_alpha(g_game_info.bgnd_obj, 0x46, alpha);
+            _mkproc_sleep_ticks = 1.0f;
+            alpha += step;
+            mkproc_sleep();
+        }
+    }
+
+    return -1.0f;
+}
+
+static float p_move_camera_and_open_coffin(void) {
+    Vec coffin_position;
+    Vec camera_angles = {1.0f, 3.4415927f, 0.0f};
+    Vec camera_offset = {0.8f, 5.0f, 4.0f};
+    CameraPdata* camera;
+    CoffinEntry* entry;
+    MkSobj* coffin;
+    MkSobj* lid;
+    ScreenObj* object;
+    ScreenObj* notice_top;
+    ScreenObj* notice_left;
+    ScreenObj* notice_right;
+    ScreenObj* notice_bottom;
+    int selected;
+    int column;
+    int row;
+    struct KryptFogFadePdata* fade_out_pdata;
+    struct KryptFogFadePdata* fade_in_pdata;
+
+    selected = krypt_pdata->current_column + krypt_pdata->current_row * 20;
+    camera = get_pdata_of_camera();
+    if (camera == 0) {
         return -1.0f;
     }
+    camera->speed = 0.5f;
+    heads_up_display_visible(0);
 
-    if (pdata != 0 && obj != 0 && camera != 0) {
-        obj->pos.value.x = camera->pos.x;
-        obj->pos.value.y = camera->pos.y;
-        obj->pos.value.z = camera->pos.z;
+    column = krypt_pdata->current_column;
+    row = krypt_pdata->current_row;
 
-        if (krypt_pdata->pfx_koins != 0) {
-            krypt_pdata->pfx_koins->camera_follow_position.x = camera->pos.x;
-            krypt_pdata->pfx_koins->camera_follow_position.y = 2.0f;
-            krypt_pdata->pfx_koins->camera_follow_position.z = camera->pos.z - 3.0f;
-        }
-        if (krypt_pdata->pfx_numbers != 0) {
-            krypt_pdata->pfx_numbers->camera_follow_position.x = camera->pos.x;
-            krypt_pdata->pfx_numbers->camera_follow_position.y = 2.0f;
-            krypt_pdata->pfx_numbers->camera_follow_position.z = camera->pos.z - 3.0f;
-        }
-        if (krypt_pdata->pfx_letters != 0) {
-            krypt_pdata->pfx_letters->camera_follow_position.x = camera->pos.x;
-            krypt_pdata->pfx_letters->camera_follow_position.y = 2.0f;
-            krypt_pdata->pfx_letters->camera_follow_position.z = camera->pos.z - 3.0f;
-        }
-    }
-    return 1.0f;
-}
-int load_pix_section(
-    int slot, const CoffinEntry* entries, int index, int enabled, int flags) {
-    MkFileInfo* section;
-    int gallery_art;
-
-    if (enabled == 0) {
-        return 0;
-    }
-
-    gallery_art = entries[index].gallery_art;
-    section = get_mk_file_info_from_current_ssf(gallery_art);
-    if (is_section_loading_or_loaded(slot, section) == 0) {
-        unload_section_slot(slot);
-    }
-    load_art_section(slot, section);
-    return ((gallery_art + 0x3EA) << 16) | flags;
-}
-int load_binary_data(
-    MkFileInfo* file_info, CoffinEntry** entries, char* strings,
-    int* loaded, int entry_count) {
-    int strings_size;
-    const MkFileEntry* file;
-    int i;
-
-    if (*loaded != 0) {
-        return 1;
-    } else {
-        file = mk_file_open_language(file_info, "rb", (void*)1);
-        if (file == 0) {
-            return 0;
-        }
-
-        strings_size = mk_file_length(file) - entry_count * sizeof(CoffinEntry);
-        strings = get_mem(strings_size);
-        if (strings == 0) {
-            return 0;
-        }
-
-        *entries = get_mem(entry_count * sizeof(CoffinEntry));
-        if (*entries == 0) {
-            return 0;
-        }
-
-        mk_file_read(*entries, sizeof(CoffinEntry), entry_count, file);
-        mk_file_read(strings, 1, strings_size, file);
-        mk_file_close(file);
-
-        for (i = 0; i < entry_count; i++) {
-            (*entries)[i].blurb = strings + (unsigned int)(*entries)[i].blurb;
-            (*entries)[i].long_description =
-                strings + (unsigned int)(*entries)[i].long_description;
-        }
-
-        *loaded = 1;
-    }
-    return 1;
-}
-static inline int find_available_konquest_key(void) {
-    CoffinEntry* entry;
-    int key_bit;
-    int index;
-    int opened;
-
-    for (index = 1; index < 400; index++) {
-        entry = &coffin_data[index];
-        if ((unsigned int)entry->prize_kind == 6) {
-            if (entry->cost > krypt_pdata->konquest_key_max) {
-                key_bit = -1;
-            } else {
-                key_bit = krypt_pdata->konquest_key_table[entry->cost] -
-                          krypt_pdata->konquest_key_table[0] - 1;
-            }
-            if (get_u8_bit(krypt_pdata->profile_konquest->key_bits,
-                           krypt_pdata->konquest_key_bit_count, key_bit) != 0) {
-                opened = get_coffin_bit(krypt_pdata->profile_common->coffin_bits, index) != 0;
-                if (opened == 0) {
-                    return index;
-                }
-            }
-        }
-    }
-    return 0;
-}
-
-#pragma auto_inline off
-static void init_konquest_keys(void) {
-    krypt_pdata->konquest_key_table = get_data_table_by_name("konquest_keys");
-    if (krypt_pdata->konquest_key_table != 0) {
-        krypt_pdata->konquest_key_max = get_row_count_for_table_by_pointer(
-            g_game_info.cmdscript, krypt_pdata->konquest_key_table);
-        krypt_pdata->konquest_key_bit_count =
-            krypt_pdata->konquest_key_table[krypt_pdata->konquest_key_max - 1] -
-            krypt_pdata->konquest_key_table[0] - 1;
-        krypt_pdata->konquest_key_max -= 2;
-
-        krypt_pdata->available_key_coffin = find_available_konquest_key();
-    }
-}
-#pragma auto_inline reset
-
-static void update_use_key_string(void) {
-    StringObj* use_key_text;
-    KryptPdata* pdata;
-    const char* use_key_label;
-    char key_name[4];
-    char text[32];
-
-    pdata = krypt_pdata;
-    use_key_text = MK_LIVE(pdata->use_key_string.obj, pdata->use_key_string.obj_instance);
-
-    krypt_pdata->available_key_coffin = find_available_konquest_key();
-    if (krypt_pdata->available_key_coffin != 0) {
-        use_key_label = get_string_by_id(0x20012);
-        sprintf(key_name, "%c%c", krypt_pdata->available_key_coffin / 20 + 'A',
-                krypt_pdata->available_key_coffin % 20 + 'A');
-        sprintf(text, "%s %s", use_key_label, key_name);
-        update_string_obj(use_key_text, 0, text);
-    }
-}
-
-static float p_krypt_loop(void) {
-    handle_controller_input();
-    if (krypt_pdata->layout_dirty != 0) {
-        krypt_pdata->tombstone_hud_ticks = 3;
-        rebuild_visible_coffin_rows();
-        krypt_pdata->layout_dirty = 0;
-    }
-    return 1.0f;
-}
-
-static float p_setup_krypt(void) {
-    char* string_pool;
-    const MkFileEntry* file;
-    int file_len;
-    int string_len;
-    MkObj* light;
-    CamVec3 cam_pos = s_cam_pos;
-    CamVec3 cam_ang = s_cam_ang;
-    MkHdr* random_noise_pdata;
-    struct KryptCharacterMonitorPdata* monitor_pdata;
-
-    start_sound_tracking_process(&krypt_pdata->tracked_sound_list);
-    load_background(0x18);
-    load_art_section_language(0x140066, &sec_krypt_screen_art);
-    add_art_section(0x140066, &sec_krypt_award_art);
-    load_font(9);
-    load_font(0);
-    load_font(7);
-
-    if (krypt_data_loaded == 0) {
-        file = mk_file_open_language(&sec_kryptdata, "rb", (void*)1);
-        if (file != 0) {
-            file_len = mk_file_length(file);
-            string_len = file_len - 0x4498;
-            string_pool = get_mem(string_len);
-            if (string_pool != 0) {
-                coffin_data = get_mem(sizeof(CoffinEntry) * 0x1B7);
-                if (coffin_data != 0) {
-                    mk_file_read(coffin_data, sizeof(CoffinEntry), 0x1B7, file);
-                    mk_file_read(string_pool, 1, string_len, file);
-                    mk_file_close(file);
-                    rebase_coffin_strings(string_pool);
-                    krypt_data_loaded = 1;
-                }
-            }
-        }
-    }
-
-    setup_sound_banks(4);
-    wait_for_sound_banks_to_load();
-    start_tunes();
-    _create_mkproc_generic_tinystack(
-        0x823E, 0x1F, p_play_random_noise, 8, &random_noise_pdata);
-
-    load_string_bank(0x20000, "krypt_strings_eng.mko");
-    setup_tombstones();
-    active_cmdscript->mko = g_game_info.cmdscript;
-    load_ssf(krypt_art_file_table);
-    xfer_camera(p_krypt_camera_proc, 1);
-    _mkproc_sleep_ticks = 2.0f;
-    mkproc_sleep();
-    set_camera_position(&cam_pos);
-    set_camera_angle(&cam_ang);
-
+    coffin_position.x = 3.0f * column + -28.5f;
+    coffin_position.y = 0.0f;
+    coffin_position.z = -(5.0f * row - 50.0f);
+    move_coffin_to_position(&coffin_position);
     rebuild_visible_coffin_rows();
+    krypt_pdata->tombstone_hud_ticks = 3;
 
-    pfx_create_raw_userdata(0, 0, 0x24, 0x202, 2, init_tombstone_koins, 0x823B,
-                            update_tombstone_koins, (void**)&krypt_pdata->pfx_koins);
-    krypt_pdata->pfx_koins->flag_bits.visible = 1;
-    pfx_create_raw_userdata(0, 0, 0x48, 0x202, 2, init_tombstone_letters, 0x823C,
-                            update_tombstone_letters, (void**)&krypt_pdata->pfx_letters);
-    krypt_pdata->pfx_letters->flag_bits.visible = 1;
-    pfx_create_raw_userdata(0, 0, 0x90, 0x202, 2, init_tombstone_numbers, 0x823D,
-                            update_tombstone_numbers, (void**)&krypt_pdata->pfx_numbers);
-    krypt_pdata->pfx_numbers->flag_bits.visible = 1;
-
-    krypt_pdata->footstep_frame_index = 0;
-    light = load_light((LightDef*)&camera_point_light, &point_light_list, 0);
-    if (light != 0) {
-        light->flags_08_bits.airborne = 1;
+    fade_out_pdata = 0;
+    if (_create_mkproc_generic_tinystack(
+            0x823F, 0x1F, p_fade_fog, sizeof(struct KryptFogFadePdata),
+            (MkHdr**)&fade_out_pdata) != 0 && fade_out_pdata != 0) {
+        fade_out_pdata->alpha_step = -8;
     }
 
-    bgnd_anim_camera_setup();
-    cam_set_intro_cam_pause_ticks(60.0f);
-    camera_init_animation(bgnd_animations[30], 0);
-    camera_run_animation(0);
-    turn_camera_on();
-    fade_from_black(0x14, 0);
-    camera_wait_for_animation_completion();
-    bgnd_anim_camera_ended();
+    camera->target_pos.x = coffin_position.x + camera_offset.x;
+    camera->target_pos.y = coffin_position.y + camera_offset.y;
+    camera->target_pos.z = coffin_position.z + camera_offset.z;
+    camera->target_ang.x = camera_angles.x;
+    camera->target_ang.y = camera_angles.y;
+    camera->target_ang.z = camera_angles.z;
+    camera->flags_bits.pos_done = 0;
+    _mkproc_sleep_ticks = 1.0f;
+    mkproc_sleep();
 
-    turn_controllers_on();
-    init_konquest_keys();
-    init_heads_up_display();
-    monitor_pdata = 0;
-    if (_create_mkproc_generic_bigstack(
-            0x8241, 0x1F, p_monitor_krypt_characters,
-            sizeof(struct KryptCharacterMonitorPdata), (MkHdr**)&monitor_pdata) != 0 &&
-        monitor_pdata != 0) {
-        monitor_pdata->elapsed_ticks = 0;
-        monitor_pdata->delay_ticks = 0;
+    start_opening_coffin_effects(&coffin_position);
+    shake_camera(10, 0.0075f);
+    coffin = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3C);
+    if (coffin != 0) {
+        snd_req(0x3BB);
+        snd_req(0x3BC);
+        coffin->pos_vel.y = 0.02f;
+        while (coffin->pos.y < 0.5f) {
+            _mkproc_sleep_ticks = 1.0f;
+            mkproc_sleep();
+        }
+        coffin->pos_vel.y = 0.0f;
     }
 
+    lid = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3D);
+    if (lid != 0) {
+        snd_req(0x3BD);
+        lid->ang_vel.z = 0.06f;
+        while (lid->ang.z < 2.3561945f) {
+            _mkproc_sleep_ticks = 1.0f;
+            mkproc_sleep();
+        }
+        lid->ang_vel.z = 0.0f;
+    }
+
+    move_picture_to_camera_impl(&krypt_pdata->award_frame);
+    notice_top = MK_LIVE(krypt_pdata->award_notice_top.obj, krypt_pdata->award_notice_top.obj_instance);
+    notice_left = MK_LIVE(krypt_pdata->award_notice_left.obj, krypt_pdata->award_notice_left.obj_instance);
+    notice_right = MK_LIVE(krypt_pdata->award_notice_right.obj, krypt_pdata->award_notice_right.obj_instance);
+    notice_bottom = MK_LIVE(krypt_pdata->award_notice_bottom.obj, krypt_pdata->award_notice_bottom.obj_instance);
+    unhide_screen_obj(notice_top);
+    unhide_screen_obj(notice_left);
+    unhide_screen_obj(notice_right);
+    unhide_screen_obj(notice_bottom);
+
+    show_coffin_award(selected);
+    entry = selected_coffin_entry();
+    snd_req(award_sound_table[entry->award_sound_index]);
+
+    object = load_named_2d_pfxobj(0x140066, 0x830F, "OK_BUTTON", 0, 0x4C);
+    if (object != 0) {
+        object->x = screen_width - 0x32 - object->pfx2d->tex_w;
+        object->y = 0x32;
+    }
+    for (;;) {
+        if (check_switch_edge(krypt_pdata->player_port, 6) != 0) {
+            _mkproc_sleep_ticks = 1.0f;
+            mkproc_sleep();
+            break;
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        mkproc_sleep();
+    }
+    if (object->instance != 0) {
+        object->typed_vtbl->destroy(object);
+    }
+
+    destroy_mkobjs_oid(0x8311);
+    notice_top = MK_LIVE(krypt_pdata->award_notice_top.obj, krypt_pdata->award_notice_top.obj_instance);
+    notice_left = MK_LIVE(krypt_pdata->award_notice_left.obj, krypt_pdata->award_notice_left.obj_instance);
+    notice_right = MK_LIVE(krypt_pdata->award_notice_right.obj, krypt_pdata->award_notice_right.obj_instance);
+    notice_bottom = MK_LIVE(krypt_pdata->award_notice_bottom.obj, krypt_pdata->award_notice_bottom.obj_instance);
+    hide_screen_obj(notice_top);
+    hide_screen_obj(notice_left);
+    hide_screen_obj(notice_right);
+    hide_screen_obj(notice_bottom);
+    object = krypt_pdata->award_image_left;
+    hide_screen_obj(object);
+    object = krypt_pdata->award_image_left;
+    if (object->instance != 0) object->typed_vtbl->destroy(object);
+    krypt_pdata->award_image_left = 0;
+    object = krypt_pdata->award_image_right;
+    hide_screen_obj(object);
+    object = krypt_pdata->award_image_right;
+    if (object->instance != 0) object->typed_vtbl->destroy(object);
+    krypt_pdata->award_image_right = 0;
+    del_string_obj_by_id(0xA00F);
+
+    lid = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3D);
+    if (lid != 0) {
+        snd_req(0x3BE);
+        lid->ang_vel.z = -0.06f;
+        while (lid->ang.z - 0.08f > 0.0f) {
+            _mkproc_sleep_ticks = 1.0f;
+            mkproc_sleep();
+        }
+        lid->ang_vel.z = 0.0f;
+        lid->ang.z = 0.0f;
+        snd_req(0x3BF);
+    }
+
+    camera->target_pos.x = coffin_position.x;
+    camera->target_pos.y = coffin_position.y;
+    camera->target_pos.z = coffin_position.z;
+    camera->target_pos.y = 4.4f;
+    camera->target_pos.z += 5.0f;
+    camera->target_ang.x = 0.42f;
+    camera->target_ang.y = 3.1415927f;
+    camera->speed = 1.0f;
+    shake_camera(8, 0.0075f);
+    fade_in_pdata = 0;
+    if (_create_mkproc_generic_tinystack(
+            0x823F, 0x1F, p_fade_fog, sizeof(struct KryptFogFadePdata),
+            (MkHdr**)&fade_in_pdata) != 0 && fade_in_pdata != 0) {
+        fade_in_pdata->alpha_step = 8;
+    }
+
+    start_closing_coffin_effects(&coffin_position);
+
+    coffin = obj_find_sobj_by_id(g_game_info.bgnd_obj, 0x3C);
+    if (coffin != 0) {
+        snd_req(0x3C0);
+        coffin->pos_vel.y = -0.02f;
+        while (coffin->pos.y > -0.503f) {
+            _mkproc_sleep_ticks = 1.0f;
+            mkproc_sleep();
+        }
+        coffin->pos_vel.y = 0.0f;
+        coffin->pos.y = -0.503f;
+    }
+    heads_up_display_visible(1);
+
+    award_koins();
     mkproc_jump_sleep(p_krypt_loop);
     return 0.0f;
 }
 
-static float p_init_krypt_mode(void) {
-    RwResourcesSetArenaSize(0x100000);
-    zero_pdata_payload(sizeof(KryptPdata), (MkHdr*)krypt_pdata);
-    if (menu_player == 0) {
-        krypt_pdata->player_port = g_game_info.plyr0.pad_index;
-        set_player_state(&g_game_info.plyr0, 2);
-        krypt_pdata->player_profile = &p1_profile;
-        krypt_pdata->profile_common = p1_profile_common;
-        krypt_pdata->profile_konquest = p1_profile_konquest;
-    } else {
-        krypt_pdata->player_port = g_game_info.plyr1.pad_index;
-        set_player_state(&g_game_info.plyr1, 2);
-        move_profile_p1_to_p2();
-        krypt_pdata->player_profile = &p2_profile;
-        krypt_pdata->profile_common = p2_profile_common;
-        krypt_pdata->profile_konquest = p2_profile_konquest;
+void init_heads_up_display(void) {
+    ScreenObj* screen_obj;
+    StringObj* string_obj;
+    ScreenObj* award_notice_top;
+    ScreenObj* award_notice_left;
+    ScreenObj* award_notice_right;
+    ScreenObj* award_notice_bottom;
+    ScreenObj* award_frame;
+    StringObj* right_label;
+    StringObj* right_text;
+    char* string;
+
+    screen_obj = load_named_2d_pfxobj(0x140066, 0x830F, "OPEN_BUTTON", 0, 0x4C);
+    if (screen_obj != 0) {
+        screen_obj->x = screen_width - 0x32 - screen_obj->pfx2d->tex_w;
+        screen_obj->y = screen_height - 0x52;
+        krypt_pdata->open_button.obj = screen_obj;
+        krypt_pdata->open_button.obj_instance = screen_obj->instance;
     }
-    krypt_data_loaded = 0;
-    krypt_pdata->tombstone_hud_ticks = 3;
-    set_mode_of_play(0xB);
-    push_game_state(0xB);
-    mkproc_jump_sleep(p_setup_krypt);
-    return 0.0f;
+    screen_obj = load_named_2d_pfxobj_xy(
+        0x140066, 0x830F, "EXIT_BUTTON", 0, 0x32, screen_height - 0x52, 0x4C);
+    krypt_pdata->exit_button.obj = screen_obj;
+    krypt_pdata->exit_button.obj_instance = screen_obj->instance;
+
+    string_obj = string_left_xy(0x8310, 7, "l", 0x32, 0x32, 0x4D);
+    krypt_pdata->hud_label_l.obj = string_obj;
+    krypt_pdata->hud_label_l.obj_instance = string_obj->instance;
+    string = get_string_by_id(0x20011);
+    string_obj = string_left_xy(0x8310, 0, string, 0x56, 0x37, 0x4D);
+    krypt_pdata->hud_string_20011.obj = string_obj;
+    krypt_pdata->hud_string_20011.obj_instance = string_obj->instance;
+    right_label = string_right_xy(
+        0x8310, 7, "R", screen_width - 0x32, 0x32, 0x4D);
+    krypt_pdata->hud_label_r.obj = right_label;
+    krypt_pdata->hud_label_r.obj_instance = right_label->instance;
+    string = get_string_by_id(0x20012);
+    right_text = string_right_xy(
+        0x8310, 0, string, screen_width - 0x5A, 0x37, 0x4D);
+    krypt_pdata->use_key_string.obj = right_text;
+    krypt_pdata->use_key_string.obj_instance = right_text->instance;
+
+    screen_obj = load_named_2d_pfxobj_xy(
+        0x140066, 0x830F, "WALLET_A", 0, screen_width / 2 - 0x140, 0, 0x4C);
+    krypt_pdata->wallet_back.obj = screen_obj;
+    krypt_pdata->wallet_back.obj_instance = screen_obj->instance;
+    screen_obj = load_named_2d_pfxobj_xy(
+        0x140066, 0x830F, "WALLET_B", 0, screen_width / 2 + 0xC0, 0, 0x4C);
+    krypt_pdata->wallet_front.obj = screen_obj;
+    krypt_pdata->wallet_front.obj_instance = screen_obj->instance;
+
+    krypt_update_wallet_text();
+
+    award_notice_top = load_named_2d_pfxobj_xy(
+        0x140066, 0x830F, "AWARD_NOTICE_TOP", 0,
+        screen_width / 2 - 0x100, screen_height / 2 + 0x80, 0x4C);
+    krypt_pdata->award_notice_top.obj = award_notice_top;
+    krypt_pdata->award_notice_top.obj_instance = award_notice_top->instance;
+    award_notice_left = load_named_2d_pfxobj_xy(
+        0x140066, 0x830F, "AWARD_NOTICE_LEFT", 0,
+        screen_width / 2 - 0xD0, screen_height / 2 - 0x80, 0x4C);
+    krypt_pdata->award_notice_left.obj = award_notice_left;
+    krypt_pdata->award_notice_left.obj_instance = award_notice_left->instance;
+    award_notice_right = load_named_2d_pfxobj_xy(
+        0x140066, 0x830F, "AWARD_NOTICE_RIGHT", 0,
+        screen_width / 2 + 0xC0, screen_height / 2 - 0x80, 0x4C);
+    krypt_pdata->award_notice_right.obj = award_notice_right;
+    krypt_pdata->award_notice_right.obj_instance = award_notice_right->instance;
+    award_notice_bottom = load_named_2d_pfxobj_xy(
+        0x140066, 0x830F, "AWARD_NOTICE_BOTTOM", 0,
+        screen_width / 2 - 0x100, screen_height / 2 - 0xC0, 0x4C);
+    krypt_pdata->award_notice_bottom.obj = award_notice_bottom;
+    krypt_pdata->award_notice_bottom.obj_instance = award_notice_bottom->instance;
+    award_frame = load_named_2d_pfxobj_xy(
+        0x140066, 0x830F, "AWARDFRAME", 0,
+        screen_width / 2 - 0x80, screen_height / 2 - 0x80, 0x4C);
+    krypt_pdata->award_frame.obj = award_frame;
+    krypt_pdata->award_frame.obj_instance = award_frame->instance;
+
+    krypt_pdata->wallet_open_ticks = 0x78;
+    krypt_pdata->wallet_open = 1;
+    hide_screen_obj(award_notice_top);
+    hide_screen_obj(award_notice_left);
+    hide_screen_obj(award_notice_right);
+    hide_screen_obj(award_notice_bottom);
+    hide_screen_obj(award_frame);
+    if (krypt_pdata->available_key_coffin != 0) {
+        update_use_key_string();
+    } else {
+        hide_string_obj(right_label);
+        hide_string_obj(right_text);
+    }
 }
 
-float p_krypt_mode(void) {
+void heads_up_display_visible(int visible) {
+    ScreenObj* wallet_back;
+    ScreenObj* wallet_front;
+    ScreenObj* icon_a;
+    ScreenObj* icon_b;
+    StringObj* label_a;
+    StringObj* label_b;
+    StringObj* value_a;
+    StringObj* value_b;
+
+    wallet_back = MK_LIVE(krypt_pdata->wallet_back.obj, krypt_pdata->wallet_back.obj_instance);
+
+    wallet_front = MK_LIVE(krypt_pdata->wallet_front.obj, krypt_pdata->wallet_front.obj_instance);
+
+    icon_a = MK_LIVE(krypt_pdata->open_button.obj, krypt_pdata->open_button.obj_instance);
+
+    icon_b = MK_LIVE(krypt_pdata->exit_button.obj, krypt_pdata->exit_button.obj_instance);
+
+    label_a = MK_LIVE(krypt_pdata->hud_label_l.obj, krypt_pdata->hud_label_l.obj_instance);
+
+    value_a = MK_LIVE(krypt_pdata->hud_string_20011.obj, krypt_pdata->hud_string_20011.obj_instance);
+
+    label_b = MK_LIVE(krypt_pdata->hud_label_r.obj, krypt_pdata->hud_label_r.obj_instance);
+
+    value_b = MK_LIVE(krypt_pdata->use_key_string.obj, krypt_pdata->use_key_string.obj_instance);
+
+    if (wallet_back != 0) {
+        if (visible) unhide_screen_obj(wallet_back); else hide_screen_obj(wallet_back);
+    }
+    if (wallet_front != 0) {
+        if (visible) unhide_screen_obj(wallet_front); else hide_screen_obj(wallet_front);
+    }
+    if (icon_a != 0) {
+        if (visible) unhide_screen_obj(icon_a); else hide_screen_obj(icon_a);
+    }
+    if (icon_b != 0) {
+        if (visible) unhide_screen_obj(icon_b); else hide_screen_obj(icon_b);
+    }
+    if (label_a != 0 && value_a != 0) {
+        if (visible) {
+            unhide_string_obj(label_a);
+            unhide_string_obj(value_a);
+        } else {
+            hide_string_obj(label_a);
+            hide_string_obj(value_a);
+        }
+    }
+    if (label_b != 0 && value_b != 0) {
+        if (krypt_pdata->available_key_coffin && visible) {
+            unhide_string_obj(label_b);
+            unhide_string_obj(value_b);
+        } else {
+            hide_string_obj(label_b);
+            hide_string_obj(value_b);
+        }
+    }
+    krypt_set_wallet_text_visible(visible);
+}
+
+#pragma auto_inline off
+static inline void krypt_set_wallet_text_y(int y) {
+    KryptStringObjLatch* wallet_text;
+    StringObj* text;
+    int i;
+
+    for (i = 0; i < 6; i++) {
+        wallet_text = krypt_pdata->wallet_text;
+        text = MK_LIVE(wallet_text[i].obj, wallet_text[i].obj_instance);
+        if (text != 0) {
+            text->y = y;
+        }
+    }
+}
+
+void force_wallet_to_open_position(void) {
+    ScreenObj* wallet_back;
+    ScreenObj* wallet_front;
+    StringObj* text;
+    KryptStringObjLatch* wallet_text;
+    char value[8];
+    int i;
+
+    wallet_back = MK_LIVE(krypt_pdata->wallet_back.obj, krypt_pdata->wallet_back.obj_instance);
+
+    wallet_front = MK_LIVE(krypt_pdata->wallet_front.obj, krypt_pdata->wallet_front.obj_instance);
+
+    if (wallet_back != 0 && wallet_front != 0) {
+        wallet_back->y = 0;
+        wallet_front->y = 0;
+    }
+
+    krypt_set_wallet_text_y(0x22);
+
+    for (i = 0; i < 6; i++) {
+        format_value_to_display(value, krypt_pdata->profile_common->koin_totals[i]);
+        wallet_text = krypt_pdata->wallet_text;
+        text = MK_LIVE(wallet_text[i].obj, wallet_text[i].obj_instance);
+        if (text != 0) {
+            update_string_obj(text, 0, value);
+        } else {
+            text = string_center_xy(0x8310, 0, value,
+                                    screen_width / 2 + koin_position_offsets[i], 0x22, 0x4B);
+            krypt_pdata->wallet_text[i].obj = text;
+            krypt_pdata->wallet_text[i].obj_instance = text->instance;
+        }
+    }
+    krypt_pdata->wallet_open_ticks = 0x78;
+    krypt_pdata->wallet_open = 1;
+}
+#pragma auto_inline reset
+
+static void set_koin_positions_and_colors(PfxVm* pfx) {
+    int pos_stride;
+    int view_row;
+    int view_col;
+    int row_base;
+    int row_off;
+    int uv_stride;
+    float origin_x;
+    float base_x;
+    int col_off;
+    float base_z;
+    Vec* pos;
+    float z_near;
+    float z_far;
+    int is_open;
+    int row;
+    int col;
+    int coffin_idx;
+    int is_near;
+    float* uv;
+
+    uv = pfx_get_field(pfx, -2, 0x301);
+    uv_stride = pfx_get_struct_size(pfx, 0x301);
+    pos = pfx_get_field(pfx, -2, 0x100);
+    pos_stride = pfx_get_struct_size(pfx, 0x100);
+    tombstone_viewport_origin(&view_row, &view_col);
+    tombstone_grid_origin(view_row, view_col, &origin_x, &base_z);
+    base_x = origin_x;
+
+    for (row_off = 0; row_off < 4; row_off++) {
+        row = view_row + row_off;
+        z_near = s_tomb_koin_z_near + base_z;
+        row_base = row * 0x14;
+        z_far = s_tomb_koin_z_far + base_z;
+        for (col_off = 0; col_off < 9; col_off++) {
+            col = view_col + col_off;
+            coffin_idx = col + row_base;
+            pos->x = base_x;
+            pos->y = 2.5f;
+            is_near = coffin_uses_near_tombstone(coffin_idx);
+            if (is_near != 0) pos->z = z_near;
+            else pos->z = z_far;
+            *uv = (unsigned int)coffin_data[coffin_idx].prize_kind;
+            if ((unsigned int)coffin_data[coffin_idx].prize_kind == 6U) {
+                is_open = get_coffin_bit(
+                    krypt_pdata->profile_common->coffin_bits, coffin_idx) != 0;
+                if (is_open != 0) *uv += 1.0f;
+            }
+            uv = (float*)((char*)uv + uv_stride);
+            pos = (Vec*)((char*)pos + pos_stride);
+            base_x += s_tomb_col_spacing;
+        }
+        base_z -= s_tomb_row_spacing;
+        base_x = origin_x;
+    }
+}
+
+/* TODO: [near miss] 99.61938%; named row_base numbers below the coffin-offset CSE; row*20
+ * must reach pcode before z_far; recover the row-scale owner. */
+static void set_number_positions_and_values(PfxVm* pfx) {
+    Vec* pos;
+    float* uv;
+    int uv_stride;
+    int pos_stride;
+    int view_row;
+    int view_col;
+    int row_base;
+    int row_off;
+    int col_off;
+    int fill;
+    float origin_x;
+    float base_x;
+    float base_z;
+    float column_coordinate;
+    float row_coordinate;
+    float z_near;
+    float z_far;
+    int row;
+    int col;
+    int coffin_idx;
+    unsigned int cost;
+    unsigned int ones;
+    unsigned int tens;
+    unsigned int hundreds;
+    unsigned int thousands;
+    unsigned int slot;
+    int particle;
+
+    particle = 0;
+    uv = pfx_get_field(pfx, -2, 0x301);
+    uv_stride = pfx_get_struct_size(pfx, 0x301);
+    pos = pfx_get_field(pfx, -2, 0x100);
+    pos_stride = pfx_get_struct_size(pfx, 0x100);
+    tombstone_viewport_origin(&view_row, &view_col);
+    column_coordinate = (float)view_col;
+    row_coordinate = (float)view_row;
+    origin_x = s_tomb_col_spacing * column_coordinate + s_tomb_col_origin;
+    base_x = origin_x;
+    base_z = s_tomb_row_origin - s_tomb_row_spacing * row_coordinate;
+
+    for (row_off = 0; row_off < 4; row_off++) {
+        row = view_row + row_off;
+        z_near = s_tomb_z_near + base_z;
+        row_base = row * 0x14;
+        z_far = s_tomb_z_far + base_z;
+        for (col_off = 0; col_off < 9; col_off++) {
+            col = view_col + col_off;
+            coffin_idx = col + row_base;
+            cost = coffin_data[coffin_idx].cost;
+            thousands = cost / 1000;
+            hundreds = (cost / 100) - thousands * 10;
+            tens = (cost / 10) - thousands * 100 - hundreds * 10;
+            ones = cost - thousands * 1000 - hundreds * 100 - tens * 10;
+            slot = 0;
+
+            if (thousands != 0) {
+                pos->x = base_x - s_tomb_digit_x_outer;
+                if ((unsigned int)coffin_data[coffin_idx].prize_kind == 6U)
+                    pos->y = -10.0f;
+                else pos->y = 1.6f;
+                if ((unsigned int)coffin_data[coffin_idx].coffin_type == 4U)
+                    pos->z = z_near;
+                else pos->z = z_far;
+                pos = (Vec*)((char*)pos + pos_stride);
+                particle += 1;
+                slot = 4;
+                *uv = thousands;
+                uv = (float*)((char*)uv + uv_stride);
+            }
+
+            if (slot == 4) {
+                pos->x = base_x - s_tomb_digit_x_inner;
+            } else if (hundreds != 0) {
+                slot = 3;
+                pos->x = base_x - s_tomb_digit_x_mid;
+            }
+
+            if (slot >= 3) {
+                if ((unsigned int)coffin_data[coffin_idx].prize_kind == 6U)
+                    pos->y = -10.0f;
+                else pos->y = 1.6f;
+                if ((unsigned int)coffin_data[coffin_idx].coffin_type == 4U)
+                    pos->z = z_near;
+                else pos->z = z_far;
+                pos = (Vec*)((char*)pos + pos_stride);
+                particle += 1;
+                *uv = hundreds;
+                uv = (float*)((char*)uv + uv_stride);
+            }
+
+            if (slot == 4) {
+                pos->x = base_x + s_tomb_digit_x_inner;
+            } else if (slot == 3) {
+                pos->x = base_x;
+            } else if (tens != 0) {
+                slot = 2;
+                pos->x = base_x - s_tomb_digit_x_inner;
+            }
+
+            if (slot >= 2) {
+                if ((unsigned int)coffin_data[coffin_idx].prize_kind == 6U)
+                    pos->y = -10.0f;
+                else pos->y = 1.6f;
+                if ((unsigned int)coffin_data[coffin_idx].coffin_type == 4U)
+                    pos->z = z_near;
+                else pos->z = z_far;
+                pos = (Vec*)((char*)pos + pos_stride);
+                particle += 1;
+                *uv = tens;
+                uv = (float*)((char*)uv + uv_stride);
+            }
+
+            if (slot == 4) {
+                pos->x = base_x + s_tomb_digit_x_outer;
+            } else if (slot == 3) {
+                pos->x = base_x + s_tomb_digit_x_mid;
+            } else if (slot == 2) {
+                pos->x = base_x + s_tomb_digit_x_inner;
+            } else {
+                pos->x = base_x;
+                slot = 1;
+            }
+
+            if (slot >= 1) {
+                if ((unsigned int)coffin_data[coffin_idx].prize_kind == 6U)
+                    pos->y = -10.0f;
+                else pos->y = 1.6f;
+                if ((unsigned int)coffin_data[coffin_idx].coffin_type == 4U)
+                    pos->z = z_near;
+                else pos->z = z_far;
+                pos = (Vec*)((char*)pos + pos_stride);
+                particle += 1;
+                *uv = ones;
+                uv = (float*)((char*)uv + uv_stride);
+            }
+
+            base_x += s_tomb_col_spacing;
+        }
+        base_z -= s_tomb_row_spacing;
+        base_x = origin_x;
+    }
+
+    fill = particle;
+    while (fill < pfx->particle_cursor) {
+        pos->x = 0.0f;
+        pos->y = -1.0f;
+        pos->z = 0.0f;
+        pos = (Vec*)((char*)pos + pos_stride);
+        *uv = 0.0f;
+        uv = (float*)((char*)uv + uv_stride);
+        fill += 1;
+    }
+}
+
+static void set_letter_positions_and_values(PfxVm* pfx) {
+    int col;
+    int uv_stride;
+    float origin_x;
+    float base_x;
+    int pos_stride;
+    int view_row;
+    int view_col;
+    int row_off;
+    Vec* pos;
+    float* uv;
+    float base_z;
+    int opened;
+    int coffin_idx;
+    int is_near;
+
+    uv = pfx_get_field(pfx, -2, 0x301);
+    uv_stride = pfx_get_struct_size(pfx, 0x301);
+    pos = pfx_get_field(pfx, -2, 0x100);
+    pos_stride = pfx_get_struct_size(pfx, 0x100);
+    tombstone_viewport_origin(&view_row, &view_col);
+    origin_x = s_tomb_col_spacing * (float)view_col + s_tomb_col_origin;
+    base_x = origin_x;
+    base_z = s_tomb_row_origin - s_tomb_row_spacing * (float)view_row;
+
+    for (row_off = 0; row_off < 4; row_off++) {
+        int col_off;
+        float z_near;
+        float z_far;
+        z_near = s_tomb_z_near + base_z;
+        z_far = s_tomb_z_far + base_z;
+        for (col_off = 0; col_off < 9; col_off++) {
+            int letter_bias;
+            opened = get_coffin_bit(
+                krypt_pdata->profile_common->coffin_bits,
+                col_off + (view_col + (view_row + row_off) * 0x14));
+            col = view_col + col_off;
+            coffin_idx = col + (view_row + row_off) * 0x14;
+            if (opened) letter_bias = 0x20;
+            else letter_bias = 0;
+
+            pos->x = base_x - 0.14f;
+            pos->y = 1.9f;
+            is_near = coffin_uses_near_tombstone(coffin_idx);
+            if (is_near != 0) pos->z = z_near;
+            else pos->z = z_far;
+            *uv = letter_bias + (view_row + row_off);
+            uv = (float*)((char*)uv + uv_stride);
+            pos = (Vec*)((char*)pos + pos_stride);
+
+            pos->x = base_x + 0.14f;
+            pos->y = 1.9f;
+            if ((unsigned int)coffin_data[coffin_idx].coffin_type == 4U)
+                pos->z = z_near;
+            else pos->z = z_far;
+            base_x += s_tomb_col_spacing;
+            *uv = letter_bias + col;
+            uv = (float*)((char*)uv + uv_stride);
+            pos = (Vec*)((char*)pos + pos_stride);
+        }
+        base_z -= s_tomb_row_spacing;
+        base_x = origin_x;
+    }
+}
+
+static void init_tombstone_koins(void* pfx) {
+    init_tombstone_common(pfx, 0x24, 0.4f, 0x012a0004, 0x80, 0x2a, 0x2a, 0x8);
+}
+
+static void init_tombstone_numbers(void* pfx) {
+    init_tombstone_common(pfx, 0x90, 0.18f, 0x012a0006, 0x80, 0x20, 0x2a, 0xa);
+}
+
+static void init_tombstone_letters(void* pfx) {
+    init_tombstone_common(pfx, 0x48, 0.3f, 0x012a0005, 0x100, 0x20, 0x20, 0x40);
+}
+
+static float update_tombstone_koins(void) {
+    return update_tombstone_common(set_koin_positions_and_colors);
+}
+
+static float update_tombstone_numbers(void) {
+    return update_tombstone_common(set_number_positions_and_values);
+}
+
+static float update_tombstone_letters(void) {
+    return update_tombstone_common(set_letter_positions_and_values);
+}
+static float p_play_random_noise(void) {
+    static unsigned short number_of_sounds_left = 35;
+    unsigned short index;
+    unsigned int sound;
+    int last_sound;
+    float pan;
+    unsigned int delay;
+
+    index = randu0(number_of_sounds_left);
+    sound = background_sounds[index];
+    last_sound = background_sounds[number_of_sounds_left - 1];
+    background_sounds[number_of_sounds_left - 1] = background_sounds[index];
+    background_sounds[index] = last_sound;
+    if (--number_of_sounds_left == 0) {
+        number_of_sounds_left = 35;
+    }
+
+    pan = sfrand(2.0f);
+    delay = (unsigned short)randu0(180) + 480;
+    pan_snd_req(sound, pan);
+    return delay;
+}
+static float p_monitor_krypt_characters(void) {
+    struct KryptCharacterMonitorPdata* pdata;
+    struct KryptCharacterAnimProcPdata* animation_pdata;
+    CameraPdata* camera;
+    char** character_names;
+    unsigned int* character_scripts;
+    MkObj* object;
+    MkProc* proc;
+    unsigned int script_index;
+    unsigned int script_row;
+
+    pdata = (struct KryptCharacterMonitorPdata*)pdata_of_proc(aproc);
+    camera = get_pdata_of_camera();
+    if (camera == 0) {
+        return -1.0f;
+    }
+    if (pdata->elapsed_ticks >= pdata->delay_ticks && camera->flags_bits.pos_done != 0) {
+        character_names = get_data_table_by_name("krypt_character_names");
+        character_scripts =
+            get_data_table_by_name("krypt_character_info_table");
+        object = load_krypt_character(
+            character_names[(unsigned short)randu0((unsigned short)get_row_count_for_table_by_pointer(
+                g_game_info.cmdscript, character_names))]);
+        script_row = (unsigned short)randu0(
+            (unsigned short)get_row_count_for_table_by_pointer(
+                g_game_info.cmdscript, character_scripts));
+        if (object != 0) {
+            script_index = character_scripts[script_row];
+            animation_pdata = 0;
+            proc = _create_mkproc_generic_bigstack(
+                0x8240, 0x1F, p_run_character_animation,
+                sizeof(struct KryptCharacterAnimProcPdata),
+                (MkHdr**)&animation_pdata);
+            if (proc != 0 && animation_pdata != 0) {
+                zero_pdata_payload(sizeof(struct KryptCharacterAnimProcPdata),
+                                   &animation_pdata->hdr);
+                animation_pdata->obj = &object->hdr;
+                animation_pdata->obj_instance = object->hdr.instance;
+                animation_pdata->script_index = script_index;
+                set_process_as_scriptable(proc);
+                mk_insert(&object->hdr, &proc->pdata_list_b);
+            }
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        mkproc_sleep();
+        while (find_mkproc_pid(0x8240) != 0) {
+            _mkproc_sleep_ticks = 1.0f;
+            mkproc_sleep();
+        }
+        pdata->delay_ticks = (unsigned short)randu0(0x12C) + 0x12C;
+        pdata->elapsed_ticks = 0;
+    } else {
+        pdata->elapsed_ticks++;
+    }
+    return 1.0f;
+}
+
+static float p_krypt_animate(void) {
+    AnimPdata* animation;
+    MkObj* object;
+    float frame_delta;
+    float volume;
+
+    if (krypt_pdata->anim_pdata->last_update_tick != (unsigned int)exec_tick_ctr) {
+        advance_anim(krypt_pdata->anim_pdata);
+        pose_anim(krypt_pdata->anim_pdata, 1);
+        animation = krypt_pdata->anim_pdata;
+        if (animation->high_frame == 76.0f) {
+            frame_delta = animation->frame -
+                          (float)footstep_frames[0][krypt_pdata->footstep_frame_index];
+            frame_delta = frame_delta >= 0.0f ? frame_delta : -frame_delta;
+            if (frame_delta < animation->step) {
+                object = MK_HDR_LIVE(animation->obj, animation->obj_instance);
+
+                volume = get_volume_from_distance(&object->pos.value, 40.0f, 10.0f);
+                if (volume) {
+                    pan_vol_pitch_random_snd_req(
+                        0x2B, get_pan_value(&object->pos.value), volume, 1.0f);
+                }
+            }
+            krypt_pdata->footstep_frame_index++;
+            if (krypt_pdata->footstep_frame_index >= 2) {
+                krypt_pdata->footstep_frame_index = 0;
+            }
+        } else if (animation->high_frame == 43.0f) {
+            frame_delta = animation->frame -
+                          (float)footstep_frames[1][krypt_pdata->footstep_frame_index];
+            frame_delta = frame_delta >= 0.0f ? frame_delta : -frame_delta;
+            if (frame_delta < animation->step) {
+                object = MK_HDR_LIVE(animation->obj, animation->obj_instance);
+
+                volume = get_volume_from_distance(&object->pos.value, 40.0f, 10.0f);
+                if (volume) {
+                    pan_vol_pitch_random_snd_req(
+                        0x2A, get_pan_value(&object->pos.value), volume, 1.0f);
+                }
+            }
+            krypt_pdata->footstep_frame_index++;
+            if (krypt_pdata->footstep_frame_index >= 2) {
+                krypt_pdata->footstep_frame_index = 0;
+            }
+        }
+    }
+    return 1.0f;
+}
+
+static inline MkObj* load_krypt_character_model(char* character_name) {
+    MkObj* object;
+    MkSobj* sobj;
+    char section_name[0x40];
+
+    load_ssf(kon_unique_npcs_file_table);
+    sprintf(section_name, "kon_%s.sec", character_name);
+    strlwr(section_name);
+    load_art_section_by_name(0x140065, section_name);
+    object = load_named_model_from_slot(0x140065, "NPC", 0x8312, 0);
+    if (object != 0) {
+        Vec scale = {1.7f, 1.7f, 1.7f};
+
+        obj_create_sobjs(object);
+        sobj = obj_first_sobj(object);
+        if (sobj != 0) {
+            sobj->flags09_bits.bit4 = 0;
+            sobj->flags09_bits.bit2 = 0;
+        }
+        object->flags_08_bits.airborne = 1;
+        object->flags_08_bits.angular_velocity_enabled = 1;
+        object->flags_08_bits.scale_active = 1;
+        build_bones_tbl(object, konquest_human_bones);
+        object->flipped_bone_map = &flipped_konquest_human_bones;
+        object->flags_09_bits.launched = 1;
+        object->flags_09_bits.bit6 = 1;
+        object->ground_colls = monk_ground_colls;
+        object->light_flags = 4;
+        hide_obj(object);
+        object->scale.x = scale.x;
+        object->scale.y = scale.y;
+        object->scale.z = scale.z;
+        krypt_pdata->anim_proc =
+            create_mkproc_anim(0x5002, p_krypt_animate, &krypt_pdata->anim_pdata);
+        if (krypt_pdata->anim_proc != 0) {
+            krypt_pdata->anim_pdata->obj = object;
+            krypt_pdata->anim_pdata->obj_instance = object->hdr.instance;
+            set_root_and_obj_movement_weights(krypt_pdata->anim_pdata, 0.0f, 1.0f);
+            krypt_pdata->anim_pdata->step = 1.0f;
+            set_anim_script(
+                krypt_pdata->anim_pdata,
+                bgnd_animations[0], 0);
+        }
+        insert_ground_me_mkobj(object);
+        insert_fgnd_mkobj(object);
+        update_mkobj(object);
+    }
+    return object;
+}
+
+MkObj* load_krypt_character(char* character_name) {
+    if (find_mkproc_pid(0x8240) != 0) {
+        return 0;
+    }
+    return load_krypt_character_model(character_name);
+}
+
+static float p_run_character_animation(void) {
+    struct KryptCharacterAnimProcPdata* pdata;
+    MkHdr* obj;
+    AnimPdata* animation;
+
+    pdata = (struct KryptCharacterAnimProcPdata*)pdata_of_proc(aproc);
+    if (pdata == 0) {
+        return -1.0f;
+    }
+    cmdscript_setup_execution(g_game_info.cmdscript, pdata->script_index);
+    cmdscript_execute(g_game_info.cmdscript);
+
+    obj = MK_LIVE(pdata->obj, pdata->obj_instance);
+
+    if (obj != 0) {
+        if (MK_LIVE(krypt_pdata->anim_pdata->proc, krypt_pdata->anim_pdata->proc_instance) != 0) {
+            animation = krypt_pdata->anim_pdata;
+            if (animation->proc->instance != 0) {
+                animation->proc->hdr.typed_vtbl->destroy((MkHdr*)animation->proc);
+            }
+            krypt_pdata->anim_pdata->proc = 0;
+            krypt_pdata->anim_pdata->proc_instance = 0;
+        }
+        if (krypt_pdata->anim_pdata->hdr.instance != 0) {
+            krypt_pdata->anim_pdata->hdr.typed_vtbl->destroy(
+                (MkHdr*)krypt_pdata->anim_pdata);
+        }
+        krypt_pdata->anim_pdata = 0;
+        krypt_pdata->anim_proc = 0;
+    }
+    return -1.0f;
+}
+void set_krypt_character_pos(Vec* position) {
+    MkObjLatch* pdata;
+    MkObj* obj;
+
+    pdata = (MkObjLatch*)pdata_of_proc(aproc);
+    if (pdata != 0) {
+        obj = (MkObj*)MK_LIVE(pdata->obj, pdata->obj_instance);
+        if (obj != 0) {
+            obj->hide_flag_bits.pin_animation = 0;
+            obj->pos.value.x = position->x;
+            obj->pos.value.y = position->y;
+            obj->pos.value.z = position->z;
+            update_mkobj(obj);
+        }
+    }
+}
+void set_krypt_character_angle(void* script_args, float angle) {
+    MkObjLatch* pdata;
+    MkObj* obj;
+
+    pdata = (MkObjLatch*)pdata_of_proc(aproc);
+    if (pdata != 0) {
+        obj = (MkObj*)MK_LIVE(pdata->obj, pdata->obj_instance);
+        if (obj != 0) {
+            obj->hide_flag_bits.pin_animation = 0;
+            obj->ang.y = angle;
+            update_mkobj(obj);
+        }
+    }
+}
+void set_krypt_character_previous_root_angle(void* script_args, float angle) {
+    MkObjLatch* pdata;
+    MkObj* obj;
+
+    pdata = (MkObjLatch*)pdata_of_proc(aproc);
+    if (pdata != 0) {
+        obj = (MkObj*)MK_LIVE(pdata->obj, pdata->obj_instance);
+        if (obj != 0) {
+            obj->bone_angle_68 = angle;
+            update_mkobj(obj);
+        }
+    }
+}
+void set_krypt_character_anim_script(
+    int animation_id, int flags, void* script_args, float step) {
+    krypt_pdata->footstep_frame_index = 0;
+    set_anim_script(
+        krypt_pdata->anim_pdata,
+        get_animation(animation_id), flags);
+    krypt_pdata->anim_pdata->step = step;
+}
+
+void transition_to_krypt_character_anim_script(
+    int animation_id, int flags, int step) {
+    krypt_pdata->footstep_frame_index = 0;
+    transition_to_anim_script(0.1f, krypt_pdata->anim_pdata, get_animation(animation_id), flags);
+    krypt_pdata->anim_pdata->step = step;
+}
+
+int get_krypt_current_row(void) {
+    return krypt_pdata->current_row;
+}
+
+int get_krypt_current_column(void) {
+    return krypt_pdata->current_column;
+}
+
+void* get_krypt_character_obj(void) {
+    MkObjLatch* pdata;
+    MkHdr* obj;
+
+    pdata = (MkObjLatch*)pdata_of_proc(aproc);
+    if (pdata == 0) {
+        return 0;
+    }
+
+    obj = MK_LIVE(pdata->obj, pdata->obj_instance);
+    if (obj != 0) {
+        return obj;
+    }
+    return 0;
+}
+
+void* get_krypt_anim_pdata(void) {
+    return krypt_pdata->anim_pdata;
+}
+float p_kontent(void) {
     MkProc* proc;
 
     set_section_memory_scheme(7);
-    proc = _create_mkproc_generic_bigstack(
-        0x2001, 0x23, p_init_krypt_mode, sizeof(KryptPdata),
-        (MkHdr**)&krypt_pdata);
+    proc = _create_mkproc_generic_bigstack(0x2001, 0x23, p_kontent_setup, sizeof(struct KontentPdata),
+                                           (MkHdr**)&kontent_pdata);
     if (proc != 0) {
-        set_process_as_scriptable(proc);
         return -1.0f;
     }
     gamelogic_jump(0, p_atm_loop);
     return -1.0f;
+}
+
+float p_kontent_setup(void) {
+    zero_pdata_payload(sizeof(struct KontentPdata), (MkHdr*)kontent_pdata);
+    mode_of_play = 5;
+    if (menu_player == 0) {
+        kontent_pdata->player_port = g_game_info.plyr0.pad_index;
+        set_player_state(&g_game_info.plyr0, 2);
+        kontent_pdata->profile = &p1_profile;
+        kontent_pdata->profile_common = p1_profile_common;
+        winner_for_ending = 0;
+    } else {
+        kontent_pdata->player_port = g_game_info.plyr1.pad_index;
+        set_player_state(&g_game_info.plyr1, 2);
+        move_profile_p1_to_p2();
+        kontent_pdata->profile = &p2_profile;
+        kontent_pdata->profile_common = p2_profile_common;
+        winner_for_ending = 1;
+    }
+    gallery_data_loaded = 0;
+    kontent_pdata->category = get_menu_mode_sub_var() - 0x2BE;
+    load_ssf(galleryart_file_table);
+    if (gallery_data_loaded == 0) {
+        krypt_load_gallery_data();
+    }
+    switch (kontent_pdata->category) {
+    case 2:
+        load_art_section(0x150068, &sec_ending_thumbs);
+        break;
+    default:
+        load_art_section(0x150068, &sec_krypt_thumbs);
+        break;
+    }
+    load_ssf(krypt_art_file_table);
+    load_screen("common/kontent/kontent_main", 0x140064, 0, 1);
+    turn_camera_on();
+    turn_controllers_on();
+    disable_all_ports_but_me(kontent_pdata->player_port);
+    wait_for_screen_close();
+    if (prize_description_block != 0) {
+        free_mem(prize_description_block);
+    }
+    if (coffin_data != 0) {
+        free_mem(coffin_data);
+        coffin_data = 0;
+    }
+    gamelogic_jump(6, p_main_menu);
+    return -1.0f;
+}
+
+int get_number_kontent_items(void) {
+    int i;
+    int valid;
+    CoffinEntry* entry;
+
+    kontent_pdata->item_count = 0;
+    switch (kontent_pdata->category) {
+    case 2:
+        for (i = 0; i < 0x2C; i++) {
+            if (is_mark_as_unlocked(kontent_pdata->profile, 6, i) != 0 &&
+                get_ending_thumbnail_name(i) != 0) {
+                kontent_pdata->items[kontent_pdata->item_count] = i;
+                kontent_pdata->item_count++;
+            }
+        }
+        break;
+    case 0:
+    case 1:
+    case 4:
+        for (i = 400; i < 439; i++) {
+            entry = &coffin_data[i];
+            valid = coffin_matches_kontent_category(entry);
+            if (valid != 0) {
+                kontent_pdata->items[kontent_pdata->item_count] = i;
+                kontent_pdata->item_count++;
+            }
+        }
+    default:
+    case 3:
+        for (i = 0; i < 400; i++) {
+            if (get_coffin_bit(kontent_pdata->profile_common->coffin_bits, i) != 0) {
+                entry = &coffin_data[i];
+                valid = coffin_matches_kontent_category(entry);
+                if (valid != 0) {
+                    kontent_pdata->items[kontent_pdata->item_count] = i;
+                    kontent_pdata->item_count++;
+                }
+            }
+        }
+        break;
+    }
+    return kontent_pdata->item_count;
+}
+void create_gallery_image_list(GVTexturePair out, int count) {
+    int i;
+    int coffin;
+    unsigned int oid;
+    char* name;
+
+    for (i = 0; i < count; i++) {
+        if (kontent_pdata->category == 2) {
+            coffin = kontent_pdata->items[i];
+            name = get_ending_thumbnail_name(coffin);
+            out.colors[i] = load_named_tga_from_slot(0x150068, name);
+        } else {
+            coffin = kontent_pdata->items[i];
+            if (gallery_data_loaded == 0) {
+                oid = 0;
+            } else if (coffin < 0 || coffin > 0x1B7) {
+                oid = 0;
+            } else {
+                oid = (unsigned int)coffin_data[coffin].gallery_art | 0x03E90000;
+            }
+            out.colors[i] = load_tga(0x150068, oid);
+        }
+    }
+}
+
+void kontent_set_current_selection(int selection) {
+    kontent_pdata->current_selection = selection;
+}
+
+static int kontent_gallery_movie_tapout(void) {
+    scan_switches();
+    if (check_switch_edge(kontent_pdata->player_port, 0xB) != 0 ||
+        check_switch_edge(kontent_pdata->player_port, 6) != 0) {
+        return 1;
+    }
+    return 0;
+}
+
+void start_loading_kontent_image(void) {
+    CoffinEntry* entries;
+    int coffin;
+    int type;
+    int movie;
+    MkFileInfo* section;
+
+    coffin = kontent_pdata->items[kontent_pdata->current_selection];
+    if (kontent_pdata->item_count == 0) {
+        return;
+    }
+    eat_switch_edge(kontent_pdata->player_port, 6);
+    if (kontent_pdata->category == 2) {
+        if (kontent_pdata->current_selection < kontent_pdata->item_count) {
+            pause_screen_engine(1);
+            run_ending(coffin);
+            eat_switch_edge(kontent_pdata->player_port, 6);
+            pause_screen_engine(0);
+            fade_from_black(8, 1);
+        }
+        return;
+    }
+
+    entries = coffin_data;
+    if (gallery_data_loaded == 0) {
+        type = -1;
+    } else if (coffin < 0 || coffin > 0x1B7) {
+        type = -1;
+    } else {
+        type = coffin_data[coffin].kontent_type;
+    }
+    if (type == 5 || type == 9) {
+        if (gallery_data_loaded == 0) {
+            movie = -1;
+        } else if (coffin < 0 || coffin > 0x1B7) {
+            movie = -1;
+        } else if ((unsigned int)entries[coffin].movie_kind == 0x14U) {
+            movie = entries[coffin].unlock_or_movie;
+        } else {
+            movie = -1;
+        }
+        if (movie != -1) {
+            play_movie(movie, kontent_gallery_movie_tapout);
+        }
+    } else if (kontent_pdata->current_selection < kontent_pdata->item_count) {
+        load_ssf(krypt_art_file_table);
+        entries = coffin_data;
+        if (gallery_data_loaded != 0) {
+            section = get_mk_file_info_from_current_ssf(entries[coffin].gallery_art);
+            unload_section_slot(0x150067);
+            load_art_section_async(0x150067, section);
+        }
+        fire_screen_studio_event(0x1FEA, 1);
+    }
+}
+void create_fullscreen_gallery_image_list(GVTexturePair out, int count) {
+    int coffin;
+    MkFileInfo* section;
+    unsigned int oid;
+    int gallery_art;
+    int i;
+    StringObj* text;
+    CoffinEntry* entry;
+
+    coffin = kontent_pdata->items[kontent_pdata->current_selection];
+    entry = coffin_data;
+    if (gallery_data_loaded == 0) {
+        oid = 0;
+    } else {
+        gallery_art = entry[coffin].gallery_art;
+        section = get_mk_file_info_from_current_ssf(gallery_art);
+        if (is_section_loading_or_loaded(0x150067, section) == 0) {
+            unload_section_slot(0x150067);
+        }
+        load_art_section(0x150067, section);
+        oid = (gallery_art + 0x3EA) * 0x10000U | 2;
+    }
+    for (i = 0; i < count; i++) {
+        out.colors[i] = load_tga(0x150067, oid + i);
+    }
+
+    if (kontent_pdata->category == 0) {
+        load_ssf(bio_text_file_table);
+        load_string_bank(0x20000, "bio_strings_eng.mko");
+        load_ssf(bios_file_table);
+        load_art_section(0x11005C, &sec_eu_biofont);
+        load_font_in_slot(0x10, 0x11005C, 0x1490001, 0x1490000);
+        entry = &coffin_data[coffin];
+        text = put_bio_text(entry->unlock_or_movie, entry->kontent_type != 0xD);
+        if (text != 0) {
+            kontent_pdata->bio_text = text;
+            kontent_pdata->bio_text_instance = text->instance;
+        }
+    }
+}
+
+char* get_coffin_blurb(void) {
+    int selection;
+    int coffin;
+    CoffinEntry* entries;
+
+    selection = kontent_pdata->current_selection;
+    coffin = kontent_pdata->items[selection];
+    if (selection < kontent_pdata->item_count) {
+        if (kontent_pdata->category == 2) {
+            return global_player_data[coffin].name;
+        }
+        entries = coffin_data;
+        if (gallery_data_loaded == 0) {
+            return 0;
+        }
+        if (coffin < 0 || coffin > 0x1B7) {
+            return 0;
+        }
+        return entries[coffin].blurb;
+    }
+    return "";
+}
+
+char* get_long_coffin_description(void) {
+    return gallery_coffin_long_description(kontent_pdata->items[kontent_pdata->current_selection]);
+}
+
+void get_gallery_page_number_string(char* out) {
+    sprintf(out, "%d of %d", kontent_pdata->current_selection / 12 + 1,
+            (kontent_pdata->item_count - 1) / 12 + 1);
+}
+
+void kill_kontent_bio_text(void) {
+    StringObj* text;
+
+    text = kontent_bio_text_live();
+    if (text != 0) {
+        if (text->instance != 0) {
+            text->typed_vtbl->destroy(text);
+        }
+        kontent_pdata->bio_text = 0;
+        kontent_pdata->bio_text_instance = 0;
+    }
+}
+
+void unhide_kontent_bio_text(void) {
+    StringObj* text;
+
+    text = kontent_bio_text_live();
+    if (text != 0) {
+        unhide_string_obj(text);
+    }
+}
+
+void hide_kontent_bio_text(void) {
+    StringObj* text;
+
+    text = kontent_bio_text_live();
+    if (text != 0) {
+        hide_string_obj(text);
+    }
 }
