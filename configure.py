@@ -1031,7 +1031,7 @@ config.libs = [
                    extra_cflags=(["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly", "-inline noauto,deferred"] if config.version == "GQNE5D" else (["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]))),
             Object(NonMatching, "collision.o", source="game/collision.c",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline noauto"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline noauto,deferred"]),
             Object((Matching if config.version == "GQNE5D" else (NonMatching)), "ejb.o", source="game/ejb.c",
                    extra_cflags=["-inline noauto", "-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "moves.o", source="game/moves.c",

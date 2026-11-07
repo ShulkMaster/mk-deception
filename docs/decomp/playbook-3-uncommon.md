@@ -1061,7 +1061,14 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   (score with an extra flag). After the conversion rerun decl-order
   search under the new flag: old near-miss sweeps are void (`krypt`
   `start_opening_coffin_effects` 97.60 -> 100: exhaustive 7-local declclimb
-  + named call result passed on, H31).
+  + named call result passed on, H31). Byte-identity gate first: diff the
+  reversed object vs current (every function, `.text` order, data bytes +
+  relocs, symbol layout). Identical = deferred buys nothing; skip the sweep
+  rerun, residues are not inline-mode (`collision`: 80/80 identical under
+  noauto and auto + off pairs). `reverse_deferred_tu.py` carries only
+  `#pragma X on|off`..`reset` pairs: move other pairs (`optimization_level
+  0`) with their function by hand (`update_collision_obj_pos` 90.19 left
+  behind).
 - Recovered ordinary helpers under deferred emission: REQUIRE retail inline
   expansions, donor body + MAP evidence, and every function/data comparison.
   TRY reversed helper definitions with paired `auto,deferred`
