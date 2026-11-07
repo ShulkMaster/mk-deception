@@ -1115,6 +1115,14 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   `start_fatality`, `start_2nd_fatality` and `fade_fatality_screen`
   together). Define it after the callee: non-deferred `-inline auto` never
   inlines a later definition.
+- Accessor near miss through a helper absent from MAP: REQUIRE a MAP-UNUSED
+  entry equal to the out-of-line size of a real accessor shape. TRY that shape
+  at every site, delete the invention, keep other sites byte-identical:
+  value-returning `mk_chess_get_piece_at_cell(uchar x, uchar y)` 0x28 for an
+  invented `&...piece` slot helper (load emitted inside the inline body, before
+  the outer class-table base: `mk_chess_spell_get_target_max_health`); shared
+  variable-index `mk_chess_fetch_piece_script(piece, 0)` 0x5c for a literal
+  `[0]` copy (keeps `base+0x6c` then `lwzx`: `mk_chess_set_piece_type_as`).
 - Deferred TU (`-inline auto,deferred`): later definitions inline too; MAP
   UNUSED order is reverse definition order (place helpers there; free
   helpers need prototypes). Big MAP-UNUSED helper restored by size stays a
@@ -4373,6 +4381,13 @@ storing, advance cursors after stores, load node output ptr before size store
   edge). REQUIRE semantic evidence before any `volatile` (ISR-written global,
   no fake volatile). Check destination decls before statement order
   (`gc_native_display_pass_to_RW`: ISR-written RW XFB pointers `volatile`).
+- Loop tail copy `last = cur` hoisted above a row update, retail issues it
+  after the store (its temps reuse `last`'s register): the copy is a WAR
+  predecessor of `cur += step`; once the other reader of `cur` issues it
+  uncovers the add and wins every free slot. REQUIRE `sched.py --trace` plus
+  `scheduler_dependency_probe.py` show that edge. TRY copy first, update
+  through `last`, step after the update, for the coordinate on the critical
+  address path (`mk_chess_iterate_thru_move` y side, partial; x side open).
 
 - Independent stores in swapped order flipped functions exact:
   `atm_demo_fight` (store before timer-off zero),

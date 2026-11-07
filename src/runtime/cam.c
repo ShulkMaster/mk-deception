@@ -542,12 +542,12 @@ static inline void camera_capture_forward_look(Vec* const look_position,
     float position_y = position->y;
     float position_z = position->z;
 
+    look_position->z = position_z;
     forward_step.x = 2.0f * cam_forward_uv.x;
     forward_step.y = 2.0f * cam_forward_uv.y;
     forward_step.z = 2.0f * cam_forward_uv.z;
     look_position->x = position_x;
     look_position->y = position_y;
-    look_position->z = position_z;
     look_position->x += forward_step.x;
     look_position->y += forward_step.y;
     look_position->z += forward_step.z;
@@ -5796,8 +5796,8 @@ static inline int camera_target_within_step(const Vec* current,
     return remaining_length < step_length;
 }
 
-/* TODO: [breakthrough needed] 99.79729%; both forward-look captures splice the first position load into
- * its store (IroPropagate single use); retail keeps all three: recover the barrier that prevents it. */
+/* TODO: [near miss] 99.96622%; get_target_movement_vector_impl numbers the units_per_tick load above the
+ * direction.x product (retail below it); the out-of-line wrapper needs its three static reads. */
 static float generic_victory_camera(void) {
     MkProc* camera_proc = camera_info.proc;
     CameraPdata* pdata = camera_info.pdata;

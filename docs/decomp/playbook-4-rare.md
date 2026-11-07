@@ -258,6 +258,15 @@ joint sweep of recorded neutrals before any soft ceiling.
   count as uses), then sum into the named owner
   (`radial_move_to_game_position`: `next_radius = x*x; target_radius =
   next_radius + z*z;` exact; a fresh single-use local fuses to `fmadds`).
+  Correction (`generic_victory_camera` 99.80 -> 99.97): retail splices one
+  component too; the residue was the spliced load's NUMBER. IF why.py pairs
+  the spliced `cg-temp` load against a pooled-constant `cg-temp` (`2.0f`
+  load) and wants it numbered lower, REQUIRE both webs `cg-temp` (emission
+  order), TRY writing the spliced component's store first, before the
+  constant's first use (`look->z = z; step = 2.0f*uv; look->x = x; look->y =
+  y; look->* += step`): the splice follows the first store, its load is
+  emitted there, and the other two stay named inline locals. Moving all
+  three stores before the products changes the structure (26 rows).
 - Scalarized Vec holder for repeated scaled-offset pairs. IF a function adds
   `K * v.x` / `K * v.z` into pointer components at several sites
   (`p->x += (float)(K * v.x); p->z += (float)(K * v.z);`), the schedule already

@@ -13348,8 +13348,32 @@ static inline void player_add_item_to_inventory_inline(KonquestPuiDefinition* it
     }
 }
 
-/* TODO: [near miss] 99.4662%; item/pui homes swap: item needs +2 phantom degree (two copies live
- * across item, not the find pui); recover that copy/inline boundary. */
+static inline MkHdr* konquest_live_award_text(struct KonquestPdata* owner) {
+    MkHdr* object = owner->award_text.object;
+    if (object != 0) {
+        if (object->instance == owner->award_text.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
+static inline MkHdr* konquest_live_award_art(struct KonquestPdata* owner) {
+    MkHdr* object = owner->award_art.object;
+    if (object != 0) {
+        if (object->instance == owner->award_art.instance) {
+            return object;
+        }
+        object = 0;
+    } else {
+        object = 0;
+    }
+    return object;
+}
+
 void pickup_pui(KonquestPuiDefinition* item) {
     KonquestPuiRuntime* pui;
     struct KonquestKoinAwardPdata* award;
@@ -13404,10 +13428,8 @@ void pickup_pui(KonquestPuiDefinition* item) {
     if (item->type >= 3 && item->type <= 8) {
         award = 0;
         if (find_mkproc_pid(0x8247) != 0) {
-            object = MK_LIVE(konquest_pdata->award_text.object,
-                             konquest_pdata->award_text.instance);
-            art_object = MK_LIVE(konquest_pdata->award_art.object,
-                                 konquest_pdata->award_art.instance);
+            object = konquest_live_award_text(konquest_pdata);
+            art_object = konquest_live_award_art(konquest_pdata);
             if (object != 0) {
                 if (object->instance != 0) {
                     object->typed_vtbl->destroy(object);
