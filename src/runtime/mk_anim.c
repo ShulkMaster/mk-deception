@@ -3315,8 +3315,8 @@ MkBone* alloc_bone(void) {
     return bone;
 }
 
-/* TODO: [breakthrough needed] 96.25288%; search still shares the bone-table root;
- * recover its reload boundary while preserving tail/flag reuse and tag stores. */
+/* TODO: [near miss] 99.87%; hierarchy-loop -1/0 store constants and node_id
+ * swap volatile homes (r0/r5/r6); structure and saved homes agree. */
 static void process_obj_bones(MkObj* obj, int* tags) {
     RpClump* clump = obj->clump;
     RpHAnimHierarchy* found_hierarchy = 0;
@@ -3324,14 +3324,16 @@ static void process_obj_bones(MkObj* obj, int* tags) {
     MkBone* parent_stack[256];
     int bone_indices[256];
     MkBone* linked_bones[256];
-    MkBone* parent;
-    int next_unmapped;
-    RwMatrix* matrix;
-    int bone_count;
-    int hierarchy_count;
-    int first_root;
-    int stack_index;
+    MkBone* bone;
     int i;
+    RpHAnimNodeInfo* node;
+    RwMatrix* matrix;
+    int hierarchy_count;
+    int bone_count;
+    int stack_index;
+    int next_unmapped;
+    int first_root;
+    MkBone* parent;
 
     RwFrameForAllChildren(
         clump->object.parent,
@@ -3354,8 +3356,7 @@ static void process_obj_bones(MkObj* obj, int* tags) {
     hierarchy_count = hierarchy->numNodes;
     first_root = bone_count;
     for (i = 0; i < bone_count; i++) {
-        MkBone* bone = alloc_bone();
-
+        bone = alloc_bone();
         obj->bones[i] = bone;
         if (bone != 0) {
             int tag;
@@ -3374,27 +3375,25 @@ static void process_obj_bones(MkObj* obj, int* tags) {
     }
 
     for (i = 0; i < hierarchy_count; i++) {
-        RpHAnimNodeInfo* node = &hierarchy->pNodeInfo[i];
-        unsigned int node_id = node->nodeID;
-        int masked_id = node_id & 0xFFF07FFF;
-        int limb_id = (node_id >> 16) & 0xF;
+        int node_id;
         int tag;
         int j;
 
         bone_indices[i] = -1;
         linked_bones[i] = 0;
+        node = &hierarchy->pNodeInfo[i];
+        node_id = node->nodeID;
         j = 0;
         while ((tag = tags[j]) != 0 && j < bone_count) {
             if (tag != -1) {
-                MkBone* bone = obj->bones[j];
-
-                if (masked_id == tag) {
+                bone = obj->bones[j];
+                if ((node_id & ~0xF8000) == tag) {
                     if ((node->nodeID & 0x8000) != 0) {
                         linked_bones[i] = bone;
                     } else if (bone->tag == -2) {
                         bone_indices[i] = j;
                         bone->tag = node->nodeID & 0xFFF0FFFF;
-                        bone->limb_id = limb_id;
+                        bone->limb_id = (node_id >> 16) & 0xF;
                     }
                 }
             }
@@ -3404,23 +3403,19 @@ static void process_obj_bones(MkObj* obj, int* tags) {
 
     next_unmapped = 0;
     for (i = 0; i < hierarchy_count; matrix++, i++) {
-        RpHAnimNodeInfo* node = &hierarchy->pNodeInfo[i];
-        MkBone* bone;
         struct BoneScanContext context;
         RwMatrix* scan_matrix;
 
+        node = &hierarchy->pNodeInfo[i];
         if (bone_indices[i] > -1) {
             bone = obj->bones[bone_indices[i]];
         } else {
-            MkBone** slot = &obj->bones[next_unmapped];
-
-            while ((*slot)->tag != -2) {
+            while (obj->bones[next_unmapped]->tag != -2) {
                 next_unmapped++;
-                slot++;
             }
+            bone_indices[i] = next_unmapped;
             bone = obj->bones[next_unmapped];
             bone->tag = node->nodeID & 0xFFF0FFFF;
-            bone_indices[i] = next_unmapped;
             bone->limb_id = (node->nodeID >> 16) & 0xF;
             if (linked_bones[i] != 0) {
                 MkBone* linked = linked_bones[i];

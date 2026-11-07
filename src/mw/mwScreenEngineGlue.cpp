@@ -3042,21 +3042,25 @@ static inline void screen_text_set_string(ScreenText* text, char* string) {
     }
 }
 
-/* TODO: [near miss] 98.41398%; 110 GPR colouring rows: this must colour after
- * sourceCount/y/x (retail r28 vs r31); x block-scoped (spellsearch scope op); next: find the owner that ranks this last. */
 void SpreadSheet_text::Update() {
-    int y;
-    int source;
     int sourceCount;
+    int source;
+    int y;
     int visibleRows;
     int visibleCols;
+    int x;
+    int cell;
+    char* content;
+    StringObj* live;
+    float pos;
+    ScreenPoly* marker;
 
     if (this->rows < 1 || this->cols < 1) {
         return;
     }
     sourceCount = this->unkEC * this->unkE8;
     if (this->unkEC < 1 || this->unkE8 < 1) {
-        for (int cell = 0; cell < sourceCount; cell++) {
+        for (cell = 0; cell < sourceCount; cell++) {
             ((ScreenNode*)this->unk118[cell])->SetVisible(0);
         }
     }
@@ -3066,16 +3070,14 @@ void SpreadSheet_text::Update() {
     visibleRows = this->rows < this->unkE8 ? this->rows : this->unkE8;
     visibleCols = this->cols < this->unkEC ? this->cols : this->unkEC;
     for (y = 0; y < this->cols; y++) {
-        int x;
         for (x = 0; x < this->rows; x++) {
             source = x + this->scrollX +
                      this->unkE8 * (y + this->unkD4);
-            int cell = x + y * this->rows;
+            cell = x + y * this->rows;
             if (y < visibleCols && x < visibleRows && source < sourceCount) {
                 ((ScreenNode*)this->unk118[cell])->Dispose();
-                char* content = this->strings[source];
-                ScreenText* text = this->unk118[cell];
-                screen_text_set_string(text, content);
+                content = this->strings[source];
+                screen_text_set_string(this->unk118[cell], content);
                 ((ScreenNode*)this->unk118[cell])->Init();
                 ((ScreenNode*)this->unk118[cell])->SetVisible(1);
                 if (this->useColor != 0) {
@@ -3083,12 +3085,10 @@ void SpreadSheet_text::Update() {
                          this->scrollY == x + this->scrollX) ||
                         (this->bindNodeB4 != 0 &&
                          this->unkDC == y + this->unkD4)) {
-                        ScreenText* text = this->unk118[cell];
-                        screen_text_set_color(text, this->color);
+                        screen_text_set_color(this->unk118[cell], this->color);
                     } else if (this->bindNodeB0 != 0 || this->bindNodeB4 != 0) {
-                        ScreenText* text = this->unk118[cell];
                         unsigned char* rgba = &this->cellColors[cell * 4];
-                        screen_text_set_color(text, rgba);
+                        screen_text_set_color(this->unk118[cell], rgba);
                     }
                 }
             } else {
@@ -3096,36 +3096,32 @@ void SpreadSheet_text::Update() {
             }
             if (this->bindNodeB0 != 0 &&
                 this->scrollY == x + this->scrollX) {
-                ScreenText* text = this->unk118[cell];
-                StringObj* live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
-                float pos;
+                live = MK_LIVE(this->unk118[cell]->stringObj, (unsigned int)this->unk118[cell]->stringObjInstance);
                 if (live != 0) {
                     pos = live->x;
                 } else {
-                    pos = text->seData->posX;
+                    pos = this->unk118[cell]->seData->posX;
                 }
                 pos -= this->layout0[0];
                 this->nodeB0->SetVisible(1);
-                ScreenPoly* marker = (ScreenPoly*)this->nodeB0;
+                marker = (ScreenPoly*)this->nodeB0;
                 marker->offsetX = pos;
                 marker->offsetY = kGvFloatZero;
             }
         }
         if (this->bindNodeB4 != 0 &&
             this->unkDC == y + this->unkD4) {
-            int cell = this->scrollY + y * this->rows -
+            cell = this->scrollY + y * this->rows -
                    this->scrollX;
-            ScreenText* text = this->unk118[cell];
-            StringObj* live = MK_LIVE(text->stringObj, (unsigned int)text->stringObjInstance);
-            float pos;
+            live = MK_LIVE(this->unk118[cell]->stringObj, (unsigned int)this->unk118[cell]->stringObjInstance);
             if (live != 0) {
                 pos = 480 - live->y;
             } else {
-                pos = text->seData->posY;
+                pos = this->unk118[cell]->seData->posY;
             }
             pos -= this->layout1[1];
             this->nodeB4->SetVisible(1);
-            ScreenPoly* marker = (ScreenPoly*)this->nodeB4;
+            marker = (ScreenPoly*)this->nodeB4;
             marker->offsetX = kGvFloatZero;
             marker->offsetY = pos;
         }

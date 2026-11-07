@@ -524,16 +524,27 @@ static void execute_scan_sequence_cmd(unsigned int action,
 
 }
 
-/* TODO: [near miss] 98.51746%; two decrement-order rows and saved-owner topology remain;
- * requirement_count now a function-scope local (spellsearch scope op); recover counter and invariant owners. */
+/* TODO: [near miss] 99.88%; timing load home (retail derives max_tick_gap in its
+ * register) and the requirement_count decrement order remain. */
 void scan_switch_sequences(unsigned int* sequence) {
-    int requirement_count;
     struct SwitchLogEntry* switch_log;
+    int requirement_count;
+    struct SwitchLogEntry* entry;
+    int history;
     int log_index;
-    int player_state;
+    int sequence_index;
+    int execution_mode;
+    int max_tick_gap;
+    int timing;
+    unsigned int action;
     unsigned int toward;
     unsigned int away;
-    int sequence_index;
+    int requirements[30];
+    int player_state;
+    unsigned int requirement;
+    unsigned int sequence_id;
+    int expected;
+    int tick_delta;
 
     if (plyr_pdata == g_game_info.plyr0.slot.pdata) {
         log_index = p1_pad_log_index;
@@ -554,14 +565,7 @@ void scan_switch_sequences(unsigned int* sequence) {
     }
     sequence_index = 0;
     while (sequence_index < 12) {
-        unsigned int sequence_id = sequence[0];
-        int timing;
-        unsigned int action;
-        int execution_mode;
-        int max_tick_gap;
-        int requirements[30];
-        int history;
-
+        sequence_id = sequence[0];
         if (sequence_id + 0x10000 == 0x0000FFFF) break;
         timing = sequence[1];
         requirement_count = 0;
@@ -570,7 +574,7 @@ void scan_switch_sequences(unsigned int* sequence) {
         max_tick_gap = timing - execution_mode;
         sequence += 3;
         while (1) {
-            unsigned int requirement = *sequence;
+            requirement = *sequence;
             if (requirement + 0x10000 == 0x0000FFFF ||
                 !(requirement & 0x80000000)) break;
             if (requirement_count >= 30) return;
@@ -580,10 +584,7 @@ void scan_switch_sequences(unsigned int* sequence) {
         }
         history = log_index;
         for (; requirement_count-- > 0;) {
-            struct SwitchLogEntry* entry = &switch_log[history];
-            int expected;
-            int tick_delta;
-
+            entry = &switch_log[history];
             if (--history < 0) history = 29;
             expected = requirements[requirement_count];
             switch (expected) {

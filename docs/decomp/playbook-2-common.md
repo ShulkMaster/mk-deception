@@ -501,6 +501,14 @@ Bits. REQUIRE storage width, bit position, every use.
 Cached vs retail reload. REQUIRE call, sleep, aliasing store, or poll
 boundary.
 
+- Search loop `while (a->arr[k]->f != X) k++;` then `e = a->arr[k];`: ours
+  reuses the loop's last element load (`mr`), retail reloads base + element
+  (`lwz base; lwzx`). REQUIRE retail reload after the loop + an index
+  publication the function makes anyway. TRY that store first
+  (`out[i] = k; e = a->arr[k];`): the store kills IRO CSE availability
+  (`process_obj_bones`; PS2 shows the same store-then-reload order). An
+  advancing slot pointer instead adds a pointer IV.
+
 - Process factories = call boundaries: reload global player slot after
   (sidekick intro).
 - Retail reloads owner per iteration or after call: index members through
@@ -1650,6 +1658,12 @@ Latch diamond. REQUIRE null-before-instance reads, no call between.
 ## H09
 
 Loops. REQUIRE zero-trip behavior + test/update order.
+
+- Two SR IVs (stride 16 node, stride 4 slot arrays) swap registers and
+  increment order: IroLoop creates SR IVs in first-use order of the body.
+  TRY moving the stride-4 array stores (`idx[i] = -1; link[i] = 0;`) above
+  the `node = &nodes[i]` derivation, or the reverse, until retail's first
+  increment matches (`process_obj_bones`).
 
 - Retail-only dead `b X` after the final return (`lfs f1,..; b epilogue; b X`,
   X = in-line preheader of constants): header has two outside predecessors, so
@@ -2917,6 +2931,20 @@ straight in (`mps_dec`).
 
 ## H21
 
+- Several loops each declare a block-scoped copy of the same role (`bone`,
+  `node`), saved homes rotate across the loops and why.py asks for those
+  locals above function-scope ones: block-scoped locals number lowest.
+  TRY one C89 function-scope declaration shared by every loop (no shadowing
+  copies), then a declaration-order climb (`declclimb.py`) over the
+  function-scope run: the move alone is often byte-neutral, the climb pays
+  (`process_obj_bones` 52 -> 7 rows, `scan_switch_sequences` 70 -> 5,
+  `SpreadSheet_text::Update` 110 -> 60). Then pass single-use pointer locals
+  straight to their calls and spell latch reads on the owner expression
+  (`MK_LIVE(this->unk118[cell]->stringObj, ...)`, null arm
+  `this->unk118[cell]->seData`): a named pointer numbers below the field CSE
+  (`SpreadSheet_text::Update` exact). Loop-invariant masks used only in an
+  inner loop can stay expressions (`(node_id & ~0xF8000) == tag`; IroLoop
+  hoists them) instead of named locals.
 - Base and advanced cursor share one register (`add r9,r3,r0; add r9,r9,r3`),
   retail keeps the base in its own volatile (`add r4,r3,r0; add r8,r4,r3`):
   `x += n` and `x = x + n` are both ADDASS (IRO_DoTransformations), one web.

@@ -559,16 +559,12 @@ static inline struct NavBoundary* calculate_vertices_of_nav_area(
     firstOffset = previousOffset;
     boundary++;
     for (boundaryIndex = 1; boundaryIndex < *boundaryCount; boundaryIndex++) {
-        Vec* intersection;
-
         current.x = boundary->x;
         current.y = 0.0f;
         current.z = boundary->z;
         currentOffset = boundary->offset;
         boundary++;
-        intersection = intersections;
-        intersection += outputIndex++;
-        intersect_xz_lines(&previous, &current, intersection,
+        intersect_xz_lines(&previous, &current, &intersections[outputIndex++],
                            previousOffset, currentOffset);
         previous.x = current.x;
         previous.y = current.y;
@@ -591,19 +587,17 @@ static inline void add_nav_area_to_tile(
     }
 }
 
-/* TODO: [near miss] 99.37681%; 40 area/count, tile and flag GPR rows remain;
- * tile-index home agrees; recover remaining owner kinds before further tuning. */
 static void setup_per_tile_navigations(void) {
     static int most_navigation_per_tile;
     int cornerIndex;
     Vec intersections[15];
     Vec tileCorners[4];
     int cornerOutside[4];
+    int tileCount;
     int areaCount;
     int areaIndex;
     int boundaryCount;
-    int tileCount;
-    struct NavTile* tile;
+    struct NavBoundary* boundary;
     int tileIndex;
 
     areaIndex = 0;
@@ -623,12 +617,12 @@ static void setup_per_tile_navigations(void) {
             int allVerticesInsideTile = 1;
             int allLeft = 1;
             int allRight = 1;
-            int allAbove = 1;
             int allBelow = 1;
+            int allAbove = 1;
             int allTileCornersInsideArea = 1;
             int boundaryIndex;
             int vertexIndex;
-            struct NavBoundary* boundary;
+            struct NavTile* tile;
 
             tile = &konquest_pdata->navTiles[tileIndex];
             calc_tile_points(tile, tileCorners);

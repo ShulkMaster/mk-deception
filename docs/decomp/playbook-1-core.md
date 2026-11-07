@@ -258,7 +258,8 @@ Core line only; detail = `## Hxx` in tier 2.
   retail reuses dead outer regs; kind sets web number | open-code + reuse
   outer locals; copy-free helper; change web kind before decl sweeps:
   local type flips (uchar/int/unsigned), `p = a[i];` statement instead of
-  `(p = a[i])->f` in a condition.
+  `(p = a[i])->f` in a condition; block-scoped copies of one loop role ->
+  one function-scope decl + `declclimb.py` (`SpreadSheet_text::Update`).
 - **H22 One-row residue** | operand/constant/copy residue in one row |
   single row | try one listed spelling at a time.
 - **H23 Unit-owned data** | base rematerialized each use | symbol in this
