@@ -675,6 +675,22 @@ public APIs keep their documented `const`.
   `dist_xz_to_xz`, `length_v3`, `uv_v3_to_v3_dist`). Per-function drop, not
   TU-wide (`YXZ_angles_to_quat` keeps const). C rejects `const T*` to `T*`
   param: drop the caller's const too, recheck caller objects byte-identical.
+- Shared inline writes an out-param and reloads a static per store; one site
+  needs the merged reload in the FE band (why.py: cg-temp LFS must number
+  below a spliced product) while the out-of-line site keeps every reload:
+  REQUIRE `initial` pcode with one LFS per store (backend merges them later)
+  and stores through a `T* const` param object. Measured (2.7): IRO CSE's the
+  static loads into one FE temp only when the stores are IRO-direct (plain
+  `T*` param substituted, or open-coded member stores); stores through any
+  const object, pointer local or nested `T* const` helper stay indirect at
+  CSE time and kill the load, in every block. IRO-direct stores also forward
+  the stored values into later hoisted reads (no `frsp`) and let the
+  scalarizer promote the out-param unless another address holder exists.
+  Retail `frsp`-forwarded hoisted reads of that out-param therefore prove the
+  stores were object-indirect, so the FE-band reload is not an IRO CSE temp:
+  stop, do not drop that `T* const` (`generic_victory_camera`, 5 rows).
+  `&local == 0` never folds (`addic.`/`beq`), so an in-body null check is not
+  an address holder either.
 - Private mutable current/time input: dropping `const` on the private
   `KonquestTime* current` (local prototype synced, caller already passes a
   mutable object) and reading `current->hour/minute` restores retail frame
