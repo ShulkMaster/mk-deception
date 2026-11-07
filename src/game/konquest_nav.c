@@ -83,13 +83,6 @@ static inline struct NavArea* nav_get_area(struct KonquestNavData* nav, int area
     return nav->areas[areaIndex];
 }
 
-static inline struct NavPortalList* nav_get_portals(struct NavArea* area) {
-    struct NavBoundary* boundaries = area->boundaries;
-    int boundaryCount = area->boundaryCount;
-    boundaries += boundaryCount;
-    return (struct NavPortalList*)boundaries;
-}
-
 
 static inline int nav_begin_area_search(struct KonquestNavData* nav, int startArea) {
     int areaCount;
@@ -162,13 +155,11 @@ static inline int nav_find_area_for_point(const Vec* position) {
     return -1;
 }
 
-/* TODO: [near miss] 97.80220%; retail preheader got a post-RA reschedule (a copy
- * deleted by allocation) that ours lacks; entry ADDI issues before MTCTR. */
 void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int portalId) {
     struct KonquestPdata* pdata = konquest_pdata;
     struct KonquestNavData* nav = pdata->navData;
     struct NavArea* area;
-    struct NavPortalList* portals;
+    unsigned char* portalCursor;
     struct NavPortalEntry* portal;
     int areaCount = nav->areaCount;
     int remaining;
@@ -183,10 +174,12 @@ void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int po
         return;
     }
     area = nav_get_area(nav, areaIndex);
-    portals = nav_get_portals(area);
-    remaining = portals->count;
-    portal = portals->entries;
+    portalCursor = (unsigned char*)area->boundaries;
+    portalCursor += area->boundaryCount * sizeof(struct NavBoundary);
+    remaining = ((struct NavPortalList*)portalCursor)->count;
+    portalCursor += sizeof(((struct NavPortalList*)0)->count);
     while (remaining > 0) {
+        portal = (struct NavPortalEntry*)portalCursor;
         if (portal->adjacentArea == portalId) {
             float dx;
             float midpointX;
@@ -224,7 +217,7 @@ void nav_get_unit_vector_to_nav_portal(Vec* out, Vec* pos, int areaIndex, int po
             }
             return;
         }
-        portal++;
+        portalCursor += sizeof(struct NavPortalEntry);
         remaining--;
     }
 }
