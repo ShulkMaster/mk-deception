@@ -26,7 +26,7 @@ int ADX_DecodeSte4(const signed char* input, int numBlocks,
         randomMultiplier, randomIncrement);
 }
 
-/* TODO: [breakthrough needed] 90.36184%; unsigned PCM publications are neutral;
+/* TODO: [near miss] 92.46710%; unsigned PCM publications are neutral;
  * recover entry coefficient ownership while retaining signed history math. */
 long ADX_DecodeSte4AsSte(signed char* input, long numBlocks,
                         short* outputLeft, short delayLeft[2],
@@ -37,17 +37,16 @@ long ADX_DecodeSte4AsSte(signed char* input, long numBlocks,
     long olderLeft;
     long olderRight;
     long previousRight;
-    long previousLeft;
     long block;
     long leftPacked;
     long rightPacked;
     short leftGain;
     short rightGain;
-    long header;
     long decodedRight;
     long blockCount;
     long key;
     long sample;
+    long previousLeft;
 
     blockCount = numBlocks / 2;
 
@@ -56,6 +55,7 @@ long ADX_DecodeSte4AsSte(signed char* input, long numBlocks,
     previousRight = delayRight[0];
     olderRight = delayRight[1];
     for (block = 0; block < blockCount; block++) {
+        long header;
         header = *(short *)input;
         if (header & 0x8000) {
             return block * 2;
@@ -79,7 +79,7 @@ long ADX_DecodeSte4AsSte(signed char* input, long numBlocks,
             leftPacked = input[0];
             rightPacked = input[0x12];
             input++;
-            olderLeft *= coefficient1;
+            olderLeft = coefficient1 * olderLeft;
             olderLeft = (leftPacked >> 4) * leftGain +
                 ((coefficient0 * previousLeft + olderLeft) >> 12);
             if (olderLeft > 32767 || olderLeft < -32768) {

@@ -570,9 +570,9 @@ static void sfadxt_ExcludeSilence(SfdHandle* handle,
 static inline int sfadxt_SearchFrmTop(SfdHandle* handle,
                                       const unsigned char* data, int size)
 {
+    const unsigned char* position;
     const unsigned char* end;
     const unsigned char* offset;
-    const unsigned char* position;
     unsigned long latest_end_address;
     const unsigned char* latest_offset;
     const unsigned char* limit;
@@ -617,7 +617,7 @@ static inline int sfadxt_SearchFrmTop(SfdHandle* handle,
     return offset - data;
 }
 
-/* TODO: [near miss] 97.52688%; caller/scan GPR owners rotate;
+/* TODO: [near miss] 98.06451%; caller/scan GPR owners rotate (SearchFrmTop: position declared first);
  * original input lifetimes remain unresolved beyond the complete scan. */
 static void sfadxt_ExcludeHdr(SfdHandle* handle, const unsigned char* data,
                               int size, int* consumed)
@@ -843,8 +843,8 @@ static inline int sfadxt_IsPlaying(ADXTHandle* decoder)
 
 static inline void sfadxt_PrepOut(SfdHandle* handle)
 {
-    int output_buffer = handle->transports[3].parameter_14;
     int input_buffer = handle->transports[3].parameter_10;
+    int output_buffer = handle->transports[3].parameter_14;
 
     if (SFBUF_GetPrepFlg(handle, output_buffer) != 1) {
         if (SFBUF_GetPrepFlg(handle, input_buffer) == 1) {
@@ -857,8 +857,8 @@ static inline void sfadxt_PrepOut(SfdHandle* handle)
 
 static inline void sfadxt_CheckStat(SfdHandle* handle, int input_size)
 {
-    SfdAdxtWork* work = sfadxt_GetWork(handle);
     SfdTestWork* test = sfadxt_GetTestWork(handle);
+    SfdAdxtWork* work = sfadxt_GetWork(handle);
     ADXTHandle* decoder = work->decoder;
     int status = ADXT_GetStat(decoder);
     int error = ADXT_GetErrCode(decoder);
@@ -955,8 +955,8 @@ static inline void sfadxt_WriteTotSmpl(SfdHandle* handle)
     }
 }
 
-/* TODO: [near miss] 97.78409%; handle cost-stall precedes result/input;
- * handle/result ownership across supply and status phases is unresolved. */
+/* TODO: [near miss] 97.93561%; handle cost-stall precedes result/input;
+ * handle/result ownership across supply and status phases is unresolved (helper decl order: PrepOut input/output, CheckStat test/work). */
 static int sfadxt_ExecServerSub(SfdHandle* handle)
 {
     int result;

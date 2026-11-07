@@ -3524,9 +3524,9 @@ static inline void quat_to_normalized_matrix(RwMatrix* matrix, Quat* rotation) {
     scale = 2.0f / (rotation->w * rotation->w +
         (rotation->z * rotation->z +
         (rotation->x * rotation->x + rotation->y * rotation->y)));
+    scaled.z = rotation->z * scale;
     scaled.x = rotation->x * scale;
     scaled.y = rotation->y * scale;
-    scaled.z = rotation->z * scale;
     weighted.x = scaled.x * rotation->w;
     weighted.y = scaled.y * rotation->w;
     weighted.z = scaled.z * rotation->w;
@@ -3543,12 +3543,12 @@ static inline void quat_to_normalized_matrix(RwMatrix* matrix, Quat* rotation) {
     matrix->flags = 3;
     matrix->right.x = 1.0f - (square.y + square.z);
     matrix->up.y = 1.0f - (square.z + square.x);
-    matrix->at.z = 1.0f - (square.x + square.y);
     matrix->up.z = cross.x + weighted.x;
     matrix->at.y = cross.x - weighted.x;
     matrix->right.z = cross.y - weighted.y;
-    matrix->at.x = cross.y + weighted.y;
     matrix->right.y = cross.z + weighted.z;
+    matrix->at.z = 1.0f - (square.x + square.y);
+    matrix->at.x = cross.y + weighted.y;
     matrix->up.x = cross.z - weighted.z;
 }
 
@@ -3582,7 +3582,7 @@ static inline void mkbone_unlink_from_parent(MkBone* bone) {
 
 #pragma push
 #pragma auto_inline off
-/* TODO: [breakthrough] 97.91824%; unlink guard and retail size agree;
+/* TODO: [near miss] 99.07547%; unlink guard and retail size agree;
  * recover normalized-quaternion publication lifetimes and FPR owners. */
 static void _bone_make_parents_my_children(MkBone* bone) {
     Vec displacement;

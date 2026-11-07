@@ -92,8 +92,8 @@ void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float 
 }
 #pragma pop
 
-/* TODO: [near miss] 97.21983%; FPR colouring only; nx/ny/nz must number above the
- * split/CSE temps; Vec normal and decl orders miss; find their temp-kind owner. */
+/* TODO: [near miss] 97.52155%; FPR colouring only; nx/ny/nz must number above the
+ * split/CSE temps; vector.y / denom statement order and in-place dist product (spellsearch); find their temp-kind owner. */
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, const Vec* cylAxis,
                          float radius, float* tNear, float* tFar) {
     float nx = dir->y * cylAxis->z - dir->z * cylAxis->y;
@@ -122,9 +122,10 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
     if (invLen < kTiny) {
         dist = displacement.x * cylAxis->x + displacement.y * cylAxis->y + displacement.z * cylAxis->z;
         dist = -dist;
-        vector.y = cylAxis->y * dist;
         vector.x = cylAxis->x * dist;
-        vector.z = cylAxis->z * dist;
+        vector.y = cylAxis->y * dist;
+        vector.z = dist;
+        vector.z *= cylAxis->z;
         vector.y = vector.y + displacement.y;
         vector.x = vector.x + displacement.x;
         vector.z = vector.z + displacement.z;
@@ -158,8 +159,8 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
         vector.y *= invQ;
         vector.x *= invQ;
         vector.z *= invQ;
-        denom = dir->x * vector.x + dir->y * vector.y + dir->z * vector.z;
         halfChord = radius * radius - dist * dist;
+        denom = dir->x * vector.x + dir->y * vector.y + dir->z * vector.z;
         halfChord = gxMathFastSqrt(halfChord);
         chordOffset = halfChord / denom;
         if (chordOffset < kZero) {

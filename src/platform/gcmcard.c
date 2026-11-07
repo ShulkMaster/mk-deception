@@ -193,8 +193,6 @@ static inline int gc_resolve_profile_crc_answer(int device)
     return continue_loading;
 }
 
-/* TODO: [near miss] 98.61591%; retail retains a live format-result test with
- * identical zero-result arms; CFG recovery would require redundant source logic. */
 int check_load_profile_result(int* result, int device) {
     StorageDevice* dev;
     int cont;
@@ -264,8 +262,10 @@ int check_load_profile_result(int* result, int device) {
             cont = 0;
             break;
         case 3:
-            gc_format_procedure(device);
-            cont = 0;
+            if (gc_format_procedure(device) != 0)
+                cont = 0;
+            else
+                cont = 0;
             break;
         }
         break;
@@ -334,6 +334,7 @@ int check_load_profile_result(int* result, int device) {
     check_new_mu_for_in_use_profiles(device);
     return cont;
 }
+
 
 int check_save_profile_result(int* result, int device, int flag) {
     int cont;

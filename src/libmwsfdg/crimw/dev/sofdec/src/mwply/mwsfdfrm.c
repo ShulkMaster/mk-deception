@@ -185,14 +185,13 @@ static inline int mwsffrm_IsPicUsrDat(MwsPlayer* player)
     return player->picture_user_data != 0 ? 1 : 0;
 }
 
-/* TODO: [near miss] 97.66949%; header enters allocation before player;
+/* TODO: [near miss] 99.49152%; header enters allocation before player;
  * full local-order controls fail; recover a real lifetime/ABI boundary. */
 static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
                                       const void* data, unsigned int size)
 {
     SFHHandle* header;
     int effect_type;
-    int color_adjustment;
     int maximum_frames;
     int is_header;
     int color_type;
@@ -200,6 +199,7 @@ static void mwsffrm_AnalySofdecHeader(MwsPlayer* player,
     int frame_count;
     int wr;
     int source_effect;
+    int color_adjustment;
 
     player->header_count++;
     if (size < 0x800 || data == 0) {
