@@ -1075,7 +1075,7 @@ config.libs = [
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "section_config.o", source="runtime/section_config.c"),
             Object(Matching, "section_slot_file.o", source="runtime/section_slot_file.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s", "-inline noauto"]),
-            Object(NonMatching, "section.o", source="runtime/section.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s"]),
+            Object(Matching, "section.o", source="runtime/section.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s"]),
             Object((Matching if config.version == "GQNE5D" else (NonMatching)), "asset.o", source="runtime/asset.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "bgnd_nbc.o", source="game/bgnd_nbc.c"),
@@ -1353,7 +1353,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/adxt/adx_sjd.o",
                 source="libadxgca/crimw/dev/adx/src/adxt/adx_sjd.c",
                 extra_cflags=[
@@ -1362,7 +1362,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/adxt/adx_tsvr.o",
                 source="libadxgca/crimw/dev/adx/src/adxt/adx_tsvr.c",
                 extra_cflags=[
@@ -1436,7 +1436,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/cvfs/cri_cvfs.o",
                 source="libadxgca/crimw/dev/adx/src/cvfs/cri_cvfs.c",
                 extra_cflags=[
@@ -1514,7 +1514,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/adxt/adx_dcd5.o",
                 source="libadxgca/crimw/dev/adx/src/adxt/adx_dcd5.c",
                 extra_cflags=["-O4,p", "-sdata", "0", "-use_lmw_stmw", "on"],
@@ -1526,7 +1526,7 @@ config.libs = [
                 extra_cflags=["-O2,p", "-sdata", "0"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/axrna/rna_res.o",
                 source="libadxgca/crimw/dev/adx/src/axrna/rna_res.c",
                 extra_cflags=[
@@ -1542,7 +1542,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libadxgca.a//crimw/dev/adx/src/axrna/ax_rna.o",
                 source="libadxgca/crimw/dev/adx/src/axrna/ax_rna.c",
                 extra_cflags=[
@@ -1756,13 +1756,13 @@ config.libs = [
                 extra_cflags=["-sdata", "0", "-str", "reuse,readonly"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdlib.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdlib.c",
                 extra_cflags=["-sdata", "0", "-sdata2", "0", "-str", "reuse,readonly", "-use_lmw_stmw", "on", "-inline", "auto,deferred"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/mwply/mwsfdfrm.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/mwply/mwsfdfrm.c",
                 extra_cflags=[
@@ -1827,7 +1827,7 @@ config.libs = [
                 extra_cflags=["-sdata 0", "-sdata2 0", "-inline noauto", "-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_mc.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_mc.c",
                 extra_cflags=["-use_lmw_stmw on"],
@@ -1875,7 +1875,7 @@ config.libs = [
                 ],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_hdec.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_hdec.c",
                 extra_cflags=[
@@ -1923,7 +1923,7 @@ config.libs = [
                 extra_cflags=["-sdata 0", "-sdata2", "0", "-use_lmw_stmw", "on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/dct/dct_fsri.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/dct/dct_fsri.c",
                 extra_cflags=["-sdata 0", "-sdata2", "0", "-use_lmw_stmw", "on"],
@@ -1976,7 +1976,7 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_sud.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfx/sfx_alp.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfx/sfx_alp.c",
             ),
@@ -2059,7 +2059,7 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_aoap.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_hds.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_hds.c",
                 extra_cflags=["-use_lmw_stmw on"],
@@ -2154,7 +2154,7 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_tmr.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfh/sfh_main.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfh/sfh_main.c",
                 extra_cflags=["-sdata 0", "-sdata2 0", "-use_lmw_stmw on"],
@@ -2232,7 +2232,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline auto,deferred,level=2", "-str reuse,pool,readonly"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFile.o",
                 source="mw/mwFile.cpp",
                 extra_cflags=["-use_lmw_stmw on", "-O4,s"],
@@ -2691,7 +2691,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/fields.o",
                 source="libmkparticle/fields.c",
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
@@ -2715,7 +2715,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on", "-inline off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/gc_render.o",
                 source="libmkparticle/gc_render.c",
                 extra_cflags=["-O4,s", "-inline on,noauto", "-schedule off", "-fp_contract off", "-opt nopeephole"],
@@ -2745,7 +2745,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-schedule off", "-opt nopeephole", "-str pool"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/particle.o",
                 source="libmkparticle/particle.c",
                 extra_cflags=["-O4,s", "-schedule off", "-inline off",
