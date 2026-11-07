@@ -4941,8 +4941,18 @@ stream, N copies more or fewer; pop-order solver says "moves a parameter" or
     global snapshot, two-return helper returning loads, call result into an
     inline argument. `void*` param typed view = +1 only on other webs live at
     entry.
-- STOP when Step A finds no N <= 3 and no minus: interference edge or
-  numbering, not this rule (`do_dialog`, `render_player_joints`, `pfxvm`).
+- IF Step A finds no N and minus alone fails, but why.py REQUIRED wants a
+  long-lived saved web to pop before a BE/SR vreg and lists a decl move |
+  REQUIRE an existing coalesced copy live across that web (phantom report
+  `copy: ... merged into physical rN`) | TRY minus one copy AND the decl move
+  together: pass the call argument expression straight to the call instead of
+  a named local in the inline helper (argfold); neither edit alone moves it
+  (`setup_per_tile_navigations`: helper `Vec* intersection` -> direct
+  `&intersections[outputIndex++]`, plus `tileCount` declared before
+  `areaCount`). Recheck helper MAP size.
+- STOP when Step A finds no N <= 3, no minus and no minus + numbering pair:
+  interference edge or numbering, not this rule (`do_dialog`,
+  `render_player_joints`, `pfxvm`).
 
 ## Traps
 

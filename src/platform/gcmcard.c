@@ -507,7 +507,6 @@ static inline int mem_card_mount(int device) {
 
 static inline int mem_card_unmount(int device, int slot) {
     s32 rc;
-    int result;
 
     if (device < 0 || device >= 2 || slot < 0 || slot >= 1)
         return -99;
@@ -516,17 +515,13 @@ static inline int mem_card_unmount(int device, int slot) {
     } while (rc == -1);
     switch (rc) {
     case 0:
-        result = 0;
-        break;
+        return 0;
     case -3:
-        result = -10;
-        break;
+        return -10;
     case -128:
     default:
-        result = -99;
-        break;
+        return -99;
     }
-    return result;
 }
 
 static inline void gc_mem_card_status_changes(void) {
@@ -560,8 +555,6 @@ static inline int mem_card_format(int device) {
     return result;
 }
 
-/* TODO: [near miss] 99.28%; structure exact; saved-GPR rotation (device r30 vs r23) tracks the
- * mem_card_unmount inline-result copy: direct-return helper = 100% here but drops load_from_memcard2. */
 int gc_format_procedure(int device) {
     unsigned int mask;
     s32 sectorSize;
@@ -743,8 +736,9 @@ static inline int mem_card_close(CARDFileInfo* fileInfo) {
     }
 }
 
-/* TODO: [near miss] 99.928%; offset/checksumFailOut saved homes swapped (r30/r26): simplify stall
- * picks offset (cost 3/deg 30) over checksumFailOut (3/29); only the frame-temp edge differs. */
+/* TODO: [near miss] 99.76%; offset/checksumFailOut and fileName/chan-CSE saved homes swapped:
+ * simplify stalls pick fileName then offset; model needs one more coalesced copy live across
+ * checksumFailOut and the chan CSE temp after offset dies (none found). */
 int load_from_memcard2(const int device, int modeFlag, unsigned int offset, const char* unusedStr,
                        const char* fileName, void* buffer, int size, const char* unusedCardName,
                        int unusedNameLen, unsigned int* freeBlocks, int* freeBytes,

@@ -12,7 +12,7 @@ struct VMPageTableEntry {
 
 static struct VMPageTableEntry* g_vmBasePageTable;
 static u32* g_vmBaseVMReversePageTable;
-static u8* g_vmBaseLockedPageTable;
+static u32 g_vmBaseLockedPageTable;
 static void (*cbVMSwapPageIn)(u32);
 static BOOL g_baseInitialized;
 static u32 g_originalSR7;
@@ -181,15 +181,15 @@ void __VMBASESetVirtualAddressForPageInMRAM(u32 physical_page,
 
 BOOL VMBASEIsPageLocked(u32 physical_page)
 {
-    return g_vmBaseLockedPageTable[physical_page];
+    return *(u8*)(g_vmBaseLockedPageTable + physical_page);
 }
 
 void VMBASESetPageLocked(u32 physical_page, BOOL locked)
 {
     if (locked) {
-        g_vmBaseLockedPageTable[physical_page] = 1;
+        *(u8*)(g_vmBaseLockedPageTable + physical_page) = 1;
     } else {
-        g_vmBaseLockedPageTable[physical_page] = 0;
+        *(u8*)(g_vmBaseLockedPageTable + physical_page) = 0;
     }
 }
 
@@ -212,7 +212,7 @@ void __VMBASEInitLockedPageTable(void)
     u8* arena_lo;
 
     arena_lo = OSGetArenaLo();
-    g_vmBaseLockedPageTable = arena_lo;
+    g_vmBaseLockedPageTable = (u32)arena_lo;
     OSSetArenaLo(arena_lo + 0x1000);
     __VMBASEInvalidateLockedPageTable();
 }
@@ -245,14 +245,12 @@ void __VMBASEInvalidatePageTable(void)
     OSRestoreInterrupts(interrupts);
 }
 
-/* TODO: [breakthrough needed] 42.40741%; native address materialization differs;
- * removing the earlier asm pragma restoration leaves the whole unit unchanged. */
 void __VMBASEInvalidateLockedPageTable(void)
 {
     u32 i;
 
     for (i = 0; i < 0x1000; i++) {
-        g_vmBaseLockedPageTable[i] = 0;
+        *(u8*)(g_vmBaseLockedPageTable + i) = 0;
     }
 }
 
