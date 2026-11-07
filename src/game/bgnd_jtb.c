@@ -186,24 +186,48 @@ void lower_mines_ani_to_point(
     land_chores(landing_sound, 0, 0.0f, 0.0f);
 }
 
-static const Vec nb_collision_x_axis = {1.0f, 0.0f, 0.0f};
-static const Vec nb_collision_z_axis = {0.0f, 0.0f, 1.0f};
+static void convert_to_new_coord_sys(
+    Vec* v, Vec* new_x, Vec* new_z, Vec* result, Vec* orig_x, Vec* orig_z) {
+    Vec x_axis = {1.0f, 0.0f, 0.0f};
+    Vec z_axis = {0.0f, 0.0f, 1.0f};
+    float z = v->x * new_z->x + v->z * new_z->z;
+
+    result->x = v->x * new_x->x + v->z * new_x->z;
+    result->z = z;
+    orig_x->x = x_axis.x * new_x->x + x_axis.z * new_x->z;
+    orig_x->y = x_axis.y;
+    orig_x->z = x_axis.x * new_z->x + x_axis.z * new_z->z;
+    orig_z->x = z_axis.x * new_x->x + z_axis.z * new_x->z;
+    orig_z->y = z_axis.y;
+    orig_z->z = z_axis.x * new_z->x + z_axis.z * new_z->z;
+}
+
+static void restore_to_orig_coord_sys(Vec* v, Vec* orig_x, Vec* orig_z) {
+    Vec temp;
+
+    temp.x = v->x;
+    temp.y = v->y;
+    temp.z = v->z;
+    v->x = temp.x * orig_x->x + temp.z * orig_x->z;
+    v->z = temp.x * orig_z->x + temp.z * orig_z->z;
+    v->y = temp.y;
+}
+
 static const Vec nb_impact_zero = {0.0f, 0.0f, 0.0f};
 static const Vec nb_rope_preload_rotation = {1.0f, 0.0f, 0.0f};
 static const Vec nb_world_up = {0.0f, 1.0f, 0.0f};
 static const Vec nb_hit_zero = {0.0f, 0.0f, 0.0f};
 static const Vec nb_collision_zero = {0.0f, 0.0f, 0.0f};
 
-/* TODO: [breakthrough needed] 98.15044%; MAP convert/restore_to_*_coord_sys
- * own the basis change and the axis records; bodies unrecovered. */
 void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     static unsigned int last_sound_time;
     struct NbNpcState* npc;
     Vec push_direction;
     Vec facing;
     Vec side = nb_collision_zero;
-    Vec local_z;
-    Vec local_x;
+    Vec orig_z;
+    Vec orig_x;
+    Vec new_momentum;
     float player_index;
     float speed;
     float separation;
@@ -214,10 +238,6 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
     float momentum_z;
     int attack_flags;
     int play_impact_sound;
-    float x_on_facing;
-    float x_on_side;
-    float z_on_facing;
-    float z_on_side;
 
     npc = bgnd_fetch_npc(npc_id);
     spad_set_vector(0, 0x1A);
@@ -363,25 +383,14 @@ void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
         facing.z = -1.0f * facing.z;
     }
 
-    local_x = nb_collision_x_axis;
-    local_z = nb_collision_z_axis;
-    momentum_x = npc->momentum.x;
-    momentum_z = npc->momentum.z;
-    x_on_facing = local_x.x * facing.x + local_x.z * facing.z;
-    x_on_side = local_x.x * side.x + local_x.z * side.z;
-    z_on_facing = local_z.x * facing.x + local_z.z * facing.z;
-    z_on_side = local_z.x * side.x + local_z.z * side.z;
-    npc->momentum.x =
-        -1.0f * impact_scale * (momentum_x * facing.x + momentum_z * facing.z);
-    npc->momentum.z = momentum_x * side.x + momentum_z * side.z;
-    momentum_y = npc->momentum.y;
-    momentum_x = npc->momentum.x;
-    momentum_z = npc->momentum.z;
-    npc->momentum.x = momentum_x * x_on_facing + momentum_z * x_on_side;
-    npc->momentum.z = momentum_x * z_on_facing + momentum_z * z_on_side;
-    npc->momentum.y = momentum_y;
+    convert_to_new_coord_sys(
+        &npc->momentum, &facing, &side, &new_momentum, &orig_x, &orig_z);
+    npc->momentum.x = -1.0f * impact_scale * new_momentum.x;
+    npc->momentum.z = new_momentum.z;
+    restore_to_orig_coord_sys(&npc->momentum, &orig_x, &orig_z);
     bgnd_collision_if_enable_col(5, npc_id + 0x12C);
 }
+
 
 /* TODO: [near miss] 99.34782%; 23 FPR-home rows remain (blend values need temp-band
  * webs above the divisor CSE; named and Vec-local forms fail); recover blend owners. */

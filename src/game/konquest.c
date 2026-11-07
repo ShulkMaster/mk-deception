@@ -1399,6 +1399,7 @@ void execute_trigger(struct KonquestTriggerStruct* trigger);
 struct KonquestTriggerStruct* find_trigger_by_id(unsigned int id);
 void* get_nth_tile_struct(int index);
 KonquestChildObject* find_door_partner_sobj(KonquestChildObject* door);
+int check_range_for_npc_interaction(float distance, float facing_angle);
 static RpAtomic* hide_an_atomic(RpAtomic* atomic, void* data);
 static void set_objective_beam_scale(float distance);
 void pui_update(void);
@@ -2416,14 +2417,15 @@ static inline void calc_closest_point_on_line(
     float z_product;
     float projection_numerator;
     float projection;
+    x_product = point->x - start->x;
+    z_product = point->z - start->z;
     edge_x = end->x - start->x;
     edge_y = end->y - start->y;
-    length_squared = edge_y * edge_y;
     edge_z = end->z - start->z;
-    x_product = (point->x - start->x) * edge_x;
-    z_product = (point->z - start->z) * edge_z;
+    x_product *= edge_x;
+    z_product *= edge_z;
     projection_numerator = x_product + z_product;
-    length_squared = edge_z * edge_z + (edge_x * edge_x + length_squared);
+    length_squared = edge_x * edge_x + edge_y * edge_y + edge_z * edge_z;
     length = gxMathFastSqrt(length_squared);
     projection = projection_numerator / (length * length);
     out->x = projection * (end->x - start->x) + start->x;
@@ -6703,11 +6705,10 @@ void konquest_open_door(int enumeration, int remain_open) {
     }
 }
 
-/* TODO: [near miss] 98.77215%; inlined calc_closest_point_on_line projection loads/FPRs
- * still differ (MAP-size body 0xf8 kept); recover projection load/CSE ownership. */
+/* TODO: [near miss] 99.21519%; FPR colouring of the two inlined helper copies + loop
+ * delta.z store/square order; next: why.py operand owners of edge/offset webs. */
 void turn_to_face_exterior_door(void) {
     Vec closest;
-    float point_delta_x;
     KonquestChildObject* door;
     KonquestWaypoint* path;
     MkObj* hero;
@@ -6720,10 +6721,6 @@ void turn_to_face_exterior_door(void) {
     float angle_difference;
     int turn_direction;
     int done;
-    float start_x;
-    float start_z;
-    float next_x;
-    float next_z;
     float side_edge_x;
     float side_edge_z;
     struct KonquestObject* building;
@@ -6746,18 +6743,12 @@ void turn_to_face_exterior_door(void) {
 
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
-    start_x = path[0].position.x;
-    point_delta_x = hero->pos.value.x - start_x;
-    next_x = path[1].position.x;
-    next_z = path[1].position.z;
-    start_z = path[0].position.z;
-    side_edge_x = next_x;
-    side_edge_x -= start_x;
-    side_edge_z = next_z - start_z;
-    delta.x = point_delta_x;
+    side_edge_x = path[1].position.x - path[0].position.x;
+    side_edge_z = path[1].position.z - path[0].position.z;
+    delta.x = hero->pos.value.x - path[0].position.x;
     delta.y = hero->pos.value.y - path[0].position.y;
-    delta.z = hero->pos.value.z - start_z;
-    if (side_edge_z * point_delta_x - side_edge_x * delta.z < 0.0f) {
+    delta.z = hero->pos.value.z - path[0].position.z;
+    if (side_edge_z * delta.x - side_edge_x * delta.z < 0.0f) {
         turn_direction = 0;
     }
 
@@ -6826,6 +6817,7 @@ void turn_to_face_exterior_door(void) {
         aproc->vtbl->sleep();
     }
 }
+
 
 static float p_konquest_transition_to_state(void) {
     struct KonquestTransitionPdata* pdata;
@@ -9639,21 +9631,12 @@ static inline void konquest_handle_interaction_input(void) {
     union KonquestNpc* npc;
     float facing_angle;
     float distance;
-    float checked_facing_angle;
 
     can_interact = 0;
     npc = konquest_check_possible_interact_with_npc(
         &distance, &facing_angle);
     if (npc != 0) {
-        int in_range;
-
-        checked_facing_angle = facing_angle;
-        if (distance < 2.0f && checked_facing_angle < 0.8f) {
-            in_range = 1;
-        } else {
-            in_range = 0;
-        }
-        if (in_range != 0) {
+        if (check_range_for_npc_interaction(distance, facing_angle) != 0) {
             can_interact = 1;
         }
     }
@@ -11446,12 +11429,14 @@ static union KonquestNpc* konquest_check_possible_interact_with_npc(
     return selected;
 }
 
+#pragma auto_inline on
 int check_range_for_npc_interaction(float distance, float facing_angle) {
     if (distance < 2.0f && facing_angle < 0.8f) {
         return 1;
     }
     return 0;
 }
+#pragma auto_inline reset
 
 void nis_end_scene(void) {
     struct KonquestNisParticipant* participant;
