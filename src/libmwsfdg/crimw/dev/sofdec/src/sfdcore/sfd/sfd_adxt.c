@@ -563,56 +563,6 @@ static void sfadxt_ExcludeSilence(SfdHandle* handle,
     }
 }
 
-static inline int sfadxt_SearchAlign(SfdHandle* handle,
-                                      const unsigned char* data, int size)
-{
-    const unsigned char* position;
-    const unsigned char* end;
-    const unsigned char* offset;
-    unsigned long latest_end_address;
-    const unsigned char* latest_offset;
-    const unsigned char* limit;
-    int found_end;
-
-    found_end = 0;
-    offset = data;
-    latest_end_address = 0;
-    end = data + size;
-    latest_offset = 0;
-    limit = data + 0x24;
-    while (offset < limit) {
-        position = offset;
-        found_end = 0;
-        while (position < end) {
-            if ((signed char)*position < 0) {
-                int end_size;
-
-                found_end = 1;
-                if (ADXT_IsEndcode(position, 0x12, &end_size) != 0 &&
-                    latest_end_address < (unsigned long)position) {
-                    latest_end_address = (unsigned long)position;
-                    latest_offset = offset;
-                }
-                break;
-            }
-            position += 0x12;
-        }
-        if (found_end == 0) {
-            break;
-        }
-        offset += 2;
-    }
-    if (found_end != 0) {
-        if (latest_offset == 0) {
-            SFLIB_SetErr(handle, 0xFF000C0A);
-            offset = data;
-        } else {
-            offset = latest_offset;
-        }
-    }
-    return offset - data;
-}
-
 static asm void sfadxt_ExcludeHdr(SfdHandle* handle, const unsigned char* data,
                                   int size, int* consumed)
 {

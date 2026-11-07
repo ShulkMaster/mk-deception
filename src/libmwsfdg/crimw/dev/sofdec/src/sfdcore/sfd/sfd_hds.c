@@ -432,15 +432,11 @@ static int sfhds_SetHdrRaw(SfdHandle* handle, const unsigned char* data,
     return 1;
 }
 
-/* RE4 also uses a no-inline scope for its raw-header helper. Here a caller scope
- * preserves both the exact helper and the retail call; helper-only scope does not. */
-#pragma dont_inline on
 asm int SFHDS_SetHdr(SfdHandle* handle, int stream_index,
                      const unsigned char* data, int size, int* header_flag)
 {
     SEQ_SFHDS_SetHdr();
 }
-#pragma dont_inline reset
 
 void SFHDS_FinishFhd(SfdHeaderState* state)
 {

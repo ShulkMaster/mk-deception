@@ -82,17 +82,6 @@ static inline int sfh_is_analyzable(const SFHHandle* handle)
     return 1;
 }
 
-static inline unsigned long sfh_read_le32(const unsigned char* data, int offset)
-{
-    const unsigned long* words = (const unsigned long*)data;
-    unsigned long word = words[offset / sizeof(*words)];
-    unsigned long swapped = ((word & 0x00FF0000UL) >> 8) |
-                            ((word & 0x0000FF00UL) << 8);
-
-    swapped |= (word >> 24) | (word << 24);
-    return swapped;
-}
-
 static inline signed short sfh_read_le_s16(const unsigned char* data, int offset)
 {
     signed short value = *(const signed short*)(data + offset);
@@ -100,28 +89,6 @@ static inline signed short sfh_read_le_s16(const unsigned char* data, int offset
 
     return (unsigned short)(((bits & 0xFF) << 8) |
                                           ((bits >> 8) & 0xFF));
-}
-
-static inline int sfh_read_header_u32(const SFHHandle* handle, int offset,
-                                      int* result)
-{
-    const unsigned char* header = handle->header;
-
-    if (!sfh_is_analyzable(handle)) return 0;
-    *result = sfh_read_le32(header, offset);
-    return 1;
-}
-
-static inline int sfh_read_header_u32_version(const SFHHandle* handle,
-                                              int offset, int minimum_version,
-                                              int* result)
-{
-    const unsigned char* header = handle->header;
-
-    if (!sfh_is_analyzable(handle)) return 0;
-    if (handle->version < minimum_version) return 0;
-    *result = sfh_read_le32(header, offset);
-    return 1;
 }
 
 static inline int sfh_read_header_u8(const SFHHandle* handle, int offset,

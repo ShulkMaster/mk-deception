@@ -63,20 +63,6 @@ void SFXA_Destroy(SFXAObject* object) {
     }
 }
 
-static inline SFXAObject* SFXA_FindFreeObject(void) {
-    SFXAObject* object = sfxa_work.objects;
-    s32 remaining = sfxa_work.capacity;
-
-    while (remaining > 0) {
-        if (object->active == 0) {
-            return object;
-        }
-        object++;
-        remaining--;
-    }
-    return 0;
-}
-
 asm SFXAObject* SFXA_Create(void)
 {
     SEQ_SFXA_Create();
