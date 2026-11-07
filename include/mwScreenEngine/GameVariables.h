@@ -112,4 +112,5 @@ public:
     GameVariables* m_head; /* +0x00 */
 };
 
+void __ct__13GameVariablesFv(void* self);
 #endif

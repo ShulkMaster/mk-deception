@@ -91,4 +91,8 @@ extern void* p2_profile_konquest;
 extern int g_bMemCardScreensDisabled;
 extern int mu_access_progress;
 
+int is_memcard_scanner_running(void);
+void set_sal_cursor(int v);
+void kill_async_memcard_scan(void);
+void reset_sg_status(StorageDevice* device, int slot);
 #endif

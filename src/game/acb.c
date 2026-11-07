@@ -57,7 +57,6 @@ static char space[] = " ";
 extern int pause_player;
 extern unsigned char p1_profile_switch_map[];
 
-char* get_current_screen_name(void);
 
 static void init_movelist(MovelistPdata* movelist_pdata);
 static float p_loop_movelist(void);

@@ -47,6 +47,10 @@
 #include "platform/fog.h"
 #include "platform/io.h"
 #include "game/blood.h"
+#include "game/jab.h"
+#include "game/ai.h"
+#include "game/fx.h"
+#include "game/mk_chess.h"
 
 
 
@@ -482,21 +486,13 @@ typedef struct BgndCollisionItem {
     BgndCollisionItemFlags flags;
 } BgndCollisionItem;
 
-int is_sobj_hidden(void* sobj);
 void reset_collision_system(void);
-void drone_ai_ok_to_think(void);
-void drone_ai_dont_think(void);
 void plyr_weapon_trail_hide(PlyrMirrorSlots* slots);
 void face_opponent_now(void);
-void danger_zone_eligible_on(void);
-void init_air_move_no_aniproc(void);
-void launch_me_up(float vertical_velocity, float gravity);
 void high_flash_check(void);
 void ani_loop_more_frames(float frames);
 void damage_me(float amount);
 void damage_player(PlyrPdata* player, float amount);
-void toggle_danger_zone(int enabled);
-void fx_hide(unsigned int handle, int hidden);
 static int bgnd_collision_to_script_interface(BgndObstacleEventData* event);
 static float p_bgnd_launch_sobj_monitor(void);
 static float p_bgnd_launch_chunk_monitor(void);
@@ -513,8 +509,6 @@ void reset_effect(const char* name);
 MkObj* mk_chess_launch_fx_at_pos_with_obj_emit_based(
     unsigned int effect, float x, float y, float z);
 unsigned int start_blood_particles(int particle_mask, unsigned int bone, PlyrPdata* player, MkObj* object);
-void set_collision_render_state(int enabled);
-double pow(double base, double exponent);
 MkPfx* find_pfx_by_name(const char* name);
 MkProc* get_player_proc(MkObj* player);
 void run_reaction_cleanup_function(PlyrPdata* player);
@@ -529,10 +523,6 @@ static int launch_sobj_watch_y_ground_plane(BgndSobjLaunchEntry* entry,
 extern int nb_slave_bones[];
 extern int konquest_npc_bones[];
 extern MkFlippedBoneMap flipped_nb_slave_bones;
-extern float fog_density;
-extern float fog_distance;
-extern float fog_color_real[4];
-extern int fog_type;
 typedef struct BgndReactionInfo {
     PlyrInfo* player_info;
     int reaction;
@@ -579,8 +569,6 @@ extern unsigned int g_bgnd_last_crack_overwritten;
 float bgnd_process_collision_info(
     unsigned int operation, float value1, float value2, float value3,
     float value4, float value5, float value6, float value7, float value8);
-extern void sh_set_grinder_speed(float speed);
-extern void sh_spawn_grinder_crush_pfx(void);
 extern void sh_start_grinder_crush_blood(Vec* position, PlyrPdata* player,
                                          MkObj* object);
 extern void sh_start_grinder_crush_chunks(Vec* position, PlyrPdata* player);
@@ -590,10 +578,6 @@ extern void set_ani_speed(float speed);
 extern int random_voice(int group);
 extern void random_hit(int group);
 extern unsigned char shared_ani[];
-extern void delete_obstacle_from_background_by_id(int obstacle_id);
-extern MkObj* load_weapon_from_slot(WeaponDefinition* definition, int slot);
-extern void load_bgnd_fstyle_sign(int player);
-extern void insert_ground_me_mkobj(void* obj);
 extern AnimScript** bgnd_animation_table;
 extern void transition_to_anim_script(
     AnimPdata* animation, AnimScript* script, int flags,
@@ -651,12 +635,10 @@ BgndPebblePlayerData* g_pebbles_pdata[20] = {
 
 void RwImageSetGamma(float gamma);
 void init_misc_bgnd_data(void);
-void init_weapon_trail_light_list(void);
 int mslSoundIsValid(MslSoundHandle sound);
 void snd_stop(MslSoundHandle sound);
 extern MkVtable5 vtbl_slaughterhouse_pdata;
 void initialize_bgnd_collisions(BgndDataTable* background);
-void mk_chess_init_bgnd_for_fight_mode(void);
 void bgnd_level_fatality_end(void);
 void bgnd_level_fatality_start(int player);
 void bgnd_level_transition_end(void);
@@ -1042,7 +1024,6 @@ typedef struct BlWallBreakControllerData {
 
 static float p_beetle_lair_front_wall_breaking(void);
 static float p_beetle_lair_wall_breaking_controller(void);
-extern void tightrope_restrictions_off(void);
 float r_beetle_lair_transition(void);
 static float p_beetle_lair_watch_remaining_fall_scene(void);
 static float winner_watching_him_fall(void);
@@ -1087,17 +1068,13 @@ static inline void bl_front_wall_effect_at(
 
 extern unsigned char shared_ani[];
 extern void face_opponent_now(void);
-extern void avoid_double_ani(void);
 extern void init_air_move(void);
 extern void launch_n_land_ani(
     AniData* animation, float launch_frame, float launch_step,
     float landing_frame, int landing_animation, float velocity_y,
     float gravity, float blend);
-extern void shake_hit_voice(int shake_ticks, float rumble_scale, int hit_voice, int fighter_voice);
 extern void set_ani_speed(float speed);
 extern void ani_to_frame_x(float frame);
-extern void face_position_now(Vec* position);
-extern void bulvan_function(int command);
 extern void force_away(float velocity, int duration, float damping,
                        int interval);
 extern void plyr_bleed_mouth(PlyrPdata* player);
@@ -1110,12 +1087,8 @@ extern void damage_me(float amount);
 extern int random_voice(int group);
 extern void head_tracking_off(void);
 extern void ani_to_end(void);
-extern int do_i_have_life_left(void);
-extern float j_getup_back_6(void);
-extern void tightrope_restrictions_off(void);
 extern void init_ground_move_no_aniproc(void);
 extern void ani_to_blend_frame(float frame);
-extern float p_blend_to_stance_in_10(void);
 
 
 typedef struct BlFinalColumnPieceData {

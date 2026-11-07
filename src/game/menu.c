@@ -31,6 +31,7 @@
 #include "game/minigames.h"
 #include "platform/disc_error.h"
 #include "game/krypt.h"
+#include "game/konquest.h"
 
 struct SoundtrackTitleEntry {
     const char* meta;
@@ -84,28 +85,12 @@ struct PauseMenuPdata {
     int was_paused;
 };
 
-extern int last_switch_time;
-extern SwitchMapEntry p1_temp_switch_map[];
-extern SwitchMapEntry p2_temp_switch_map[];
-extern int p1_rumble_on;
-extern int p2_rumble_on;
-extern int p1_temp_rumble_state;
-extern int p2_temp_rumble_state;
-extern int p1_use_temp_switch_map;
-extern int p2_use_temp_switch_map;
 extern const char* number_strings[];
 extern unsigned long display_off;
 extern int pause_player;
 
 void snd_stop(MslSoundHandle handle);
-int get_menu_mode_sub_var(void);
-int get_gameoption_exitwithsave(void);
-void set_button_repeat_time(int ticks);
-void set_default_button_repeat_time(void);
-void ck_do_profile_save(void);
-void xfer_puzzle_exit(int mode);
 
-extern float p_konquest_mode(void);
 
 static float p_controller_watcher(void);
 

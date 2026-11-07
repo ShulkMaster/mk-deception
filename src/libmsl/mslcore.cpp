@@ -3,6 +3,7 @@
 #include "msl/mslWave.h"
 #include "msl/mslSound_internal.h"
 #include "runtime/cstring.h"
+#include "msl/mslcore.h"
 
 mslRuntimeSound* currentUpdateSound;
 

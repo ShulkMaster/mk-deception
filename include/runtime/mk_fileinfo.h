@@ -209,6 +209,7 @@ extern MkFileInfo sec_legal_screen_fre;
 extern MkFileInfo sec_legal_screen_ita;
 extern MkFileInfo sec_demo_logo;
 extern MkFileInfo sec_sysart;
+extern int num_files_loaded;
 
 #ifdef __cplusplus
 }

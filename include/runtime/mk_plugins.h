@@ -84,4 +84,5 @@ static inline SpecularMaterialPluginData* mk_get_specular_material_plugin(
         (unsigned char*)material + SpecularMaterialOffset);
 }
 
+extern int last_pipeline_used;
 #endif

@@ -58,6 +58,8 @@
 #include "msl/msl_types.h"
 #include "mw/mwMemHeap.h"
 #include "rw/rplight.h"
+#include "fdlibm.h"
+#include "game/konquest_missions.h"
 
 union KonquestProfile {
     unsigned char raw[0x2A0];
@@ -1063,8 +1065,6 @@ extern MkFileInfo sec_konquest_common_art;
 extern MkFileInfo sec_konquest_monk_anims;
 extern MkFileInfo sec_konquestdata;
 extern MkFileInfo sec_konquest_map_common;
-extern char danton20_charmap[];
-extern int text_window_state;
 static struct MonkStateData monk_state_data[29];
 extern struct KonquestCommonProfile* p1_profile_common;
 extern unsigned long long default_char_bits;
@@ -1137,10 +1137,6 @@ int konquest_editor_mode_on;
 KonquestTime* g_pui_events;
 
 extern int menu_player;
-extern float fog_color_real[4];
-extern float fog_density;
-extern float fog_distance;
-extern int fog_type;
 static Vec old_hero_position;
 
 static float p_konquest_fade_screen(void);
@@ -1148,16 +1144,12 @@ static float p_hero_portal_in(void);
 static float p_hero_use_portal(void);
 static float p_hero_teleport(void);
 static float p_show_fight_message(void);
-void run_interaction_camera_script(void* owner, void* script);
 void snd_req_delay(int sound, int delay);
 void random_snd_req_delay(int group, int delay);
-double pow(double base, double exponent);
 static void update_visible_tiles(void);
 static void hide_currently_visible_tiles(void);
 void cleanup_npc_manager(void);
 void npc_shadow_teardown(void);
-void destroy_konquest_shadow_collision_lists(void);
-void cleanup_mission_state(void);
 int is_this_the_monk_npc(union KonquestNpc* npc);
 union KonquestNpc* find_npc_by_data(struct KonquestNpcData* data);
 void npc_make_visible(struct KonquestNpcRuntime* npc);
@@ -1171,7 +1163,6 @@ static float p_konquest_interaction(void);
 static float p_konquest_map_screen(void);
 static float p_transition_to_fight(void);
 static float p_load_hero_art_section(void);
-void insert_ground_me_mkobj(void* obj);
 void obj_apply_to_sobj_with_id(
     MkObj* object, int id, void (*callback)(void*));
 static void initialize_tile_patch_sobj(MkSobj* object);
@@ -1182,17 +1173,14 @@ int mslSoundIsValid(MslSoundHandle handle);
 void sobj_use_material_color(MkSobj* object);
 void npc_shadow_set_alpha(int alpha);
 void npc_shadow_set_light_angle(Vec* angles);
-void hide_atomic(void* atomic);
 static float p_konquest_kill_dialog_procs(void);
 void run_camera_script(void* owner, void* script, int flags);
 void kill_lip_sync_procs(void);
 float duration_of_lip_sync(const LipSyncKeyframe* keyframes);
-double ceil(double value);
 static float p_konquest_dialog(void);
 static float p_konquest_pause_menu(void);
 static void vdestroy_dialog_pdata(struct KonquestDialogPdata* pdata);
 static struct KonquestDialogVtable vtbl_dialog_pdata;
-float konquest_camera_loop(void);
 void npc_ani_1_frame(void);
 static float p_fade_ambient_sounds(void);
 static MkProc* create_dialog_proc(
@@ -1349,7 +1337,6 @@ static float p_display_award_image(void);
 static void destroy_award_art(struct KonquestAwardArtPdata* pdata);
 static void load_art_for_inventory_award(struct KonquestAwardArtPdata* pdata);
 int get_konquest_game_mode(void);
-int interaction_cam_glitched(void);
 static int adjust_sky_for_new_time_of_day(
     KonquestColorRow* sky_table, int last_row);
 static inline float get_previous_color_table_time_interval(
@@ -1366,7 +1353,6 @@ void set_interior_cam_pos_and_ang(void);
 void snd_stop(MslSoundHandle sound);
 MslSoundHandle pan_vol_snd_req(int sound, float pan, float volume);
 static float p_display_konquest_title(void);
-float p_show_text_window(void);
 static float p_fade_konquest_hud(void);
 static float p_close_konquest_chest(void);
 static MkProc* pui_set_chest_state(
@@ -1409,8 +1395,6 @@ void set_global_collision_callback(int (*callback)(unsigned int*));
 int npc_collision_callback(unsigned int* collision_id);
 int get_building_id_for_exterior(void);
 int get_primary_door_enum_for_exterior(void);
-CollisionObjList* get_collision_obj_list(void);
-void generate_shadow_collision_objects(int handle, unsigned int art_id);
 void initialize_npc_data(void);
 void initialize_konquest_interior(void);
 void konquest_nav_init(void);
@@ -1430,12 +1414,8 @@ static void generate_collisions_for_tile_and_tile_objects(
 void generate_collision_objects(
     int handle, unsigned int art_oid, const Vec* position, const Vec* angles,
     MkPtr** secondary_list);
-void set_flag_for_all_collisions(MkPtr** list, unsigned int flags);
 void exclusive_or_flags_for_all_collisions(
     MkPtr** list, unsigned int flags);
-void purge_global_collision_list(void);
-void remove_collision_list_from_konquest_shadow_lists(MkHdr* collision_list);
-void insert_collision_list_on_konquest_shadow_lists(MkHdr* collision_list);
 static void show_konquest_object(struct KonquestUidObject* object);
 typedef struct KonquestTransitionMotion {
     Vec velocity;
@@ -1446,7 +1426,6 @@ typedef struct KonquestTransitionMotion {
 static void object_transition_to_state(
     KonquestChildObject* object, int state, int play_sound);
 static void object_set_state(KonquestChildObject* record, int state);
-void remove_fgnd_mkobj(void* obj);
 void fx_resume_emit(int effect);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
 static void exit_meditation(void);

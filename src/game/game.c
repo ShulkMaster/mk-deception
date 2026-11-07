@@ -37,10 +37,18 @@
 #include "runtime/utils.h"
 #include "runtime/cstdio.h"
 #include "runtime/cstring.h"
+#include "game/ai.h"
+#include "game/moves.h"
+#include "game/blood.h"
+#include "game/ncs.h"
+#include "game/fx.h"
+#include "game/ending.h"
+#include "game/fatality.h"
+#include "game/ejb.h"
+#include "game/konquest.h"
 
 void run_reaction_cleanup_function(PlyrPdata* player);
 
-extern int trial_check_state(void);
 struct GameObjectLatch {
     MkHdr* obj;
     unsigned int obj_instance;
@@ -67,9 +75,7 @@ int round_winner;
 unsigned long display_off;
 int g_GameLossesInARow;
 
-extern int trial_get_round_length(void);
 extern int pause_player;
-extern void bgnd_swap_level(int level);
 static char timer_string[10];
 int update_game_timer(void);
 
@@ -150,13 +156,6 @@ struct LoadScreenPdata {
 };
 
 extern void snd_req_delay(int sound_id, int delay);
-extern void trial_game_init(void);
-extern void show_fighting_style(GlobalMoveset* moveset, int player);
-extern void bleed_startup(void);
-extern void create_wall_monitor(void);
-extern void screen_engine_cleanup(void);
-extern int go_into_major_pain_please;
-extern int go_into_twitch_death_please;
 struct EndingTiming plyr_ending_timings[] = {
     {7, 825.0f, 400.0f, 350.0f, 120.0f, 60.0f, 120.0f, 5.0f, 80.0f},
     {1, 590.0f, 370.0f, 400.0f, 120.0f, 60.0f, 120.0f, 5.0f, 120.0f},
@@ -409,50 +408,22 @@ unsigned int round_numbers_tbl[] = {
     0x00020020, 0x00020021, 0x00020022,
     0x00020023, 0x00020024,
 };
-extern int trial_end_round(void);
-extern int advance_ladder_position(void);
-extern void award_bet(void);
-extern void ck_restore_kiddy(void);
 extern void finish_music(void);
 extern void end_music(void);
-extern void play_final_fatality_music(void);
-extern void big_boss_death(void);
 extern void do_win_effect(void);
 extern void reset_fight(int death_trap);
 extern unsigned int round_numbers_tbl[];
-extern void init_wagering(void);
-extern int get_current_wager_koin(void);
 extern int char_for_ending;
 extern int winner_for_ending;
 extern struct KonquestLoadingPdataView* konquest_pdata;
 extern unsigned char konquest_save_data[];
 extern char bgnd_animations[];
-extern int g_big_boss_intro_tap_out_f;
-extern float p_ladder_select(void);
-extern float big_boss_taunt_cam_cut(void);
-extern void sidekick_intro_check(void);
-extern void trial_start_new_round(void);
-extern void trial_round_init(void);
 extern MkProc* get_player_proc(MkObj* player);
-extern void big_boss_wait_for_intro(void);
-extern void konquest_transition_from_fight(void);
-extern void player_postround_chores(void);
 extern MkFileInfo sec_fightingart;
-extern void trial_setup_fight(void);
-extern int num_files_loaded;
-extern int f_p1_warning_given;
-extern int f_p2_warning_given;
 extern void unimpale_victim(PlyrPdata* player);
 extern void reload_fan(PlyrPdata* player);
-extern void bleed_restart(void);
 extern void advance_active_moveset(PlyrPdata* player);
-extern void start_mkpfx_FadeSnapShot(void);
 extern void start_constrain_proc(void);
-extern float glitch_to_stance_j_exit(void);
-extern float blend_to_stance_j_exit(void);
-extern float getup_from_ground(void);
-extern float give_some_distance(void);
-extern float p_champion_screen(void);
 
 static void ck_do_fatality(void);
 

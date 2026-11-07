@@ -8,7 +8,6 @@ static OSTime HoldDown;
 
 volatile unsigned long __PIRegs[] : 0xCC003000;
 unsigned char __gUnknown800030E3 : 0x800030E3;
-extern OSTime __OSStartTime;
 
 void __OSResetSWInterruptHandler(__OSInterrupt interrupt, OSContext* context)
 {

@@ -14,10 +14,10 @@
 #include "runtime/mk_obj.h"
 #include "runtime/mk_proc.h"
 #include "runtime/utils.h"
+#include "game/ejb.h"
+#include "game/bgnd_jmt.h"
 
 void ani_to_frame_x(float frame);
-void launch_me_up(float velocity, float gravity);
-void land_chores(int sound, int flags, float velocity, float gravity);
 
 struct NbNpcState {
     MkHdr hdr;
@@ -61,14 +61,10 @@ struct NbFighterHurtView {
 static float p_npc_on_pendulum_rope(void);
 int bgnd_preload_named_model(const char* model_name, int slot);
 void bgnd_set_active_sobj_in_obj(int model_index, int object_id);
-void bgnd_unhide_preload_obj(int model_index);
-void bgnd_unhide_active_sobj(void);
 void bgnd_set_active_sobj_pos(float x, float y, float z);
-void bgnd_preload_obj_attach_rope(int model_index);
 void bgnd_create_named_npc_in_slot(
     int npc_id, const char* model_name, int model_id, int flags);
 void bgnd_add_brains_to_npc(int npc_id, MkProcEntryFn brains);
-MkObj* bgnd_fetch_obj(int object_id);
 struct NbNpcState* bgnd_fetch_npc(int npc_id);
 void bgnd_attach_rope_to_bgnd_obj(
     int rope_model_index, int target_model_index, int object_id);
@@ -82,18 +78,13 @@ void xfer_player_proc_to_script_manual_messaging(
     FighterMirror* fighter, MkObj* object, int message);
 MkProc* get_player_proc(MkObj* object);
 int is_my_chest_to_screen(void);
-void bgnd_collision_if_disable_col(int list_id, unsigned int collision_id);
-void bgnd_collision_if_enable_col(int list_id, unsigned int collision_id);
 int spad_set_vector(int index, int source);
 float spad_get_pos(int index, int component);
 int spad_sub_vectors(int lhs, int rhs, int out);
 int spad_norm_vector(int index);
 int spad_scale_vector(int destination, int source, float scale);
-float spad_xz_dot_xz(int lhs, int rhs);
-float spad_xz_length_vector(int index);
 int reaction_fetch_current_power_level(int player_index);
 int reaction_fetch_current_flags(int player_index);
-int is_pX_airborn(int player_index);
 void bgnd_launch_fx_at_bid_of_mkobj(
     const char* effect_name, MkObj* object, int bone);
 

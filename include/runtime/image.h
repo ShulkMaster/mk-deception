@@ -9,8 +9,6 @@
 extern "C" {
 #endif
 
-extern MkVtableAniTextureControl vtbl_ani_texture_control;
-extern struct ScreenObjVtable vtbl_mkpdata_screen_obj;
 
 typedef struct AniTextureControl AniTextureControl;
 typedef struct AniTextureControlItem AniTextureControlItem;

@@ -1,7 +1,9 @@
 #ifndef RUNTIME_ANIM_API_H
 #define RUNTIME_ANIM_API_H
 
-#include "runtime/anim_types.h"
+typedef struct AnimPdata AnimPdata;
+typedef struct MkHdr MkHdr;
+typedef struct MkObj MkObj;
 
 typedef struct MorphScript {
     unsigned int frame_count;

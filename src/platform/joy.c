@@ -20,7 +20,6 @@
 #include "game/plyr.h"
 
 static int my_next_duck_state;
-extern int g_drone_blocking_in_reaction;
 
 struct JoySharedAnimations {
     unsigned char pad00[0x2E4];

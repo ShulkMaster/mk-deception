@@ -18,6 +18,7 @@
 #include "runtime/cstring.h"
 #include "rw/rwframe.h"
 #include "rw/rpworld_types.h"
+#include "game/ai.h"
 
 struct AniScript;
 struct MkFlippedBoneMap;
@@ -366,7 +367,6 @@ float xz_distance_between_players(void);
 MslSoundHandle pan_snd_req(int sound_id, float pan);
 MslSoundHandle pan_vol_snd_req(int sound_id, float pan, float volume);
 MslSoundHandle plyr_snd_req(int sound_offset);
-void bgnd_launch_fx_at_position(const char* name, float x, float y, float z);
 void snd_major_hit_voice(void);
 void snd_death_voice(void);
 MslSoundHandle random_hit(int group);
@@ -502,7 +502,6 @@ static void ft_fleshchunk_postsleep(void);
 static void ft_fleshchunk_prewake(void);
 void freeze_player(void);
 void unfreeze_player(void);
-void got_hit_fx(int strength, int bone, int blood, int unused1, int unused2, float scale, int active);
 void hide_obj(struct PuzzleFighterRenderObject* object);
 void insert_fgnd_mkobj(struct PuzzleFighterRenderObject* object);
 void obj_set_pos(struct PuzzleFighterRenderObject* object, Vec* position);

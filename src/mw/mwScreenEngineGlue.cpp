@@ -70,18 +70,22 @@ extern "C" {
 #include "rw/rwframe.h"
 #include "runtime/mk_mem.h"
 #include "math/mk_math.h"
+#include "platform/io.h"
+#include "game/konquest_items.h"
+#include "game/game.h"
+#include "runtime/sound.h"
+#include "mw/mwMemNewDelete.h"
+#include "game/konquest_missions.h"
+#include "game/plyr.h"
+#include "platform/main.h"
 
-void* __nw__FUl(unsigned long size);
 void __ct__17ScreenMatrixStackFv(void* self);
 void __dt__17ScreenMatrixStackFv(void* self, short del);
-void __dl__FPv(void* p);
 int is_controller_removed(void);
 
 int ReadHexInt__10ScreenUtilFPc(char* s);
 void* __nw__10ScreenNodeFUl(unsigned long size);
 void __ct__10ScreenNodeFv(void* node);
-void* __nw__12ScreenActionFUl(unsigned long size);
-void __ct__12ScreenActionFv(void* action);
 void ProcessSubActions__12ScreenObjectFPC12ScreenActioni(
     void* self, const void* action, int match);
 void DestroyScreen__15ScreenInstancerFP6Screen(void* screen);
@@ -215,19 +219,12 @@ MkProc* _create_mkproc_generic_nostack(int proc_id, int priority, void* proc_fn,
 void Dispose__9ScreenMgrFUi(void* mgr, unsigned int flags);
 void Init__9ScreenMgrFP12ScreenClient(void* mgr, void* client);
 void Init__13ScreenControlFv(void* self);
-void* __ct__9ScreenMgrFv(void* self);
-void __dt__9ScreenMgrFv(void* self, short del);
-void __ct__12ScreenClientFv(void* self);
-void __ct__13GameVariablesFv(void* self);
 mkGameVariables* __dt__15mkGameVariablesFv(
     mkGameVariables* self, short del);
 void __register_global_object(
     void* object, void* destructor, void* registration);
 
-int get_stick_pos(int port, int which, float* out_x, float* out_y);
 static int check_allow_screen_engine_control__Fv(void);
-void set_player_state(PlyrInfo* plyr, int state);
-int check_switch(int port, int switch_index);
 void bg_pselect_set_stage(int player, int stage);
 void bg_pselect_set_character(int character);
 void pselect_player_canceled(int player);
@@ -259,7 +256,6 @@ int pselect_bgnd_has_level_transition(void);
 int pselect_bgnd_has_weapon(void);
 int get_save_progress_flag(void);
 int konquest_is_save_allowed(void);
-int trial_never_passed_this_mission(void);
 int pselect_get_body_texture_index(int player);
 int get_contrast_value(void);
 int get_brightness_value(void);
@@ -542,7 +538,6 @@ static float p_repeat_button_input__Fv(void);
 static const float kGvFloatZero = 0.0f;
 
 void create_inventory_image_list(GVTexturePair out, int count);
-int get_number_items_in_inventory(void);
 int get_num_pselect_body_textures(void);
 int get_num_selectable_bgnds(void);
 int controller_get_num_adjustable_buttons(void);
@@ -604,7 +599,6 @@ void kontent_set_current_selection(int item);
 void set_current_soundtrack(int index);
 int get_current_soundtrack(void);
 
-extern const char* mk6_version_string;
 extern char popup_title_text[0x100];
 extern char popup_options_text[0x100];
 extern int psel_p1_handicap;
@@ -612,7 +606,6 @@ extern int psel_p2_handicap;
 
 char* get_controller_vibration_string(int player);
 char* pselect_get_player_name(int player);
-int get_konq_profile_value(int type, int index);
 const char* locate_inventory_text(int mode);
 char* pselect_get_style_name(int player, int style);
 char* pselect_get_difficulty_level(int player);
@@ -627,7 +620,6 @@ char* get_long_coffin_description(void);
 const char* get_current_soundtrack_title(void);
 const char* get_current_soundtrack_composer(void);
 const char* get_current_soundtrack_description(void);
-int get_continue_timer(void);
 const char* get_screens_online_options_newaccountname(void);
 const char* get_screens_online_options_newaccountpassword(void);
 
@@ -637,9 +629,7 @@ extern int arena_sub_menu_var;
 extern int pprofile_stage_var;
 extern int need_to_reload_systemart;
 extern int pause_player;
-extern int mode_of_play;
 extern int popup_type;
-extern int winner;
 
 enum { kMallocTagInit = 0x494E4954 };
 
@@ -956,8 +946,6 @@ extern int GetInt__22GameVariableDispatcherFi(void* self, int id);
 extern void SetInt__22GameVariableDispatcherFUiUii(void* self, unsigned int context,
                                                    unsigned int id, int value);
 extern unsigned int ScreenIntegerCompare__Fiii(int lhs, int op, int rhs);
-extern void vdebug_print_message(const char* fmt, ...);
-extern void snd_req(int sound_id);
 extern void snd_stop_all(void);
 extern void fx_resume_emit(unsigned int handle);
 extern void pselect_update_selbox_pos(int player, int position);
@@ -985,7 +973,6 @@ extern void hide_kontent_bio_text(void);
 extern void reset_video_defaults(void);
 extern void adjust_screen_reset(void);
 extern void adjust_screen_position(int direction);
-extern void set_snd_vol(int handle, int sound_id, float volume);
 extern void HandleEvent__22GameVariableDispatcherFP12ScreenObjectii(
     void* self, void* object, int event, int arg);
 extern void pselect_init_arena_select(void);
@@ -1256,7 +1243,6 @@ extern void __dt__21ScreenResourceLibraryFv(void* self, short del);
 
 extern void __dt__12ScreenActionFv(void* self, short del);
 extern void __dl__12ScreenActionFPv(void* self);
-extern void __dt__12ScreenClientFv(void* self, short del);
 
 #define DEFINE_SCREEN_ACTION_DTOR(name, vtable)                     \
     void* name(void* self, short del) {                             \
@@ -4987,7 +4973,6 @@ void ClearStrings__8TextListFv(TextList* self) {
         i += 1;
     }
 }
-#pragma dont_inline off
 
 void ProcessParams__8TextListFP12ScreenParams(TextList* self, ScreenParams* params) {
     int nodeIndex;

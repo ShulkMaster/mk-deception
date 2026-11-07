@@ -36,6 +36,8 @@
 #include "rw/rwframe.h"
 #include "rw/rpworld_types.h"
 #include "rw/rwtypehf.h"
+#include "game/ejb.h"
+#include "game/konquest.h"
 
 union ScriptedCameraRadialValue {
     int radial_movement;
@@ -91,18 +93,12 @@ extern float cam_rot_speed;
 extern float field_of_view_ratio;
 extern int end_round_cam_done;
 extern int camera_mode;
-extern Vec tightrope_uv;
 extern float right_frustum_plane_dist;
 extern float left_frustum_plane_dist;
 extern struct FadeBoxItem lower_fade_box_item;
 extern struct FadeBoxItem upper_fade_box_item;
 
 extern MkProcEntryFn old_camera_function;
-float get_constrain_player_distance(void);
-int get_konquest_game_mode(void);
-void render_col_shape(CollisionShape* shape, const unsigned int* color);
-void hide_atomic(void* atomic);
-void unhide_atomic(void* atomic);
 MslSoundHandle pan_vol_snd_req(int sound_id, float pan, float volume);
 
 Vec cam_ang_offset = {0.0f, 0.0f, 0.0f};
@@ -130,8 +126,6 @@ static float p_move_widescreen_bars(void);
 static void look_at_interaction_target(Vec* target, int snap_angles);
 static void check_reverse_interaction_cam_targets(void);
 void get_play_camera_position(Vec* position);
-int am_i_on_the_left(void);
-int am_i_on_the_left2(MkObj* opponent, MkObj* me);
 int orbit_position_to_end_point(Vec* center, Vec* endpoint,
                                 float* initial_speed, float* final_speed,
                                 float time, unsigned int direction, int reset);

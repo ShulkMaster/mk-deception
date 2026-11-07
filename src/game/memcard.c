@@ -17,7 +17,6 @@
 
 
 extern char konq_region_data_buffer[0x1F54];
-extern int msg_cant_enter_konquest_answer;
 
 #define STR_SPACE " "
 #define STR_COUNT_UNIT "%d %s"

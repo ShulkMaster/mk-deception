@@ -24,4 +24,15 @@ void limb_sever_bone_attach(
     struct PlyrInfo* owner_player, int limb, int target_bone,
     int include_children);
 
+void limb_sever_explode_apart_plyr_num(int a, float b, float c, float d, int e);
+void stop_prison_grab_proc(void);
+void done_prison_grab_proc(struct PrisonGrabPdata* pdata);
+void mkscripts_set_anim_check_flag(int zone_check, int grab_check);
+void destroy_gore2_obj(unsigned int object_id, int particle_index);
+void limb_sever_update_slide_end_coeff(struct NcsLimbUpdatePdata* limb, float coefficient);
+void start_sweat_particles_scripts(int a, int b);
+void start_gore2_update(void);
+extern void start_mkpfx_FadeSnapShot(void);
+float p_sc_spear_retract(void);
+float p_sc_spear_kill(void);
 #endif

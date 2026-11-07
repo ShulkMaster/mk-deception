@@ -49,7 +49,6 @@
 static int AttachPlugins(void);
 
 extern int curr_pipeline_used;
-extern int last_pipeline_used;
 static const char display_text[] =                                             \
     "/hostwrite/%03d.tga\0"                                                   \
     "Tick = %02d\0"                                                           \

@@ -15,6 +15,7 @@
 #include "game/plyr_globals.h"
 #include "rw/rtquat.h"
 #include "rw/rwframe.h"
+#include "game/bgnd.h"
 
 static float p_cloth(void);
 static float p_wind(void);
@@ -29,10 +30,7 @@ static void pw_axis(void);
 static void ps_axis(void);
 static void mkobj_update_cloth(MkHdr* hdr);
 void mkobj_update_weapon_trail(MkHdr* hdr);
-RpMaterial* obj_find_material_by_id(MkObj* obj, int material_id);
-void material_set_zbias(void* material, float zbias);
 
-extern MkObj* g_bgnd_preloaded_models[15];
 struct ClothCollisionVector {
     Vec xyz;
     float w;

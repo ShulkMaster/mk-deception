@@ -12,6 +12,7 @@ void ARQPostRequest(ARQRequest* request, unsigned long owner, unsigned long type
                     unsigned long priority, unsigned long source,
                     unsigned long destination, unsigned long length,
                     ARQCallback callback);
+void __ARQPopTaskQueueHi(void);
 
 #ifdef __cplusplus
 }

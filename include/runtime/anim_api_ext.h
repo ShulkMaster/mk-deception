@@ -1,7 +1,7 @@
 #ifndef MKD_RUNTIME_ANIM_API_EXT_H
 #define MKD_RUNTIME_ANIM_API_EXT_H
 
-#include "runtime/anim_types.h"
+typedef struct MkObj MkObj;
 
 #ifdef __cplusplus
 extern "C" {

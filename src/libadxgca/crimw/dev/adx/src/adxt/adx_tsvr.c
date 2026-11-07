@@ -3,6 +3,7 @@
 #include "cri/sj.h"
 #include "dolphin/types.h"
 #include "runtime/cstring.h"
+#include "cri/adx_tlk.h"
 
 enum {
     ADXT_STATUS_DECODING_HEADER = 1,
@@ -81,14 +82,10 @@ extern void ADXRNA_SetOutVol(AXRNAHandle* rna, s32 volume);
 extern void ADXRNA_SetOutPan(AXRNAHandle* rna, s32 channel, s32 pan);
 extern int ADXRNA_SetStmHdInfo(AXRNAHandle* rna, void* stream_header);
 
-extern s32 ADXT_GetNumChan(ADXTHandle* handle);
-extern s32 ADXT_GetStat(ADXTHandle* handle);
 extern void ADXT_GetTranspose(
     ADXTHandle* handle, s32* transpose, s32* fine_transpose);
 extern void ADXT_SetTranspose(
     ADXTHandle* handle, s32 transpose, s32 fine_transpose);
-extern void ADXT_SetLnkSw(ADXTHandle* handle, s32 enabled);
-extern void ADXT_Stop(ADXTHandle* handle);
 extern void adxt_start_stm(
     ADXTHandle* handle, const char* filename, void* directory,
     s32 file_offset, s32 file_sectors);

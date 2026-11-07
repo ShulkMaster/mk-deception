@@ -10,7 +10,6 @@
 #include "platform/gcmcard.h"
 #include "mw/mwScreenEngineGlue.h"
 
-int is_memcard_scanner_running(void);
 
 static const float default_volume_scale = 100.0f;
 static const float default_volume_offset = 0.005f;

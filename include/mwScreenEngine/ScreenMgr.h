@@ -116,4 +116,6 @@ public:
     unsigned int m_eventLatch; /* +0x260 */
 }; /* sizeof == 0x264 -- matches Glue BSS screen_manager */
 
+void __dt__9ScreenMgrFv(void* self, short del);
+void* __ct__9ScreenMgrFv(void* self);
 #endif

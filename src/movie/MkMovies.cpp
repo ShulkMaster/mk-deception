@@ -10,8 +10,8 @@
 
 extern "C" {
 
-int GetArtSlot__Fv(void);
 #include "runtime/asset.h"
+#include "mw/mwScreenEngineGlue.h"
 RwTexture* GetScreenPolyTexture__FPv(void* screen_poly);
 void SetScreenPolyTexture__FPvP9RwTexture(void* screen_poly, RwTexture* texture);
 

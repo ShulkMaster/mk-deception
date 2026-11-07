@@ -174,15 +174,12 @@ extern KonquestPdata* konquest_pdata;
 extern StorageDevice storage_status[STORAGE_MAX_DEVICES];
 int f_writing_konquest_profile;
 /* Decl: include/game/plyrprofile.h */
-void set_monk_position(float x, float y, float z, float w);
-void update_tile_grid(void);
 KonquestTrigger* find_trigger_by_id(unsigned int id);
 int spawn_dynamic_pui_at_pos(
     PuiItem* item, int source_type, const Vec* position, void* source,
     int critical);
 PathData* get_new_path_data_struct(void);
 int get_tile_from_position(const Vec* position);
-KonquestWaypoint* get_door_path(int id);
 void* get_data_table(void* table, int id);
 int get_row_count_for_table(void* table, int row);
 int load_konquest_region_from_memcard_w_error(

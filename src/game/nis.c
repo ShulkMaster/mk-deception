@@ -59,7 +59,6 @@ void mkscripts_destroy_fk_bonematcher(MkHdr* bonematcher);
 void add_anim_section_by_name_async_pal(int slot, const char* name, void* bss, int arg4, int arg5);
 void wait_for_slot_load(int slot);
 void load_art_section_by_name(int slot, const char* name);
-void kill_head_tracking(void);
 void unload_section_slot(int slot);
 void set_section_memory_scheme(int scheme);
 

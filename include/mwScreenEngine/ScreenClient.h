@@ -33,4 +33,6 @@ public:
     virtual void PreloadData(int);
     virtual int IsPreloadDataDone(int);
 };
+void __ct__12ScreenClientFv(void* self);
+extern void __dt__12ScreenClientFv(void* self, short del);
 #endif

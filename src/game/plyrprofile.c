@@ -24,18 +24,12 @@
 #include "runtime/sound.h"
 #include "runtime/cstring.h"
 #include "runtime/cstdio.h"
+#include "game/mcardmsg.h"
 
-void reset_sg_status(StorageDevice* device, int slot);
-void ppc_set_stage_value(int stage);
 static void pne_set_players_name_to_default(char* name, int* charPos);
 static float p_player_profile_whats_loaded_screen(void);
-void set_sal_cursor(int v);
 static void pv_recalculate_profiles_and_position(int* outDevice, int* outSlot,
                                                  int* outCount, int* outPosition);
-int is_memcard_scanner_running(void);
-void kill_async_memcard_scan(void);
-int get_multi_profile_cursor_p1(void);
-int get_multi_profile_cursor_p2(void);
 void move_player_name(const char* src, char* dst);
 void move_player_pin(const unsigned char* src, unsigned char* dst);
 
@@ -125,7 +119,6 @@ extern ProfileUnlockBits64 default_alt_char_bits;
 extern ProfileUnlockBits64 default_bgnd_bits;
 extern ProfileUnlockBits64 default_pz_char_bits;
 extern ProfileUnlockBits64 default_pz_bgnd_bits;
-void pselect_update_profile_settings(void);
 
 #define PROFILE_MENU_SCREEN_SLOT 0x90046
 #define PROFILE_VIEW_SCREEN "common/player_profile/pp_view_profile"
@@ -176,9 +169,6 @@ static inline void spawn_ppwls_timeout_proc(void) {
 
 PlayerProfile p1_profile;
 PlayerProfile p2_profile;
-extern int mcard_msg_active;
-extern int p1_rumble_on;
-extern int p2_rumble_on;
 
 static inline void copy_profile_switch_defaults(PlayerProfile* profile) {
     int i;

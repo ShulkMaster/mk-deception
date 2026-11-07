@@ -29,6 +29,9 @@
 #include "rw/rtquat.h"
 #include "rw/rwframe.h"
 #include "rw/rwengine.h"
+#include "game/plyr.h"
+#include "game/fx.h"
+#include "game/pfxscript.h"
 
 #define RW_OBJECT_FROM_FRAME_LINK(link_)                                      \
     ((RwObject*)((unsigned char*)(link_) - sizeof(RwObject)))
@@ -105,11 +108,8 @@ static float p_goro_arms_fixup(void);
 static float p_shadow_obj(void);
 static void trackhead_postsleep(void);
 static void trackhead_prewake(void);
-void mks_start_goro_xtra_weapons(void);
 void limb_sever_show_z_meat_chunks_all(MkObj* obj);
-int get_player_number(MkObj* obj);
 
-RpAtomic* set_atomic_material_alpha(RpAtomic* atomic, unsigned int alpha);
 RpAtomic* force_atomic_material_alpha(RpAtomic* atomic, void* alpha);
 void mkobj_destroy_bones(MkObj* obj);
 static struct HeadTrackingPdata* pdata_headtracking;
@@ -227,7 +227,6 @@ MkBone* alloc_bone(void);
 void mkbone_remove(MkBone* bone);
 void mkbone_insert_child_of_clone_parent(MkBone* bone, MkBone* parent);
 void mkbone_insert_child_of_parent(MkBone* bone, MkBone* parent);
-void reset_effect_ppfx(struct PfxScriptEffect* effect);
 void pfx_spawn_at_bid(const char* name, MkObj* object, int bone_id);
 void bone_make_parents_my_children(MkBone* bone);
 

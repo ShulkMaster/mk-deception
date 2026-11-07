@@ -90,4 +90,21 @@ extern int p2_current_switch_time;
 extern int p2_last_switch_bit;
 extern int p2_last_switch_time;
 
+int get_player_number(MkObj* player);
+void tag_team_activate_player(MkObj* object, int player);
+void become_plyr1_proc(void);
+void become_plyr2_proc(void);
+void setup_vomit_slip_sound(void);
+void exit_plyr_proc();
+float plyr_get_pos(unsigned int axis);
+void register_baraka_cb_functions(void);
+void switch_to_bgnd_moveset(PlyrPdata* player, int moveset);
+void start_baraka_jaw_monitor(void);
+void plyr_invulnerable_to_projectiles(PlyrPdata* pdata, int enabled);
+void start_baraka_blades_monitor(void);
+float sidekick_cool_vanish(PlyrPdata* player);
+void show_baraka_one_blade_only(PlyrPdata* pdata, int first_blade);
+void plyr_start_script_in_proc(int proc_id, unsigned int function);
+void stop_vomit_slip_sound(void);
+int plyr_in_spin_react(PlyrPdata* pdata);
 #endif

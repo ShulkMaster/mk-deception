@@ -16,6 +16,8 @@
 #include "rw/rwframe.h"
 #include "game/plyr_globals.h"
 #include "game/cloth.h"
+#include "game/plyr.h"
+#include "game/moves.h"
 
 typedef struct ImpaleSecondaryObject {
     MkHdr hdr;
@@ -55,20 +57,12 @@ static MkObj* plyr_obj_item_release(PlyrPdata* player,
 void plyr_weapon_trail_hide(PlyrMirrorSlots* slots);
 void obj_unhide_material_by_id(MkObj* object, int id);
 void obj_hide_material_by_id(MkObj* object, int id);
-void mkobj_zero_bone_rots(MkObj* object);
-int get_player_number(MkObj* object);
-void pull_bone_hierarchy_mkobj(void* obj);
-void obj_force_culling_off(MkObj* object);
 static void start_weapon_trail(MkObj* weapon, MkObj* trail_model);
-RpMaterial* obj_find_material_by_id(MkObj* object, int material_id);
 void sobj_use_material_color(void* sobj);
 void obj_set_material_fade(
     MkObj* object, unsigned int material_id, signed char alpha);
-void material_set_zbias(void* material, float zbias);
 MkProc* fade_material(float delta, MkObj* object, unsigned int sobj_id,
                       unsigned int material_id, int frames);
-void advance_my_moveset(void);
-void mkobj_bones_dest_mat_no_update(MkObj* object);
 static Vec trail_p_to_c_uv = {1.0f, 0.0f, 0.0f};
 
 WeaponTrailMap goro_gauntlets_trail_anchors[3] = {

@@ -3,7 +3,8 @@
 
 typedef struct PfxFieldSet PfxFieldSet;
 typedef struct PfxVm PfxVm;
-#include "libmkparticle/vm.h"
+typedef struct PfxEmitterInstruction PfxEmitterInstruction;
+typedef struct PfxVmEmitter PfxVmEmitter;
 
 int pfx_emitter_exhausted(PfxVmEmitter* emitter);
 PfxVmEmitter* pfx_get_emitter(PfxVm* pfx, int index);

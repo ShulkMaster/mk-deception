@@ -49,6 +49,8 @@
 #include "rw/rwcamera_internal.h"
 #include "game/pfxscript.h"
 #include "libmkparticle/pfx2d.h"
+#include "game/ladder.h"
+#include "fdlibm.h"
 
 static int mk_chess_input_possibile(void);
 
@@ -409,8 +411,6 @@ extern ChessModeState* mk_chess_pdata;
 extern ChessBoardSave board_game_save_data;
 extern ChessBoardGameController g_board_game_controller;
 extern int g_loser_life_resolved;
-extern int p1_profile_status;
-extern int p2_profile_status;
 extern ChessBezierCameraState g_bezier_cam;
 
 void snd_req_delay(int sound_id, int delay);
@@ -426,10 +426,8 @@ extern ChessGroundCollisionEntry mk_chess_piece_ground_colls[3];
 extern int mk_chess_piece_bones[18];
 
 double __fabs(double value);
-double sqrt(double value);
 static void mk_chess_remove_piece_at_cell_into_deadpool(unsigned char x,
                                                       unsigned char y);
-void obj_clear_bone_collapse_flag(MkObj* object, int bone);
 static void mk_chess_piece_event(ChessPiece* piece, unsigned int event,
                           void* data);
 static void mk_chess_game_event(unsigned int event, ChessPiece** pieces,
@@ -461,7 +459,6 @@ static void mk_chess_activate_piece_properties(ChessPiece* piece);
 static void mk_chess_set_game_mode(int mode);
 static void mk_chess_timeout_msg(unsigned int message, unsigned int side);
 void snd_stop(MslSoundHandle handle);
-int ck_fatality_available(void);
 void end_music(void);
 static float p_mk_chess_start_fatality(void);
 MkProc* get_player_proc(MkObj* player);
@@ -472,14 +469,8 @@ static float p_mk_chess_continue(void);
 static void mk_chess_set_default_chess_game(void);
 static void mk_chess_set_up_passed_in_chess_game(void);
 static void mk_chess_set_default_chess_demo_game(void);
-void ck_do_profile_save(void);
-float bgnd_pebble_fetch_current_info(unsigned int field);
 void mk_chess_camera_init(void);
-void bgnd_make_mkobj_transl(MkObj* object);
 void obj_set_z_offsets(float offset, void* object);
-void insert_ground_me_mkobj(void* obj);
-float p_mk_chess_cam_control(void);
-float p_mk_chess_cam_chase_cursor(void);
 float p_monitor_chess_input(void);
 static float x_chess_4(void);
 static float x_chess_3(void);
@@ -1030,8 +1021,6 @@ static inline void mk_chess_special_fade(ChessPiece* piece, unsigned int alpha,
 
 static void mk_chess_count_p1_power_squares(unsigned int x, unsigned int y);
 static void mk_chess_count_p2_power_squares(unsigned int x, unsigned int y);
-void bgnd_hide_pebbles(int player);
-void bgnd_unhide_pebbles(int group);
 static void mk_chess_cell_end_of_turn(unsigned int x, unsigned int y);
 static int mk_chess_handle_buffered_events_cb(ChessPiece* piece,
     unsigned int context0, unsigned int context1, unsigned int context2);
@@ -1112,8 +1101,6 @@ typedef struct ChessSceneFadePdata {
     int step;
 } ChessSceneFadePdata;
 
-void make_subobject_transl(MkSobj* object);
-void obj_sobj_set_material(MkSobj* object, unsigned int alpha);
 
 static inline ChessPiece* mk_chess_find_piece_on_board(unsigned int side) {
     unsigned char x;
@@ -1291,7 +1278,6 @@ static void mk_chess_disarmed_msg(void);
 
 static void mk_chess_set_up_zoom_cam(Vec* target);
 static void mk_chess_set_up_zoom_cam_return(Vec* destination);
-float p_mk_chess_cam_bezier_controller(void);
 
 
 static inline int mk_chess_hud_spell_available(ChessPiece* caster, unsigned int spell) {
@@ -1401,7 +1387,6 @@ static inline float mk_chess_camera_distance_squared(float x, float z) {
     return fmaf(x, x, z * z);
 #endif
 }
-void screen_engine_cleanup(void);
 static float p_mk_chess_show_fight_message(void);
 static void mk_chess_save_current_state(ChessPiece* piece, unsigned char x, unsigned char y);
 
@@ -2434,9 +2419,6 @@ static inline void mk_chess_display_advantage(ScreenObj* image, unsigned int cen
 }
 
 
-int get_chess_coin_award(int coin_index);
-int get_chess_leader_won_coin_award(void);
-const char* get_rnd_chess_koin_type(int difficulty);
 MkObj* launch_fx_at_pos_with_obj(
     unsigned int effect, float x, float y, float z);
 
@@ -2481,7 +2463,6 @@ static inline unsigned int mk_chess_priority_attacker(ChessPiece* target, ChessP
     return rating;
 }
 
-extern void remove_fgnd_mkobj(void* obj);
 
 static inline void mk_chess_return_selection_cursor(ChessCursor* cursor,
     unsigned char x, unsigned char y)

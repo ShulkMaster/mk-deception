@@ -78,4 +78,6 @@ extern int msg_save_no_card_konq_region_hault_answer;
 extern int msg_save_error_konq_region_answer;
 extern int msg_quit_confirmation_answer;
 
+extern int msg_cant_enter_konquest_answer;
+extern void (*msg_routine_table[])(void);
 #endif

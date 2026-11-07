@@ -20,11 +20,10 @@
 #include "platform/main_jump.h"
 #include "platform/display_metrics.h"
 #include "runtime/cstring.h"
+#include "game/konquest_missions.h"
 
 #pragma use_lmw_stmw on
 
-extern int text_window_state;
-extern float p_show_text_window(void);
 extern int char_for_ending;
 extern int winner_for_ending;
 extern MkFileInfo sec_ending_champion;

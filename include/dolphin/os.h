@@ -254,6 +254,10 @@ int __OSUnlockSram(int commit);
 #define OSRoundUp32B(value) (((unsigned long)(value) + 31) & ~31)
 #define OSRoundDown32B(value) ((unsigned long)(value) & ~31)
 #define OSCachedToPhysical(address) ((unsigned long)(address) - 0x80000000UL)
+extern int __OSIsGcam;
+extern int __OSInIPL;
+extern OSTime __OSStartTime;
+extern OSExecParams __OSRebootParams;
 
 #ifdef __cplusplus
 }

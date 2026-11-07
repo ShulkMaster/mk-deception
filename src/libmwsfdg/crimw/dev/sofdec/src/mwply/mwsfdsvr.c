@@ -3,6 +3,7 @@
 #include "movie/mwsfx.h"
 #include "sofdec/sfd_transport.h"
 #include "sofdec/sfd_player.h"
+#include "cri/adx_mgc.h"
 
 typedef struct LSC LSC;
 typedef struct SfdHandle SfdHandle;
@@ -81,8 +82,6 @@ typedef char MwsLibraryWorkSizeCheck[sizeof(MwsLibraryWork) == 0x162C ? 1 : -1];
 
 extern int mwsfd_init_flag;
 
-extern void ADXM_WaitVsync(void);
-extern int ADXM_IsSetupThrd(void);
 extern int LSC_GetNumStm(LSC* loader);
 extern MwsLibraryWork* MWSFLIB_GetLibWorkPtr(void);
 extern int MWSFLIB_SetErrCode(int error);

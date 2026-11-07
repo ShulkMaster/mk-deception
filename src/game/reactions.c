@@ -136,125 +136,50 @@ static ReactionXferAddress g_loadable_reaction_scripts[8] = {
     {{5, 0}, 0, 0, 0}, {{5, 0}, 0, 0, 0},
 };
 
-MkObj* mk_chess_launch_fx_at_pos_with_obj_emit_based(unsigned int effect, float x, float y, float z);
 void low_flash_check(void);
 void face_opponent_now(void);
 MslSoundHandle random_voice(int group);
 void ani_to_end(void);
-float j_blend_to_stance_in_x(void);
 int reaction_xfer_him(int reaction, float rate, int strength);
 void stop_me(void);
-void blocked_fx(int type, int bone, int third, int fourth, int fifth);
-void force_away(float speed, int direction, float damping, int ticks);
-void disable_my_attacks(int ticks);
-void adjust_my_damage_multiplier(float multiplier);
-void got_hit_fx(int first, int second, int third, int fourth, int fifth, float value, int sixth);
 MslSoundHandle random_hit(int group);
 static float j_block_common_reaction(void);
-float j_block_loop(void);
 static float chest_stumble_both(void);
-float j_blend_to_fstance_in_x(void);
-float j_getup_back_12(void);
-int blend_to_fstance(float rate);
 void freeze_player(void);
 void unfreeze_player(void);
 void glitch_to_ani(AniData* animation, int transition);
-int should_weapon_block(PlyrPdata* player);
 
 extern struct ReactionSharedAnimations shared_ani;
 
 void ani_to_frame_x(float frame);
 void ani_to_blend_frame(float frame);
-void ani_to_frame_x_call(void (*callback)(void), float frame);
-void check_for_combo_message(void);
-void disable_both_repel_flags(void);
 void init_air_move(void);
-float p_blend_to_stance_in_10(void);
-float p_sh_throw_plyr_in_grinder(void);
-float r_beetle_lair_transition(void);
-unsigned int big_boss_reaction_remap(unsigned int reaction);
-float drone_ai_get_big_boss_damage_scale(PlyrPdata* player);
-void become_plyr1_proc();
-void become_plyr2_proc();
 void snd_stop(MslSoundHandle handle);
-void scale_me_normal(void);
-void xfer_player_proc_to_script();
 void init_ground_move_no_aniproc();
-void init_3d_move_no_aniproc();
-int check_damage_valid_fc();
-float trial_damage_callback(int player, int damage_type, float damage);
-int drone_ai_check_block_at_reactions(void);
-void drone_ai_hit();
-void drone_ai_reset_ai_cmd();
-int drone_ai_check_combo_breaker();
 void enable_bgnd_obj_repel();
-void exit_plyr_proc();
-int my_joypad_state_5(void);
-void stop_prison_grab_proc(void);
-float p_glitch_to_stance(void);
 float r_call_script_function(void);
 float r_call_player_char_script_function(void);
 static float r_call_other_player_char_script_function(void);
 void run_reaction_cleanup_function(PlyrPdata* player);
 
-extern int g_drone_blocking_in_reaction;
-extern int g_drone_faked_out;
 static float r_complete_ermac_slam(void);
 static float r_face3_onback(void);
 void set_ani_speed(float speed);
-void set_anim_hiframe(float frame);
-void wall_eligible_on(void);
-void wall_eligible_off(void);
 void blend_to_ani_frame(
     AniData* animation, int transition, float blend, float frame);
-float j_getup_back_6(void);
-float j_getup_front_12(void);
-float blend_to_stance_j_exit(void);
-float j_getup_back_3(void);
-float j_getup_back_9(void);
-float j_getup_back_12(void);
-float j_getup_sit_12(void);
-float j_stay_down_dead(void);
 void ani_to_fall_to_frame(
     float landing_frame, int sound_id, float target_frame);
-float back_rollup_check(void);
-void danger_zone_eligible_on(void);
 void face_bleed_me(int size);
-void init_air_move_no_aniproc(void);
 void land_chores(
     int land_sound, int second_sound,
     float shake_ticks, float shake_strength);
-void launch_n_land_ani(AniData* animation, float launch_frame, float launch_step, float landing_frame, int landing_animation, float velocity_y, float gravity, float blend);
-void myvel_his_angle_y(float y, float x, float z);
-void newani_to_frame_x(AniData* animation, float frame, float step, float weight, float blend, int flip_mode);
-void player_feet_land_chores(void);
-void shake_hit_voice(int shake_ticks, float rumble_scale, int hit_voice, int fighter_voice);
 unsigned int start_blood_particles(int particle_mask, unsigned int bone, PlyrPdata* player, MkObj* object);
-int stay_down_check(void);
-void tightrope_restrictions_off(void);
-void tightrope_restrictions_on(void);
 void ani_1_frame(void);
 void ani_loop_more_frames(float frames);
-void ani_x_more_frames(float frames);
 void blend_to_ani_INOUT(
     AniData* in_animation, AniData* out_animation, float blend_rate,
     float in_speed, float out_speed);
-void disable_blocking(void);
-void enable_all_my_blocking(void);
-int am_i_duck_blocking(void);
-int get_his_attack_counter(void);
-int am_i_airborn_check_in_reaction(void);
-void destroy_subzero_decoy(void);
-void ejb_call(int command);
-float fpick_a_float(float normal, float flipped_value);
-int is_he_airborn(void);
-void launch_me_up(float vertical_velocity, float gravity);
-void myvel_my_angle_y(float angle, float x_velocity, float z_velocity);
-void bulvan_function(int enabled);
-int my_joypad_state_5(void);
 
-void wait_to_land(void);
-float wall_dodge(void);
 static float r_counter_caught_abort(void);
 static void same_xz(void);
 static void r_top_of_head_slam(void);
@@ -265,6 +190,12 @@ static float p_image_fader(void);
 #include "src/game/reactions_table.inc"
 #include "game/game.h"
 #include "runtime/cam_shake.h"
+#include "game/ai.h"
+#include "game/jab.h"
+#include "game/bgnd_jmt.h"
+#include "game/konquest_missions.h"
+#include "game/jmt.h"
+#include "game/mk_chess.h"
 
 void run_reaction_cleanup_function(PlyrPdata* player) {
     CmdScript* saved_script;

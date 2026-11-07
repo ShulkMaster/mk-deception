@@ -42,6 +42,9 @@
 #include "runtime/plyr_anim_pdata.h"
 #include "platform/display_metrics.h"
 #include "runtime/cam_shake.h"
+#include "game/mcardmsg.h"
+#include "game/ai.h"
+#include "game/ncs.h"
 
 struct KonquestMissionTuneEntry {
     int round_one_music;
@@ -308,20 +311,15 @@ extern struct KonquestMissionSaveData konquest_save_data;
 extern MslSoundHandle bgnd_music_ptr1;
 extern struct KonquestMissionPdata* konquest_pdata;
 extern struct KonquestTrialAnimations bgnd_animations;
-extern int mcard_msg_active;
-extern struct KonquestRegionAsset konquest_region_data[9];
 int text_window_state;
 
 void snd_stop(MslSoundHandle sound);
-void setDroneOverrideSwitch(int activated, struct DroneOverrideInfo* info);
 void set_ani_speed(float speed);
 static float p_run_special_move(void);
 static float call_mission_script(void);
 int is_weapon_style(PlyrFighterDefinition* fighter);
-int is_pX_airborn(int player);
 MkProc* konquest_set_dialog_text(
     const char* text, const LipSyncKeyframe* lip_sync_keyframes);
-void calc_print_speed_for_nis_dialog(MkProc* dialog, unsigned int ticks);
 void duck_sounds(float volume);
 float duration_of_lip_sync(const LipSyncKeyframe* keyframes);
 MslSoundHandle plyr_snd_req(int sound_id);
@@ -329,12 +327,8 @@ void plyr_weapon_hide(
     PlyrPdata* player, int show_aux, PlyrMirrorSlots* slots);
 void plyr_weapon_show(
     PlyrPdata* player, int show_aux, PlyrMirrorSlots* slots);
-void do_win_effect(void);
 void end_music(void);
-void destroy_onscreen_fight_2d_objects(void);
-void reset_fight(int mode);
 MkProc* load_hero_model(AnimScript* animation);
-void insert_ground_me_mkobj(void* obj);
 AniTextureControl* konquest_create_monk_face_ani_texture(MkObj* object);
 static void trial_load_monk(void);
 static void increment_required_moves_progress(
@@ -365,15 +359,9 @@ static void ps_konquest_trial_monk(void);
 static void pw_konquest_trial_monk(void);
 static float p_finish_transform_monk(void);
 static float p_finish_transform_player(void);
-void become_plyr1_proc(void);
-void become_plyr2_proc(void);
 void face_opponent_now(void);
 void ani_to_blend_frame(float frame);
 float p_do_lip_synch(void);
-float getup_from_ground(void);
-float j_stay_down_dead(void);
-void start_mkpfx_FadeSnapShot(void);
-void move_plyrs_to_round_start(void);
 void start_constrain_proc(void);
 void stop_tunes(void);
 void animpdata_ani_1_frame(AnimPdata* animation);

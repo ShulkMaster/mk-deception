@@ -28,4 +28,10 @@ GusherPdata* start_gusher(
     GusherStep* steps, void* owner, MkObj* object, int bone,
     Vec* position, Vec* direction);
 
+int is_blood_disabled(void);
+void gusher_destroy_list(void);
+void reset_blood_decals(void);
+extern void bleed_startup(void);
+void bleed_init(void);
+extern void bleed_restart(void);
 #endif

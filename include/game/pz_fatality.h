@@ -38,4 +38,14 @@ float pz_fighter_process_random_fatality_event(
     PuzzleFatalityRandomEvent* event, PuzzleFatalityProcessFn reaction);
 void cleanup_pz_fatality_stuff(void);
 
+void pz_fighters_fatality_preround_event(void);
+void pz_fighters_fatality_in_progress(void);
+float r_pz_fighter_grinding(void);
+int pz_fighter_check_fatality_random_event(void);
+int pz_fighter_fatality_during_round_stuff_over(void);
+void pz_fighters_fatality_prep_chores(void);
+float r_pz_fighter_rx_get_to_point(void);
+void pz_fighters_fatality_normal_fighting(int enabled);
+void pz_fighters_fatality_round_over(void);
+void pz_fighters_fatality_unload(void);
 #endif

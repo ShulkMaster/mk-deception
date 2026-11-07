@@ -27,6 +27,7 @@
 #include "runtime/mk_obj.h"
 #include "runtime/utils.h"
 #include "game/plyrprofile.h"
+#include "game/minigames.h"
 
 #pragma use_lmw_stmw on
 
@@ -521,12 +522,9 @@ int ladder_piece_bones[18] = {
     17, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 0
 };
 
-extern int pz_loss_in_a_row;
-extern GlobalBackgroundEntry global_background_data[];
 extern unsigned short n_ladder_koins;
 extern struct LadderBgndAnimations bgnd_animations;
 
-void insert_ground_me_mkobj(void* obj);
 AnimPdata* animate_obj(
     MkObj* object,
     AnimScript* script,
@@ -981,8 +979,6 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
 extern MkFileInfo sec_fightingart;
 extern const char* pz_ladder_koins[2];
 extern unsigned short n_pz_ladder_koins;
-float p_puzzle_fighter(void);
-void tag_team_activate_player(MkObj* object, int player);
 
 static inline void ladder_sleep(float ticks) {
     _mkproc_sleep_ticks = ticks;

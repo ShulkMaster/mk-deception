@@ -28,4 +28,9 @@ DSError TRKTargetAccessExtended2(u32 first_register, u32 last_register,
                                  u32* registers_length, BOOL read);
 void TRKSwapAndGo(void);
 
+DSError TRKTargetSingleStep(u32 count, BOOL step_over);
+extern DSError TRKTargetInterrupt(TRKEvent* event);
+extern u32 __TRK_get_MSR(void);
+extern DSError TRKTargetSupportRequest(void);
+extern struct TRKRestoreFlags gTRKRestoreFlags;
 #endif

@@ -23,6 +23,8 @@ void pbar_force_pb_setting_with_offset(unsigned int player, float offset);
 void start_powerbar_monitor(void);
 int are_powerbars_retracted(void);
 void init_pwr_bars(void);
+extern int f_p2_warning_given;
+extern int f_p1_warning_given;
 
 #ifdef __cplusplus
 }

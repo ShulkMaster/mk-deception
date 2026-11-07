@@ -35,7 +35,6 @@ unsigned long ARGetInternalSize(void);
 void ARClear(unsigned long flag);
 void __ARClearInterrupt(void);
 unsigned short __ARGetInterruptStatus(void);
-void __ARQPopTaskQueueHi(void);
 
 #ifdef __cplusplus
 }

@@ -20,7 +20,6 @@ static float p_run_one_shot_script(void);
 
 typedef void (*ScriptBuiltinFn)(void);
 
-extern int number_of_script_functions;
 
 struct CmdScriptProcVtable {
     void* prefix[6];

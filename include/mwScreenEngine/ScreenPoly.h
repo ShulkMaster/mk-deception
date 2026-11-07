@@ -90,6 +90,5 @@ struct ScreenPoly {
 struct ScreenPolyVTable;
 extern struct ScreenPolyVTable __vt__10ScreenPoly;
 
-extern const int vert_map__10ScreenPoly[4];
 
 #endif

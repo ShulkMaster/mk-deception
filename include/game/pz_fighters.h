@@ -118,4 +118,16 @@ typedef struct PuzzleFightersEngine {
     int reactions_disabled; /* +0x1E4 */
 } PuzzleFightersEngine;
 
+float pz_fighter_check_breakout(void);
+void pz_fighter_dont_fudge_desired_distance(void);
+int pz_fighter_is_losing_big(unsigned int player);
+float pz_fighter_fetch_plyr_to_home_post_distance(int player);
+int pz_fighter_should_he_breakout(void);
+void pz_fighter_set_y_constrain(MkObj* player_obj, int mode, float value);
+int pz_fighter_is_winning_big(unsigned int player);
+float pz_fighter_fetch_distance_to_center_pos(void);
+void pz_fighter_move_into_fighting_position(void);
+extern struct PuzzleFighterMoveTables g_pz_fighter_tables;
+void pz_fighter_force_repel_during_attack(void);
+extern float p_plyr_pz_fighter_start(void);
 #endif

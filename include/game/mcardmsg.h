@@ -20,4 +20,6 @@ void recover_from_message(void);
 void prepare_for_haulting_message(void);
 void prepare_for_sleeping_message(void);
 
+extern int mcard_msg_active;
+extern int mcard_hault_msg_active;
 #endif

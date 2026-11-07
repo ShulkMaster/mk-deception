@@ -133,8 +133,6 @@ typedef char MwMoviePlayerSizeCheck[sizeof(_mwMovPlayer) == 0xB8 ? 1 : -1];
 typedef char MwMovieSetupSizeCheck[sizeof(mwMovieSetup) == 0x30 ? 1 : -1];
 
 extern "C" {
-void ADXM_ShutdownThrd(void);
-void ADXM_SetCbErr(void (*callback)(void*, char*), void* object);
 void mwPlyInitSfdFx(MwsInitParam*);
 void mwPlyFinishSfdFx(void);
 MwsPlayer* mwPlyCreateSofdec(MwsCreateParams*);

@@ -31,6 +31,20 @@ unsigned int pfxhandle_spawn_at_bid_next(
 unsigned int pfxhandle_spawn_at_bid(
     const char* name, struct MkObj* object, int bone_id);
 void start_obj_scalar_proc(struct MkObj* object, Vec* start, Vec* target, Vec* step);
+void sindel_scream_react_sound_start(void);
+void sindel_sonic_sounds(struct FatalityObjectLatch* sound, int finished);
+void set_victim_v3_units_away(float a, float b);
+void mks_start_fatality_iceball(int player);
+void fatality_release_other_player(void);
+void start_bodyslam_bodysplat(float a, float b, float c, float d, float e);
+void fade_fatality_screen(void);
+float subzero_his_tinkle_snd(void);
+void fix_axe_angle(const Vec* angles);
+void ft_mileena_start_veil_ripoff(void);
+float start_fatality(void);
+extern void play_final_fatality_music(void);
+float start_suicide(void);
+float start_2nd_fatality(void);
 
 #ifdef __cplusplus
 }

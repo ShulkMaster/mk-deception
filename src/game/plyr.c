@@ -40,6 +40,9 @@
 #include "runtime/utils.h"
 #include "game/game.h"
 #include "game/jmt.h"
+#include "game/ejb.h"
+#include "game/fx.h"
+#include "game/pz_fighters.h"
 
 #define LOAD_PLYR_MODEL_PID 0x9032
 
@@ -94,7 +97,6 @@ extern void snd_stop(MslSoundHandle handle);
 static int baraka_advance_active_moveset(
     PlyrPdata* pdata, PlyrMirrorSlots* context);
 extern AnimPdata* anim_pdata;
-extern void* get_bone_with_tag(void* obj, int tag);
 static float p_baraka_jaw_controller(void);
 static inline int set_plyr_anim_script_frame(
     AnimPdata* animation, AniData* script,
@@ -102,7 +104,6 @@ static inline int set_plyr_anim_script_frame(
     return set_anim_script_frame(animation, script, flags, frame);
 }
 static float p_baraka_blades_controller(void);
-extern void clear_my_face_opponent_flag(void);
 extern int is_weapon_style(PlyrFighterDefinition* style);
 extern void plyr_weapon_show(
     PlyrPdata* player, int show_aux, PlyrMirrorSlots* slots);
@@ -112,11 +113,8 @@ extern MkObj* plyr_weapon_release(PlyrPdata* player);
 extern MkObj* plyr_weapon2_release(PlyrPdata* player);
 extern void plyr_weapon_grab(PlyrPdata* player, MkObj* weapon);
 extern void plyr_weapon2_grab(PlyrPdata* player, MkObj* weapon);
-extern MkObj* load_bgnd_weapon_reflection(WeaponDefinition* definition);
-extern void show_fighting_style(GlobalMoveset* moveset, int player);
 extern void damage_p1(float damage);
 extern void damage_p2(float damage);
-extern float drone_ai_watcher(void);
 extern float p_plyr_start(void);
 extern void plyr_aux_weapon_grab(PlyrPdata* pdata, MkObj* weapon);
 extern void select_fighter_voice_in_bank(int player, int alternate_voice);
@@ -126,10 +124,6 @@ extern MkFileInfo cmo_script_reactions;
 extern void plyr_obj_load_bld_data(
     FighterMirror* pdata, BloodModelData* blood_data, MkObj* object,
     const char* path_name);
-extern void init_debug_variables(void);
-extern void pull_bone_hierarchy_mkobj(void* object);
-extern void player_initialize_chores(void);
-extern float p_plyr_pz_fighter_start(void);
 
 GlobalPlayerEntry global_player_data[44] = {
     {"SCORPION", scorpion_file_table, scorpion_alt_file_table,
@@ -212,11 +206,9 @@ unsigned char goro_hand_to_hand2_remapping[0x56] = {
     0x50, 0x51, 0x52, 0x53, 0x54, 0x55,
 };
 extern float r_call_script_function(void);
-extern void kill_fstyle_signs_for_plyr(PlyrInfo* player);
 extern void term_player_collision(PlyrInfo* player);
 extern void transition_to_anim_script(
     AnimPdata* animation, AniData* script, int flags, float blend);
-extern void obj_set_gravity(MkObj* object, float gravity);
 extern void snd_req_delay(int sound, int delay);
 extern void animpdata_ani_to_frame_x(
     AnimPdata* animation, float frame);

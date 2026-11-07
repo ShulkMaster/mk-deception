@@ -8,8 +8,8 @@
 #include "sofdec/uty_math.h"
 #include "sofdec/uty_mem.h"
 #include "sofdec/uty_timer.h"
+#include "fdlibm.h"
 
-extern double log(double value);
 
 typedef SfdTimerTestWork SfdTestWork;
 typedef SfdTimerTestTime SfdTestTime;
@@ -55,19 +55,13 @@ extern void ADXT_Init(void);
 extern void ADXT_Finish(void);
 extern ADXTHandle* ADXT_Create(int maximum_channels, void* buffer,
                                int buffer_size);
-extern void ADXT_Destroy(ADXTHandle* decoder);
-extern void ADXT_Stop(ADXTHandle* decoder);
 extern void ADXT_Pause(ADXTHandle* decoder, int paused);
 extern void ADXT_SetAutoRcvr(ADXTHandle* decoder, int enabled);
 extern void ADXGC_SetAdjsfreqFlg(ADXTHandle* decoder, int enabled);
-extern int ADXT_GetStat(ADXTHandle* decoder);
 extern int ADXT_GetErrCode(ADXTHandle* decoder);
 extern int ADXT_GetSfreq(ADXTHandle* decoder);
 extern int ADXT_GetNumSmpl(ADXTHandle* decoder);
-extern int ADXT_GetNumChan(ADXTHandle* decoder);
-extern void ADXT_GetTime(ADXTHandle* decoder, s32* value, s32* scale);
 extern int ADXT_DiscardSmpl(ADXTHandle* decoder, int samples);
-extern void ADXT_TermSupply(ADXTHandle* decoder);
 extern void ADXT_SetSvrFreq(ADXTHandle* decoder, int frequency);
 extern int ADXT_IsHeader(const unsigned char* data, int size, int* header_size);
 extern int ADXT_IsEndcode(const unsigned char* data, int size, int* end_size);

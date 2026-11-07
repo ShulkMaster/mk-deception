@@ -1,7 +1,7 @@
 #include "dolphin/trk.h"
 #include "runtime/asm_sequences.inc"
+#include "dolphin/targimpl.h"
 
-extern struct TRKRestoreFlags gTRKRestoreFlags;
 
 asm void TRKSaveExtended1Block(void)
 {

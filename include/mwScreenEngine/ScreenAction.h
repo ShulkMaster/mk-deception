@@ -52,4 +52,6 @@ public:
     ScreenAction* m_next; /* +0x38 */
 };
 
+void __ct__12ScreenActionFv(void* action);
+void* __nw__12ScreenActionFUl(unsigned long size);
 #endif

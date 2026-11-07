@@ -33,7 +33,6 @@ struct TranslSortNode {
 };
 
 extern int curr_pipeline_used;
-extern int last_pipeline_used;
 
 static struct TranslSortNode transl_sort_nodes[250];
 static struct TranslSortNode* BTREE_ROOT;

@@ -164,7 +164,6 @@ static CollisionObj* convert_cdf_quad_to_collision_box(
     Vec* source, const Vec* angles, Vec* position);
 static CollisionObj* convert_cdf_triangle_to_collision_cylinder(
     Vec* vertices, const Vec* angles, Vec* position);
-ArenaObstacle* get_obstacle(void);
 void insert_collision_on_proper_tile_list(CollisionObj* object);
 static int collide_sphere_and_box(
     const CollisionShape* sphere, const CollisionShape* box);

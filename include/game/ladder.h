@@ -7,4 +7,9 @@ void init_current_ladder_char(void);
 int ladder_get_current_bgnd(void);
 void one_player_ladder_init(void);
 
+extern float p_ladder_select(void);
+extern int advance_ladder_position(void);
+int get_chess_leader_won_coin_award(void);
+const char* get_rnd_chess_koin_type(int difficulty);
+int get_chess_coin_award(int coin_index);
 #endif

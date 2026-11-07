@@ -241,10 +241,7 @@ u32 GetTRKConnected(void);
 void SetTRKConnected(u32 connected);
 void TRKNubMainLoop(void);
 DSError TRKTargetContinue(void);
-DSError TRKTargetStop(void);
 BOOL TRKTargetStopped(void);
-u32 TRKTargetGetPC(void);
-DSError TRKTargetSingleStep(u32 count, BOOL step_over);
 DSError TRKTargetStepOutOfRange(u32 range_start, u32 range_end,
                                 BOOL step_over);
 

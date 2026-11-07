@@ -13,7 +13,6 @@ static struct OSResetFunctionQueue ResetFunctionQueue;
 static unsigned long bootThisDol;
 
 #define __OSActiveThreadQueue (*(OSThreadQueue*)0x800000DC)
-extern OSExecParams __OSRebootParams;
 
 volatile unsigned short __VIRegs[] : 0xCC002000;
 volatile unsigned long __PIRegs[] : 0xCC003000;

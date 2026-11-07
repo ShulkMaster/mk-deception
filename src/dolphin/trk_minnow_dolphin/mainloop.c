@@ -1,7 +1,6 @@
 #include "dolphin/trk.h"
+#include "dolphin/targimpl.h"
 
-extern DSError TRKTargetInterrupt(TRKEvent* event);
-extern DSError TRKTargetSupportRequest(void);
 
 void TRKNubMainLoop(void)
 {

@@ -42,6 +42,7 @@
 #include "runtime/utils.h"
 #include "rw/rwresources.h"
 #include "game/memcard.h"
+#include "game/ending.h"
 
 static void init_tombstone_koins(void* pfx);
 static void init_tombstone_letters(void* pfx);
@@ -53,11 +54,8 @@ static float update_tombstone_koins(void);
 static float update_tombstone_letters(void);
 static float update_tombstone_numbers(void);
 
-int get_menu_mode_sub_var(void);
-void run_ending(int fighter);
 char* get_ending_thumbnail_name(int fighter);
 MslSoundHandle pan_snd_req(int sound_id, float pan);
-void insert_ground_me_mkobj(void* obj);
 char* strlwr(char* string);
 
 struct KontentPdata {

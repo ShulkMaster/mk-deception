@@ -25,4 +25,11 @@ void load_puzzle_champion_screen(void);
 
 extern int __mini_game_display_ctrl;
 
+void xfer_puzzle_exit(int arg);
+extern float p_puzzle_fighter(void);
+float puzzle_fighter_get_super_bar_level(unsigned int player);
+int puzzle_fighter_plyr_winning_big_based_on_points(void);
+void minigame_get_bgnd_y_value(int* first, int* second);
+extern int pz_loss_in_a_row;
+void minigame_set_bgnd_y_value(int first, int second);
 #endif

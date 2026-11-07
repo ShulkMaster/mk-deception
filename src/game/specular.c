@@ -64,7 +64,6 @@ struct GxLightBlock {
 
 void material_restore_reflection_texture(void);
 void material_cache_reflection_texture(void);
-void material_set_reflection_texture(void* material, void* texture);
 
 extern void* PhongTextures[3];
 extern float PhongCoefficients[3];

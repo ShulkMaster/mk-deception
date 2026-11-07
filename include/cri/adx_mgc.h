@@ -15,6 +15,11 @@ extern "C" {
 #endif
 
 void ADXM_SetupThrd(ADXMThreadParams* params);
+void ADXM_SetCbErr(void (*callback)(void*, char*), void* object);
+void ADXM_ShutdownThrd(void);
+void ADXM_ExecMain(void);
+extern int ADXM_IsSetupThrd(void);
+extern void ADXM_WaitVsync(void);
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,5 @@
 #include "dolphin/types.h"
 #include "runtime/asm_sequences.inc"
-#include "dolphin/os.h"
 
 #define UTY_BUS_CLOCK (*(u32*)0x800000F8)
 

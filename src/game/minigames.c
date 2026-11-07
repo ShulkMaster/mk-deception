@@ -43,6 +43,7 @@
 #include "runtime/cstdio.h"
 #include "runtime/cstring.h"
 #include "runtime/sound.h"
+#include "game/blood.h"
 
 #define PUZZLE_FLAG_ACCEPT_INPUT 0x10
 #define PUZZLE_FLAG_COUNTER_DROPS 0x20
@@ -87,16 +88,10 @@ void push_game_state(int state);
 int signrand(unsigned short range);
 int get_language(void);
 void set_string_obj_alpha(void* object, float alpha);
-int get_current_wager_koin(void);
-void init_wagering(void);
 void award_koins_to_player(int player, int amount, int koin_type);
 void show_koin_award(int player, int amount, int koin_type, int y);
 int pz_fighter_fatality_over(void);
 int pz_fighter_is_round_over(void);
-int advance_ladder_position(void);
-void ck_do_profile_save(void);
-float do_continue(void);
-float p_ladder_select(void);
 static void minigame_puzzlefighter_destroy(void);
 void fade_to_black(int frames, int flag);
 void pop_game_state(void);
@@ -817,10 +812,6 @@ static float p_puzzle_fighter_real_one(void);
 static float p_pz_mode_clear(void);
 static float p_puzzle_fighter_chain_msg(void);
 static void minigame_puzzlefighter_setup(void);
-void bleed_startup(void);
-void init_weapon_trail_light_list(void);
-void round_init(void);
-float p_puzzle_game_camera_proc(void);
 static struct PuzzleBoardCell*
 puzzle_fighter_rotate_drop_pieces(int direction,
                                   struct PuzzlePlayerState* player);

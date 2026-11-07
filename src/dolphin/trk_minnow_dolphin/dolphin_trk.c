@@ -4,8 +4,8 @@
 #include "dolphin/main_TRK.h"
 #include "dolphin/dolphin_trk_glue.h"
 #include "runtime/asm_sequences.inc"
+#include "dolphin/targimpl.h"
 
-extern u32 __TRK_get_MSR(void);
 extern void TRKSaveExtended1Block(void);
 extern char _db_stack_addr[];
 

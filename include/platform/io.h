@@ -34,4 +34,5 @@ void vdebug_print_message(const char* format, ...);
 extern unsigned char stick_dead_zone;
 extern int debug_message_handler_set;
 
+extern int last_switch_time;
 #endif

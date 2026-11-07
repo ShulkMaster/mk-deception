@@ -66,12 +66,12 @@
 #include "rw/rpskin.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwresources.h"
+#include "game/collision.h"
+#include "game/blood.h"
+#include "game/constrain.h"
+#include "game/pfxscript.h"
 
-void limb_sever_reset_limbs(PlyrInfo* player);
 
-extern int p1_rumble_on;
-extern int p2_rumble_on;
-extern int mcard_msg_active;
 extern MslSoundHandle bgnd_music_ptr1;
 extern MslSoundHandle bgnd_music_ptr2;
 
@@ -79,18 +79,7 @@ extern int konquest_human_bones[17];
 extern MkFlippedBoneMap flipped_konquest_human_bones;
 extern unsigned char monk_ground_colls[];
 
-void init_bgnd_info_struct(void);
-void setDroneOverrideSwitch(int activated, struct DroneOverrideInfo* info);
-void reset_obstacle_internal_id(void);
-void terminate_bgnd_collisions(void);
-void screen_engine_cleanup(void);
-void delete_light_lists(void);
-void cleanup_fight(void);
-void term_collision_system(void);
-void bleed_init(void);
 void mslUnDuckAll(_mslSystem* system);
-void init_collision_system(void);
-void pfxscript_initialize(void);
 
 struct FixedHeapConfigStorage {
     FixedHeapConfig heaps;
@@ -1685,7 +1674,6 @@ static void uv_scroll_pass_1(UvScrollControl* ctrl) {
     RpGeometryForAllMaterials(geom, material_set_uv_scroll_matrix, &ctrl->mtx1);
 }
 
-#pragma dont_inline off
 
 static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material,
                                                    void* matrix) {

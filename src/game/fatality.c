@@ -39,6 +39,7 @@
 #include "runtime/sound.h"
 #include "game/game.h"
 #include "game/plyr_globals.h"
+#include "game/ncs.h"
 
 extern float xz_distance_between_players(void);
 extern void unimpale_victim(PlyrPdata* victim);
@@ -441,10 +442,6 @@ static float SD_SONIC_WAVE_SCALE_GROWTH = 1.35f;
 
 static float p_3d_distance_handler(void);
 MslSoundHandle plyr_snd_req(int sound_offset);
-RpMaterial* obj_find_material_by_id(MkObj* object, int id);
-extern float fog_distance;
-extern float fog_color_real[4];
-extern int fog_type;
 void snd_stop(MslSoundHandle handle);
 void freeze_player(void);
 
@@ -493,10 +490,8 @@ FatalityBoneMatcher* start_bone_matcher(
     MkObj* parent, int parent_bone, MkObj* child, int child_bone,
     float blend_ticks);
 void obj_set_bone_collapse_flag(MkObj* object, int bone_id);
-void obj_match_pos_ang_to_src_obj(MkObj* destination, MkObj* source);
 void glitch_to_stance(float blend);
 void face_opponent_now(void);
-void start_gore2_update(void);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
 void limb_sever_explode_apart(
     PlyrInfo* player, float arg1, float arg2, float strength, int mode);
@@ -526,7 +521,6 @@ static float p_subzero_iceblock_alpha(void);
 static float p_sz2_iceblock_scalar(void);
 static float sz_kill_myself(void);
 static float subzero_rx_freeze(void);
-void material_set_zbias(RpMaterial* material, float bias);
 
 extern void fx_resume_emit(unsigned int handle);
 extern MkPfx* find_pfx_by_name(const char* name);

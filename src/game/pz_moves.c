@@ -29,6 +29,10 @@
 #include "rw/rwframe.h"
 #include "rw/rwcore_types.h"
 #include "runtime/cam_shake.h"
+#include "game/ai.h"
+#include "game/jab.h"
+#include "game/moves.h"
+#include "game/minigames.h"
 
 struct PuzzlePresentState {
     MkHdr hdr;
@@ -238,7 +242,6 @@ extern struct PuzzleSharedAnimations pz_shared_ani;
 extern struct PuzzleSharedCombatAnimations shared_ani;
 extern ScriptSlot* pz_shared_cmo;
 int g_pz_cam_already_shaking;
-extern struct PuzzleFighterMoveTables g_pz_fighter_tables;
 
 float pz_fighter_laugh(void);
 float pz_fighter_whatever2(void);
@@ -283,28 +286,13 @@ void pz_fighter_reaction_xfer_him(int reaction);
 static float p_force_reaction(void);
 static float p_pz_shake_camera(void);
 
-void init_3d_move_no_aniproc(void);
-void set_ani_weight(float weight);
 void set_ani_speed(float speed);
 void stop_me(void);
-void avoid_double_ani(void);
 MslSoundHandle random_foot(int group);
 void snd_major_hit_voice(void);
-void myvel_my_angle_y(float angle, float x_velocity, float z_velocity);
 void blend_to_ani_INOUT(
     AniData* animation, AniData* next, float blend,
     float in_weight, float out_weight);
-float fpick_a_float(float first, float second);
-void land_chores(int sound, int voice, float shake, float strength);
-float j_getup_back_9(void);
-float j_getup_back_6(void);
-void launch_me_up(float vertical_velocity, float gravity);
-void wait_to_land(void);
-void bulvan_function(int enabled);
-void wall_eligible_on(void);
-int pz_fighter_should_he_breakout(void);
-void tightrope_restrictions_off(void);
-void ani_to_frame_x_call(void (*callback)(void), float frame);
 void shake_hit_voice(
     int shake_ticks, float rumble_scale, int hit_voice, int fighter_voice);
 MslSoundHandle pan_snd_req(int sound_id, float pan);
@@ -312,12 +300,7 @@ void snd_req_delay(int sound, int delay);
 void pz_fighter_get_grinder_post(int player, Vec* post);
 void bgnd_launch_fx_at_position(
     const char* effect, float x, float y, float z);
-void set_my_secondary_state(int state);
-void set_block_requirement(int requirement);
 MkProc* start_scorpion_spear(int field_34);
-void ani_x_more_frames(float frames);
-void play_sound_1(int sound);
-int blend_to_fstance(float blend_rate);
 void snd_stop(MslSoundHandle sound);
 void unfreeze_player(void);
 void run_reaction_cleanup_function(PlyrPdata* pdata);
@@ -327,46 +310,31 @@ void ani_loop_more_frames(float frames);
 void ani_1_frame(void);
 void pz_fighter_set_y_constrain(
     MkObj* fighter, int enabled, float height);
-void pz_fighter_dont_fudge_desired_distance(void);
 void pz_fighter_startup_attack(
     AniData* animation, float attack_frame, float blend,
     float speed, float force, unsigned int start_flags,
     unsigned int attack_flags, int blend_flags, unsigned int reaction,
     float damping);
-void player_feet_land_chores(void);
 MslSoundHandle random_hit(int group);
 MslSoundHandle random_voice(int group);
 void glitch_to_ani(AniData* animation, int frame);
-void set_both_face_opponent_flags(void);
-void got_hit_fx(int type, int bone, int strength, int flags, int blood, float scale, int sound);
-void myvel_his_angle_y(float y, float x, float z);
-void init_air_move_no_aniproc(void);
-int get_his_attack_counter(void);
 void force_forward(
     float force, int duration, float damping, int animation);
-void nudge_towards_him(float distance);
 void ani_to_blend_frame(float frame);
 void ani_to_frame_x(float frame);
 void plyr_bleed_medium_cycle(PlyrPdata* pdata, int bone);
-void force_away(float velocity, int duration, float damping, int interval);
 void pz_fighter_attack(
     AniData* animation, PuzzleAttackParameters* attack, int reaction);
 PuzzleFighterMove* pz_get_fighter_move(void);
 void slow_ani_x(float speed, float frame);
 void ani_to_end(void);
-float pz_fighter_check_breakout(void);
 int pz_fighter_close_enough_to_super_move(unsigned int player);
-int pz_fighter_is_winning_big(unsigned int player);
-int pz_fighter_is_losing_big(unsigned int player);
 MkProc* get_player_proc(MkObj* fighter);
-float pz_fighter_fetch_plyr_to_home_post_distance(int player);
 void pz_fighters_calc_distance_to_desired_idle_pos_abs(
     float* player1_distance, float* player2_distance,
     float* player1_absolute, float* player2_absolute);
 void pz_fighters_calc_distance_to_desired_idle_pos(
     float* player1_distance, float* player2_distance);
-void minigame_get_bgnd_y_value(int* first, int* second);
-void minigame_set_bgnd_y_value(int first, int second);
 static float pz_fighter_present_explode(void);
 static float pz_fighter_present_given(void);
 static float pz_fighter_present_on_attackers_hand(void);
@@ -383,8 +351,6 @@ static float r_pz_fighter_feet3_swept_out(void);
 static float r_pz_fighter_dizzyfall3_with_holdface(void);
 static float r_pz_fighter_block_lo(void);
 static float r_pz_fighter_block_hi(void);
-float r_pz_fighter_grinding(void);
-float r_pz_fighter_rx_get_to_point(void);
 
 static const struct PuzzleReactionTransferEntry tbl_xfer_addresses[] = {
     { { 4, (MkProcEntryFn)0x39 }, 0, 0, 0x1 },

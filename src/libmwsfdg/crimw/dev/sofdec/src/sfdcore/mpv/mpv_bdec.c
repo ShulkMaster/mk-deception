@@ -1,6 +1,7 @@
 #include "dolphin/types.h"
 #include "sofdec/uty_mem.h"
 #include "runtime/cstring.h"
+#include "sofdec/dct_fsri.h"
 
 typedef struct MPVBDECVlcDescriptor {
     const s16* table;
@@ -50,7 +51,6 @@ extern s16* mpvvlc_run_level_0a;
 extern s16* mpvvlc_run_level_0b;
 extern s16* mpvvlc_run_level_0c;
 
-extern void DCT_FsriInitScanTbl(const signed char source[64], signed char destination[64]);
 
 void MPVBDEC_Init(MPVBDECContextView* context)
 {

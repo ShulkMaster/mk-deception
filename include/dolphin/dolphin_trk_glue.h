@@ -13,6 +13,7 @@ void EnableEXI2Interrupts(void);
 int InitMetroTRKCommTable(int hardware_id);
 void UnreserveEXI2Port(void);
 void ReserveEXI2Port(void);
+void TRKUARTInterruptHandler(void);
 
 #ifdef __cplusplus
 }

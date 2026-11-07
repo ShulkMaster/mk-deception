@@ -16,8 +16,6 @@
 #include "dolphin/os.h"
 
 
-extern int mcard_msg_active;
-extern int mcard_hault_msg_active;
 
 #define STR_MC_FMT_SPACE " "
 #define STR_MC_FMT_SSS "%s %s %s"

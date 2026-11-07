@@ -19,6 +19,7 @@
 #include "runtime/asset.h"
 #include "runtime/cstring.h"
 #include "runtime/utils.h"
+#include "fdlibm.h"
 
 #define PZ_FIGHTER_DISTANCE_FIXED 0x04
 
@@ -97,11 +98,6 @@ struct PuzzleFighterMoveTables g_pz_fighter_tables;
 extern struct PuzzleProjectile* g_global_projectile;
 ScriptSlot* pz_shared_cmo;
 
-double sqrt(double value);
-float puzzle_fighter_get_super_bar_level(unsigned int player);
-int pz_fighter_fatality_during_round_stuff_over(void);
-void pz_fighters_fatality_prep_chores(void);
-void pz_fighters_fatality_in_progress(void);
 static void check_fighter_constraints(void);
 static void pz_fighter_process_immediate_request(void);
 static int pz_fighter_check_for_player_to_center_position_control(void);
@@ -155,10 +151,8 @@ void attack_to_frame_x(
     AniData* animation, float frame1, float frame2, float frame3,
     float frame4, unsigned int field0C, unsigned int field10, int field14);
 void force_forward(float velocity, int duration, float damping, int interval);
-void force_away(float velocity, int duration, float damping, int interval);
 void puzzle_fighter_get_num_blocks_on_screen(
     unsigned int* player1_blocks, unsigned int* player2_blocks);
-int puzzle_fighter_plyr_winning_big_based_on_points(void);
 void face_opponent_now(void);
 void glitch_to_stance(float blend);
 static float pz_fighter_handle_dual_off_center_Move(PuzzleFighterMove* move);
@@ -203,7 +197,6 @@ float pz_fighter_perform_scripted_move(void);
 int pz_fighter_should_handle_special_move(
     unsigned int player, unsigned int move);
 void pz_fighter_disallow_continuation(void);
-int pz_fighter_check_fatality_random_event(void);
 float pz_fighters_react_to_bomb_explosion(void);
 float pz_fighter_big_time_happy(void);
 float pz_fighter_whatever2(void);
@@ -217,12 +210,8 @@ void pz_fighter_anim_object_to(
     Vec* target, Vec* velocity, int minimum_velocity_y,
     unsigned int target_ticks, float frame_rate, float gravity_step,
     int bounce, PuzzleObjectArrivalFn arrival);
-void pz_fighters_fatality_round_over(void);
-void pz_fighters_fatality_unload(void);
-void pz_fighters_fatality_normal_fighting(int enabled);
 void pz_fighters_fatality_start(
     unsigned int victim, unsigned int attacker);
-void pz_fighters_fatality_preround_event(void);
 void pz_fighter_load_place_fatality_elements(unsigned int fatality);
 void pz_fighter_kill_present(void);
 void pz_fighter_kill_global_projectile(void);

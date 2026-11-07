@@ -30,6 +30,7 @@
 #include "runtime/section.h"
 #include "runtime/utils.h"
 #include "runtime/sound.h"
+#include "game/minigames.h"
 
 
 struct PselectCharEntry {
@@ -125,14 +126,7 @@ extern int menu_player;
 extern ProfileUnlockBits64 default_char_bits;
 extern ProfileUnlockBits64 default_alt_char_bits;
 extern ProfileUnlockBits64 default_pz_char_bits;
-extern GlobalBackgroundEntry global_background_data[];
 
-void set_default_button_repeat_time(void);
-void set_button_repeat_time(int ticks);
-unsigned int get_next_bgnd(void);
-void ck_do_profile_save(void);
-void refresh_active_screen(void);
-void refresh_screen_by_name(char* name);
 static void check_reset_player_selection(int player, int start_pos);
 void wager_cancelled(void);
 int get_current_wager_koin(void);
@@ -146,13 +140,8 @@ static float p_random_player_select(void);
 static float p_wager_save_profiles(void);
 static float p_save_bg_profile(void);
 
-float p_ladder_select(void);
-float p_puzzle_fighter(void);
 
 
-extern int p1_profile_status;
-extern int p2_profile_status;
-extern int profile_code_state[2];
 extern struct ProfileCodeKey pne_kode_data_table[12];
 
 struct ChessDefInfo {

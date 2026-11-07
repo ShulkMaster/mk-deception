@@ -32,6 +32,7 @@
 #include "runtime/utils.h"
 #include "movie/movie_info.h"
 #include "game/mk_chess.h"
+#include "game/bgnd.h"
 
 struct AtmObjLatch {
     MkHdr* obj;
@@ -83,10 +84,7 @@ static int atm_logo_tapped_out;
 static int atm_movie_tapped_out;
 static int memcard_boot_screen_displayed;
 
-extern float p_puzzle_fighter(void);
 
-void xfer_puzzle_exit(int arg);
-unsigned int get_next_bgnd(void);
 
 static void atm_old_mkda_logo(void);
 static void atm_bio_screen(void);

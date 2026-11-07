@@ -1,6 +1,7 @@
 #include "dolphin/targimpl.h"
 #include "runtime/cstring.h"
 #include "runtime/asm_sequences.inc"
+#include "dolphin/dolphin_trk_glue.h"
 
 #define INSTR_NOP 0x60000000
 #define INSTR_BLR 0x4E800020
@@ -70,7 +71,6 @@ static void TRK_ppc_memcpy(void* destination, const void* source, int length,
 void TRKInterruptHandler(void);
 void TRKExceptionHandler(u16 exception_id);
 void TRKInterruptHandlerEnableInterrupts(void);
-void TRKUARTInterruptHandler(void);
 void TRKSaveExtended1Block(void);
 void TRKRestoreExtended1Block(void);
 void ReadFPSCR(void* value);
