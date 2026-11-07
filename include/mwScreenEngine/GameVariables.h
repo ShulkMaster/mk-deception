@@ -1,7 +1,7 @@
 #ifndef MWSCREENENGINE_GAMEVARIABLES_H
 #define MWSCREENENGINE_GAMEVARIABLES_H
 
-#include "mwScreenEngine/TextureCollection.h"
+typedef struct GMTextureInfo_t GMTextureInfo_t;
 
 /*
  * GameVariables / GameVariableDispatcher -- menu option/collection ranges.

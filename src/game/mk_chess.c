@@ -3434,7 +3434,6 @@ static inline void mk_chess_check_for_game_over(void)
     }
 }
 
-#pragma fp_contract off
 static inline void mk_chess_piece_bone_midpoint(Vec* midpoint, const Vec* first, const Vec* second) {
     midpoint->x = first->x - second->x;
     midpoint->y = first->y - second->y;
@@ -3447,7 +3446,6 @@ static inline void mk_chess_piece_bone_midpoint(Vec* midpoint, const Vec* first,
     midpoint->z = second->z + midpoint->z;
 }
 
-#pragma fp_contract reset
 
 static inline float mk_chess_inverse_xz_length(float x, float z) {
     float squared_length = x * x + z * z;
@@ -4104,7 +4102,6 @@ static void mk_chess_game_over(void) {
     gamelogic_jump(5, p_mk_chess_game_over);
 }
 
-#pragma fp_contract off
 static void mk_chess_activate_piece_properties(ChessPiece* piece) {
     if (piece != 0) {
         switch (piece->type) {
@@ -4163,7 +4160,6 @@ static void mk_chess_activate_piece_properties(ChessPiece* piece) {
         }
     }
 }
-#pragma fp_contract reset
 
 
 static float p_mk_chess_show_fight_message(void) {
@@ -10478,7 +10474,6 @@ static float mk_chess_continue_pre_fight_chores(void) {
     return -1.0f;
 }
 
-#pragma fp_contract off
 
 static float mk_chess_pre_fight_cam_ended(void) {
     ChessManagerInfo* manager = mk_chess_pdata != 0 ? &mk_chess_pdata->manager : 0;
@@ -10527,7 +10522,6 @@ static float mk_chess_pre_fight_cam_ended(void) {
     }
     return 0.0f;
 }
-#pragma fp_contract reset
 
 
 static int mk_chess_handle_buffered_events_cb(ChessPiece* piece,

@@ -87,7 +87,6 @@ int SFD_TermSupply(SfdHandle* handle)
     return 0;
 }
 
-#pragma auto_inline off
 static int sfply_ResetHn(SfdHandle* handle)
 {
     int saved_count;
@@ -229,7 +228,6 @@ static int sfply_ResetHn(SfdHandle* handle)
     }
     return 0;
 }
-#pragma auto_inline reset
 
 int SFPLY_GetResetFlg(void)
 {

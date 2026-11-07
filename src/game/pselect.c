@@ -31,7 +31,6 @@
 #include "runtime/utils.h"
 #include "runtime/sound.h"
 
-#pragma use_lmw_stmw on
 
 struct PselectCharEntry {
     int char_id;

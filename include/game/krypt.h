@@ -4,10 +4,9 @@
 #include "runtime/mk_pebble.h"
 #include "runtime/anim_pdata.h"
 #include "runtime/image.h"
-#include "runtime/mk_fileinfo.h"
+typedef struct MkFileInfo MkFileInfo;
 #include "runtime/mk_struct.h"
 #include "runtime/sound_tracker.h"
-#include "libmkparticle/color.h"
 #include "mwScreenEngine/TextureCollection.h"
 
 #ifdef __cplusplus

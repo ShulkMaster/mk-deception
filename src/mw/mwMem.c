@@ -236,7 +236,6 @@ int mwMemSystemCreateSystemHeap(void* buffer, u32 size, MwMemSystemParams* param
     return result;
 }
 
-#pragma dont_inline on
 static int privSystemCreateAutomated(u32 size, _mwMemHeap** outHeap, const char* name) {
     u8* buffer;
     u32 arenaSize;
@@ -269,7 +268,6 @@ static int privSystemCreateFromBuffer(u8* buffer, u32 size, _mwMemHeap** outHeap
     arenaSize = (size - (sizeof(_mwMemHeap) + 1)) & ~0xFU;
     return privInitSystemHeap(arenaSize, buffer, MW_MEM_STRATEGY_NORMAL, outHeap, name);
 }
-#pragma dont_inline reset
 
 u32 mwMemVirtualHeapGetHeapSize(void) {
     return sizeof(_mwMemHeap) + 0x1F;

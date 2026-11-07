@@ -81,7 +81,7 @@ extern "C" void mslDebugPrintf(const char* format, ...) {
     char buffer[256];
     __va_list args;
 
-    __builtin_va_info(&args);
+    va_start(args, format);
     vsprintf(buffer, format, args);
     va_end(args);
     printf(buffer);

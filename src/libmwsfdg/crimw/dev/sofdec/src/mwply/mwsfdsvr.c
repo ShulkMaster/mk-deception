@@ -1,4 +1,3 @@
-#include "cri/sj.h"
 #include "sofdec/mws_sound.h"
 #include "cri/adxt_internal.h"
 #include "movie/mwsfx.h"

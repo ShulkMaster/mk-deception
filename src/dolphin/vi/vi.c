@@ -311,7 +311,6 @@ struct VITimingInfo* __VISetExtraTiming(struct VITimingInfo* t) {
     return old;
 }
 
-#pragma dont_inline on
 static struct VITimingInfo* getTiming(VITVMode mode) {
     switch (mode) {
     case VI_TVMODE_NTSC_INT:        return &timing[0];
@@ -336,7 +335,6 @@ static struct VITimingInfo* getTiming(VITVMode mode) {
         return NULL;
     }
 }
-#pragma dont_inline reset
 
 void __VIInit(VITVMode mode) {
     struct VITimingInfo* tm;

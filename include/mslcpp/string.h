@@ -3,7 +3,6 @@
 
 #include "runtime/cstring.h"
 #include "mslcpp/msl_error.h"
-#include "mslcpp/algorithm.h"
 
 extern "C" void* memmove(void* destination, const void* source, unsigned long size);
 

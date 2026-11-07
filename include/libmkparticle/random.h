@@ -1,7 +1,7 @@
 #ifndef LIBMKPARTICLE_RANDOM_H
 #define LIBMKPARTICLE_RANDOM_H
 
-#include "libmkparticle/vm.h"
+typedef struct PfxVec3 PfxVec3;
 
 #ifdef __cplusplus
 extern "C" {

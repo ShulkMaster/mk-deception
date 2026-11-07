@@ -48,7 +48,6 @@
 #include "platform/io.h"
 #include "game/blood.h"
 
-#pragma use_lmw_stmw on
 
 
 GlobalBackgroundEntry global_background_data[] = {

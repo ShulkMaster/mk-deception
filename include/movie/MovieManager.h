@@ -1,7 +1,7 @@
 #ifndef MOVIE_MANAGER_H
 #define MOVIE_MANAGER_H
 
-#include "movie/mwMovie.h"
+typedef struct _mwMovPlayer _mwMovPlayer;
 
 typedef struct RwRaster RwRaster;
 typedef struct RwTexture RwTexture;

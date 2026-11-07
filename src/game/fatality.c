@@ -16,7 +16,6 @@
 #include "runtime/mk_proc.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/cam.h"
-#include "runtime/sound_tracker.h"
 #include "runtime/section.h"
 #include "runtime/utils.h"
 #include "game/game_info.h"

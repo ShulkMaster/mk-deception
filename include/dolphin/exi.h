@@ -1,7 +1,7 @@
 #ifndef DOLPHIN_EXI_H
 #define DOLPHIN_EXI_H
 
-#include "dolphin/os.h"
+typedef struct OSContext OSContext;
 
 #define EXI_READ 0
 #define EXI_WRITE 1

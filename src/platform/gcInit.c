@@ -4,7 +4,6 @@
 #include "runtime/cstdlib.h"
 #include "mw/mwMem.h"
 #include "mw/mwMemHeap.h"
-#include "platform/display.h"
 #include "platform/gcutils.h"
 #include "platform/io.h"
 #include "platform/display_metrics.h"

@@ -1,7 +1,6 @@
 #ifndef MSLCPP_MSL_UTILITY_H
 #define MSLCPP_MSL_UTILITY_H
 
-#include "mslcpp/algorithm.h"
 
 namespace Metrowerks {
 

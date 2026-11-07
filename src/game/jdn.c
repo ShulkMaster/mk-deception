@@ -357,8 +357,6 @@ void allow_shard_pfx_now(void) { g_kill_shard_fx = 0; }
 void kill_shard_pfx_now(void) { g_kill_shard_fx = 1; }
 float get_soul_sine(int index) { return soul_sine[index]; }
 
-#pragma optimize_for_size on
-#pragma use_lmw_stmw on
 
 static inline void init_soul_sine(void) {
     static int table_defined;
@@ -381,6 +379,3 @@ int build_sine_table_for_scripts(void) {
 void build_sine_table(void) {
     init_soul_sine();
 }
-
-#pragma optimize_for_size reset
-#pragma use_lmw_stmw reset

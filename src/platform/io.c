@@ -78,7 +78,7 @@ static inline void clear_controller_buttons(GameInfo* game) {
 void vdebug_print_message(const char* format, ...) {
     static char buf[0x100];
     __va_list args;
-    __builtin_va_info(&args);
+    va_start(args, format);
     vsprintf(buf, format, args);
 }
 

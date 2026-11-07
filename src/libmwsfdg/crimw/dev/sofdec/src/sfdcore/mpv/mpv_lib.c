@@ -2,7 +2,6 @@
 #include "sofdec/mpv_abdec.h"
 #include "runtime/cstring.h"
 #include "dolphin/base/PPCArch.h"
-#include "dolphin/cache.h"
 #include "sofdec/uty_mem.h"
 #include "runtime/asm_sequences.inc"
 

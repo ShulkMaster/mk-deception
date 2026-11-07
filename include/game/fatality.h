@@ -1,7 +1,7 @@
 #ifndef GAME_FATALITY_H
 #define GAME_FATALITY_H
 
-#include "math/gxVect.h"
+typedef struct Vec Vec;
 
 struct MkObj;
 struct MkHdr;

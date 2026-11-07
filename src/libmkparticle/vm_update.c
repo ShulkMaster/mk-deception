@@ -2,7 +2,6 @@
 #include "libmkparticle/update.h"
 
 #include "libmkparticle/particle.h"
-#include "libmkparticle/spawn.h"
 #include "libmkparticle/texture_anim.h"
 
 #include "fdlibm.h"

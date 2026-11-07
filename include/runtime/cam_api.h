@@ -1,7 +1,7 @@
 #ifndef RUNTIME_CAM_API_H
 #define RUNTIME_CAM_API_H
 
-#include "math/gxVect.h"
+typedef struct Vec Vec;
 
 void set_camera_angle(Vec* angle);
 void set_camera_position(Vec* position);

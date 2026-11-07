@@ -3,7 +3,6 @@
 
 #include "mslcpp/vector.h"
 #include "mslcpp/functional.h"
-#include "mslcpp/algorithm.h"
 
 namespace std {
 

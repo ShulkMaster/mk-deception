@@ -2,7 +2,7 @@
 #define MOVIE_CONFIG_H
 
 #include "mw/mwMemHeap.h"
-#include "mw/mwMem.h"
+typedef struct _mwMemHeap _mwMemHeap;
 
 #ifdef __cplusplus
 extern "C" {

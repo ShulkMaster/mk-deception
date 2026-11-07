@@ -1,7 +1,10 @@
 #ifndef RUNTIME_SECTION_SLOT_FILE_H
 #define RUNTIME_SECTION_SLOT_FILE_H
 
-#include "runtime/section_types.h"
+typedef struct MkFileEntry MkFileEntry;
+typedef struct MkFileInfo MkFileInfo;
+typedef struct SecSlot SecSlot;
+typedef struct SecSlotFileEntry SecSlotFileEntry;
 
 int sec_slot_file_open_read_async(SecSlotFileEntry* file, SecSlot* slot,
                                   int field_0x1C, MkFileInfo* info,

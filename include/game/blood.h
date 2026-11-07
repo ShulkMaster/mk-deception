@@ -1,7 +1,7 @@
 #ifndef GAME_BLOOD_H
 #define GAME_BLOOD_H
 
-#include "math/gxVect.h"
+typedef struct Vec Vec;
 
 typedef struct GusherPdata GusherPdata;
 typedef struct MkObj MkObj;

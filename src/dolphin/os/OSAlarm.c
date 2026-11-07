@@ -186,7 +186,6 @@ static asm void DecrementerExceptionHandler(__OSException exception,
     SEQ_DecrementerExceptionHandler();
 }
 
-#pragma peephole off
 static int OnReset(int final)
 {
     OSAlarm* alarm;
@@ -205,4 +204,3 @@ static int OnReset(int final)
     }
     return 1;
 }
-#pragma peephole reset

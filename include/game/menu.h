@@ -2,7 +2,6 @@
 #define GAME_MENU_H
 
 #include "mwScreenEngine/TextureCollection.h"
-#include "runtime/mk_fileinfo.h"
 
 extern int target_game_mode;
 

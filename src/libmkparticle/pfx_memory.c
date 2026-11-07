@@ -4,7 +4,6 @@
 #include "libmkparticle/fields.h"
 #include "libmkparticle/emitter.h"
 #include "libmkparticle/metrics.h"
-#include "libmkparticle/particle.h"
 #include "libmkparticle/shader.h"
 #include "libmkparticle/vm.h"
 #include "runtime/mk_mem.h"
@@ -151,7 +150,6 @@ void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
 }
 
 #pragma push
-#pragma optimize_for_size on
 /* TODO: [near miss] 98.73418%; hidden aggregate-result force precedes the
  * descriptor load; recover the original argument owner without new records. */
 void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)

@@ -1639,7 +1639,6 @@ static RpMaterial* material_set_uv_scroll_matrix(RpMaterial* material,
 static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material,
                                                    void* matrix);
 
-#pragma dont_inline on
 
 static void uv_scroll_dual_pass(UvScrollControl* ctrl) {
     float rate_v;

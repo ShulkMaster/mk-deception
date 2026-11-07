@@ -1,7 +1,7 @@
 #ifndef GAME_JAB_H
 #define GAME_JAB_H
 
-#include "math/gxVect.h"
+typedef struct Vec Vec;
 
 typedef struct MkObj MkObj;
 typedef struct LightDef LightDef;

@@ -8,7 +8,6 @@
 #include "math/mk_math.h"
 #include "platform/gcutils.h"
 #include "platform/main.h"
-#include "runtime/anim_pdata.h"
 #include "runtime/plyr_anim_pdata.h"
 #include "game/plyr.h"
 #include "runtime/cam.h"

@@ -1,7 +1,7 @@
 #ifndef GAME_JDN_H
 #define GAME_JDN_H
 
-#include "math/gxVect.h"
+typedef struct Vec Vec;
 
 typedef struct MkPfx MkPfx;
 

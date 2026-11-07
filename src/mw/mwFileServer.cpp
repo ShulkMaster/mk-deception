@@ -3,7 +3,6 @@
  * mwFileFailCommand<0, 0> instantiation; its body is NOT recovered source. */
 #include "mw/mwFile.h"
 #include "mw/mwFileQueue.h"
-#include "mslcpp/algorithm.h"
 
 #include "runtime/cstring.h"
 

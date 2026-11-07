@@ -508,7 +508,6 @@ void set_menu_mode(int mode) {
     menu_mode_net = mode;
 }
 
-#pragma optimize_for_size on
 void controller_setup_save_to_profile(int player, int save) {
     MkProc* proc;
     int* rumble_on;
@@ -554,7 +553,6 @@ void controller_setup_save_to_profile(int player, int save) {
         *use_temp_map = 1;
     }
 }
-#pragma optimize_for_size reset
 
 void cconfig_get_button_textures(GVTexturePair out) {
     out.colors[0] = load_named_tga_from_slot(0x90046, &stringBase0[0x40B]);
@@ -597,7 +595,6 @@ int controller_get_player_last_button(int player) {
     return 0;
 }
 
-#pragma optimize_for_size on
 void cconfig_assign_button(int player, int button) {
     struct ControllerConfigPdata* pdata;
     int cell;
@@ -659,9 +656,7 @@ void cconfig_assign_button(int player, int button) {
         fire_screen_studio_event(player + 0x1FAC, player);
     }
 }
-#pragma optimize_for_size reset
 
-#pragma optimize_for_size on
 void cconfig_set_current_cell(int player, int cell) {
     MkProc* proc;
     struct ControllerConfigPdata* pdata;
@@ -678,7 +673,6 @@ void cconfig_set_current_cell(int player, int cell) {
         }
     }
 }
-#pragma optimize_for_size reset
 
 int controller_get_num_adjustable_buttons(void) {
     return 7;

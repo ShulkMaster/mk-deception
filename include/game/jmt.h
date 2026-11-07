@@ -1,7 +1,6 @@
 #ifndef GAME_JMT_H
 #define GAME_JMT_H
 
-#include "math/gxVect.h"
 
 typedef struct AnimPdata AnimPdata;
 typedef struct MkHdr MkHdr;

@@ -1,7 +1,7 @@
 #ifndef MSL_MSLCORE_H
 #define MSL_MSLCORE_H
 
-#include "msl/msl_types.h"
+typedef struct _mslSystem _mslSystem;
 
 #ifdef __cplusplus
 extern "C" {

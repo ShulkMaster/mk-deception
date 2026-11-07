@@ -1,8 +1,10 @@
 #ifndef LIBMKPARTICLE_SPAWN_H
 #define LIBMKPARTICLE_SPAWN_H
 
-#include "libmkparticle/table.h"
-#include "libmkparticle/vm.h"
+typedef struct PfxEmitterTransfer PfxEmitterTransfer;
+typedef struct PfxVec3 PfxVec3;
+typedef struct PfxVm PfxVm;
+typedef struct PfxVmEmitter PfxVmEmitter;
 
 int has_spawncode_for(PfxVmEmitter* emitter, unsigned int field);
 void pfx_spawn_box(float x, float y, float z, float width,

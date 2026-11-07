@@ -1,6 +1,5 @@
 #define GX_ATTR_INTERNAL_TYPES
 #include <dolphin/gx.h>
-#include <dolphin/os.h>
 
 #include "__gx.h"
 

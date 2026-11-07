@@ -1,7 +1,7 @@
 #ifndef RUNTIME_MK_OBJ_BONE_H
 #define RUNTIME_MK_OBJ_BONE_H
 
-#include "math/gxVect.h"
+typedef struct Vec Vec;
 
 typedef struct MkObj MkObj;
 

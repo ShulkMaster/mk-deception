@@ -1,7 +1,6 @@
 #ifndef MSLCPP_ALGORITHM_H
 #define MSLCPP_ALGORITHM_H
 
-#include "mslcpp/iterator.h"
 
 namespace std {
 

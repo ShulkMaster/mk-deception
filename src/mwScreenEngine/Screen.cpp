@@ -3,7 +3,6 @@
 
 #include "mwScreenEngine/Screen.h"
 #include "mwScreenEngine/ScreenUtil.h"
-#include "mwScreenEngine/ScreenMatrixStack.h"
 #include "runtime/cstring.h"
 
 static const ScreenRenderInfo s_renderInfoInit = {

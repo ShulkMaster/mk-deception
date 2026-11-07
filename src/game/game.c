@@ -1923,9 +1923,7 @@ int update_game_timer(void) {
     return 1;
 }
 
-#pragma dont_inline on
 
-#pragma dont_inline reset
 
 static float get_num_sections_to_load(void) {
     switch (mode_of_play) {

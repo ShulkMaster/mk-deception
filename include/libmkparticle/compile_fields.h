@@ -1,8 +1,8 @@
 #ifndef LIBMKPARTICLE_COMPILE_FIELDS_H
 #define LIBMKPARTICLE_COMPILE_FIELDS_H
 
-#include "libmkparticle/table.h"
-#include "libmkparticle/vm.h"
+typedef struct PfxTableRegistry PfxTableRegistry;
+typedef struct PfxVmEmitter PfxVmEmitter;
 
 void _pfx_emitter_compile(PfxVmEmitter* emitter, PfxTableRegistry* registry);
 #endif

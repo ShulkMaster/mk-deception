@@ -1,7 +1,7 @@
 #ifndef MSL_MSLBANKLOADASYNCQUEUE_INTERNAL_H
 #define MSL_MSLBANKLOADASYNCQUEUE_INTERNAL_H
 
-#include "msl/mslBankLoadAsyncQueue.h"
+typedef struct _mslAsyncResponse _mslAsyncResponse;
 
 void mslBankLoadAsyncInternalCallback(_mslAsyncResponse* response);
 

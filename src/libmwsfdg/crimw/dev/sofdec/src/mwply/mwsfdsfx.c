@@ -158,7 +158,6 @@ void MWSFSFX_SetPicUsrDat(MwsPlayer* player, const char* data, int size)
     SFX_SetPicUsrDat(player->sfx, data, size);
 }
 
-#pragma dont_inline on
 static void mwsftag_GetAinfFromSj(MwsPlayer* player)
 {
     SJCK source;
@@ -207,7 +206,6 @@ static void mwsftag_GetAinfFromSj(MwsPlayer* player)
         SFD_SetUsrSj(player->sfd, 2, 0, 0);
     }
 }
-#pragma dont_inline reset
 
 void MWSFTAG_UpdateTagInf(MwsPlayer* player)
 {

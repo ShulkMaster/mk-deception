@@ -1255,7 +1255,6 @@ void plot_and_show_window_frame(struct KonquestTrialWindowPdata* unused) {
     place_frame_piece(&pdata->frame[8], right, top, 1.0f, 1.0f, 0);
 }
 
-#pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
 static void text_window_fade_out(unsigned char ticks) {
     struct KonquestTrialWindowPdata* pdata =
@@ -1307,7 +1306,6 @@ static void text_window_fade_out(unsigned char ticks) {
     }
 }
 #pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
 
 void text_window_fade_in(unsigned char ticks) {
     int alpha = 0;
@@ -2788,7 +2786,6 @@ void trial_start_new_round(void) {
         mission_state->drone->field_10;
 }
 
-#pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
 int trial_end_round(void) {
     struct KonquestMissionState* state;
@@ -3044,7 +3041,6 @@ int trial_end_round(void) {
     return 1;
 }
 #pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
 
 void skip_end_of_trial_wrapup(void) {
     if ((aproc->pid == 0x1001 ? 0 : 1) ==

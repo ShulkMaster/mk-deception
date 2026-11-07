@@ -10,13 +10,11 @@
 #include "runtime/sound.h"
 #include "runtime/utils.h"
 #include "runtime/mk_proc.h"
-#include "runtime/mk_vtbl.h"
 #include "msl/mslcore.h"
 #include "dolphin/gx.h"
 #include "dolphin/vi.h"
 #include "dolphin/os.h"
 
-#pragma use_lmw_stmw on
 
 extern int mcard_msg_active;
 extern int mcard_hault_msg_active;

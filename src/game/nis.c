@@ -75,7 +75,6 @@ static void mkproc_sleep(void) {
 }
 
 #pragma optimize_for_size on
-#pragma use_lmw_stmw on
 void show_shujinko_unlock_screen(int string_id) {
     int x_pos;
     StringObj* str_obj;
@@ -92,7 +91,6 @@ void show_shujinko_unlock_screen(int string_id) {
 }
 
 #pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
 
 static float p_fade_fullscreen_image(void) {
     float sleep_ticks;
@@ -116,7 +114,6 @@ static float p_fade_fullscreen_image(void) {
 }
 
 #pragma optimize_for_size on
-#pragma use_lmw_stmw on
 
 void release_kamidogu(MkObj* owner, void* bonematcher) {
     MkProc* matcher_proc;
@@ -170,7 +167,6 @@ static float p_drop_kamidogu(void) {
 }
 
 #pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
 
 float p_konquest_ending(void) {
     GameInfo* info;
@@ -318,7 +314,6 @@ void nis_signal_event(int event) {
 }
 
 #pragma optimize_for_size on
-#pragma use_lmw_stmw on
 
 void nis_wait_for_event(int event, int timeout) {
     unsigned int* event_word;
@@ -361,7 +356,6 @@ void nis_init(ScriptSlot* cmdscript, unsigned int scene_func, unsigned int cance
 }
 
 #pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
 
 static float p_run_nis_scene(void) {
     struct NisPdata* pdata;

@@ -8,8 +8,7 @@
  */
 
 #include "runtime/asset.h"
-#include "game/profile_unlock.h"
-#include "game/settings.h"
+typedef struct GameSettings GameSettings;
 
 #include "game/storage_types.h"
 #include "mwScreenEngine/TextureCollection.h"

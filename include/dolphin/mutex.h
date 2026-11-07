@@ -1,7 +1,8 @@
 #ifndef DOLPHIN_MUTEX_H
 #define DOLPHIN_MUTEX_H
 
-#include "platform/os_types.h"
+typedef struct OSMutex OSMutex;
+typedef struct OSThread OSThread;
 
 #ifdef __cplusplus
 extern "C" {

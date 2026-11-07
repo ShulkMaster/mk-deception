@@ -4964,7 +4964,6 @@ int HandleAction__8TextListFP9ScreenMgrPC12ScreenAction(TextList* self, ScreenMg
     return result;
 }
 
-#pragma dont_inline on
 void ClearStrings__8TextListFv(TextList* self) {
     int i;
     ScreenText* text;

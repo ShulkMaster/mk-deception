@@ -134,7 +134,6 @@ int ScreenMgr::InitBranchPath() {
 }
 #pragma dont_inline reset
 
-#pragma dont_inline on
 int ScreenMgr::UpdateBranchPath(char* path) {
     char pathCopy[0x100];
     char* parts[10];
@@ -206,7 +205,6 @@ int ScreenMgr::UpdateBranchPath(char* path) {
 
     return matched;
 }
-#pragma dont_inline reset
 
 void ScreenMgr::LoadCompleted(ScreenSet* set) {
     if (set == m_currentSet && set != 0) {
@@ -225,7 +223,6 @@ void ScreenMgr::LoadCompleted(ScreenSet* set) {
     }
 }
 
-#pragma dont_inline on
 int ScreenMgr::FindScreen(char* path, Screen** outScreen) {
     char pathCopy[0x100];
     char* parts[10];
@@ -247,7 +244,6 @@ int ScreenMgr::FindScreen(char* path, Screen** outScreen) {
     }
     return depth;
 }
-#pragma dont_inline reset
 
 #pragma dont_inline on
 ScreenSet* ScreenMgr::FindParent(ScreenSet* set, char** parts, int nParts, int& depth) {
@@ -379,11 +375,9 @@ void ScreenMgr::RemoveScreens(ScreenSet* set) {
     m_actionStack.RemoveActions(set);
 }
 
-#pragma dont_inline on
 void ScreenMgr::AppendScreen(Screen* screen) {
     InsertScreen(screen, m_activeCount + 1);
 }
-#pragma dont_inline reset
 
 void ScreenMgr::InsertScreen(Screen* screen, int index) {
     int i;
@@ -451,7 +445,6 @@ Screen* ScreenMgr::CloseTopScreen() {
     return top;
 }
 
-#pragma dont_inline on
 void ScreenMgr::OpenScreen(Screen* screen) {
     if (screen == 0) {
         return;
@@ -463,7 +456,6 @@ void ScreenMgr::OpenScreen(Screen* screen) {
     screen->m_state = 0;
     screen->BroadcastEvent(this, 0x3ea, 0);
 }
-#pragma dont_inline reset
 
 #pragma dont_inline on
 void ScreenMgr::DisposeSet(ScreenSet* set, unsigned int flags) {

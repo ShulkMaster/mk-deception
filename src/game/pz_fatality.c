@@ -2982,7 +2982,6 @@ static float pz_fighter_chomper2_victim_crushed(void) {
     return 0.0f;
 }
 
-#pragma opt_propagation off
 static float pz_fighter_chomper2_actively_fighting(int active) {
     g_pz_fighter_fatality_engine.controller->phase = active;
     if (active == 0) {
@@ -2990,7 +2989,6 @@ static float pz_fighter_chomper2_actively_fighting(int active) {
     }
     return 0.0f;
 }
-#pragma opt_propagation reset
 
 static float pz_fighters_chomper2_fatality_prep(void) {
     static int fatality_attackbegun;
@@ -3343,20 +3341,17 @@ static float pz_fighter_load_and_place_initial_chompers2(void) {
     return 0.0f;
 }
 
-#pragma opt_propagation off
 static float pz_fighter_chomper2_round_over(void) {
     g_pz_fighter_fatality_engine.controller->state = 1;
     g_pz_fighter_fatality_engine.controller->phase = 0;
     reset_chomper_motion(1);
     return 0.0f;
 }
-#pragma opt_propagation reset
 
 static float pz_fighter_chomper2_unload(void) {
     return pz_fatality_unload_banks();
 }
 
-#pragma opt_propagation off
 static void pz_fighter_chomper2_entering_fatality(
     int attacker, int victim) {
     g_pz_fighter_fatality_engine.active_effect = 0;
@@ -3369,7 +3364,6 @@ static void pz_fighter_chomper2_entering_fatality(
 
     reset_chomper_motion(1);
 }
-#pragma opt_propagation reset
 
 static void pz_fighter_set_objects_falling_obj(
     struct PuzzleFighterRenderObject* object1,

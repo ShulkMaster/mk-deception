@@ -4,7 +4,6 @@
 #include "game/ejb.h"
 #include "game/game_info.h"
 
-#include "runtime/cstring.h"
 #include "runtime/utils.h"
 #include "runtime/mk_mem.h"
 #include "runtime/mk_obj.h"

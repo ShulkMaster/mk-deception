@@ -1064,7 +1064,6 @@ void get_play_camera_position(Vec* position) {
     }
 }
 
-#pragma fp_contract off
 void get_current_target(Vec* target) {
     CameraObj* camera;
     float x_offset;
@@ -1084,7 +1083,6 @@ void get_current_target(Vec* target) {
         target->z += z_offset;
     }
 }
-#pragma fp_contract reset
 
 void add_camera_offsets(void) {
     add_camera_offsets_impl();

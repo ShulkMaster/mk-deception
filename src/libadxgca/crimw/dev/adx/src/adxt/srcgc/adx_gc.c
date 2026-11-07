@@ -1,5 +1,4 @@
 #include "cri/adxt_internal.h"
-#include "dolphin/types.h"
 
 extern void ADXRNA_SetAdjsfreqFlg(AXRNAHandle* rna, int enabled);
 

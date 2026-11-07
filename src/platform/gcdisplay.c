@@ -527,7 +527,6 @@ static void render_text(void* text) {
     restore_projection_matrix();
 }
 
-#pragma dont_inline on
 static void render_text_without_clear(char* text, int x, int y) {
     char* walk;
     GXColor color;
@@ -553,7 +552,6 @@ static void render_text_without_clear(char* text, int x, int y) {
     GXSetTevAlphaOp(0, 0, 0, 0, 1, 0);
     romfont_puts(x, y, text);
 }
-#pragma dont_inline reset
 
 static void render_image(void* unused) {
     save_projection_matrix();

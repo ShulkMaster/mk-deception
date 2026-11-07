@@ -4,7 +4,6 @@
 #include "libmkparticle/gc_state.h"
 #include "dolphin/gx.h"
 #include "dolphin/mtx.h"
-#include "math/gxQuat.h"
 #include "platform/display_metrics.h"
 #include "rw/alphapass.h"
 
@@ -50,7 +49,6 @@ void restore_projection_matrix(void) {
 }
 
 /* Retail: apply_texture_with_alphamap bl's this -- must not inline (-inline off). */
-#pragma dont_inline on
 void apply_single_texture(void) {
     GXSetNumTevStages(1);
     GXSetNumTexGens(1);
@@ -58,7 +56,6 @@ void apply_single_texture(void) {
     GXSetTevOrder(0, GX_TEXCOORD0, GX_TEXMAP0, 4);
     GXSetTevOp(0, 0); /* GX_MODULATE */
 }
-#pragma dont_inline reset
 
 void apply_texture_with_alphamap(void) {
     RxGCTevAlphaPass pass;

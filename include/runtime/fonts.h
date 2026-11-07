@@ -2,7 +2,6 @@
 #define RUNTIME_FONTS_H
 
 #include "libmkparticle/pfxfont.h"
-#include "rw/rwcore_types.h"
 #include "runtime/mk_struct.h"
 
 typedef struct StringObjVisBits {

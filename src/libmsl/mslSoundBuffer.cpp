@@ -11,7 +11,6 @@
 #include "msl/mslStreamFile.h"
 #include "msl/mslARam.h"
 #include "msl/mslgcn.h"
-#include "msl/mslWave.h"
 #include "msl/mslgcn_globals.h"
 #include "msl/mslWave_internal.h"
 #include "mw/mwMemNewDelete.h"

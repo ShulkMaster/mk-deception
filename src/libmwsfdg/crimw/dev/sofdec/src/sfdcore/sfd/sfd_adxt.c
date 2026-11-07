@@ -1,6 +1,5 @@
 #include "cri/adx_tlk.h"
 #include "cri/sj.h"
-#include "runtime/cmath.h"
 #include <math.h>
 #include "runtime/cstring.h"
 #include "sofdec/sfd_library.h"
