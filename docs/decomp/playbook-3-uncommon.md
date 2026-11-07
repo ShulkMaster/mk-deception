@@ -874,6 +874,16 @@ are proven. Shared headers only for proven ownership; unused O0 param takes
   (non-POD) turns block copies into retail memberwise copies. Land only with
   zero census edges and no function regression (libmwfile Mount/Server: six
   functions exact, inserts 68->86 and 78->97).
+  Noauto TU with in-class/open-coded bodies where retail MAP lists UNUSED
+  out-of-line members and one callee is inlined in one caller but called in
+  another (`nativeProgress`: `handleReadingState` vs `getProgressBytes`) =
+  retail `auto`; MAP `.text` ctor-after-dtor-after-methods = deferred
+  (natural source order reversed). Retail-called small callees under `auto`:
+  restore the UNUSED nesting at MAP sizes so depth exceeds `level`
+  (`gcnHostCloseCommand::serviceState` -> `handleNotStartedState` 0x50 ->
+  `int gcnHostFileHandle::close()` 0x44, `case 0: handleNotStartedState();
+  break; ... return 2;`: service stops inlining it, both exact). Convert only
+  when every census edge is closed (`mwFileGCPlatform`: 13 still open).
 - Repeated macro expansion (list unlink) with volatile coloring rotated,
   macro block locals number lowest: REQUIRE TU allows explicit inlining. TRY
   macro as `static inline` function; params/locals become FE temps, number

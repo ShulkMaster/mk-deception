@@ -357,8 +357,6 @@ void __vector_imp<T, Allocator, false>::reserve(size_type n)
     }
 }
 
-/* TODO: [near miss] QueueItem 97.38%, Callback 86.31%; Callback placement copy is a
- * paired block move (retail: word-by-word via r0); QueueItem growth path saves r21. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::insert(iterator position, size_type n,
                                                const value_type& x)
@@ -368,27 +366,29 @@ void __vector_imp<T, Allocator, false>::insert(iterator position, size_type n,
         if (n > ms || this->size_ > ms - n) {
             __msl_error("vector::insert length error\n");
         }
+        pointer old_end;
         if (this->size_ + n <= capacity()) {
-            pointer old_end = this->data_ + this->size_;
-            const_pointer xr = &x;
+            old_end = this->data_ + this->size_;
             size_type num_move = old_end - position;
+            const_pointer xr = &x;
             if (n > num_move) {
                 pointer p = old_end;
-                for (; n > num_move; --n, ++p, ++this->size_) {
+                for (; n > num_move; ++p, --n, ++this->size_) {
                     this->alloc().construct(p, x);
                 }
                 for (pointer first = position; first < old_end; ++first, ++p, ++this->size_) {
                     this->alloc().construct(p, *first);
                 }
             } else {
+                pointer first = old_end - n;
                 pointer p = old_end;
-                for (pointer first = old_end - n; first < old_end; ++first, ++p, ++this->size_) {
+                for (; first < old_end; ++first, ++p, ++this->size_) {
                     this->alloc().construct(p, *first);
                 }
                 if (old_end - (num_move - n) <= xr && xr < old_end) {
                     xr += n;
                 }
-                copy_backward(position, old_end - n, old_end);
+                copy_backward(position, position + (num_move - n), old_end);
             }
             for (pointer p = position; n != 0; --n, ++p) {
                 *p = *xr;
@@ -407,15 +407,15 @@ void __vector_imp<T, Allocator, false>::insert(iterator position, size_type n,
             tmp.data_ = tmp.cap_.first().allocate(new_cap);
             tmp.cap_.second() = new_cap;
             pointer p = tmp.data_;
+            old_end = this->data_ + this->size_;
             pointer first = this->data_;
-            pointer last = this->data_ + this->size_;
             for (; first < position; ++first, ++p, ++tmp.size_) {
                 tmp.alloc().construct(p, *first);
             }
-            for (; n != 0; --n, ++p, ++tmp.size_) {
+            for (; n != 0; ++p, --n, ++tmp.size_) {
                 tmp.alloc().construct(p, x);
             }
-            for (; first < last; ++first, ++p, ++tmp.size_) {
+            for (; first < old_end; ++first, ++p, ++tmp.size_) {
                 tmp.alloc().construct(p, *first);
             }
             tmp.swap(*this);

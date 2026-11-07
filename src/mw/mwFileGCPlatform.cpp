@@ -2094,8 +2094,8 @@ mwFileXPOpenCommand<H>::~mwFileXPOpenCommand()
     }
 }
 
-/* TODO: [breakthrough needed] 82.69231%; error reload/copy remain;
- * definition/body CSE scopes restore before deferred emission. */
+/* TODO: [blocked] 82.69231%; retail reloads error after an aliasing result store;
+ * the exact alias-pointer form awaits a policy ruling. */
 template <class H>
 mwFileAsyncResult mwFileXPOpenCommand<H>::getResult() const
 {
@@ -2279,8 +2279,8 @@ int mwFileXPReadUnbufferedCommand<T, H>::handleSignalState()
     return mwFileCommandPluginBase::handleSignalState();
 }
 
-/* TODO: [breakthrough needed] 96.63265%; recover per-consumer nativeProgress
- * expansion and mixin ownership while preserving exact getProgressBytes. */
+/* TODO: [breakthrough needed] 96.63265%; per-consumer nativeProgress inlining needs
+ * the retail -inline auto,deferred,level=2 mode (97.73 there); mixin row remains. */
 template <class T, class H>
 int mwFileXPReadUnbufferedCommand<T, H>::handleReadingState()
 {
