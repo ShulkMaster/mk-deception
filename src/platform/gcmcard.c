@@ -8,8 +8,6 @@
 #include "platform/gcmcicon.h"
 #include "runtime/cstring.h"
 
-#pragma use_lmw_stmw on
-
 void gc_mem_card_status_changes_for_one_device(int device);
 
 int mem_card_read(CARDFileInfo* fileInfo, void* buffer, int size);
@@ -556,7 +554,7 @@ static inline int mem_card_format(int device) {
 }
 
 int gc_format_procedure(int device) {
-    unsigned int mask;
+    int mask;
     s32 sectorSize;
     s32 rc;
     int cardChanged;
@@ -570,9 +568,9 @@ int gc_format_procedure(int device) {
     confirmed = 0;
     slot = 0;
     chan = 0;
-    removals &= (int)~mask;
-    insertions &= (int)~mask;
-    last_card_state |= (int)mask;
+    removals &= ~mask;
+    insertions &= ~mask;
+    last_card_state |= mask;
 
     while (!confirmed) {
         mcard_msg_format_confirmation(device);

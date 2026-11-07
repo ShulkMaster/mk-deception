@@ -9,17 +9,21 @@
 #include "mw/mwScreenEngineGlue.h"
 #include "game/attract.h"
 #include "game/plyr.h"
+#include "game/pselect.h"
 #include "game/bgnd.h"
 #include "runtime/light.h"
 #include "game/controller.h"
 #include "game/switch.h"
 #include "platform/main.h"
 #include "platform/display.h"
+#include "platform/display_metrics.h"
 #include "platform/gcutils.h"
 #include "math/gxMath.h"
+#include "math/mk_math.h"
 #include "platform/main_jump.h"
 #include "platform/io.h"
 #include "runtime/cam.h"
+#include "runtime/cam_shake.h"
 #include "runtime/image.h"
 #include "runtime/fonts.h"
 #include "runtime/mk_cmdscript.h"
@@ -38,6 +42,8 @@
 #include "runtime/anim_api.h"
 #include "runtime/utils.h"
 #include "runtime/sound_tracker.h"
+#include "runtime/sound.h"
+#include "game/moves.h"
 #include "rw/rwresources.h"
 #include "rw/rwcamera_internal.h"
 #include "game/pfxscript.h"
@@ -60,7 +66,6 @@ typedef struct ChessPieceMoveMap {
 
 typedef union ChessEffectFlags {
     unsigned int word;
-    unsigned char byte;
     struct {
         unsigned char bit7 : 1;
         unsigned char bit6 : 1;
@@ -353,17 +358,7 @@ typedef struct ChessGameTeamDefinition {
 
 typedef struct ChessGameDefinition {
     int background;
-    union {
-        ChessGameTeamDefinition teams[2];
-        struct {
-            int side_0_type;
-            int field_08;
-            int side_0_characters[5];
-            int side_1_type;
-            int field_24;
-            int side_1_characters[5];
-        };
-    };
+    ChessGameTeamDefinition teams[2];
     int enabled;
 } ChessGameDefinition;
 
@@ -423,8 +418,6 @@ extern ChessModeState* mk_chess_pdata;
 extern ChessBoardSave board_game_save_data;
 extern ChessBoardGameController g_board_game_controller;
 extern int g_loser_life_resolved;
-extern int screen_width;
-extern int screen_height;
 extern ChessProfileStats p1_profile;
 extern ChessProfileStats p2_profile;
 extern int p1_profile_status;
@@ -478,15 +471,11 @@ static void mk_chess_remove_piece_from_team(ChessPiece* piece, int keep_active);
 static void mk_chess_activate_piece_properties(ChessPiece* piece);
 static void mk_chess_set_game_mode(int mode);
 static void mk_chess_timeout_msg(unsigned int message, unsigned int side);
-MslSoundHandle snd_req(int sound_id);
 void snd_stop(MslSoundHandle handle);
-void shake_camera(int ticks, float strength);
 int ck_fatality_available(void);
 void end_music(void);
 static float p_mk_chess_start_fatality(void);
 MkProc* get_player_proc(void* player);
-float do_my_fatality(void);
-float do_my_2nd_fatality(void);
 static float p_mk_chess_game_restore(void);
 static float p_mk_chess_game_setup(void);
 static float p_mk_chess_game_over(void);
@@ -573,7 +562,6 @@ static void mk_chess_drone_select_cell_for_trap(
     unsigned int side, unsigned int* x, unsigned int* y);
 extern const int available_chess_chars[26];
 extern const int available_chess_bgnds[5];
-int is_char_locked(int character, int player);
 
 typedef struct ChessStartingCell {
     unsigned char x;
@@ -1051,7 +1039,6 @@ static inline void mk_chess_special_fade(ChessPiece* piece, unsigned int alpha,
     }
 }
 
-void resolve_alternate_palettes(PlyrInfo* player);
 static void mk_chess_count_p1_power_squares(unsigned int x, unsigned int y);
 static void mk_chess_count_p2_power_squares(unsigned int x, unsigned int y);
 void bgnd_hide_pebbles(int player);
@@ -1572,7 +1559,6 @@ static inline unsigned int mk_chess_piece_art_character(unsigned int side, int p
     }
 }
 
-void bgnd_launch_fx_at_bid_of_mkobj(const char* name, MkObj* object, int bone);
 typedef struct ChessRepeatInput {
     char pad00[0x0C];
     int countdown;
@@ -1879,8 +1865,6 @@ typedef struct ChessMoveLinePdata {
 
 static float p_mk_chess_move_line(void);
 
-void rotate_xz(Vec* out, const Vec* vector, float angle);
-
 static inline unsigned int mk_chess_find_free_move_line_marker(int group) {
     unsigned int index = 0;
 
@@ -1895,8 +1879,6 @@ static inline unsigned int mk_chess_find_free_move_line_marker(int group) {
         }
     }
 }
-
-float ang_sub_ang(float first, float second);
 static float p_mk_chess_piece_init(void);
 
 static inline void mk_chess_start_piece_initialization(ChessPiece* piece) {
@@ -2092,7 +2074,6 @@ static inline void mk_chess_start_cell_emitter(int emitter, float x, float y, fl
 
 extern MkFileInfo sec_mk_chess;
 extern MkFileInfo sec_chess_fast_anims;
-extern MkPtr* board_piece_light_list;
 
 static inline void mk_chess_load_common_cursor(int cursor_index, unsigned int art_id, int selection)
 {
@@ -3152,7 +3133,6 @@ static inline void mk_chess_scale_timeout_image_centered(
     center_x = screen_width / 2;
     mk_chess_scale_timeout_image(image, center_x, center_y, delay);
 }
-void mk_chess_set_normal_stance_script(AniScript* script);
 
 static inline void mk_chess_activate_created_piece(
     ChessPiece* piece, unsigned char x, unsigned char y) {
@@ -12651,19 +12631,19 @@ static void mk_chess_set_default_chess_game(void) {
     g_chess_definition_info.background = 0x10;
 
     for (slot = 0; slot < 5; slot++) {
-        selected_character = &g_chess_definition_info.side_0_characters[slot];
+        selected_character = &g_chess_definition_info.teams[0].characters[slot];
         mk_chess_choose_default_character(selected_character,
-            g_chess_definition_info.side_0_characters, slot);
+            g_chess_definition_info.teams[0].characters, slot);
     }
 
     for (slot = 0; slot < 5; slot++) {
-        selected_character = &g_chess_definition_info.side_1_characters[slot];
+        selected_character = &g_chess_definition_info.teams[1].characters[slot];
         mk_chess_choose_default_character(selected_character,
-            g_chess_definition_info.side_1_characters, slot);
+            g_chess_definition_info.teams[1].characters, slot);
     }
 
-    g_chess_definition_info.side_0_type = 0;
-    g_chess_definition_info.side_1_type = 0;
+    g_chess_definition_info.teams[0].type = 0;
+    g_chess_definition_info.teams[1].type = 0;
     g_chess_definition_info.enabled = 1;
 }
 

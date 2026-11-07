@@ -24,6 +24,7 @@
 #include "runtime/mk_particle.h"
 #include "runtime/mk_pebble.h"
 #include "runtime/cam.h"
+#include "runtime/cam_shake.h"
 #include "runtime/cstring.h"
 #include "runtime/cmath.h"
 #include "runtime/mk_fileinfo.h"
@@ -32,6 +33,7 @@
 #include "runtime/shadow.h"
 #include "runtime/sound.h"
 #include "runtime/sound_tracker.h"
+#include "runtime/sound_data.h"
 #include "runtime/light.h"
 #include "math/gxMath.h"
 #include "math/mk_math.h"
@@ -40,9 +42,12 @@
 #include "game/konquest_objects.h"
 #include "game/konquest_time.h"
 #include "game/menu.h"
+#include "mw/mwScreenEngineGlue.h"
 #include "platform/display.h"
+#include "platform/display_metrics.h"
 #include "game/konquest_items.h"
 #include "game/settings.h"
+#include "game/switch.h"
 #include "game/konquest_save.h"
 #include "game/collision.h"
 #include "game/krypt.h"
@@ -52,14 +57,6 @@
 #include "msl/msl_types.h"
 #include "mw/mwMemHeap.h"
 #include "rw/rplight.h"
-
-#define KONQUEST_OFFSETOF(type, member) \
-    ((unsigned int)&((type*)0)->member)
-
-#define KONQUEST_RESOLVE_LATCH(latch, resolved) \
-    do { \
-        (resolved) = MK_LIVE((latch).object, (latch).instance); \
-    } while (0)
 
 union KonquestProfile {
     unsigned char raw[0x2A0];
@@ -285,10 +282,7 @@ union KonquestNpc {
                 unsigned char flags_bit0 : 1;
             } flag_bits;
         };
-        union {
-            unsigned char state_flags;
-            struct KonquestNpcStateFlags state_flag_bits;
-        };
+        struct KonquestNpcStateFlags state_flag_bits;
         char pad1E[2];
         char pad20[0x38];
         int state_58;
@@ -325,10 +319,7 @@ struct KonquestNpcRuntime {
             unsigned char flags_rest : 6;
         };
     };
-    union {
-        unsigned char state_flags;
-        struct KonquestNpcStateFlags state_flag_bits;
-    };
+    struct KonquestNpcStateFlags state_flag_bits;
     char pad1E[0x3A];
     int type;
     char pad5C[0x0C];
@@ -385,10 +376,7 @@ struct KonquestNpcCameraTarget {
     AniTextureControl* face_texture;
     unsigned int face_texture_instance;
     char pad1C[4];
-    union {
-        int ready;
-        MkProc* animation_proc;
-    };
+    MkProc* animation_proc;
     char pad24[8];
     unsigned int alpha;
 };
@@ -596,20 +584,6 @@ struct KonquestPdata {
     MslSoundHandle damashi_sound;
 };
 
-struct KonquestSwitchState {
-    int input_port;
-};
-
-struct KonquestSwitchPdata {
-    MkHdr hdr;
-    struct KonquestSwitchState* state;
-};
-
-struct KonquestR1Pdata {
-    MkHdr hdr;
-    PlyrInfo* player;
-};
-
 struct KonquestHeadTrackingPdata {
     MkHdr hdr;
     float angle_y;
@@ -687,17 +661,15 @@ struct KonquestUidObject {
     int hidden;
     unsigned int collision_art_id;
     MkPtr* collisions;
-    union {
-        char pad1C[0x30];
-        struct {
-            char attached_pfx_name[0x20];
-            int attached_pfx_state;
-            Vec attached_pfx_position;
-        };
-    };
+    char attached_pfx_name[0x20];
+    int attached_pfx_state;
+    Vec attached_pfx_position;
     MkPtr* render_records;
     TrackedSound* tracked_sound;
 };
+
+typedef char KonquestUidObjectSizeCheck[
+    sizeof(struct KonquestUidObject) == 0x54 ? 1 : -1];
 
 typedef struct KonquestRenderRecord KonquestRenderRecord;
 struct KonquestSobjInfo;
@@ -1108,8 +1080,6 @@ struct KonquestTile {
 extern AnimPdata* anim_pdata;
 extern union KonquestProfile* p1_profile_konquest;
 extern union KonquestNpc* g_active_npc;
-extern int screen_width;
-extern int screen_height;
 extern int pause_player;
 extern unsigned int monk_ground_colls[];
 extern unsigned int monk_laying_on_ground_colls[];
@@ -1120,14 +1090,12 @@ extern MkFileInfo sec_konquestdata;
 extern MkFileInfo sec_konquest_map_common;
 extern char danton20_charmap[];
 extern int text_window_state;
-extern struct KonquestSwitchPdata* switch_pdata;
 static struct MonkStateData monk_state_data[29];
 extern struct KonquestCommonProfile* p1_profile_common;
 extern unsigned long long default_char_bits;
 extern unsigned long long default_alt_char_bits;
 extern int konquest_human_bones[17];
 extern MkFlippedBoneMap flipped_konquest_human_bones;
-extern int b_game_timer_off;
 struct KonquestPuiVtable {
     MkVtableCastFn fn0;
     MkVtableCastFn fn1;
@@ -1194,22 +1162,17 @@ int konquest_editor_mode_on;
 KonquestTime* g_pui_events;
 
 extern int menu_player;
-extern MkPtr* special_light_list;
 extern float fog_color_real[4];
 extern float fog_density;
 extern float fog_distance;
 extern int fog_type;
-const char* get_pause_menu_name(void);
-void wait_for_screen_close(void);
 static Vec old_hero_position;
 
-void* get_screen_pdata(void);
 static float p_konquest_fade_screen(void);
 static float p_hero_portal_in(void);
 static float p_hero_use_portal(void);
 static float p_hero_teleport(void);
 static float p_show_fight_message(void);
-extern float game_volume;
 void run_interaction_camera_script(void* owner, void* script);
 void snd_req_delay(int sound, int delay);
 void random_snd_req_delay(int group, int delay);
@@ -1346,10 +1309,7 @@ struct KonquestPuiRuntime {
     int alpha;
     int bounce_count;
     float drop_timer;
-    union {
-        float spawn_delay;
-        float lifetime;
-    };
+    float spawn_delay;
     float fade_delay;
     float base_y;
     KonquestTime kill_time;
@@ -1520,9 +1480,7 @@ static void object_transition_to_state(
 static void object_set_state(KonquestChildObject* record, int state);
 void remove_fgnd_mkobj(MkObj* object);
 void fx_resume_emit(int effect);
-void obj_set_all_sobjs_priority(MkObj* object, int priority);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
-void shake_camera(int ticks, float magnitude);
 static void exit_meditation(void);
 void transition_to_anim_script(
     AnimPdata* pdata, AniData* animation, int transition, float blend);
@@ -2715,15 +2673,12 @@ static inline void create_children_konquest_sobjs(KonquestRenderRecord* record) 
         while (link != sentinel) {
             RpAtomic* atomic;
 
-            atomic = (RpAtomic*)((char*)link -
-                                 KONQUEST_OFFSETOF(RpAtomic, frameLink));
+            atomic = RW_CONTAINER_OF(link, RpAtomic, frameLink);
             link = link->next;
             if (atomic->object.type == 1) {
                 MkSobj* child;
 
-                child = ((MksobjPluginData*)((char*)atomic +
-                                             MksobjLocalOffset))
-                            ->sobj;
+                child = MK_ATOMIC_PLUGIN(atomic)->sobj;
                 if (child != 0) {
                     create_konquest_sobj_for_konquest_obj(
                         owner, child->id_flags & 0xFFF,
@@ -2929,7 +2884,7 @@ float p_konquest_mode(void) {
     create_konquest_heaps();
 
     if (_create_mkproc_generic_bigstack(
-            0x2001, 0x23, p_init_konquest_mode, 0x454,
+            0x2001, 0x23, p_init_konquest_mode, sizeof(*konquest_pdata),
             (MkHdr**)&konquest_pdata) != 0) {
         return -1.0f;
     }
@@ -5091,9 +5046,12 @@ static void initialize_tile_patch_sobj(MkSobj* object) {
     sobj_set_priority(object, 9);
 }
 
-/* TODO: [Scope warn] section-context block. */
 void load_konquest_tiles(void) {
     MkObj* model;
+    MkHdr* tile_objects;
+    LoadBgndCtx context;
+    MkHdr* common_tile_objects;
+    LoadBgndCtx common_context;
 
     if (konquest_pdata->region_table->region_asset == 0) {
         return;
@@ -5121,9 +5079,6 @@ void load_konquest_tiles(void) {
     generate_door_paths();
 
     if (konquest_pdata->region_table->effect_bank_name != 0) {
-        MkHdr* tile_objects;
-        LoadBgndCtx context;
-
         tile_objects = MK_LIVE(konquest_pdata->tile_objects, konquest_pdata->tile_objects_instance);
         context.art_id = 0x60029;
         context.bgnd_obj = (MkObj*)tile_objects;
@@ -5135,22 +5090,17 @@ void load_konquest_tiles(void) {
         konquest_pdata->script_owner->load_ctx = 0;
     }
 
-    {
-        MkHdr* tile_objects;
-        LoadBgndCtx context;
-
-        tile_objects = MK_LIVE(konquest_pdata->tile_objects, konquest_pdata->tile_objects_instance);
-        context.art_id = 0x60030;
-        context.bgnd_obj = (MkObj*)tile_objects;
-        context.pad = 0;
-        save_current_ssf();
-        load_ssf(konquest_common_file_table);
-        active_cmdscript->mko = konquest_pdata->script_owner;
-        konquest_pdata->script_owner->load_ctx = &context;
-        load_effect_bank("common_pfx.mko");
-        konquest_pdata->script_owner->load_ctx = 0;
-        restore_previous_ssf();
-    }
+    common_tile_objects = MK_LIVE(konquest_pdata->tile_objects, konquest_pdata->tile_objects_instance);
+    common_context.art_id = 0x60030;
+    common_context.bgnd_obj = (MkObj*)common_tile_objects;
+    common_context.pad = 0;
+    save_current_ssf();
+    load_ssf(konquest_common_file_table);
+    active_cmdscript->mko = konquest_pdata->script_owner;
+    konquest_pdata->script_owner->load_ctx = &common_context;
+    load_effect_bank("common_pfx.mko");
+    konquest_pdata->script_owner->load_ctx = 0;
+    restore_previous_ssf();
 }
 
 static int setup_pebble_system_for_tile_object(
@@ -5244,14 +5194,11 @@ static void setup_children_pebbles_of_tile_object(
             RpAtomic* atomic;
 
             next = link->next;
-            atomic = (RpAtomic*)((char*)link -
-                                 KONQUEST_OFFSETOF(RpAtomic, frameLink));
+            atomic = RW_CONTAINER_OF(link, RpAtomic, frameLink);
             if (atomic->object.type == 1) {
                 MkSobj* child;
 
-                child = ((MksobjPluginData*)((char*)atomic +
-                                             MksobjLocalOffset))
-                            ->sobj;
+                child = MK_ATOMIC_PLUGIN(atomic)->sobj;
                 if (child != 0) {
                     setup_pebble_system_for_tile_object(child, definition);
                 }
@@ -5363,14 +5310,11 @@ static void setup_children_sobjs_of_tile_object(
             RpAtomic* atomic;
 
             next = link->next;
-            atomic = (RpAtomic*)((char*)link -
-                                 KONQUEST_OFFSETOF(RpAtomic, frameLink));
+            atomic = RW_CONTAINER_OF(link, RpAtomic, frameLink);
             if (atomic->object.type == 1) {
                 MkSobj* child;
 
-                child = ((MksobjPluginData*)((char*)atomic +
-                                             MksobjLocalOffset))
-                            ->sobj;
+                child = MK_ATOMIC_PLUGIN(atomic)->sobj;
                 if (child != 0) {
                     setup_sobj_for_tile_object(child, definition);
                 }
@@ -8733,7 +8677,7 @@ static inline void adjust_shadow_for_new_time_of_day(
         hour_span = light_table[current_index].hour -
                     light_table[previous_index].hour;
     }
-    interval = (float)hour_span;
+    interval = hour_span;
     interval *= ticks_per_hour;
     strength_step =
         (light_table[current_index].alpha -
@@ -8993,7 +8937,7 @@ static inline void adjust_star_dome_for_new_time_of_day(
                     sky_table[previous_index].hour;
     }
 
-    interval = (float)hour_span;
+    interval = hour_span;
     interval *= ticks_per_hour;
     alpha_step =
         (sky_table[current_index].alpha -
@@ -9523,17 +9467,17 @@ static int check_additional_trigger_fire_requirements(
 }
 
 float p_konquest_switch_1(void) {
-    struct KonquestSwitchState* input;
+    PlyrInfo* input;
     int game_mode;
 
-    input = switch_pdata->state;
+    input = switch_pdata->player;
     if (input == 0) {
         return -1.0f;
     }
     if (konquest_editor_mode_on != 0) {
         return -1.0f;
     }
-    if (input->input_port != konquest_pdata->input_port) {
+    if (input->pad_index != konquest_pdata->input_port) {
         return -1.0f;
     }
 
@@ -9551,7 +9495,7 @@ float p_konquest_switch_1(void) {
 }
 
 float p_konquest_switch_R1(void) {
-    struct KonquestR1Pdata* pdata;
+    SwitchPdata* pdata;
     MkProc* proc;
 
     if (konquest_current_game_mode() != 0) {
@@ -9566,7 +9510,7 @@ float p_konquest_switch_R1(void) {
     if (find_mkproc_pid(0x208C) != 0) {
         return -1.0f;
     }
-    pdata = (struct KonquestR1Pdata*)apdata;
+    pdata = (SwitchPdata*)apdata;
     if (pdata != 0 &&
         pdata->player !=
             g_game_info.pads[konquest_pdata->input_port].player) {
@@ -9649,11 +9593,11 @@ static inline void konquest_handle_interaction_input(void) {
 }
 
 float p_konquest_switch_3(void) {
-    struct KonquestSwitchState* input;
+    PlyrInfo* input;
     struct KonquestPdata* pdata;
     int game_mode_index;
 
-    input = switch_pdata->state;
+    input = switch_pdata->player;
     if (input == 0) {
         return -1.0f;
     }
@@ -9664,7 +9608,7 @@ float p_konquest_switch_3(void) {
     if (konquest_editor_mode_on != 0) {
         return -1.0f;
     }
-    if (input->input_port != pdata->input_port) {
+    if (input->pad_index != pdata->input_port) {
         return -1.0f;
     }
 
@@ -9714,17 +9658,17 @@ float p_konquest_switch_3(void) {
 }
 
 float p_konquest_switch_4(void) {
-    struct KonquestSwitchState* input;
+    PlyrInfo* input;
     int hero_state;
 
-    input = switch_pdata->state;
+    input = switch_pdata->player;
     if (input == 0) {
         return -1.0f;
     }
     if (konquest_editor_mode_on != 0) {
         return -1.0f;
     }
-    if (input->input_port != konquest_pdata->input_port) {
+    if (input->pad_index != konquest_pdata->input_port) {
         return -1.0f;
     }
 
@@ -9835,11 +9779,11 @@ static float p_konquest_pause_menu(void) {
 }
 
 float p_switch_proc_start(void) {
-    struct KonquestR1Pdata* input;
+    SwitchPdata* input;
     MkProc* proc;
     int can_start;
 
-    input = (struct KonquestR1Pdata*)apdata;
+    input = (SwitchPdata*)apdata;
     if (input != 0 &&
         input->player !=
             g_game_info.pads[konquest_pdata->input_port].player) {
@@ -9878,12 +9822,12 @@ float p_switch_proc_start(void) {
 }
 
 float p_konquest_inventory_switch(void) {
-    struct KonquestR1Pdata* input;
+    SwitchPdata* input;
     MkProc* proc;
     int can_start;
 
     eat_switch_edge(konquest_pdata->input_port, 4);
-    input = (struct KonquestR1Pdata*)apdata;
+    input = (SwitchPdata*)apdata;
     if (input != 0 &&
         input->player !=
             g_game_info.pads[konquest_pdata->input_port].player) {
@@ -10268,34 +10212,34 @@ void konquest_show_hud(void) {
 
     konquest_pdata->hud_visible = 1;
     if (konquest_pdata->objective.visible != 0) {
-        KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[2], object);
+        object = MK_LIVE(konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
         if (object != 0) unhide_screen_obj((ScreenObj*)object);
     }
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[0], object);
+    object = MK_LIVE(konquest_pdata->hud_objects[0].object, konquest_pdata->hud_objects[0].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[1], object);
+    object = MK_LIVE(konquest_pdata->hud_objects[1].object, konquest_pdata->hud_objects[1].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[3], object);
+    object = MK_LIVE(konquest_pdata->hud_objects[3].object, konquest_pdata->hud_objects[3].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[4], object);
+    object = MK_LIVE(konquest_pdata->hud_objects[4].object, konquest_pdata->hud_objects[4].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[5], object);
+    object = MK_LIVE(konquest_pdata->hud_objects[5].object, konquest_pdata->hud_objects[5].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[6], object);
+    object = MK_LIVE(konquest_pdata->hud_objects[6].object, konquest_pdata->hud_objects[6].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[0], object);
+    object = MK_LIVE(konquest_pdata->hud_labels[0].object, konquest_pdata->hud_labels[0].instance);
     if (object != 0) unhide_string_obj((StringObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[1], object);
+    object = MK_LIVE(konquest_pdata->hud_labels[1].object, konquest_pdata->hud_labels[1].instance);
     if (object != 0) unhide_string_obj((StringObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[2], object);
+    object = MK_LIVE(konquest_pdata->hud_labels[2].object, konquest_pdata->hud_labels[2].instance);
     if (object != 0) unhide_string_obj((StringObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[4], object);
+    object = MK_LIVE(konquest_pdata->hud_labels[4].object, konquest_pdata->hud_labels[4].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[5], object);
+    object = MK_LIVE(konquest_pdata->hud_labels[5].object, konquest_pdata->hud_labels[5].instance);
     if (object != 0) unhide_string_obj((StringObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[3], object);
+    object = MK_LIVE(konquest_pdata->hud_labels[3].object, konquest_pdata->hud_labels[3].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_extra_label, object);
+    object = MK_LIVE(konquest_pdata->hud_extra_label.object, konquest_pdata->hud_extra_label.instance);
     if (object != 0) unhide_string_obj((StringObj*)object);
 }
 
@@ -10315,33 +10259,33 @@ static float p_fade_konquest_hud(void) {
 
     for (;;) {
         alpha += step;
-        KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[2], object);
+        object = MK_LIVE(konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[0], object);
+        object = MK_LIVE(konquest_pdata->hud_objects[0].object, konquest_pdata->hud_objects[0].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[1], object);
+        object = MK_LIVE(konquest_pdata->hud_objects[1].object, konquest_pdata->hud_objects[1].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[3], object);
+        object = MK_LIVE(konquest_pdata->hud_labels[3].object, konquest_pdata->hud_labels[3].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[4], object);
+        object = MK_LIVE(konquest_pdata->hud_labels[4].object, konquest_pdata->hud_labels[4].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[3], object);
+        object = MK_LIVE(konquest_pdata->hud_objects[3].object, konquest_pdata->hud_objects[3].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[4], object);
+        object = MK_LIVE(konquest_pdata->hud_objects[4].object, konquest_pdata->hud_objects[4].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[5], object);
+        object = MK_LIVE(konquest_pdata->hud_objects[5].object, konquest_pdata->hud_objects[5].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[6], object);
+        object = MK_LIVE(konquest_pdata->hud_objects[6].object, konquest_pdata->hud_objects[6].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[0], object);
+        object = MK_LIVE(konquest_pdata->hud_labels[0].object, konquest_pdata->hud_labels[0].instance);
         if (object != 0) set_string_obj_alpha((StringObj*)object, alpha);
-        KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[1], object);
+        object = MK_LIVE(konquest_pdata->hud_labels[1].object, konquest_pdata->hud_labels[1].instance);
         if (object != 0) set_string_obj_alpha((StringObj*)object, alpha);
-        KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[2], object);
+        object = MK_LIVE(konquest_pdata->hud_labels[2].object, konquest_pdata->hud_labels[2].instance);
         if (object != 0) set_string_obj_alpha((StringObj*)object, alpha);
-        KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_extra_label, object);
+        object = MK_LIVE(konquest_pdata->hud_extra_label.object, konquest_pdata->hud_extra_label.instance);
         if (object != 0) set_string_obj_alpha((StringObj*)object, alpha);
-        KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[5], object);
+        object = MK_LIVE(konquest_pdata->hud_labels[5].object, konquest_pdata->hud_labels[5].instance);
         if (object != 0) set_string_obj_alpha((StringObj*)object, alpha);
 
         if (g_fade_hud_in != 0) {
@@ -10371,33 +10315,33 @@ void konquest_hide_hud(int unused) {
 
     konquest_pdata->hud_visible = 0;
 
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[2], object);
+    object = MK_LIVE(konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[0], object);
+    object = MK_LIVE(konquest_pdata->hud_objects[0].object, konquest_pdata->hud_objects[0].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[1], object);
+    object = MK_LIVE(konquest_pdata->hud_objects[1].object, konquest_pdata->hud_objects[1].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[3], object);
+    object = MK_LIVE(konquest_pdata->hud_labels[3].object, konquest_pdata->hud_labels[3].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[4], object);
+    object = MK_LIVE(konquest_pdata->hud_labels[4].object, konquest_pdata->hud_labels[4].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[3], object);
+    object = MK_LIVE(konquest_pdata->hud_objects[3].object, konquest_pdata->hud_objects[3].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[4], object);
+    object = MK_LIVE(konquest_pdata->hud_objects[4].object, konquest_pdata->hud_objects[4].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[5], object);
+    object = MK_LIVE(konquest_pdata->hud_objects[5].object, konquest_pdata->hud_objects[5].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_objects[6], object);
+    object = MK_LIVE(konquest_pdata->hud_objects[6].object, konquest_pdata->hud_objects[6].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[0], object);
+    object = MK_LIVE(konquest_pdata->hud_labels[0].object, konquest_pdata->hud_labels[0].instance);
     if (object != 0) hide_string_obj((StringObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[1], object);
+    object = MK_LIVE(konquest_pdata->hud_labels[1].object, konquest_pdata->hud_labels[1].instance);
     if (object != 0) hide_string_obj((StringObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[2], object);
+    object = MK_LIVE(konquest_pdata->hud_labels[2].object, konquest_pdata->hud_labels[2].instance);
     if (object != 0) hide_string_obj((StringObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_extra_label, object);
+    object = MK_LIVE(konquest_pdata->hud_extra_label.object, konquest_pdata->hud_extra_label.instance);
     if (object != 0) hide_string_obj((StringObj*)object);
-    KONQUEST_RESOLVE_LATCH(konquest_pdata->hud_labels[5], object);
+    object = MK_LIVE(konquest_pdata->hud_labels[5].object, konquest_pdata->hud_labels[5].instance);
     if (object != 0) hide_string_obj((StringObj*)object);
 }
 
@@ -11273,9 +11217,10 @@ void calc_print_speed_for_nis_dialog(MkProc* dialog, unsigned int ticks) {
     pdata->active = 1;
 }
 
-/* TODO: [Scope warn] delimiter-array block. */
 static float p_konquest_dialog(void) {
-    struct KonquestDialogPdata* pdata;
+    struct KonquestDialogPdata* pdata =
+        (struct KonquestDialogPdata*)pdata_of_proc(aproc);
+    char delimiters[2] = " ";
     char* token;
     char* line_text;
     StringObj* current_line;
@@ -11283,64 +11228,59 @@ static float p_konquest_dialog(void) {
     int character_index;
     int length;
 
-    pdata = (struct KonquestDialogPdata*)pdata_of_proc(aproc);
-    {
-        char delimiters[2] = " ";
-
-        line_text = pdata->line_text[0];
-        token = strtok(pdata->text, delimiters);
-        while (token != 0) {
-            current_line = 0;
-            if (pdata->line_index == 0) {
-                line = MK_LIVE(pdata->lines[0].object, pdata->lines[0].instance);
-                current_line = line;
-                if (line->text_w + get_string_width_by_font_num(pdata->font, token) > 500.0f) {
-                    line = MK_LIVE(pdata->lines[1].object, pdata->lines[1].instance);
-                    current_line = line;
-                    line_text = pdata->line_text[1];
-                    pdata->line_index++;
-                    pdata->skip_print_delay = 0;
-                }
-            }
-
-            if (pdata->line_index == 1) {
+    line_text = pdata->line_text[0];
+    token = strtok(pdata->text, delimiters);
+    while (token != 0) {
+        current_line = 0;
+        if (pdata->line_index == 0) {
+            line = MK_LIVE(pdata->lines[0].object, pdata->lines[0].instance);
+            current_line = line;
+            if (line->text_w + get_string_width_by_font_num(pdata->font, token) > 500.0f) {
                 line = MK_LIVE(pdata->lines[1].object, pdata->lines[1].instance);
                 current_line = line;
-                if (line->text_w + get_string_width_by_font_num(pdata->font, token) > 500.0f) {
-                    StringObj* second_line;
-                    StringObj* first_line;
-
-                    line = second_line =
-                        MK_LIVE(pdata->lines[1].object, pdata->lines[1].instance);
-                    first_line = MK_LIVE(pdata->lines[0].object, pdata->lines[0].instance);
-                    strcpy(pdata->line_text[0], second_line->text);
-                    update_string_obj(first_line, pdata->font,
-                                      pdata->line_text[0]);
-                    strcpy(pdata->line_text[1], "");
-                    update_string_obj(second_line, pdata->font, "");
-                    line_text = pdata->line_text[0];
-                    pdata->line_index = 0;
-                    pdata->skip_print_delay = 0;
-                    continue;
-                }
+                line_text = pdata->line_text[1];
+                pdata->line_index++;
+                pdata->skip_print_delay = 0;
             }
-
-            length = strlen(token);
-            for (character_index = 0; character_index < length;
-                 character_index++) {
-                if (pdata->print_ticks > 0) {
-                    pdata->print_ticks -= pdata->print_speed;
-                }
-                strncat(line_text, token + character_index, 1);
-                update_string_obj(current_line, pdata->font, line_text);
-                if (pdata->print_speed != 0 && pdata->skip_print_delay == 0) {
-                    _mkproc_sleep_ticks = pdata->print_speed;
-                    aproc->vtbl->sleep();
-                }
-            }
-            token = strtok(0, delimiters);
-            strncat(line_text, " ", 1);
         }
+
+        if (pdata->line_index == 1) {
+            line = MK_LIVE(pdata->lines[1].object, pdata->lines[1].instance);
+            current_line = line;
+            if (line->text_w + get_string_width_by_font_num(pdata->font, token) > 500.0f) {
+                StringObj* second_line;
+                StringObj* first_line;
+
+                line = second_line =
+                    MK_LIVE(pdata->lines[1].object, pdata->lines[1].instance);
+                first_line = MK_LIVE(pdata->lines[0].object, pdata->lines[0].instance);
+                strcpy(pdata->line_text[0], second_line->text);
+                update_string_obj(first_line, pdata->font,
+                                  pdata->line_text[0]);
+                strcpy(pdata->line_text[1], "");
+                update_string_obj(second_line, pdata->font, "");
+                line_text = pdata->line_text[0];
+                pdata->line_index = 0;
+                pdata->skip_print_delay = 0;
+                continue;
+            }
+        }
+
+        length = strlen(token);
+        for (character_index = 0; character_index < length;
+             character_index++) {
+            if (pdata->print_ticks > 0) {
+                pdata->print_ticks -= pdata->print_speed;
+            }
+            strncat(line_text, token + character_index, 1);
+            update_string_obj(current_line, pdata->font, line_text);
+            if (pdata->print_speed != 0 && pdata->skip_print_delay == 0) {
+                _mkproc_sleep_ticks = pdata->print_speed;
+                aproc->vtbl->sleep();
+            }
+        }
+        token = strtok(0, delimiters);
+        strncat(line_text, " ", 1);
     }
 
     _mkproc_sleep_ticks = 1.0f;
@@ -12533,7 +12473,7 @@ static MkProc* pui_set_chest_state(
     }
 
     proc = _create_mkproc_generic_tinystack(
-        0xA022, 0x1F, p_close_konquest_chest, 0x18, (void**)&pdata);
+        0xA022, 0x1F, p_close_konquest_chest, sizeof(*pdata), (void**)&pdata);
     if (proc != 0) {
         struct KonquestChestOwner* owner;
 
@@ -16409,7 +16349,7 @@ void kill_konquest_dialog_procs(void) {
 
     pdata = 0;
     proc = _create_mkproc_generic_tinystack(
-        0x8248, 0x1f, p_konquest_kill_dialog_procs, 8, &pdata);
+        0x8248, 0x1f, p_konquest_kill_dialog_procs, sizeof(MkHdr), &pdata);
     if (proc != 0 && pdata != 0) {
         ((int*)pdata)[2] = 0;
     }

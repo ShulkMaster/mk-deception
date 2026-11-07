@@ -550,13 +550,8 @@ typedef struct ChessCameraSoundState {
 typedef struct ChessLibraryEntry {
     const char* name; /* +0x00 */
     int character_id; /* +0x04 */
-    union {
-        char pad08[8];
-        struct {
-            unsigned int field_08; /* +0x08 - nonzero offsets right portrait by 128 */
-            int sound_variant; /* +0x0C - selects paired chess voice sounds */
-        };
-    };
+    unsigned int field_08; /* +0x08 - nonzero offsets right portrait by 128 */
+    int sound_variant; /* +0x0C - selects paired chess voice sounds */
 } ChessLibraryEntry; /* 0x10-byte library table stride */
 
 typedef struct ChessModeState {

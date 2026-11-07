@@ -24,6 +24,7 @@
 #include "runtime/asset.h"
 #include "runtime/anim_api.h"
 #include "runtime/cam.h"
+#include "runtime/cam_shake.h"
 #include "runtime/cstdio.h"
 #include "mw/mwScreenEngineGlue.h"
 #include "runtime/cstring.h"
@@ -57,7 +58,6 @@ char* get_ending_thumbnail_name(int fighter);
 int pan_snd_req(int sound_id, float pan);
 void insert_ground_me_mkobj(MkObj* object);
 char* strlwr(char* string);
-void shake_camera(int ticks, float strength);
 
 struct KontentPdata {
     MkHdr hdr;
@@ -622,7 +622,7 @@ static inline void award_koins(void) {
         mkproc_sleep();
     } else {
         _create_mkproc_generic_tinystack(
-            0x8246, 0x1F, p_counting_sound, 8, &empty_pdata);
+            0x8246, 0x1F, p_counting_sound, sizeof(MkHdr), &empty_pdata);
         wallet_text = MK_LIVE(krypt_pdata->wallet_text[koin_type].obj, krypt_pdata->wallet_text[koin_type].obj_instance);
         display_numerical_change(
             wallet_text, 0, old_total, amount, 1, 0x14);
@@ -681,7 +681,7 @@ static inline void move_krypt_selection(CameraPdata* camera, int direction) {
 
 static inline void start_move_footstep(
     int pid, MkProcEntryFn entry, MkHdr** pdata) {
-    _create_mkproc_generic_tinystack(pid, 0x1F, entry, 8, pdata);
+    _create_mkproc_generic_tinystack(pid, 0x1F, entry, sizeof(MkHdr), pdata);
 }
 
 static inline void handle_held_krypt_direction(
@@ -695,7 +695,7 @@ static inline void handle_held_krypt_direction(
             if (find_mkproc_pid(0x8243) == 0 &&
                 krypt_pdata->field_0x108 == 0) {
                 _create_mkproc_generic_tinystack(
-                    0x8243, 0x1F, p_running_footstep_proc, 8, running_pdata);
+                    0x8243, 0x1F, p_running_footstep_proc, sizeof(MkHdr), running_pdata);
             }
         }
     } else {
@@ -706,7 +706,7 @@ static inline void handle_held_krypt_direction(
             krypt_pdata->field_0x108 == 0) {
             *release_pdata = 0;
             _create_mkproc_generic_tinystack(
-                0x8242, 0x1F, p_single_move_footstep_proc, 8, release_pdata);
+                0x8242, 0x1F, p_single_move_footstep_proc, sizeof(MkHdr), release_pdata);
         }
         krypt_pdata->field_0x108 = 0;
     }
@@ -798,7 +798,7 @@ static float p_setup_krypt(void) {
     wait_for_sound_banks_to_load();
     start_tunes();
     _create_mkproc_generic_tinystack(
-        0x823E, 0x1F, p_play_random_noise, 8, &random_noise_pdata);
+        0x823E, 0x1F, p_play_random_noise, sizeof(MkHdr), &random_noise_pdata);
 
     load_string_bank(0x20000, "krypt_strings_eng.mko");
     setup_tombstones();
@@ -1228,7 +1228,7 @@ void setup_tombstones(void) {
         sobj->flags_08_bits.bit6 = 1;
         fog_pdata = 0;
         if (_create_mkproc_generic_tinystack(
-                0x823a, 0x1f, p_fog_follow_camera, 0x10,
+                0x823a, 0x1f, p_fog_follow_camera, sizeof(*fog_pdata),
                 (MkHdr**)&fog_pdata) != 0 && fog_pdata != 0) {
             fog_pdata->obj = (MkHdr*)sobj;
             fog_pdata->obj_instance = ((MkHdr*)sobj)->instance;
@@ -1372,7 +1372,7 @@ static int deduct_koins(int amount, unsigned int koin_type) {
     }
 
     _create_mkproc_generic_tinystack(
-        0x8246, 0x1F, p_counting_sound, 8, &empty_pdata);
+        0x8246, 0x1F, p_counting_sound, sizeof(MkHdr), &empty_pdata);
     wallet_text = MK_LIVE(krypt_pdata->wallet_text[koin_type].obj, krypt_pdata->wallet_text[koin_type].obj_instance);
     display_numerical_change(wallet_text, 0, old_total, -amount, 1, 0x14);
     destroy_mkprocs_pid(0x8246);
@@ -1405,7 +1405,7 @@ static float p_running_footstep_proc(void) {
     if (find_mkproc_pid(0x8242) == 0) {
         footstep_pdata = 0;
         _create_mkproc_generic_tinystack(
-            0x8242, 0x1F, p_single_move_footstep_proc, 8,
+            0x8242, 0x1F, p_single_move_footstep_proc, sizeof(MkHdr),
             &footstep_pdata);
     }
     return -1.0f;
@@ -2407,8 +2407,8 @@ static void set_number_positions_and_values(PfxVm* pfx) {
     pos = pfx_get_field(pfx, -2, 0x100);
     pos_stride = pfx_get_struct_size(pfx, 0x100);
     tombstone_viewport_origin(&view_row, &view_col);
-    column_coordinate = (float)view_col;
-    row_coordinate = (float)view_row;
+    column_coordinate = view_col;
+    row_coordinate = view_row;
     origin_x = s_tomb_col_spacing * column_coordinate + s_tomb_col_origin;
     base_x = origin_x;
     base_z = s_tomb_row_origin - s_tomb_row_spacing * row_coordinate;

@@ -3,6 +3,7 @@
 #include "runtime/anim_pdata.h"
 #include "runtime/anim_api_ext.h"
 #include "game/pfxscript_api.h"
+#include "game/pfxscript.h"
 #include "runtime/anim_api.h"
 #include "runtime/asset.h"
 #include "game/konquest.h"
@@ -574,12 +575,9 @@ float p_do_lip_synch(void);
 float p_npc_proc(void);
 float p_npc_idle(void);
 RpMaterial* obj_find_material_by_id(MkObj* object, int material_id);
-unsigned int fx_by_owner(const char* name, unsigned int owner);
 int is_blood_disabled(void);
 void fx_resume_emit(unsigned int effect);
-void fx_reset_emit(unsigned int effect);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
-void obj_set_all_sobjs_priority(MkObj* object, int priority);
 void insert_ground_me_mkobj(MkObj* object);
 void sobj_swap_material_texture(
     MkSobj* sobj, unsigned int material_id, RwTexture* texture);
@@ -1562,8 +1560,8 @@ static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
         strlwr(section_name);
         load_ssf(kon_unique_npcs_file_table);
         load_art_section_by_name(slot_handle, section_name);
-        strncpy(slot->name, model_name, 0x3F);
-        slot->name[0x3F] = 0;
+        strncpy(slot->name, model_name, sizeof(slot->name) - 1);
+        slot->name[sizeof(slot->name) - 1] = 0;
         object = load_named_model_from_slot(
             slot_handle, "NPC", 0xA002, 0);
     } else {

@@ -1827,7 +1827,7 @@ void spawn_random_size(float* table) {
     }
 
     row_count = get_row_count_for_table_by_pointer(
-        g_pfx_cmo, (void*)table);
+        g_pfx_cmo, table);
     if (row_count == 0U) {
         return;
     }

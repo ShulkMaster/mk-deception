@@ -1,6 +1,7 @@
 #include "runtime/cam.h"
 #include "runtime/anim_api_ext.h"
 #include "runtime/cam_shake.h"
+#include "runtime/cam_api.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_plugins.h"
 #include "runtime/mk_pdata.h"
@@ -13,6 +14,7 @@
 #include "runtime/asset.h"
 #include "runtime/cmath.h"
 #include "runtime/cstring.h"
+#include "runtime/utils.h"
 #include "runtime/mk_cmdscript.h"
 
 #include "math/gxMath.h"
@@ -97,13 +99,10 @@ extern struct FadeBoxItem upper_fade_box_item;
 
 extern MkProcEntryFn old_camera_function;
 float get_constrain_player_distance(void);
-int get_game_state(void);
 int get_konquest_game_mode(void);
 void render_col_shape(CollisionShape* shape, const unsigned int* color);
 void hide_atomic(void* atomic);
 void unhide_atomic(void* atomic);
-float frand(float maximum);
-unsigned short randu0(unsigned int maximum);
 MslSoundHandle pan_vol_snd_req(int sound_id, float pan, float volume);
 
 Vec cam_ang_offset = {0.0f, 0.0f, 0.0f};
@@ -727,7 +726,6 @@ static inline float camera_fabs(float value) {
 
 
 static Vec unit_x;
-void set_camera_focal_length(float focal_length);
 
 static float p_shake_camera_y(void);
 
@@ -2076,7 +2074,7 @@ static void attract_setup_radial_sweep(struct AttractCameraState* state) {
 static void attract_setup_chase_cam(struct AttractCameraState* state) {
     state->field_44 = 0.2f;
     state->field_48 = 0.2f;
-    if (randu0(2) == 0) {
+    if ((unsigned short)randu0(2) == 0) {
         state->reference.target = g_game_info.plyr0.slot.mirror_a;
     } else {
         state->reference.target = g_game_info.plyr1.slot.mirror_a;
@@ -2472,13 +2470,13 @@ float p_attract_camera(void) {
 
     for (;;) {
         if (state.countdown == 0) {
-            state.countdown = randu0(360) + 240;
+            state.countdown = (unsigned short)randu0(360) + 240;
             use_glitch_move = 1;
             if (state.mode == -1) {
                 state.mode = 1;
             } else {
                 do {
-                    next_mode = randu0(4);
+                    next_mode = (unsigned short)randu0(4);
                 } while (next_mode == state.mode);
                 state.mode = next_mode;
             }
@@ -5443,7 +5441,7 @@ void camera_get_screen_pos_from_world_pos(Vec* world, RwV2d* screen) {
          (world->x * Camera->viewMatrix.right.x +
           world->y * Camera->viewMatrix.up.x));
     reciprocal_depth = 1.0f / projected_z;
-    offset_y = (float)raster->offsetY;
+    offset_y = raster->offsetY;
     screen->x = (float)raster->width * (projected_x * reciprocal_depth) +
         (float)raster->offsetX;
     screen->y = (float)height -

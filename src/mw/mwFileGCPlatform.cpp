@@ -1265,7 +1265,6 @@ mwFileAsyncResult gcnHostOpenCommand::getResult() const
 }
 #pragma pop
 
-/* TODO: [Scope warn] Write requests require append or truncate mode, as supplied by mwFileOpenModeToFlags. */
 static inline int openHostFile(gcnHostFileHandle* handle, const char* path)
 {
     unsigned long open_flags = handle->getFlags();

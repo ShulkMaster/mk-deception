@@ -70,8 +70,6 @@ extern "C" {
 #include "runtime/mk_mem.h"
 #include "math/mk_math.h"
 
-#pragma use_lmw_stmw on
-
 void* __nw__FUl(unsigned long size);
 void Free__10ScreenUtilFPv(void* p);
 void __ct__17ScreenMatrixStackFv(void* self);
@@ -578,12 +576,6 @@ struct RepeatButtonPdata {
 static float p_repeat_analog_stick_input__Fv(void);
 static float p_repeat_button_input__Fv(void);
 
-static float p_repeat_analog_stick_input__Fv(void);
-
-static float p_repeat_button_input__Fv(void);
-
-static int check_allow_screen_engine_control__Fv(void);
-
 static const float kGvFloatZero = 0.0f;
 
 void create_inventory_image_list(GVTexturePair out, int count);
@@ -641,15 +633,9 @@ struct GVStringMatrixIsland {
 };
 
 int wager_load_koin_count_string_array__F8PLYR_NUM(int player);
-extern int p1_profile_status;
-extern int p2_profile_status;
 void get_soundtrack_title_list(const char*** titles_out, unsigned int* count_out,
                                int* stride_out);
 void get_storage_device_name_list(char** out);
-int wager_load_koin_count_string_array__F8PLYR_NUM(int player);
-
-extern int multi_profile_cursor_p1;
-extern int multi_profile_cursor_p2;
 void konquest_set_current_inventory_item(int item);
 void kontent_set_current_selection(int item);
 void set_current_soundtrack(int index);
@@ -683,21 +669,14 @@ const char* get_screens_online_options_newaccountname(void);
 const char* get_screens_online_options_newaccountpassword(void);
 
 extern int menu_mode_var;
-extern int menu_mode_sub_var;
 extern int arena_focus_var;
 extern int arena_sub_menu_var;
-extern int psel_p1_handicap;
-extern int psel_p2_handicap;
 extern int pprofile_stage_var;
-extern int gameoption_exitwithsave;
 extern int need_to_reload_systemart;
 extern int pause_player;
 extern int mode_of_play;
-extern int profile_code_state[2];
 extern int popup_type;
 extern int winner;
-
-extern void* __vt__15mkGameVariables[];
 
 enum { kMallocTagInit = 0x494E4954 };
 
@@ -879,8 +858,6 @@ static void _ChangeCase__FP12SEElements_tUi(SEElements_t* list, unsigned int toU
 
 void ChangeCase__6KeyPadFUi(KeyPad* self, unsigned int toUpper);
 
-void ChangeCase__10ScreenTextFi(ScreenText* text, int toUpper);
-
 void Close__10ScreenTextFv(ScreenText* text);
 
 void Render__10ScreenTextFP16ScreenRenderInfo(ScreenText* text, ScreenRenderInfoC* info);
@@ -1031,8 +1008,6 @@ extern int GetInt__22GameVariableDispatcherFi(void* self, int id);
 extern void SetInt__22GameVariableDispatcherFUiUii(void* self, unsigned int context,
                                                    unsigned int id, int value);
 extern void SetString__22GameVariableDispatcherFiPc(void* self, int id, char* value);
-extern int p1_profile_status;
-extern int p2_profile_status;
 extern void* GetAnimScene__6ScreenFi(void* screen, int index);
 extern void PlayUntilTime__15ScreenAnimSceneFi(void* scene, int time);
 extern void* GetScreenObject__12ScreenParamsFUi(void* params, unsigned int index);
@@ -1182,9 +1157,6 @@ void HandleEvent__8WifImageFP9ScreenMgrii(WifImage* self, ScreenMgr* mgr, int ev
 
 void ProcessParams__11SpreadSheetFP12ScreenParams(SpreadSheet* self, ScreenParams* params);
 
-extern void FreeStringCollection__22GameVariableDispatcherFUiUiPPcUi(
-    void* self, unsigned int unused, unsigned int id, char** strings,
-    unsigned int count);
 extern unsigned int GetStringCollection__22GameVariableDispatcherFUiUiPPPc(
     void* self, unsigned int unused, unsigned int id, char*** out);
 extern int GetInt__22GameVariableDispatcherFUiUi(void* self, unsigned int unused,
@@ -1348,7 +1320,6 @@ void HandleEvent__9ImageListFP9ScreenMgrii(ImageList* self, void* mgr, int event
 
 
 
-extern void* __vt__8KeyEntry[20];
 extern void __dt__13ScreenControlFv(void* self, short del);
 extern void __dl__13ScreenControlFPv(void* self);
 extern void __dt__21ScreenResourceLibraryFv(void* self, short del);
@@ -5904,7 +5875,6 @@ void SetVisible__10ScreenTextFUi(ScreenText* text, unsigned int visible) {
 
 /* TODO: [near miss] 99.92727%; pointer adds `cursor += consumed` / `p += consumed` emit
  * pointer-left (retail consumed-left); next: a loop shape whose IV rewrite yields add ptr,int,ptr. */
-/* TODO: [Scope warn] block around the second-pass startOff: removing it drops 99.93% -> 99.53%. */
 int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount) {
     int left;
     char* p;
@@ -5993,7 +5963,6 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
         "Screen - Text Obj");
     p = str;
     lineIndex = 0;
-    {
     int startOff;
 
     startOff = 0;
@@ -6064,7 +6033,6 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
         lineIndex++;
         p++;
         startOff++;
-    }
     }
     return starts;
 }
