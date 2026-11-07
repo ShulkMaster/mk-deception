@@ -282,6 +282,12 @@ Core line only; detail = `## Hxx` in tier 2.
   both are statement-level inline objects | move the earlier helper call into
   a wrapper inline (nested objects number below top-level ones); match handle
   types to the API.
+- **H31 Phantom copy** | same ops, saved homes swap, every pop order moves a
+  parameter / no pop order, decl sweeps neutral | `phantomsearch.py` Step A:
+  N extra coalesced copies across a named web reproduce retail | add exactly N
+  honest surviving copies in that range from the measured catalogue (hero-shape
+  live helper, block-local call result in a multi-def helper, call result
+  passed twice, join with a call arm); plain hoists add none.
 
 ## Stop
 

@@ -1018,9 +1018,12 @@ static inline unsigned int find_mouth_wiff_artid(MkObj* object) {
     RpClumpForAllAtomics(
         object->clump, AtomicFindTextureWithRootString, &search);
     if (search.texture_name[0] != 0) {
+        unsigned int art_id;
+
         strupr(search.texture_name);
-        return get_artid_of_named_item_in_slot(
+        art_id = get_artid_of_named_item_in_slot(
             0x6002B, search.texture_name, 0);
+        return art_id;
     }
     return 0;
 }
@@ -1516,10 +1519,7 @@ static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
     npc_manager_load_new_npc_model(npc);
 }
 
-/* TODO: [near miss] 99.71983%; npc/art_id saved homes swap; retail needs art_id
- * declared last plus one more coalesced copy across it (phantom what-if exact). */
 static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
-    unsigned int art_id;
     AniTextureControl* lip_texture = 0;
     struct NpcManagerModelSlot* slot = 0;
     int slot_handle = 0;
@@ -1528,6 +1528,7 @@ static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
     int index;
     MkObj* object;
     char* model_name;
+    unsigned int art_id;
 
     art_id = 0;
     if (is_special == 1) {

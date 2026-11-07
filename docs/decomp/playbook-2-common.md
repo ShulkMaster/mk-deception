@@ -4856,6 +4856,44 @@ top-level expansion. Lift a nested call to top level for the reverse.
   stored from an `unsigned` param (shared `(int)count` CSE created before the
   index product; field made `unsigned`).
 
+## H31
+
+Phantom copy = coalesced copy the allocator never pushes. BE CopyPropagation
+deletes `MR x,y` unless x is multi-def or a use of x is itself a move (call
+argument, further copy). A surviving MR is coalesced (no instruction) but
+keeps its interference bits: every web live across it gets a permanent +1
+degree, which fixes the simplify sweep and so the saved home. Same instruction
+stream, N copies more or fewer; pop-order solver says "moves a parameter" or
+"no pop order", decl sweeps neutral.
+
+- REQUIRE `phantomsearch.py SYMBOL` Step A: exact twin placements with N extra
+  copies and the web every placement is live across (or `ONE COPY TOO MANY`).
+  No solution at the current numbering -> `--declsweep` (numbering x degree;
+  `npc_manager_load_new_npc_model`: `art_id` last + 1 copy).
+- TRY exactly N honest copies inside that range, from the measured catalogue
+  (`phantom_lab.c`, `--lab`):
+  - MK_LIVE macro -> static inline live helper in the unit's hero shape:
+    `T object = owner->f.object; if (object != 0) { if (object->instance ==
+    owner->f.instance) return object; object = 0; } else object = 0; return
+    object;` = +1 per expansion (`pickup_pui`: award_text + award_art = +2 on
+    `item`). The `return 0;` arm shape and the macro add none.
+  - Inline helper with another return path: `r = call(...); return r;` with a
+    block-local r instead of `return call(...);` = +1 (result object multi-def;
+    `find_mouth_wiff_artid` in `npc_manager_load_new_npc_model`; out-of-line
+    size unchanged). A function-top `r = 0;` init regresses.
+  - Call result in a named local passed to two calls = +1; passed once,
+    compared, or used as a load base = 0.
+  - `v = c ? call() : e` / if-else join with a call arm, v passed = +2; join of
+    two loads = 0.
+  - Inline helper that reassigns its parameter, called with a variable = +1
+    (`floor` ticks helper: the same copy the member spelling already has).
+  - Adds nothing: field read through a local, typed copy of the same type,
+    global snapshot, two-return helper returning loads, call result into an
+    inline argument. `void*` param typed view = +1 only on other webs live at
+    entry.
+- STOP when Step A finds no N <= 3 and no minus: interference edge or
+  numbering, not this rule (`do_dialog`, `render_player_joints`, `pfxvm`).
+
 ## Traps
 
 - `#pragma optimization_level N` == `-opt level=N` (frontend + backend),

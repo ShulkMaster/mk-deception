@@ -454,8 +454,6 @@ mwFileServerQueued::mwFileServerQueued() : pending(0), active_count(0), servicin
     memset(active, 0, sizeof(active));
 }
 
-/* TODO: [breakthrough needed] 96.52174%; scan-result copy must precede its guard;
- * PS2 server lacks this query; recover GC Boolean-result ownership. */
 bool mwFileServerNotQueued::queryActive() const
 {
     bool active;
@@ -470,15 +468,16 @@ bool mwFileServerNotQueued::queryActive() const
         }
         active = it != last;
     }
-    if (active) {
-        return active;
+    bool result = active;
+    if (!result) {
+        bool empty;
+        {
+            mwFileMutexLock lock(pending_commands.mutex);
+            empty = pending_commands.buffer.empty();
+        }
+        result = empty == false;
     }
-    bool empty;
-    {
-        mwFileMutexLock lock(pending_commands.mutex);
-        empty = pending_commands.buffer.empty();
-    }
-    return !empty;
+    return result;
 }
 
 bool mwFileServerNotQueued::isActive() const
