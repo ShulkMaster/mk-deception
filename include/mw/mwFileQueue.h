@@ -51,13 +51,13 @@ private:
 };
 
 template <class T, class Allocator>
-bool circular_buffer<T, Allocator>::full() const
+inline bool circular_buffer<T, Allocator>::full() const
 {
     return count == buffer.size();
 }
 
 template <class T, class Allocator>
-bool circular_buffer<T, Allocator>::push(T value)
+inline bool circular_buffer<T, Allocator>::push(T value)
 {
     if (full()) {
         return false;
@@ -69,14 +69,14 @@ bool circular_buffer<T, Allocator>::push(T value)
 }
 
 template <class T, class Allocator>
-T circular_buffer<T, Allocator>::front()
+inline T circular_buffer<T, Allocator>::front()
 {
     T result = buffer[head];
     return result;
 }
 
 template <class T, class Allocator>
-void circular_buffer<T, Allocator>::pop()
+inline void circular_buffer<T, Allocator>::pop()
 {
     head = (head + 1) % buffer.size();
     count--;
@@ -97,14 +97,14 @@ public:
 };
 
 template <class T>
-void mwProducerConsumerQueue<T>::resize(unsigned long size)
+inline void mwProducerConsumerQueue<T>::resize(unsigned long size)
 {
     mwFileMutexLock lock(mutex);
     buffer.resize(size);
 }
 
 template <class T>
-void mwProducerConsumerQueue<T>::produce(T value)
+inline void mwProducerConsumerQueue<T>::produce(T value)
 {
     mutex.lock();
     while (buffer.full()) {
@@ -116,7 +116,7 @@ void mwProducerConsumerQueue<T>::produce(T value)
 }
 
 template <class T>
-bool mwProducerConsumerQueue<T>::consumeNonBlocking(T& value)
+inline bool mwProducerConsumerQueue<T>::consumeNonBlocking(T& value)
 {
     mwFileMutexLock lock(mutex);
     if (buffer.empty()) {

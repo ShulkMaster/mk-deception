@@ -186,14 +186,14 @@ void basic_string<charT, traits, Allocator>::change_size(size_type n, bool keep)
 }
 
 template <class charT, class traits, class Allocator>
-typename basic_string<charT, traits, Allocator>::size_type
+inline typename basic_string<charT, traits, Allocator>::size_type
 basic_string<charT, traits, Allocator>::max_size() const
 {
     return get_allocator().max_size() - 1;
 }
 
 template <class charT, class traits, class Allocator>
-typename basic_string<charT, traits, Allocator>::allocator_type
+inline typename basic_string<charT, traits, Allocator>::allocator_type
 basic_string<charT, traits, Allocator>::get_allocator() const
 {
     return capacity_;

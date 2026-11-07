@@ -1,6 +1,8 @@
 #ifndef MSLCPP_MSL_UTILITY_H
 #define MSLCPP_MSL_UTILITY_H
 
+#include "mslcpp/algorithm.h"
+
 namespace Metrowerks {
 
 namespace details {
@@ -19,12 +21,7 @@ public:
     T2& second() { return second_; }
     const T2& second() const { return second_; }
 
-    void swap(compressed_pair_imp& x)
-    {
-        T2 tmp = second_;
-        second_ = x.second_;
-        x.second_ = tmp;
-    }
+    void swap(compressed_pair_imp& x) { std::swap(second_, x.second_); }
 
 private:
     T2 second_;
@@ -39,6 +36,11 @@ class compressed_pair : public details::compressed_pair_imp<T1, T2, true> {
 public:
     compressed_pair(T2 y) : base(y) {}
     compressed_pair(const T1& x, T2 y) : base(x, y) {}
+
+    T1& first() { return base::first(); }
+    const T1& first() const { return base::first(); }
+    T2& second() { return base::second(); }
+    const T2& second() const { return base::second(); }
 
     void swap(compressed_pair& x) { base::swap(x); }
 };

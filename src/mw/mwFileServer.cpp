@@ -159,16 +159,20 @@ protected:
 class mwFileServerQueued : public mwFileServer {
 public:
     struct QueueItem {
-        bool operator>(const QueueItem& x) const
+        QueueItem() {}
+        QueueItem(mwFileCommand* c, unsigned char p) : command(c), priority(p), sequence(0) {}
+
+        bool operator<(const QueueItem& x) const
         {
-            if ((x.priority & 3u) < (priority & 3u)) {
+            if ((priority & 3u) < (x.priority & 3u)) {
                 return true;
             }
-            if ((x.priority & 3u) == (priority & 3u)) {
-                return x.sequence < sequence;
+            if ((priority & 3u) == (x.priority & 3u)) {
+                return sequence < x.sequence;
             }
             return false;
         }
+        bool operator>(const QueueItem& x) const { return x < *this; }
 
         mwFileCommand* command;
         unsigned char priority;
@@ -277,6 +281,341 @@ private:
     mwProducerConsumerQueue<mwFileCommand*> callbacks;
 };
 
+unsigned char mwFileQueryable::isA(mwFileTypeInfo*,
+                                    const void*& object) const
+{
+    object = 0;
+    return 0;
+}
+
+unsigned char mwFileQueryable::isA(mwFileTypeInfo* type, void*& object)
+{
+    const void* const_object;
+    if (isA(type, const_object)) {
+        object = const_cast<void*>(const_object);
+        return true;
+    }
+    return false;
+}
+
+void mwFileServer::queueCommandCallback(mwFileCommand* command)
+{
+    manager->queueCommandCallback(command);
+}
+
+void mwFileServer::notifyCommandAdded()
+{
+    notify(queryActive());
+}
+
+void mwFileServer::notifyCommandActive(mwFileCommand*)
+{
+    notify(queryActive());
+}
+
+void mwFileServer::notify(bool active)
+{
+    if (active) {
+        manager->notifyServerActivityChange(active);
+    }
+}
+
+mwFileServerManagerBase::mwFileServerManagerBase()
+{
+    servers.reserve(10);
+}
+
+void mwFileServerManagerBase::addServer(mwFileServer* server)
+{
+    mwFileMutexLock lock(mutex);
+    if (std::find(servers.begin(), servers.end(), server) == servers.end()) {
+        server->manager = static_cast<mwFileServerManagerMultiThreaded*>(this);
+        servers.push_back(server);
+    }
+}
+
+void mwFileServerManagerBase::removeServer(mwFileServer* server)
+{
+    mwFileMutexLock lock(mutex);
+    server->manager = 0;
+    mwFileServerEraseRange range;
+    range.last = servers.end();
+    range.first = std::remove(servers.begin(), servers.end(), server);
+    servers.erase(range.first, range.last);
+}
+
+mwFileServerManagerMultiThreaded::mwFileServerManagerMultiThreaded()
+    : quit(false), running(false)
+{
+}
+
+void mwFileServerManagerMultiThreaded::initialize(unsigned long callback_count)
+{
+    quit = false;
+    finished.reset();
+    callbacks.resize(callback_count);
+}
+
+void mwFileServerManagerMultiThreaded::service()
+{
+    if (!_mwFilePlatformIsInServiceThread()) {
+        mwFileDevice::serviceCallbacks();
+        mwFileCommand* command;
+        while (callbacks.consumeNonBlocking(command)) {
+            command->serviceCallbackAndPendingDelete();
+        }
+    }
+}
+
+bool mwFileServerManagerMultiThreaded::isActive() const
+{
+    for (mwFileServer* const* it = servers.begin(); it != servers.end(); ++it) {
+        if ((*it)->isActive()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void mwFileServerManagerMultiThreaded::serviceThread()
+{
+    running = true;
+    while (!quit) {
+        mutex.lock();
+        while (!isActive()) {
+            condition.wait(mutex);
+        }
+        mutex.unlock();
+        serviceCommands();
+        notifyServerActivityChange(false);
+        _mwFilePlatformYieldTimeSlice();
+    }
+    running = false;
+    finished.set();
+}
+
+void mwFileServerManagerMultiThreaded::serviceCommands()
+{
+    static mwFileServer* sHackServerArray[10];
+    mwFileServer** last;
+
+    {
+        mwFileMutexLock lock(mutex);
+        mwFileServer** source_end = servers.end();
+        mwFileServer** source_begin = servers.begin();
+        last = std::copy(source_begin, source_end, sHackServerArray);
+    }
+    for (mwFileServer** it = sHackServerArray; it != last; ++it) {
+        if ((*it)->queryActive()) {
+            (*it)->service();
+        }
+    }
+}
+
+void mwFileServerManagerMultiThreaded::notifyServerActivityChange(bool active)
+{
+    mwFileMutexLock lock(mutex);
+    if (active) {
+        condition.signal();
+    } else {
+        mwFileServer** it = servers.begin();
+        mwFileServer** last = servers.end();
+        for (; it != last; ++it) {
+            if ((*it)->queryActive()) {
+                break;
+            }
+        }
+        if (it != servers.end()) {
+            condition.signal();
+        }
+    }
+}
+
+void mwFileServerManagerMultiThreaded::queueCommandCallback(mwFileCommand* command)
+{
+    callbacks.produce(command);
+}
+
+mwFileServerNotQueued::mwFileServerNotQueued() : initialized(false), servicing(false)
+{
+}
+
+mwFileServerNotQueued::~mwFileServerNotQueued()
+{
+}
+
+bool mwFileServerNotQueued::isInitialized() const
+{
+    return initialized;
+}
+
+int mwFileServerNotQueued::initialize(unsigned short command_count)
+{
+    pending_commands.resize(command_count);
+    active_commands.reserve(command_count);
+    initialized = true;
+    return 0;
+}
+
+int mwFileServerNotQueued::service()
+{
+    mwFileMutexLock lock(mutex);
+    if (!servicing) {
+        servicing = true;
+    } else {
+        return 0;
+    }
+
+    mwFileCommand* command;
+    while (pending_commands.consumeNonBlocking(command)) {
+        active_commands.push_back(command);
+    }
+
+    mwFileCommand** it = active_commands.begin();
+    mwFileCommand** last = active_commands.end();
+    while (it != last) {
+        switch ((*it)->service()) {
+        case 2: {
+            mwFileCommand* finished = *it;
+            it = active_commands.erase(it);
+            last = active_commands.end();
+            queueCommandCallback(finished);
+            break;
+        }
+        case 0:
+        case 1:
+            ++it;
+            break;
+        }
+    }
+    {
+        mwFileMutexLock flush(mutex);
+    }
+    servicing = false;
+    return 0;
+}
+
+bool mwFileServerNotQueued::queryActive() const
+{
+    bool active;
+    {
+        mwFileMutexLock lock(mutex);
+        mwFileCommand* const* it = active_commands.begin();
+        mwFileCommand* const* last = active_commands.end();
+        for (; it != last; ++it) {
+            if ((*it)->reference_count > 0) {
+                break;
+            }
+        }
+        active = it != last;
+    }
+    bool result = active;
+    if (!result) {
+        bool empty;
+        {
+            mwFileMutexLock lock(pending_commands.mutex);
+            empty = pending_commands.buffer.empty();
+        }
+        result = empty == false;
+    }
+    return result;
+}
+
+bool mwFileServerNotQueued::isActive() const
+{
+    return queryActive();
+}
+
+int mwFileServerNotQueued::addCommand(mwFileCommand* command, unsigned char)
+{
+    {
+        mwFileMutexLock lock(mutex);
+        command->server = this;
+        pending_commands.produce(command);
+    }
+    notifyCommandAdded();
+    return 0;
+}
+
+mwFileServerQueued::mwFileServerQueued() : pending(0), active_count(0), servicing(false)
+{
+    memset(active, 0, sizeof(active));
+}
+
+mwFileServerQueued::~mwFileServerQueued()
+{
+    delete pending;
+    pending = 0;
+    delete ready;
+    ready = 0;
+}
+
+int mwFileServerQueued::initialize(unsigned short command_count)
+{
+    if (pending != 0) {
+        return 0;
+    }
+    pending = new (MW_TARGET_MEM_ALIGN_32, "mwFile priority queue") Queue;
+    if (pending == 0) {
+        _mwFileNoOp("mwFile: ERROR - could not allocate priority queue\n");
+        return -10;
+    }
+    pending->reserve(command_count);
+    ready = new (MW_TARGET_MEM_ALIGN_32, "mwFile internal priority queue") Queue;
+    if (ready == 0) {
+        _mwFileNoOp("mwFile: ERROR - could not allocate internal priority queue\n");
+        return -10;
+    }
+    ready->reserve(command_count);
+    return 0;
+}
+
+bool mwFileServerQueued::isInitialized() const
+{
+    return pending != 0 && ready != 0;
+}
+
+void mwFileServerQueued::shutdown()
+{
+    delete pending;
+    pending = 0;
+    delete ready;
+    ready = 0;
+}
+
+int mwFileServerQueued::addCommand(mwFileCommand* command, unsigned char priority)
+{
+    {
+        mwFileMutexLock lock(mutex);
+        if (pending == 0) {
+            return -4;
+        }
+        pending->push(QueueItem(command, priority));
+        command->server = this;
+    }
+    notifyCommandAdded();
+    return 0;
+}
+
+void mwFileServerQueued::test()
+{
+    mwFileCommand* commands[10];
+    int i;
+
+    initialize(10);
+    for (i = 0; i < 10; i++) {
+        commands[i] = new (MW_TARGET_MEM_ALIGN_32, "TestCommand") mwFileFailCommand<0, 0>(0, 0, 0);
+        addCommand(commands[i], i);
+    }
+    while (queryActive()) {
+        service();
+    }
+    for (i = 0; i < 10; i++) {
+        commands[i]->deleteSelf();
+    }
+    shutdown();
+}
+
 bool mwFileServerQueued::queryActive() const
 {
     mwFileMutexLock lock(mutex);
@@ -360,352 +699,4 @@ int mwFileServerQueued::service()
     }
     servicing = false;
     return 0;
-}
-
-void mwFileServerQueued::test()
-{
-    mwFileCommand* commands[10];
-    int i;
-
-    initialize(10);
-    for (i = 0; i < 10; i++) {
-        commands[i] = new (MW_TARGET_MEM_ALIGN_32, "TestCommand") mwFileFailCommand<0, 0>(0, 0, 0);
-        addCommand(commands[i], i);
-    }
-    while (queryActive()) {
-        service();
-    }
-    for (i = 0; i < 10; i++) {
-        commands[i]->deleteSelf();
-    }
-    shutdown();
-}
-
-static inline mwFileServerQueued::QueueItem make_queue_item(
-    mwFileCommand* command, unsigned char priority)
-{
-    mwFileServerQueued::QueueItem item;
-    item.command = command;
-    item.priority = priority;
-    item.sequence = 0;
-    return item;
-}
-
-int mwFileServerQueued::addCommand(mwFileCommand* command, unsigned char priority)
-{
-    {
-        mwFileMutexLock lock(mutex);
-        if (pending == 0) {
-            return -4;
-        }
-        QueueItem item = make_queue_item(command, priority);
-        pending->push(item);
-        command->server = this;
-    }
-    notifyCommandAdded();
-    return 0;
-}
-
-bool mwFileServerQueued::isInitialized() const
-{
-    return pending != 0 && ready != 0;
-}
-
-void mwFileServerQueued::shutdown()
-{
-    delete pending;
-    pending = 0;
-    delete ready;
-    ready = 0;
-}
-
-#pragma inline_depth(2)
-int mwFileServerQueued::initialize(unsigned short command_count)
-{
-#pragma inline_depth(1)
-    if (pending != 0) {
-        return 0;
-    }
-    pending = new (MW_TARGET_MEM_ALIGN_32, "mwFile priority queue") Queue;
-    if (pending == 0) {
-        _mwFileNoOp("mwFile: ERROR - could not allocate priority queue\n");
-        return -10;
-    }
-    pending->reserve(command_count);
-    ready = new (MW_TARGET_MEM_ALIGN_32, "mwFile internal priority queue") Queue;
-    if (ready == 0) {
-        _mwFileNoOp("mwFile: ERROR - could not allocate internal priority queue\n");
-        return -10;
-    }
-    ready->reserve(command_count);
-    return 0;
-}
-
-mwFileServerQueued::~mwFileServerQueued()
-{
-    delete pending;
-    pending = 0;
-    delete ready;
-    ready = 0;
-}
-
-mwFileServerQueued::mwFileServerQueued() : pending(0), active_count(0), servicing(false)
-{
-    memset(active, 0, sizeof(active));
-}
-
-bool mwFileServerNotQueued::queryActive() const
-{
-    bool active;
-    {
-        mwFileMutexLock lock(mutex);
-        mwFileCommand* const* it = active_commands.begin();
-        mwFileCommand* const* last = active_commands.end();
-        for (; it != last; ++it) {
-            if ((*it)->reference_count > 0) {
-                break;
-            }
-        }
-        active = it != last;
-    }
-    bool result = active;
-    if (!result) {
-        bool empty;
-        {
-            mwFileMutexLock lock(pending_commands.mutex);
-            empty = pending_commands.buffer.empty();
-        }
-        result = empty == false;
-    }
-    return result;
-}
-
-bool mwFileServerNotQueued::isActive() const
-{
-    return queryActive();
-}
-
-int mwFileServerNotQueued::addCommand(mwFileCommand* command, unsigned char)
-{
-    {
-        mwFileMutexLock lock(mutex);
-        command->server = this;
-        pending_commands.produce(command);
-    }
-    notifyCommandAdded();
-    return 0;
-}
-
-int mwFileServerNotQueued::service()
-{
-    mwFileMutexLock lock(mutex);
-    if (!servicing) {
-        servicing = true;
-    } else {
-        return 0;
-    }
-
-    mwFileCommand* command;
-    while (pending_commands.consumeNonBlocking(command)) {
-        active_commands.push_back(command);
-    }
-
-    mwFileCommand** it = active_commands.begin();
-    mwFileCommand** last = active_commands.end();
-    while (it != last) {
-        switch ((*it)->service()) {
-        case 2: {
-            mwFileCommand* finished = *it;
-            it = active_commands.erase(it);
-            last = active_commands.end();
-            queueCommandCallback(finished);
-            break;
-        }
-        case 0:
-        case 1:
-            ++it;
-            break;
-        }
-    }
-    {
-        mwFileMutexLock flush(mutex);
-    }
-    servicing = false;
-    return 0;
-}
-
-bool mwFileServerNotQueued::isInitialized() const
-{
-    return initialized;
-}
-
-int mwFileServerNotQueued::initialize(unsigned short command_count)
-{
-    pending_commands.resize(command_count);
-    active_commands.reserve(command_count);
-    initialized = true;
-    return 0;
-}
-
-mwFileServerNotQueued::~mwFileServerNotQueued()
-{
-}
-
-mwFileServerNotQueued::mwFileServerNotQueued() : initialized(false), servicing(false)
-{
-}
-
-void mwFileServerManagerMultiThreaded::queueCommandCallback(mwFileCommand* command)
-{
-    callbacks.produce(command);
-}
-
-void mwFileServerManagerMultiThreaded::notifyServerActivityChange(bool active)
-{
-    mwFileMutexLock lock(mutex);
-    if (active) {
-        condition.signal();
-    } else {
-        mwFileServer** it = servers.begin();
-        mwFileServer** last = servers.end();
-        for (; it != last; ++it) {
-            if ((*it)->queryActive()) {
-                break;
-            }
-        }
-        if (it != servers.end()) {
-            condition.signal();
-        }
-    }
-}
-
-void mwFileServerManagerMultiThreaded::serviceCommands()
-{
-    static mwFileServer* sHackServerArray[10];
-    mwFileServer** last;
-
-    {
-        mwFileMutexLock lock(mutex);
-        mwFileServer** source_end = servers.end();
-        mwFileServer** source_begin = servers.begin();
-        last = std::copy(source_begin, source_end, sHackServerArray);
-    }
-    for (mwFileServer** it = sHackServerArray; it != last; ++it) {
-        if ((*it)->queryActive()) {
-            (*it)->service();
-        }
-    }
-}
-
-bool mwFileServerManagerMultiThreaded::isActive() const
-{
-    for (mwFileServer* const* it = servers.begin(); it != servers.end(); ++it) {
-        if ((*it)->isActive()) {
-            return true;
-        }
-    }
-    return false;
-}
-
-void mwFileServerManagerMultiThreaded::serviceThread()
-{
-    running = true;
-    while (!quit) {
-        mutex.lock();
-        while (!isActive()) {
-            condition.wait(mutex);
-        }
-        mutex.unlock();
-        serviceCommands();
-        notifyServerActivityChange(false);
-        _mwFilePlatformYieldTimeSlice();
-    }
-    running = false;
-    finished.set();
-}
-
-void mwFileServerManagerMultiThreaded::service()
-{
-    if (!_mwFilePlatformIsInServiceThread()) {
-        mwFileDevice::serviceCallbacks();
-        mwFileCommand* command;
-        while (callbacks.consumeNonBlocking(command)) {
-            command->serviceCallbackAndPendingDelete();
-        }
-    }
-}
-
-void mwFileServerManagerMultiThreaded::initialize(unsigned long callback_count)
-{
-    quit = false;
-    finished.reset();
-    callbacks.resize(callback_count);
-}
-
-mwFileServerManagerMultiThreaded::mwFileServerManagerMultiThreaded()
-    : quit(false), running(false)
-{
-}
-
-void mwFileServerManagerBase::removeServer(mwFileServer* server)
-{
-    mwFileMutexLock lock(mutex);
-    server->manager = 0;
-    mwFileServerEraseRange range;
-    range.last = servers.end();
-    range.first = std::remove(servers.begin(), servers.end(), server);
-    servers.erase(range.first, range.last);
-}
-
-void mwFileServerManagerBase::addServer(mwFileServer* server)
-{
-    mwFileMutexLock lock(mutex);
-    if (std::find(servers.begin(), servers.end(), server) == servers.end()) {
-        server->manager = static_cast<mwFileServerManagerMultiThreaded*>(this);
-        servers.push_back(server);
-    }
-}
-
-mwFileServerManagerBase::mwFileServerManagerBase()
-{
-    servers.reserve(10);
-}
-
-void mwFileServer::notify(bool active)
-{
-    if (active) {
-        manager->notifyServerActivityChange(active);
-    }
-}
-
-void mwFileServer::notifyCommandActive(mwFileCommand*)
-{
-    notify(queryActive());
-}
-
-void mwFileServer::notifyCommandAdded()
-{
-    notify(queryActive());
-}
-
-void mwFileServer::queueCommandCallback(mwFileCommand* command)
-{
-    manager->queueCommandCallback(command);
-}
-
-unsigned char mwFileQueryable::isA(mwFileTypeInfo*,
-                                    const void*& object) const
-{
-    object = 0;
-    return 0;
-}
-
-unsigned char mwFileQueryable::isA(mwFileTypeInfo* type, void*& object)
-{
-    const void* const_object;
-    if (isA(type, const_object)) {
-        object = const_cast<void*>(const_object);
-        return true;
-    }
-    return false;
 }

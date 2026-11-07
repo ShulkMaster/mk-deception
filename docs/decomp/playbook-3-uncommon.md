@@ -858,6 +858,22 @@ are proven. Shared headers only for proven ownership; unused O0 param takes
   before ordinary code (`std::priority_queue::~priority_queue`). Protect every
   emitted body, data role and generated symbol; reject broad depth increases
   and review address/order changes. See the deferred-policy report above.
+- Whole C++ TU off by one inline level: retail inlines depth-2 callees
+  (placement-new `construct`, base ctor with implicit vptr ctor) yet calls
+  depth-2 wrappers elsewhere. REQUIRE call-edge census: per caller, retail `bl`
+  multiset vs ours at `level=1..4` (`scratch/opus-g1/edges.py`). GC2.7 depth:
+  leaf 1; each nested inline call +1; struct copy/assign +1; out-of-class
+  non-`inline` template member 0 (auto-inlined only into later instances of
+  the same class); callee kept when depth > `level` minus pass; args of an
+  expanded call come back next pass. TRY retail lib mode (`auto,deferred,
+  level=2`, sibling Midway libs) and add one real-MSL layer at each leaf the
+  census flags: `compressed_pair` forwarding `first`/`second`, `swap` via
+  `std::swap`, `iter_swap` via `swap(*a,*b)`, `copy`->`__copy`, vector
+  forwarding `size`/`empty`/`reserve`/`resize`, storage `data()`, `inline` on
+  small out-of-class members; drop the level=1 pragmas above. `QueueItem() {}`
+  (non-POD) turns block copies into retail memberwise copies. Land only with
+  zero census edges and no function regression (libmwfile Mount/Server: six
+  functions exact, inserts 68->86 and 78->97).
 - Repeated macro expansion (list unlink) with volatile coloring rotated,
   macro block locals number lowest: REQUIRE TU allows explicit inlining. TRY
   macro as `static inline` function; params/locals become FE temps, number
@@ -1246,6 +1262,16 @@ null guard.
   Keep constructor ABI and initialization order. Audit all consumers and
   additional weak destructor emission; matching instructions do not establish
   unchanged function order or data relocations.
+- Retail C++ TU split into several contiguous `.text` sections: library built
+  with debug info. `-sym on` reproduces one section per source file (code
+  unchanged): user functions go to their definition file's section,
+  compiler-generated members to the section of the function being generated,
+  in first-emission order. REQUIRE MAP section rows. Use it to tell implicit
+  from user-declared members and which header owns a template: libmwfile
+  `mwFileDummyMountPoint` dtor sits in the vector section = implicit;
+  allocator copy ctor in the `_EmptyMemberOpt`/`compressed_pair` sections =
+  implicit. A referenced non-trivial dtor is always emitted weak, even when
+  every call inlines; a base with no MAP dtor has a trivial dtor.
 - Exact constructors have GLOBAL bindings where retail has WEAK, and retail
   factory calls remain out of line: REQUIRE existing correct bodies, ELF/MAP
   ownership and all construction sites before those definitions in the same

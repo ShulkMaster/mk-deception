@@ -5,6 +5,14 @@
 
 namespace std {
 
+template <class T>
+inline void swap(T& a, T& b)
+{
+    T tmp(a);
+    a = b;
+    b = tmp;
+}
+
 template <class InputIterator, class T>
 inline InputIterator find(InputIterator first, InputIterator last, const T& value)
 {
@@ -58,12 +66,18 @@ ForwardIterator lower_bound(ForwardIterator first, ForwardIterator last, const T
 }
 
 template <class T>
-inline T* copy(T* first, T* last, T* result)
+inline T* __copy(T* first, T* last, T* result)
 {
     for (; first < last; ++first, ++result) {
         *result = *first;
     }
     return result;
+}
+
+template <class T>
+inline T* copy(T* first, T* last, T* result)
+{
+    return __copy(first, last, result);
 }
 
 template <class InputIterator, class OutputIterator, class T>
@@ -93,7 +107,7 @@ inline ForwardIterator remove(ForwardIterator first, ForwardIterator last, const
 }
 
 template <class T>
-inline T* copy_backward(T* first, T* last, T* result)
+inline T* __copy_backward(T* first, T* last, T* result)
 {
     while (last > first) {
         *--result = *--last;
@@ -101,13 +115,16 @@ inline T* copy_backward(T* first, T* last, T* result)
     return result;
 }
 
+template <class T>
+inline T* copy_backward(T* first, T* last, T* result)
+{
+    return __copy_backward(first, last, result);
+}
+
 template <class ForwardIterator1, class ForwardIterator2>
 inline void iter_swap(ForwardIterator1 a, ForwardIterator2 b)
 {
-    typename iterator_traits<ForwardIterator1>::value_type tmp;
-    tmp = *a;
-    *a = *b;
-    *b = tmp;
+    swap(*a, *b);
 }
 
 template <class RandomAccessIterator, class Distance, class T, class Compare>

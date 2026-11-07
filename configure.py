@@ -2228,7 +2228,7 @@ config.libs = [
                 NonMatching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileServer.o",
                 source="mw/mwFileServer.cpp",
-                extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline noauto,level=1", "-str reuse,pool,readonly"],
+                extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline auto,deferred,level=2", "-str reuse,pool,readonly"],
             ),
             Object(
                 NonMatching,
@@ -2270,7 +2270,7 @@ config.libs = [
                 NonMatching,
                 "libmwfile.a/mk6/mwFile/build/gcn/mwfile_gcn_Data/GAMECUBE_HW2_Rel/mwFileMount.o",
                 source="mw/mwFileMount.cpp",
-                extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline noauto,level=1", "-str reuse,pool,readonly"],
+                extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline auto,deferred,level=2", "-str reuse,pool,readonly"],
             ),
             Object(
                 NonMatching,

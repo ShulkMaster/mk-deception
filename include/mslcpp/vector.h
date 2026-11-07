@@ -24,6 +24,7 @@ public:
     allocator_type& alloc() { return cap_.first(); }
     const allocator_type& alloc() const { return cap_.first(); }
     size_type& cap() { return cap_.second(); }
+    pointer data() const { return data_; }
 
     Metrowerks::compressed_pair<allocator_type, size_type> cap_;
     size_type size_;
@@ -90,18 +91,19 @@ public:
         }
     }
 
-    iterator begin() { return data_; }
-    const_iterator begin() const { return data_; }
-    iterator end() { return data_ + size_; }
-    const_iterator end() const { return data_ + size_; }
+    iterator begin() { return data(); }
+    const_iterator begin() const { return data(); }
+    iterator end() { return data() + size_; }
+    const_iterator end() const { return data() + size_; }
 
     size_type size() const { return size_; }
     size_type max_size() const { return alloc().max_size(); }
     size_type capacity() const { return cap_.second(); }
 
-    reference operator[](size_type n) { return data_[n]; }
+    reference operator[](size_type n) { return data()[n]; }
 
     void reserve(size_type n);
+    void resize(size_type sz) { resize(sz, 0); }
     void resize(size_type sz, const value_type& x);
     void push_back(const value_type& x) { insert(end(), 1, x); }
     void insert(iterator position, size_type n, const value_type& x);
@@ -112,14 +114,13 @@ public:
     allocator_type& alloc() { return cap_.first(); }
     const allocator_type& alloc() const { return cap_.first(); }
     size_type& cap() { return cap_.second(); }
+    pointer data() const { return data_; }
 
     Metrowerks::compressed_pair<allocator_type, size_type> cap_;
     size_type size_;
     pointer data_;
 };
 
-/* TODO: [near miss] 99.46154%; inlined copy first/last homes swap (r4/r3);
- * recover original range ownership. */
 template <class T, class Allocator>
 void __vector_pod<T, Allocator>::reserve(size_type n)
 {
@@ -147,8 +148,6 @@ void __vector_pod<T, Allocator>::resize(size_type sz, const value_type& x)
     }
 }
 
-/* TODO: [near miss] 99.72222%; saved homes agree; suffix-copy temporary
- * homes (data_/last r3/r4) remain. */
 template <class T, class Allocator>
 void __vector_pod<T, Allocator>::insert(iterator position, size_type n, const value_type& x)
 {
@@ -267,9 +266,9 @@ public:
         init(first, first + x.size_, forward_iterator_tag());
     }
 
-    iterator begin() { return this->data_; }
-    iterator end() { return this->data_ + this->size_; }
-    const_reference front() const { return *this->data_; }
+    iterator begin() { return this->data(); }
+    iterator end() { return this->data() + this->size_; }
+    const_reference front() const { return *this->data(); }
 
     size_type size() const { return this->size_; }
     size_type max_size() const { return this->alloc().max_size(); }
@@ -292,8 +291,6 @@ public:
     void init(ForwardIterator first, ForwardIterator last, forward_iterator_tag);
 };
 
-/* TODO: [breakthrough needed] QueueItem const-range 87.41666%; placement-copy
- * remains outlined; recover per-consumer inline policy and source/pool homes. */
 template <class T, class Allocator>
 template <class ForwardIterator>
 void __vector_imp<T, Allocator, false>::init(ForwardIterator first, ForwardIterator last,
@@ -341,8 +338,6 @@ __vector_imp<T, Allocator, false>::erase(iterator first, iterator last)
     return first;
 }
 
-/* TODO: [breakthrough needed] QueueItem 90.55556%; placement-copy remains
- * outlined; recover its instantiation policy while preserving exact getter calls. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::reserve(size_type n)
 {
@@ -362,8 +357,8 @@ void __vector_imp<T, Allocator, false>::reserve(size_type n)
     }
 }
 
-/* TODO: [breakthrough needed] QueueItem 78.10917%, Callback 67.99262%; placement
- * copy remains outlined; original storage-accessor closure regresses exact wrappers. */
+/* TODO: [near miss] QueueItem 97.38%, Callback 86.31%; Callback placement copy is a
+ * paired block move (retail: word-by-word via r0); QueueItem growth path saves r21. */
 template <class T, class Allocator>
 void __vector_imp<T, Allocator, false>::insert(iterator position, size_type n,
                                                const value_type& x)
@@ -399,7 +394,7 @@ void __vector_imp<T, Allocator, false>::insert(iterator position, size_type n,
                 *p = *xr;
             }
         } else {
-            base tmp(this->alloc());
+            base tmp(this->cap_.first());
             size_type new_size = this->size_ + n;
             size_type new_cap = this->cap_.second() != 0 ? this->cap_.second() : 1;
             while (new_size > new_cap) {
@@ -450,6 +445,7 @@ public:
     const_iterator begin() const { return (const_iterator)base::begin(); }
     iterator end() { return (iterator)base::end(); }
     const_iterator end() const { return (const_iterator)base::end(); }
+    size_type size() const { return base::size(); }
     reference operator[](size_type n) { return (reference)base::operator[](n); }
 
     void push_back(const value_type& x) { base::push_back((const unsigned long&)x); }
@@ -457,7 +453,7 @@ public:
     {
         return (iterator)base::insert((unsigned long*)position, (const unsigned long&)x);
     }
-    void resize(size_type sz) { base::resize(sz, 0); }
+    void resize(size_type sz) { base::resize(sz); }
     iterator erase(iterator position) { return (iterator)base::erase((unsigned long*)position); }
     iterator erase(iterator first, iterator last)
     {
@@ -465,8 +461,6 @@ public:
     }
 };
 
-/* TODO: [near miss] Callback destructor 94.73684%; inherited null guard remains;
- * explicit empty destructor is neutral, recover the original cleanup boundary. */
 template <class T, class Allocator>
 class vector : public __vector_imp<T, Allocator, false> {
     typedef __vector_imp<T, Allocator, false> base;
@@ -485,7 +479,10 @@ public:
     iterator end() { return base::end(); }
     const_reference front() const { return base::front(); }
 
-    bool empty() const { return this->size_ == 0; }
+    size_type size() const { return base::size(); }
+    bool empty() const { return base::size() == 0; }
+    void reserve(size_type n) { base::reserve(n); }
+    void resize(size_type sz) { base::resize(sz); }
     reference operator[](size_type n) { return base::operator[](n); }
 
     void push_back(const value_type& x) { base::push_back(x); }
