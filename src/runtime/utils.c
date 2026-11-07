@@ -69,31 +69,18 @@
 
 void limb_sever_reset_limbs(PlyrInfo* player);
 
-extern int p1_profile_status;
-extern int p2_profile_status;
-extern int p1_profile_device;
-extern int p2_profile_device;
-extern int p1_profile_slot;
-extern int p2_profile_slot;
 extern int p1_rumble_on;
 extern int p2_rumble_on;
 extern int mcard_msg_active;
 extern MslSoundHandle bgnd_music_ptr1;
 extern MslSoundHandle bgnd_music_ptr2;
 
-extern MkHdr* apdata_save;
-extern PlyrPdata* his_pdata;
-extern MkProc* plyr_anim_proc;
-extern int f_fatality_finished;
-extern int f_fatality_available;
-extern int f_fatality_was_done;
-extern int b_game_timer_off;
 extern int konquest_human_bones[17];
 extern MkFlippedBoneMap flipped_konquest_human_bones;
 extern unsigned char monk_ground_colls[];
 
 void init_bgnd_info_struct(void);
-void setDroneOverrideSwitch(int activated, void* info);
+void setDroneOverrideSwitch(int activated, struct DroneOverrideInfo* info);
 void reset_obstacle_internal_id(void);
 void terminate_bgnd_collisions(void);
 void screen_engine_cleanup(void);

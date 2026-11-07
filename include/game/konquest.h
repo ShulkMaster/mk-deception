@@ -16,6 +16,27 @@ struct MkObj;
 struct KonquestTime;
 void set_current_time(struct KonquestTime* time);
 
+struct KonquestChildDefinition {
+    char pad00[0x0C];
+    int enumeration_index;
+};
+
+struct KonquestStringLatch {
+    struct StringObj* object;
+    unsigned int instance;
+};
+
+struct KonquestRegionAsset {
+    const struct MkFileEntry* fight_files;
+    const struct MkFileEntry* art_files;
+    union {
+        const char* script_name;
+        const char* map_art_name;
+    };
+    const char* string_bank;
+    const char* hud_art_name;
+};
+
 typedef struct KonquestWaypoint {
     Vec position;                /* +0x00 */
     float angle;                 /* +0x0C */

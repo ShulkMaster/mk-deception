@@ -48,8 +48,6 @@ SwitchMapEntry default_switch_map[16] = {
     {0x4000, pad_ldn_proc, "PAD_LDN"},
     {0x8000, pad_llt_proc, "PAD_LLT"}
 };
-extern int p1_profile_status;
-extern int p2_profile_status;
 SwitchMapEntry p1_temp_switch_map[PROFILE_SWITCHMAP_COUNT];
 SwitchMapEntry p2_temp_switch_map[PROFILE_SWITCHMAP_COUNT];
 SwitchMapEntry p1_profile_switch_map[PROFILE_SWITCHMAP_COUNT];

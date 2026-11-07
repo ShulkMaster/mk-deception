@@ -12,6 +12,7 @@
 #include "runtime/plyr_info.h"
 #include "runtime/sound.h"
 #include "runtime/utils.h"
+#include "runtime/cam_shake.h"
 
 struct LightningAlphaStep {
     int alpha;
@@ -46,7 +47,6 @@ struct LightningAlphaStep lightning_alpha[] = {
     {-1, 0xFFFFFFFF},
 };
 
-void shake_camera(int frames, float amount);
 
 static inline void mkproc_sleep(void) {
     aproc->vtbl->sleep();

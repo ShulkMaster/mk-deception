@@ -113,7 +113,7 @@ extern int MWSFD_GetUsePicUsr(void);
 extern int SFD_IsNextFrmReady(SfdHandle* handle);
 extern int SUD_SearchSudDat(const void* data, int size, void** result,
                            int* result_size);
-extern void MWSFSFX_SetPicUsrDat(MwsPlayer* player, void* data, int size);
+extern void MWSFSFX_SetPicUsrDat(MwsPlayer* player, const char* data, int size);
 extern int MWSFSFX_IsFrmCcs(MwsPlayer* player);
 extern int MWSFD_IsFrmDivField(MwsPlayer* player);
 extern void MWSFD_SetColAdj(MwsPlayer* player, int adjustment);

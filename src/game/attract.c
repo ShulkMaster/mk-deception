@@ -31,6 +31,7 @@
 #include "runtime/section.h"
 #include "runtime/utils.h"
 #include "movie/movie_info.h"
+#include "game/mk_chess.h"
 
 struct AtmObjLatch {
     MkHdr* obj;
@@ -73,7 +74,6 @@ static const float bio_text_scale_c = 0.8f;
 
 extern MkFileInfo sec_eu_biofont;
 
-extern int b_game_timer_off;
 
 static int atm_current_page;
 static struct AtmObjLatch press_start_item;
@@ -84,7 +84,6 @@ static int atm_movie_tapped_out;
 static int memcard_boot_screen_displayed;
 
 extern float p_puzzle_fighter(void);
-extern float p_mk_chess(void);
 
 void xfer_puzzle_exit(int arg);
 unsigned int get_next_bgnd(void);

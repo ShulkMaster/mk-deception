@@ -22,9 +22,9 @@ SFXHandle* MWSFSFX_GetSfxHn(int handle);
 void MWSFSFX_CnvFrmInfToSfx(int handle, MwsFrameInfo* frame,
                             SfxFrameInfo* output);
 void SFX_CnvFrmARGB8888(SFXHandle* handle,
-                        const SfxFrameInfo* frame_info, void* output);
+                        SfxFrameInfo* frame_info, void* output);
 void SFX_CnvFrmY84C44(SFXHandle* handle,
-                      const SfxFrameInfo* frame_info, void* y, void* c);
+                      SfxFrameInfo* frame_info, void* y, void* c);
 
 #ifdef __cplusplus
 }

@@ -78,7 +78,7 @@
 
 void preload_screen_data(const char* name, int slot);
 int am_i_female(PlyrPdata* fighter);
-unsigned int pan_snd_req(int sound_id, float pan);
+MslSoundHandle pan_snd_req(int sound_id, float pan);
 void wait_for_a_sound_bank_to_load(int bank);
 unsigned short randu0(int limit);
 float frand(float max);
@@ -87,10 +87,6 @@ void push_game_state(int state);
 int signrand(unsigned short range);
 int get_language(void);
 void set_string_obj_alpha(void* object, float alpha);
-extern int game_save_loop_count;
-extern int winner;
-extern int p1_profile_status;
-extern int p2_profile_status;
 int get_current_wager_koin(void);
 void init_wagering(void);
 void award_koins_to_player(int player, int amount, int koin_type);
@@ -805,8 +801,6 @@ extern MkFileInfo sec_pz_ending_champion;
 extern MkFileInfo sec_puzzlefighter;
 extern MkFileInfo sec_fightingart;
 extern MkFileInfo sec_pz_plyr_art;
-extern int b_game_timer_off;
-extern int round_winner;
 extern struct PuzzleLocalizedImageEntry pzlang_image_table[];
 
 static void puzzle_fighter_display_floor_msg(struct PuzzlePlayerState* player,

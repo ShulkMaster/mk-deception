@@ -97,11 +97,6 @@ struct KonquestRegionTable {
     struct KonquestEnumerationEntry* enumerations;
 };
 
-struct KonquestChildDefinition {
-    char pad00[0x0C];
-    int enumeration_index;
-};
-
 struct KonquestChildObject {
     MkHdr hdr;
     char pad08[8];
@@ -229,7 +224,7 @@ static char global_fight_data_table_name[0x80];
 
 extern struct KonquestInteriorPdata* konquest_pdata;
 
-int is_pui_an_interior_item(const void* pui);
+int is_pui_an_interior_item(const char* pui);
 int get_konquest_game_mode(void);
 static int get_door_enum_from_exterior_door_bits(int door_bits);
 static float p_konq_interior_exit_point(void);
@@ -253,7 +248,7 @@ void set_flag_for_all_collisions(MkPtr** list, unsigned int flags);
 void stop_time_passing(void);
 void pause_weather_effects(void);
 void konquest_hide_hud(int mode);
-struct KonquestTile* get_nth_tile_struct(int index);
+void* get_nth_tile_struct(int index);
 void add_npc(int npc_data);
 float p_konquest_interior_camera_proc(void);
 void suspend_hero_grounding(void);
@@ -278,7 +273,6 @@ void konquest_show_hud(void);
 float p_konquest_loop(void);
 float konquest_camera_loop(void);
 
-extern MkPtr* special_light_list;
 
 void set_interior_cam_pos_and_ang(void);
 void add_standard_ir_triggers(void);

@@ -227,8 +227,8 @@ MkBone* alloc_bone(void);
 void mkbone_remove(MkBone* bone);
 void mkbone_insert_child_of_clone_parent(MkBone* bone, MkBone* parent);
 void mkbone_insert_child_of_parent(MkBone* bone, MkBone* parent);
-void reset_effect_ppfx(void* effect);
-void pfx_spawn_at_bid(const char* name, void* obj, int bone);
+void reset_effect_ppfx(struct PfxScriptEffect* effect);
+void pfx_spawn_at_bid(const char* name, MkObj* object, int bone_id);
 void bone_make_parents_my_children(MkBone* bone);
 
 static void rwframe_set_true_clip_flag_on_objects_and_children(

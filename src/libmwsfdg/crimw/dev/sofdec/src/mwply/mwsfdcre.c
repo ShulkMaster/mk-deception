@@ -6,6 +6,7 @@
 #include "runtime/cstring.h"
 #include "sofdec/sfd_mpvf.h"
 #include "sofdec/sfd_player.h"
+#include "movie/mwsfx.h"
 
 typedef struct LSC LSC;
 typedef struct SFXHandle SFXHandle;
@@ -152,7 +153,6 @@ extern const SfdTransportInterface SFD_tr_vo_manu, SFD_tr_ao_auto_p;
 extern MwsLibraryWork* MWSFLIB_GetLibWorkPtr(void);
 extern int MWSFLIB_SetErrCode(int);
 extern void MWSFLIB_SfdErrFunc(SfdCallbackObject, int);
-extern void MWSFSVM_Error(const char*, ...);
 extern int MWSFD_GetUsePicUsr(void);
 extern void MWSFPLY_SetFlowLimit(MwsPlayer*);
 extern void MWSFSVR_SetHnMwplySvrFlg(MwsPlayer*, int);
@@ -168,7 +168,7 @@ extern SFXHandle* MWSFSFX_Create(void*, int, int, int);
 extern void MWSFSFX_Destroy(SFXHandle*);
 extern int MWSFSFX_CalcHnWorkSiz(int, int);
 extern void MWSFSFX_SetCompoMode(MwsPlayer*, int);
-extern ADXStream* MWSTM_Create(SJ*);
+extern ADXStream* MWSTM_Create(void* source);
 extern void MWSTM_Destroy(ADXStream*);
 extern LSC* LSC_Create(SJ*);
 extern void LSC_Destroy(LSC*);

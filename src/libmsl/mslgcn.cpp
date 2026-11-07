@@ -19,9 +19,6 @@
 struct _mslBank;
 struct _GameCubeFileEntry;
 
-extern int SoundBufferCount;
-extern int SoundBufferCountStatic;
-extern int SoundBufferCountStream;
 
 struct mslTickCallback {
     void (*callback)(void*);

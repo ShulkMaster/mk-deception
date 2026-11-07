@@ -39,6 +39,14 @@
 #include "rw/rpmatfx.h"
 #include "rw/rwcamera_internal.h"
 #include "rw/rwframe.h"
+#include "fdlibm.h"
+#include "game/game.h"
+#include "game/plyr_globals.h"
+#include "runtime/anims.h"
+#include "runtime/cam_shake.h"
+#include "platform/fog.h"
+#include "platform/io.h"
+#include "game/blood.h"
 
 #pragma use_lmw_stmw on
 
@@ -479,8 +487,6 @@ int is_sobj_hidden(void* sobj);
 void reset_collision_system(void);
 void drone_ai_ok_to_think(void);
 void drone_ai_dont_think(void);
-void turn_controllers_off(void);
-void turn_controllers_on(void);
 void plyr_weapon_trail_hide(PlyrMirrorSlots* slots);
 void face_opponent_now(void);
 void danger_zone_eligible_on(void);
@@ -507,14 +513,11 @@ void fx_resume_emit(unsigned int effect);
 void reset_effect(const char* name);
 MkObj* mk_chess_launch_fx_at_pos_with_obj_emit_based(
     unsigned int effect, float x, float y, float z);
-void start_blood_particles(int effect, int bone_id, PlyrPdata* player,
-                           void* limb);
+unsigned int start_blood_particles(int particle_mask, unsigned int bone, PlyrPdata* player, MkObj* object);
 void set_collision_render_state(int enabled);
-void shake_camera(int amplitude, float duration);
 double pow(double base, double exponent);
 MkPfx* find_pfx_by_name(const char* name);
-void move_player(MkObj* object, Vec* position, Vec* angles);
-MkProc* get_player_proc(void* object);
+MkProc* get_player_proc(MkObj* player);
 void run_reaction_cleanup_function(PlyrPdata* player);
 float bgnd_call_script_function(void);
 static int launch_sobj_watch_dist_from_orgin(BgndSobjLaunchEntry* entry,
@@ -550,7 +553,6 @@ Vec g_bgnd_scratch_pad_vectors[9];
 char bgnd_animations[0x84] __attribute__((aligned(4)));
 extern BgndObstacleEventData* g_active_obstacle_event_data;
 extern BgndCollisionItem* g_active_bgnd_col_item;
-extern MkPtr* weapon_trail_light_list;
 extern ProfileUnlockBits64 default_bgnd_bits;
 extern ProfileUnlockBits64 default_pz_bgnd_bits;
 extern PebbleData* g_bl_beetles;
@@ -566,10 +568,8 @@ extern MorphScript cos_script;
 extern MorphScript cos_fast_script;
 extern MorphScript skytemple_banner_script;
 extern MorphScript kuatan_banner_script;
-extern MkObj* plyr_obj;
 extern void stop_me(void);
 extern float r_call_script_function(void);
-extern int intro_done(void);
 extern MkObj* g_latest_obj_pfx;
 extern BgndSobjLaunchEntry* g_launched_sobj_crossing_plane_pdata;
 extern BgndSobjLaunchEntry* g_active_launched_sobj_pdata;
@@ -587,17 +587,14 @@ extern void sh_start_grinder_crush_blood(Vec* position, PlyrPdata* player,
 extern void sh_start_grinder_crush_chunks(Vec* position, PlyrPdata* player);
 extern void sh_start_grinder_meat_spew(Vec* position, PlyrPdata* player);
 extern void sh_start_grinder_chunk_spew(Vec* position, PlyrPdata* player);
-extern void hide_player(PlyrPdata* player, int hide_weapons);
-extern void obj_set_pos_vel(MkObj* object, void* velocity);
 extern void set_ani_speed(float speed);
 extern int random_voice(int group);
 extern void random_hit(int group);
-extern MkProc* plyr_anim_proc;
 extern unsigned char shared_ani[];
 extern void delete_obstacle_from_background_by_id(int obstacle_id);
 extern MkObj* load_weapon_from_slot(WeaponDefinition* definition, int slot);
 extern void load_bgnd_fstyle_sign(int player);
-extern void insert_ground_me_mkobj(MkObj* object);
+extern void insert_ground_me_mkobj(void* obj);
 extern AnimScript** bgnd_animation_table;
 extern void transition_to_anim_script(
     AnimPdata* animation, AnimScript* script, int flags,
@@ -606,8 +603,6 @@ extern RpAtomic* set_atomic_material_alpha(RpAtomic* atomic,
                                             unsigned int alpha);
 extern RpAtomic* set_atomic_material_specular(RpAtomic* atomic,
                                                unsigned int specular);
-extern void plyr_turn_off_shadowbox(PlyrInfo* player);
-extern void plyr_turn_on_shadowbox(PlyrInfo* player);
 extern void run_camera_script(ScriptSlot* script, int argument, int flags);
 extern void force_forward(float force, int duration, float damping,
                           int animation);
@@ -657,14 +652,11 @@ BgndPebblePlayerData* g_pebbles_pdata[20] = {
 
 void RwImageSetGamma(float gamma);
 void init_misc_bgnd_data(void);
-void load_background_anims(void* anims, int bgnd_id);
 void init_weapon_trail_light_list(void);
 int mslSoundIsValid(MslSoundHandle sound);
 void snd_stop(MslSoundHandle sound);
 extern MkVtable5 vtbl_slaughterhouse_pdata;
-void turn_fog_on(void);
-void turn_fog_off(void);
-void initialize_bgnd_collisions(void* data);
+void initialize_bgnd_collisions(BgndDataTable* background);
 void mk_chess_init_bgnd_for_fight_mode(void);
 void bgnd_level_fatality_end(void);
 void bgnd_level_fatality_start(int player);
@@ -685,7 +677,6 @@ void set_obj_pos(MkObj* object, float x, float y, float z);
 int bgnd_get_obj_pointer(int player);
 void scripted_camera_script_exit(void);
 static void sh_update_fatality_body_part(MkObj* object);
-extern void spawn_bld_splat(const char* name, int owner, Vec* position);
 
 static inline float bgnd_inv_sqrt_estimate(unsigned int bits) {
     union {
@@ -830,7 +821,6 @@ float p_sh_throw_plyr_in_grinder(void);
 static void sh_update_blood_fall_pebbles(
     PebbleData* pebble_data, int* active_splats, Vec* origin,
     float gravity);
-extern void spawn_bld_splat(const char* name, int owner, Vec* position);
 
 static float p_sh_bottom_floor_blood_fall(void);
 static void sh_init_bottom_floor_blood_fall_pebbles( ShBloodFallProcessData* data);
@@ -898,8 +888,6 @@ static float bl_bounce_calm_amount = 0.005f;
 static int bl_bounce_calm_ticks = 3;
 static unsigned int next_beetle_exec_tick_counter;
 
-extern void spawn_bld_splat(const char* name, int owner, Vec* position);
-extern int is_load_meter_active(void);
 
 static inline void bl_move_beetle_on_surface(
     BlBeetleControl* beetle, float movement_scale_a,
@@ -1070,7 +1058,6 @@ float bgnd_launch_chunk(
     const Vec* angular_velocity, const Vec* angles, unsigned int end_mode,
     const Vec* scale, int field_0C, float vertical_accel, int field_10);
 
-extern void shake_camera_y(int count, float strength);
 
 static inline void bl_front_wall_effect_at(
     const char* name, float x, float y, float z) {
@@ -1099,9 +1086,6 @@ static inline void bl_front_wall_effect_at(
     }
 }
 
-extern void cam_recalc_midpoint(void);
-
-extern MkProc* plyr_anim_proc;
 extern unsigned char shared_ani[];
 extern void face_opponent_now(void);
 extern void avoid_double_ani(void);
@@ -1120,7 +1104,7 @@ extern void force_away(float velocity, int duration, float damping,
 extern void plyr_bleed_mouth(PlyrPdata* player);
 extern void glitch_to_ani(AniData* animation, int flags);
 extern void ani_loop_more_frames(float frames);
-extern void plyr_snd_req(int sound);
+extern MslSoundHandle plyr_snd_req(int sound_offset);
 extern void ani_1_frame(void);
 extern void random_hit(int group);
 extern void damage_me(float amount);
@@ -1134,10 +1118,6 @@ extern void init_ground_move_no_aniproc(void);
 extern void ani_to_blend_frame(float frame);
 extern float p_blend_to_stance_in_10(void);
 
-extern float p_idle_camera(void);
-extern int move_to_end_point(const Vec* endpoint, float* initial_speed,
-                             float* final_speed, int reset, float time);
-extern void get_current_target(Vec* target);
 
 typedef struct BlFinalColumnPieceData {
     MkHdr hdr;

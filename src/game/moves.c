@@ -161,33 +161,19 @@ struct MovesWeaponGrabEntry {
 unsigned int scan_freak_4[1] = {(unsigned int)-1};
 AiFightstyleAttack temp_throw_switch = {4, 0x8F};
 
-extern PlyrPdata* his_pdata;
-extern MkProc* plyr_anim_proc;
 extern float debug_x;
-extern int round_winner;
-extern int f_fatality_available;
-extern int f_fatality_was_done;
-extern int f_fatality_finished;
 int g_min_time_in_block_for_drone;
 static int victory_proper_flip_flags;
 int g_drone_faked_out;
 int g_drone_blocking_in_reaction;
 extern float drone_blocking_done(void);
 extern struct MovesSharedAnimations shared_ani;
-extern int p1_current_switch_bit;
-extern int p1_current_switch_time;
-extern int p1_last_switch_bit;
-extern int p1_last_switch_time;
-extern int p2_current_switch_bit;
-extern int p2_current_switch_time;
-extern int p2_last_switch_bit;
-extern int p2_last_switch_time;
 extern float aniproc_land(void);
 
 typedef MkProcEntryFn MovesEntryFn;
 
 void bgnd_swap_level(int level);
-void bgnd_move_plyrs_to_initial_pos(void);
+float bgnd_move_plyrs_to_initial_pos(void);
 
 static float x_pickup(void);
 static AniData* fetch_grab_anim_ptr(unsigned int grab_type);
@@ -206,7 +192,7 @@ void init_air_move(void);
 void face_opponent_now(void);
 void ani_loop_more_frames(float frames);
 int my_pad_position(void);
-void blend_to_fstance(float rate);
+int blend_to_fstance(float blend_rate);
 int is_my_chest_to_screen();
 static float back_rollup_left(void);
 static float back_rollup_right(void);
@@ -230,7 +216,7 @@ void advance_active_moveset(PlyrPdata* player);
 void tightrope_restrictions_on(void);
 void set_my_secondary_state(int state);
 void ani_x_more_frames(float frames);
-void random_voice(int group);
+MslSoundHandle random_voice(int group);
 void ani_to_blend_frame(float frames);
 int do_i_have_life_left(void);
 void stop_me(void);
@@ -253,9 +239,7 @@ void set_attackers_attack_region(int region);
 void attack_to_frame_x(AniData* animation, float frame, float blend_rate,
                        float step, float weight, unsigned int voice_event,
                        unsigned int whoosh_event, int transition);
-void ani_to_frame_x_col(
-    float frame, int region, float x, float y, int reaction, float z,
-    unsigned int collision_ticks);
+float ani_to_frame_x_col(float target_frame, int attack_region, float horizontal_scale, float vertical_scale, int reaction, float reaction_rate, int strength);
 void whoosh_fx(int sound);
 float p_sc_spear_retract(void);
 float p_sc_spear_kill(void);
@@ -276,7 +260,7 @@ static float block_a_intro_glitch(void);
 void set_ani_weight(float weight);
 void blend_to_ani_nosleep(AniData* animation, int transition, float blend_rate);
 int drone_ai_check_block_fakeout(void);
-void random_hit(int group);
+MslSoundHandle random_hit(int group);
 int am_i_duck_blocking(void);
 int am_i_a_big_character(void);
 int is_he_airborn(void);
@@ -336,10 +320,8 @@ int am_i_on_the_left2(MkObj* player, MkObj* opponent);
 int plyr_start_script_in_plyr_pdata_proc(
     PlyrPdata* player, int pid, int function);
 void obj_set_gravity(MkObj* object, float gravity);
-void shake_camera(int strength, float duration);
 void clear_my_face_opponent_flag(void);
-void move_player(MkObj* fighter, Vec* position, Vec* angle);
-void random_foot(int type);
+MslSoundHandle random_foot(int group);
 void uv_to_opponent(Vec* direction);
 void wait_to_land(void);
 void setup_to_match_land_frame(
@@ -347,7 +329,6 @@ void setup_to_match_land_frame(
 void head_tracking_off(void);
 void ani_to_frame_x_call(void (*callback)(void), float frame);
 void init_3d_move_no_aniproc(void);
-int is_local_plyr(void);
 int was_button_pressed(int button);
 int drone_ai_check_next_block_state(unsigned int tick);
 void tightrope_restrictions_off(void);
@@ -383,6 +364,8 @@ float back_to_crouch(void);
 float do_my_suicide(void);
 
 #include "src/game/moves_scan_tables.inc"
+#include "runtime/cam_shake.h"
+#include "game/game.h"
 
 struct MovesWeaponGrabEntry weapon_grab_table[9] = {
     {15.0f, 0.0f, 3.0f, 3.0f, 1.5f},

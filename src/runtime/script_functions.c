@@ -36,11 +36,34 @@
 #include "runtime/mk_vtbl.h"
 #include "runtime/asset.h"
 #include "game/plyr_sound.h"
+#include "game/cloth.h"
+#include "game/mk_chess.h"
+#include "game/moves.h"
+#include "runtime/sound.h"
+#include "game/krypt.h"
+#include "math/mk_math.h"
+#include "math/gxMath.h"
+#include "game/konquest_items.h"
+#include "runtime/light.h"
+#include "platform/io.h"
+#include "game/trial.h"
+#include "runtime/anim_pdata.h"
+#include "runtime/section.h"
+#include "runtime/plyr_anim_pdata.h"
+#include "runtime/anim_api.h"
+#include "platform/gcutils.h"
+#include "game/settings.h"
+#include "game/plyr_globals.h"
+#include "game/controller.h"
+#include "runtime/mk_obj.h"
+#include "game/nis.h"
+#include "game/konquest_time.h"
+#include "game/pwrbar.h"
+#include "game/fx.h"
+#include "runtime/mk_plugins.h"
+#include "libmkparticle/vm.h"
 extern unsigned char* current_args;
 extern unsigned char* active_cmdscript;
-extern unsigned char* plyr_obj;
-extern unsigned char* plyr_anim_pdata;
-extern PlyrPdata* his_pdata;
 extern PuzzleFightersEngine g_pz_fighters_engine;
 
 struct FakeBoneMatcher;
@@ -49,7 +72,6 @@ struct MovesAttackInfo;
 struct PebbleData;
 struct PuiItem;
 struct FenceSection;
-struct SObj;
 
 struct ScriptFlagWordView {
     MkHdr hdr;
@@ -91,7 +113,7 @@ struct ScriptProcResult {
 
 struct ScriptSobjResult {
     char pad00[0x2C];
-    struct SObj* value;
+    MkSobj* value;
 };
 
 struct ScriptMkObjResult {
@@ -118,7 +140,6 @@ static float j_sleep_forever(void);
 static float j_call_player_script_function(void);
 float j_getup_front_6(void);
 float j_getup_front_10(void);
-float joy_dash_back(void);
 
 static MkProcEntryFn exit_table[22] = {
     p_blend_to_stance_in_10,
@@ -147,8 +168,6 @@ static MkProcEntryFn exit_table[22] = {
 void trial_start_tunes(void);
 void trial_end_tunes(void);
 float subzero_his_tinkle_snd(void);
-float p_animate(void);
-float p_anim_idle(void);
 
 struct ExitFloatIntArgs {
     unsigned int header;
@@ -193,7 +212,7 @@ struct ScriptFloatPointerArgs {
 
 struct ScriptSobjArgs {
     unsigned int header;
-    struct SObj* value;
+    MkSobj* value;
 };
 
 struct ScriptTwoPointerArgs {
@@ -766,6 +785,7 @@ union ScriptRawArg {
     unsigned int u;
     float f;
     void* pointer;
+    void (*function)(void);
 };
 
 struct ScriptTransitionFrameArgs {
@@ -792,7 +812,6 @@ union ScriptResultRef {
     struct ScriptCommandView* command;
 };
 
-void nis_init(ScriptSlot* cmdscript, unsigned int scene_func, unsigned int cancel_func);
 KonquestNpc* find_npc_by_data(KonquestNpcData* data);
 void nb_place_slave_in_bgnd(
     int npc_id, int rope_model_index, const char* model_name, int model_id,
@@ -801,14 +820,10 @@ void nb_place_slave_in_bgnd(
     float object_angle_x, float object_angle_y, float object_angle_z,
     float acceleration_divisor, float acceleration_scale, float field_8C);
 
-void stop_usec_timer(int timer);
-void start_usec_timer(int timer);
+unsigned long long stop_usec_timer(int id);
+void start_usec_timer(int id);
 int printf(const char* format, ...);
-void obj_setup_for_animation(
-    MkObj* object, const int* tags, struct MkFlippedBoneMap* flipped_bone_map,
-    void* ground_colls);
-void update_mkobj(void* object);
-void* get_mkobj_frame(int id, int frame);
+void obj_setup_for_animation(MkObj* object, const int* tags, MkFlippedBoneMap* flipped_bone_map, void* ground_colls);
 void trial_add_required_attack(unsigned char attack, unsigned char count,
                                int flags);
 unsigned short randu0(unsigned short limit);
@@ -819,34 +834,33 @@ extern void* konq_nis_anims[];
 extern void* konquest_animations[];
 extern void* shared_ani[];
 void pz_fighter_set_y_constrain(MkObj* player_obj, int mode, float value);
-void pz_fighter_attack(
-    void* animation, PuzzleAttackParameters* attack, int reaction);
+void pz_fighter_attack(AniData* animation, PuzzleAttackParameters* attack, int reaction);
 void attack_opponent_with(
     AniData* animation, struct MovesAttackInfo* attack, int reaction);
 void advance_my_moveset(void);
 static float j_call_player_script_function(void);
-int was_i_hit_x_times(int hit_count);
+int was_i_hit_x_times(unsigned int hits);
 int was_button_and_direction(int button, int direction);
 void glitch_to_ani_frame(void* animation, int flags,
                          struct ScriptAnimationArgs* args, float frame);
 void blend_to_ani_frame(AniData* animation, int flags, float blend, float frame);
-void glitch_to_ani(void* animation, int flags);
+void glitch_to_ani(AniData* animation, int transition);
 void reaction_xfer_him_nohit(void* entry);
 void set_anim_hiframe(float frame);
 int was_button_pressed(int button);
 int am_i_airborn(void);
 int is_his_chest_to_screen(void);
 int is_my_chest_to_screen(void);
-int am_i_on_the_left2(void* me, void* him);
+int am_i_on_the_left2(MkObj* opponent, MkObj* me);
 int am_i_on_the_left(void);
 int is_he_flipped(void);
 int is_fast_getup(void);
 int disable_impale_check(void);
 void tag_team_activate_player(MkObj* object, int active);
 void load_and_set_refl_on_weapon(void);
-void advance_active_moveset(int amount);
+void advance_active_moveset(PlyrPdata* player);
 int get_active_moveset_from_pdata(void* pdata);
-void fx_transfer(int effect, int owner);
+void fx_transfer(unsigned int handle, unsigned int owner);
 void bgnd_force_specularity_off_for_material(
     unsigned int object_id, unsigned int material_id);
 void bgnd_sobj_set_texture_kl_values(
@@ -865,8 +879,7 @@ MkObj* ncs_bgnd_preload_named_model(
     int transl, Vec* position, Vec* angles, Vec* scale);
 void attach_pfx_to_object_by_uid(
     int object_uid, const char* effect_name, const Vec* offset, int flags);
-void bgnd_create_named_npc_in_slot(
-    int slot, const char* name, int object_id, int flags);
+void bgnd_create_named_npc_in_slot(unsigned int npc_id, const char* model_name, unsigned int animation_id, unsigned int bone_table);
 void bgnd_launch_fx_at_active_sobj_pos_with_offset(
     const char* effect_name, float x, float y, float z);
 void bgnd_launch_fx_at_bid_of_mkobj(
@@ -884,19 +897,16 @@ unsigned int pfxhandle_bgnd_spawn_at_position(
     const char* effect_name, float x, float y, float z);
 void trial_setup_onscreen_display_items(
     int first_item, int item_count, const char* effect_name);
-MkObj* load_cloth_boned_model(
-    const char* name, int object_id, int slot, int flags, int cloth_flags,
-    int collision_flags, int render_flags);
+MkObj* load_cloth_boned_model(const char* name, int object_id, int slot, int flags, const int* bone_tags, ClothInitEntry* cloth_table, int cloth_count);
 void konquest_map_setup_fight(
     int first, int second, int third, int fourth, int fifth, int sixth,
     int seventh, int eighth, const char* arena_name);
-void debug_print_message(void);
 void fxsys_set(int parameter, float value);
 void fxsys_set_v3(int parameter, float x, float y, float z);
-void fx_bind_render_to_sobj(int effect, void* object);
-void fx_disable_ztest(int effect, int disable);
-void fx_hide(int effect, int hide);
-void fx_get_v3(int effect, int parameter, void* value);
+void fx_bind_render_to_sobj(unsigned int handle, MkSobj* object);
+void fx_disable_ztest(unsigned int handle, int disabled);
+void fx_hide(unsigned int handle, int hidden);
+void fx_get_v3(unsigned int handle, int field, Vec* value);
 void enable_profiling(int enable);
 void kill_on_y_less_than_field(int object, int field);
 void change_on_y_less_than_field(int object, int field);
@@ -964,9 +974,9 @@ void emit_from_point(float a, float b, float c);
 void emit_uv(int a, float b, float c);
 void emit_color(int a, int b, int c, int d, int e);
 void emit_in_range(int a, float b, float c);
-int fx2(int effect, char* name);
-void set_vertex_color(int color);
-void set_light(int light);
+unsigned int fx2(unsigned int bank_handle, const char* name);
+void set_vertex_color(const struct PfxVertexColorArgs* color);
+void set_light(struct PfxLightArgs* light);
 void set_aspect_ratio(float x, float y);
 void set_bounding_radius(float radius);
 void create_y_mirror_effect(int effect);
@@ -975,55 +985,31 @@ void particle_size(float value);
 void face_y(void);
 void set_decal_plane(float* plane);
 void bind_to_bone(int bone);
-void create_step_effect(int effect);
+void create_step_effect(struct PfxStepEffectDescription* effect);
 void parametric_update(const struct PfxParametricEffectDescription* value);
-float dist_xz_to_xz(void* a, void* b);
-void v3_to_xz_ang(Vec* out, Vec* value);
-void v3_to_xy_ang(void* out, void* value);
-float length_v3(void* value);
-void rotate_xz(void* out, void* value, float angle);
-float gxMathArcCos(float value);
-float gxMathSin(float value);
-float gxMathCos(float value);
-float uv_v3_to_v3_dist(void* out, void* a, void* b);
-float xz_dot_xz(void* a, void* b);
-void YXZ_angles_to_quat(void* out, void* angles);
-void* obj_get_bone_rot_quat(void* object, int bone);
-void uv_from_angle_y(void* out, float angle);
-float xz_to_y_ang(void* value);
-void xz_unit_vector(void* out, void* a, void* b);
-float v3_dot_v3(void* a, void* b);
-void zero_v3(void* value);
-void normalize_v3(void* value);
-void scale_v3(void* out, void* value, float scale);
-void v3_add_v3_scaled(void* out, void* a, void* b, float scale);
-void v3_add_v3(void* out, void* a, void* b);
-void v3_sub_v3(void* out, void* a, void* b);
-void v3_x_mat(void* out, void* value, void* matrix);
+Quat* obj_get_bone_rot_quat(void* obj, int bone);
 void mkobj_get_matrix_pos(void* out, void* object);
 void mkobj_get_matrix_right(void* out, void* object);
 void mkobj_get_matrix_at(void* out, void* object);
 void* mkobj_get_matrix(void* object);
-int plyr_in_spin_react(void* pdata);
-void* force_calc_bone_world_mat(void* object, int bone);
-void obj_set_sobj_pos(void* object, int sobj, void* value);
-void get_bone_relative_pos(void* object, int bone, void* out);
+int plyr_in_spin_react(PlyrPdata* pdata);
+MkBone* force_calc_bone_world_mat(MkObj* obj, int bone);
+void obj_set_sobj_pos(MkObj* obj, unsigned int id, Vec* pos);
+void get_bone_relative_pos(MkObj* obj, int bone, Vec* out);
 typedef struct BoneMatcherState BoneMatcherState;
 void bone_matcher_child_set_offset(BoneMatcherState* matcher, Vec* offset);
 void bone_matcher_parent_set_offset(BoneMatcherState* matcher, Vec* offset);
-void obj_get_ang_vel(void* out, void* object);
+void obj_get_ang_vel(MkObj* obj, Vec* out);
 void obj_set_ang_vel(MkObj* object, void* value);
-void obj_set_pos_vel(MkObj* object, void* value);
-void obj_get_pos_vel(void* out, void* object);
-MkSobj* obj_find_sobj_by_id(MkObj* object, unsigned int id);
+void obj_get_pos_vel(MkObj* obj, Vec* out);
 void obj_set_light_flag(void* object, int flag);
-void sobj_get_ang(void* out, void* sobj);
-void sobj_get_ang_vel(void* out, void* sobj);
+void sobj_get_ang(MkSobj* sobj, Vec* out);
+void sobj_get_ang_vel(MkSobj* sobj, Vec* out);
 void sobj_set_ang_vel(MkSobj* sobj, void* value);
 void sobj_set_ang(MkSobj* sobj, void* value);
-void sobj_get_pos_vel(void* out, void* sobj);
+void sobj_get_pos_vel(MkSobj* sobj, Vec* out);
 void sobj_set_pos_vel(MkSobj* sobj, void* value);
-void sobj_get_pos(void* out, void* sobj);
+void sobj_get_pos(MkSobj* sobj, Vec* out);
 void sobj_set_pos(MkSobj* sobj, void* value);
 void obj_get_ang(void* out, void* object);
 void obj_set_ang(void* object, void* value);
@@ -1038,32 +1024,26 @@ void konquest_nis_init(int value);
 void nis_wait_for_region_load(void);
 void wait_for_region_load(void);
 void nis_register_participant(int type, void* npc_data);
-void nis_set_wait_override(int value);
-void nis_show_cancel_message(void);
-int nis_scene_done(void);
-void nis_end(void);
-void nis_wait_for_event(int a, int b);
-void nis_signal_event(int value);
 void* get_fatality_state_ptr(void);
 void animpdata_ani_to_frame_x_with_flag_check(void* anim, float frame,
                                                int flag, int value);
-void mkscripts_set_anim_check_flag(void* anim, int flag);
-void mkscripts_mkobj_insert_mkobj_cleanuplist(void* object, void* list);
-void mkscripts_destroy_gusher(void* value);
-void mkscripts_destroy_fk_bonematcher(void* value);
-void mkscripts_destroy_bonematcher(void* value);
-int dkp_check_plyr_state_for_grab(int state);
-void* start_prison_grab_proc(int a, int b, float c, float d);
-void done_prison_grab_proc(int value);
+void mkscripts_set_anim_check_flag(int zone_check, int grab_check);
+void mkscripts_mkobj_insert_mkobj_cleanuplist(MkHdr* object, MkObj* owner);
+void mkscripts_destroy_gusher(MkHdr* gusher);
+void mkscripts_destroy_fk_bonematcher(MkHdr* bonematcher);
+void mkscripts_destroy_bonematcher(MkHdr* bonematcher);
+int dkp_check_plyr_state_for_grab(PlyrPdata* player);
+struct PrisonGrabPdata* start_prison_grab_proc(MkObj* object, Vec* direction, float angle, float strength);
+void done_prison_grab_proc(struct PrisonGrabPdata* pdata);
 void kill_spear(void);
 void xfer_spearproc_to_retract(MkProc* proc);
-void destroy_spearproc_bonematcher(void* value);
-void insert_mkobj_spearproc_parentobjitem(void* a, void* b);
+void destroy_spearproc_bonematcher(MkProc* proc);
+void insert_mkobj_spearproc_parentobjitem(MkObj* parent, MkProc* proc);
 MkObj* get_spearobj_from_spearproc(MkProc* proc);
-void* fire_sc_spear(int a, int b, int c, int d, int e, int f);
-void subzero_start_ice_chunks(int value);
-void* subzero_start_iceman(void);
-void* subzero_start_iceblock(void);
+MkProc* fire_sc_spear(PlyrPdata* player, Vec* velocity, int field_34, int flag_40, MkHdr* bound_object, int flag_20);
+void subzero_start_ice_chunks(PlyrPdata* player);
+MkObj* subzero_start_iceman(void);
+MkObj* subzero_start_iceblock(void);
 void sindel_scream_react_sound_start(void);
 struct FatalityObjectLatch;
 void sindel_sonic_sounds(struct FatalityObjectLatch* sound, int finished);
@@ -1071,14 +1051,14 @@ int sindel_sonic_waves(float value);
 void start_raiden_lightning_scroll(int a, float b, float c, int d, int e);
 void* ft_raiden_summon_lightning_bolt(int a, int b, char* name);
 void kill_raiden_summon_lightning_bolt(void* value);
-void fix_axe_angle(void* value);
+void fix_axe_angle(const Vec* angles);
 void ft_mileena_start_veil_ripoff(void);
 void fat_goro_fold_arms(int a, int b, float c, int d);
 void* fatality_boraicho_get_jug(int a, int b);
-void* fatality_boraicho_get_torch(int a, int b);
-void show_baraka_one_blade_only(int a, int b);
-void* fatality_ashrah_get_doll(int a, int b, int c);
-void pfx_spawn_at_bid(char* name, int a, int b);
+MkObj* fatality_boraicho_get_torch(const Vec* parent_offset, const Vec* rotation);
+void show_baraka_one_blade_only(PlyrPdata* pdata, int first_blade);
+MkObj* fatality_ashrah_get_doll(const Vec* parent_offset, const Vec* child_offset, const Vec* rotation);
+void pfx_spawn_at_bid(const char* name, MkObj* object, int bone_id);
 void* limb_sever_throw_away(int a, int b, int c);
 void auto_calc_limbobj_bone_world_pos(void* a, void* b);
 void limb_sever_show_z_meat_chunks(MkObj* obj, int limb, int show_all);
@@ -1090,31 +1070,31 @@ void destroy_gore2_obj(unsigned int object_id, int particle_index);
 int attach_gore2_obj(MkObj* owner, int bone, unsigned int object_id,
                      const Vec* offset, const Vec* rotation);
 void start_bodyslam_bodysplat(float a, float b, float c, float d, float e);
-void fatality_explode_victim(int a, float b, float c);
-void kill_gusher(int a);
+void fatality_explode_victim(PlyrInfo* player_info, float arg1, float arg2);
+void kill_gusher(MkProc* proc);
 void start_sweat_particles_scripts(int a, int b);
 
-void start_sweat_particles(int a, int b, int c, int d);
+void start_sweat_particles(int particle_mask, int bone, PlyrPdata* player, MkObj* object);
 void* start_blood_particles(int a, int b, int c, int d);
-void mks_spawn_blood_pool_at_bid(int a, int b, int c, int d);
-void spawn_blood_pool_at_bid(int a, int b, int c);
-void* plyr_weapon2_release(int a);
-void* plyr_weapon_release(int a);
-void bone_matcher_reset_dest_mat_rot(int a, int b);
+void mks_spawn_blood_pool_at_bid(PlyrInfo* source, MkObj* object, int bone, int large);
+void spawn_blood_pool_at_bid(PlyrInfo* source, int bone, int large);
+MkObj* plyr_weapon2_release(PlyrPdata* player);
+MkObj* plyr_weapon_release(PlyrPdata* player);
+void bone_matcher_reset_dest_mat_rot(MkObj* object, int bone_index);
 void bone_matcher_set_ang_pos(int a, int b, int c, int d, int e, int f);
 MkObj* weapon_bm_ignore(int weapon, int ignored);
 void weapon_reflection_show_hide(PlyrPdata* player, int secondary, int hidden);
-void* show_single_weapon(int a, int b);
-void advance_to_weapon_style(int a);
-int is_weapon_style(int a);
-int am_i_female(int a);
-float sobj_set_bounding_sphere_radius(void* sobj, float value);
-float sobj_get_bounding_sphere_radius(void* sobj);
-unsigned long play_his_snd_req(int a);
-unsigned long play_his_random_voice(int a);
-void obj_unhide_material_by_id(void* object, int id);
-void obj_hide_material_by_id(void* object, int id);
-void bm_force_fake_child_bid(int a, int b);
+MkObj* show_single_weapon(PlyrPdata* player, int secondary);
+void advance_to_weapon_style(PlyrPdata* player);
+int is_weapon_style(PlyrFighterDefinition* style);
+int am_i_female(PlyrPdata* fighter);
+float sobj_set_bounding_sphere_radius(MkSobj* sobj, float radius);
+float sobj_get_bounding_sphere_radius(MkSobj* sobj);
+MslSoundHandle play_his_snd_req(int sound);
+MslSoundHandle play_his_random_voice(int sound);
+void obj_unhide_material_by_id(MkObj* object, int id);
+void obj_hide_material_by_id(MkObj* object, int id);
+void bm_force_fake_child_bid(BoneMatcherState* matcher, int bone_id);
 void set_victim_v3_units_away(float a, float b);
 void reset_fake_bone_matcher(struct FakeBoneMatcher* matcher,
                              const Vec* parent_offset,
@@ -1126,52 +1106,40 @@ MkHdr* ft_fake_bone_matcher(MkHdr* parent, MkHdr* child, int bone_index,
 int get_game_state(void);
 void fatality_release_other_player(void);
 int get_level_fatality_done_flag_state(void);
-void set_level_fatality_done_flag_state(int value);
-void limb_sever_destroy_existing_attach_proc(int a, int b);
+void set_level_fatality_done_flag_state(int state);
+void limb_sever_destroy_existing_attach_proc(PlyrInfo* player, int limb);
 MkHdr* limb_sever_pop_head_up(PlyrInfo* player, float x_velocity, float y_velocity,
                               float z_velocity, float angular_velocity);
-void* mks_limb_sever(int a, int b, int c);
-void* limb_sever_find_existing_update_proc(int a, int b, int c);
-void limb_sever_update_slide_end_coeff(int a, float b);
+MkObj* mks_limb_sever(MkObj* object, int limb, int include_children);
+struct NcsLimbUpdatePdata* limb_sever_find_existing_update_proc(PlyrInfo* player, int limb, int proc_id);
+void limb_sever_update_slide_end_coeff(struct NcsLimbUpdatePdata* limb, float coefficient);
 MkProc* proc_of_anim_pdata(AnimPdata* anim);
-void set_pdata_anim_step(void* anim, float step);
-void animpdata_ani_to_blend_frame(void* anim, float frame);
-void animpdata_ani_to_end_at1(void* anim);
-void animpdata_ani_to_end(void* anim);
-void animpdata_ani_x_more_frames(void* anim, float frames);
-void animpdata_ani_loop_more_frames(void* anim, float frames);
-void animpdata_ani_to_frame_x(void* anim, float frame);
-void mks_animpdata_set_cur_frame(void* anim, float frame);
-void animpdata_ani_1_frame(void* anim);
+void set_pdata_anim_step(AnimPdata* pdata, float step);
+void animpdata_ani_to_blend_frame(AnimPdata* anim, float blend_frames);
+void animpdata_ani_to_end_at1(AnimPdata* anim);
+void animpdata_ani_to_end(AnimPdata* anim);
+void animpdata_ani_x_more_frames(AnimPdata* anim, float frames);
+void animpdata_ani_loop_more_frames(AnimPdata* anim, float frames);
+void animpdata_ani_to_frame_x(AnimPdata* anim, float frame);
+void mks_animpdata_set_cur_frame(AnimPdata* anim, float frame);
+void animpdata_ani_1_frame(AnimPdata* anim);
 void check_to_register_miss(void);
 void auto_ani_off(void);
 void ncs_dkp_camera_konqchar_show_hide_alpha(int character_index, MkObj* character);
 void* ncs_bgnd_OBSTACLE_EVENT_get_plyr_pdata(void);
 void ncs_bgnd_nuke_collision_to_script_interface(void);
-void* retrieve_bgnd_obj(void);
+MkObj* retrieve_bgnd_obj(void);
 void fkbm_obj_face_obj(int a, int b, int c, int d, int e);
 int obj_get_bid_for_tid(MkObj* obj, int tag);
-MkSobj* obj_create_sobjs_by_id(MkObj* object, int id);
-void* unhide_sobj_by_sobj_id(void* obj, unsigned int id);
-void* hide_sobj_by_sobj_id(void* obj, unsigned int id);
-void sobj_set_priority(int a, int b);
-void unhide_sobj(int a);
-void hide_sobj(int a);
-void unhide_obj(int a);
-void hide_obj(int a);
 void* pfx_plyr_bankowner(int a);
 void ncs_script_debug_quickie(int a, float b, int c);
-void ck_rumble_controller(int a, int b, int c);
-int check_for_green_light(int a);
-int check_for_red_light(int a);
-void ck_put_weapon_away(int a);
-MkObj* find_obj_by_id(int a);
+void ck_put_weapon_away(PlyrInfo* player);
+MkObj* find_obj_by_id(int id);
 void yinyang_reset_music_index(void);
 void yinyang_play_evil_tune(void);
 void yinyang_play_good_tune(void);
-float dist_v3_to_v3(void* a, void* b);
-int is_point_in_fortress_exclusion_zone(void* point);
-void fortress_setup_exclusion_zone(int a, float b, float c, float d, float e);
+int is_point_in_fortress_exclusion_zone(const Vec* point);
+void fortress_setup_exclusion_zone(const Vec* center, float width, float height, float depth, float angle);
 void set_evil_swap_status(int a);
 int ok_to_do_evil_swap(void);
 void set_evil_condition(int a);
@@ -1181,8 +1149,6 @@ int are_death_traps_on(void);
 char* get_string_by_id(unsigned int id);
 void ending_show_text(int script_index, int duration);
 void ending_show_image(int image);
-void midpoint_v3(Vec* out, Vec* first, Vec* second);
-Vec* sobj_get_world_pos(struct SObj* object);
 void get_point_on_circle(float* center, float radius, float angle, float* out);
 MkHdr* cut_player_in_half(MkHdr* player);
 int get_offset_of_closest_fence_section(const Vec* point,
@@ -1194,35 +1160,25 @@ void bgnd_level_fatality_end(void);
 void bgnd_level_fatality_start(int player);
 void bgnd_level_transition_end(void);
 void bgnd_level_transition_start(void);
-void obj_set_sobj_alpha(MkObj* object, int sobj_index, int alpha);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
 void mab_test(void);
 void player_body_explode(MkHdr* player, const Vec* position, float velocity);
-void yinyang_set_bad_fish_hide_flag(void* entries, int hidden, int count);
-void yinyang_set_good_fish_hide_flag(void* entries, int hidden, int count);
+void yinyang_set_bad_fish_hide_flag(struct YinyangFishPair* fish, int hide, int count);
+void yinyang_set_good_fish_hide_flag(struct YinyangFishPair* fish, int hide, int count);
 void yinyang_make_fish_jump(int fish, int velocity);
 void destroy_mkobjs_oid(int oid);
 void do_yinyang_statue_explosion(MkHdr* statue);
-void obj_add_to_skinned_obj_light_list_with_ambient(MkObj* object,
-                                                    LightDef* light);
-void obj_change_to_bgnd_obj_light_list(MkObj* object, LightDef* light);
-void obj_change_to_skinned_obj_light_list(MkObj* object, LightDef* light);
 void yinyang_stop_lensflare(void);
 void yinyang_start_lensflare(void);
 void misc_data_set_test_float(float value);
 void misc_data_set_test_u32(unsigned int value);
-void obj_set_sobj_priority(MkObj* object, int sobj_index, int priority);
-void sobj_disable_blending(struct SObj* object);
-struct SObj* obj_first_sobj(MkObj* object);
 void pebble_turn_culling_off(int player);
 void pebble_turn_culling_on(int player);
 void pebble_unhide_me(int player, int index);
 void pebble_hide_me(int player, int index);
-void destroy_mkobj(void* object);
-void obj_turn_gravity_off(void* object);
-void obj_set_gravity(void* object, float gravity);
-void insert_fgnd_mkobj(void* object);
-int get_player_number(void* object);
+void obj_turn_gravity_off(MkObj* obj);
+void obj_set_gravity(MkObj* obj, float gravity);
+int get_player_number(MkObj* object);
 float script_fabs(float value);
 void set_obj_light_flags(MkObj* object, int flags);
 void set_obj_ang(MkObj* object, float x, float y, float z);
@@ -1232,12 +1188,10 @@ void reset_collision_system(void);
 void pos_cam_for_current_level(void);
 void reset_severed_limbs(int player);
 void move_plyrs_to_round_start(void);
-void set_far_clip_plane(float distance);
+void set_far_clip_plane(float dist);
 void skytemple_player_explode(
     unsigned int player, float x, float y, float z);
 void skytemple_make_scream_sound(int player);
-void turn_controllers_on(void);
-void turn_controllers_off(void);
 void bgnd_clear_face_opponent_flags(void);
 void mab_script_trace_func(char* message);
 void scripted_camera_script_exit(void);
@@ -1245,8 +1199,8 @@ void bgnd_launch_fx_at_sobj_pos(
     const char* name, unsigned int sobj_id, float y_offset);
 int bgnd_get_first_shape_center_for_obstacle_id(int obstacle_id,
                                                 int scratch_index);
-void misc_data_set_obj_ptr1(MkObj* object);
-MkObj* misc_data_get_obj_ptr1(void);
+void misc_data_set_obj_ptr1(void* object);
+void* misc_data_get_obj_ptr1(void);
 void misc_data_set_col_obj_id2(int object_id);
 int misc_data_get_col_obj_id2(void);
 void misc_data_set_col_obj_id(int object_id);
@@ -1256,12 +1210,10 @@ float bgnd_get_float(int value_id);
 unsigned int bgnd_get_u32(int value_id);
 int bgnd_get_int(int value_id);
 void mks_start_fatality_iceball(int player);
-void mks_debug_display_cloth_ontop(int enabled);
 void start_bow(int player, float strength);
 void start_plyr_attack(float radius);
 void run_reaction_cleanup_function(PlyrPdata* player);
 int reaction_xfer_him(int reaction, float rate, int strength);
-void mks_set_cb1_wind_normal(float x, float y, float z);
 void mks_npc_build_bones_tbl(int model_id, const int* bone_tags);
 void mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(
     PlyrPdata* player);
@@ -1272,283 +1224,261 @@ void resume_effect_at_plyr_num_bid(
     int player, int bone_id, unsigned int effect_handle,
     int bind_mode, int blood_required);
 
-int add_npc_list_to_world(int);
+void add_npc_list_to_world(int* npc_ids);
 void add_trigger_list_to_world(void);
-int ani_1_frame(void);
-int ani_no_pos(void);
-int ani_through_end(void);
+void ani_1_frame(void);
+void ani_no_pos(void);
+void ani_through_end(void);
 void ani_to_blend_frame(float);
-int ani_to_end(void);
+void ani_to_end(void);
 void ani_to_frame_x(float);
-int ani_with_pos(void);
-int ani_x_more_frames(void *, float);
-int auto_ani_on(void);
-int back_rollup_check(void);
-int back_rollup_check_reverse(void);
+void ani_with_pos(void);
+void ani_x_more_frames(float frames);
+void auto_ani_on(void);
+float back_rollup_check(void);
+float back_rollup_check_reverse(void);
 void bgnd_active_sobj_no_ztest(void);
 void bgnd_active_sobj_no_zwrite(void);
-int bgnd_allow_dirty_floor(void);
+void bgnd_allow_dirty_floor(void);
 void bgnd_always_face_y(unsigned int);
-int bgnd_clean_beetlelair(void);
-int bgnd_clean_slaughterhouse(void);
-int bgnd_clean_up_floor(void);
+void bgnd_clean_beetlelair(void);
+void bgnd_clean_slaughterhouse(void);
+void bgnd_clean_up_floor(void);
 void bgnd_collision_if_rx_override(unsigned int);
-int bgnd_collison_if_set_info(void);
-int bgnd_collison_if_to_scripts_activate(void);
-int bgnd_create_sobjs(void);
-int bgnd_delete_danger_zone(int);
+void bgnd_collison_if_set_info(void);
+void bgnd_collison_if_to_scripts_activate(void);
+void bgnd_create_sobjs(void);
+void bgnd_delete_danger_zone(unsigned int zone_index);
 void bgnd_delete_proc_by_id(int);
-int bgnd_detach_rope(int);
+void bgnd_detach_rope(int model_index);
 void bgnd_enable_wall_hider(unsigned int);
-int bgnd_end_the_game_and_restart(void);
+void bgnd_end_the_game_and_restart(void);
 void bgnd_get_active_sobj_pos(Vec*);
 void bgnd_hide_active_sobj(void);
-int bgnd_hide_mirror_guys(void);
+void bgnd_hide_mirror_guys(void);
 void bgnd_hide_pebbles(int);
 void bgnd_hide_preload_obj(int);
 void bgnd_hide_sobj(unsigned int);
 void bgnd_hide_sobj_and_children(unsigned int);
 void bgnd_init_all_uv_scroll_w_control(void);
-int bgnd_init_cracks(void);
+void bgnd_init_cracks(void);
 void bgnd_init_timers(int);
-int bgnd_kill_all_launched_sobjs(void);
+void bgnd_kill_all_launched_sobjs(void);
 void bgnd_no_z_test(unsigned int);
 void bgnd_no_z_write(unsigned int);
 void bgnd_npc_like_plyr(unsigned int);
-int bgnd_preload_obj_attach_rope(int);
-int bgnd_reg_col_cb_for_beetle_lair(void);
-int bgnd_remove_cracks(void);
-int bgnd_reset_players_animation_height(void);
+void bgnd_preload_obj_attach_rope(int model_index);
+void bgnd_reg_col_cb_for_beetle_lair(void);
+void bgnd_remove_cracks(void);
+void bgnd_reset_players_animation_height(void);
 void bgnd_reset_sobj(int);
 void bgnd_restore_player(void);
 void bgnd_set_active_danger_zone(unsigned int);
 void bgnd_set_active_sobj(int);
-int bgnd_set_active_sobj_rop(int);
+void bgnd_set_active_sobj_rop(int priority);
 void bgnd_set_fx_ang_dir_to_i_vector(void);
-int bgnd_set_viewing_of_danger_zones(int);
+void bgnd_set_viewing_of_danger_zones(int enabled);
 void bgnd_setup_rx_handler(int);
-int bgnd_sh_level_1(void);
-int bgnd_sh_level_2(void);
+void bgnd_sh_level_1(void);
+void bgnd_sh_level_2(void);
 void bgnd_shadow_control(unsigned int);
-int bgnd_start_cracks(void);
+void bgnd_start_cracks(void);
 void bgnd_swap_level(int);
 int bgnd_turn_off_backface_culling(int);
 int bgnd_turn_on_backface_culling(int);
 void bgnd_unhide_active_sobj(void);
-int bgnd_unhide_mirror_guys(void);
+void bgnd_unhide_mirror_guys(void);
 void bgnd_unhide_pebbles(int);
 void bgnd_unhide_preload_obj(int);
 void bgnd_unhide_sobj(unsigned int);
 void bgnd_unhide_sobj_and_children(unsigned int);
 void bgnd_update_active_mksobj(void);
-int blast_effect_at_plyr(void);
-int bulvan_function(int);
+void blast_effect_at_plyr(void);
+void bulvan_function(int command);
 void change_monk_age(int);
-int check_for_combo_message(void);
-int clear_both_face_opponent_flags(void);
-int clear_cliff_data(void);
-int clear_his_f_constrained(void);
-int clear_my_face_opponent_flag(void);
-int configure_iceball(int);
-int conversation_init(int);
-int conversation_term(void);
-int courtyard_start_lensflare(void);
-int damage_him(void *, float);
-int damage_me(void *, float);
-int danger_zone_eligible_on(void);
+void check_for_combo_message(void);
+void clear_both_face_opponent_flags(void);
+void clear_cliff_data(void);
+void clear_his_f_constrained(void);
+void clear_my_face_opponent_flag(void);
+void configure_iceball(MkObj* iceball);
+void conversation_init(int mode);
+void conversation_term(void);
+void courtyard_start_lensflare(void);
+void damage_him(float amount);
+void damage_me(float amount);
+void danger_zone_eligible_on(void);
 void destroy_kabal_smoke(void);
-int destroy_sobj_ctrl_proc(void);
-int disable_attack5(int);
-int disable_blocking(void);
+void destroy_sobj_ctrl_proc(void);
+void disable_attack5(int ticks);
+void disable_blocking(void);
 void disable_both_repel_flags(void);
-int disable_joy_temp(int);
+void disable_joy_temp(int ticks);
 void disable_mileena_collisions(int);
-int disable_my_attacks(int);
+void disable_my_attacks(int ticks);
 void display_konquest_title(void);
 void display_time_progression_images(int);
-int dk_taunt_at_screen(void);
+void dk_taunt_at_screen(void);
 void dont_fence_plyr_in(int);
 void drone_ai_increase_big_boss_stage(PlyrPdata* victim);
-int drone_dispatch_switches(int);
-int drone_face_monk(void);
-int drone_set_difficulty_level(int);
+void drone_dispatch_switches(int player);
+void drone_face_monk(void);
+void drone_set_difficulty_level(int difficulty);
 int drone_super_combo_refresh(void);
-int ejb_call(int);
-int ejb_release_other_player(int);
-int ejb_too_close_repell(void);
-int enable_all_my_blocking(void);
-int enable_his_blocking(void);
-int end_air_move(void);
-int face_bleed_me(int);
-int face_opponent_180(void);
-int face_opponent_now(void);
-int fade_fatality_screen(void);
+void ejb_call(int index);
+void ejb_release_other_player(int reaction);
+void ejb_too_close_repell(void);
+void enable_all_my_blocking(void);
+void enable_his_blocking(void);
+void end_air_move(void);
+void face_bleed_me(int size);
+void face_opponent_180(void);
+void face_opponent_now(void);
+void fade_fatality_screen(void);
 typedef struct KonquestTriggerDefinition KonquestTriggerDefinition;
-void fire_trigger(KonquestTriggerDefinition*);
-int flash_hit_at_bid(int);
-int force_ai_style(int);
+void fire_trigger(struct KonquestTriggerDefinition* definition);
+void flash_hit_at_bid(int bone);
+void force_ai_style(int style);
 void forced_step_forward(void);
-int freeze_player(void);
-int front_rollup_check(void);
+void freeze_player(void);
+float front_rollup_check(void);
 void give_reward_to_player(KonquestPuiDefinition*);
-int gusher_destroy_list(void);
-int head_tracking_off(void);
-int hero_handle_conversation(void);
-int hero_stop_moving(void);
-int hero_turn_to_face_position(int);
-int high_flash_check(void);
-int idle_hero_anim_proc(void);
+void gusher_destroy_list(void);
+void head_tracking_off(void);
+void hero_handle_conversation(void);
+void hero_stop_moving(void);
+void hero_turn_to_face_position(const Vec* position);
+void high_flash_check(void);
+void idle_hero_anim_proc(void);
 void idle_his_anim_proc(void);
-int if_collision_autoface_him(void);
-int if_collision_autoface_me(void);
-int init_3d_move(void);
+void if_collision_autoface_him(void);
+void if_collision_autoface_me(void);
+void init_3d_move(void);
 void init_3d_move_no_aniproc(void);
-int init_3d_move_no_face(void);
-int init_air_move(void);
-int init_air_move_no_aniproc(void);
-int init_ground_move_no_aniproc(void);
-int init_move(void);
-int init_scripted_camera(void);
-int init_still_move(void);
-int initialize_clone_lights(int);
-int interior_exit_button_script(void);
-int jab_destroy_drink_obj_in_hand(void);
-int jab_release_jade_boomerang(int);
-int jab_stop_dragon_king_shake(void);
+void init_3d_move_no_face(void);
+void init_air_move(void);
+void init_air_move_no_aniproc(void);
+void init_ground_move_no_aniproc(void);
+void init_move(void);
+void init_scripted_camera(void);
+void init_still_move(void);
+void initialize_clone_lights(LightDef** definitions);
+void interior_exit_button_script(void);
+void jab_destroy_drink_obj_in_hand(void);
+void jab_release_jade_boomerang(struct JabObjectRef* proc_ref);
+void jab_stop_dragon_king_shake(void);
 void kabal_collision_control_victim(int);
 void kenshi_teleport_position(void);
 void kick_the_camera(void);
-void kill_dynamic_pui(void*);
-int kill_konquest_dialog_procs(void);
-int kill_lip_sync_procs(void);
+void kill_dynamic_pui(KonquestPuiDefinition* item);
+void kill_konquest_dialog_procs(void);
+void kill_lip_sync_procs(void);
 void kobra_teleport_position(void);
-int konquest_camera_return_to_normal(void);
+void konquest_camera_return_to_normal(void);
 void konquest_end_npc_interaction(void);
 void konquest_end_npc_nis(void);
-int konquest_fade_hud(int);
+void konquest_fade_hud(int fade_in);
 void konquest_hero_portal_in(void);
 void konquest_hide_damashi(void);
-int konquest_hide_hud(int);
-int konquest_run_ending(void);
+void konquest_hide_hud(int unused);
+void konquest_run_ending(void);
 void konquest_set_current_portal_uid(int);
-int konquest_show_hud(void);
+void konquest_show_hud(void);
 void konquest_start_npc_interaction(void);
 void konquest_start_npc_nis(void);
-int konquest_transition_to_fight(int);
-int load_tile_objects(int);
-int low_flash_check(void);
-int match_my_ypos_with_his(void);
-int medium_flash_check(void);
+void konquest_transition_to_fight(int save_progress);
+void load_tile_objects(struct KonquestTileObjectDefinition* definitions);
+void low_flash_check(void);
+void match_my_ypos_with_his(void);
+void medium_flash_check(void);
 void mileena_sky_set_position(void);
-int mini_mission_completed(int);
-int mini_mission_inactive(int);
-int mk_chess_activate_my_properties(void);
-int mk_chess_air_move(void);
-int mk_chess_ani_1_frame(void);
-int mk_chess_ani_idle(void);
-int mk_chess_ani_to_end(void);
+void mini_mission_completed(int mission);
+void mini_mission_inactive(int mission);
+void mk_chess_activate_my_properties(void);
+void mk_chess_ani_idle(void);
+void mk_chess_ani_to_end(void);
 void mk_chess_blend_into_cell_orgin_in_x_frames_by_caller(void);
-int mk_chess_blend_to_normal_stance(void);
-int mk_chess_deactivate_my_properties(void);
-int mk_chess_dont_constrain_piece(void);
+void mk_chess_deactivate_my_properties(void);
 void mk_chess_load_chess_table(void*);
 struct ChessSpellDefinition;
-void mk_chess_make_spellcaster(const struct ChessSpellDefinition*);
-int mk_chess_piece_die(void);
+void mk_chess_piece_die(void);
 void mk_chess_piece_event_from_script(int);
-int mk_chess_piece_is_idle(void);
-int mk_chess_piece_match_y_ang_to_anim(void);
-int mk_chess_piece_set_state(int);
-int mk_chess_piece_temporarily_gone(void);
-int mk_chess_set_glitch_stance_flag(void);
-int mk_chess_set_piece_state(int);
-int mk_chess_snap_to_my_cell_now(void);
-int mk_chess_snap_to_stance(void);
-int mk_chess_snd_request(int);
-int mk_chess_spell_force_fight(void);
-int mk_chess_spell_has_completed(void);
-int mk_chess_spell_has_completed_but_wait_for_fight(void);
-int mk_chess_spell_kill_target(int);
-int mk_chess_spell_rescue_current_target(void);
-int mk_chess_stop_me(void);
-int mk_chess_wait_until_attack_cam_closes_in(void);
-int mks_cb1_eq_cloth_bone(int);
-int mks_cb2_eq_cloth_bone(int);
-int mks_cc1_insert_cb1(void);
-int mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_abs(void);
-int mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_inside(void);
-int mks_cc1_set_coll_fnc_eq_cloth_coll_vector_cyl(void);
-int mks_ccp1_insert_cb1(void);
-int mks_npc_start_cloth_bones(int);
-int mks_set_cb1_target_bone_cb2(void);
-void mks_set_flipped_bones(struct MkFlippedBoneMap* bone_map);
+void mk_chess_piece_temporarily_gone(void);
+void mk_chess_snap_to_my_cell_now(void);
+void mk_chess_snap_to_stance(void);
+void mk_chess_snd_request(unsigned int event);
+void mk_chess_stop_me(void);
+void mk_chess_wait_until_attack_cam_closes_in(void);
+void mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_abs(void);
+void mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_inside(void);
+void mks_cc1_set_coll_fnc_eq_cloth_coll_vector_cyl(void);
+void mks_set_flipped_bones(MkFlippedBoneMap* bone_map);
 void mks_start_goro_arms_fixup(void);
-int nis_clear_event_list(void);
 void nis_remove_non_participants(void);
-int noob_victory_entrance(void);
-int noobsmoke_sidekick_double_charge(void);
-int noobsmoke_sidekick_projectile(void);
-int npc_ani_1_frame(void);
-int npc_ani_for_x_ticks(int);
-int npc_ani_to_end(void);
-int npc_ani_to_frame_x(void *, float);
-int npc_blend_to_ani_string(int);
+void noob_victory_entrance(void);
+void noobsmoke_sidekick_double_charge(void);
+void noobsmoke_sidekick_projectile(void);
+void npc_ani_1_frame(void);
+void npc_ani_for_x_ticks(int ticks);
+void npc_ani_to_end(void);
+void npc_ani_to_frame_x(float frame);
+void npc_blend_to_ani_string(int* animation_ids);
 void npc_face_current_waypoint_angle(void);
 void npc_fire_trigger(unsigned int);
-int npc_hide_skip_message(void);
-int npc_ignore_events(int);
-int npc_open_door_at_waypoint(void);
-int npc_play_random_dialog_sequence(void);
+void npc_hide_skip_message(void);
+void npc_ignore_events(int enabled);
+void npc_open_door_at_waypoint(void);
+void npc_play_random_dialog_sequence(void);
 void npc_play_teleported_sound(void);
-int npc_prepare_for_unconscious_state(void);
-int npc_punch_reaction_standard_setup(void);
-int npc_punch_reaction_standard_shutdown(void);
-int npc_reset_my_timed_events(void);
-int npc_restart_his_normal_behavior(int);
-int npc_run_shove_animation(int);
-int npc_set_ani_flags(int);
+void npc_prepare_for_unconscious_state(void);
+void npc_punch_reaction_standard_setup(void);
+void npc_punch_reaction_standard_shutdown(void);
+void npc_reset_my_timed_events(void);
+void npc_restart_his_normal_behavior(KonquestNpcData* data);
+void npc_run_shove_animation(int animation_id);
+void npc_set_ani_flags(unsigned int flags);
 void npc_set_ani_frame(float);
 void npc_set_ani_speed(float);
-int npc_set_dialog_anim(int);
-int npc_set_gravity(void *, float);
-int npc_set_my_ang_y(void *, float);
-int npc_set_my_conversation_counter(int);
-int npc_set_my_punch_counter(int);
-int npc_set_pinanim_flag(int);
-int npc_set_snap_to_ground(int);
-int npc_shove_reaction_standard_setup(void);
-int npc_shove_reaction_standard_shutdown(void);
-int npc_show_skip_message(void);
-int npc_sleep(void *, float);
-int npc_sleep_until_model_loaded(void);
-int npc_snap_to_face_monk(void);
-int npc_stand_still(void);
+void npc_set_dialog_anim(int animation);
+void npc_set_gravity(float gravity);
+void npc_set_my_ang_y(float angle);
+void npc_set_my_conversation_counter(int count);
+void npc_set_my_punch_counter(int count);
+void npc_set_pinanim_flag(int enabled);
+void npc_set_snap_to_ground(int enabled);
+void npc_shove_reaction_standard_setup(void);
+void npc_shove_reaction_standard_shutdown(void);
+void npc_show_skip_message(void);
+void npc_sleep(float ticks);
+void npc_sleep_until_model_loaded(void);
+void npc_snap_to_face_monk(void);
+void npc_stand_still(void);
 void npc_start_blood_fall(void);
-int npc_start_goro_bone_match(int);
-int npc_stop_goro_bone_match(void);
-int npc_switch_camera_focus(int);
-int npc_turn_and_face_next_waypoint(void);
-int npc_turn_and_face_player(int);
-int npc_wait_for_state_change(void);
-int npc_wait_for_wake_up(void);
-int obj_enable_grounding(int);
-int play_background_music(int);
-int play_beam_advance_sound(int);
-int player_add_item_to_inventory(int);
-int player_feet_land_chores(void);
-int plyr_rotate_obj_y180(void);
-int plyr_set_gravity(void *, float);
+void npc_start_goro_bone_match(KonquestNpcData* data);
+void npc_stop_goro_bone_match(void);
+void npc_switch_camera_focus(int focus_mode);
+void npc_turn_and_face_next_waypoint(void);
+void npc_turn_and_face_player(int turn_player);
+void npc_wait_for_state_change(void);
+void npc_wait_for_wake_up(void);
+void obj_enable_grounding(MkObj* obj);
+void play_background_music(int sound);
+void play_beam_advance_sound(int delay);
+void player_add_item_to_inventory(KonquestPuiDefinition* item);
+void player_feet_land_chores(void);
+void plyr_rotate_obj_y180(void);
+void plyr_set_gravity(float gravity);
 float popup_reaction_max_hit_rules(void);
-int pz_fighter_allow_continuation(void);
+void pz_fighter_allow_continuation(void);
 void pz_fighter_allow_easy_continuation(void);
-void pz_fighter_check_breakout(void);
+float pz_fighter_check_breakout(void);
 void pz_fighter_create_space_between_fighters(void);
 void pz_fighter_create_space_between_fighters_for_special_moves(void);
 int pz_fighter_distance_check_wo_super_check(void);
 void pz_fighter_disallow_continuation(void);
 void pz_fighter_dont_fudge_desired_distance(void);
 float pz_fighter_exit(void);
-int pz_fighter_force_repel_during_attack(void);
+void pz_fighter_force_repel_during_attack(void);
 void pz_fighter_function(unsigned int);
 float pz_fighter_long_exit(void);
 void pz_fighter_move_into_fighting_position(void);
@@ -1558,13 +1488,13 @@ void pz_fighter_reset_continuation(void);
 void pz_fighter_shaking(void);
 void pz_fighter_step_throw_into_check(void);
 void pz_fighter_wipe_blood_off_hands(void);
-int random_dk_foot(void);
-int random_voice_him(int);
-int register_baraka_cb_functions(void);
+void random_dk_foot(void);
+void random_voice_him(int group);
+void register_baraka_cb_functions(void);
 void release_both_players(void);
 void remove_collision_volume_on_object(void);
-int remove_npc_list(int);
-int remove_widescreen_bars(void);
+void remove_npc_list(KonquestNpcData* list);
+void remove_widescreen_bars(void);
 void restore_collision_volume_on_object(void);
 void restore_hero_grounding(void);
 void resume_hero_state_process(void);
@@ -1573,105 +1503,94 @@ void scorpion_teleport_position(void);
 void set_age_progression(int);
 void set_ani_speed(float);
 void set_ani_weight(float);
-int set_attackers_attack_region(int);
-int set_block_requirement(int);
-int set_both_face_opponent_flags(void);
-int set_cliff_watcher_round(int);
+void set_attackers_attack_region(int region);
+void set_block_requirement(int requirement);
+void set_both_face_opponent_flags(void);
+void set_cliff_watcher_round(int round);
 void set_hero_position_relative_to_chest(void);
 void set_interaction_camera_script(void*);
-int set_konquest_region_number(int);
-void set_krypt_character_pos(Vec*);
-void set_last_character_trained_with(int);
+void set_konquest_region_number(int region);
 void set_look_at_npc(int);
-int set_monk_age(int);
+void set_monk_age(int age);
 void set_movement_npc(int);
-int set_my_float_1(void *, float);
-int set_my_secondary_state(int);
+void set_my_float_1(float value);
+void set_my_secondary_state(int state);
 void set_reference_pui(KonquestPuiDefinition*);
-int setup_for_flip_ani(void);
-int setup_interior_fighting_arena(void);
-int setup_vomit_slip_sound(void);
-int show_shujinko_unlock_screen(int);
+void setup_for_flip_ani(void);
+void setup_interior_fighting_arena(void);
+void setup_vomit_slip_sound(void);
 float slamdown_reaction_max_hit_rules(void);
-int slow_ani_end(void *, float);
-int smoke_victory_entrance(void);
-int snd_major_hit_voice(void);
-int snd_stop(int);
-void sobj_no_zwrite(void* sobj);
+void slow_ani_end(float speed);
+void smoke_victory_entrance(void);
+void snd_major_hit_voice(void);
+void snd_stop(MslSoundHandle handle);
+void sobj_no_zwrite(MkSobj* sobj);
 void spad_norm_vector(int);
 void special_move_cam_end(void);
-int start_baraka_blades_monitor(void);
-int start_baraka_jaw_monitor(void);
+void start_baraka_blades_monitor(void);
+void start_baraka_jaw_monitor(void);
 void start_chunk_launch_monitor(void);
-int start_constrain_proc(void);
-int start_hero_collisions(void);
+void start_constrain_proc(void);
+void start_hero_collisions(void);
 void start_kabal_smoke(void *, float);
-int start_konquest_ambient_sounds(void);
-int start_mini_mission(int);
-int start_rope_proc(void);
-int start_shadow_watcher(void);
-int start_sobj_ctrl_proc(void);
+void start_konquest_ambient_sounds(void);
+void start_mini_mission(int mission);
+void start_rope_proc(void);
+void start_shadow_watcher(void);
+void start_sobj_ctrl_proc(void);
 void start_sobj_launch_monitor(void);
 int start_special_weapon_monitor(int);
-int start_subobject_pulsing_effect(int);
-int start_time_passing(void);
-int step_throw_into_check(void);
-int step_throw_outof_retract(void);
+void start_subobject_pulsing_effect(int pulse_type);
+void start_time_passing(void);
+float step_throw_into_check(void);
+float step_throw_outof_retract(void);
 void stop_chest_camera_script(void);
-int stop_hero_collisions(void);
-int stop_konquest_ambient_sounds(void);
-int stop_me(void);
-int stop_time_passing(void);
-int stop_vomit_slip_sound(void);
+void stop_hero_collisions(void);
+void stop_konquest_ambient_sounds(void);
+void stop_me(void);
+void stop_time_passing(void);
+void stop_vomit_slip_sound(void);
 int super_charge_me(void);
 void suspend_hero_grounding(void);
-int suspend_hero_state_process(void);
-int suspend_in_midair(void *, float);
-int switch_plyr_positions(void);
-int tightrope_restrictions_off(void);
-int tightrope_restrictions_on(void);
-int transition_to_region(int);
+void suspend_hero_state_process(void);
+void suspend_in_midair(float ticks);
+void switch_plyr_positions(void);
+void tightrope_restrictions_off(void);
+void tightrope_restrictions_on(void);
+void transition_to_region(int region);
 int trial_debug_mission_list(int);
-int trial_mirror_anims_if_needed(void);
-int trial_register_special_move(int);
+void trial_mirror_anims_if_needed(void);
 void trial_restart_round(void);
-int trial_set_next_setup_function(int);
-int trial_set_num_rounds(int);
-int trial_set_round_timer(int);
-int trial_set_special_restrictions(int);
-int trial_set_tick_function(int);
-int trial_set_type(int);
+void trial_set_next_setup_function(int setup_function);
+void trial_set_num_rounds(int rounds);
+void trial_set_round_timer(int ticks);
+void trial_set_special_restrictions(unsigned int restrictions);
+void trial_set_tick_function(unsigned int script_enabled);
+void trial_set_type(int type);
 void trial_setup_nis_scene(int);
-int trial_show_monk(int);
-int turn_into_energy_player(void);
-int turn_me_pi(void);
+void trial_show_monk(int show);
+void turn_into_energy_player(void);
+void turn_me_pi(void);
 void turn_to_face_exterior_door(void);
-int turn_to_face_interior_door(void);
-int unfreeze_player(void);
-void update_my_last_switch(void);
-int wait_for_slot_load(int);
-int wait_to_land(void);
-int wall_eligible_off(void);
-int wall_eligible_on(void);
-int weapon_trail_off(void);
-int weapon_trail_on(void);
+void turn_to_face_interior_door(void);
+void unfreeze_player(void);
+void wait_to_land(void);
+void wall_eligible_off(void);
+void wall_eligible_on(void);
+void weapon_trail_off(void);
+void weapon_trail_on(void);
 void whoosh_fx(int);
 
-int add_days_to_time(int, int);
-int add_hours_to_time(int, int);
-int add_months_to_time(int, int);
-int add_to_konq_profile_value(int, int);
-int add_years_to_time(int, int);
-int adjust_his_damage_multiplier(void *, float);
-int adjust_my_damage_multiplier(void *, float);
-int air_collision_pause(int, void *, float, float);
+void adjust_his_damage_multiplier(float multiplier);
+void adjust_my_damage_multiplier(float multiplier);
+void air_collision_pause( int pause_ticks, float target_frame, float gravity);
 void ani_loop_more_frames(float);
-int ani_to_frame_x_aniproc(void *, float);
-void assign_obj_to_trigger(int, KonquestTriggerDefinition*);
+void ani_to_frame_x_aniproc(float frame);
+void assign_obj_to_trigger(int object_uid, struct KonquestTriggerDefinition* definition);
 void bgnd_add_scripted_brains_to_npc(unsigned int, unsigned int);
 void bgnd_apply_active_sobj_pos_vel_drag(void *, float, float, float);
 void bgnd_apply_zoffset(unsigned int, void *, float);
-int bgnd_attach_rope_to_bgnd_obj(int, int, int);
+void bgnd_attach_rope_to_bgnd_obj(int rope_model_index, int target_model_index, int object_id);
 void bgnd_collision_if_disable_col(int, unsigned int);
 void bgnd_collision_if_enable_col(int, unsigned int);
 void bgnd_collision_if_monitor_col_as(int, unsigned int, unsigned int, int);
@@ -1687,10 +1606,10 @@ void bgnd_enable_obj_pos_and_ang_setting(
     MkObj* object, Vec* position, Vec* angles);
 void bgnd_force_ground_to(void *, float);
 void bgnd_force_plyr_ground_plane(unsigned int, void *, float);
-int bgnd_insert_obj_ctrl_section(int, int);
-int bgnd_jtb_debug_info(void *, float, float, float);
+void bgnd_insert_obj_ctrl_section(int object_id, int section);
+void bgnd_jtb_debug_info(float arg0, float arg1, float arg2);
 void bgnd_launch_plyr_blood_fx(int, int);
-int bgnd_make_displayed_item_pickupable_at_active_sobj_pos(int);
+void bgnd_make_displayed_item_pickupable_at_active_sobj_pos(int item_id);
 void bgnd_move_player(unsigned int, int, int);
 void bgnd_npc_adjust_y_ang(unsigned int, float);
 void bgnd_npc_get_pos(unsigned int, Vec*);
@@ -1704,7 +1623,7 @@ void bgnd_npc_set_scale(unsigned int, float, float, float);
 void bgnd_npc_set_y_ang(unsigned int, float);
 void bgnd_npc_start_ani(
     unsigned int, unsigned int, unsigned int, float, float);
-int bgnd_obj_insert_obj_ctrl_section(int, int);
+void bgnd_obj_insert_obj_ctrl_section(int model_index, int section);
 void bgnd_pebble_burst_at_chunk_pos(int, int, int);
 void bgnd_pebble_burst_at_pebble_pos(int, int, int);
 void bgnd_pebble_burst_at_pos(int, int, int, void *, float, float, float);
@@ -1716,8 +1635,8 @@ void bgnd_pebble_burst_set_value_min_max(int, unsigned int, unsigned int, int,
 void bgnd_pebble_change_current_end_behavior(int);
 void bgnd_pebble_rand_scale(int, void *, float, float);
 void bgnd_pebble_simple_launch_at_time(int, int, unsigned int, int);
-int bgnd_place_crack_when_plyr_hits_ground(int);
-void bgnd_place_object_at_position(int, int, int, int, int);
+void bgnd_place_crack_when_plyr_hits_ground(unsigned int player_index);
+void bgnd_place_object_at_position(int object_id, int sobj_id, Vec* position, Vec* angles, int flags);
 void bgnd_register_danger_zone_callback(PlyrPdata*, int);
 void bgnd_rotate_sobj(unsigned int, void*, float, float, float);
 void bgnd_rotate_xz_about_orgin_active_sobj(float);
@@ -1766,158 +1685,122 @@ void bgnd_start_preload_sobj_uv_scroll(
 void bgnd_start_script_in_proc_bigstack(
     int process_id, unsigned int script_index);
 void bgnd_start_timer(unsigned int, int, int);
-int close_exterior_doors(int, int);
-int cloth_change_ground_plane_for(void *, float);
-int damage_player(int, void *, float);
-int delete_obstacle_from_background_by_id(int);
+void close_exterior_doors(int building_id, int door_bits);
+void damage_player(PlyrPdata* source, float amount);
+void delete_obstacle_from_background_by_id(int obstacle_id);
 void disable_konquest_object_zwrite_by_uid(int);
-int dk_voice_call(int, int);
-int drone_apply_damage(int, void *, float);
-int drone_change_to_style(int, int);
-int drone_do_special_move(int, int);
+void dk_voice_call(int voice_group, unsigned int cooldown_ticks);
+void drone_apply_damage(int player, float damage);
+void drone_change_to_style(int player, int style);
+void drone_do_special_move(int player, int script_function);
 void drone_lip_synch(int, LipSyncKeyframe*);
-int drone_set_anim_step(void *, float);
-int drone_set_damage_multiplier(int, void *, float);
-int drone_set_handicap(int, void *, float);
-int drone_set_health(int, void *, float);
+void drone_set_anim_step(float step);
+void drone_set_damage_multiplier(int player, float multiplier);
+void drone_set_handicap(int player, float handicap);
+void drone_set_health(int player, float health);
 void drone_set_position(int, float, float, float);
 void drone_set_script(int, int);
-int drone_set_special_directions(int, int);
-int drone_set_switch_state(int, int);
-int drone_start_bleeding(int, void *, float);
+void drone_set_special_directions(int unused, int flags);
+void drone_set_switch_state(int player, unsigned int switch_state);
+void drone_start_bleeding(int player, float rate);
 void enable_attached_sound_by_uid(int, int);
-int face_ang_from_pos_to_him(int, int, int);
-int face_point(void *, float, float, float);
-int fade_from_black(int, int);
-int fade_from_white(int, int);
-int fade_to_black(int, int);
-int fade_to_white(int, int);
-int fight_fx_im_hit_flash(int, int, int, int, void *, float);
-int flash_hit_at_bid_with_y(int, void *, float);
-int give_koin_award(int, int);
+void face_ang_from_pos_to_him(MkObj* opponent, Vec* position, Vec* angle);
+void face_point(float x, float y, float z);
+void fade_from_black(int frames, int flag);
+void fade_from_white(int frames, int flag);
+void fade_to_black(int frames, int flag);
+void fade_to_white(int frames, int flag);
+void fight_fx_im_hit_flash(int player, MkObj* object, int bone, int use_bone, void* script_args, float y_offset);
+void flash_hit_at_bid_with_y(int bone, float y_offset);
+void give_koin_award(int amount, int type);
 void give_krypt_key_to_player(KonquestPuiDefinition*, int);
-int hf_bgnd_set_in_setup_zone(int, int);
-int hf_bgnd_set_smasher_mode(int, int);
-int hit_START_chores(int, int, void *, float, float);
-int if_collision_slow_ani_x(void *, float, float);
-int jab_attach_drink_obj_to_hand(int, int, int);
-int jab_flash_screen(int, void *, float, float);
-int jab_shake_dragon_king(void *, float, float);
-int jab_start_jade_boomerang_throw(int, int, void *, float);
-int konquest_fade_from_black(int, int);
-int konquest_fade_to_black(int, int);
+void hf_bgnd_set_in_setup_zone(int* ptr, int value);
+void hf_bgnd_set_smasher_mode(int* ptr, int value);
+void hit_START_chores( int first_sound, int second_sound, float shake_ticks, float shake_strength);
+void if_collision_slow_ani_x(float speed, float frame);
+void jab_attach_drink_obj_to_hand(MkObj* drink, float* offset, const Vec* angles);
+void jab_flash_screen(int color, float intensity, float duration);
+void jab_shake_dragon_king(float distance, float speed);
+void jab_start_jade_boomerang_throw( struct JabObjectRef* proc_ref, struct JabObjectRef* boomerang_ref, float unused_parameter);
+void konquest_fade_from_black(int ticks, int event);
+void konquest_fade_to_black(int ticks, int event);
 void konquest_open_door(int, int);
-int konquest_run_camera_script(int, int);
+void konquest_run_camera_script(void* script, int flags);
 void konquest_teleport_hero_to_location(Vec*);
 void konquest_transition_object_to_state(int, int, int);
-int land_chores(int, int, void *, float, float);
+void land_chores( int land_sound, int second_sound, float shake_ticks, float shake_strength);
 void launch_me_up(float, float);
-int load_script_as_reaction(int, int);
-int mk_chess_add_movement_skill(int, int, int, int);
-int mk_chess_ani_loop_more_frames(void *, float);
-int mk_chess_ani_to_blend_frame(void *, float);
-int mk_chess_ani_to_frame_x(void *, float);
+void load_script_as_reaction(unsigned int slot, int script);
+void mk_chess_ani_loop_more_frames(float frames);
+void mk_chess_ani_to_blend_frame(float blend_frames);
+void mk_chess_ani_to_frame_x(float target);
 void mk_chess_blend_into_cell_orgin_in_x_frames(float);
-int mk_chess_blend_to_ani(int, int, void *, float, float);
-int mk_chess_blend_to_ani_frame(int, int, void *, float, float, float);
-int mk_chess_blend_to_desired_cell_position_setting(void *, float);
-void mk_chess_blend_to_my_cell_pos(float);
-int mk_chess_define_class_initial_power(void *, float);
-int mk_chess_glitch_to_ani_frame(int, int, void *, float, float);
-int mk_chess_init_piece(int, int);
+void mk_chess_init_piece(int slot, int character);
 void mk_chess_launch_special_fx(unsigned int, unsigned int, unsigned int);
-int mk_chess_launch_up(void *, float, float);
-int mk_chess_queue_up_piece_event(int, int);
-int mk_chess_set_ani_speed(void *, float);
-int mk_chess_set_cell_offset(void *, float, float, float);
-int mk_chess_set_normal_stance_script(int);
-int mk_chess_set_obj_move_weight(void *, float);
-int mk_chess_set_piece_event_script(int, int);
-int mk_chess_set_piece_info(int, void *, float);
+void mk_chess_launch_up(float vertical_speed, float gravity);
 void mk_chess_set_piece_type_as(int, int);
 void mk_chess_shifter_switch(int, int, float, float);
-void mk_chess_snap_into_cell_orgin_over_x_frames(float);
-int mk_chess_spell_move_target_from_temp_area_to(int);
-int mk_chess_spell_move_target_to_target(int, int);
-int mk_chess_spell_move_target_to_temp_area(int);
-void mk_chess_spell_set_target_health(unsigned int target, float health);
-int mk_chess_spell_show_target_portrait(int);
-int mk_chess_spell_target_add_access_restrictions(int, int, int, int);
-int mks_away_vel_update_by_group(int, int, void *, float, float, float);
-int mks_bgnd_obj_enable_cloth_update(int, int);
-int mks_blend_start_update_by_group(int, int);
-int mks_cb1_add_coll_pt(void *, float, float, float);
-int mks_cb1_set_coll_offset(void *, float, float, float);
-int mks_cb1_set_coll_offset_xz(void *, float, float);
-int mks_cb1_set_ground_y(void *, float);
-int mks_cb1_set_scale(int, void *, float, float, float);
-int mks_cc1_eq_insert_cloth_coll(int, void *, float);
-int mks_cc1_expand_cyl(void *, float, float);
+void mks_away_vel_update_by_group(int group_id, int blend_ticks, float speed, float speed_param, float random_range);
+void mks_blend_start_update_by_group(int group_id, int blend_ticks);
+void mks_cb1_set_scale( int include_children, float scale_x, float scale_y, float scale_z);
+void mks_cc1_eq_insert_cloth_coll(int bone_index, float radius);
+void mks_cc1_expand_cyl(float top, float bottom);
 void mks_ccp1_eq_insert_cloth_coll_plane(int, float, float, float, float);
 typedef struct ClothInitEntry ClothInitEntry;
-void mks_cloth_bones_init_by_tbl(ClothInitEntry*, int);
-int mks_debug_display_cloth_coll_cyl(int, int, int);
-int mks_debug_display_cloth_coll_plane(void *, float);
-int mks_gravity_update_by_group(int, int, void *, float, float, float, float);
+void mks_gravity_update_by_group(int group_id, int blend_ticks, float velocity_x, float velocity_y, float velocity_z, float gravity);
 void mks_insert_cloth_force_bones(float, float);
-void mks_mat_id_set_zbias(int, float);
-int mks_npc_cb1_eq_cloth_bone(int, int);
-int mks_npc_cc1_eq_insert_cloth_coll(int, int, void *, float);
-int mks_npc_cloth_bones_init_by_tbl(int, int, int);
-int mks_npc_disable_ground_y_all_cloth_bones(int);
-int mks_npc_set_ground_y_all_cloth_bones(int, void *, float);
-int mks_npc_set_target(int, int, int);
-int mks_obj_enable_update_cloth(int, int);
-int mks_removehide_by_group(int, int);
-int mks_set_ground_y_all_cloth_bones(void *, float);
-int mks_set_update_delay(int, int);
-int mks_shadow_scale(int, int, void *, float, float);
-int mks_start_axis_indicator_p_axis_track_bone_world_mat(int, void *, float);
+void mks_npc_cc1_eq_insert_cloth_coll( int model_index, int bone_index, float radius);
+void mks_npc_set_target(int model_index, int source_bone_id, int target_bone_id);
+void mks_obj_enable_update_cloth(MkObj* obj, int enabled);
+void mks_removehide_by_group(int group_id, int remove_hide);
+void mks_set_update_delay(int ticks, int random_ticks);
+void mks_shadow_scale(int group_id, int blend_ticks, float start_scale, float end_scale);
+void mks_start_axis_indicator_p_axis_track_bone_world_mat( int bone_tag, float scale);
 void mks_victim_bleed(int, int);
-int myvel_his_angle_y(void *, float, float, float);
-int myvel_my_angle_y(void *, float, float, float);
+void myvel_his_angle_y( float angle_offset, float x_velocity, float z_velocity);
+void myvel_my_angle_y( float angle_offset, float x_velocity, float z_velocity);
 void nb_npc_slave_plyr_process_collision(unsigned int);
-int nbc_script_debug_point(int, int, void *, float);
-void ncs_set_pebble_pos(struct PebbleData*, int, Vec*);
-int npc_ani_to_blend_frame(void *, float);
+void nbc_script_debug_point(int arg0, int arg1, float arg2);
+void ncs_set_pebble_pos(PebbleData* data, int index, Vec* position);
+void npc_ani_to_blend_frame(float blend_frames);
 void npc_assign_door_path(long, int);
-int npc_assign_path(int, int, int);
-int npc_assign_path_to_him(int, int, int, int);
-int npc_at_waypoint_set_flags(int, int);
-int npc_attack(int, int);
-int npc_blend_to_ani(int, int, void *, float, float);
-int npc_blend_to_ani_with_offset(int, int, void *, float, float);
+void npc_assign_path(void* path, int flags, int travel_mode);
+void npc_assign_path_to_him(KonquestNpcData* data, void* path, int flags, int travel_mode);
+void npc_at_waypoint_set_flags(int flags, int enabled);
+void npc_attack(int attack_arg_a, int attack_arg_b);
+void npc_blend_to_ani( int animation_id, unsigned int flags, float blend, float speed);
+void npc_blend_to_ani_with_offset( int animation_id, int flags, float blend, float step);
 void npc_change_path_speed(float);
-int npc_enable_event(int, int);
-int npc_enable_his_event(int, int, int);
-int npc_glitch_him_to_ani(int, int, int);
-int npc_glitch_to_ani(int, int);
-int npc_ignore_his_events(int, int);
-int npc_lip_synch(int, int);
-int npc_play_conversation_part(int, int, int);
-int npc_play_dialog_and_anim_sequence(int, int);
-int npc_play_two_player_one_shot_anims(int, int);
-int npc_run_punch_animation(int, int, int, int, void *, float);
-int npc_set_flags(int, int);
-int npc_set_his_ang_y(int, void *, float);
-int npc_set_his_conversation_counter(int, int);
-int npc_set_his_flags(int, int, int);
-int npc_set_his_punch_counter(int, int);
-int npc_set_his_world_pos(int, void *, float, float, float);
-int npc_set_my_ground_level(void *, float);
-int npc_set_my_movement_weight(void *, float, float);
-int npc_set_my_pos(void *, float, float, float);
-int npc_set_my_world_pos(void *, float, float, float);
+void npc_enable_event(int event_index, int enabled);
+void npc_enable_his_event(KonquestNpcData* data, int event_index, int enabled);
+void npc_glitch_him_to_ani(KonquestNpcData* data, int animation_id, int flags);
+void npc_glitch_to_ani(int animation_id, int flags);
+void npc_ignore_his_events(KonquestNpcData* data, int enabled);
+void npc_lip_synch(int sound_id, LipSyncKeyframe* keyframes);
+void npc_play_conversation_part(int dialog_id, int animation_id, int conversation_mode);
+void npc_play_dialog_and_anim_sequence(int dialog_id, int animation_id);
+void npc_play_two_player_one_shot_anims(int npc_animation_id, int monk_animation_id);
+void npc_run_punch_animation(int animation_id, int flags, int unused, int use_blend, void* script_args, float gravity);
+void npc_set_flags(int flags, int enabled);
+void npc_set_his_ang_y(KonquestNpcData* data, float angle);
+void npc_set_his_conversation_counter(KonquestNpcData* data, int count);
+void npc_set_his_flags(KonquestNpcData* data, int flags, int enabled);
+void npc_set_his_punch_counter(KonquestNpcData* data, int count);
+void npc_set_his_world_pos( KonquestNpcData* data, float x, float y, float z);
+void npc_set_my_ground_level(float ground_level);
+void npc_set_my_movement_weight(float root_weight, float object_weight);
+void npc_set_my_pos(float x, float y, float z);
+void npc_set_my_world_pos(float x, float y, float z);
 void npc_set_random_dialog_and_anim_sequence(int, int);
-int npc_set_wake_up_time(int, int);
-void npc_start_fx_at_his_position(void*, const char*, const Vec*);
+void npc_set_wake_up_time(int unit, int amount);
+void npc_start_fx_at_his_position(KonquestNpcData* data, const char* effect_name, const Vec* offset);
 void npc_start_fx_at_position(const char*, const Vec*);
-int npc_take_control_of_him(int, int);
+void npc_take_control_of_him(KonquestNpcData* data, unsigned int script_function);
 void npc_travel_path(int, int, int);
-int npc_travel_path_anim_override(int, int, int, int);
-int npc_travel_to_world_position(int, int);
-int obj_get_scale(int, int);
-void obj_set_flipped_bones(MkObj* object, struct MkFlippedBoneMap* bone_map);
+void npc_travel_path_anim_override(int path_id, int path_arg, int animation, int travel_mode);
+void npc_travel_to_world_position(Vec* position, int travel_mode);
+void obj_get_scale(MkObj* obj, Vec* out);
+void obj_set_flipped_bones(MkObj* obj, MkFlippedBoneMap* bone_map);
 void obj_set_scale(MkObj*, void*);
 int obj_set_z_offsets(int, void *, float);
 void obj_sobj_cam_frustum_test_into_transparent(
@@ -1925,74 +1808,65 @@ void obj_sobj_cam_frustum_test_into_transparent(
 void open_chest_and_give_item_to_player(
     KonquestPuiDefinition*, KonquestPuiDefinition*);
 void open_chest_and_unlock_kontent(KonquestPuiDefinition*, int);
-int pan_vol_pitch_snd_req(int, void *, float, float, float);
-int play_sound_2(int, int);
+MslSoundHandle pan_vol_pitch_snd_req( int sound_id, float pan, float volume, float pitch);
+void play_sound_2(int first_sound, int second_sound);
 void player_impale(MkObj* weapon, MkObj* second_weapon);
-int player_remove_item_from_inventory(int);
-int plyr_scale_pos_vel(void *, float, float, float);
-int plyr_set_vel_xz_y(void *, float, float);
-int plyr_start_script_in_plyr_pdata_proc(int, int, int);
-int plyr_start_script_in_proc(int, int);
-int plyr_weapon_grab(int, int);
+void player_remove_item_from_inventory(void* item);
+void plyr_scale_pos_vel(float x_scale, float y_scale, float z_scale);
+void plyr_set_vel_xz_y(float xz_velocity, float y_velocity);
+void plyr_start_script_in_plyr_pdata_proc(FighterMirror* fighter, int proc_id, unsigned int function);
+void plyr_start_script_in_proc(int proc_id, unsigned int function);
+void plyr_weapon_grab(PlyrPdata* player, MkObj* item);
 void pui_delay_spawn(KonquestPuiDefinition*, float);
 void pui_set_color(
     unsigned int, unsigned char, unsigned char, unsigned char, unsigned char);
 void pui_set_kill_time(KonquestPuiDefinition*, int, int);
-int pz_fighter_check_to_toggle_obj_and_ani_flips(int);
-int pz_fighter_force_reaction_in_ticks(int, int);
-int pz_fighter_register_move(int, int, int, int, int);
-int random_hit_n_voice(int, int);
-int random_snd_req_delay(int, int);
-int rd_set_impact_vector(void *, float);
-int release_kamidogu(int, int);
+void pz_fighter_check_to_toggle_obj_and_ani_flips(unsigned int expected_player);
+void pz_fighter_force_reaction_in_ticks(int reaction, int ticks);
+void pz_fighter_register_move(int move, int table, int parameter1, int parameter2, int character);
+void random_hit_n_voice(int hit_group, int voice_group);
+void random_snd_req_delay(int group, int delay);
+void rd_set_impact_vector(float scale);
 void remove_collision_volume_on_object_with_uid(int);
 void restore_collision_volume_on_object_with_uid(int);
 void resume_effect_at_obj_bid(MkObj*, int, unsigned int, int, int);
-int run_camera_script(int, int, int);
-int save_hero_position_and_angle_prior_to_fight(void *, float);
-int set_ani_speed_miss_hit(void *, float, float);
-int set_hero_punched_ground_collisions(int);
-int set_his_damage_multiplier(void *, float);
-int set_konq_profile_value(int, int, int);
+void run_camera_script(int script, int argument, int flags);
+void save_hero_position_and_angle_prior_to_fight(float angle_offset);
+void set_ani_speed_miss_hit(float miss_speed, float hit_speed);
+void set_hero_punched_ground_collisions(int punched);
+void set_his_damage_multiplier(float multiplier);
 void set_konquest_object_face_y_by_uid(int);
 void set_konquest_object_render_order_priority_by_uid(int, int);
-int set_konquest_weather(int, int, int);
-int set_krypt_character_angle(void *, float);
-int set_krypt_character_anim_script(int, int, void *, float);
-int set_krypt_character_previous_root_angle(void *, float);
+void set_konquest_weather(int type, int param_a, int param_b);
 void set_monk_position(float, float, float, float);
-int set_my_damage_multiplier(void *, float);
-void set_pui_status(struct PuiItem*, int);
-int set_snd_vol(int, int, void *, float);
-int set_tile_grid_size(int, int);
+void set_my_damage_multiplier(float multiplier);
+void set_tile_grid_size(int width, int height);
 void set_tile_visibility(int, int);
-int share_my_attack_info(void *, float, float);
 void slow_ani_x(float, float);
-int slow_ani_x_if_miss(void *, float, float, float);
-int snd_req_delay(int, int);
-int sobj_set_alpha(int, int);
+void slow_ani_x_if_miss( float miss_speed, float hit_speed, float frame);
+void snd_req_delay(int sound_id, int delay);
+void sobj_set_alpha(void* sobj, int alpha);
 void spad_add_vector(int, void *, float, float, float);
 void spad_rotate_xz_vector(int, void *, float);
 void spad_scale_vector(int, unsigned int, void *, float);
-int spad_set_vector(int, int);
-int spad_sub_vectors(int, int, int);
+void spad_set_vector(int index, unsigned int source);
+void spad_sub_vectors(int destination, int first, int second);
 void start_character_separation_process(float);
-int start_cliff_watcher(void *, float);
-int start_scorpion_teleport_scale(void *, float, float);
+void start_cliff_watcher(float wait_ticks);
+void start_scorpion_teleport_scale(void*, float scale_rate, float hold_ticks);
 void start_subzero_decoy(void*, float);
-int transition_to_krypt_character_anim_script(int, int, int);
-int trial_add_success_condition(int, int, int);
-int trial_set_combo_requirement(int, void *, float);
-int trial_set_ending_functions(int, int);
+void trial_add_success_condition(int index, int value, int required_count);
+void trial_set_combo_requirement(int hits, float damage);
+void trial_set_ending_functions(int winner_function, int loser_function);
 void trial_set_next_mission(int, int, int, int, int, int, int, int);
-int trial_set_round_health_restoration(void *, float);
+void trial_set_round_health_restoration(float restoration);
 void trial_start_countdown(int, float, float);
 void trial_state_collision_check(int, int);
-void trigger_set_time_for_enable(KonquestTriggerDefinition*, int, int, int);
-void uv_my_angle_y(void* direction, float angle_offset);
+void trigger_set_time_for_enable(struct KonquestTriggerDefinition* definition, int unit, int amount, int action);
+void uv_my_angle_y(Vec* direction, float angle_offset);
 void xfer_player_proc_to_script(MkObj*, int);
 
-int plyr_invulnerable_to_projectiles(int, int);
+void plyr_invulnerable_to_projectiles(PlyrPdata* pdata, int enabled);
 
 int advance_my_sidekick_from_behind_with_moveset(void);
 int am_i_airborn_check_in_reaction(void);
@@ -2006,29 +1880,27 @@ float bgnd_get_sobj_ang_y(int);
 int bgnd_is_active_sobj_hidden(void);
 void bgnd_kill_fx(const char*);
 int bgnd_launch_plyr_up_and_forward_running(void);
-float bgnd_npc_get_ang_y(int);
+float bgnd_npc_get_ang_y(unsigned int npc_id);
 float bgnd_pebble_fetch_current_info(unsigned int);
 float bgnd_sobj_get_x_pos(int);
 float bgnd_sobj_get_y_pos(int);
 float bgnd_sobj_get_z_pos(int);
 int bgnd_timer_get_tick_count(int);
 int can_fallingcliff_fall(void);
-int current_player_is_drone(void);
 float degrees_to_rad(void *, float);
 int do_i_have_life_left(void);
 int drone_ai_should_ermac_fly_kick(void);
 int drone_ai_should_ermac_ground_slam(void);
 int float_to_int(void *, float);
-float frand(void *, float);
-int get_active_npc_data(void);
+float frand(float max);
+KonquestNpcData* get_active_npc_data(void);
 int get_building_id_for_exterior(void);
-int get_cliff_data(void);
+struct BgndDamageState* get_cliff_data(void);
 int get_cliff_watcher_round(void);
 int get_collision_result(void);
-int get_current_bgnd(void);
 int get_doors_for_exterior(void);
 int get_exec_tick_ctr(void);
-void* get_general_pebble_data(struct PebbleData* pebble_data);
+void* get_general_pebble_data(PebbleData* pebble_data);
 int get_hero_state(void);
 int get_his_previous_state(void);
 int get_his_secondary_state(void);
@@ -2038,100 +1910,76 @@ float get_ir_cam_ang_z(int);
 float get_ir_cam_pos_x(int);
 float get_ir_cam_pos_y(int);
 float get_ir_cam_pos_z(int);
-int get_kombat_difficulty(void);
-int get_krypt_anim_pdata(void);
-int get_krypt_character_obj(void);
-int get_krypt_current_column(void);
-int get_krypt_current_row(void);
-int get_last_character_trained_with(void);
 int get_mode_of_play(void);
 int get_monk_age(void);
 MkObj* get_pickup_object(void);
 int get_previous_konquest_region_number(void);
-int get_pui_status(struct PuiItem*);
 int get_taunts_performed(void);
 MkSobj* get_tile_sobj_by_id(int);
 int get_victory_flip_flags(void);
 float int_to_float(int);
-int is_big_boss(int);
+int is_big_boss(PlyrPdata* fighter);
 int is_blood_disabled(void);
 int is_drone(void);
 int is_he_airborn(void);
 int is_he_blocking(void);
-int is_load_meter_active(void);
-int is_local_plyr(void);
 int is_mini_mission_active(int);
 int is_mini_mission_completed(int);
 int is_mini_mission_started(int);
 int is_reaction_xfer_him_allowed(void);
 float jump_towards_opponent_bgnd_transition(void);
 int konquest_passed_last_mission(void);
-MkObj* load_krypt_character(char* character_name);
 int local_collision_allowed_plyr_pdata(void);
 int mk_chess_active_piece_near_edge(void);
-int mk_chess_check_glitch_into_stance(void);
-int mk_chess_check_snap_into_stance(void);
-int mk_chess_fetch_active_defined_team(void);
 float mk_chess_get_piece_event_data(int);
-float mk_chess_get_piece_info(int);
-float mk_chess_spell_get_target_health(int);
-float mk_chess_spell_get_target_max_health(int);
-int mk_chess_spell_is_this_a_forced_fight(void);
 float mks_get_victim_to_tr_dot(int);
 int noobsmoke_fire_projectile_request(void);
 int npc_get_collision_direction_in_script(void);
 int npc_get_conversation_count(void);
 int npc_get_flag_state(int);
-int npc_get_obj(int);
+MkObj* npc_get_obj(KonquestNpcData* data);
 int npc_get_punch_count(void);
 int npc_punch_reaction_check_data(void);
-int player_has_item(int);
+int player_has_item(void* item);
 float plyr_get_anim_frame(void);
 float plyr_get_anim_hiframe(void);
-int plyr_get_f_constrained(int);
-float plyr_get_pos(int);
-int plyr_snd_req(int);
+int plyr_get_f_constrained(PlyrPdata* pdata);
+float plyr_get_pos(unsigned int axis);
+MslSoundHandle plyr_snd_req(int sound_offset);
 float pz_fighter_fetch_distance_to_center_pos(void);
 int pz_finish_him_request(void);
 float rad_to_degrees(void *, float);
-int random_foot(int);
-int random_hit(int);
-int random_snd_req(int);
-int random_voice(int);
-int refresh_rate(void);
+MslSoundHandle random_foot(int group);
+MslSoundHandle random_hit(int group);
+MslSoundHandle random_voice(int group);
 int restart_effect(void);
-float sfrand(void *, float);
-int snd_req(int);
+float sfrand(float max);
 float spad_xz_length_vector(int);
-int spawn_dynamic_pui(int);
-int spawn_dynamic_pui_critical(int);
+int spawn_dynamic_pui(KonquestPuiDefinition* item);
+int spawn_dynamic_pui_critical(KonquestPuiDefinition* item);
 float throw_spear(void);
 int trial_get_background_root(void);
-int trial_invisible_callback(int);
+int trial_invisible_callback(PlyrPdata* player);
 
 float bgnd_blood_control(int, int, void *, float);
 int bgnd_create_pebbles_with_sobj(int, int, int, int);
-float bgnd_get_anim_info(int, int, void *, float);
+float bgnd_get_anim_info(int arg, int arg1, float arg2);
 int bgnd_npc_get_aux_int_data(unsigned int, unsigned int);
-float bgnd_process_collision_info(int, void *, float, float, float, float, float, float, float, float);
-int fire_spear_at_camera(int, int);
-int get_konq_profile_value(int, int);
+float bgnd_process_collision_info( unsigned int operation, float value1, float value2, float value3, float value4, float value5, float value6, float value7, float value8);
+MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks);
 int is_character_unlocked_in_profile(int, int);
-int jab_attach_point_light_to_obj_bone(int, int, int);
+MkObj* jab_attach_point_light_to_obj_bone(LightDef* definition, MkObj* object, int bone);
 MkObj* konquest_start_damashi(void*, float, float, float);
-int launch_fx_at_pos_with_obj(int, void *, float, float, float);
-int mk_chess_fetch_active_defined_teams_class(int);
-int mk_chess_fetch_bp_num_based_on_pchr_num(int);
-int mk_chess_piece_test_and_set_timer(int, int);
-int mk_chess_request_piece_script_for_action(int);
+MkObj* launch_fx_at_pos_with_obj( unsigned int effect, float x, float y, float z);
+int mk_chess_fetch_bp_num_based_on_pchr_num(unsigned int character_number);
+int mk_chess_piece_test_and_set_timer(unsigned int timer_slot, unsigned int duration);
+unsigned int mk_chess_request_piece_script_for_action(int action);
 int mk_chess_xfer_piece_from_scripts(int, int, int);
 int ncs_create_pebble_monitor_proc(int, int, int, int);
-int ncs_create_pebbles_with_sobj(int, int);
-int npc_get_his_flag_state(int, int);
+PebbleData* ncs_create_pebbles_with_sobj(MkSobj* object, unsigned int count);
+int npc_get_his_flag_state(KonquestNpcData* data, int flags);
 MslSoundHandle pan_vol_pitch_random_hit(int, float, float, float);
-int pan_vol_pitch_random_snd_req(int, void *, float, float, float);
-int pan_vol_snd_req(int, void *, float, float);
-int snd_req_vol(int, void *, float);
+MslSoundHandle pan_vol_snd_req(int sound_id, float pan, float volume);
 float spad_get_pos(int, unsigned int);
 float spad_xz_cos_two_vectors(int, int);
 float spad_xz_dot_xz(int, int);
@@ -2143,11 +1991,8 @@ int ani_col_abort(float, int, float, float, int, float, int);
 void ani_to_fall_to_frame(
     float landing_frame, int sound_id, float target_frame);
 void ani_to_frame_sound(float target_frame, float sound_frame, int sound_id);
-int ani_to_frame_x_col(float, int, float, float, int, float, int);
-AnimPdata* animate_obj(
-    MkObj* object, AnimScript* script, const int* bone_tags,
-    struct MkFlippedBoneMap* flipped_bones, void* ground_collisions,
-    float playback_rate, int active);
+float ani_to_frame_x_col(float target_frame, int attack_region, float horizontal_scale, float vertical_scale, int reaction, float reaction_rate, int strength);
+AnimPdata* animate_obj(MkObj* object, AnimScript* script, const int* bone_tags, MkFlippedBoneMap* flipped_bones, void* ground_collisions, float playback_rate, int active);
 void attach_sound_to_object_by_uid(int, int, float, float, int, int);
 void attach_wiff_to_konquest_object_by_uid(int, char*, float);
 void bgnd_create_danger_zone(int, unsigned int, unsigned int,
@@ -2184,27 +2029,25 @@ void force_away(float, int, float, int);
 void force_forward(float, int, float, int);
 void got_hit_fx(int, int, int, int, int, float, int);
 void konquest_use_portal(int, Vec*, float, float, float, int);
-int mk_chess_ani_until_reached_destination(float, float, float, float, float, int);
+void mk_chess_ani_until_reached_destination(float start_x, float start_y, float target_x, float target_y, float frames, int airborne);
 void mk_chess_force_away(float speed, int delay, float damping, int frames);
 void mk_chess_launch_n_land_ani_with_xz(
     int animation_id, float launch_frame, float initial_speed,
     float landing_frame, float vertical_speed, float gravity, float blend,
     float start_x, float start_y, float target_x, float target_y, int turn,
     unsigned int sound);
-int mk_chess_place_special_cell_at(int, int, int, float, float, float, float, int);
-void mk_chess_put_active_piece_at_cell(float x, float y, int snap);
+void mk_chess_place_special_cell_at(unsigned int x, unsigned int y, int type, float px, float py, float pz, float scale, int restored);
 void mk_chess_rotate_towards_cell(float x, float y, float step, int track_other, float offset);
 void mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(int, float, int, float, int, float, int, float);
 void mks_set_rotate_update_by_group(int, int, float, float, float, int);
-int mks_set_sin_update_by_group(int, int, int, float, float, float, float, float, float, int);
+void mks_set_sin_update_by_group(int group_id, int blend_ticks, int update_flags, float start_value, float end_value, float start_speed, float speed_param, float sin_rate, float sin_phase, int extra_flags);
 void obj_grnd_bounce(MkObj* object, const Vec* velocity, float gravity,
                      float ground_offset, int bounces, float restitution);
 void obj_match_obj_pos(
     MkObj* source, MkObj* destination, float blend, int snap);
 void parse_args(const char*, ...);
 typedef struct NcsLimbOwner NcsLimbOwner;
-MkProc* plyr_spawn_his_anim_limb(
-    NcsLimbOwner*, int, int, AniData*, int, MkProcEntryFn, float);
+MkProc* plyr_spawn_his_anim_limb(PlyrInfo* player, int limb, int include_children, AniData* animation_script, int transition, MkProcEntryFn entry, float animation_step);
 int player_area_collision_check(float, float, int, float, int);
 float pz_fighter_inline_force_away_with_ani(
     float, unsigned int, float, unsigned int);
@@ -2214,21 +2057,18 @@ void sidekick_switch_style_swap(float unread_arg, unsigned int count);
 int single_frame_collision_check(
     int region, float radius, float height, int reaction, int strength,
     float reaction_rate);
-int special_move_cam_him(float, float, float, float, float, int, int, int);
+void special_move_cam_him(float x, float y, float z, float distance, float speed, int mode, int ticks, int flags);
 void start_gore2_pebbles(
     unsigned int object_id, int bone, MkObj* source,
     FighterMirror* decal_owner, Vec* velocity,
     const Vec* rotation, Vec* scale,
     Vec* position_offset, float vertical_acceleration,
     float bounce_scale, int bounce_count);
-int transition_to_anim_script_frame(
-    AnimPdata*, AnimScript*, unsigned int, float, float);
 void trial_do_dialog(int, int, float, float, float, unsigned int, int);
 void trial_show_spoken_text_window(int, float, float, float, int, int, int, int, int);
 void trial_show_text_window(int, float, float, float, int, int);
 float two_player_animation_blend(AniData*, float, float, int, int);
 
-float p_animated_intro_done(void);
 
 void credits_add_text(const char* center_text, const char* right_text, int monochrome);
 void trial_set_move_message(const char* message, const char* parameter);
@@ -2243,16 +2083,13 @@ void lower_mines_ani_to_point(
     void* script, float start_frame, float animation_step, float end_frame,
     int landing_sound, float vertical_velocity, float gravity,
     float transition, Vec* target, unsigned int frame_offset);
-void newani_to_frame_x(void*, float, float, float, float, int);
-void pz_fighter_startup_attack(
-    void*, float, float, float, float, unsigned int, unsigned int,
-    int, unsigned int, float);
+void newani_to_frame_x(AniData* animation, float frame, float step, float weight, float blend, int flip_mode);
+void pz_fighter_startup_attack(AniData* animation, float frame1, float frame2, float frame3, float frame4, unsigned int field0C, unsigned int field10, int field14, unsigned int reaction_mode, float desired_distance);
 void two_player_animation(AniData* animation, float attacker_blend);
 float two_player_animation_flip(AniData* animation, float attacker_step);
 float two_player_animation_match_attacker(
     AniData* animation, float attacker_step);
 void* get_function_attributes_table(struct ScriptDistanceSlot*, int);
-void trial_register_script_function(unsigned int);
 
 static void _script_hang(void) {
 }
@@ -3525,7 +3362,7 @@ static void _load_and_set_refl_on_weapon(void) {
 }
 
 static void _advance_active_moveset(void) {
-    advance_active_moveset(((struct ScriptRawArgs*)current_args)->slots[0].i);
+    advance_active_moveset(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
 static void _get_active_moveset_from_pdata(void) {
@@ -4010,11 +3847,11 @@ static void _fx(void) {
 }
 
 static void _set_vertex_color(void) {
-    set_vertex_color(((struct ScriptRawArgs*)current_args)->slots[0].i);
+    set_vertex_color(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
 static void _set_light(void) {
-    set_light(((struct ScriptRawArgs*)current_args)->slots[0].i);
+    set_light(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
 static void _set_aspect_ratio(void) {
@@ -4070,7 +3907,7 @@ static void _bind_to_bone(void) {
 }
 
 static void _create_step_effect(void) {
-    create_step_effect(((struct ScriptRawArgs*)current_args)->slots[0].i);
+    create_step_effect(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
 static void _parametric_update(void) {
@@ -4548,7 +4385,7 @@ static void _animpdata_ani_to_frame_x_with_flag_check(void) {
 }
 
 static void _mkscripts_set_anim_check_flag(void) {
-    mkscripts_set_anim_check_flag(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
+    mkscripts_set_anim_check_flag(((struct ScriptRawArgs*)current_args)->slots[0].i,
                                   ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
@@ -4572,18 +4409,18 @@ static void _mkscripts_destroy_bonematcher(void) {
 
 static void _dkp_check_plyr_state_for_grab(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.i =
-        dkp_check_plyr_state_for_grab(((struct ScriptRawArgs*)current_args)->slots[0].i);
+        dkp_check_plyr_state_for_grab(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
 static void _start_prison_grab_proc(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
-        start_prison_grab_proc(((struct ScriptRawArgs*)current_args)->slots[0].i,
-                               ((struct ScriptRawArgs*)current_args)->slots[1].i,
+        start_prison_grab_proc(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
+                               ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                                ((struct ScriptRawArgs*)current_args)->slots[2].f,
                                ((struct ScriptRawArgs*)current_args)->slots[3].f);
 }
 
-static void _done_prison_grab_proc(void) { done_prison_grab_proc(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _done_prison_grab_proc(void) { done_prison_grab_proc(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
 static void _kill_spear(void) { kill_spear(); }
 
@@ -4605,12 +4442,12 @@ static void _get_spearobj_from_spearproc(void) {
 
 static void _fire_sc_spear(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
-        fire_sc_spear(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
+        fire_sc_spear(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                       ((struct ScriptRawArgs*)current_args)->slots[2].i, ((struct ScriptRawArgs*)current_args)->slots[3].i,
-                      ((struct ScriptRawArgs*)current_args)->slots[4].i, ((struct ScriptRawArgs*)current_args)->slots[5].i);
+                      ((struct ScriptRawArgs*)current_args)->slots[4].pointer, ((struct ScriptRawArgs*)current_args)->slots[5].i);
 }
 
-static void _subzero_start_ice_chunks(void) { subzero_start_ice_chunks(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _subzero_start_ice_chunks(void) { subzero_start_ice_chunks(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
 static void _subzero_start_iceman(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = subzero_start_iceman();
@@ -4667,20 +4504,20 @@ static void _fatality_boraicho_light_fart_torch(void) {
 
 static void _fatality_boraicho_get_torch(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
-        fatality_boraicho_get_torch(((struct ScriptRawArgs*)current_args)->slots[0].i,
-                                    ((struct ScriptRawArgs*)current_args)->slots[1].i);
+        fatality_boraicho_get_torch(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
+                                    ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
 static void _show_baraka_one_blade_only(void) {
-    show_baraka_one_blade_only(((struct ScriptRawArgs*)current_args)->slots[0].i,
+    show_baraka_one_blade_only(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                                ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
 static void _fatality_ashrah_get_doll(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
-        fatality_ashrah_get_doll(((struct ScriptRawArgs*)current_args)->slots[0].i,
-                                 ((struct ScriptRawArgs*)current_args)->slots[1].i,
-                                 ((struct ScriptRawArgs*)current_args)->slots[2].i);
+        fatality_ashrah_get_doll(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
+                                 ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
+                                 ((struct ScriptRawArgs*)current_args)->slots[2].pointer);
 }
 
 static void _fire_multi_emitter_pfx_via_tbl(void) {
@@ -4722,7 +4559,7 @@ static void _pfx_spawn_at_bid(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
     char* name = get_script_string_arg(1);
 
-    pfx_spawn_at_bid(name, args->slots[1].i, args->slots[2].i);
+    pfx_spawn_at_bid(name, args->slots[1].pointer, args->slots[2].i);
 }
 
 static void _limb_sever_throw_away(void) {
@@ -4807,17 +4644,17 @@ static void _load_cloth_boned_model(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
         load_cloth_boned_model(
             name, args->slots[1].i, args->slots[2].i,
-            args->slots[3].i, args->slots[4].i,
-            args->slots[5].i, args->slots[6].i);
+            args->slots[3].i, args->slots[4].pointer,
+            args->slots[5].pointer, args->slots[6].i);
 }
 
 static void _fatality_explode_victim(void) {
-    fatality_explode_victim(((struct ScriptRawArgs*)current_args)->slots[0].i,
+    fatality_explode_victim(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                             ((struct ScriptRawArgs*)current_args)->slots[1].f,
                             ((struct ScriptRawArgs*)current_args)->slots[2].f);
 }
 
-static void _kill_gusher(void) { kill_gusher(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _kill_gusher(void) { kill_gusher(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
 static void _start_sweat_particles_scripts(void) { start_sweat_particles_scripts(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i); }
 
@@ -4829,7 +4666,7 @@ static void _start_blood_particles_scripts(void) {
 
 static void _start_sweat_particles(void) {
     start_sweat_particles(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
-                          ((struct ScriptRawArgs*)current_args)->slots[2].i, ((struct ScriptRawArgs*)current_args)->slots[3].i);
+                          ((struct ScriptRawArgs*)current_args)->slots[2].pointer, ((struct ScriptRawArgs*)current_args)->slots[3].pointer);
 }
 
 static void _start_blood_particles(void) {
@@ -4839,12 +4676,12 @@ static void _start_blood_particles(void) {
 }
 
 static void _mks_spawn_blood_pool_at_bid(void) {
-    mks_spawn_blood_pool_at_bid(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
+    mks_spawn_blood_pool_at_bid(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].pointer,
                                 ((struct ScriptRawArgs*)current_args)->slots[2].i, ((struct ScriptRawArgs*)current_args)->slots[3].i);
 }
 
 static void _spawn_blood_pool_at_bid(void) {
-    spawn_blood_pool_at_bid(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
+    spawn_blood_pool_at_bid(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].i,
                             ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
@@ -4857,15 +4694,15 @@ static void _spawn_bld_splat(void) {
 
 static void _plyr_weapon2_release(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
-        plyr_weapon2_release(((struct ScriptRawArgs*)current_args)->slots[0].i);
+        plyr_weapon2_release(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
 static void _plyr_weapon_release(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
-        plyr_weapon_release(((struct ScriptRawArgs*)current_args)->slots[0].i);
+        plyr_weapon_release(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
-static void _bone_matcher_reset_dest_mat_rot(void) { bone_matcher_reset_dest_mat_rot(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i); }
+static void _bone_matcher_reset_dest_mat_rot(void) { bone_matcher_reset_dest_mat_rot(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].i); }
 
 static void _bone_matcher_set_ang_pos(void) {
     bone_matcher_set_ang_pos(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
@@ -4893,7 +4730,7 @@ static void _weapon_reflection_show_hide(void) {
 
 static void _show_single_weapon(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
-        show_single_weapon(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i);
+        show_single_weapon(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
 static void _clone_my_weapon(void) {
@@ -4909,14 +4746,14 @@ static void _clone_weapon_to_secondary(void) {
         ((struct ScriptRawArgs*)current_args)->slots[1].pointer);
 }
 
-static void _advance_to_weapon_style(void) { advance_to_weapon_style(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _advance_to_weapon_style(void) { advance_to_weapon_style(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
 static void _is_weapon_style(void) {
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = is_weapon_style(((struct ScriptRawArgs*)current_args)->slots[0].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.i = is_weapon_style(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
 static void _am_i_female(void) {
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = am_i_female(((struct ScriptRawArgs*)current_args)->slots[0].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.i = am_i_female(((struct ScriptRawArgs*)current_args)->slots[0].pointer);
 }
 
 static void _sobj_set_bounding_sphere_radius(void) {
@@ -4947,7 +4784,7 @@ static void _obj_hide_material_by_id(void) {
 }
 
 static void _bm_force_fake_child_bid(void) {
-    bm_force_fake_child_bid(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i);
+    bm_force_fake_child_bid(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
 static void _fat_bgnd_char_setup_radius_check(void) {
@@ -5008,7 +4845,7 @@ static void _get_level_fatality_done_flag_state(void) {
 static void _set_level_fatality_done_flag_state(void) { set_level_fatality_done_flag_state(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
 static void _limb_sever_destroy_existing_attach_proc(void) {
-    limb_sever_destroy_existing_attach_proc(((struct ScriptRawArgs*)current_args)->slots[0].i,
+    limb_sever_destroy_existing_attach_proc(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                                             ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
@@ -5045,13 +4882,13 @@ static void _limb_sever_pop_head_up(void) {
 
 static void _mks_limb_sever(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
-        mks_limb_sever(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i,
+        mks_limb_sever(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].i,
                        ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
 static void _limb_sever_find_existing_update_proc(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
-        limb_sever_find_existing_update_proc(((struct ScriptRawArgs*)current_args)->slots[0].i,
+        limb_sever_find_existing_update_proc(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                                               ((struct ScriptRawArgs*)current_args)->slots[1].i,
                                               ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
@@ -5067,7 +4904,7 @@ static void _limb_sever_set_motion(void) {
         args->slots[9].i, args->slots[10].i);
 }
 
-static void _limb_sever_update_slide_end_coeff(void) { limb_sever_update_slide_end_coeff(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
+static void _limb_sever_update_slide_end_coeff(void) { limb_sever_update_slide_end_coeff(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].f); }
 
 static void _proc_of_anim_pdata(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer = proc_of_anim_pdata(
@@ -5213,15 +5050,15 @@ static void _hide_sobj_by_sobj_id(void) {
             ((struct ScriptRawArgs*)current_args)->slots[1].i);
 }
 
-static void _sobj_set_priority(void) { sobj_set_priority(((struct ScriptRawArgs*)current_args)->slots[0].i, ((struct ScriptRawArgs*)current_args)->slots[1].i); }
+static void _sobj_set_priority(void) { sobj_set_priority(((struct ScriptRawArgs*)current_args)->slots[0].pointer, ((struct ScriptRawArgs*)current_args)->slots[1].i); }
 
-static void _unhide_sobj(void) { unhide_sobj(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _unhide_sobj(void) { unhide_sobj(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
-static void _hide_sobj(void) { hide_sobj(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _hide_sobj(void) { hide_sobj(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
-static void _unhide_obj(void) { unhide_obj(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _unhide_obj(void) { unhide_obj(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
-static void _hide_obj(void) { hide_obj(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _hide_obj(void) { hide_obj(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
 static void _pfx_plyr_bankowner(void) {
     ((struct ScriptRawResult*)active_cmdscript)->value.pointer =
@@ -5243,11 +5080,11 @@ static void _ck_rumble_controller(void) {
                          ((struct ScriptRawArgs*)current_args)->slots[2].i);
 }
 
-static void _check_for_green_light(void) { ((struct ScriptRawResult*)active_cmdscript)->value.i = check_for_green_light(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _check_for_green_light(void) { ((struct ScriptRawResult*)active_cmdscript)->value.i = check_for_green_light(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
-static void _check_for_red_light(void) { ((struct ScriptRawResult*)active_cmdscript)->value.i = check_for_red_light(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _check_for_red_light(void) { ((struct ScriptRawResult*)active_cmdscript)->value.i = check_for_red_light(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
-static void _ck_put_weapon_away(void) { ck_put_weapon_away(((struct ScriptRawArgs*)current_args)->slots[0].i); }
+static void _ck_put_weapon_away(void) { ck_put_weapon_away(((struct ScriptRawArgs*)current_args)->slots[0].pointer); }
 
 static void _find_obj_by_id(void) { ((struct ScriptRawResult*)active_cmdscript)->value.pointer = find_obj_by_id(((struct ScriptRawArgs*)current_args)->slots[0].i); }
 
@@ -5268,7 +5105,7 @@ static void _is_point_in_fortress_exclusion_zone(void) {
 }
 
 static void _fortress_setup_exclusion_zone(void) {
-    fortress_setup_exclusion_zone(((struct ScriptRawArgs*)current_args)->slots[0].i,
+    fortress_setup_exclusion_zone(((struct ScriptRawArgs*)current_args)->slots[0].pointer,
                                   ((struct ScriptRawArgs*)current_args)->slots[1].f,
                                   ((struct ScriptRawArgs*)current_args)->slots[2].f,
                                   ((struct ScriptRawArgs*)current_args)->slots[3].f,
@@ -5645,7 +5482,7 @@ static void _sobj_disable_blending(void) {
 static void _obj_first_sobj(void) {
     struct ScriptMkObjArgs* args;
     struct ScriptSobjResult* result;
-    struct SObj* object;
+    MkSobj* object;
 
     args = (struct ScriptMkObjArgs*)current_args;
     object = obj_first_sobj(args->object);
@@ -6466,21 +6303,21 @@ static void _mks_shadow_scale(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_shadow_scale(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f);
+    mks_shadow_scale(args->slots[0].i, args->slots[1].i, args->slots[2].f, args->slots[3].f);
 }
 
 static void _mks_gravity_update_by_group(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_gravity_update_by_group(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f, args->slots[4].f, args->slots[5].f);
+    mks_gravity_update_by_group(args->slots[0].i, args->slots[1].i, args->slots[2].f, args->slots[3].f, args->slots[4].f, args->slots[5].f);
 }
 
 static void _mks_away_vel_update_by_group(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_away_vel_update_by_group(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f, args->slots[4].f);
+    mks_away_vel_update_by_group(args->slots[0].i, args->slots[1].i, args->slots[2].f, args->slots[3].f, args->slots[4].f);
 }
 
 static void _mks_set_rotate_update_by_group(void) {
@@ -6604,7 +6441,7 @@ static void _ani_x_more_frames(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ani_x_more_frames(current_args, args->slots[0].f);
+    ani_x_more_frames(args->slots[0].f);
 }
 
 static void _bgnd_npc_set_ani_speed(void) {
@@ -6625,7 +6462,7 @@ static void _mks_npc_set_ground_y_all_cloth_bones(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_npc_set_ground_y_all_cloth_bones(args->slots[0].i, current_args, args->slots[1].f);
+    mks_npc_set_ground_y_all_cloth_bones(args->slots[0].i, args->slots[1].f);
 }
 
 static void _mks_npc_cb1_eq_cloth_bone(void) {
@@ -6639,7 +6476,7 @@ static void _mks_npc_cc1_eq_insert_cloth_coll(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_npc_cc1_eq_insert_cloth_coll(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
+    mks_npc_cc1_eq_insert_cloth_coll(args->slots[0].i, args->slots[1].i, args->slots[2].f);
 }
 
 static void _mks_npc_set_target(void) {
@@ -6724,7 +6561,7 @@ static void _mks_debug_display_cloth_coll_plane(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_debug_display_cloth_coll_plane(current_args, args->slots[0].f);
+    mks_debug_display_cloth_coll_plane(args->slots[0].f);
 }
 
 static void _mks_debug_display_cloth_coll_cyl(void) {
@@ -6756,14 +6593,14 @@ static void _plyr_set_gravity(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    plyr_set_gravity(current_args, args->slots[0].f);
+    plyr_set_gravity(args->slots[0].f);
 }
 
 static void _plyr_scale_pos_vel(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    plyr_scale_pos_vel(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
+    plyr_scale_pos_vel(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
 static void _animpdata_get_anim_hiframe(void) {
@@ -6786,7 +6623,7 @@ static void _plyr_set_vel_xz_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    plyr_set_vel_xz_y(current_args, args->slots[0].f, args->slots[1].f);
+    plyr_set_vel_xz_y(args->slots[0].f, args->slots[1].f);
 }
 
 static void _player_area_collision_check(void) {
@@ -6817,7 +6654,7 @@ static void _mks_obj_enable_update_cloth(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_obj_enable_update_cloth(args->slots[0].i, args->slots[1].i);
+    mks_obj_enable_update_cloth(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _mks_bgnd_obj_enable_cloth_update(void) {
@@ -6853,7 +6690,7 @@ static void _configure_iceball(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    configure_iceball(args->slots[0].i);
+    configure_iceball(args->slots[0].pointer);
 }
 
 static void _scorpion_teleport_position(void) {
@@ -6899,7 +6736,7 @@ static void _pan_vol_pitch_snd_req(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    pan_vol_pitch_snd_req(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
+    pan_vol_pitch_snd_req(args->slots[0].i, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
 static void _force_ai_style(void) {
@@ -6982,11 +6819,11 @@ static void _start_cliff_watcher(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    start_cliff_watcher(current_args, args->slots[0].f);
+    start_cliff_watcher(args->slots[0].f);
 }
 
 static void _get_cliff_data(void) {
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = get_cliff_data();
+    ((struct ScriptRawResult*)active_cmdscript)->value.pointer = get_cliff_data();
 }
 
 static void _destroy_kabal_smoke(void) {
@@ -7034,7 +6871,7 @@ static void _cloth_change_ground_plane_for(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    cloth_change_ground_plane_for(current_args, args->slots[0].f);
+    cloth_change_ground_plane_for(args->slots[0].f);
 }
 
 static void _set_constrain_last_pos_pdata(void) {
@@ -7052,7 +6889,7 @@ static void _damage_player(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    damage_player(args->slots[0].i, current_args, args->slots[1].f);
+    damage_player(args->slots[0].pointer, args->slots[1].f);
 }
 
 static void _flying_collision(void) {
@@ -7222,7 +7059,7 @@ static void _mk_chess_set_piece_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mk_chess_set_piece_info(args->slots[0].i, current_args, args->slots[1].f);
+    mk_chess_set_piece_info(args->slots[0].i, args->slots[1].f);
 }
 
 static void _mk_chess_launch_fx_at_active_piece_with_offset(void) {
@@ -7255,7 +7092,7 @@ static void _mk_chess_launch_up(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mk_chess_launch_up(current_args, args->slots[0].f, args->slots[1].f);
+    mk_chess_launch_up(args->slots[0].f, args->slots[1].f);
 }
 
 static void _mk_chess_spell_get_target_health(void) {
@@ -7348,7 +7185,7 @@ static void _mk_chess_set_piece_event_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mk_chess_set_piece_event_script(args->slots[0].i, args->slots[1].i);
+    mk_chess_set_piece_event_script(args->slots[0].i, args->slots[1].function);
 }
 
 static void _mk_chess_piece_test_and_set_timer(void) {
@@ -7427,7 +7264,7 @@ static void _mk_chess_set_cell_offset(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mk_chess_set_cell_offset(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
+    mk_chess_set_cell_offset(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
 static void _mk_chess_force_away(void) {
@@ -7448,7 +7285,7 @@ static void _mk_chess_define_class_initial_power(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mk_chess_define_class_initial_power(current_args, args->slots[0].f);
+    mk_chess_define_class_initial_power(args->slots[0].f);
 }
 
 static void _mk_chess_activate_my_properties(void) {
@@ -7486,14 +7323,14 @@ static void _mk_chess_glitch_to_ani_frame(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mk_chess_glitch_to_ani_frame(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f);
+    mk_chess_glitch_to_ani_frame(args->slots[0].i, args->slots[1].i, args->slots[2].f, args->slots[3].f);
 }
 
 static void _mk_chess_set_ani_speed(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mk_chess_set_ani_speed(current_args, args->slots[0].f);
+    mk_chess_set_ani_speed(args->slots[0].f);
 }
 
 static void _bgnd_add_fx_to_hide(void) {
@@ -7521,7 +7358,7 @@ static void _mk_chess_blend_to_desired_cell_position_setting(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mk_chess_blend_to_desired_cell_position_setting(current_args, args->slots[0].f);
+    mk_chess_blend_to_desired_cell_position_setting(args->slots[0].f);
 }
 
 static void _mk_chess_blend_into_cell_orgin_in_x_frames_by_caller(void) {
@@ -7532,7 +7369,7 @@ static void _mk_chess_set_obj_move_weight(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mk_chess_set_obj_move_weight(current_args, args->slots[0].f);
+    mk_chess_set_obj_move_weight(args->slots[0].f);
 }
 
 static void _mk_chess_snap_into_cell_orgin_over_x_frames(void) {
@@ -7554,7 +7391,7 @@ static void _mk_chess_blend_to_ani_frame(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mk_chess_blend_to_ani_frame(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f, args->slots[4].f);
+    mk_chess_blend_to_ani_frame(args->slots[0].i, args->slots[1].i, args->slots[2].f, args->slots[3].f, args->slots[4].f);
 }
 
 static void _mk_chess_blend_to_normal_stance(void) {
@@ -7565,7 +7402,7 @@ static void _mk_chess_set_normal_stance_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mk_chess_set_normal_stance_script(args->slots[0].i);
+    mk_chess_set_normal_stance_script(args->slots[0].pointer);
 }
 
 static void _bgnd_kill_fx(void) {
@@ -7611,7 +7448,7 @@ static void _mk_chess_ani_loop_more_frames(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mk_chess_ani_loop_more_frames(current_args, args->slots[0].f);
+    mk_chess_ani_loop_more_frames(args->slots[0].f);
 }
 
 static void _mk_chess_ani_idle(void) {
@@ -7622,7 +7459,7 @@ static void _mk_chess_ani_to_blend_frame(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mk_chess_ani_to_blend_frame(current_args, args->slots[0].f);
+    mk_chess_ani_to_blend_frame(args->slots[0].f);
 }
 
 static void _mk_chess_ani_to_end(void) {
@@ -7637,14 +7474,14 @@ static void _mk_chess_ani_to_frame_x(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mk_chess_ani_to_frame_x(current_args, args->slots[0].f);
+    mk_chess_ani_to_frame_x(args->slots[0].f);
 }
 
 static void _mk_chess_blend_to_ani(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mk_chess_blend_to_ani(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f);
+    mk_chess_blend_to_ani(args->slots[0].i, args->slots[1].i, args->slots[2].f, args->slots[3].f);
 }
 
 static void _mk_chess_init_piece(void) {
@@ -7951,14 +7788,14 @@ static void _face_point(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    face_point(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
+    face_point(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
 static void _share_my_attack_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    share_my_attack_info(current_args, args->slots[0].f, args->slots[1].f);
+    share_my_attack_info(args->slots[0].f, args->slots[1].f);
 }
 
 static void _ani_with_pos(void) {
@@ -8159,7 +7996,7 @@ static void _ncs_create_pebbles_with_sobj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = ncs_create_pebbles_with_sobj(args->slots[0].i, args->slots[1].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.pointer = ncs_create_pebbles_with_sobj(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _bgnd_create_pebbles_with_sobj(void) {
@@ -8194,7 +8031,7 @@ static void _bgnd_jtb_debug_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    bgnd_jtb_debug_info(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
+    bgnd_jtb_debug_info(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
 static void _get_game_speed(void) {
@@ -8467,7 +8304,7 @@ static void _sfrand(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.f = sfrand(current_args, args->slots[0].f);
+    ((struct ScriptRawResult*)active_cmdscript)->value.f = sfrand(args->slots[0].f);
 }
 
 static void _spad_add_vector(void) {
@@ -8680,7 +8517,7 @@ static void _bgnd_process_collision_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_process_collision_info(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f, args->slots[4].f, args->slots[5].f, args->slots[6].f, args->slots[7].f, args->slots[8].f);
+    ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_process_collision_info(args->slots[0].i, args->slots[1].f, args->slots[2].f, args->slots[3].f, args->slots[4].f, args->slots[5].f, args->slots[6].f, args->slots[7].f, args->slots[8].f);
 }
 
 static void _bgnd_takeover_plyr(void) {
@@ -9032,14 +8869,14 @@ static void _sobj_set_alpha(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    sobj_set_alpha(args->slots[0].i, args->slots[1].i);
+    sobj_set_alpha(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _obj_get_scale(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    obj_get_scale(args->slots[0].i, args->slots[1].i);
+    obj_get_scale(args->slots[0].pointer, args->slots[1].pointer);
 }
 
 static void _obj_set_scale(void) {
@@ -9239,14 +9076,14 @@ static void _frand(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.f = frand(current_args, args->slots[0].f);
+    ((struct ScriptRawResult*)active_cmdscript)->value.f = frand(args->slots[0].f);
 }
 
 static void _plyr_start_script_in_plyr_pdata_proc(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    plyr_start_script_in_plyr_pdata_proc(args->slots[0].i, args->slots[1].i, args->slots[2].i);
+    plyr_start_script_in_plyr_pdata_proc(args->slots[0].pointer, args->slots[1].i, args->slots[2].i);
 }
 
 static void _plyr_start_script_in_proc(void) {
@@ -9317,7 +9154,7 @@ static void _suspend_in_midair(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    suspend_in_midair(current_args, args->slots[0].f);
+    suspend_in_midair(args->slots[0].f);
 }
 
 static void _snd_major_hit_voice(void) {
@@ -9389,7 +9226,7 @@ static void _flash_hit_at_bid_with_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    flash_hit_at_bid_with_y(args->slots[0].i, current_args, args->slots[1].f);
+    flash_hit_at_bid_with_y(args->slots[0].i, args->slots[1].f);
 }
 
 static void _flash_hit_at_bid(void) {
@@ -9403,14 +9240,14 @@ static void _fight_fx_im_hit_flash(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    fight_fx_im_hit_flash(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i, current_args, args->slots[4].f);
+    fight_fx_im_hit_flash(args->slots[0].i, args->slots[1].pointer, args->slots[2].i, args->slots[3].i, current_args, args->slots[4].f);
 }
 
 static void _launch_fx_at_pos_with_obj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = launch_fx_at_pos_with_obj(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
+    ((struct ScriptRawResult*)active_cmdscript)->value.pointer = launch_fx_at_pos_with_obj(args->slots[0].i, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
 static void _low_flash_check(void) {
@@ -9510,7 +9347,7 @@ static void _bgnd_place_object_at_position(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    bgnd_place_object_at_position(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i, args->slots[4].i);
+    bgnd_place_object_at_position(args->slots[0].i, args->slots[1].i, args->slots[2].pointer, args->slots[3].pointer, args->slots[4].i);
 }
 
 static void _do_i_have_life_left(void) {
@@ -9566,7 +9403,7 @@ static void _plyr_get_f_constrained(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = plyr_get_f_constrained(args->slots[0].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.i = plyr_get_f_constrained(args->slots[0].pointer);
 }
 
 static void _move_player(void) {
@@ -9581,7 +9418,7 @@ static void _face_ang_from_pos_to_him(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    face_ang_from_pos_to_him(args->slots[0].i, args->slots[1].i, args->slots[2].i);
+    face_ang_from_pos_to_him(args->slots[0].pointer, args->slots[1].pointer, args->slots[2].pointer);
 }
 
 static void _move_player_no_constrain_update(void) {
@@ -9604,7 +9441,7 @@ static void _plyr_invulnerable_to_projectiles(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    plyr_invulnerable_to_projectiles(args->slots[0].i, args->slots[1].i);
+    plyr_invulnerable_to_projectiles(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _active_sidekick_swap_from_behind(void) {
@@ -9694,7 +9531,7 @@ static void _obj_enable_grounding(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    obj_enable_grounding(args->slots[0].i);
+    obj_enable_grounding(args->slots[0].pointer);
 }
 
 static void _camera_idle(void) {
@@ -9740,7 +9577,7 @@ static void _is_big_boss(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = is_big_boss(args->slots[0].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.i = is_big_boss(args->slots[0].pointer);
 }
 
 static void _is_load_meter_active(void) {
@@ -9820,7 +9657,7 @@ static void _rd_set_impact_vector(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    rd_set_impact_vector(current_args, args->slots[0].f);
+    rd_set_impact_vector(args->slots[0].f);
 }
 
 static void _get_plyr_pdata_plyr_num(void) {
@@ -9852,7 +9689,7 @@ static void _fire_spear_at_camera(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = fire_spear_at_camera(args->slots[0].i, args->slots[1].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.pointer = fire_spear_at_camera(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _kick_the_camera(void) {
@@ -9901,7 +9738,7 @@ static void _bgnd_get_anim_info(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_get_anim_info(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
+    ((struct ScriptRawResult*)active_cmdscript)->value.f = bgnd_get_anim_info(args->slots[0].i, args->slots[1].i, args->slots[2].f);
 }
 
 static void _is_character_unlocked_in_profile(void) {
@@ -9957,21 +9794,21 @@ static void _player_add_item_to_inventory(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    player_add_item_to_inventory(args->slots[0].i);
+    player_add_item_to_inventory(args->slots[0].pointer);
 }
 
 static void _player_remove_item_from_inventory(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    player_remove_item_from_inventory(args->slots[0].i);
+    player_remove_item_from_inventory(args->slots[0].pointer);
 }
 
 static void _player_has_item(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = player_has_item(args->slots[0].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.i = player_has_item(args->slots[0].pointer);
 }
 
 static void _add_to_konq_profile_value(void) {
@@ -10025,14 +9862,14 @@ static void _hf_bgnd_set_in_setup_zone(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    hf_bgnd_set_in_setup_zone(args->slots[0].i, args->slots[1].i);
+    hf_bgnd_set_in_setup_zone(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _hf_bgnd_set_smasher_mode(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    hf_bgnd_set_smasher_mode(args->slots[0].i, args->slots[1].i);
+    hf_bgnd_set_smasher_mode(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _bgnd_set_player_shadow_ground_plane(void) {
@@ -10063,7 +9900,7 @@ static void _nbc_script_debug_point(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    nbc_script_debug_point(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
+    nbc_script_debug_point(args->slots[0].i, args->slots[1].i, args->slots[2].f);
 }
 
 static void _bgnd_unhide_mirror_guys(void) {
@@ -10282,7 +10119,7 @@ static void _trial_invisible_callback(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = trial_invisible_callback(args->slots[0].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.i = trial_invisible_callback(args->slots[0].pointer);
 }
 
 static void _trial_set_special_restrictions(void) {
@@ -10296,28 +10133,28 @@ static void _drone_set_handicap(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    drone_set_handicap(args->slots[0].i, current_args, args->slots[1].f);
+    drone_set_handicap(args->slots[0].i, args->slots[1].f);
 }
 
 static void _drone_start_bleeding(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    drone_start_bleeding(args->slots[0].i, current_args, args->slots[1].f);
+    drone_start_bleeding(args->slots[0].i, args->slots[1].f);
 }
 
 static void _drone_set_damage_multiplier(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    drone_set_damage_multiplier(args->slots[0].i, current_args, args->slots[1].f);
+    drone_set_damage_multiplier(args->slots[0].i, args->slots[1].f);
 }
 
 static void _release_kamidogu(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    release_kamidogu(args->slots[0].i, args->slots[1].i);
+    release_kamidogu(args->slots[0].pointer, args->slots[1].pointer);
 }
 
 static void _start_constrain_proc(void) {
@@ -10377,7 +10214,7 @@ static void _trial_set_round_health_restoration(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    trial_set_round_health_restoration(current_args, args->slots[0].f);
+    trial_set_round_health_restoration(args->slots[0].f);
 }
 
 static void _camera_set_anim_aux_data(void) {
@@ -10400,7 +10237,7 @@ static void _drone_apply_damage(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    drone_apply_damage(args->slots[0].i, current_args, args->slots[1].f);
+    drone_apply_damage(args->slots[0].i, args->slots[1].f);
 }
 
 static void _drone_set_special_directions(void) {
@@ -10422,7 +10259,7 @@ static void _drone_set_health(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    drone_set_health(args->slots[0].i, current_args, args->slots[1].f);
+    drone_set_health(args->slots[0].i, args->slots[1].f);
 }
 
 static void _drone_do_special_move(void) {
@@ -10482,7 +10319,7 @@ static void _drone_set_anim_step(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    drone_set_anim_step(current_args, args->slots[0].f);
+    drone_set_anim_step(args->slots[0].f);
 }
 
 static void _drone_face_monk(void) {
@@ -10557,7 +10394,7 @@ static void _trial_set_combo_requirement(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    trial_set_combo_requirement(args->slots[0].i, current_args, args->slots[1].f);
+    trial_set_combo_requirement(args->slots[0].i, args->slots[1].f);
 }
 
 static void _trial_add_required_sequence(void) {
@@ -10657,7 +10494,7 @@ static void _initialize_clone_lights(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    initialize_clone_lights(args->slots[0].i);
+    initialize_clone_lights(args->slots[0].pointer);
 }
 
 static void _jab_spawn_point_light_at_world_pos(void) {
@@ -10673,14 +10510,14 @@ static void _jab_attach_point_light_to_obj_bone(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = jab_attach_point_light_to_obj_bone(args->slots[0].i, args->slots[1].i, args->slots[2].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.pointer = jab_attach_point_light_to_obj_bone(args->slots[0].pointer, args->slots[1].pointer, args->slots[2].i);
 }
 
 static void _jab_flash_screen(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    jab_flash_screen(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f);
+    jab_flash_screen(args->slots[0].i, args->slots[1].f, args->slots[2].f);
 }
 
 static void _jab_stop_dragon_king_shake(void) {
@@ -10691,7 +10528,7 @@ static void _jab_shake_dragon_king(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    jab_shake_dragon_king(current_args, args->slots[0].f, args->slots[1].f);
+    jab_shake_dragon_king(args->slots[0].f, args->slots[1].f);
 }
 
 static void _fade_fatality_screen(void) {
@@ -10716,7 +10553,7 @@ static void _jab_attach_drink_obj_to_hand(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    jab_attach_drink_obj_to_hand(args->slots[0].i, args->slots[1].i, args->slots[2].i);
+    jab_attach_drink_obj_to_hand(args->slots[0].pointer, args->slots[1].pointer, args->slots[2].pointer);
 }
 
 static void _jab_face_obj(void) {
@@ -10737,14 +10574,14 @@ static void _jab_release_jade_boomerang(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    jab_release_jade_boomerang(args->slots[0].i);
+    jab_release_jade_boomerang(args->slots[0].pointer);
 }
 
 static void _jab_start_jade_boomerang_throw(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    jab_start_jade_boomerang_throw(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
+    jab_start_jade_boomerang_throw(args->slots[0].pointer, args->slots[1].pointer, args->slots[2].f);
 }
 
 static void _jab_setup_kiss_emitter_obj(void) {
@@ -10762,7 +10599,7 @@ static void _hero_turn_to_face_position(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    hero_turn_to_face_position(args->slots[0].i);
+    hero_turn_to_face_position(args->slots[0].pointer);
 }
 
 static void _attach_pfx_to_object(void) {
@@ -10851,7 +10688,7 @@ static void _npc_get_obj(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = npc_get_obj(args->slots[0].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.pointer = npc_get_obj(args->slots[0].pointer);
 }
 
 static void _get_hero_state(void) {
@@ -10883,11 +10720,11 @@ static void _set_look_at_npc(void) {
 }
 
 static void _get_krypt_anim_pdata(void) {
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = get_krypt_anim_pdata();
+    ((struct ScriptRawResult*)active_cmdscript)->value.pointer = get_krypt_anim_pdata();
 }
 
 static void _get_krypt_character_obj(void) {
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = get_krypt_character_obj();
+    ((struct ScriptRawResult*)active_cmdscript)->value.pointer = get_krypt_character_obj();
 }
 
 static void _get_krypt_current_column(void) {
@@ -11021,14 +10858,14 @@ static void _npc_assign_path_to_him(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_assign_path_to_him(args->slots[0].i, args->slots[1].i, args->slots[2].i, args->slots[3].i);
+    npc_assign_path_to_him(args->slots[0].pointer, args->slots[1].pointer, args->slots[2].i, args->slots[3].i);
 }
 
 static void _npc_assign_path(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_assign_path(args->slots[0].i, args->slots[1].i, args->slots[2].i);
+    npc_assign_path(args->slots[0].pointer, args->slots[1].i, args->slots[2].i);
 }
 
 static void _npc_open_door_at_waypoint(void) {
@@ -11075,7 +10912,7 @@ static void _save_hero_position_and_angle_prior_to_fight(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    save_hero_position_and_angle_prior_to_fight(current_args, args->slots[0].f);
+    save_hero_position_and_angle_prior_to_fight(args->slots[0].f);
 }
 
 static void _npc_set_my_conversation_counter(void) {
@@ -11089,7 +10926,7 @@ static void _npc_set_his_conversation_counter(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_set_his_conversation_counter(args->slots[0].i, args->slots[1].i);
+    npc_set_his_conversation_counter(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _npc_set_my_punch_counter(void) {
@@ -11103,7 +10940,7 @@ static void _npc_set_his_punch_counter(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_set_his_punch_counter(args->slots[0].i, args->slots[1].i);
+    npc_set_his_punch_counter(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _stop_chest_camera_script(void) {
@@ -11114,7 +10951,7 @@ static void _konquest_run_camera_script(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    konquest_run_camera_script(args->slots[0].i, args->slots[1].i);
+    konquest_run_camera_script(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _set_hero_punched_ground_collisions(void) {
@@ -11144,28 +10981,28 @@ static void _add_hours_to_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    add_hours_to_time(args->slots[0].i, args->slots[1].i);
+    add_hours_to_time(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _add_days_to_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    add_days_to_time(args->slots[0].i, args->slots[1].i);
+    add_days_to_time(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _add_months_to_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    add_months_to_time(args->slots[0].i, args->slots[1].i);
+    add_months_to_time(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _add_years_to_time(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    add_years_to_time(args->slots[0].i, args->slots[1].i);
+    add_years_to_time(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _pui_play_pfx_sequence(void) {
@@ -11326,14 +11163,14 @@ static void _spawn_dynamic_pui_critical(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = spawn_dynamic_pui_critical(args->slots[0].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.i = spawn_dynamic_pui_critical(args->slots[0].pointer);
 }
 
 static void _spawn_dynamic_pui(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = spawn_dynamic_pui(args->slots[0].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.i = spawn_dynamic_pui(args->slots[0].pointer);
 }
 
 static void _kill_pui(void) {
@@ -11388,7 +11225,7 @@ static void _npc_sleep(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_sleep(current_args, args->slots[0].f);
+    npc_sleep(args->slots[0].f);
 }
 
 static void _npc_get_punch_count(void) {
@@ -11425,14 +11262,14 @@ static void _konquest_open_door(void) {
 }
 
 static void _get_active_npc_data(void) {
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = get_active_npc_data();
+    ((struct ScriptRawResult*)active_cmdscript)->value.pointer = get_active_npc_data();
 }
 
 static void _npc_glitch_him_to_ani(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_glitch_him_to_ani(args->slots[0].i, args->slots[1].i, args->slots[2].i);
+    npc_glitch_him_to_ani(args->slots[0].pointer, args->slots[1].i, args->slots[2].i);
 }
 
 static void _npc_glitch_to_ani(void) {
@@ -11511,7 +11348,7 @@ static void _npc_set_my_ground_level(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_set_my_ground_level(current_args, args->slots[0].f);
+    npc_set_my_ground_level(args->slots[0].f);
 }
 
 static void _turn_to_face_interior_door(void) {
@@ -11576,21 +11413,21 @@ static void _npc_blend_to_ani_string(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_blend_to_ani_string(args->slots[0].i);
+    npc_blend_to_ani_string(args->slots[0].pointer);
 }
 
 static void _npc_set_gravity(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_set_gravity(current_args, args->slots[0].f);
+    npc_set_gravity(args->slots[0].f);
 }
 
 static void _remove_npc_list(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    remove_npc_list(args->slots[0].i);
+    remove_npc_list(args->slots[0].pointer);
 }
 
 static void _setup_interior_fighting_arena(void) {
@@ -11601,7 +11438,7 @@ static void _npc_get_his_flag_state(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = npc_get_his_flag_state(args->slots[0].i, args->slots[1].i);
+    ((struct ScriptRawResult*)active_cmdscript)->value.i = npc_get_his_flag_state(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _npc_get_flag_state(void) {
@@ -11615,14 +11452,14 @@ static void _npc_set_his_flags(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_set_his_flags(args->slots[0].i, args->slots[1].i, args->slots[2].i);
+    npc_set_his_flags(args->slots[0].pointer, args->slots[1].i, args->slots[2].i);
 }
 
 static void _npc_ignore_his_events(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_ignore_his_events(args->slots[0].i, args->slots[1].i);
+    npc_ignore_his_events(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _npc_ignore_events(void) {
@@ -11650,7 +11487,7 @@ static void _npc_enable_his_event(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_enable_his_event(args->slots[0].i, args->slots[1].i, args->slots[2].i);
+    npc_enable_his_event(args->slots[0].pointer, args->slots[1].i, args->slots[2].i);
 }
 
 static void _npc_set_dialog_anim(void) {
@@ -11734,7 +11571,7 @@ static void _npc_take_control_of_him(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_take_control_of_him(args->slots[0].i, args->slots[1].i);
+    npc_take_control_of_him(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _konquest_fade_hud(void) {
@@ -11787,7 +11624,7 @@ static void _npc_set_my_movement_weight(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_set_my_movement_weight(current_args, args->slots[0].f, args->slots[1].f);
+    npc_set_my_movement_weight(args->slots[0].f, args->slots[1].f);
 }
 
 static void _npc_set_ani_speed(void) {
@@ -11820,7 +11657,7 @@ static void _npc_start_goro_bone_match(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_start_goro_bone_match(args->slots[0].i);
+    npc_start_goro_bone_match(args->slots[0].pointer);
 }
 
 static void _npc_ani_for_x_ticks(void) {
@@ -11834,7 +11671,7 @@ static void _npc_ani_to_blend_frame(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_ani_to_blend_frame(current_args, args->slots[0].f);
+    npc_ani_to_blend_frame(args->slots[0].f);
 }
 
 static void _start_time_passing(void) {
@@ -11876,42 +11713,42 @@ static void _npc_restart_his_normal_behavior(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_restart_his_normal_behavior(args->slots[0].i);
+    npc_restart_his_normal_behavior(args->slots[0].pointer);
 }
 
 static void _npc_set_his_ang_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_set_his_ang_y(args->slots[0].i, current_args, args->slots[1].f);
+    npc_set_his_ang_y(args->slots[0].pointer, args->slots[1].f);
 }
 
 static void _npc_set_my_ang_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_set_my_ang_y(current_args, args->slots[0].f);
+    npc_set_my_ang_y(args->slots[0].f);
 }
 
 static void _npc_set_his_world_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_set_his_world_pos(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
+    npc_set_his_world_pos(args->slots[0].pointer, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
 static void _npc_set_my_world_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_set_my_world_pos(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
+    npc_set_my_world_pos(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
 static void _npc_set_my_pos(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_set_my_pos(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
+    npc_set_my_pos(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
 static void _restore_collision_volume_on_object_with_uid(void) {
@@ -11940,7 +11777,7 @@ static void _npc_ani_to_frame_x(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_ani_to_frame_x(current_args, args->slots[0].f);
+    npc_ani_to_frame_x(args->slots[0].f);
 }
 
 static void _konquest_transition_to_fight(void) {
@@ -12013,7 +11850,7 @@ static void _npc_lip_synch(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_lip_synch(args->slots[0].i, args->slots[1].i);
+    npc_lip_synch(args->slots[0].i, args->slots[1].pointer);
 }
 
 static void _npc_ani_to_end(void) {
@@ -12028,14 +11865,14 @@ static void _npc_blend_to_ani_with_offset(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_blend_to_ani_with_offset(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f);
+    npc_blend_to_ani_with_offset(args->slots[0].i, args->slots[1].i, args->slots[2].f, args->slots[3].f);
 }
 
 static void _npc_blend_to_ani(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_blend_to_ani(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f);
+    npc_blend_to_ani(args->slots[0].i, args->slots[1].i, args->slots[2].f, args->slots[3].f);
 }
 
 static void _npc_face_current_waypoint_angle(void) {
@@ -12046,7 +11883,7 @@ static void _npc_travel_to_world_position(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    npc_travel_to_world_position(args->slots[0].i, args->slots[1].i);
+    npc_travel_to_world_position(args->slots[0].pointer, args->slots[1].i);
 }
 
 static void _npc_travel_path_anim_override(void) {
@@ -12071,7 +11908,7 @@ static void _add_npc_list_to_world(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    add_npc_list_to_world(args->slots[0].i);
+    add_npc_list_to_world(args->slots[0].pointer);
 }
 
 static void _fire_trigger(void) {
@@ -12093,7 +11930,7 @@ static void _load_tile_objects(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    load_tile_objects(args->slots[0].i);
+    load_tile_objects(args->slots[0].pointer);
 }
 
 static void _trigger_set_time_for_enable(void) {
@@ -12150,7 +11987,7 @@ static void _mks_start_axis_indicator_p_axis_track_bone_world_mat(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_start_axis_indicator_p_axis_track_bone_world_mat(args->slots[0].i, current_args, args->slots[1].f);
+    mks_start_axis_indicator_p_axis_track_bone_world_mat(args->slots[0].i, args->slots[1].f);
 }
 
 static void _mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_abs(void) {
@@ -12180,56 +12017,56 @@ static void _mks_cc1_expand_cyl(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_cc1_expand_cyl(current_args, args->slots[0].f, args->slots[1].f);
+    mks_cc1_expand_cyl(args->slots[0].f, args->slots[1].f);
 }
 
 static void _mks_cc1_eq_insert_cloth_coll(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_cc1_eq_insert_cloth_coll(args->slots[0].i, current_args, args->slots[1].f);
+    mks_cc1_eq_insert_cloth_coll(args->slots[0].i, args->slots[1].f);
 }
 
 static void _mks_cb1_set_scale(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_cb1_set_scale(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
+    mks_cb1_set_scale(args->slots[0].i, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
 static void _mks_cb1_set_coll_offset(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_cb1_set_coll_offset(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
+    mks_cb1_set_coll_offset(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
 static void _mks_cb1_set_coll_offset_xz(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_cb1_set_coll_offset_xz(current_args, args->slots[0].f, args->slots[1].f);
+    mks_cb1_set_coll_offset_xz(args->slots[0].f, args->slots[1].f);
 }
 
 static void _mks_cb1_add_coll_pt(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_cb1_add_coll_pt(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
+    mks_cb1_add_coll_pt(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
 static void _mks_cb1_set_ground_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_cb1_set_ground_y(current_args, args->slots[0].f);
+    mks_cb1_set_ground_y(args->slots[0].f);
 }
 
 static void _mks_set_ground_y_all_cloth_bones(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    mks_set_ground_y_all_cloth_bones(current_args, args->slots[0].f);
+    mks_set_ground_y_all_cloth_bones(args->slots[0].f);
 }
 
 static void _mks_insert_cloth_force_bones(void) {
@@ -12286,7 +12123,7 @@ static void _set_ani_speed_miss_hit(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    set_ani_speed_miss_hit(current_args, args->slots[0].f, args->slots[1].f);
+    set_ani_speed_miss_hit(args->slots[0].f, args->slots[1].f);
 }
 
 static void _set_block_requirement(void) {
@@ -12693,21 +12530,21 @@ static void _set_his_damage_multiplier(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    set_his_damage_multiplier(current_args, args->slots[0].f);
+    set_his_damage_multiplier(args->slots[0].f);
 }
 
 static void _adjust_his_damage_multiplier(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    adjust_his_damage_multiplier(current_args, args->slots[0].f);
+    adjust_his_damage_multiplier(args->slots[0].f);
 }
 
 static void _adjust_my_damage_multiplier(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    adjust_my_damage_multiplier(current_args, args->slots[0].f);
+    adjust_my_damage_multiplier(args->slots[0].f);
 }
 
 static void _advance_my_moveset(void) {
@@ -12740,7 +12577,7 @@ static void _air_collision_pause(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    air_collision_pause(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f);
+    air_collision_pause(args->slots[0].i, args->slots[1].f, args->slots[2].f);
 }
 
 static void _player_impale(void) {
@@ -12754,7 +12591,7 @@ static void _plyr_weapon_grab(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    plyr_weapon_grab(args->slots[0].i, args->slots[1].i);
+    plyr_weapon_grab(args->slots[0].pointer, args->slots[1].pointer);
 }
 
 static void _weapon_trail_off(void) {
@@ -12830,7 +12667,7 @@ static void _myvel_my_angle_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    myvel_my_angle_y(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
+    myvel_my_angle_y(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
 static void _rotate_towards_him(void) {
@@ -12856,7 +12693,7 @@ static void _set_my_float_1(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    set_my_float_1(current_args, args->slots[0].f);
+    set_my_float_1(args->slots[0].f);
 }
 
 static void _release_other_player(void) {
@@ -12878,14 +12715,14 @@ static void _damage_him(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    damage_him(current_args, args->slots[0].f);
+    damage_him(args->slots[0].f);
 }
 
 static void _damage_me(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    damage_me(current_args, args->slots[0].f);
+    damage_me(args->slots[0].f);
 }
 
 static void _enable_all_my_blocking(void) {
@@ -12945,7 +12782,7 @@ static void _set_my_damage_multiplier(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    set_my_damage_multiplier(current_args, args->slots[0].f);
+    set_my_damage_multiplier(args->slots[0].f);
 }
 
 static void _disable_attack5(void) {
@@ -12977,7 +12814,7 @@ static void _myvel_his_angle_y(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    myvel_his_angle_y(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
+    myvel_his_angle_y(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
 static void _stop_me(void) {
@@ -13045,7 +12882,7 @@ static void _pan_vol_pitch_random_snd_req(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = pan_vol_pitch_random_snd_req(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f, args->slots[3].f);
+    ((struct ScriptRawResult*)active_cmdscript)->value.i = pan_vol_pitch_random_snd_req(args->slots[0].i, args->slots[1].f, args->slots[2].f, args->slots[3].f);
 }
 
 static void _snd_stop(void) {
@@ -13073,7 +12910,7 @@ static void _pan_vol_snd_req(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = pan_vol_snd_req(args->slots[0].i, current_args, args->slots[1].f, args->slots[2].f);
+    ((struct ScriptRawResult*)active_cmdscript)->value.i = pan_vol_snd_req(args->slots[0].i, args->slots[1].f, args->slots[2].f);
 }
 
 static void _pan_vol_pitch_random_hit(void) {
@@ -13101,14 +12938,14 @@ static void _set_snd_vol(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    set_snd_vol(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f);
+    set_snd_vol(args->slots[0].i, args->slots[1].i, args->slots[2].f);
 }
 
 static void _snd_req_vol(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ((struct ScriptRawResult*)active_cmdscript)->value.i = snd_req_vol(args->slots[0].i, current_args, args->slots[1].f);
+    ((struct ScriptRawResult*)active_cmdscript)->value.i = snd_req_vol(args->slots[0].i, args->slots[1].f);
 }
 
 static void _snd_req(void) {
@@ -13166,14 +13003,14 @@ static void _hit_START_chores(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    hit_START_chores(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f);
+    hit_START_chores(args->slots[0].i, args->slots[1].i, args->slots[2].f, args->slots[3].f);
 }
 
 static void _land_chores(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    land_chores(args->slots[0].i, args->slots[1].i, current_args, args->slots[2].f, args->slots[3].f);
+    land_chores(args->slots[0].i, args->slots[1].i, args->slots[2].f, args->slots[3].f);
 }
 
 static void _launch_me_up(void) {
@@ -13260,21 +13097,21 @@ static void _if_collision_slow_ani_x(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    if_collision_slow_ani_x(current_args, args->slots[0].f, args->slots[1].f);
+    if_collision_slow_ani_x(args->slots[0].f, args->slots[1].f);
 }
 
 static void _slow_ani_end(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    slow_ani_end(current_args, args->slots[0].f);
+    slow_ani_end(args->slots[0].f);
 }
 
 static void _slow_ani_x_if_miss(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    slow_ani_x_if_miss(current_args, args->slots[0].f, args->slots[1].f, args->slots[2].f);
+    slow_ani_x_if_miss(args->slots[0].f, args->slots[1].f, args->slots[2].f);
 }
 
 static void _slow_ani_x(void) {
@@ -13302,7 +13139,7 @@ static void _ani_to_frame_x_aniproc(void) {
     struct ScriptRawArgs* args;
 
     args = (struct ScriptRawArgs*)current_args;
-    ani_to_frame_x_aniproc(current_args, args->slots[0].f);
+    ani_to_frame_x_aniproc(args->slots[0].f);
 }
 
 static void _ani_to_frame_sound(void) {

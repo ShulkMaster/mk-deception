@@ -3,8 +3,7 @@
 
 int InitializeUART(unsigned long baudRate);
 int WriteUARTN(void* buffer, unsigned long length);
-int __TRK_write_console(unsigned long file, unsigned char* buffer,
-                        unsigned long* count, IdleProc idleProc);
+int __TRK_write_console(file_handle handle, u8* buffer, size_t* count, IdleProc idle);
 
 static inline int __init_uart_console(void)
 {

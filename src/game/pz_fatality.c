@@ -355,7 +355,7 @@ void ani_to_end(void);
 float pz_fighter_long_exit(void);
 void unload_pz_fighter_fatality_banks(void);
 void snd_req_delay(int sound, int delay);
-void snd_stop(int handle);
+void snd_stop(MslSoundHandle handle);
 struct PuzzleFighterRenderObject* pz_fighter_get_player_obj(int player);
 struct PuzzleProcess* pz_fighter_get_player_proc(int player);
 struct PuzzleFighterMove* pz_get_fighter_move(void);
@@ -363,13 +363,13 @@ PlyrPdata* pz_get_pdata_by_id(int player);
 void xfer_proc(struct PuzzleProcess* process, PuzzleFatalityProcessFn entry);
 void minigame_event(int* event);
 float xz_distance_between_players(void);
-int pan_snd_req(int sound, float pan);
-int pan_vol_snd_req(int sound, float pan, float volume);
-int plyr_snd_req(int sound);
+MslSoundHandle pan_snd_req(int sound_id, float pan);
+MslSoundHandle pan_vol_snd_req(int sound_id, float pan, float volume);
+MslSoundHandle plyr_snd_req(int sound_offset);
 void bgnd_launch_fx_at_position(const char* name, float x, float y, float z);
 void snd_major_hit_voice(void);
 void snd_death_voice(void);
-void random_hit(int group);
+MslSoundHandle random_hit(int group);
 void plyr_bleed_mouth(PlyrPdata* player_data);
 void face_bleed_me(int amount);
 void mkproc_die(void);
@@ -400,7 +400,7 @@ void obj_set_bone_collapse_flag(
     struct PuzzleFighterRenderObject* object, int bone);
 void calc_bone_world_mat(struct PuzzleFighterRenderObject* object, int bone);
 float pz_fighter_clear_out_external_forces(void);
-void random_voice(int group);
+MslSoundHandle random_voice(int group);
 void bgnd_launch_fx_at_bid_of_mkobj(
     const char* effect, struct PuzzleFighterRenderObject* object, int bone);
 void resume_effect_at_obj_bid(
@@ -481,7 +481,7 @@ int transition_to_anim_script_frame(
     struct PuzzleAnimPdata* pdata, struct AniScript* animation,
     unsigned int flags, float transition_frames, float frame);
 void set_pdata_anim_step(struct PuzzleAnimPdata* pdata, float step);
-void pz_fighter_clear_out_all_external_forces(void* fighter);
+void pz_fighter_clear_out_all_external_forces(MkObj* fighter);
 static float p_grinder_meat_throw_controller(void);
 static float p_grinder_noise(void);
 void* _create_mkproc_generic_tinystack(
@@ -603,7 +603,6 @@ static float pz_fighters_lightning_preround(void);
 static float pz_fighters_snake_fatality_preround(void);
 static float pz_fighters_burn_fatality_preround(void);
 
-float p_track_cam_ang_y_light(void);
 static float pz_fighter_load_and_place_initial_grinders(void);
 static float pz_fighter_load_and_place_initial_chompers(void);
 static float pz_fighter_load_and_place_initial_chompers2(void);

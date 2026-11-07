@@ -15,8 +15,8 @@ extern void ADXSTM_BindFileNw(ADXStream* stream, const char* filename,
 extern void ADXSTM_SetEos(ADXStream* stream, s32 sector_count);
 extern s32 ADXSTM_SetBufSize(ADXStream* stream, s32 minimum_size,
                              s32 buffer_size);
-extern void ADXSTM_Seek(ADXStream* stream, s32 position);
-extern void ADXSTM_Start(ADXStream* stream);
+extern s32 ADXSTM_Seek(ADXStream* stream, s32 position);
+extern s32 ADXSTM_Start(ADXStream* stream);
 
 static inline void lsc_StatRead(LSCObject* lsc)
 {

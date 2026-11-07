@@ -20,6 +20,7 @@
 #include "rw/rwim3d.h"
 #include "rw/rwengine.h"
 #include "rw/rtquat.h"
+#include "runtime/cam.h"
 
 struct CdfCollisionGroup {
     int primitive_count;
@@ -158,7 +159,6 @@ static void render_obstacle(ArenaObstacle* obstacle);
 static void render_hero_collision(void);
 static void render_konquest_shadow_objects(MkHdr* object);
 static void render_konquest_collision_obj(MkHdr* object);
-extern void render_background_danger_areas(void);
 static int collide_shape_vs_plyr(
     PlyrInfo* player, CollisionShape* shape);
 static CollisionObj* convert_cdf_quad_to_collision_box(

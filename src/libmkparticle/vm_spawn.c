@@ -4,13 +4,10 @@
 #include "libmkparticle/emitter.h"
 #include "libmkparticle/streams.h"
 #include "math/gxMath.h"
+#include "runtime/__mem.h"
+#include "libmkparticle/particle.h"
 
-void* memcpy(void* destination, const void* source, unsigned long size);
 int rand(void);
-int pfx_get_struct_size(PfxVm* pfx, int field);
-int pfx_field_get_type(int field);
-PfxVmEmitter* pfx_get_emitter(PfxVm* pfx, int emitter_index);
-void pfx_halt(const char* message);
 
 static char spawn_messages[150];
 

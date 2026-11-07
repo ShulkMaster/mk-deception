@@ -163,7 +163,6 @@ static inline void format_no_space_options(const char* name) {
             nbc_find_text(0x50, 0), nbc_find_text(0x51, 0));
     set_memcard_popup_message_options_text(message_buffer);
 }
-int gc_no_space_routine(const char* nameOrNull, int device);
 
 static inline int boot_storage_status_changed(const int* previous) {
     int device;
@@ -174,12 +173,7 @@ static inline int boot_storage_status_changed(const int* previous) {
     }
     return 0;
 }
-void gc_boot_space_check(void);
-int is_this_a_hault_message(void);
-void mcard_msg_end(void);
-void mcard_msg_middle_sleep(int mode, int caller);
 static void mcard_msg_card_change_at_format_rtn(void);
-void mcard_msg_card_changed_at_format(int device);
 
 static inline void mcard_msg_handle_halt_dismissal(void) {
     if (check_switch_action(get_p1_pad(), 0) != 0 ||
@@ -193,14 +187,7 @@ static inline void mcard_msg_handle_halt_dismissal(void) {
     }
 }
 static void mcard_msg_card_inaccessable_in_konq_rtn(void);
-void mcard_msg_card_inaccessable_in_konq(void);
-void mcard_msg_auto_save(int device);
-void mcard_msg_save_failed(int device);
-void mcard_msg_create_failed(void);
-void mcard_msg_create_successful(void);
-void mcard_msg_save_successful(void);
 static void mcard_msg_confirm_erase_rtn(void);
-void mcard_msg_confirm_erase(void);
 static void mcard_msg_load_no_card_konq_region_hault_rtn(void);
 
 static inline void build_konquest_no_card_body(void)
@@ -211,21 +198,13 @@ static inline void build_konquest_no_card_body(void)
             nbc_find_text(7, 0), nbc_find_text(8, 0));
     set_memcard_popup_message_body_text(message_buffer);
 }
-void mcard_msg_load_no_card_konq_region_hault( const char* profileName, int player, int device);
 static void mcard_msg_profile_damaged_in_konquest_rtn(void);
-void mcard_msg_profile_damaged_in_konquest(void);
 static void mcard_msg_profile_reset_confirmation_rtn(void);
-void mcard_msg_profile_reset_confirmation(void);
 static void mcard_msg_cant_enter_konquest_rtn(void);
-void mcard_msg_cant_enter_konquest(int device, const char* profileName);
 static void mcard_msg_save_no_card_konq_region_hault_rtn(void);
-void mcard_msg_save_no_card_konq_region_hault(const char* profileName, int player);
 static void msg_quit_confirmation_rtn(void);
-void mcard_msg_quit_confirmation(void);
 static void msg_save_error_konq_region_rtn(void);
-void mcard_msg_save_error_konq_region(int device);
 static void mcard_msg_name_conflict_rtn(void);
-void mcard_msg_name_conflict(void);
 static void mcard_msg_save_cancelled_rtn(void);
 static void mcard_msg_no_room_for_profile_rtn(void);
 static void mcard_msg_debug_rtn(void);
@@ -240,7 +219,6 @@ static inline void format_failed_body(int device) {
     prefix = nbc_find_text(0x5f, 0);
     sprintf(message_buffer, STR_MC_FMT_SSS, prefix, slot_name, suffix);
 }
-void mcard_msg_format_failed(int device);
 
 static inline void set_memcard_slot_message_body(int device, int first_text,
                                                 int last_text, const char* format) {
@@ -254,10 +232,7 @@ static inline void set_memcard_slot_message_body(int device, int first_text,
     sprintf(message_buffer, format, partB, slotName, partA);
     set_memcard_popup_message_body_text(message_buffer);
 }
-void mcard_msg_format_successful(int device);
-void mcard_msg_formating(int device);
 static void mcard_msg_format_confirmation_rtn(void);
-void mcard_msg_format_confirmation(int device);
 static void mcard_msg_no_file_rtn(void);
 
 static inline void no_file_body(int device) {
@@ -269,32 +244,18 @@ static inline void no_file_body(int device) {
     sprintf(message_buffer, STR_MC_FMT_SS,
         nbc_find_text(0xd, 0), slot_name, suffix);
 }
-void mcard_msg_no_file(int device);
 static void mcard_msg_card_gone_rtn(void);
-void mcard_msg_card_gone(const char* profileName, int device);
 static void mcard_msg_crc_failure_rtn(void);
-void mcard_msg_crc_failure(const char* nameOrNull, int device);
 static void mcard_msg_incompatible_card_rtn(void);
-void mcard_msg_incompatible_card(const char* nameOrNull, int device);
 static void mcard_msg_no_space_rtn(void);
 static void mcard_msg_wrong_device_rtn(void);
-void mcard_msg_wrong_device(const char* name, int device);
 static void mcard_msg_card_damaged_rtn(void);
-void mcard_msg_card_damaged(const char* nameOrNull, int device);
 static void mcard_msg_another_market_rtn(void);
-void mcard_msg_another_market(const char* name, int device);
 static void mcard_msg_sys_corrupt_rtn(void);
-void mcard_msg_sys_corrupt(const char* nameOrNull, int device);
 static void mcard_msg_no_cards_at_cap_rtn(void);
 static void mcard_msg_no_cards_at_settings_rtn(void);
-void mcard_msg_no_cards_at_settings(void);
 static void mcard_msg_no_cards_at_boot_rtn(void);
 static void mcard_msg_mu_removed_rtn(void);
-void mcard_msg_mu_removed(const char* nameOrNull, int device);
-void mcard_msg_delete_failed_generic(void);
-void mcard_msg_delete_successful_generic(void);
-void mcard_msg_delete_failed(int device);
-void mcard_msg_delete_successful(int device);
 
 static inline void format_deleting_body(int device) {
     const char* suffix;
@@ -305,12 +266,6 @@ static inline void format_deleting_body(int device) {
     prefix = nbc_find_text(0x1e, 0);
     sprintf(message_buffer, STR_MC_FMT_SS, prefix, slot_name, suffix);
 }
-void mcard_msg_deleting_file(int device);
-void mcard_msg_no_storage(const char* text);
-void mcard_msg_read(int device);
-void mcard_msg_deleting_data(int device);
-void mcard_msg_create(int device);
-void mcard_msg_save(int device);
 
 void (*msg_routine_table[])(void) = {
     mcmsg_nothing,

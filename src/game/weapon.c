@@ -14,6 +14,8 @@
 #include "game/specular.h"
 #include "math/mk_math.h"
 #include "rw/rwframe.h"
+#include "game/plyr_globals.h"
+#include "game/cloth.h"
 
 typedef struct ImpaleSecondaryObject {
     MkHdr hdr;
@@ -40,8 +42,6 @@ typedef struct WeaponCollisionDef {
         }                                                                 \
     } while (0)
 
-extern MkPtr* weapon_trail_mkobj_list;
-extern MkObj* plyr_obj;
 extern WeaponDefinition goro_gauntlets_weapon_desc_lr;
 extern WeaponDefinition goro_gauntlets_weapon_desc_ll;
 
@@ -57,15 +57,14 @@ void obj_unhide_material_by_id(MkObj* object, int id);
 void obj_hide_material_by_id(MkObj* object, int id);
 void mkobj_zero_bone_rots(MkObj* object);
 int get_player_number(MkObj* object);
-void pull_bone_hierarchy_mkobj(MkObj* object);
+void pull_bone_hierarchy_mkobj(void* obj);
 void obj_force_culling_off(MkObj* object);
-void start_cloth_bones(MkObj* object);
 static void start_weapon_trail(MkObj* weapon, MkObj* trail_model);
 RpMaterial* obj_find_material_by_id(MkObj* object, int material_id);
-void sobj_use_material_color(MkSobj* sobj);
+void sobj_use_material_color(void* sobj);
 void obj_set_material_fade(
     MkObj* object, unsigned int material_id, signed char alpha);
-void material_set_zbias(RpMaterial* material, float bias);
+void material_set_zbias(void* material, float zbias);
 MkProc* fade_material(float delta, MkObj* object, unsigned int sobj_id,
                       unsigned int material_id, int frames);
 void advance_my_moveset(void);

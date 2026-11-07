@@ -4,7 +4,7 @@ typedef void (*ADXRNAErrorCallback)(void* object, const char* message);
 typedef struct AXRNAHandle AXRNAHandle;
 
 extern void AXRNA_SetAdjsfreqFlg(AXRNAHandle* rna, int enabled);
-extern void AXRNA_SetStmHdInfo(AXRNAHandle* rna, void* stream_header);
+extern int AXRNA_SetStmHdInfo(AXRNAHandle* handle, void* stream_header);
 extern int AXRNA_DiscardData(AXRNAHandle* rna, int samples);
 extern void AXRNA_SetBitPerSmpl(AXRNAHandle* rna, int bits);
 extern void AXRNA_SetOutPan(AXRNAHandle* rna, long channel, long pan);

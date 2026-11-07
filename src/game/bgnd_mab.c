@@ -18,6 +18,8 @@
 #include "game/plyr.h"
 #include "runtime/sound.h"
 #include "runtime/light.h"
+#include "game/bgnd.h"
+#include "runtime/anim_pdata.h"
 
 struct MiscBgndData {
     int collision_object_id;
@@ -187,7 +189,6 @@ void limb_sever_show_z_meat_chunks(
     MkObj* object, int limb, int include_children);
 void limb_sever_show_z_meat_chunks_all(MkObj* object);
 void bgnd_hide_mirror_guys(void);
-float p_anim_idle(void);
 void mkobj_zero_bone_rots(MkObj* object);
 extern MkPtr* gusher_list;
 static float p_monitor_objs_sobjs(void);
@@ -198,7 +199,6 @@ static float p_fish_attack_bloodsplat(void);
 static float p_cam_bounce_monitor(void);
 void bgnd_launch_fx_at_position(
     const char* effect, float x, float y, float z);
-float p_track_cam_ang_y_light(void);
 
 const char* rock_xpd_effects[6] = {
     "rock_explode_effect", "rock_explode_effect1", "rock_explode_effect2",

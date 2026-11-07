@@ -30,7 +30,7 @@ static void ps_axis(void);
 static void mkobj_update_cloth(MkHdr* hdr);
 void mkobj_update_weapon_trail(MkHdr* hdr);
 RpMaterial* obj_find_material_by_id(MkObj* obj, int material_id);
-void material_set_zbias(RpMaterial* material, float zbias);
+void material_set_zbias(void* material, float zbias);
 
 extern MkObj* g_bgnd_preloaded_models[15];
 struct ClothCollisionVector {
@@ -1953,10 +1953,10 @@ void mks_obj_enable_update_cloth(MkObj* obj, int enabled) {
     obj->flags_0C_bits.cloth_update = enabled;
 }
 
-void mks_debug_display_cloth_coll_cyl(void) {
+void mks_debug_display_cloth_coll_cyl(int arg0, int arg1, int arg2) {
 }
 
-void mks_debug_display_cloth_coll_plane(void) {
+void mks_debug_display_cloth_coll_plane(float arg0) {
 }
 
 void mks_debug_display_cloth_ontop(int enabled) {

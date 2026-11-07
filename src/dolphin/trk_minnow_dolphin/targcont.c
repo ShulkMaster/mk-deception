@@ -1,9 +1,7 @@
 #include "dolphin/trk.h"
+#include "dolphin/dolphin_trk_glue.h"
+#include "dolphin/targimpl.h"
 
-extern void TRKTargetSetStopped(int stopped);
-extern void UnreserveEXI2Port(void);
-extern void TRKSwapAndGo(void);
-extern void ReserveEXI2Port(void);
 
 DSError TRKTargetContinue(void)
 {

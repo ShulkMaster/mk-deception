@@ -28,6 +28,7 @@
 #include "math/mk_math.h"
 #include "rw/rwframe.h"
 #include "rw/rwcore_types.h"
+#include "runtime/cam_shake.h"
 
 struct PuzzlePresentState {
     MkHdr hdr;
@@ -232,9 +233,7 @@ struct PuzzleSpacingTable {
 };
 
 extern struct PuzzleMovesEngineView g_pz_fighters_engine;
-extern MkProc* plyr_anim_proc;
 struct PuzzleProjectile* g_global_projectile;
-extern PlyrPdata* his_pdata;
 extern struct PuzzleSharedAnimations pz_shared_ani;
 extern struct PuzzleSharedCombatAnimations shared_ani;
 extern ScriptSlot* pz_shared_cmo;
@@ -289,7 +288,7 @@ void set_ani_weight(float weight);
 void set_ani_speed(float speed);
 void stop_me(void);
 void avoid_double_ani(void);
-void random_foot(int type);
+MslSoundHandle random_foot(int group);
 void snd_major_hit_voice(void);
 void myvel_my_angle_y(float angle, float x_velocity, float z_velocity);
 void blend_to_ani_INOUT(
@@ -308,7 +307,7 @@ void tightrope_restrictions_off(void);
 void ani_to_frame_x_call(void (*callback)(void), float frame);
 void shake_hit_voice(
     int shake_ticks, float rumble_scale, int hit_voice, int fighter_voice);
-void pan_snd_req(int sound, float pan);
+MslSoundHandle pan_snd_req(int sound_id, float pan);
 void snd_req_delay(int sound, int delay);
 void pz_fighter_get_grinder_post(int player, Vec* post);
 void bgnd_launch_fx_at_position(
@@ -318,7 +317,7 @@ void set_block_requirement(int requirement);
 MkProc* start_scorpion_spear(int field_34);
 void ani_x_more_frames(float frames);
 void play_sound_1(int sound);
-void blend_to_fstance(float blend);
+int blend_to_fstance(float blend_rate);
 void snd_stop(MslSoundHandle sound);
 void unfreeze_player(void);
 void run_reaction_cleanup_function(PlyrPdata* pdata);
@@ -335,8 +334,8 @@ void pz_fighter_startup_attack(
     unsigned int attack_flags, int blend_flags, unsigned int reaction,
     float damping);
 void player_feet_land_chores(void);
-void random_hit(int sound);
-void random_voice(int sound);
+MslSoundHandle random_hit(int group);
+MslSoundHandle random_voice(int group);
 void glitch_to_ani(AniData* animation, int frame);
 void set_both_face_opponent_flags(void);
 void got_hit_fx(int type, int bone, int strength, int flags, int blood, float scale, int sound);
@@ -352,10 +351,10 @@ void plyr_bleed_medium_cycle(PlyrPdata* pdata, int bone);
 void force_away(float velocity, int duration, float damping, int interval);
 void pz_fighter_attack(
     AniData* animation, PuzzleAttackParameters* attack, int reaction);
-struct PuzzleFighterMove* pz_get_fighter_move(void);
+PuzzleFighterMove* pz_get_fighter_move(void);
 void slow_ani_x(float speed, float frame);
 void ani_to_end(void);
-void pz_fighter_check_breakout(void);
+float pz_fighter_check_breakout(void);
 int pz_fighter_close_enough_to_super_move(unsigned int player);
 int pz_fighter_is_winning_big(unsigned int player);
 int pz_fighter_is_losing_big(unsigned int player);
@@ -366,7 +365,6 @@ void pz_fighters_calc_distance_to_desired_idle_pos_abs(
     float* player1_absolute, float* player2_absolute);
 void pz_fighters_calc_distance_to_desired_idle_pos(
     float* player1_distance, float* player2_distance);
-void shake_camera(int duration, float strength);
 void minigame_get_bgnd_y_value(int* first, int* second);
 void minigame_set_bgnd_y_value(int first, int second);
 static float pz_fighter_present_explode(void);

@@ -38,6 +38,8 @@
 #include "runtime/plyr_pdata.h"
 #include "runtime/sound_bank.h"
 #include "runtime/utils.h"
+#include "game/game.h"
+#include "game/jmt.h"
 
 #define LOAD_PLYR_MODEL_PID 0x9032
 
@@ -92,7 +94,7 @@ extern void snd_stop(MslSoundHandle handle);
 static int baraka_advance_active_moveset(
     PlyrPdata* pdata, PlyrMirrorSlots* context);
 extern AnimPdata* anim_pdata;
-extern void* get_bone_with_tag(MkObj* object, int tag);
+extern void* get_bone_with_tag(void* obj, int tag);
 static float p_baraka_jaw_controller(void);
 static inline int set_plyr_anim_script_frame(
     AnimPdata* animation, AniData* script,
@@ -100,7 +102,6 @@ static inline int set_plyr_anim_script_frame(
     return set_anim_script_frame(animation, script, flags, frame);
 }
 static float p_baraka_blades_controller(void);
-extern int get_current_bgnd(void);
 extern void clear_my_face_opponent_flag(void);
 extern int is_weapon_style(PlyrFighterDefinition* style);
 extern void plyr_weapon_show(
@@ -113,27 +114,21 @@ extern void plyr_weapon_grab(PlyrPdata* player, MkObj* weapon);
 extern void plyr_weapon2_grab(PlyrPdata* player, MkObj* weapon);
 extern MkObj* load_bgnd_weapon_reflection(WeaponDefinition* definition);
 extern void show_fighting_style(GlobalMoveset* moveset, int player);
-extern int is_load_meter_active(void);
 extern void damage_p1(float damage);
 extern void damage_p2(float damage);
-extern void drone_ai_watcher(void);
+extern float drone_ai_watcher(void);
 extern float p_plyr_start(void);
 extern void plyr_aux_weapon_grab(PlyrPdata* pdata, MkObj* weapon);
 extern void select_fighter_voice_in_bank(int player, int alternate_voice);
-extern int is_local_plyr(void);
 extern void advance_active_moveset(PlyrPdata* pdata);
 extern void load_player_fstyle_signs(PlyrPdata* pdata);
 extern MkFileInfo cmo_script_reactions;
-extern void limb_sever_hide_z_meat_chunks_all(MkObj* object);
 extern void plyr_obj_load_bld_data(
     FighterMirror* pdata, BloodModelData* blood_data, MkObj* object,
     const char* path_name);
 extern void init_debug_variables(void);
 extern void pull_bone_hierarchy_mkobj(void* object);
-extern void create_shadow_proc(
-    int pid, PlyrPdata* controller, MkObj* source, MkObj* shadow);
 extern void player_initialize_chores(void);
-extern int shadow_bones[37];
 extern float p_plyr_pz_fighter_start(void);
 
 GlobalPlayerEntry global_player_data[44] = {

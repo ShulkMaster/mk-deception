@@ -4,6 +4,7 @@
 #include "dolphin/vi.h"
 
 #include "cri/svm_callbacks.h"
+#include "movie/mwMovie_platform.h"
 
 typedef struct ADXMSleepCallback {
     SVMCallbackFunction function;
@@ -74,7 +75,6 @@ typedef char ADXMSleepCallbackSizeCheck[
 void ADXM_ShutdownThrd(void);
 int ADXM_IsSetupThrd(void);
 void ADXM_SetCbErr(SVMErrorFunction function, void* object);
-void ADXM_ExecMain(void);
 void ADXM_WaitVsync(void);
 
 void ADXM_WaitVsync(void)

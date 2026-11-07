@@ -7,6 +7,12 @@
 #include "runtime/cam.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_struct.h"
+#include "game/mcardmsg.h"
+#include "game/nbc.h"
+#include "platform/gcmcardmsg.h"
+#include "runtime/utils.h"
+#include "runtime/__mem.h"
+#include "game/plyrprofile.h"
 
 typedef struct KonquestProfileSave {
     int profile_valid;
@@ -165,27 +171,11 @@ typedef struct KonquestNpc {
 extern KonquestProfileSave* p1_profile_konquest;
 extern KonquestProfileSave* p2_profile_konquest;
 extern KonquestPdata* konquest_pdata;
-extern int p1_profile_status;
-extern int p2_profile_status;
-extern int p1_profile_device;
-extern int p2_profile_device;
-extern int p1_profile_slot;
-extern int p2_profile_slot;
 extern StorageDevice storage_status[STORAGE_MAX_DEVICES];
 int f_writing_konquest_profile;
-extern int f_writing_to_memcard;
-
-void* memcpy(void* dst, const void* src, int size);
-void* memset(void* dst, int value, int size);
-
-int save_profile(int profile, int arg);
 /* Decl: include/game/plyrprofile.h */
-int validate_konq_save_location(int player);
-int validate_konq_load_location(int player);
 void set_monk_position(float x, float y, float z, float w);
 void update_tile_grid(void);
-void mcard_msg_card_inaccessable_in_konq(void);
-void quit_from_konquest(void);
 KonquestTrigger* find_trigger_by_id(unsigned int id);
 int spawn_dynamic_pui_at_pos(
     PuiItem* item, int source_type, const Vec* position, void* source,
@@ -195,7 +185,6 @@ int get_tile_from_position(const Vec* position);
 KonquestWaypoint* get_door_path(int id);
 void* get_data_table(void* table, int id);
 int get_row_count_for_table(void* table, int row);
-const char* nbc_find_text(int index, int table);
 int load_konquest_region_from_memcard_w_error(
     int device, int slot, int arg, int region, void* buffer, char* card_name,
     int name_len, unsigned int* free_blocks, int* free_bytes);

@@ -18,8 +18,6 @@
 
 
 extern char konq_region_data_buffer[0x1F54];
-extern int p1_profile_device;
-extern int p1_profile_slot;
 extern int msg_cant_enter_konquest_answer;
 
 #define STR_SPACE " "

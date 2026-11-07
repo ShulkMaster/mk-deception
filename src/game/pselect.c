@@ -1,5 +1,6 @@
 /* BUILD: -str reuse,pool,readonly. */
 #include "game/pselect.h"
+#include "game/plyrprofile.h"
 #include "game/game.h"
 #include "game/controller.h"
 
@@ -80,17 +81,6 @@ struct ProfileCodeKey {
     char pad05[3];
 };
 
-struct PselectProfileView {
-    char pad00[0x40];
-    int koins[7];
-    char pad5C[0x2C];
-    int wager_wins[6];
-    int wager_losses[7];
-    char padBC[0x514 - 0xBC];
-    int bg_team_valid;
-    int bg_team[5];
-};
-
 struct BgPselectTeamRecord {
     int entries[6];
     RwTexture** colors;
@@ -145,7 +135,6 @@ void ck_do_profile_save(void);
 void refresh_active_screen(void);
 void refresh_screen_by_name(char* name);
 static void check_reset_player_selection(int player, int start_pos);
-int check_for_winner(void);
 void wager_cancelled(void);
 int get_current_wager_koin(void);
 static float p_enter_profile_code(void);
@@ -161,10 +150,7 @@ static float p_save_bg_profile(void);
 float p_ladder_select(void);
 float p_puzzle_fighter(void);
 
-extern int game_save_loop_count;
 
-extern struct PselectProfileView p1_profile;
-extern struct PselectProfileView p2_profile;
 extern int p1_profile_status;
 extern int p2_profile_status;
 extern int profile_code_state[2];
@@ -559,8 +545,8 @@ static float p_random_player_select(void) {
 }
 
 void award_bet(void) {
-    struct PselectProfileView* winner;
-    struct PselectProfileView* loser;
+    PlayerProfile* winner;
+    PlayerProfile* loser;
     int winner_num;
     int koin;
 
@@ -2153,7 +2139,7 @@ void bg_pselect_set_stage(int team, int stage) {
 
 void bg_pselect_save_team(int team) {
     struct BgPselectTeamPdata* pdata;
-    struct PselectProfileView* profile;
+    PlayerProfile* profile;
     MkHdr* save_pdata;
     MkProc* proc;
     int i;
@@ -2214,7 +2200,7 @@ static float p_save_bg_profile(void) {
 
 void bg_pselect_load_team(int team) {
     struct BgPselectTeamPdata* pdata;
-    struct PselectProfileView* profile;
+    PlayerProfile* profile;
     int i;
 
     pdata = get_screen_pdata();

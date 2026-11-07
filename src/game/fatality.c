@@ -35,17 +35,13 @@
 #include "rw/rwframe.h"
 #include "platform/gcutils.h"
 #include "platform/main.h"
+#include "game/jmt.h"
+#include "runtime/plyr_anim_pdata.h"
+#include "runtime/sound.h"
+#include "game/game.h"
+#include "game/plyr_globals.h"
 
-extern MkObj* his_obj;
-extern MkObj* plyr_obj;
-extern AnimPdata* plyr_anim_pdata;
-extern MkProc* plyr_anim_proc;
-extern PlyrPdata* his_pdata;
-extern int f_fatality_was_done;
 extern float xz_distance_between_players(void);
-extern int f_fatality_finished;
-extern float p_animate_and_freeze(void);
-extern float p_idle_camera(void);
 extern void unimpale_victim(PlyrPdata* victim);
 extern void reload_fan(PlyrPdata* player);
 extern void run_reaction_cleanup_function(PlyrPdata* player);
@@ -451,7 +447,6 @@ extern float fog_distance;
 extern float fog_color_real[4];
 extern int fog_type;
 void snd_stop(MslSoundHandle handle);
-MslSoundHandle snd_req(int sound);
 void freeze_player(void);
 
 static inline MkObj* fatality_get_severed_limb(
@@ -502,8 +497,6 @@ void obj_set_bone_collapse_flag(MkObj* object, int bone_id);
 void obj_match_pos_ang_to_src_obj(MkObj* destination, MkObj* source);
 void glitch_to_stance(float blend);
 void face_opponent_now(void);
-int is_local_plyr(void);
-void plyr_turn_off_shadowbox(PlyrInfo* player);
 void start_gore2_update(void);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
 void limb_sever_explode_apart(
@@ -526,7 +519,6 @@ static inline void fatality_spawn_limb_blood(
 
 void mkobj_get_matrix_at(MkObj* object, Vec* out);
 void mkobj_get_matrix_right(MkObj* object, Vec* out);
-void obj_set_all_sobjs_priority(MkObj* object, int priority);
 void plyr_weapon_grab(PlyrPdata* player, MkObj* weapon);
 void plyr_weapon2_grab(PlyrPdata* player, MkObj* weapon);
 float sqrtf(float value);

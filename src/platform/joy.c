@@ -16,11 +16,9 @@
 #include "runtime/utils.h"
 #include "runtime/sound.h"
 #include "game/trial.h"
+#include "game/game.h"
+#include "game/plyr.h"
 
-extern PlyrPdata* his_pdata;
-extern MkProc* plyr_anim_proc;
-extern int round_winner;
-extern int f_fatality_available;
 static int my_next_duck_state;
 extern int g_drone_blocking_in_reaction;
 

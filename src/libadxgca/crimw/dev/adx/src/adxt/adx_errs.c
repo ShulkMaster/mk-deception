@@ -1,10 +1,10 @@
 /* BUILD: Retail keeps the " " literal in .rodata (read-only strings, no .sdata2). */
 
 #include "runtime/cstring.h"
+#include "cri/svm.h"
 
 typedef void (*ADXErrorCallback)(void* object, const char* message);
 
-extern void SVM_CallErr(const char* message, ...);
 
 ADXErrorCallback adxerr_func = 0;
 void* adxerr_obj = 0;

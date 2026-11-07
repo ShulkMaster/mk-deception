@@ -33,6 +33,8 @@
 #include "runtime/plyr_anim_pdata.h"
 #include "platform/joy.h"
 #include "game/moves.h"
+#include "runtime/cam_shake.h"
+#include "game/game.h"
 
 struct EjbPlyrForcePdata {
     MkHdr hdr;
@@ -77,14 +79,12 @@ struct EjbSharedAnimationsView {
 };
 typedef char EjbSharedAnimationsViewSizeCheck[sizeof(struct EjbSharedAnimationsView) == (628 / 4) * sizeof(AniData*) ? 1 : -1];
 
-extern PlyrPdata* his_pdata;
-extern MkProc* plyr_anim_proc;
 extern AnimPdata* anim_pdata;
 
 int check_switch(SwitchData* data, int switch_id);
 int is_plyr_blocking(PlyrPdata* pdata);
 int is_my_chest_to_screen(void);
-void random_voice(int group);
+MslSoundHandle random_voice(int group);
 void transition_to_anim_script(
     AnimPdata* anim, AniData* animation, int transition, float blend_rate);
 void set_plyr_attack_region(
@@ -99,7 +99,7 @@ void advance_cur_cmd_idx(void);
 static int check_button_and_pad(
     unsigned int button, unsigned int direction, int pad);
 void advance_my_current_switch(void);
-void random_hit(int group);
+MslSoundHandle random_hit(int group);
 int local_collision_allowed_plyr_pdata(void);
 
 int is_weapon_style(PlyrFighterDefinition* style);
@@ -150,7 +150,6 @@ int drone_ai_check_button_direction(int direction);
 int drone_ai_should_roll(int mode);
 int mk_chess_should_i_fall_down(void);
 void player_impale(MkObj* source, MkObj* target);
-void shake_camera(int ticks, float strength);
 float r_jump_slambounce_final_hit(void);
 float r_jump_chin3_final_hit(void);
 float r_hit_wall(void);
@@ -167,9 +166,8 @@ float ani_to_frame_x_col(
     float frame, int attack_region, float x, float y, int reaction, float z,
     int collision_ticks);
 int is_he_blocking_throw(void);
-void* start_scale_proc(void* object, const unsigned int* script);
+void* start_scale_proc(void* obj, void* script);
 
-extern int f_fatality_finished;
 extern struct EjbSharedAnimationsView shared_ani;
 
 static void tremor_collision_check(void);
@@ -258,8 +256,6 @@ float victory(void);
 float big_boss_end_of_round(void);
 float fall_dead(void);
 float dizzy(void);
-extern int round_winner;
-extern int f_fatality_was_done;
 extern int end_round_cam_done;
 int mk_chess_did_the_king_just_lose(void);
 void skip_end_of_trial_wrapup(void);

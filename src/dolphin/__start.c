@@ -3,6 +3,7 @@
 #include "runtime/cstring.h"
 #include "runtime/cstdlib.h"
 #include "runtime/asm_sequences.inc"
+#include "platform/main.h"
 
 #pragma section code_type ".init"
 
@@ -27,7 +28,6 @@ void __init_hardware(void);
 static void __init_data(void);
 void __flush_cache(void* address, unsigned int size);
 void __init_user(void);
-int main(int argc, char** argv);
 
 void InitMetroTRK(void);
 void InitMetroTRK_BBA(void);

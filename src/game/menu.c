@@ -28,6 +28,9 @@
 #include "runtime/section.h"
 #include "runtime/sound.h"
 #include "runtime/utils.h"
+#include "game/minigames.h"
+#include "platform/disc_error.h"
+#include "game/krypt.h"
 
 struct SoundtrackTitleEntry {
     const char* meta;
@@ -81,7 +84,6 @@ struct PauseMenuPdata {
     int was_paused;
 };
 
-extern int disc_error_occurred;
 extern int last_switch_time;
 extern SwitchMapEntry p1_temp_switch_map[];
 extern SwitchMapEntry p2_temp_switch_map[];
@@ -94,7 +96,6 @@ extern int p2_use_temp_switch_map;
 extern const char* number_strings[];
 extern unsigned long display_off;
 extern int pause_player;
-extern int __mini_game_display_ctrl;
 
 void snd_stop(MslSoundHandle handle);
 int get_menu_mode_sub_var(void);
@@ -105,8 +106,6 @@ void ck_do_profile_save(void);
 void xfer_puzzle_exit(int mode);
 
 extern float p_konquest_mode(void);
-extern float p_kontent(void);
-extern float p_krypt_mode(void);
 
 static float p_controller_watcher(void);
 

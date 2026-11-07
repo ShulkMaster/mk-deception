@@ -5,12 +5,7 @@ extern int ADX_DecodeMono4(const signed char* input, int num_blocks,
                            short* output, short delay[2], short coefficient0,
                            short coefficient1, short* random_state,
                            short random_multiplier, short random_increment);
-extern int ADX_DecodeSte4(const signed char* input, int num_blocks,
-                          short* output_left, short delay_left[2],
-                          short* output_right, short delay_right[2],
-                          short coefficient0, short coefficient1,
-                          short* random_state, short random_multiplier,
-                          short random_increment);
+extern int ADX_DecodeSte4(const signed char* input, int numBlocks, short* outputLeft, short delayLeft[2], short* outputRight, short delayRight[2], short coefficient0, short coefficient1, short* randomState, short randomMultiplier, short randomIncrement);
 
 int adxpd_internal_error;
 AdxXpnd adxpd_obj[16];

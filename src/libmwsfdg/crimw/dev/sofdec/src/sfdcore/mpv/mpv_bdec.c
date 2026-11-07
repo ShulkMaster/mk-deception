@@ -50,7 +50,7 @@ extern s16* mpvvlc_run_level_0a;
 extern s16* mpvvlc_run_level_0b;
 extern s16* mpvvlc_run_level_0c;
 
-extern void DCT_FsriInitScanTbl(const s8 source[64], s8 destination[64]);
+extern void DCT_FsriInitScanTbl(const signed char source[64], signed char destination[64]);
 
 void MPVBDEC_Init(MPVBDECContextView* context)
 {

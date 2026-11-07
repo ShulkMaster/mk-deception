@@ -1,6 +1,7 @@
 /* BUILD: -inline noauto,deferred emits definitions in reverse source order;
  * this order also preserves pooled strings and anonymous initializers. */
 #include "runtime/anim_pdata.h"
+#include "platform/display.h"
 #include "runtime/anim_api_ext.h"
 #include "game/pfxscript_api.h"
 #include "game/pfxscript.h"
@@ -495,7 +496,6 @@ struct GroundCollTable npc_ground_colls[3] = {
 extern struct GroundCollTable npc_punched_ground_colls[5];
 int npc_fast_anims[175];
 extern int konquest_editor_mode_on;
-extern void* Camera;
 static struct KonquestNpcShadows npc_shadows;
 extern struct KonquestAnimations konquest_animations;
 extern struct KonquestNpcStateDef g_event_tbl[8];
@@ -557,9 +557,9 @@ void resume_hero_state_process(void);
 AniTextureControl* konquest_create_monk_face_ani_texture(MkObj* object);
 void transition_to_anim_script(
     AnimPdata* animation, AniData* script, int flags, float blend);
-float anim_script_lastframe(AniData* script);
+float anim_script_lastframe(AnimScript* script);
 void npc_travel_path(int path_id, int path_arg, int travel_mode);
-struct KonquestTileOrigin* get_nth_tile_struct(int index);
+void* get_nth_tile_struct(int index);
 int get_tile_from_position(const Vec* position);
 void npc_set_his_flags(KonquestNpcData* data, int flags, int enabled);
 KonquestWaypoint* get_door_path(int door_id);
@@ -568,7 +568,7 @@ int is_game_mode_in_stack(int mode);
 void npc_ani_1_frame(void);
 void add_npc(KonquestNpcData* data);
 int check_skip_conversation_flag(void);
-void snd_stop(unsigned int sound_handle);
+void snd_stop(MslSoundHandle handle);
 int mslSoundIsValid(unsigned int sound_handle);
 static float p_wait_for_dialog(void);
 float p_do_lip_synch(void);
@@ -578,13 +578,13 @@ RpMaterial* obj_find_material_by_id(MkObj* object, int material_id);
 int is_blood_disabled(void);
 void fx_resume_emit(unsigned int effect);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
-void insert_ground_me_mkobj(MkObj* object);
+void insert_ground_me_mkobj(void* obj);
 void sobj_swap_material_texture(
     MkSobj* sobj, unsigned int material_id, RwTexture* texture);
 void sobj_use_material_color(void* sobj);
 void remove_fgnd_mkobj(void* object);
 void remove_npc(KonquestNpcData* data);
-void get_visible_tile_set(int tile_set);
+void* get_visible_tile_set(int index);
 void npc_make_visible(KonquestNpc* npc);
 void npc_make_invisible(KonquestNpc* npc);
 void random_snd_req_delay(int group, int delay);

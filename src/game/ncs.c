@@ -34,9 +34,9 @@
 #include "runtime/cstring.h"
 #include "runtime/utils.h"
 #include "runtime/sound.h"
+#include "game/game.h"
 
 extern LightDef* pbl_gore2_lights[3];
-extern MkPtr* gore2_light_list;
 extern int blood_type_list[12];
 
 static void trigger_blood_glops(
@@ -44,8 +44,6 @@ static void trigger_blood_glops(
 MkObj* obj_sever_limb(
     MkObj* object, int limb, Vec* limb_velocities, int include_children);
 
-extern int f_fatality_was_done;
-extern PlyrPdata* his_pdata;
 
 struct NcsBoneMatcher {
     MkHdr hdr;
@@ -396,8 +394,8 @@ void fx_transfer(unsigned int handle, unsigned int owner);
 void start_decal_emitter_watcher(void);
 void fx_resume_emit(unsigned int handle);
 int am_i_on_the_left2(MkObj* opponent, MkObj* me);
-void mkobj_get_matrix_at(MkObj* object, Vec* out);
-void mkobj_get_matrix_right(MkObj* object, Vec* out);
+void mkobj_get_matrix_at(void* obj, void* out);
+void mkobj_get_matrix_right(void* obj, void* out);
 void* limb_sever_find_limbset(PlyrInfo* player);
 void trial_state_collision_check(int collision_result, int player);
 void pz_fighter_reaction_xfer_him(int reaction);
@@ -409,15 +407,14 @@ void plyr_aux_weapon_release(PlyrPdata* player);
 void hide_atomic(void* atomic);
 void unhide_atomic(void* atomic);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
-void random_hit(int hit);
+MslSoundHandle random_hit(int group);
 MKMATRIX* force_calc_bone_world_mat(MkObj* object, int bone);
 void init_plyr_severed_limb_list(PlyrInfo* player);
 void obj_set_ang_vel(MkObj* object, void* velocity);
-void obj_set_pos_vel(MkObj* object, void* velocity);
 void spawn_decal_emitter(
     const char* name, FighterMirror* owner, Vec* position,
     const MKMATRIX* orientation, float angle);
-MKMATRIX* mkobj_get_matrix(MkObj* object);
+void* mkobj_get_matrix(void* obj);
 void limb_sever_show_z_meat_chunks(
     MkObj* object, int limb, int include_children);
 MkProc* fire_sc_spear(

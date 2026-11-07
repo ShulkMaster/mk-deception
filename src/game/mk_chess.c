@@ -3,6 +3,7 @@
 #include "runtime/anim_transition.h"
 #include "runtime/anim_api_ext.h"
 #include "game/mk_chess.h"
+#include "game/plyrprofile.h"
 #include "game/game_info.h"
 #include "game/settings.h"
 #include "game/menu.h"
@@ -362,16 +363,6 @@ typedef struct ChessGameDefinition {
     int enabled;
 } ChessGameDefinition;
 
-typedef struct ChessProfileStats {
-    char pad00[0x4FC];
-    unsigned int local_ai_wins;
-    unsigned int local_ai_losses;
-    unsigned int local_human_wins;
-    unsigned int local_human_losses;
-    unsigned int online_wins;
-    unsigned int online_losses;
-} ChessProfileStats;
-
 AniScript** mkc_animations;
 extern int g_active_team;
 extern int G_BOARD_GAME_BIGSTACK_COUNTER;
@@ -418,8 +409,6 @@ extern ChessModeState* mk_chess_pdata;
 extern ChessBoardSave board_game_save_data;
 extern ChessBoardGameController g_board_game_controller;
 extern int g_loser_life_resolved;
-extern ChessProfileStats p1_profile;
-extern ChessProfileStats p2_profile;
 extern int p1_profile_status;
 extern int p2_profile_status;
 extern ChessBezierCameraState g_bezier_cam;
@@ -475,7 +464,7 @@ void snd_stop(MslSoundHandle handle);
 int ck_fatality_available(void);
 void end_music(void);
 static float p_mk_chess_start_fatality(void);
-MkProc* get_player_proc(void* player);
+MkProc* get_player_proc(MkObj* player);
 static float p_mk_chess_game_restore(void);
 static float p_mk_chess_game_setup(void);
 static float p_mk_chess_game_over(void);
@@ -484,11 +473,11 @@ static void mk_chess_set_default_chess_game(void);
 static void mk_chess_set_up_passed_in_chess_game(void);
 static void mk_chess_set_default_chess_demo_game(void);
 void ck_do_profile_save(void);
-float bgnd_pebble_fetch_current_info(int field);
+float bgnd_pebble_fetch_current_info(unsigned int field);
 void mk_chess_camera_init(void);
 void bgnd_make_mkobj_transl(MkObj* object);
 void obj_set_z_offsets(float offset, void* object);
-void insert_ground_me_mkobj(MkObj* object);
+void insert_ground_me_mkobj(void* obj);
 float p_mk_chess_cam_control(void);
 float p_mk_chess_cam_chase_cursor(void);
 float p_monitor_chess_input(void);
@@ -2492,7 +2481,7 @@ static inline unsigned int mk_chess_priority_attacker(ChessPiece* target, ChessP
     return rating;
 }
 
-extern void remove_fgnd_mkobj(MkObj* object);
+extern void remove_fgnd_mkobj(void* obj);
 
 static inline void mk_chess_return_selection_cursor(ChessCursor* cursor,
     unsigned char x, unsigned char y)
@@ -12925,78 +12914,78 @@ float mk_chess_transition_from_fight(void) {
         if (p1_profile_status == 1) {
             if (g_game_info.feature_flags.bits.online_game) {
                 if (winner == 1) {
-                    p1_profile.online_wins++;
+                    p1_profile.chess_online_wins++;
                 } else {
-                    p1_profile.online_losses++;
+                    p1_profile.chess_online_losses++;
                 }
             } else if (winner == 1) {
                 if (g_game_info.plyr1.player_state == 0) {
-                    p1_profile.local_ai_wins++;
+                    p1_profile.chess_local_ai_wins++;
                 } else {
-                    p1_profile.local_human_wins++;
+                    p1_profile.chess_local_human_wins++;
                 }
             } else if (g_game_info.plyr1.player_state == 0) {
-                p1_profile.local_ai_losses++;
+                p1_profile.chess_local_ai_losses++;
             } else {
-                p1_profile.local_human_losses++;
+                p1_profile.chess_local_human_losses++;
             }
 
-            if (p1_profile.online_wins > 999999) {
-                p1_profile.online_wins = 999999;
+            if (p1_profile.chess_online_wins > 999999) {
+                p1_profile.chess_online_wins = 999999;
             }
-            if (p1_profile.online_losses > 999999) {
-                p1_profile.online_losses = 999999;
+            if (p1_profile.chess_online_losses > 999999) {
+                p1_profile.chess_online_losses = 999999;
             }
-            if (p1_profile.local_ai_wins > 999999) {
-                p1_profile.local_ai_wins = 999999;
+            if (p1_profile.chess_local_ai_wins > 999999) {
+                p1_profile.chess_local_ai_wins = 999999;
             }
-            if (p1_profile.local_human_wins > 999999) {
-                p1_profile.local_human_wins = 999999;
+            if (p1_profile.chess_local_human_wins > 999999) {
+                p1_profile.chess_local_human_wins = 999999;
             }
-            if (p1_profile.local_ai_losses > 999999) {
-                p1_profile.local_ai_losses = 999999;
+            if (p1_profile.chess_local_ai_losses > 999999) {
+                p1_profile.chess_local_ai_losses = 999999;
             }
-            if (p1_profile.local_human_losses > 999999) {
-                p1_profile.local_human_losses = 999999;
+            if (p1_profile.chess_local_human_losses > 999999) {
+                p1_profile.chess_local_human_losses = 999999;
             }
         }
 
         if (p2_profile_status == 1) {
             if (g_game_info.feature_flags.bits.online_game) {
                 if (winner == 2) {
-                    p2_profile.online_wins++;
+                    p2_profile.chess_online_wins++;
                 } else {
-                    p2_profile.online_losses++;
+                    p2_profile.chess_online_losses++;
                 }
             } else if (winner == 2) {
                 if (g_game_info.plyr0.player_state == 0) {
-                    p2_profile.local_ai_wins++;
+                    p2_profile.chess_local_ai_wins++;
                 } else {
-                    p2_profile.local_human_wins++;
+                    p2_profile.chess_local_human_wins++;
                 }
             } else if (g_game_info.plyr0.player_state == 0) {
-                p2_profile.local_ai_losses++;
+                p2_profile.chess_local_ai_losses++;
             } else {
-                p2_profile.local_human_losses++;
+                p2_profile.chess_local_human_losses++;
             }
 
-            if (p2_profile.online_wins > 999999) {
-                p2_profile.online_wins = 999999;
+            if (p2_profile.chess_online_wins > 999999) {
+                p2_profile.chess_online_wins = 999999;
             }
-            if (p2_profile.online_losses > 999999) {
-                p2_profile.online_losses = 999999;
+            if (p2_profile.chess_online_losses > 999999) {
+                p2_profile.chess_online_losses = 999999;
             }
-            if (p2_profile.local_ai_wins > 999999) {
-                p2_profile.local_ai_wins = 999999;
+            if (p2_profile.chess_local_ai_wins > 999999) {
+                p2_profile.chess_local_ai_wins = 999999;
             }
-            if (p2_profile.local_human_wins > 999999) {
-                p2_profile.local_human_wins = 999999;
+            if (p2_profile.chess_local_human_wins > 999999) {
+                p2_profile.chess_local_human_wins = 999999;
             }
-            if (p2_profile.local_ai_losses > 999999) {
-                p2_profile.local_ai_losses = 999999;
+            if (p2_profile.chess_local_ai_losses > 999999) {
+                p2_profile.chess_local_ai_losses = 999999;
             }
-            if (p2_profile.local_human_losses > 999999) {
-                p2_profile.local_human_losses = 999999;
+            if (p2_profile.chess_local_human_losses > 999999) {
+                p2_profile.chess_local_human_losses = 999999;
             }
         }
 

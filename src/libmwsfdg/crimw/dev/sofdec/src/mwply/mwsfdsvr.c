@@ -1,6 +1,9 @@
 #include "cri/sj.h"
 #include "sofdec/mws_sound.h"
 #include "cri/adxt_internal.h"
+#include "movie/mwsfx.h"
+#include "sofdec/sfd_transport.h"
+#include "sofdec/sfd_player.h"
 
 typedef struct LSC LSC;
 typedef struct SfdHandle SfdHandle;
@@ -88,7 +91,6 @@ extern void MWSFCRE_SetSupplySj(MwsPlayer* player);
 extern void MWSFSEE_ChkSupply(MwsPlayer* player);
 extern int MWSFLSC_IsFsStatErr(LSC* loader);
 extern void MWSFSFX_DecideCompoMode(MwsPlayer* player);
-extern void MWSFSVM_Error(const char* message, ...);
 extern void MWSFSVM_GotoIdleBorder(void);
 extern int MWSFSVM_TestAndSet(int* value);
 extern int MWSTM_GetStat(ADXStream* stream);
@@ -96,17 +98,10 @@ extern int MWSTM_IsFsStatErr(ADXStream* stream);
 extern int MWSTM_ReqStart(ADXStream* stream);
 extern void MWSTM_SetFileRange(ADXStream* stream, const char* filename, int offset,
                                int length, int end_position);
-extern int SFD_GetHnStat(SfdHandle* handle);
-extern void SFD_ExecOne(SfdHandle* handle);
-extern int SFD_IsHnSvrWait(SfdHandle* handle);
-extern int SFD_IsSvrWait(void);
-extern int SFD_SetConcatPlay(SfdHandle* handle);
-extern int SFD_TermSupply(SfdHandle* handle);
-extern void SFD_VbIn(void);
 extern void mwPlyChkSupply(MwsPlayer* player);
 extern void mwPlyRestoreRsc(void);
 extern void mwPlySaveRsc(void);
-extern void mwPlySfdStart(MwsPlayer* player);
+extern int mwPlySfdStart(MwsPlayer* player);
 extern void mwSfdPause(MwsPlayer* player, int paused);
 
 static int mwSfdExecDecSvrHndl(MwsPlayer* player);

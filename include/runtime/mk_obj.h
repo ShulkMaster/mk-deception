@@ -483,6 +483,7 @@ MkSobj* unhide_sobj_by_sobj_id(void* obj, unsigned int id);
 void hide_obj(void* obj);
 void unhide_obj(void* obj);
 MkSobj* obj_first_sobj(MkObj* obj);
+void sobj_disable_blending(void* sobj);
 void obj_create_sobjs(MkObj* obj);
 RpMaterial* obj_find_material_with_texture(MkObj* obj,
                                            const char* texture_name);

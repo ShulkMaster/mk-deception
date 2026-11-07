@@ -1,6 +1,7 @@
 #include "cri/sj.h"
 #include "cri/adxt_internal.h"
 #include "sofdec/sfd_player_types.h"
+#include "sofdec/sfd_player.h"
 
 typedef struct SfdHandle SfdHandle;
 typedef struct MwsLoader MwsLoader;
@@ -34,10 +35,6 @@ extern int MWSFRNA_GetOutVol(MwsPlayer* player);
 extern void MWSFRNA_SetOutVol(MwsPlayer* player, int volume);
 extern int MWSST_GetOutVol(MwsSound* sound);
 extern void MWSST_SetOutVol(MwsSound* sound, int volume);
-extern int SFD_GetTime(SfdHandle* handle, int* value, int* scale);
-extern int SFD_SetCond(SfdHandle* handle, int condition,
-                       SfdConditionValue value);
-extern int SFD_GetHnStat(SfdHandle* handle);
 extern int SFD_SetAudioCh(SfdHandle* handle, int channel);
 extern void MWSTM_SetFlowLimit(ADXStream* stream, int minimum_size,
                                int maximum_size);

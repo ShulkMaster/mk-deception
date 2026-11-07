@@ -41,6 +41,7 @@
 #include "runtime/sound.h"
 #include "runtime/utils.h"
 #include "rw/rwresources.h"
+#include "game/memcard.h"
 
 static void init_tombstone_koins(void* pfx);
 static void init_tombstone_letters(void* pfx);
@@ -53,10 +54,10 @@ static float update_tombstone_letters(void);
 static float update_tombstone_numbers(void);
 
 int get_menu_mode_sub_var(void);
-int run_ending(int fighter);
+void run_ending(int fighter);
 char* get_ending_thumbnail_name(int fighter);
-int pan_snd_req(int sound_id, float pan);
-void insert_ground_me_mkobj(MkObj* object);
+MslSoundHandle pan_snd_req(int sound_id, float pan);
+void insert_ground_me_mkobj(void* obj);
 char* strlwr(char* string);
 
 struct KontentPdata {
@@ -98,10 +99,6 @@ struct KryptCharacterMonitorPdata {
 };
 
 extern int menu_player;
-extern ProfileCommon* p1_profile_common;
-extern ProfileCommon* p2_profile_common;
-extern void* p1_profile_konquest;
-extern void* p2_profile_konquest;
 extern AnimScript* bgnd_animations[];
 extern int konquest_human_bones[];
 extern MkFlippedBoneMap flipped_konquest_human_bones;

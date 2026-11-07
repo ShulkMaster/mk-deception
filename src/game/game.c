@@ -149,7 +149,7 @@ struct LoadScreenPdata {
     unsigned int meter_instance;
 };
 
-extern int snd_req_delay(int sound_id, int ticks);
+extern void snd_req_delay(int sound_id, int delay);
 extern void trial_game_init(void);
 extern void show_fighting_style(GlobalMoveset* moveset, int player);
 extern void bleed_startup(void);
@@ -409,7 +409,6 @@ unsigned int round_numbers_tbl[] = {
     0x00020020, 0x00020021, 0x00020022,
     0x00020023, 0x00020024,
 };
-extern void mk_chess_game_just_ended(void);
 extern int trial_end_round(void);
 extern int advance_ladder_position(void);
 extern void award_bet(void);
@@ -434,15 +433,12 @@ extern float big_boss_taunt_cam_cut(void);
 extern void sidekick_intro_check(void);
 extern void trial_start_new_round(void);
 extern void trial_round_init(void);
-extern void mk_chess_advantage_hud(void);
-extern MkProc* get_player_proc(void* player);
+extern MkProc* get_player_proc(MkObj* player);
 extern void big_boss_wait_for_intro(void);
 extern void konquest_transition_from_fight(void);
-extern float mk_chess_transition_from_fight(void);
 extern void player_postround_chores(void);
 extern MkFileInfo sec_fightingart;
 extern void trial_setup_fight(void);
-extern const char* get_pause_menu_name(void);
 extern int num_files_loaded;
 extern int f_p1_warning_given;
 extern int f_p2_warning_given;

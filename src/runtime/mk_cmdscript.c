@@ -13,13 +13,13 @@
 #include "runtime/mk_struct.h"
 #include "runtime/mk_vtbl.h"
 #include "runtime/section.h"
+#include "runtime/script_functions.h"
 
 static void fixup_data_tables(ScriptSlot* slot);
 static float p_run_one_shot_script(void);
 
 typedef void (*ScriptBuiltinFn)(void);
 
-extern ScriptBuiltinFn script_callable_function_table[];
 extern int number_of_script_functions;
 
 struct CmdScriptProcVtable {

@@ -59,8 +59,8 @@ extern void MPVCMC_InitObj(MPVContext* handle);
 extern void MPVCMC_Init(void);
 extern void MPVHDEC_Init(void);
 extern void MPVFRM_Init(void);
-extern int MPVVLC_IsVlcSizErr(void);
-extern void MPVVLC_Init(void* work, MPVContext* decoder);
+extern s32 MPVVLC_IsVlcSizErr(void);
+extern void MPVVLC_Init(u8 *vlc, void *ixa);
 extern void MPVBDEC_Init(void* context);
 extern int MPVDEC_CheckVersion(const char* version, int object_size,
                                int picture_attribute_size);

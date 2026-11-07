@@ -94,7 +94,6 @@ struct PuzzleFighterMoveTables {
 struct PuzzleSharedAnimations pz_shared_ani;
 PuzzleFightersEngine g_pz_fighters_engine;
 struct PuzzleFighterMoveTables g_pz_fighter_tables;
-extern PlyrPdata* his_pdata;
 extern struct PuzzleProjectile* g_global_projectile;
 ScriptSlot* pz_shared_cmo;
 
@@ -157,7 +156,6 @@ void attack_to_frame_x(
     float frame4, unsigned int field0C, unsigned int field10, int field14);
 void force_forward(float velocity, int duration, float damping, int interval);
 void force_away(float velocity, int duration, float damping, int interval);
-void move_player(MkObj* fighter, Vec* position, Vec* angle);
 void puzzle_fighter_get_num_blocks_on_screen(
     unsigned int* player1_blocks, unsigned int* player2_blocks);
 int puzzle_fighter_plyr_winning_big_based_on_points(void);

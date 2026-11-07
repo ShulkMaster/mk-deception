@@ -13,7 +13,7 @@ static const float zero = 0.0f;
 
 void fx_resume_emit(unsigned int handle);
 
-void nbc_script_debug_point(void) {}
+void nbc_script_debug_point(int arg0, int arg1, float arg2) {}
 
 float bgnd_get_camera_z_pos(void) {
     CameraObj* cam;
@@ -45,7 +45,7 @@ void hf_bgnd_set_smasher_mode(int* ptr, int value) {
     *ptr = value;
 }
 
-float bgnd_get_anim_info(int arg) {
+float bgnd_get_anim_info(int arg, int arg1, float arg2) {
     float f1;
 
     f1 = zero;

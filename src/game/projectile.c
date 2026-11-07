@@ -149,7 +149,6 @@ extern int reaction_xfer_him(
 extern int collide_sphere_vs_plyr(
     PlyrInfo* player, Vec* center, float radius);
 extern void pz_fighter_reaction_xfer_him(int reaction);
-extern void obj_set_all_sobjs_priority(MkObj* object, int priority);
 
 
 static inline void projectile_set_target_position(Vec* position) {

@@ -158,7 +158,7 @@ static inline unsigned long _mwFileInitHandleTracking(mwFileInitParam* parameter
 }
 extern void _mwFilePlatformTick();
 extern bool _mwFilePlatformIsInServiceThread();
-extern int _mwFilePlatformInit(mwFileInitParam*);
+extern int _mwFilePlatformInit(_mwFileInitParam* param);
 extern int _mwFileMountInit();
 
 extern "C" mwFileCommand* mwFileCloseAsync(

@@ -100,7 +100,7 @@ void bgnd_launch_fx_at_bid_of_mkobj(
 
 float r_chest2_stumble(void);
 
-void bgnd_jtb_debug_info(void) {
+void bgnd_jtb_debug_info(float arg0, float arg1, float arg2) {
 }
 
 static void convert_to_new_coord_sys(

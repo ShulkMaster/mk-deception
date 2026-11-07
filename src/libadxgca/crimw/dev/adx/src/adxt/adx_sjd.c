@@ -54,8 +54,7 @@ extern void ADXCRS_Unlock(void);
 extern void ADXERR_CallErrFunc2(const char* message1, const char* message2);
 
 extern void ADXB_Init(void);
-extern AdxBasicDecoderExt* ADXB_Create(
-    s32 max_channels, s16* pcm_buffer, s32 pcm_size, s32 pcm_distance);
+extern AdxBasicDecoderExt* ADXB_Create(int max_channels, short* pcm_buffer, int pcm_size, int pcm_distance);
 extern void ADXB_Destroy(AdxBasicDecoderExt* decoder);
 extern void ADXB_ExecHndl(AdxBasicDecoderExt* decoder);
 extern void ADXB_Reset(AdxBasicDecoderExt* decoder);
@@ -63,29 +62,28 @@ extern void ADXB_Stop(AdxBasicDecoderExt* decoder);
 extern void ADXB_Start(AdxBasicDecoderExt* decoder);
 extern void ADXB_EntryData(
     AdxBasicDecoderExt* decoder, signed char* input, s32 length);
-extern s32 ADXB_GetStat(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetDecNumSmpl(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetDecDtLen(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetStat(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetDecNumSmpl(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetDecDtLen(AdxBasicDecoderExt* decoder);
 extern void ADXB_RestoreSnapshot(AdxBasicDecoderExt* decoder);
 extern void ADXB_TakeSnapshot(AdxBasicDecoderExt* decoder);
-extern s16 ADXB_GetDefPan(AdxBasicDecoderExt* decoder, s32 channel);
-extern s16 ADXB_GetDefOutVol(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetAinfLen(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetLpEndOfst(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetLpEndPos(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetLpStartOfst(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetLpStartPos(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetNumLoop(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetTotalNumSmpl(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetBlkSmpl(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetOutBps(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetNumChan(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetSfreq(AdxBasicDecoderExt* decoder);
-extern s16* ADXB_GetPcmBuf(AdxBasicDecoderExt* decoder);
+extern short ADXB_GetDefPan(AdxBasicDecoderExt* decoder, int channel);
+extern short ADXB_GetDefOutVol(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetAinfLen(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetLpEndOfst(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetLpEndPos(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetLpStartOfst(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetLpStartPos(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetNumLoop(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetTotalNumSmpl(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetBlkSmpl(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetOutBps(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetNumChan(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetSfreq(AdxBasicDecoderExt* decoder);
+extern short* ADXB_GetPcmBuf(AdxBasicDecoderExt* decoder);
 extern void ADXB_EntryGetWrFunc(
     AdxBasicDecoderExt* decoder, AdxGetWriteInfo function, void* object);
-extern s32 ADXB_DecodeHeader(
-    AdxBasicDecoderExt* decoder, signed char* input, s32 length);
+extern int ADXB_DecodeHeader(AdxBasicDecoderExt* decoder, signed char* input, int length);
 extern void ADXB_SetDefPrm(AdxBasicDecoderExt* decoder);
 
 extern void ADXB_AhxTermSupply(AdxBasicAhx* decoder);
@@ -93,8 +91,8 @@ extern void ADXB_SetAhxDecSmpl(AdxBasicAhx* decoder, s32 samples);
 extern void ADXB_SetAhxInSj(AdxBasicAhx* decoder, SJ* input);
 
 extern u8* SJRBF_GetBufPtr(SJ* sj);
-extern s32 SJRBF_GetBufSize(SJ* sj);
-extern s32 SJRBF_GetXtrSize(SJ* sj);
+extern int SJRBF_GetBufSize(SJ* sj);
+extern int SJRBF_GetXtrSize(SJ* sj);
 
 static const char adxsjd_decode_header_error[] =
     "E03010901 ADXB_DecodeHeader: ";

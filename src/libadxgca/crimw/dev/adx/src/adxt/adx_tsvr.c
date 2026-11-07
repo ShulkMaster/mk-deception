@@ -69,8 +69,8 @@ extern void ADXSTM_EntryEosFunc(
     ADXStream* stream, void (*callback)(void* object), void* object);
 extern s32 ADXSTM_Seek(ADXStream* stream, s32 sector);
 
-extern s32 ADXRNA_GetNumData(AXRNAHandle* rna);
-extern s32 ADXRNA_GetNumRoom(AXRNAHandle* rna);
+extern int ADXRNA_GetNumData(AXRNAHandle* rna);
+extern int ADXRNA_GetNumRoom(AXRNAHandle* rna);
 extern void ADXRNA_SetPlaySw(AXRNAHandle* rna, s32 enabled);
 extern void ADXRNA_SetTransSw(AXRNAHandle* rna, s32 enabled);
 extern void ADXRNA_SetBitPerSmpl(AXRNAHandle* rna, s32 bits);
@@ -79,7 +79,7 @@ extern void ADXRNA_SetNumChan(AXRNAHandle* rna, s32 channels);
 extern void ADXRNA_SetTotalNumSmpl(AXRNAHandle* rna, s32 samples);
 extern void ADXRNA_SetOutVol(AXRNAHandle* rna, s32 volume);
 extern void ADXRNA_SetOutPan(AXRNAHandle* rna, s32 channel, s32 pan);
-extern s32 ADXRNA_SetStmHdInfo(AXRNAHandle* rna, void* stream_header);
+extern int ADXRNA_SetStmHdInfo(AXRNAHandle* rna, void* stream_header);
 
 extern s32 ADXT_GetNumChan(ADXTHandle* handle);
 extern s32 ADXT_GetStat(ADXTHandle* handle);
@@ -87,7 +87,7 @@ extern void ADXT_GetTranspose(
     ADXTHandle* handle, s32* transpose, s32* fine_transpose);
 extern void ADXT_SetTranspose(
     ADXTHandle* handle, s32 transpose, s32 fine_transpose);
-extern void ADXT_SetLnkSw(ADXTHandle* handle, s8 enabled);
+extern void ADXT_SetLnkSw(ADXTHandle* handle, s32 enabled);
 extern void ADXT_Stop(ADXTHandle* handle);
 extern void adxt_start_stm(
     ADXTHandle* handle, const char* filename, void* directory,

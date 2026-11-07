@@ -1,4 +1,5 @@
 #include "runtime/mk_struct.h"
+#include "runtime/mk_pdata.h"
 #include "rw/rwresources.h"
 #include "game/bgnd.h"
 #include "game/nbc.h"
@@ -210,11 +211,6 @@ struct KonquestCameraScriptPdata {
 
 typedef struct KonquestDialogArt KonquestDialogArt;
 
-struct KonquestStringLatch {
-    StringObj* object;
-    unsigned int instance;
-};
-
 struct KonquestDialogPdata {
     MkHdr hdr;
     struct KonquestStringLatch lines[3];
@@ -358,17 +354,6 @@ struct KonquestSavedState {
     int progression;
 };
 
-struct KonquestRegionAsset {
-    const MkFileEntry* fight_files;
-    const MkFileEntry* art_files;
-    union {
-        const char* script_name;
-        const char* map_art_name;
-    };
-    const char* string_bank;
-    const char* hud_art_name;
-};
-
 struct KonquestNpcCameraTarget {
     char pad00[0x0C];
     MkObj* focus_object;
@@ -399,11 +384,6 @@ struct KonquestGrounding {
             unsigned char bit0 : 1;
         } flag_bits;
     };
-};
-
-struct KonquestObjectLatch {
-    MkHdr* object;
-    unsigned int instance;
 };
 
 struct KonquestDialogOwner {
@@ -500,13 +480,13 @@ struct KonquestPdata {
     MkPtr* visible_npc_list;
     char pad44[4];
     int hud_visible;
-    struct KonquestObjectLatch hud_objects[7];
+    MkHdrLatch hud_objects[7];
     KryptScreenObjLatch award_picture;
-    struct KonquestObjectLatch hud_labels[6];
+    MkHdrLatch hud_labels[6];
     char padBC[0x20];
-    struct KonquestObjectLatch hud_extra_label;
-    struct KonquestObjectLatch award_text;
-    struct KonquestObjectLatch award_art;
+    MkHdrLatch hud_extra_label;
+    MkHdrLatch award_text;
+    MkHdrLatch award_art;
     MkProc* collision_proc;
     MkObj* hero_object;
     unsigned int hero_instance;
@@ -532,7 +512,7 @@ struct KonquestPdata {
     MkPtr* sobj_infos;
     MkHdr* tile_objects;
     unsigned int tile_objects_instance;
-    struct KonquestObjectLatch tile_model;
+    MkHdrLatch tile_model;
     float field_174;
     unsigned int visible_tile_bits;
     int tile_width;
@@ -543,9 +523,9 @@ struct KonquestPdata {
     struct KonquestDirectionalLightDef directional_light;
     struct KonquestAmbientLightDef sky_ambient_light;
     struct KonquestAmbientLightDef ambient_light;
-    struct KonquestObjectLatch movement_npc;
+    MkHdrLatch movement_npc;
     char pad200[0xB8];
-    struct KonquestObjectLatch objective_beam;
+    MkHdrLatch objective_beam;
     struct KonquestObjectiveState objective;
     int objective_field_2F0;
     MkPtr* pui_list;
@@ -737,11 +717,6 @@ struct KonquestSobjInfo {
 struct KonquestDayOfWeek {
     unsigned int art;
     int flags;
-};
-
-struct KonquestChildDefinition {
-    char pad00[0x0C];
-    int enumeration_index;
 };
 
 struct KonquestPuiDefinition {
@@ -1196,7 +1171,7 @@ static float p_konquest_interaction(void);
 static float p_konquest_map_screen(void);
 static float p_transition_to_fight(void);
 static float p_load_hero_art_section(void);
-void insert_ground_me_mkobj(MkObj* object);
+void insert_ground_me_mkobj(void* obj);
 void obj_apply_to_sobj_with_id(
     MkObj* object, int id, void (*callback)(void*));
 static void initialize_tile_patch_sobj(MkSobj* object);
@@ -1208,13 +1183,6 @@ void sobj_use_material_color(MkSobj* object);
 void npc_shadow_set_alpha(int alpha);
 void npc_shadow_set_light_angle(Vec* angles);
 void hide_atomic(void* atomic);
-MkProc* _create_mkproc_generic_tinystack(
-    int pid, int priority, void* entry, int pdata_size, void** pdata);
-MkProc* _create_mkproc_generic_bigstack(
-    int pid, int priority, MkProcEntryFn entry, int pdata_size, MkHdr** pdata);
-MkProc* _create_mkproc_generic_nostack(
-    int pid, int priority, void* entry, int pdata_size, void** pdata);
-void zero_pdata_payload(int size, void* pdata);
 static float p_konquest_kill_dialog_procs(void);
 void run_camera_script(void* owner, void* script, int flags);
 void kill_lip_sync_procs(void);
@@ -1478,7 +1446,7 @@ typedef struct KonquestTransitionMotion {
 static void object_transition_to_state(
     KonquestChildObject* object, int state, int play_sound);
 static void object_set_state(KonquestChildObject* record, int state);
-void remove_fgnd_mkobj(MkObj* object);
+void remove_fgnd_mkobj(void* obj);
 void fx_resume_emit(int effect);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
 static void exit_meditation(void);
@@ -1520,7 +1488,7 @@ void hero_stop_moving(void);
 MkObj* trial_get_monk(void);
 void npc_make_invisible(union KonquestNpc* npc);
 void make_damashi_npc(MkObj* object);
-void vdestroy_konquest_pui(KonquestPuiRuntime* pui);
+void vdestroy_konquest_pui(struct KonquestPuiRuntime* pui);
 static void vdestroy_konquest_sobj_info(MkHdr* object);
 static void vdestroy_konquest_sobj(struct KonquestSobj* object);
 static void vdestroy_konquest_obj(struct KonquestObject* object);
@@ -1787,7 +1755,7 @@ static inline int konquest_current_game_mode(void) {
 }
 
 static inline ScreenObj* konquest_pdata_live_hud_objects_2_object(struct KonquestPdata* owner) {
-    ScreenObj* object = (ScreenObj*) owner->hud_objects[2].object;
+    ScreenObj* object = (ScreenObj*) owner->hud_objects[2].hdr;
     if (object != 0) {
         if (object->instance == owner->hud_objects[2].instance) {
             return object;
@@ -1800,7 +1768,7 @@ static inline ScreenObj* konquest_pdata_live_hud_objects_2_object(struct Konques
 }
 
 static inline MkObj* konquest_pdata_live_objective_beam_object(struct KonquestPdata* owner) {
-    MkObj* object = (MkObj*) owner->objective_beam.object;
+    MkObj* object = (MkObj*) owner->objective_beam.hdr;
     if (object != 0) {
         if (object->hdr.instance == owner->objective_beam.instance) {
             return object;
@@ -2109,7 +2077,7 @@ static inline union KonquestNpc* konquest_live_hero_grounding(struct KonquestPda
 }
 
 static inline union KonquestNpc* konquest_live_movement_npc_object(struct KonquestPdata* owner) {
-    union KonquestNpc* object = (union KonquestNpc*) owner->movement_npc.object;
+    union KonquestNpc* object = (union KonquestNpc*) owner->movement_npc.hdr;
     if (object != 0) {
         if (object->fields.hdr.instance == owner->movement_npc.instance) {
             return object;
@@ -2569,7 +2537,7 @@ static inline void pui_fire_pfx_sequence(
         if (konquest_sphere_visible(&sphere) &&
             _create_mkproc_generic_nostack(
                 0xA01D, 0x1F, p_pui_pfx_sequence,
-                sizeof(*pdata), (void**)&pdata) != 0) {
+                sizeof(*pdata), (MkHdr**)&pdata) != 0) {
             zero_pdata_payload(sizeof(*pdata), &pdata->hdr);
             pdata->sequence = sequence;
             pdata->index = 0;
@@ -2648,7 +2616,7 @@ static inline struct KonquestUidObject* get_konquest_object_struct(void) {
     if (object != 0) {
         object->hdr.vtbl = MK_VTABLE_ADDRESS(vtbl_konquest_obj);
         mk_set_instance(&object->hdr.instance);
-        zero_pdata_payload(sizeof(*object), object);
+        zero_pdata_payload(sizeof(*object), &object->hdr);
     }
     return object;
 }
@@ -2742,7 +2710,7 @@ static inline struct KonquestSobjInfo* find_sobj_info_by_uid(int uid) {
 }
 
 static inline MkObj* konquest_live_tile_model_object(struct KonquestPdata* owner) {
-    MkObj* object = (MkObj*) owner->tile_model.object;
+    MkObj* object = (MkObj*) owner->tile_model.hdr;
     return MK_HDR_LIVE(object, owner->tile_model.instance);
 }
 void set_tile_visibility(int tile_index, int state);
@@ -2971,7 +2939,7 @@ static inline MkObj* get_konquest_tiles_obj(void) {
     MkObj* object = 0;
 
     if (pdata != 0) {
-        object = (MkObj*)MK_LIVE(pdata->tile_model.object, pdata->tile_model.instance);
+        object = (MkObj*)MK_LIVE(pdata->tile_model.hdr, pdata->tile_model.instance);
     }
     return object;
 }
@@ -3184,7 +3152,7 @@ static void load_and_init_konquest_map_specific_data(int region) {
 
         proc = _create_mkproc_generic_nostack(
             0xA019, 0x1F, p_pui_timed_event_manager,
-            sizeof(*process_data), (void**)&process_data);
+            sizeof(*process_data), (MkHdr**)&process_data);
         if (proc != 0) {
             set_process_as_scriptable(proc);
         }
@@ -3258,12 +3226,12 @@ float p_setup_konquest_map(void) {
 
     _create_mkproc_generic_tinystack(
         0x5009, 0x28, p_adjust_sky, sizeof(*process_data),
-        (void**)&process_data);
+        (MkHdr**)&process_data);
 
     if (konquest_editor_mode_on == 0) {
         konquest_pdata->collision_proc = _create_mkproc_generic_tinystack(
             0x822A, 0x1A, p_collide_monk, sizeof(*process_data),
-            (void**)&process_data);
+            (MkHdr**)&process_data);
     }
 
     create_konquest_light();
@@ -3881,7 +3849,7 @@ void start_konquest_ambient_sounds(void) {
         snd_req(konquest_pdata->region_table->ambient_sound);
     _create_mkproc_generic_tinystack(
         0x8226, 0x1F, p_cross_fade_ambient_sounds, sizeof(*fade),
-        (void**)&fade);
+        (MkHdr**)&fade);
     if (fade != 0) {
         fade->step_a = 0.0f;
         fade->step_b = 0.0f;
@@ -3898,7 +3866,7 @@ inline void init_ambient_sounds(void) {
         snd_req(konquest_pdata->region_table->ambient_sound);
     _create_mkproc_generic_tinystack(
         0x8226, 0x1F, p_cross_fade_ambient_sounds, sizeof(*fade),
-        (void**)&fade);
+        (MkHdr**)&fade);
     if (fade != 0) {
         fade->step_a = 0.0f;
         fade->step_b = 0.0f;
@@ -4493,12 +4461,12 @@ static void init_heads_up_display(void) {
     object = load_2d_pfxobj_xy(
         0x60030, 0x8301, 0x0A8C0014, 0,
         screen_width - 0xE2, screen_height - 0xA8, 0x48);
-    konquest_pdata->hud_objects[3].object = (MkHdr*)object;
+    konquest_pdata->hud_objects[3].hdr = (MkHdr*)object;
     konquest_pdata->hud_objects[3].instance = object->instance;
     object = load_2d_pfxobj_xy(
         0x60030, 0x8301, 0x0A8C0015, 0,
         screen_width - 0xDA, screen_height - 0xA8, 0x48);
-    konquest_pdata->hud_objects[4].object = (MkHdr*)object;
+    konquest_pdata->hud_objects[4].hdr = (MkHdr*)object;
     konquest_pdata->hud_objects[4].instance = object->instance;
     if (object != 0) {
         object->scale_x = 20.6f;
@@ -4506,12 +4474,12 @@ static void init_heads_up_display(void) {
     object = load_2d_pfxobj_xy(
         0x60030, 0x8301, 0x0A8C0016, 0,
         screen_width - 0x35, screen_height - 0xA8, 0x48);
-    konquest_pdata->hud_objects[5].object = (MkHdr*)object;
+    konquest_pdata->hud_objects[5].hdr = (MkHdr*)object;
     konquest_pdata->hud_objects[5].instance = object->instance;
     object = load_2d_pfxobj_xy(
         0x60030, 0x8301, 0x0A8C0013, 0,
         screen_width - 0x78, 0x26, 0x49);
-    konquest_pdata->hud_objects[6].object = (MkHdr*)object;
+    konquest_pdata->hud_objects[6].hdr = (MkHdr*)object;
     konquest_pdata->hud_objects[6].instance = object->instance;
 
     object = load_2d_pfxobj(
@@ -4519,44 +4487,44 @@ static void init_heads_up_display(void) {
     if (object != 0) {
         object->x = (screen_width - 0x32) - object->pfx2d->tex_w;
         object->y = screen_height - 0x4A;
-        konquest_pdata->hud_labels[3].object = (MkHdr*)object;
+        konquest_pdata->hud_labels[3].hdr = (MkHdr*)object;
         konquest_pdata->hud_labels[3].instance = object->instance;
     }
 
     label = string_right_xy(
         0x8300, 0xE, "12:", screen_width - 0x78,
         screen_height - 0x75, 0x44);
-    konquest_pdata->hud_labels[0].object = (MkHdr*)label;
+    konquest_pdata->hud_labels[0].hdr = (MkHdr*)label;
     konquest_pdata->hud_labels[0].instance = label->instance;
     label = string_left_xy(
         0x8300, 0xE, "00", screen_width - 0x78,
         screen_height - 0x75, 0x44);
-    konquest_pdata->hud_labels[1].object = (MkHdr*)label;
+    konquest_pdata->hud_labels[1].hdr = (MkHdr*)label;
     konquest_pdata->hud_labels[1].instance = label->instance;
     label = string_right_xy(
         0x8300, 0xE, "AM", screen_width - 0x32,
         screen_height - 0x75, 0x44);
-    konquest_pdata->hud_labels[2].object = (MkHdr*)label;
+    konquest_pdata->hud_labels[2].hdr = (MkHdr*)label;
     konquest_pdata->hud_labels[2].instance = label->instance;
     label = string_right_xy(
         0x8300, 0xE, "01.01.01", screen_width - 0x32,
         screen_height - 0x5E, 0x44);
-    konquest_pdata->hud_extra_label.object = (MkHdr*)label;
+    konquest_pdata->hud_extra_label.hdr = (MkHdr*)label;
     konquest_pdata->hud_extra_label.instance = label->instance;
 
     object = load_2d_pfxobj_xy(
         0x60030, 0x8301, 0x0A8C0009, 0, 0x14,
         screen_height - 0x9B, 0x45);
-    konquest_pdata->hud_objects[1].object = (MkHdr*)object;
+    konquest_pdata->hud_objects[1].hdr = (MkHdr*)object;
     konquest_pdata->hud_objects[1].instance = object->instance;
     object = load_2d_pfxobj_xy(
         0x60030, 0x8301, 0x0A8C000A, 0, 0x14,
         screen_height - 0x9B, 0x47);
-    konquest_pdata->hud_objects[0].object = (MkHdr*)object;
+    konquest_pdata->hud_objects[0].hdr = (MkHdr*)object;
     konquest_pdata->hud_objects[0].instance = object->instance;
     _create_mkproc_generic_tinystack(
         0x9018, 0x1F, p_adjust_compass, sizeof(*compass_pdata),
-        (void**)&compass_pdata);
+        (MkHdr**)&compass_pdata);
 
     if (konquest_region_data[konquest_pdata->region_index].hud_art_name != 0) {
         object = load_named_2d_pfxobj(
@@ -4566,7 +4534,7 @@ static void init_heads_up_display(void) {
         if (object != 0) {
             object->x = (screen_width - 0x32) - object->pfx2d->tex_w;
             object->y = 0x1E;
-            konquest_pdata->hud_labels[4].object = (MkHdr*)object;
+            konquest_pdata->hud_labels[4].hdr = (MkHdr*)object;
             konquest_pdata->hud_labels[4].instance = object->instance;
         }
     }
@@ -4580,7 +4548,7 @@ static float p_adjust_compass(void) {
 
     camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
-    compass = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[0].object, konquest_pdata->hud_objects[0].instance);
+    compass = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[0].hdr, konquest_pdata->hud_objects[0].instance);
 
     for (index = 0; index < 4; index++) {
         float angle;
@@ -4822,15 +4790,15 @@ static void update_time_screen_objs(int update_all) {
     char period[4];
     char date[16];
 
-    hour_object = MK_LIVE((StringObj*) konquest_pdata->hud_labels[0].object, konquest_pdata->hud_labels[0].instance);
+    hour_object = MK_LIVE((StringObj*) konquest_pdata->hud_labels[0].hdr, konquest_pdata->hud_labels[0].instance);
 
-    minute_object = MK_LIVE((StringObj*) konquest_pdata->hud_labels[1].object, konquest_pdata->hud_labels[1].instance);
+    minute_object = MK_LIVE((StringObj*) konquest_pdata->hud_labels[1].hdr, konquest_pdata->hud_labels[1].instance);
 
-    day_object = MK_LIVE((ScreenObj*) konquest_pdata->hud_labels[3].object, konquest_pdata->hud_labels[3].instance);
+    day_object = MK_LIVE((ScreenObj*) konquest_pdata->hud_labels[3].hdr, konquest_pdata->hud_labels[3].instance);
 
-    date_object = MK_LIVE((StringObj*) konquest_pdata->hud_extra_label.object, konquest_pdata->hud_extra_label.instance);
+    date_object = MK_LIVE((StringObj*) konquest_pdata->hud_extra_label.hdr, konquest_pdata->hud_extra_label.instance);
 
-    period_object = MK_LIVE((StringObj*) konquest_pdata->hud_labels[2].object, konquest_pdata->hud_labels[2].instance);
+    period_object = MK_LIVE((StringObj*) konquest_pdata->hud_labels[2].hdr, konquest_pdata->hud_labels[2].instance);
 
     if (update_all != 0 && day_object != 0) {
         if (day_object->instance != 0) {
@@ -4844,7 +4812,7 @@ static void update_time_screen_objs(int update_all) {
             day_object->x =
                 (screen_width - 0x32) - day_object->pfx2d->tex_w;
             day_object->y = screen_height - 0x4A;
-            konquest_pdata->hud_labels[3].object = (MkHdr*)day_object;
+            konquest_pdata->hud_labels[3].hdr = (MkHdr*)day_object;
             konquest_pdata->hud_labels[3].instance = day_object->instance;
         }
         if (g_game_info.flag_bits.load_complete == 0) {
@@ -5067,7 +5035,7 @@ void load_konquest_tiles(void) {
         obj_create_sobjs(model);
         obj_apply_to_sobj_with_id(
             model, 0xA, (void (*)(void*))initialize_tile_patch_sobj);
-        konquest_pdata->tile_model.object = &model->hdr;
+        konquest_pdata->tile_model.hdr = &model->hdr;
         konquest_pdata->tile_model.instance = model->hdr.instance;
     } else {
         return;
@@ -5142,7 +5110,7 @@ static int setup_pebble_system_for_tile_object(
         info = (struct KonquestSobjInfo*)get_mkhdr(
             &vtbl_konquest_sobj_info, sizeof(*info));
         if (info != 0) {
-            zero_pdata_payload(sizeof(*info), info);
+            zero_pdata_payload(sizeof(*info), &info->hdr);
             info->type = 1;
             info->uid = uid;
             info->enumeration_index = find_enumeration_index(uid);
@@ -5220,7 +5188,7 @@ static int setup_locator_for_tile_object(
     info = (struct KonquestSobjInfo*)get_mkhdr(
         &vtbl_konquest_sobj_info, sizeof(*info));
     if (info != 0) {
-        zero_pdata_payload(sizeof(*info), info);
+        zero_pdata_payload(sizeof(*info), &info->hdr);
         info->type = 1;
         info->uid = uid;
         info->enumeration_index = find_enumeration_index(uid);
@@ -5255,7 +5223,7 @@ static int setup_sobj_for_tile_object(
     info = (struct KonquestSobjInfo*)get_mkhdr(
         &vtbl_konquest_sobj_info, sizeof(*info));
     if (info != 0) {
-        zero_pdata_payload(sizeof(*info), info);
+        zero_pdata_payload(sizeof(*info), &info->hdr);
         info->type = 1;
         info->uid = uid;
         info->enumeration_index = find_enumeration_index(uid);
@@ -5493,7 +5461,7 @@ static void generate_door_trigger(
             trigger = (struct KonquestTriggerStruct*)get_mkhdr(
                 &vtbl_trigger_struct, sizeof(*trigger));
             if (trigger != 0) {
-                zero_pdata_payload(sizeof(*trigger), trigger);
+                zero_pdata_payload(sizeof(*trigger), &trigger->hdr);
             }
             trigger->owned_data = get_mem(
                 sizeof(*trigger->owned_data));
@@ -5786,7 +5754,7 @@ static KonquestRenderRecord* create_konquest_sobj_for_konquest_obj(
     if (record != 0) {
         record->hdr.vtbl = MK_VTABLE_ADDRESS(vtbl_konquest_sobj_struct);
         mk_set_instance(&record->hdr.instance);
-        zero_pdata_payload(sizeof(*record), record);
+        zero_pdata_payload(sizeof(*record), &record->hdr);
     }
 
     record->info = find_sobj_info_by_uid(uid);
@@ -5961,7 +5929,7 @@ static inline void create_trigger(int table_index) {
     trigger = (struct KonquestTriggerStruct*)get_mkhdr(
         &vtbl_trigger_struct, sizeof(*trigger));
     if (trigger != 0) {
-        zero_pdata_payload(sizeof(*trigger), trigger);
+        zero_pdata_payload(sizeof(*trigger), &trigger->hdr);
     }
 
     trigger->id = table_index;
@@ -6009,7 +5977,7 @@ struct KonquestTriggerStruct* add_temporary_trigger(
     trigger = (struct KonquestTriggerStruct*)get_mkhdr(
         &vtbl_trigger_struct, sizeof(*trigger));
     if (trigger != 0) {
-        zero_pdata_payload(sizeof(*trigger), trigger);
+        zero_pdata_payload(sizeof(*trigger), &trigger->hdr);
     }
     trigger->owned_data =
         get_mem(sizeof(*trigger->owned_data));
@@ -6598,7 +6566,7 @@ static inline void konquest_start_door_proc(KonquestChildObject* door,
     } else {
         proc = _create_mkproc_generic_tinystack(
             0xA018, 0x1F, p_konquest_open_door,
-            sizeof(*pdata), (void**)&pdata);
+            sizeof(*pdata), (MkHdr**)&pdata);
         if (proc != 0) {
             door->state_object = &proc->hdr;
             door->state_object_instance = proc->instance;
@@ -6789,7 +6757,7 @@ void konquest_transition_object_to_state(
 
         proc = _create_mkproc_generic_tinystack(
             0x8231, 0x1F, p_konquest_transition_to_state,
-            sizeof(*pdata), (void**)&pdata);
+            sizeof(*pdata), (MkHdr**)&pdata);
         if (proc != 0) {
             proc->flags_bits.use_game_speed = 1;
             pdata->object = child;
@@ -7034,8 +7002,8 @@ void hide_objective_arrow_and_beam(void) {
     MkHdr* beam;
     MkSobj* sky_object;
 
-    arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
-    beam = MK_LIVE(konquest_pdata->objective_beam.object, konquest_pdata->objective_beam.instance);
+    arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].hdr, konquest_pdata->hud_objects[2].instance);
+    beam = MK_LIVE(konquest_pdata->objective_beam.hdr, konquest_pdata->objective_beam.instance);
     if (arrow == 0 || beam == 0) {
         return;
     }
@@ -7054,8 +7022,8 @@ void show_objective_arrow_and_beam(void) {
     MkHdr* arrow;
     MkHdr* beam;
 
-    arrow = MK_LIVE(konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
-    beam = MK_LIVE(konquest_pdata->objective_beam.object, konquest_pdata->objective_beam.instance);
+    arrow = MK_LIVE(konquest_pdata->hud_objects[2].hdr, konquest_pdata->hud_objects[2].instance);
+    beam = MK_LIVE(konquest_pdata->objective_beam.hdr, konquest_pdata->objective_beam.instance);
 
     if (arrow == 0 || beam == 0) {
         return;
@@ -7096,9 +7064,9 @@ void check_objective_table(void) {
                 ScreenObj* hidden_arrow;
                 MkObj* hidden_beam;
 
-                hidden_arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
+                hidden_arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].hdr, konquest_pdata->hud_objects[2].instance);
 
-                hidden_beam = MK_HDR_LIVE((MkObj*) konquest_pdata->objective_beam.object, konquest_pdata->objective_beam.instance);
+                hidden_beam = MK_HDR_LIVE((MkObj*) konquest_pdata->objective_beam.hdr, konquest_pdata->objective_beam.instance);
 
                 if (hidden_arrow != 0 && hidden_beam != 0) {
                     MkSobj* sky_object;
@@ -7510,7 +7478,7 @@ inline void update_map_coords(void) {
     konquest_pdata->tile_row =
         konquest_pdata->tile_load_state / konquest_pdata->tile_width + 1;
 
-    label = MK_LIVE((StringObj*) konquest_pdata->hud_labels[5].object, konquest_pdata->hud_labels[5].instance);
+    label = MK_LIVE((StringObj*) konquest_pdata->hud_labels[5].hdr, konquest_pdata->hud_labels[5].instance);
 
     sprintf(text, "%c - %d", konquest_pdata->tile_column + 'A',
             konquest_pdata->tile_row);
@@ -7519,7 +7487,7 @@ inline void update_map_coords(void) {
     } else {
         label = string_center_xy(
             0x8300, 0xE, text, 0x52, screen_height - 0x9B, 0x44);
-        konquest_pdata->hud_labels[5].object = (MkHdr*)label;
+        konquest_pdata->hud_labels[5].hdr = (MkHdr*)label;
         konquest_pdata->hud_labels[5].instance = label->instance;
     }
 }
@@ -8101,7 +8069,7 @@ static float p_monk_meditate(void) {
                     if (_create_mkproc_generic_tinystack(
                             0x8233, 0x1F, ramp_game_speed,
                             sizeof(*speed_pdata),
-                            (void**)&speed_pdata) != 0 &&
+                            (MkHdr**)&speed_pdata) != 0 &&
                         speed_pdata != 0) {
                         if (refresh_rate() == 60) {
                             speed_pdata->multiplier = 2.0f;
@@ -8115,7 +8083,7 @@ static float p_monk_meditate(void) {
                     }
                     _create_mkproc_generic_tinystack(
                         0x8238, 0x1F, p_monitor_meditation_time,
-                        sizeof(*monitor_pdata), (void**)&monitor_pdata);
+                        sizeof(*monitor_pdata), (MkHdr**)&monitor_pdata);
                     meditate_stream = snd_req(0x15BB);
                 }
                 break;
@@ -8227,7 +8195,7 @@ static void exit_meditation(void) {
         snd_req(0x15BD);
         if (_create_mkproc_generic_tinystack(
                 0x8233, 0x1F, ramp_game_speed, sizeof(*pdata),
-                (void**)&pdata) != 0 &&
+                (MkHdr**)&pdata) != 0 &&
             pdata != 0) {
             if (refresh_rate() == 60) {
                 pdata->multiplier = 0.5f;
@@ -8495,7 +8463,7 @@ static float p_monk_unconscious(void) {
 
     if (_create_mkproc_generic_tinystack(
             0x8233, 0x1F, ramp_game_speed, sizeof(*speed_pdata),
-            (void**)&speed_pdata) != 0 &&
+            (MkHdr**)&speed_pdata) != 0 &&
         speed_pdata != 0) {
         if (refresh_rate() == 60) {
             speed_pdata->multiplier = 2.0f;
@@ -8519,7 +8487,7 @@ static float p_monk_unconscious(void) {
     snd_req(0x15BD);
     if (_create_mkproc_generic_tinystack(
             0x8233, 0x1F, ramp_game_speed, sizeof(*speed_pdata),
-            (void**)&speed_pdata) != 0 &&
+            (MkHdr**)&speed_pdata) != 0 &&
         speed_pdata != 0) {
         if (refresh_rate() == 60) {
             speed_pdata->multiplier = 0.5f;
@@ -10212,34 +10180,34 @@ void konquest_show_hud(void) {
 
     konquest_pdata->hud_visible = 1;
     if (konquest_pdata->objective.visible != 0) {
-        object = MK_LIVE(konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
+        object = MK_LIVE(konquest_pdata->hud_objects[2].hdr, konquest_pdata->hud_objects[2].instance);
         if (object != 0) unhide_screen_obj((ScreenObj*)object);
     }
-    object = MK_LIVE(konquest_pdata->hud_objects[0].object, konquest_pdata->hud_objects[0].instance);
+    object = MK_LIVE(konquest_pdata->hud_objects[0].hdr, konquest_pdata->hud_objects[0].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_objects[1].object, konquest_pdata->hud_objects[1].instance);
+    object = MK_LIVE(konquest_pdata->hud_objects[1].hdr, konquest_pdata->hud_objects[1].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_objects[3].object, konquest_pdata->hud_objects[3].instance);
+    object = MK_LIVE(konquest_pdata->hud_objects[3].hdr, konquest_pdata->hud_objects[3].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_objects[4].object, konquest_pdata->hud_objects[4].instance);
+    object = MK_LIVE(konquest_pdata->hud_objects[4].hdr, konquest_pdata->hud_objects[4].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_objects[5].object, konquest_pdata->hud_objects[5].instance);
+    object = MK_LIVE(konquest_pdata->hud_objects[5].hdr, konquest_pdata->hud_objects[5].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_objects[6].object, konquest_pdata->hud_objects[6].instance);
+    object = MK_LIVE(konquest_pdata->hud_objects[6].hdr, konquest_pdata->hud_objects[6].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_labels[0].object, konquest_pdata->hud_labels[0].instance);
+    object = MK_LIVE(konquest_pdata->hud_labels[0].hdr, konquest_pdata->hud_labels[0].instance);
     if (object != 0) unhide_string_obj((StringObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_labels[1].object, konquest_pdata->hud_labels[1].instance);
+    object = MK_LIVE(konquest_pdata->hud_labels[1].hdr, konquest_pdata->hud_labels[1].instance);
     if (object != 0) unhide_string_obj((StringObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_labels[2].object, konquest_pdata->hud_labels[2].instance);
+    object = MK_LIVE(konquest_pdata->hud_labels[2].hdr, konquest_pdata->hud_labels[2].instance);
     if (object != 0) unhide_string_obj((StringObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_labels[4].object, konquest_pdata->hud_labels[4].instance);
+    object = MK_LIVE(konquest_pdata->hud_labels[4].hdr, konquest_pdata->hud_labels[4].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_labels[5].object, konquest_pdata->hud_labels[5].instance);
+    object = MK_LIVE(konquest_pdata->hud_labels[5].hdr, konquest_pdata->hud_labels[5].instance);
     if (object != 0) unhide_string_obj((StringObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_labels[3].object, konquest_pdata->hud_labels[3].instance);
+    object = MK_LIVE(konquest_pdata->hud_labels[3].hdr, konquest_pdata->hud_labels[3].instance);
     if (object != 0) unhide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_extra_label.object, konquest_pdata->hud_extra_label.instance);
+    object = MK_LIVE(konquest_pdata->hud_extra_label.hdr, konquest_pdata->hud_extra_label.instance);
     if (object != 0) unhide_string_obj((StringObj*)object);
 }
 
@@ -10259,33 +10227,33 @@ static float p_fade_konquest_hud(void) {
 
     for (;;) {
         alpha += step;
-        object = MK_LIVE(konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
+        object = MK_LIVE(konquest_pdata->hud_objects[2].hdr, konquest_pdata->hud_objects[2].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        object = MK_LIVE(konquest_pdata->hud_objects[0].object, konquest_pdata->hud_objects[0].instance);
+        object = MK_LIVE(konquest_pdata->hud_objects[0].hdr, konquest_pdata->hud_objects[0].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        object = MK_LIVE(konquest_pdata->hud_objects[1].object, konquest_pdata->hud_objects[1].instance);
+        object = MK_LIVE(konquest_pdata->hud_objects[1].hdr, konquest_pdata->hud_objects[1].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        object = MK_LIVE(konquest_pdata->hud_labels[3].object, konquest_pdata->hud_labels[3].instance);
+        object = MK_LIVE(konquest_pdata->hud_labels[3].hdr, konquest_pdata->hud_labels[3].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        object = MK_LIVE(konquest_pdata->hud_labels[4].object, konquest_pdata->hud_labels[4].instance);
+        object = MK_LIVE(konquest_pdata->hud_labels[4].hdr, konquest_pdata->hud_labels[4].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        object = MK_LIVE(konquest_pdata->hud_objects[3].object, konquest_pdata->hud_objects[3].instance);
+        object = MK_LIVE(konquest_pdata->hud_objects[3].hdr, konquest_pdata->hud_objects[3].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        object = MK_LIVE(konquest_pdata->hud_objects[4].object, konquest_pdata->hud_objects[4].instance);
+        object = MK_LIVE(konquest_pdata->hud_objects[4].hdr, konquest_pdata->hud_objects[4].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        object = MK_LIVE(konquest_pdata->hud_objects[5].object, konquest_pdata->hud_objects[5].instance);
+        object = MK_LIVE(konquest_pdata->hud_objects[5].hdr, konquest_pdata->hud_objects[5].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        object = MK_LIVE(konquest_pdata->hud_objects[6].object, konquest_pdata->hud_objects[6].instance);
+        object = MK_LIVE(konquest_pdata->hud_objects[6].hdr, konquest_pdata->hud_objects[6].instance);
         if (object != 0) set_screen_obj_alpha((ScreenObj*)object, alpha);
-        object = MK_LIVE(konquest_pdata->hud_labels[0].object, konquest_pdata->hud_labels[0].instance);
+        object = MK_LIVE(konquest_pdata->hud_labels[0].hdr, konquest_pdata->hud_labels[0].instance);
         if (object != 0) set_string_obj_alpha((StringObj*)object, alpha);
-        object = MK_LIVE(konquest_pdata->hud_labels[1].object, konquest_pdata->hud_labels[1].instance);
+        object = MK_LIVE(konquest_pdata->hud_labels[1].hdr, konquest_pdata->hud_labels[1].instance);
         if (object != 0) set_string_obj_alpha((StringObj*)object, alpha);
-        object = MK_LIVE(konquest_pdata->hud_labels[2].object, konquest_pdata->hud_labels[2].instance);
+        object = MK_LIVE(konquest_pdata->hud_labels[2].hdr, konquest_pdata->hud_labels[2].instance);
         if (object != 0) set_string_obj_alpha((StringObj*)object, alpha);
-        object = MK_LIVE(konquest_pdata->hud_extra_label.object, konquest_pdata->hud_extra_label.instance);
+        object = MK_LIVE(konquest_pdata->hud_extra_label.hdr, konquest_pdata->hud_extra_label.instance);
         if (object != 0) set_string_obj_alpha((StringObj*)object, alpha);
-        object = MK_LIVE(konquest_pdata->hud_labels[5].object, konquest_pdata->hud_labels[5].instance);
+        object = MK_LIVE(konquest_pdata->hud_labels[5].hdr, konquest_pdata->hud_labels[5].instance);
         if (object != 0) set_string_obj_alpha((StringObj*)object, alpha);
 
         if (g_fade_hud_in != 0) {
@@ -10315,33 +10283,33 @@ void konquest_hide_hud(int unused) {
 
     konquest_pdata->hud_visible = 0;
 
-    object = MK_LIVE(konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
+    object = MK_LIVE(konquest_pdata->hud_objects[2].hdr, konquest_pdata->hud_objects[2].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_objects[0].object, konquest_pdata->hud_objects[0].instance);
+    object = MK_LIVE(konquest_pdata->hud_objects[0].hdr, konquest_pdata->hud_objects[0].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_objects[1].object, konquest_pdata->hud_objects[1].instance);
+    object = MK_LIVE(konquest_pdata->hud_objects[1].hdr, konquest_pdata->hud_objects[1].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_labels[3].object, konquest_pdata->hud_labels[3].instance);
+    object = MK_LIVE(konquest_pdata->hud_labels[3].hdr, konquest_pdata->hud_labels[3].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_labels[4].object, konquest_pdata->hud_labels[4].instance);
+    object = MK_LIVE(konquest_pdata->hud_labels[4].hdr, konquest_pdata->hud_labels[4].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_objects[3].object, konquest_pdata->hud_objects[3].instance);
+    object = MK_LIVE(konquest_pdata->hud_objects[3].hdr, konquest_pdata->hud_objects[3].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_objects[4].object, konquest_pdata->hud_objects[4].instance);
+    object = MK_LIVE(konquest_pdata->hud_objects[4].hdr, konquest_pdata->hud_objects[4].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_objects[5].object, konquest_pdata->hud_objects[5].instance);
+    object = MK_LIVE(konquest_pdata->hud_objects[5].hdr, konquest_pdata->hud_objects[5].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_objects[6].object, konquest_pdata->hud_objects[6].instance);
+    object = MK_LIVE(konquest_pdata->hud_objects[6].hdr, konquest_pdata->hud_objects[6].instance);
     if (object != 0) hide_screen_obj((ScreenObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_labels[0].object, konquest_pdata->hud_labels[0].instance);
+    object = MK_LIVE(konquest_pdata->hud_labels[0].hdr, konquest_pdata->hud_labels[0].instance);
     if (object != 0) hide_string_obj((StringObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_labels[1].object, konquest_pdata->hud_labels[1].instance);
+    object = MK_LIVE(konquest_pdata->hud_labels[1].hdr, konquest_pdata->hud_labels[1].instance);
     if (object != 0) hide_string_obj((StringObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_labels[2].object, konquest_pdata->hud_labels[2].instance);
+    object = MK_LIVE(konquest_pdata->hud_labels[2].hdr, konquest_pdata->hud_labels[2].instance);
     if (object != 0) hide_string_obj((StringObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_extra_label.object, konquest_pdata->hud_extra_label.instance);
+    object = MK_LIVE(konquest_pdata->hud_extra_label.hdr, konquest_pdata->hud_extra_label.instance);
     if (object != 0) hide_string_obj((StringObj*)object);
-    object = MK_LIVE(konquest_pdata->hud_labels[5].object, konquest_pdata->hud_labels[5].instance);
+    object = MK_LIVE(konquest_pdata->hud_labels[5].hdr, konquest_pdata->hud_labels[5].instance);
     if (object != 0) hide_string_obj((StringObj*)object);
 }
 
@@ -10401,7 +10369,7 @@ void display_konquest_title(void) {
     if (konquest_editor_mode_on == 0) {
         proc = _create_mkproc_generic_tinystack(
             0x8228, 0x1F, p_display_konquest_title,
-            sizeof(*pdata), (void**)&pdata);
+            sizeof(*pdata), (MkHdr**)&pdata);
         if (proc != 0) {
             proc->flags_bits.use_game_speed = 1;
         }
@@ -10737,7 +10705,7 @@ void konquest_start_npc_interaction(void) {
     }
     if (_create_mkproc_generic_tinystack(
             0x822B, 0x1F, p_fade_ambient_sounds, sizeof(*fade),
-            (void**)&fade) != 0) {
+            (MkHdr**)&fade) != 0) {
         fade->step = -0.013333333f;
         fade->current_volume = 1.0f;
         fade->target_volume = 0.6f;
@@ -10751,8 +10719,8 @@ void konquest_start_npc_interaction(void) {
     if (is_this_the_monk_npc(g_active_npc) == 0) {
         _create_mkproc_generic_tinystack(
             0xA01F, 0x19, p_konquest_interaction,
-            sizeof(*interaction), (void**)&interaction);
-        zero_pdata_payload(sizeof(*interaction), interaction);
+            sizeof(*interaction), (MkHdr**)&interaction);
+        zero_pdata_payload(sizeof(*interaction), &interaction->hdr);
         interaction->npc = g_active_npc;
         interaction->separation_active = 1;
         interaction->facing_active = 1;
@@ -10760,7 +10728,7 @@ void konquest_start_npc_interaction(void) {
         interaction->separation = 1.5f;
     }
 
-    konquest_pdata->movement_npc.object = (MkHdr*)g_active_npc;
+    konquest_pdata->movement_npc.hdr = (MkHdr*)g_active_npc;
     konquest_pdata->movement_npc.instance =
         ((MkHdr*)g_active_npc)->instance;
     ((struct KonquestNpcRuntime*)g_active_npc)->conversation_count++;
@@ -10784,8 +10752,8 @@ void start_character_separation_process(float separation) {
 
         _create_mkproc_generic_tinystack(
             0xA01F, 0x19, p_konquest_interaction, sizeof(*pdata),
-            (void**)&pdata);
-        zero_pdata_payload(sizeof(*pdata), pdata);
+            (MkHdr**)&pdata);
+        zero_pdata_payload(sizeof(*pdata), &pdata->hdr);
         pdata->npc = g_active_npc;
         pdata->separation_active = 1;
         pdata->facing_active = 1;
@@ -10883,7 +10851,7 @@ void konquest_end_npc_interaction(void) {
     }
     if (_create_mkproc_generic_tinystack(
             0x822B, 0x1F, p_fade_ambient_sounds, sizeof(*fade),
-            (void**)&fade) != 0) {
+            (MkHdr**)&fade) != 0) {
         fade->step = 0.013333333f;
         fade->current_volume = 0.6f;
         fade->target_volume = 1.0f;
@@ -10911,7 +10879,7 @@ void konquest_end_npc_interaction(void) {
         g_active_npc->fields.flag_bits.flags_bit3 = 0;
         g_active_npc->fields.flag_bits.flags_bit6 = 0;
     }
-    konquest_pdata->movement_npc.object = 0;
+    konquest_pdata->movement_npc.hdr = 0;
     konquest_pdata->movement_npc.instance = 0;
 }
 
@@ -10968,7 +10936,7 @@ void konquest_start_npc_nis(void) {
     }
     if (_create_mkproc_generic_tinystack(
             0x822B, 0x1F, p_fade_ambient_sounds, sizeof(*fade),
-            (void**)&fade) != 0) {
+            (MkHdr**)&fade) != 0) {
         fade->step = -0.013333333f;
         fade->current_volume = 1.0f;
         fade->target_volume = 0.6f;
@@ -10978,7 +10946,7 @@ void konquest_start_npc_nis(void) {
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
     }
-    konquest_pdata->movement_npc.object = (MkHdr*)g_active_npc;
+    konquest_pdata->movement_npc.hdr = (MkHdr*)g_active_npc;
     konquest_pdata->movement_npc.instance =
         ((MkHdr*)g_active_npc)->instance;
 }
@@ -11013,7 +10981,7 @@ void konquest_end_npc_nis(void) {
     }
     if (_create_mkproc_generic_tinystack(
             0x822B, 0x1F, p_fade_ambient_sounds, sizeof(*fade),
-            (void**)&fade) != 0) {
+            (MkHdr**)&fade) != 0) {
         fade->step = 0.013333333f;
         fade->current_volume = 0.6f;
         fade->target_volume = 1.0f;
@@ -11040,7 +11008,7 @@ void konquest_end_npc_nis(void) {
         g_active_npc->fields.flag_bits.flags_bit3 = 0;
         g_active_npc->fields.flag_bits.flags_bit6 = 0;
     }
-    konquest_pdata->movement_npc.object = 0;
+    konquest_pdata->movement_npc.hdr = 0;
     konquest_pdata->movement_npc.instance = 0;
 }
 
@@ -11663,7 +11631,7 @@ inline void start_head_tracking(void) {
     head_tracking = 0;
     if (_create_mkproc_generic_tinystack(
             0x6005, 0x1F, p_head_tracking, sizeof(*head_tracking),
-            (void**)&head_tracking) != 0 &&
+            (MkHdr**)&head_tracking) != 0 &&
         head_tracking != 0) {
         head_tracking->angle_y = 0.0f;
         konquest_pdata->npc_interaction_state = 0;
@@ -11877,7 +11845,7 @@ void load_objective_beam(void) {
             sobj->flags09_bits.bit0 = 1;
         }
 
-        konquest_pdata->objective_beam.object = &beam->hdr;
+        konquest_pdata->objective_beam.hdr = &beam->hdr;
         konquest_pdata->objective_beam.instance = beam->hdr.instance;
         insert_fgnd_mkobj(beam);
         hide_obj(beam);
@@ -11885,12 +11853,12 @@ void load_objective_beam(void) {
         arrow = load_2d_pfxobj_xy(
             0x60030, 0x8301, 0x0A8C000B, 0, 0x52,
             screen_height - 0x5A, 0x46);
-        konquest_pdata->hud_objects[2].object = (MkHdr*)arrow;
+        konquest_pdata->hud_objects[2].hdr = (MkHdr*)arrow;
         konquest_pdata->hud_objects[2].instance = arrow->instance;
 
         _create_mkproc_generic_tinystack(
             0x9016, 0x1F, p_adjust_objective_arrow_and_beam,
-            sizeof(*process_data), (void**)&process_data);
+            sizeof(*process_data), (MkHdr**)&process_data);
     }
 }
 #pragma auto_inline reset
@@ -12303,7 +12271,7 @@ int spawn_dynamic_pui_at_pos(
 
     proc = _create_mkproc_generic_nostack(
         0xA021, 0x1F, p_spawn_dynamic_pui, sizeof(*pdata),
-        (void**)&pdata);
+        (MkHdr**)&pdata);
     if (proc != 0) {
         set_process_as_scriptable(proc);
         pdata->item = item;
@@ -12473,7 +12441,7 @@ static MkProc* pui_set_chest_state(
     }
 
     proc = _create_mkproc_generic_tinystack(
-        0xA022, 0x1F, p_close_konquest_chest, sizeof(*pdata), (void**)&pdata);
+        0xA022, 0x1F, p_close_konquest_chest, sizeof(*pdata), (MkHdr**)&pdata);
     if (proc != 0) {
         struct KonquestChestOwner* owner;
 
@@ -12704,7 +12672,7 @@ static KonquestPuiRuntime* create_new_konquest_pui(
     trigger = (struct KonquestTriggerStruct*)get_mkhdr(
         &vtbl_trigger_struct, sizeof(*trigger));
     if (trigger != 0) {
-        zero_pdata_payload(sizeof(*trigger), trigger);
+        zero_pdata_payload(sizeof(*trigger), &trigger->hdr);
     }
     trigger->owned_data =
         get_mem(sizeof(*trigger->owned_data));
@@ -13076,7 +13044,7 @@ void pui_play_pfx_sequence(
                 if (konquest_sphere_visible(&sphere) &&
                     _create_mkproc_generic_nostack(
                         0xA01D, 0x1F, p_pui_pfx_sequence,
-                        sizeof(*pdata), (void**)&pdata) != 0) {
+                        sizeof(*pdata), (MkHdr**)&pdata) != 0) {
                     zero_pdata_payload(sizeof(*pdata), &pdata->hdr);
                     pdata->sequence = sequence;
                     pdata->index = 0;
@@ -13106,7 +13074,7 @@ void pui_play_pfx_sequence(
                 if (konquest_sphere_visible(&sphere) &&
                     _create_mkproc_generic_nostack(
                         0xA01D, 0x1F, p_pui_pfx_sequence,
-                        sizeof(*pdata), (void**)&pdata) != 0) {
+                        sizeof(*pdata), (MkHdr**)&pdata) != 0) {
                     zero_pdata_payload(sizeof(*pdata), &pdata->hdr);
                     pdata->sequence = sequence;
                     pdata->index = 0;
@@ -13141,22 +13109,22 @@ static float p_show_koin_award_text(void) {
     icon_object = load_2d_pfxobj_xy(
         0x60030, 0x8301, (pdata->icon_offset + 0x0A8C0024), 0, 0x28,
         0x1E, 0x44);
-    konquest_pdata->award_text.object = (MkHdr*)text_object;
+    konquest_pdata->award_text.hdr = (MkHdr*)text_object;
     konquest_pdata->award_text.instance = text_object->instance;
-    konquest_pdata->award_art.object = (MkHdr*)icon_object;
+    konquest_pdata->award_art.hdr = (MkHdr*)icon_object;
     konquest_pdata->award_art.instance = icon_object->instance;
 
     _mkproc_sleep_ticks = 120.0f;
     aproc->vtbl->sleep();
 
-    text = MK_LIVE(konquest_pdata->award_text.object, konquest_pdata->award_text.instance);
-    icon = MK_LIVE(konquest_pdata->award_art.object, konquest_pdata->award_art.instance);
+    text = MK_LIVE(konquest_pdata->award_text.hdr, konquest_pdata->award_text.instance);
+    icon = MK_LIVE(konquest_pdata->award_art.hdr, konquest_pdata->award_art.instance);
     if (text != 0) {
         if (text->instance != 0) {
             ((KonquestDestroyable*)text)->vtbl->destroy(
                 (KonquestDestroyable*)text);
         }
-        konquest_pdata->award_text.object = 0;
+        konquest_pdata->award_text.hdr = 0;
         konquest_pdata->award_text.instance = 0;
     }
     if (icon != 0) {
@@ -13164,7 +13132,7 @@ static float p_show_koin_award_text(void) {
             ((KonquestDestroyable*)icon)->vtbl->destroy(
                 (KonquestDestroyable*)icon);
         }
-        konquest_pdata->award_art.object = 0;
+        konquest_pdata->award_art.hdr = 0;
         konquest_pdata->award_art.instance = 0;
     }
     return -1.0f;
@@ -13281,7 +13249,7 @@ static inline void player_add_item_to_inventory_inline(KonquestPuiDefinition* it
 }
 
 static inline MkHdr* konquest_live_award_text(struct KonquestPdata* owner) {
-    MkHdr* object = owner->award_text.object;
+    MkHdr* object = owner->award_text.hdr;
     if (object != 0) {
         if (object->instance == owner->award_text.instance) {
             return object;
@@ -13294,7 +13262,7 @@ static inline MkHdr* konquest_live_award_text(struct KonquestPdata* owner) {
 }
 
 static inline MkHdr* konquest_live_award_art(struct KonquestPdata* owner) {
-    MkHdr* object = owner->award_art.object;
+    MkHdr* object = owner->award_art.hdr;
     if (object != 0) {
         if (object->instance == owner->award_art.instance) {
             return object;
@@ -13366,21 +13334,21 @@ void pickup_pui(KonquestPuiDefinition* item) {
                 if (object->instance != 0) {
                     object->typed_vtbl->destroy(object);
                 }
-                konquest_pdata->award_text.object = 0;
+                konquest_pdata->award_text.hdr = 0;
                 konquest_pdata->award_text.instance = 0;
             }
             if (art_object != 0) {
                 if (art_object->instance != 0) {
                     art_object->typed_vtbl->destroy(art_object);
                 }
-                konquest_pdata->award_art.object = 0;
+                konquest_pdata->award_art.hdr = 0;
                 konquest_pdata->award_art.instance = 0;
             }
             destroy_mkprocs_pid(0x8247);
         }
         if (_create_mkproc_generic_tinystack(
                 0x8247, 0x1F, p_show_koin_award_text,
-                sizeof(*award), (void**)&award) != 0 && award != 0) {
+                sizeof(*award), (MkHdr**)&award) != 0 && award != 0) {
             award->icon_offset = item->type - 3;
             award->amount = item->value;
         }
@@ -14592,7 +14560,7 @@ inline void display_time_progression_text(
     if (_create_mkproc_generic_bigstack(
             0x9002, aproc->priority + 1, p_show_text_window,
             sizeof(*window), (MkHdr**)&window) != 0) {
-        zero_pdata_payload(sizeof(*window), window);
+        zero_pdata_payload(sizeof(*window), &window->hdr);
         window->left = ((float)screen_width * left_fraction);
         window->bottom =
             ((float)screen_height -
@@ -14651,7 +14619,7 @@ int display_konquest_text(
             sizeof(*window), (MkHdr**)&window) == 0) {
         return 0;
     }
-    zero_pdata_payload(sizeof(*window), window);
+    zero_pdata_payload(sizeof(*window), &window->hdr);
     window->left = ((float)screen_width * left_fraction);
     window->bottom =
         ((float)screen_height -
@@ -15091,7 +15059,7 @@ inline void start_weather_process(void) {
 
     weather = 0;
     weather_proc = _create_mkproc_generic_tinystack(
-        0x8237, 0x1F, p_weather, sizeof(*weather), (void**)&weather);
+        0x8237, 0x1F, p_weather, sizeof(*weather), (MkHdr**)&weather);
     if (weather_proc != 0 && weather != 0) {
         set_process_as_scriptable(weather_proc);
         activate_cmdscript();
@@ -15362,7 +15330,7 @@ void show_fight_message(int message) {
     pdata = 0;
     proc = _create_mkproc_generic_tinystack(
         0x9030, 0x1F, p_show_fight_message,
-        sizeof(struct KonquestFightMessagePdata), (void**)&pdata);
+        sizeof(struct KonquestFightMessagePdata), (MkHdr**)&pdata);
     if (proc != 0 && pdata != 0) {
         pdata->message = message;
     }
@@ -15543,12 +15511,12 @@ void konquest_teleport_hero_to_location(Vec* target) {
         teleport.instance = 0;
         proc = _create_mkproc_generic_tinystack(
             0xA028, 0x1F, p_hero_teleport, sizeof(*teleport_pdata),
-            (void**)&teleport_pdata);
+            (MkHdr**)&teleport_pdata);
         if (proc != 0) {
             teleport.instance = proc->instance;
             teleport.hdr = &proc->hdr;
             set_process_as_scriptable(proc);
-            zero_pdata_payload(sizeof(*teleport_pdata), teleport_pdata);
+            zero_pdata_payload(sizeof(*teleport_pdata), &teleport_pdata->hdr);
             teleport_pdata->target.x = target->x;
             teleport_pdata->target.y = target->y;
             teleport_pdata->target.z = target->z;
@@ -15781,9 +15749,9 @@ void konquest_use_portal(
             0xA023, 0x2E, p_fade_konquest_hud, 0, 0);
         g_fade_hud_in = 0;
 
-        arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
+        arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].hdr, konquest_pdata->hud_objects[2].instance);
 
-        beam = MK_HDR_LIVE((MkObj*) konquest_pdata->objective_beam.object, konquest_pdata->objective_beam.instance);
+        beam = MK_HDR_LIVE((MkObj*) konquest_pdata->objective_beam.hdr, konquest_pdata->objective_beam.instance);
 
         if (arrow != 0 && beam != 0) {
             MkSobj* sky_object;
@@ -15831,7 +15799,7 @@ void konquest_use_portal(
         if (proc != 0) {
             portal.instance = proc->instance;
             portal.hdr = &proc->hdr;
-            zero_pdata_payload(sizeof(*portal_pdata), portal_pdata);
+            zero_pdata_payload(sizeof(*portal_pdata), &portal_pdata->hdr);
             portal_pdata->uid = uid;
             portal_pdata->target_offset.x = target_offset->x;
             portal_pdata->target_offset.y = target_offset->y;
@@ -16038,9 +16006,9 @@ void konquest_hero_portal_in(void) {
         }
 
         konquest_hide_hud(0);
-        arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
+        arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].hdr, konquest_pdata->hud_objects[2].instance);
 
-        beam = MK_HDR_LIVE((MkObj*) konquest_pdata->objective_beam.object, konquest_pdata->objective_beam.instance);
+        beam = MK_HDR_LIVE((MkObj*) konquest_pdata->objective_beam.hdr, konquest_pdata->objective_beam.instance);
 
         if (arrow != 0 && beam != 0) {
             MkSobj* sky_object;
@@ -16091,7 +16059,7 @@ void konquest_hero_portal_in(void) {
             if (row != 0) {
                 portal.instance = proc->instance;
                 portal.hdr = &proc->hdr;
-                zero_pdata_payload(sizeof(*portal_pdata), portal_pdata);
+                zero_pdata_payload(sizeof(*portal_pdata), &portal_pdata->hdr);
                 portal_pdata->uid = row->uid;
                 portal_pdata->target_offset.x = row->target_offset.x;
                 portal_pdata->target_offset.y = row->target_offset.y;
@@ -16110,9 +16078,9 @@ void konquest_hero_portal_in(void) {
             aproc->vtbl->sleep();
         }
 
-        arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].object, konquest_pdata->hud_objects[2].instance);
+        arrow = MK_LIVE((ScreenObj*) konquest_pdata->hud_objects[2].hdr, konquest_pdata->hud_objects[2].instance);
 
-        beam = MK_HDR_LIVE((MkObj*) konquest_pdata->objective_beam.object, konquest_pdata->objective_beam.instance);
+        beam = MK_HDR_LIVE((MkObj*) konquest_pdata->objective_beam.hdr, konquest_pdata->objective_beam.instance);
 
         if (arrow != 0 && beam != 0 &&
             p1_profile_konquest->fields.objective_index <
@@ -16229,7 +16197,7 @@ static void konquest_fade_screen(
 
     proc = _create_mkproc_generic_nostack(
         0x2098, 0x1F, p_konquest_fade_screen,
-        sizeof(struct KonquestFadePdata), (void**)&pdata);
+        sizeof(struct KonquestFadePdata), (MkHdr**)&pdata);
     if (proc == 0) {
         return;
     }
@@ -16349,7 +16317,7 @@ void kill_konquest_dialog_procs(void) {
 
     pdata = 0;
     proc = _create_mkproc_generic_tinystack(
-        0x8248, 0x1f, p_konquest_kill_dialog_procs, sizeof(MkHdr), &pdata);
+        0x8248, 0x1f, p_konquest_kill_dialog_procs, sizeof(MkHdr), (MkHdr**)&pdata);
     if (proc != 0 && pdata != 0) {
         ((int*)pdata)[2] = 0;
     }

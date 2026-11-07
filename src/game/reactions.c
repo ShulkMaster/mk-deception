@@ -29,8 +29,6 @@
 #include "game/plyr.h"
 #include "platform/joy.h"
 
-extern PlyrPdata* his_pdata;
-extern MkProc* plyr_anim_proc;
 
 typedef float (*ReactionEntry)(void);
 
@@ -138,11 +136,10 @@ static ReactionXferAddress g_loadable_reaction_scripts[8] = {
     {{5, 0}, 0, 0, 0}, {{5, 0}, 0, 0, 0},
 };
 
-void* mk_chess_launch_fx_at_pos_with_obj_emit_based(
-    unsigned int effect, float x, float y, float z);
+MkObj* mk_chess_launch_fx_at_pos_with_obj_emit_based(unsigned int effect, float x, float y, float z);
 void low_flash_check(void);
 void face_opponent_now(void);
-void random_voice(int group);
+MslSoundHandle random_voice(int group);
 void ani_to_end(void);
 float j_blend_to_stance_in_x(void);
 int reaction_xfer_him(int reaction, float rate, int strength);
@@ -152,7 +149,7 @@ void force_away(float speed, int direction, float damping, int ticks);
 void disable_my_attacks(int ticks);
 void adjust_my_damage_multiplier(float multiplier);
 void got_hit_fx(int first, int second, int third, int fourth, int fifth, float value, int sixth);
-void random_hit(int group);
+MslSoundHandle random_hit(int group);
 static float j_block_common_reaction(void);
 float j_block_loop(void);
 static float chest_stumble_both(void);
@@ -175,17 +172,17 @@ void init_air_move(void);
 float p_blend_to_stance_in_10(void);
 float p_sh_throw_plyr_in_grinder(void);
 float r_beetle_lair_transition(void);
-int big_boss_reaction_remap();
-float drone_ai_get_big_boss_damage_scale();
+unsigned int big_boss_reaction_remap(unsigned int reaction);
+float drone_ai_get_big_boss_damage_scale(PlyrPdata* player);
 void become_plyr1_proc();
 void become_plyr2_proc();
-void snd_stop();
+void snd_stop(MslSoundHandle handle);
 void scale_me_normal(void);
 void xfer_player_proc_to_script();
 void init_ground_move_no_aniproc();
 void init_3d_move_no_aniproc();
 int check_damage_valid_fc();
-float trial_damage_callback();
+float trial_damage_callback(int player, int damage_type, float damage);
 int drone_ai_check_block_at_reactions(void);
 void drone_ai_hit();
 void drone_ai_reset_ai_cmd();
@@ -200,7 +197,6 @@ float r_call_player_char_script_function(void);
 static float r_call_other_player_char_script_function(void);
 void run_reaction_cleanup_function(PlyrPdata* player);
 
-extern int f_fatality_was_done;
 extern int g_drone_blocking_in_reaction;
 extern int g_drone_faked_out;
 static float r_complete_ermac_slam(void);
@@ -221,24 +217,19 @@ float j_getup_sit_12(void);
 float j_stay_down_dead(void);
 void ani_to_fall_to_frame(
     float landing_frame, int sound_id, float target_frame);
-void back_rollup_check(void);
+float back_rollup_check(void);
 void danger_zone_eligible_on(void);
 void face_bleed_me(int size);
 void init_air_move_no_aniproc(void);
 void land_chores(
     int land_sound, int second_sound,
     float shake_ticks, float shake_strength);
-void launch_n_land_ani(
-    void* animation, float launch_frame, float launch_step,
-    float landing_frame, int landing_animation, float velocity_y,
-    float gravity, float blend);
+void launch_n_land_ani(AniData* animation, float launch_frame, float launch_step, float landing_frame, int landing_animation, float velocity_y, float gravity, float blend);
 void myvel_his_angle_y(float y, float x, float z);
-void newani_to_frame_x(void* animation, float frame, float x, float z, float blend, int flags);
+void newani_to_frame_x(AniData* animation, float frame, float step, float weight, float blend, int flip_mode);
 void player_feet_land_chores(void);
-void shake_camera(int ticks, float strength);
 void shake_hit_voice(int shake_ticks, float rumble_scale, int hit_voice, int fighter_voice);
-void start_blood_particles(
-    int script, int bone, PlyrPdata* player, MkObj* object);
+unsigned int start_blood_particles(int particle_mask, unsigned int bone, PlyrPdata* player, MkObj* object);
 int stay_down_check(void);
 void tightrope_restrictions_off(void);
 void tightrope_restrictions_on(void);
@@ -272,6 +263,8 @@ static float p_image_fader(void);
 
 #include "src/game/reactions_table_prototypes.inc"
 #include "src/game/reactions_table.inc"
+#include "game/game.h"
+#include "runtime/cam_shake.h"
 
 void run_reaction_cleanup_function(PlyrPdata* player) {
     CmdScript* saved_script;
@@ -415,7 +408,7 @@ static inline void reaction_flash_at_height(MkObj* object, float y_offset) {
         effect, position.x, position.y, position.z);
 }
 
-void flash_hit_at_bid_with_y(float y_offset) {
+void flash_hit_at_bid_with_y(int bone, float y_offset) {
     reaction_flash_at_height(plyr_obj, y_offset);
 }
 

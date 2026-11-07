@@ -97,7 +97,14 @@ typedef struct PlayerProfile {
     unsigned int unlock_cat10; /* +0x188 */
     unsigned int pad18C; /* +0x18C */
     unsigned char konquest[PROFILE_KONQUEST_SIZE]; /* +0x190 */
-    unsigned char pad4FC[0x52C - 0x4FC];
+    unsigned int chess_local_ai_wins;
+    unsigned int chess_local_ai_losses;
+    unsigned int chess_local_human_wins;
+    unsigned int chess_local_human_losses;
+    unsigned int chess_online_wins;
+    unsigned int chess_online_losses;
+    int bg_team_valid;
+    int bg_team[5];
     struct ProfilePuzzleStats puzzle_stats;
     unsigned char pad550[0x5B8 - 0x550];
     int idChecksum; /* +0x5B8 */

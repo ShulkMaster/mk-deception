@@ -3,7 +3,7 @@
 #include "runtime/cstdarg.h"
 #include "runtime/cstring.h"
 #include "runtime/cstdio.h"
-extern unsigned int mslGCN_AXCallback_Ticks;
+#include "msl/mslgcn.h"
 extern "C" int printf(const char* format, ...);
 
 void mslAsyncComplete(

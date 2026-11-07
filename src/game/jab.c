@@ -39,7 +39,6 @@
 #define MKOBJ_FLAG_JADE_VISIBLE 0x40
 #define MKSOBJ_FLAG_UPDATE_ANGULAR 0x04
 
-extern MkPtr* clone_light_list;
 
 static void splatter_init(PfxVm* vm);
 

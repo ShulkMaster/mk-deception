@@ -19,7 +19,7 @@ extern void ADXCRS_Init(void);
 extern void SJUNI_Init(void);
 extern void SJMEM_Init(void);
 extern void ADXERR_Init(void);
-extern void ADXSTM_Init(void);
+extern s32 ADXSTM_Init(void);
 extern void ADXSJD_Init(void);
 extern void ADXF_Init(void);
 extern void ADXRNA_Init(void);
