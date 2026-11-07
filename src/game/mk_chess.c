@@ -10803,8 +10803,8 @@ static inline void mk_chess_normalized_xz(Vec* result, const Vec* direction) {
     result->z = z * inverse_length;
 }
 
-/* TODO: [near miss] 98.46634%; 23 rows are zero-Vec .rodata pool offsets (retail pool is the
- * unit's reverse emission order); FP coloring in the type-5 and side-0 blocks remains. */
+/* TODO: [near miss] 99.80%; 9 rows are the zero-Vec .rodata pool offsets (retail pool is
+ * the unit's reverse emission order); FPR numbering in the side-1/type-5 block remains. */
 static int mk_chess_choose_middle_control_points_for_fight_cam(
     const Vec* normal, const Vec* axis, const Vec* camera_position, Vec* center,
     unsigned int camera_side, unsigned int camera_type, Vec* camera_start,
@@ -10859,35 +10859,34 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_1->x += offset.x;
             middle_1->z += offset.z;
             second_offset = 10.0f * side_sign;
-            offset.x = axis_unit.x * second_offset;
+            offset.x = axis_unit.x;
+            offset.x *= second_offset;
             offset.z = axis_unit.z * second_offset;
             middle_1->x += offset.x;
             middle_1->z += offset.z;
         } else {
-            float distance_scale;
             float first_offset;
             float second_offset;
 
             middle_0->x = 0.75f * between.x;
-            distance_scale = camera_distance / 60.0f;
             middle_0->y = 0.75f * between.y;
             middle_0->z = 0.75f * between.z;
             middle_0->x = middle_0->x + center->x;
             middle_0->y = middle_0->y + center->y;
             middle_0->z = middle_0->z + center->z;
-            first_offset = 62.0f * distance_scale;
+            first_offset = 62.0f * (camera_distance / 60.0f);
             offset.x = normal_unit.x * first_offset;
             offset.z = normal_unit.z * first_offset;
             middle_0->x += offset.x;
             middle_0->z += offset.z;
-            middle_0->y = middle_0->y * 0.65f;
+            middle_0->y *= 0.65f;
             middle_1->x = 0.1f * between.x;
             middle_1->y = 0.1f * between.y;
             middle_1->z = 0.1f * between.z;
             middle_1->x = middle_1->x + center->x;
             middle_1->y = middle_1->y + center->y;
             middle_1->z = middle_1->z + center->z;
-            second_offset = 34.0f * distance_scale;
+            second_offset = 34.0f * (camera_distance / 60.0f);
             offset.x = normal_unit.x * second_offset;
             offset.z = normal_unit.z * second_offset;
             middle_1->x += offset.x;
@@ -10931,23 +10930,19 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_1->y = camera_end->y;
         } else {
             float height_adjust;
-            float first_offset;
-            float second_offset;
 
             height_adjust = 0.0f;
             if (camera_position->y > 40.0f) {
                 height_adjust = 10.0f;
             }
             middle_0->x = 0.85f * between.x;
-            first_offset = 35.0f + height_adjust;
             middle_0->y = 0.85f * between.y;
             middle_0->z = 0.85f * between.z;
-            second_offset = 22.0f + height_adjust;
             middle_0->x = middle_0->x + center->x;
             middle_0->y = middle_0->y + center->y;
             middle_0->z = middle_0->z + center->z;
-            offset.x = normal_unit.x * first_offset;
-            offset.z = normal_unit.z * first_offset;
+            offset.x = normal_unit.x * (35.0f + height_adjust);
+            offset.z = normal_unit.z * (35.0f + height_adjust);
             middle_0->x += offset.x;
             middle_0->z += offset.z;
             middle_1->x = 0.7f * between.x;
@@ -10956,8 +10951,9 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_1->x = middle_1->x + center->x;
             middle_1->y = middle_1->y + center->y;
             middle_1->z = middle_1->z + center->z;
-            offset.x = normal_unit.x * second_offset;
-            offset.z = normal_unit.z * second_offset;
+            offset.x = normal_unit.x;
+            offset.x *= 22.0f + height_adjust;
+            offset.z = normal_unit.z * (22.0f + height_adjust);
             middle_1->x += offset.x;
             middle_1->z += offset.z;
         }
@@ -10993,7 +10989,8 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_1->x += offset.x;
             middle_1->z += offset.z;
             second_offset = 25.0f * side_sign;
-            offset.x = axis_unit.x * second_offset;
+            offset.x = axis_unit.x;
+            offset.x *= second_offset;
             offset.z = axis_unit.z * second_offset;
             middle_1->x += offset.x;
             middle_1->z += offset.z;
