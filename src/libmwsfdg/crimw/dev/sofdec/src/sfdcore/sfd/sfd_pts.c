@@ -30,8 +30,8 @@ int SFPTS_IsPtsQueFull(SfdHandle* handle, int buffer_index)
            handle->buffers[buffer_index].work.ring.pts_queue.capacity;
 }
 
-/* TODO: [breakthrough needed] 98.49397%; found-arm jumps are folded away;
- * recover the original search/consume index and queue-root ownership. */
+/* TODO: [breakthrough needed] 98.49397%; found-arm `b` needs inlined MAP helpers sfpts_SearchPtsQue
+ * 0xac + sfpts_ReadPtsQueSub 0x108; no 0xac search shape found, helper locals colour wrong. */
 int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
                      unsigned int position, SfdPtsEntry* output)
 {
@@ -98,68 +98,74 @@ int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
     return 0;
 }
 
+static inline int sfpts_WritePtsQueSub(SfdPtsQueue* queue, SfdPtsEntry* entry,
+                                int* full)
+{
+    int write_index;
+    int next;
+
+    if (queue->count == queue->capacity) {
+        *full = 1;
+        return -1;
+    }
+    write_index = queue->write_index;
+    queue->entries[write_index] = *entry;
+    next = write_index + 1;
+    write_index = next - queue->capacity;
+    if (next < queue->capacity) {
+        write_index = next;
+    }
+    queue->count++;
+    queue->write_index = write_index;
+    if (queue->count >= queue->capacity) {
+        *full = 1;
+    } else {
+        *full = 0;
+    }
+    return 0;
+}
+
 int SFPTS_WritePtsQue(SfdHandle* handle, int buffer_index,
                       SfdPtsEntry* entry, int* full)
 {
-    int write_index;
-    SfdPtsEntry* entries;
-    int status;
-
     *full = 0;
     if (entry->pts < 0) {
         return 0;
     }
-    entries = handle->buffers[buffer_index].work.ring.pts_queue.entries;
-    if (entries == 0) {
+    if (handle->buffers[buffer_index].work.ring.pts_queue.entries == 0) {
         return 0;
     }
-    if (handle->buffers[buffer_index].work.ring.pts_queue.count ==
-        handle->buffers[buffer_index].work.ring.pts_queue.capacity) {
-        *full = 1;
-        status = -1;
-    } else {
-        write_index =
-            handle->buffers[buffer_index].work.ring.pts_queue.write_index;
-        entries[write_index] = *entry;
-        write_index = sfpts_Wrap(
-            write_index + 1,
-            handle->buffers[buffer_index].work.ring.pts_queue.capacity);
-        handle->buffers[buffer_index].work.ring.pts_queue.count++;
-        handle->buffers[buffer_index].work.ring.pts_queue.write_index =
-            write_index;
-        if (handle->buffers[buffer_index].work.ring.pts_queue.count >=
-            handle->buffers[buffer_index].work.ring.pts_queue.capacity) {
-            *full = 1;
-        } else {
-            *full = 0;
-        }
-        status = 0;
-    }
-    if (status == -1) {
+    if (sfpts_WritePtsQueSub(&handle->buffers[buffer_index].work.ring.pts_queue,
+                             entry, full) == -1) {
         return SFLIB_SetErr(handle, 0xFF000421);
     }
     return 0;
 }
 
-int SFD_SetVideoPts(SfdHandle* handle, unsigned char* memory, int size)
+static inline void sfpts_SetupPtsQue(SfdPtsQueue* queue, unsigned char* memory,
+                              int size)
 {
     unsigned char* aligned;
 
+    aligned = (unsigned char*)(((unsigned long)memory + 7) & ~7UL);
+    size -= aligned - memory;
+    memset(aligned, 0, size);
+    queue->entries = (SfdPtsEntry*)aligned;
+    queue->capacity = size / (int)sizeof(SfdPtsEntry);
+    queue->count = 0;
+    queue->write_index = 0;
+    queue->read_index = 0;
+}
+
+int SFD_SetVideoPts(SfdHandle* handle, unsigned char* memory, int size)
+{
     if (memory == 0 || size <= 0) {
         return 0;
     }
     if (SFLIB_CheckHn(handle) != 0) {
         return SFLIB_SetErr(0, 0xFF000165);
     }
-    aligned = (unsigned char*)(((unsigned long)memory + 7) & ~7UL);
-    size -= aligned - memory;
-    memset(aligned, 0, size);
-    handle->buffers[1].work.ring.pts_queue.entries = (SfdPtsEntry*)aligned;
-    handle->buffers[1].work.ring.pts_queue.capacity =
-        size / (int)sizeof(SfdPtsEntry);
-    handle->buffers[1].work.ring.pts_queue.count = 0;
-    handle->buffers[1].work.ring.pts_queue.write_index = 0;
-    handle->buffers[1].work.ring.pts_queue.read_index = 0;
+    sfpts_SetupPtsQue(&handle->buffers[1].work.ring.pts_queue, memory, size);
     return 0;
 }
 

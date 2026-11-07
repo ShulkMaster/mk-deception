@@ -404,8 +404,8 @@ void mwSfdDestroy(MWPLY handle)
     MWSFCRE_DestroySfd(player);
 }
 
-/* TODO: [near miss] 97.76836%; retained allocation owners rotate;
- * recover coupled source ownership while preserving exact MallocRfb. */
+/* TODO: [breakthrough] 97.76836%; MAP nested allocator (Org/UsrMalloc in Alloc) scores 100 here but
+ * MallocRfb 97.95 (one coalesced copy too many there); find the shape exact for both. */
 static int mwsfcre_MallocCompoWork(MwsPlayer* player)
 {
     const MwsCreateParams* create = &player->create;

@@ -2207,6 +2207,15 @@ loaded word in a local so all loads precede stores (`IntraAotBlock`
   Keep direct memberwise assignment when array assignment changes existing
   queue/vector consumers; verify every client, self-assignment, layout and ABI.
   Do not add local copies or stores solely to reproduce the stack traffic.
+- Container placement copy is sequential per-member `lwz r0`/`stw r0` (array
+  words one by one) under ONE null check, while by-value copies of the same
+  record stay trivial block loops: REQUIRE the record keeps its array member
+  (front/local stack evidence) and a user `operator=` doing per-member
+  copies. TRY allocator `construct` = guarded default construction plus
+  assignment, `if (p != 0) { new (p) T; *p = x; }`; keep the implicit copy
+  constructor (`__vector_imp<Callback>::insert`). A user copy constructor
+  or scalar fields fix construct but break the by-value/front copies.
+  Recheck every instantiation (QueueItem byte-neutral).
 
 ## H13
 
@@ -2344,6 +2353,13 @@ lifetimes.
   (`r_combo_broken_part2`: late `bone_offset = (Vec){0,0,0};`).
 
 ## H15
+
+- Same-meaning locals in exclusive branches (in-place end vs growth-path end)
+  and two template instances wanting contradictory declaration orders:
+  REQUIRE retail gives both arms' values the same saved register. TRY one
+  function-scope variable assigned in each branch (`__vector_imp::insert`
+  `old_end`: Callback and QueueItem both exact); declaration sweeps of
+  separate locals cannot reach it. Keep one meaning per variable.
 
 - why.py "every working pop order moves a PARAMETER" is not a stop:
   declaration order also moves simplify sweeps/degrees. TRY a mechanical
@@ -5065,6 +5081,14 @@ stream, N copies more or fewer; pop-order solver says "moves a parameter" or
   (`setup_per_tile_navigations`: helper `Vec* intersection` -> direct
   `&intersections[outputIndex++]`, plus `tileCount` declared before
   `areaCount`). Recheck helper MAP size.
+- IF the helper is already exact MAP size but small MAP UNUSED helpers sit
+  just before it | REQUIRE each small helper's out-of-line size = its MAP size
+  and the outer helper still = its MAP size with them inlined | TRY nest them
+  inside the outer helper: an exact outer size does not prove a flat body.
+  Each nested level adds inline-result copies at every call site, so measure
+  every caller (`mwsfcre_MallocCompoWork`: `mwsfcre_OrgMalloc` 0x3c +
+  `mwsfcre_UsrMalloc` 0x40 inside the 0xe8 allocator = 100; sibling
+  `mwsfcre_MallocRfb` drops, so not landed yet).
 - STOP when Step A finds no N <= 3, no minus and no minus + numbering pair:
   interference edge or numbering, not this rule (`do_dialog`,
   `render_player_joints`, `pfxvm`).
