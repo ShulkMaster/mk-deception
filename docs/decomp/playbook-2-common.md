@@ -1580,6 +1580,19 @@ settings. Verify emitted calls, helper symbols, every consumer.
   addresses become IRO CSE temps below the inliner band
   (`p_screen_engine_tick` 100%; nesting alone 14 rows, expression body alone 3).
 
+- Retail keeps a range check of a variable that matched sibling inlines of
+  the same helper lack: REQUIRE MAP-UNUSED out-of-line size = current helper
+  + that check. TRY the extra helper parameter: constant at sibling call
+  sites (check folds, siblings byte-neutral), real variable where retail
+  tests it. A compare against a constant survives when the variable has two
+  reaching defs of that constant (entry and per attempt). Exemplar
+  `gc_format_procedure`: `mem_card_unmount(device, slot)` = MAP 0x98,
+  `slot` zeroed at entry and each attempt, `mem_card_open` + slot = MAP 0xd0.
+- Open-coded loop with a MAP-UNUSED helper of the same size (`for (i...)`
+  around one call, 0x3c): REQUIRE out-of-line size = MAP. TRY calling the
+  helper at every site; the counter becomes an inline local and claims its
+  saved home above the late temps (`gc_mem_card_status_changes`).
+
 ## H08
 
 Latch diamond. REQUIRE null-before-instance reads, no call between.
@@ -2042,6 +2055,16 @@ Joins. REQUIRE real branch destinations + effect ownership.
   the compare. Retail unfolded `li 0; cmpwi` + single join `li` reached by all
   paths = def-count/CFG problem; 2.7 doesn't sink identical `li` into a join,
   no named/temp shape fixes it (`ADXB_DecodeHeaderAdx`).
+
+- Retail tests a call result and both arms are identical (`cmpwi r3,0;
+  beq L; li rX,K; b J; L: li rX,K; b J`): REQUIRE identical arm effects.
+  TRY `if (f() != 0) v = K; else v = K;`. GC2.7 keeps the test and both arms;
+  `v = f() ? K : K` lowers to subfic/subfe instead (`check_load_profile_result`).
+- Loop failures jump straight to the final fail tail, normal loop exit runs
+  post-loop work with no flag test: REQUIRE break + `if (flag)`, `flag &&`,
+  and in-loop returns measured (extra cmpwi/beq or duplicated tails). TRY a
+  forward `goto fail;` to the shared tail (AGENTS.md exception;
+  `gc_format_procedure`, MK:DA retail has the same join).
 
 ## H12
 
@@ -3837,6 +3860,14 @@ Helper locals and web kind.
   staging can fix creation order but coalesce the product into the wrong
   owner; a returned extent keeps the complete operation together. Recheck
   conversion slots and all FP rows; independent pointer-reload homes may remain.
+
+- Saved homes rotate around a status helper's inline result: why.py what-if
+  `drop coalesced ... inline result` hits. A helper with a result variable
+  plus another `return` makes the inliner copy `@res = result`; that copy
+  coalesces = +1 phantom degree on every web live at the call. All-direct
+  returns, or one final `return result;`, add no copy. TRY flipping the
+  helper's return style; measure every consumer together (`gc_format_procedure`
+  exact with direct returns, `load_from_memcard2` regresses).
 
 ## H22
 

@@ -505,11 +505,11 @@ static inline int mem_card_mount(int device) {
     }
 }
 
-static inline int mem_card_unmount(int device) {
+static inline int mem_card_unmount(int device, int slot) {
     s32 rc;
     int result;
 
-    if (device < 0 || device >= 2)
+    if (device < 0 || device >= 2 || slot < 0 || slot >= 1)
         return -99;
     do {
         rc = CARDUnmount(device);
@@ -529,21 +529,54 @@ static inline int mem_card_unmount(int device) {
     return result;
 }
 
-/* TODO: [breakthrough needed] 94.77689%; recover GC second-index guard and owners;
- * verified PS2 has no unmount phase, so API typing cannot supply this structure. */
+static inline void gc_mem_card_status_changes(void) {
+    int i;
+
+    for (i = 0; i < 2; i++) {
+        gc_mem_card_status_changes_for_one_device(i);
+    }
+}
+
+static inline int mem_card_format(int device) {
+    s32 rc;
+    int result;
+
+    do {
+        rc = CARDFormat(device);
+    } while (rc == -1);
+    switch (rc) {
+    case CARD_RESULT_READY:
+        result = 0;
+        break;
+    case CARD_RESULT_NOCARD:
+        result = -10;
+        break;
+    case CARD_RESULT_IOERROR:
+    case CARD_RESULT_FATAL_ERROR:
+    default:
+        result = -99;
+        break;
+    }
+    return result;
+}
+
+/* TODO: [near miss] 99.28%; structure exact; saved-GPR rotation (device r30 vs r23) tracks the
+ * mem_card_unmount inline-result copy: direct-return helper = 100% here but drops load_from_memcard2. */
 int gc_format_procedure(int device) {
     unsigned int mask;
     s32 sectorSize;
     s32 rc;
-    int chan;
     int cardChanged;
     int confirmed;
     int formatted;
-    int i;
+    int slot;
+    unsigned int chan;
 
     mask = mcmasks[device];
     sectorSize = 0;
     confirmed = 0;
+    slot = 0;
+    chan = 0;
     removals &= (int)~mask;
     insertions &= (int)~mask;
     last_card_state |= (int)mask;
@@ -560,13 +593,13 @@ int gc_format_procedure(int device) {
     while (!formatted) {
         f_writing_to_memcard = 1;
         mcard_msg_formating(device);
+        slot = 0;
+        chan = device;
         do {
             rc = CARDProbeEx(device, 0, &sectorSize);
         } while (rc == -1);
 
-        for (i = 0; i < 2; i++) {
-            gc_mem_card_status_changes_for_one_device(i);
-        }
+        gc_mem_card_status_changes();
 
         if ((removals & mcmasks[device]) != 0 || (insertions & mcmasks[device]) != 0) {
             cardChanged = 1;
@@ -582,41 +615,22 @@ int gc_format_procedure(int device) {
             do {
                 rc = CARDProbeEx(device, 0, &sectorSize);
             } while (rc == -1);
-            for (i = 0; i < 2; i++) {
-                gc_mem_card_status_changes_for_one_device(i);
-            }
+            gc_mem_card_status_changes();
             mcard_msg_formating(device);
         }
 
         if (rc != 0 || sectorSize != 0x2000) {
-            break;
+            goto fail;
         }
 
-        rc = mem_card_mount(device);
+        rc = mem_card_mount(chan);
 
         if (rc != 0 && (unsigned int)(rc + 0x34) > 1) {
-            break;
+            goto fail;
         }
 
-        do {
-            rc = CARDFormat(device);
-        } while (rc == -1);
-
-        switch (rc) {
-        case CARD_RESULT_READY:
-            chan = 0;
-            break;
-        case CARD_RESULT_NOCARD:
-            chan = -10;
-            break;
-        case CARD_RESULT_IOERROR:
-        case CARD_RESULT_FATAL_ERROR:
-        default:
-            chan = -99;
-            break;
-        }
-
-        if (chan != 0) {
+        rc = mem_card_format(chan);
+        if (rc != 0) {
             mcard_msg_format_failed(device);
             if (msg_format_failed_answer == 2) {
                 f_writing_to_memcard = 0;
@@ -627,14 +641,12 @@ int gc_format_procedure(int device) {
         }
     }
 
-    if (formatted) {
-        rc = mem_card_unmount(device);
-        if (rc == 0) {
-            mcard_msg_format_successful(device);
-            f_writing_to_memcard = 0;
-            return 1;
-        }
+    if (mem_card_unmount(chan, slot) == 0) {
+        mcard_msg_format_successful(device);
+        f_writing_to_memcard = 0;
+        return 1;
     }
+fail:
     f_writing_to_memcard = 0;
     return 0;
 }
@@ -655,7 +667,7 @@ int gc_delete_file(int device, const char* fileName) {
             rc = CARDDelete(chan, fileName);
         } while (rc == -1);
         if (rc == 0) {
-            mapped = mem_card_unmount(chan);
+            mapped = mem_card_unmount(chan, 0);
             if (mapped != 0)
                 mapped = 4;
             if (mapped == 0)
@@ -664,7 +676,7 @@ int gc_delete_file(int device, const char* fileName) {
         }
     }
 
-    mem_card_unmount(chan);
+    mem_card_unmount(chan, 0);
     return 0;
 }
 
@@ -856,7 +868,7 @@ int load_from_memcard2(const int device, int modeFlag, unsigned int offset, cons
         result = 6;
         goto unmount_file;
     }
-    status = mem_card_unmount(chan);
+    status = mem_card_unmount(chan, 0);
     if (status != 0) {
         switch (status) {
         case -10: result = 1; break;
@@ -873,7 +885,7 @@ close_file:
         rc = CARDClose(&fileInfo);
     } while (rc == -1);
 unmount_file:
-    mem_card_unmount(chan);
+    mem_card_unmount(chan, 0);
 done:
     return result;
 }
@@ -920,7 +932,6 @@ int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int cr
     unsigned int chan;
     int status;
     int result;
-    int i;
     int checksumWord;
     unsigned int checksumLength;
     CARDFileInfo fileInfo;
@@ -947,9 +958,7 @@ int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int cr
     do {
         rc = CARDProbeEx(chan, 0, &sectorSize);
     } while (rc == -1);
-    for (i = 0; i < 2; i++) {
-        gc_mem_card_status_changes_for_one_device(i);
-    }
+    gc_mem_card_status_changes();
     if (rc != 0) {
         switch (rc) {
         case -3: result = 1; break;
@@ -1098,7 +1107,7 @@ int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int cr
         }
         goto unmount_file;
     }
-    status = mem_card_unmount(chan);
+    status = mem_card_unmount(chan, 0);
     if (status != 0) {
         switch (status) {
         case -10: result = 1; break;
@@ -1111,7 +1120,7 @@ int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int cr
     return status;
 
 unmount_only:
-    mem_card_unmount(chan);
+    mem_card_unmount(chan, 0);
     return result;
 
 close_file:
@@ -1120,7 +1129,7 @@ close_file:
         rc = CARDClose(&fileInfo);
     } while (rc == -1);
 unmount_file:
-    mem_card_unmount(chan);
+    mem_card_unmount(chan, 0);
 unload_buffer:
     unload_memorycard_write_buffer();
 done:
