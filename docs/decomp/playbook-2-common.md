@@ -1687,12 +1687,18 @@ Loops. REQUIRE zero-trip behavior + test/update order.
   iro_preheader_probe says `reuse` of a `L: goto test` block after an `if`:
   the two outside preds come from front-end COpt branch chaining
   (optimizeif/finallabel), which GC2.7 runs before IRO only on inline bodies
-  or auto-inline candidates (`-inline auto` and <=30 front-end statements;
-  measured on `p_fade_fog`). REQUIRE unit inline mode + statement count. TRY
-  the `if` and the loop in one inline body: move the pre-loop `if` into the
-  existing inline helper that holds the loop (`p_monk_move`). Non-inline
+  or auto-inline candidates (measured on `p_fade_fog`). Candidate = fixed at
+  the definition's closing brace (native 0x55cb34): auto_inline on there
+  (`-inline auto` or `#pragma auto_inline`), <=30 front-end statements
+  (labels/NOPs free, final return counts), sum of local sizes <=1 KB, no `...`.
+  Static/global, definition order, deferred: no effect. REQUIRE unit inline
+  mode + statement count. TRY the `if` and the loop in one inline body: move
+  the pre-loop `if` into the existing inline helper that holds the loop
+  (`p_monk_move`). `auto` unit, chaining differs: ours on the wrong side of 30
+  statements / 1 KB locals -> honest statement or local recovery. Non-inline
   function in a `noauto` unit: no source fix; `inline` makes the symbol weak
-  (retail global) -> propose an auto_inline region (`p_adjust_directional_light`).
+  (retail global) -> `auto_inline on`/`reset` around the definition
+  (user-approved, `p_adjust_directional_light`).
 - Output stride advances before a call while the traversal ordinal advances
   afterward: REQUIRE both retail update points and independent evidence for
   the two live counters. TRY a genuine output index consumed with

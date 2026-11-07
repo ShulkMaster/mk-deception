@@ -8757,8 +8757,7 @@ static inline void adjust_shadow_for_new_time_of_day(
         (255.0f * konquest_pdata->directional_light_strength));
 }
 
-/* TODO: [blocked] 99.06542%; retail dead `b` = IRO-appended preheader from pre-IRO COpt goto
- * chaining (auto_inline candidate body); fix needs a scoped auto_inline region (approval). */
+#pragma auto_inline on
 float p_adjust_directional_light(void) {
     KonquestColorRow* light_table;
     struct KonquestLightAdjustPdata* pdata;
@@ -8805,6 +8804,7 @@ float p_adjust_directional_light(void) {
     }
     return -1.0f;
 }
+#pragma auto_inline reset
 
 static inline MkSobj* find_sky_object(unsigned int id) {
     return obj_find_sobj_by_id(g_game_info.sky, id);
@@ -11444,6 +11444,13 @@ static union KonquestNpc* konquest_check_possible_interact_with_npc(
         }
     }
     return selected;
+}
+
+int check_range_for_npc_interaction(float distance, float facing_angle) {
+    if (distance < 2.0f && facing_angle < 0.8f) {
+        return 1;
+    }
+    return 0;
 }
 
 void nis_end_scene(void) {

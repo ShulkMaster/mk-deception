@@ -791,8 +791,14 @@ are proven. Shared headers only for proven ownership; unused O0 param takes
   expansions sibling by sibling.
 - Auto-inline size limit: object-scope `-pragma "inline_max_size(N)"` (N 8..24
   inlines 3-instr helper, keeps 26-instr static as call). Compiler 2.7
-  ignores `inline_max_auto_size`; `-inline on`/`noauto`/`level=0` don't clear
-  base `-inline auto`. Only when retail inlining proves the limit.
+  ignores `inline_max_auto_size`; `-inline on`/`smart`/`level=0` don't clear
+  base `-inline auto`; a later `-inline noauto` does (konquest). Only when
+  retail inlining proves the limit. `inline_max_size` = per-callee COST budget
+  (default 512: statements + expressions + nested inline bodies), halved while
+  the caller's total exceeds `inline_max_total_size` (default 7000); it gates
+  explicit `inline` too. One budget per caller: if a caller inlines a costlier
+  candidate but calls a cheaper one (cost via `inline_probe.py`), no size flag
+  fits; candidacy itself differed (H09 rule, M15 deferred bullet).
 - Inline cost cliff: adding real coordinate/phase ownership outlines a helper.
   REQUIRE native `can_inline` cost exceeds its measured budget. GC2.7 has a
   recursive-cost branch at 0x560ce0 (mode byte 0x5ef108, evaluator 0x560fb0,
@@ -979,8 +985,15 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   (`tools/deferred_scan.py`, Kendall tau < -0.5) = `-inline deferred`;
   functions emitted in reverse source order. Try `-inline noauto,deferred` +
   defs reversed by `tools/reverse_deferred_tu.py`; retail-inlined global
-  callees get `auto_inline on`/`reset` pair. Plain `deferred` after `-inline
-  auto` wipes static helpers. Land only on measured whole-unit gain (konquest,
+  callees get `auto_inline on`/`reset` pair. No TU flag replaces the pairs
+  when retail inlines some candidates and calls others of lower cost
+  (konquest: `p_setup_konquest_map` inlines `load_objective_beam` 211, calls
+  `konquest_restore_saved_state` 67; `auto` + `off` pairs breaks more). A
+  MAP-UNUSED global was a plain auto-inlined function, not `inline`
+  (unreferenced explicit C inline is never emitted): its out-of-line codegen
+  owns literal-pool slots. Restore it at its MAP position
+  (`check_range_for_npc_interaction` fixed konquest `.sdata2` 0xf4-0x12b).
+  Plain `deferred` after `-inline auto` wipes static helpers. Land only on measured whole-unit gain (konquest,
   minigames gained; fatality, cam didn't). Unconverted signs: `.bss` in
   exact reverse decl order, late per-function float labels (`@4226` vs reused
   `@305`), named string stand-in where retail has `@stringBase0` (add `-str
