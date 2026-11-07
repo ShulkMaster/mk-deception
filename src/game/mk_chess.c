@@ -704,11 +704,14 @@ static inline unsigned int mk_chess_piece_cell_distance(ChessPiece* piece, Chess
     return distance;
 }
 
-static inline int mk_chess_pieces_are_neighbors(ChessPiece* piece, ChessPiece* other) {
+static inline int mk_chess_is_piece_near_piece(ChessPiece* piece, ChessPiece* other) {
+    unsigned int distance;
+
     if (piece == 0 || other == 0) {
         return 0;
     }
-    if (mk_chess_piece_cell_distance(piece, other) == 1) {
+    distance = mk_chess_piece_cell_distance(piece, other);
+    if (distance == 1) {
         return 1;
     }
     return 0;
@@ -3224,7 +3227,7 @@ static int mk_chess_drone_handle_defend_the_king_strategy(ChessDroneState* drone
                 mk_chess_pdata->board[drone->pieces[index]->cell_x]
                     .cells[drone->pieces[index]->cell_y].square_type != 1 &&
                 ((drone->pieces[index]->move_map->rows[y] >> (x * 3)) & 7) != 0 &&
-                mk_chess_pieces_are_neighbors(drone->pieces[index], king) == 0) {
+                mk_chess_is_piece_near_piece(drone->pieces[index], king) == 0) {
                 mk_chess_drone_request_move(drone,
                     drone->pieces[index]->cell_x, drone->pieces[index]->cell_y,
                     x, y);
@@ -3412,7 +3415,7 @@ static int mk_chess_drone_get_close_to_piece(ChessDroneState* drone,
         }
         if (board_game_save_data.input_flags.input_locked == 0 && drone->live_piece_count > 6) {
             ChessPiece* king = mk_chess_drone_pick_piece_by_type_on_team(drone->piece->side, 5);
-            if (mk_chess_pieces_are_neighbors(drone->pieces[index], king) != 0 &&
+            if (mk_chess_is_piece_near_piece(drone->pieces[index], king) != 0 &&
                 (unsigned short)randu0(100) < 100) {
                 continue;
             }
@@ -3559,7 +3562,7 @@ static int mk_chess_drone_best_path_to(
             int candidate_x, candidate_y;
             if (board_game_save_data.input_flags.input_locked == 0) {
                 ChessPiece* king = mk_chess_drone_pick_piece_by_type_on_team(drone->piece->side, 5);
-                if (mk_chess_pieces_are_neighbors(piece, king) != 0 &&
+                if (mk_chess_is_piece_near_piece(piece, king) != 0 &&
                     (unsigned short)randu0(100) < 90) {
                     continue;
                 }
@@ -4512,7 +4515,7 @@ static int mk_chess_drone_sacrifice_ai_casting(ChessDroneState* drone) {
 
     for (index = 0; index < drone->live_piece_count; index++) {
         piece = drone->pieces[index];
-        if (mk_chess_pieces_are_neighbors(king, piece) == 0) {
+        if (mk_chess_is_piece_near_piece(king, piece) == 0) {
             piece = drone->pieces[index];
             if (piece->type == 0) {
                 if (donor == 0) {
@@ -4560,7 +4563,7 @@ static int mk_chess_drone_exchange_ai_casting(ChessDroneState* drone) {
     unsigned int dx;
 
     for (index = 0; index < drone->live_piece_count; index++) {
-        if (mk_chess_pieces_are_neighbors(king, drone->pieces[index]) == 0) {
+        if (mk_chess_is_piece_near_piece(king, drone->pieces[index]) == 0) {
             if (drone->pieces[index]->type == 1) {
                 dy = enemy_king->cell_y - drone->pieces[index]->cell_y;
                 dx = enemy_king->cell_x - drone->pieces[index]->cell_x;
@@ -4592,17 +4595,17 @@ static int mk_chess_drone_exchange_ai_casting(ChessDroneState* drone) {
         drone->target_0_y = selected->cell_y;
         for (index = 0; index < enemies->live_piece_count && count < 10; index++) {
             piece = enemies->pieces[index];
-            if (mk_chess_pieces_are_neighbors(enemy_king, piece) &&
+            if (mk_chess_is_piece_near_piece(enemy_king, piece) &&
                 enemies->pieces[index]->type == 0) {
                 candidates[count++] = enemies->pieces[index];
             }
             piece = enemies->pieces[index];
-            if (mk_chess_pieces_are_neighbors(enemy_class_3, piece) &&
+            if (mk_chess_is_piece_near_piece(enemy_class_3, piece) &&
                 enemies->pieces[index]->type == 0) {
                 candidates[count++] = enemies->pieces[index];
             }
             piece = enemies->pieces[index];
-            if (mk_chess_pieces_are_neighbors(enemy_class_4, piece) &&
+            if (mk_chess_is_piece_near_piece(enemy_class_4, piece) &&
                 enemies->pieces[index]->type == 0) {
                 candidates[count++] = enemies->pieces[index];
             }
@@ -4916,7 +4919,7 @@ static int mk_chess_drone_heal_ai_casting(ChessDroneState* drone) {
         if (piece->type != 1) {
             if (mk_chess_pdata->board[piece->cell_x].cells[piece->cell_y].square_type == 0) {
                 if (drone->strategy == 3) {
-                    if (mk_chess_pieces_are_neighbors(piece, king) && piece->health < 0.4f) {
+                    if (mk_chess_is_piece_near_piece(piece, king) && piece->health < 0.4f) {
                         return 1;
                     }
                 } else if (piece->health < 0.6f &&
@@ -5135,7 +5138,7 @@ static int mk_chess_drone_random_piece_move(ChessDroneState* drone) {
         if (board_game_save_data.input_flags.input_locked == 0 &&
             (unsigned int)mk_chess_pdata->manager.clock < 12) {
             ChessPiece* king = mk_chess_drone_pick_piece_by_type_on_team(drone->piece->side, 5);
-            if (mk_chess_pieces_are_neighbors(piece, king) != 0) {
+            if (mk_chess_is_piece_near_piece(piece, king) != 0) {
                 continue;
             }
         }
