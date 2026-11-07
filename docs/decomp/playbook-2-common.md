@@ -2960,6 +2960,14 @@ straight in (`mps_dec`).
   (`SpreadSheet_text::Update` exact). Loop-invariant masks used only in an
   inner loop can stay expressions (`(node_id & ~0xF8000) == tag`; IroLoop
   hoists them) instead of named locals.
+- Accessor written as a header `static inline` (`rwCameraParentFrame`) makes
+  its result an inline/iro temp that numbers above the section base or a CSE
+  retail colours first. REQUIRE the SDK spells it as a macro (RW
+  `RwFrameGetMatrix(RwCameraGetFrame(c))`). TRY the open-coded macro form
+  (`&((RwFrame*)c->object.object.parent)->modelling`) into a named local, and
+  name repeated sub-objects (`left_plane = &c->frustumPlanes[4].plane`) when
+  the global's CSE must number above a static's address CSE
+  (`prewake_camera`).
 - Base and advanced cursor share one register (`add r9,r3,r0; add r9,r9,r3`),
   retail keeps the base in its own volatile (`add r4,r3,r0; add r8,r4,r3`):
   `x += n` and `x = x + n` are both ADDASS (IRO_DoTransformations), one web.
@@ -4337,6 +4345,21 @@ advances ordered differently, REQUIRE unchanged semantics (no alias between
 moved accesses), TRY statements in retail order: compute packed words before
 storing, advance cursors after stores, load node output ptr before size store
 (mk-da `MCBlockDecDCNest`, `gop_decode`). Stack-member stores: H14.
+
+- Several single-use locals computed up front, every output stored at the
+  end, whole-block FPR rows plus schedule rows (register-blind > 0) with the
+  same ops: IroPropagate splices each single-use local into its use, so the
+  rows are emitted at the uses. REQUIRE retail stores the outputs in that
+  order and nothing reads them back. TRY storing the first output as soon as
+  it is computed: the indirect store sits between the next local's definition
+  and its use, blocks the splice, and that row is emitted at its definition
+  (`camera_get_screen_pos_from_world_pos` 73 -> 100: `screen->x = ...;`
+  before `screen->y = ...`). Permuter NG found it in 2 s; try it on any
+  projection/transform tail.
+- Address temps of two stored statics tie in the ready list (same height):
+  the first emitted wins. TRY the natural per-object statement grouping
+  (cross product x,y,z, then the normal copy x,y,z, then the distance) over
+  interleaved components (`prewake_camera`).
 
 - Global address materialized for a sum before the compare's other operand
   (codegen temps in emission order): REQUIRE the sum is an invented local.

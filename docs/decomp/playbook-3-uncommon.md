@@ -1107,6 +1107,18 @@ built objects; only linked DOL hash catches wrong layout.
   Retail `at_cam_data, g_DroneAI2,
   g_DroneAI1` = static used first + `g_DroneAI1; g_DroneAI2;` defined at file
   end, externs at top. All functions byte-identical either way.
+- Deferred unit, functions address several statics off one section base
+  (`lis/addi base; addi rX,base,OFF`), offsets and base symbol wrong: REQUIRE
+  retail `nm -n -S` map = reverse parse order, and owner evidence for any
+  unreferenced object: consecutive parse-time `$N` with a known owner's
+  statics (`midpoint_to_cam_vector$808`, `cam_unit_vector$809`,
+  `midpoint$810`, `previous_position$811` all in `adj_cam_pos`). TRY moving
+  file-scope tentatives to the parse positions the reversed map implies (each
+  still before its first use) and declaring the unreferenced static next to
+  its `$N` neighbours (retail name, size, neighbour type). Object at offset 0
+  becomes the base symbol (`prewake_camera`, `cam_calc_right_at_up_offsets`).
+  DS rates it `mixed` (`$N` names never match): hand the draft to the
+  coordinator.
 - Function-static `name$N` suffix differs: objdiff falls back to section
   offset. Fix offset, not parse numbering. MAP `UNUSED` data absent from split
   object: omit it, else later offsets shift (`mwMem` `heapIndex`).

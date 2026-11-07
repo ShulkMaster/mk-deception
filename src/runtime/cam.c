@@ -112,15 +112,6 @@ Vec old_cam_ang_offset = {0.0f, 0.0f, 0.0f};
 Vec old_cam_pos_offset = {0.0f, 0.0f, 0.0f};
 static int camera_bones[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
 static Vec uv_y = { 0.0f, 1.0f, 0.0f };
-static Vec cam_unit_vector = {0.0f, 0.0f, 1.0f};
-static Vec camera_midpoint = {0.0f, 1.55f, 0.0f};
-static Vec right_frustum_plane_normal;
-static Vec left_frustum_plane_normal;
-static Vec right_frustum_vector;
-static Vec left_frustum_vector;
-static Vec cam_up_uv;
-static Vec cam_forward_uv;
-static Vec cam_right_uv;
 static Vec unit_direction;
 static Vec unit_rotation;
 static float last_camera_distance = 2.6f;
@@ -196,6 +187,13 @@ struct BezierCamera {
 };
 
 struct BezierCamera g_bezier_cam;
+static Vec cam_right_uv;
+static Vec cam_forward_uv;
+static Vec cam_up_uv;
+static Vec left_frustum_vector;
+static Vec right_frustum_vector;
+static Vec left_frustum_plane_normal;
+static Vec right_frustum_plane_normal;
 static int BezierCamera_GetNextPoint(struct BezierCamera* camera, Vec* point);
 
 #define RESOLVE_CAMERA_OBJ(cam_)                                                               \
@@ -382,11 +380,7 @@ struct CameraScriptMonitorItem {
     unsigned int instance;
 };
 
-static BackgroundDangerZone background_danger_zones[37];
 static int number_of_danger_zones;
-struct InteractionCameraData g_ic_data;
-struct ScriptedCameraData scripted_camera_data;
-static struct SpecialMoveCameraData smc_data;
 int force_midpoint_calculation_update;
 static float conversation_interaction_angle;
 extern struct CameraScriptMonitorItem camera_script_monitor_item;
@@ -399,7 +393,6 @@ union CameraVecBits {
 };
 
 static Vec unit_z;
-static RwMatrix camera_anim_fixup_matrix __attribute__((aligned(16)));
 
 typedef struct CameraAnimEvent {
     int type;
@@ -914,51 +907,53 @@ void camera_idle(void) {
     xfer_camera_impl(p_idle_camera, 1);
 }
 
-/* TODO: [breakthrough needed] 97.53846%; FP/CFG agree; full BSS map needs
- * the original owner/type of previous_position$811 before ordering storage. */
 static void prewake_camera(void) {
-    RwFrame* frame;
+    RwMatrix* matrix;
+    RwPlane* left_plane;
+    RwPlane* right_plane;
     float dot;
     float angle;
 
-    frame = rwCameraParentFrame(Camera);
-    cam_right_uv.x = frame->modelling.right.x;
-    cam_right_uv.y = frame->modelling.right.y;
-    cam_right_uv.z = frame->modelling.right.z;
-    cam_forward_uv.x = frame->modelling.at.x;
-    cam_forward_uv.y = frame->modelling.at.y;
-    cam_forward_uv.z = frame->modelling.at.z;
-    cam_up_uv.x = frame->modelling.up.x;
-    cam_up_uv.y = frame->modelling.up.y;
-    cam_up_uv.z = frame->modelling.up.z;
+    matrix = &((RwFrame*)Camera->object.object.parent)->modelling;
+    cam_right_uv.x = matrix->right.x;
+    cam_right_uv.y = matrix->right.y;
+    cam_right_uv.z = matrix->right.z;
+    cam_forward_uv.x = matrix->at.x;
+    cam_forward_uv.y = matrix->at.y;
+    cam_forward_uv.z = matrix->at.z;
+    cam_up_uv.x = matrix->up.x;
+    cam_up_uv.y = matrix->up.y;
+    cam_up_uv.z = matrix->up.z;
 
+    left_plane = &Camera->frustumPlanes[4].plane;
+    right_plane = &Camera->frustumPlanes[2].plane;
     left_frustum_vector.x =
-        Camera->frustumPlanes[4].plane.normal.y * cam_up_uv.z -
-        Camera->frustumPlanes[4].plane.normal.z * cam_up_uv.y;
-    left_frustum_plane_normal.x = Camera->frustumPlanes[4].plane.normal.x;
-    left_frustum_plane_normal.y = Camera->frustumPlanes[4].plane.normal.y;
+        left_plane->normal.y * cam_up_uv.z -
+        left_plane->normal.z * cam_up_uv.y;
     left_frustum_vector.y =
-        Camera->frustumPlanes[4].plane.normal.z * cam_up_uv.x -
-        Camera->frustumPlanes[4].plane.normal.x * cam_up_uv.z;
+        left_plane->normal.z * cam_up_uv.x -
+        left_plane->normal.x * cam_up_uv.z;
     left_frustum_vector.z =
-        Camera->frustumPlanes[4].plane.normal.x * cam_up_uv.y -
-        Camera->frustumPlanes[4].plane.normal.y * cam_up_uv.x;
-    left_frustum_plane_normal.z = Camera->frustumPlanes[4].plane.normal.z;
-    left_frustum_plane_dist = Camera->frustumPlanes[4].plane.distance;
+        left_plane->normal.x * cam_up_uv.y -
+        left_plane->normal.y * cam_up_uv.x;
+    left_frustum_plane_normal.x = left_plane->normal.x;
+    left_frustum_plane_normal.y = left_plane->normal.y;
+    left_frustum_plane_normal.z = left_plane->normal.z;
+    left_frustum_plane_dist = left_plane->distance;
 
     right_frustum_vector.x =
-        cam_up_uv.y * Camera->frustumPlanes[2].plane.normal.z -
-        cam_up_uv.z * Camera->frustumPlanes[2].plane.normal.y;
-    right_frustum_plane_normal.x = Camera->frustumPlanes[2].plane.normal.x;
-    right_frustum_plane_normal.y = Camera->frustumPlanes[2].plane.normal.y;
+        cam_up_uv.y * right_plane->normal.z -
+        cam_up_uv.z * right_plane->normal.y;
     right_frustum_vector.y =
-        cam_up_uv.z * Camera->frustumPlanes[2].plane.normal.x -
-        cam_up_uv.x * Camera->frustumPlanes[2].plane.normal.z;
-    right_frustum_plane_normal.z = Camera->frustumPlanes[2].plane.normal.z;
+        cam_up_uv.z * right_plane->normal.x -
+        cam_up_uv.x * right_plane->normal.z;
     right_frustum_vector.z =
-        cam_up_uv.x * Camera->frustumPlanes[2].plane.normal.y -
-        cam_up_uv.y * Camera->frustumPlanes[2].plane.normal.x;
-    right_frustum_plane_dist = Camera->frustumPlanes[2].plane.distance;
+        cam_up_uv.x * right_plane->normal.y -
+        cam_up_uv.y * right_plane->normal.x;
+    right_frustum_plane_normal.x = right_plane->normal.x;
+    right_frustum_plane_normal.y = right_plane->normal.y;
+    right_frustum_plane_normal.z = right_plane->normal.z;
+    right_frustum_plane_dist = right_plane->distance;
 
     dot = left_frustum_vector.x * right_frustum_vector.x +
           left_frustum_vector.y * right_frustum_vector.y +
@@ -1147,6 +1142,9 @@ int player_is_stationary(PlyrPdata* player) {
 
 void adj_cam_pos(void) {
     static Vec midpoint_to_cam_vector;
+    static Vec cam_unit_vector = {0.0f, 0.0f, 1.0f};
+    static Vec midpoint = {0.0f, 1.55f, 0.0f};
+    static Vec previous_position;
     CameraObj* camera;
     Vec delta;
     Vec candidate;
@@ -1162,7 +1160,7 @@ void adj_cam_pos(void) {
     float inverse_length;
 
     camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
-    camera_midpoint.y += camera->ground_plane;
+    midpoint.y += camera->ground_plane;
     if (g_game_info.plyr0.slot.mirror_a == 0 ||
         g_game_info.plyr1.slot.mirror_a == 0) {
         return;
@@ -1186,18 +1184,18 @@ void adj_cam_pos(void) {
 
             if (g_game_info.plyr0.slot.mirror_a != 0 &&
                 g_game_info.plyr1.slot.mirror_a != 0) {
-                camera_midpoint.x =
+                midpoint.x =
                     g_game_info.plyr1.slot.mirror_a->pos.value.x +
                     g_game_info.plyr0.slot.mirror_a->pos.value.x;
-                camera_midpoint.y =
+                midpoint.y =
                     g_game_info.plyr1.slot.mirror_a->pos.value.y +
                     g_game_info.plyr0.slot.mirror_a->pos.value.y;
-                camera_midpoint.z =
+                midpoint.z =
                     g_game_info.plyr1.slot.mirror_a->pos.value.z +
                     g_game_info.plyr0.slot.mirror_a->pos.value.z;
-                camera_midpoint.x = 0.5f * camera_midpoint.x;
-                camera_midpoint.y = 0.5f * camera_midpoint.y;
-                camera_midpoint.z = 0.5f * camera_midpoint.z;
+                midpoint.x = 0.5f * midpoint.x;
+                midpoint.y = 0.5f * midpoint.y;
+                midpoint.z = 0.5f * midpoint.z;
             }
 
             cam_unit_vector.x = -tightrope_perp_uv.x;
@@ -1224,11 +1222,11 @@ void adj_cam_pos(void) {
             midpoint_to_cam_vector.y = cam_unit_vector.y * distance;
             midpoint_to_cam_vector.z = cam_unit_vector.z * distance;
             camera_info.pdata->target_pos.x =
-                camera_midpoint.x + midpoint_to_cam_vector.x;
+                midpoint.x + midpoint_to_cam_vector.x;
             camera_info.pdata->target_pos.y =
-                camera_midpoint.y + midpoint_to_cam_vector.y;
+                midpoint.y + midpoint_to_cam_vector.y;
             camera_info.pdata->target_pos.z =
-                camera_midpoint.z + midpoint_to_cam_vector.z;
+                midpoint.z + midpoint_to_cam_vector.z;
 
             if (distance < 3.8999999f) {
                 camera_info.pdata->target_ang.x = 0.1f;
@@ -1249,9 +1247,9 @@ void adj_cam_pos(void) {
             delta.x = -1.0f * midpoint_to_cam_vector.x;
             delta.y = -1.0f * midpoint_to_cam_vector.y;
             delta.z = -1.0f * midpoint_to_cam_vector.z;
-            candidate.x = camera_midpoint.x + delta.x;
+            candidate.x = midpoint.x + delta.x;
             candidate.y = camera_info.pdata->target_pos.y;
-            candidate.z = camera_midpoint.z + delta.z;
+            candidate.z = midpoint.z + delta.z;
             delta.x = candidate.x - camera->pos.x;
             delta.y = candidate.y - camera->pos.y;
             delta.z = candidate.z - camera->pos.z;
@@ -1266,11 +1264,11 @@ void adj_cam_pos(void) {
 
     if (keep_camera_out_of_danger_zones(&camera_info.pdata->target_pos)) {
         midpoint_to_cam_vector.x =
-            camera_info.pdata->target_pos.x - camera_midpoint.x;
+            camera_info.pdata->target_pos.x - midpoint.x;
         midpoint_to_cam_vector.y =
-            camera_info.pdata->target_pos.y - camera_midpoint.y;
+            camera_info.pdata->target_pos.y - midpoint.y;
         midpoint_to_cam_vector.z =
-            camera_info.pdata->target_pos.z - camera_midpoint.z;
+            camera_info.pdata->target_pos.z - midpoint.z;
         inverse_length = gxMathFastInvSqrt(
             camera_vector_length_sq(&midpoint_to_cam_vector));
         midpoint_to_cam_vector.x *= inverse_length;
@@ -1291,7 +1289,7 @@ void adj_cam_pos(void) {
     camera->ang.y -= old_cam_ang_offset.y;
     camera->ang.z -= old_cam_ang_offset.z;
     radial_move_to_game_position(&camera_info.pdata->target_pos,
-                                 &camera_midpoint, rate);
+                                 &midpoint, rate);
 
     rotate_to_game_angle(&camera_info.pdata->target_ang, rate, 0);
 
@@ -1309,6 +1307,12 @@ void adj_cam_pos(void) {
     camera->ang.y += cam_ang_offset.y;
     camera->ang.z += cam_ang_offset.z;
 }
+
+struct ScriptedCameraData scripted_camera_data;
+static struct SpecialMoveCameraData smc_data;
+struct InteractionCameraData g_ic_data;
+static BackgroundDangerZone background_danger_zones[37];
+static RwMatrix camera_anim_fixup_matrix __attribute__((aligned(16)));
 
 void camera_set_speed_scalar(float speed) {
     camera_info.pdata->speed = speed;
@@ -3468,8 +3472,6 @@ float get_volume_from_distance(Vec* position, float far_distance,
     return volume;
 }
 
-/* TODO: [breakthrough needed] 99.875%; six UV BSS offsets differ;
- * stop until the previous_position owner and full deferred storage map are recovered. */
 void cam_calc_right_at_up_offsets(const Vec* position, float* forward_offset,
                                   float* right_offset, float* up_offset) {
     CameraObj* camera;
@@ -5419,39 +5421,33 @@ void remove_widescreen_bars(void) {
     }
 }
 
-/* TODO: [breakthrough] 73.15493%; five signed-conversion stack roles agree;
- * projection/reciprocal FP owners and instruction scheduling still differ. */
 void camera_get_screen_pos_from_world_pos(Vec* world, RwV2d* screen) {
     RwRaster* raster = Camera->frameBuffer;
-    float y = world->y;
-    float x = world->x;
-    float z = world->z;
     int height = raster->height;
     float projected_z;
     float projected_y;
     float projected_x;
     float reciprocal_depth;
-    float output_x;
-    float output_y;
+    float offset_y;
 
     projected_z = Camera->viewMatrix.pos.z +
-        (z * Camera->viewMatrix.at.z +
-         (x * Camera->viewMatrix.right.z + y * Camera->viewMatrix.up.z));
+        (world->z * Camera->viewMatrix.at.z +
+         (world->x * Camera->viewMatrix.right.z +
+          world->y * Camera->viewMatrix.up.z));
     projected_y = Camera->viewMatrix.pos.y +
-        (z * Camera->viewMatrix.at.y +
-         (x * Camera->viewMatrix.right.y + y * Camera->viewMatrix.up.y));
+        (world->z * Camera->viewMatrix.at.y +
+         (world->x * Camera->viewMatrix.right.y +
+          world->y * Camera->viewMatrix.up.y));
     projected_x = Camera->viewMatrix.pos.x +
-        (z * Camera->viewMatrix.at.x +
-         (x * Camera->viewMatrix.right.x + y * Camera->viewMatrix.up.x));
+        (world->z * Camera->viewMatrix.at.x +
+         (world->x * Camera->viewMatrix.right.x +
+          world->y * Camera->viewMatrix.up.x));
     reciprocal_depth = 1.0f / projected_z;
-    output_y = (float)raster->offsetY;
-    output_x = (float)raster->width;
-    output_x = output_x * (projected_x * reciprocal_depth) +
+    offset_y = (float)raster->offsetY;
+    screen->x = (float)raster->width * (projected_x * reciprocal_depth) +
         (float)raster->offsetX;
-    output_y = (float)height -
-        ((float)height * (projected_y * reciprocal_depth) + output_y);
-    screen->x = output_x;
-    screen->y = output_y;
+    screen->y = (float)height -
+        ((float)height * (projected_y * reciprocal_depth) + offset_y);
 }
 
 float p_mk_chess_cam_control(void) {
