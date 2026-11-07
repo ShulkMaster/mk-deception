@@ -26,7 +26,7 @@ static int cullmode;
 static int max_global_particle_count;
 static int current_particle_count;
 static int global_particle_count;
-static signed char* null_value;
+static signed char* volatile null_value;
 
 struct PfxDiagnosticStrings {
     char invalid_struct_field[37];
@@ -384,8 +384,6 @@ int pfx_get_struct_size(PfxVm* pfx, int field) {
     }
 }
 
-/* TODO: [breakthrough needed] 96.03448%; pointer qualification remains unproven;
- * recover a donor declaration or a real outside observer/writer. */
 void pfx_halt(const char* message) {
     if (_pfx_config.halt != 0) {
         _pfx_config.halt(message);
