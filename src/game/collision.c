@@ -4080,8 +4080,8 @@ static void add_plyr_body_attack_nodes(
     }
 }
 
-/* TODO: [near miss] 99.84849%; pair-scan index/second/last_pair saved-register claim order
- * remains (retail r27/r24/r29); solver wants index above second and last_pair as a temp kind. */
+/* TODO: [near miss] 99.9798%; one saved-GPR web remains (pair-scan `second` index addi r29 vs r25);
+ * declaration order exhausted (spellsearch round 2 neutral); kind change of that web still unknown. */
 static void generate_weapon_collision_nodes(
     PlayerCollisionData* collision_data, MkObj* weapon, float radius) {
     PlayerCollisionNode node;
@@ -4095,8 +4095,8 @@ static void generate_weapon_collision_nodes(
     Vec difference;
     unsigned int first_index;
     unsigned int last_pair_index;
-    unsigned int bone_index;
     unsigned int index;
+    unsigned int bone_index;
 
     first_index = collision_data->field_93F4;
     update_bone_hierarchy(

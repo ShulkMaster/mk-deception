@@ -9438,8 +9438,8 @@ static void handle_monk_input(void) {
     }
 }
 
-/* TODO: [near miss] 99.80099%; X result must emit before Z loads;
- * verified PS2 keeps the plane inline; original producer ownership remains missing. */
+/* TODO: [near miss] 99.95025%; in-place displacement_x keeps x before the z loads, but its
+ * req.x load shares the dx web (retail loads into a temp); find the non-propagated x producer. */
 static int check_additional_trigger_fire_requirements(
     struct KonquestTriggerStruct* owner, MkObj* hero) {
     KonquestTriggerRequirement* requirement;
@@ -9512,7 +9512,8 @@ static int check_additional_trigger_fire_requirements(
                 direction.z = gxMathCos(orientation->angle->angle);
                 requirement = owner->requirement;
                 displacement_y = requirement->position.y - hero->pos.value.y;
-                displacement_x = requirement->position.x - hero->pos.value.x;
+                displacement_x = requirement->position.x;
+                displacement_x -= hero->pos.value.x;
                 displacement_z = requirement->position.z - hero->pos.value.z;
                 if (displacement_z * direction.z +
                         (displacement_x * direction.x + displacement_y * direction.y) <

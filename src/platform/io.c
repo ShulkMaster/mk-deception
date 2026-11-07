@@ -524,9 +524,10 @@ static void execute_scan_sequence_cmd(unsigned int action,
 
 }
 
-/* TODO: [near miss] 98.40635%; two decrement-order rows and saved-owner topology remain;
- * original execution boundary is neutral; recover counter and invariant owners. */
+/* TODO: [near miss] 98.51746%; two decrement-order rows and saved-owner topology remain;
+ * requirement_count now a function-scope local (spellsearch scope op); recover counter and invariant owners. */
 void scan_switch_sequences(unsigned int* sequence) {
+    int requirement_count;
     struct SwitchLogEntry* switch_log;
     int log_index;
     int player_state;
@@ -559,7 +560,6 @@ void scan_switch_sequences(unsigned int* sequence) {
         int execution_mode;
         int max_tick_gap;
         int requirements[30];
-        int requirement_count;
         int history;
 
         if (sequence_id + 0x10000 == 0x0000FFFF) break;

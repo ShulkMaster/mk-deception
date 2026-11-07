@@ -14106,17 +14106,17 @@ static int mk_chess_calc_all_moves_cb(ChessPiece* piece,
     return 0;
 }
 
-/* TODO: [breakthrough needed] 91.77901%; row/endpoint issue dependencies remain;
- * signed position-pair ownership regresses; recover original three-home producer. */
+/* TODO: [near miss] 96.76243%; pre-RA scheduler issues the last_x copy before the row
+ * clear (retail: both copies after the store); recover the x-step owner boundary. */
 static void mk_chess_iterate_thru_move(ChessPiece* piece, ChessPieceMoveMap* map,
     ChessMovementSkill* skill, int x_step, int y_step) {
+    ChessBoardRow* board = mk_chess_pdata->board;
     unsigned int distance = skill->limits >> 16;
     unsigned int remaining = skill->limits & 0xFFFF;
     int x;
     int y;
     int last_x = piece->cell_x;
     int last_y = piece->cell_y;
-    ChessBoardRow* board = mk_chess_pdata->board;
     x = last_x + x_step * (int)distance;
     y = last_y + y_step * (int)distance;
 
@@ -14144,12 +14144,12 @@ static void mk_chess_iterate_thru_move(ChessPiece* piece, ChessPieceMoveMap* map
             return;
         }
         remaining--;
-        map->rows[y] &= ~(7U << (x * 3));
         last_x = x;
         last_y = y;
         x += x_step;
-        y += y_step;
+        map->rows[last_y] &= ~(7U << (last_x * 3));
         map->rows[last_y] |= 1U << (last_x * 3);
+        y += y_step;
     }
     mk_chess_append_empty_move_end(piece, map, last_x, last_y);
 }

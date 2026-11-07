@@ -4018,6 +4018,11 @@ reuses another var's zero on failure path.
   Same cure when a single-use offset is spliced after later statements: write
   it into the consumer and derive in place (`separation.x = own.x - wall.x;
   separation.x = opp.x - separation.x;`, `beetle_lair_collision_cb`).
+  Fused dot test `dz*c + (dx*s + dy*0) < 0`: propagated single-use operands
+  emit pre-order down the fmadds tree (outer multiplicand first); retail dx
+  fsubs before the dz loads = dx not propagated. TRY `dx = a; dx -= b;` for
+  that operand only (`check_additional_trigger_fire_requirements`, partial:
+  its load then shares the dx web).
   FP difference landing in the left operand's load register (`lfs f3,b;
   lfsx f1,a; fsubs f1,f1,f3`) where ours coalesces the result with the right
   (`fsubs f1,f3,f1`): `a - b` emits the left load first (lower cg-temp). TRY

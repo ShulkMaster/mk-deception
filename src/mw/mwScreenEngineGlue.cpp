@@ -3042,10 +3042,9 @@ static inline void screen_text_set_string(ScreenText* text, char* string) {
     }
 }
 
-/* TODO: [near miss] 98.36021%; 112 GPR colouring rows: this must colour after
- * sourceCount/y/x (retail r28 vs r31); next: find the owner that ranks this last. */
+/* TODO: [near miss] 98.41398%; 110 GPR colouring rows: this must colour after
+ * sourceCount/y/x (retail r28 vs r31); x block-scoped (spellsearch scope op); next: find the owner that ranks this last. */
 void SpreadSheet_text::Update() {
-    int x;
     int y;
     int source;
     int sourceCount;
@@ -3067,6 +3066,7 @@ void SpreadSheet_text::Update() {
     visibleRows = this->rows < this->unkE8 ? this->rows : this->unkE8;
     visibleCols = this->cols < this->unkEC ? this->cols : this->unkEC;
     for (y = 0; y < this->cols; y++) {
+        int x;
         for (x = 0; x < this->rows; x++) {
             source = x + this->scrollX +
                      this->unkE8 * (y + this->unkD4);
