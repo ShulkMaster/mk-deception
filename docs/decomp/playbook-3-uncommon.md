@@ -1022,6 +1022,18 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   inventions: retail anonymous `@N` = function-local `Vec v = {..}` created in
   reverse-source order (`p_npc_on_pendulum_rope` research 97.42->98.42,
   .rodata kept). Flag change = coordinator; land only on whole-unit gain.
+  Order the defs by descending retail MAP `.text` index (UNUSED slots too),
+  not by reversing current source: non-deferred sources are often reordered
+  to steer `-inline auto` (`mk_chess`: 9 swaps). Choose `noauto` vs `auto`
+  by count: compile both on the reversed copy, diff `bl` multisets per
+  function vs retail; the mode with fewer callees to fix wins (`mk_chess`:
+  noauto 11 callees retail always inlines -> pairs, auto ~40 it calls).
+  Recheck MAP UNUSED neighbours (`fetch_d_distance_param` 0x68). Pool slots
+  under deferred = parse position: static inline helper with an aggregate
+  initializer pools at its definition -> define it right before its only
+  user; extern-only file-scope const tables -> define with retail bytes at
+  the parse slot between the owners of the neighbouring `@N` records
+  (`mk_chess` `.rodata` 72.6->99.0, fight_cam pool-offset rows gone).
 - Recovered ordinary helpers under deferred emission: REQUIRE retail inline
   expansions, donor body + MAP evidence, and every function/data comparison.
   TRY reversed helper definitions with paired `auto,deferred`
@@ -1198,6 +1210,16 @@ built objects; only linked DOL hash catches wrong layout.
   non-deferred, only a MAP-UNUSED owner of MAP size referencing them in retail
   order places them (`p_mk_chess_game_setup` messages): user decision, not
   original shape.
+- Deferred unit `.bss`/`.sbss` placement: IF retail map is reverse decl order
+  (deferred) | REQUIRE retail offset/size/binding per object | TRY declare
+  tentatives in reverse map order; slot = FIRST tentative definition, an
+  earlier `extern` does not count; function static = its function's parse
+  position. Global parsed after a function static -> `extern` on top for
+  earlier users + definition after that function (end of file is enough).
+  Retail LOCAL object after a function static fits only extern-first then
+  `static` definition: MWCC accepts it, ISO C UB -> reviewer decision
+  (`mk_chess` `mk_chess_pdata`; unreferenced message statics need no stub,
+  `p_mk_chess_game_setup` exact).
 - Small object's first `extern` must see complete type for SDA (DVD thread
   queue); multi-record table declared as pointer falsely picks SDA. All small
   globals in `.bss` with `lis` addressing where ours uses `@sda21`: object
