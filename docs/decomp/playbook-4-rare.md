@@ -61,7 +61,13 @@ our block never gets. GC2.7 reruns the scheduler after allocation only on
 blocks that allocation changed (a copy coalesced away). TRY computing the
 value into an honest named local and passing that local, so the block gains a
 copy that allocation deletes (`p_konquest_map_screen`: `cursor_x = ...;`
-before the call). Trace all blocks with `sched.py --trace SYM --block 1`;
+before the call). Fresh single-use local propagated (no MR in pre-RA
+`initial`, block still pre-RA only): reassign the variable that already
+owns a web in place, e.g. translate a parameter id through its table
+(`movie = table[movie]; play_movie(movie, 0);`): the load defines the
+parameter web, `MR r3,v` survives to allocation and is coalesced, the block
+gets its post-RA pass (`screen_engine_play_movie`: `li r4,0` after `lwzx`).
+Trace all blocks with `sched.py --trace SYM --block 1`;
 `--block N --phase post` prints nothing when block N has no post-RA pass.
 
 An unchanged opcode count or zero peephole-rule return is not an unchanged

@@ -421,13 +421,12 @@ int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
     return 0;
 }
 
-/* TODO: [near miss] 87.50%; pre-RA scheduler fills the movie-ID address-latency slot
- * with zero tapout; original producer dependency remains unresolved. */
-void screen_engine_play_movie(int index) {
-    if (index >= 0xC8) {
-        index -= 0xC8;
+void screen_engine_play_movie(int movie) {
+    if (movie >= 0xC8) {
+        movie -= 0xC8;
     }
-    play_movie(screen_engine_movie_table[index], 0);
+    movie = screen_engine_movie_table[movie];
+    play_movie(movie, 0);
 }
 
 int are_death_traps_on(void) {
