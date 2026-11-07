@@ -796,7 +796,7 @@ static inline void mk_chess_recalculate_all_piece_moves(void) {
 
 static int mk_chess_fetch_single_space_attack_script(ChessAttackGridPosition* position, unsigned int direction);
 
-static inline unsigned int mk_chess_piece_event_script(ChessPiece* piece, int event) {
+static inline unsigned int mk_chess_fetch_piece_script(ChessPiece* piece, int event) {
     if (event >= 64)
         return g_board_game_controller.class_definitions[piece->type].event_script_words[1];
     if (g_board_game_controller.class_definitions[piece->type].event_script_words[event] != 0xABABAB00)
@@ -8871,19 +8871,6 @@ void mk_chess_set_normal_stance_script(AniScript* script) {
     g_active_piece_being_defined->initial_stance_script = script;
 }
 
-static inline AniScript* mk_chess_class_stance_script(int type)
-{
-    unsigned int script =
-        g_board_game_controller.class_definitions[type].event_script_words[0];
-
-    if (script != 0xABABAB00) {
-        return (AniScript*)script;
-    }
-    return g_board_game_controller.piece_art_rows[0];
-}
-
-/* TODO: [near miss] 96.649483%; initial PCode folds class base/index;
- * recover the retail indexed event-member address before publication. */
 void mk_chess_set_piece_type_as(int type, int restoring) {
     if (g_active_piece_being_defined == 0) {
         return;
@@ -8892,8 +8879,8 @@ void mk_chess_set_piece_type_as(int type, int restoring) {
         g_active_piece_being_defined->side, type,
         &g_board_game_controller.piece_libraries[g_active_piece_being_defined->library_index]);
     g_active_piece_being_defined->type = type;
-    mk_chess_set_normal_stance_script(mk_chess_class_stance_script(
-        g_active_piece_being_defined->type));
+    mk_chess_set_normal_stance_script((AniScript*)mk_chess_fetch_piece_script(
+        g_active_piece_being_defined, 0));
     if (g_board_game_controller.class_definitions[type].flags.spellcaster) {
         ChessPieceSpellData* spells = (ChessPieceSpellData*)get_mkpdata_generic(sizeof(*spells));
         int i;
@@ -11107,7 +11094,7 @@ unsigned int mk_chess_request_piece_script_for_action(int action) {
         event = mk_chess_fetch_desired_attack_script(g_active_piece,
             (ChessAttackGridPosition*)&g_active_piece->movement->cell_x, &distance);
         piece = g_active_piece;
-        return mk_chess_piece_event_script(piece, event);
+        return mk_chess_fetch_piece_script(piece, event);
     case 26: {
         ChessPiece* movement_piece;
         ChessPieceMovement* movement;
@@ -11128,20 +11115,20 @@ unsigned int mk_chess_request_piece_script_for_action(int action) {
         event = mk_chess_fetch_single_space_attack_script(
             (ChessAttackGridPosition*)&g_active_piece->movement->cell_x, relative_direction);
         piece = g_active_piece;
-        return mk_chess_piece_event_script(piece, event);
+        return mk_chess_fetch_piece_script(piece, event);
     }
     case 8:
         if (mk_chess_attack_target_outside_inner_board(g_active_piece->movement) != 0) {
-            return mk_chess_piece_event_script(g_active_piece, 43);
+            return mk_chess_fetch_piece_script(g_active_piece, 43);
         }
-        return mk_chess_piece_event_script(g_active_piece, 22);
+        return mk_chess_fetch_piece_script(g_active_piece, 22);
     case 12:
         if (mk_chess_attack_target_outside_inner_board(g_active_piece->movement) != 0) {
-            return mk_chess_piece_event_script(g_active_piece, 44);
+            return mk_chess_fetch_piece_script(g_active_piece, 44);
         }
-        return mk_chess_piece_event_script(g_active_piece, 25);
+        return mk_chess_fetch_piece_script(g_active_piece, 25);
     default:
-        return mk_chess_piece_event_script(g_active_piece, 11);
+        return mk_chess_fetch_piece_script(g_active_piece, 11);
     }
 }
 
@@ -11663,7 +11650,7 @@ static void mk_chess_xfer_to_piece_script(ChessPiece* piece, int event) {
     int stack_kind = 0;
 
     if (piece != 0 && event < 64) {
-        script = mk_chess_piece_event_script(piece, event);
+        script = mk_chess_fetch_piece_script(piece, event);
         if (script != 0) {
             switch (event) {
             case 0:
