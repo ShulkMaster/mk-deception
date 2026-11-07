@@ -43,8 +43,8 @@ typedef char TgaHeaderSizeCheck[sizeof(struct TgaHeader) == 0x12 ? 1 : -1];
 typedef char TgaHeaderValuesSizeCheck[
     sizeof(struct TgaHeaderValues) == 0x30 ? 1 : -1];
 
-static inline RwImage *tga_write_pixels(MkHwFileRequest *file, RwImage *image,
-                                        struct TgaHeaderValues values) {
+RwImage *tgaImageWriteUncompressed24bitRGB(MkHwFileRequest *file, RwImage *image,
+                                           struct TgaHeaderValues values) {
   int block_bytes;
   int row_bytes;
   unsigned char *pixels;
@@ -62,17 +62,17 @@ static inline RwImage *tga_write_pixels(MkHwFileRequest *file, RwImage *image,
   pixels = image->pixels;
   row_bytes = width * 3;
   row = values.height;
-  block_bytes = width * 12;
+  block_bytes = values.width * 12;
   while (row > 0) {
     unsigned char *destination = output;
 
     rows = 0;
     do {
       row--;
-      for (column = 0; column < values.width; column++) {
-        destination[column * 3] = pixels[(column + row * values.width) * 4 + 2];
-        destination[column * 3 + 1] = pixels[(column + row * values.width) * 4 + 1];
-        destination[column * 3 + 2] = pixels[(column + row * values.width) * 4];
+      for (column = 0; column < width; column++) {
+        destination[column * 3] = pixels[(column + row * width) * 4 + 2];
+        destination[column * 3 + 1] = pixels[(column + row * width) * 4 + 1];
+        destination[column * 3 + 2] = pixels[(column + row * width) * 4];
       }
       rows++;
       destination += row_bytes;
@@ -82,8 +82,8 @@ static inline RwImage *tga_write_pixels(MkHwFileRequest *file, RwImage *image,
   return image;
 }
 
-/* TODO: [near miss] 99.02439%; eligible LI24 loses to origin-Y extraction rank;
- * missing header-init producer must preserve the frame and sole value copy. */
+/* TODO: [near miss] 99.02439%; header li 24 loses the pre-RA tie to the origin-Y
+ * rlwinm (opcode rank, same late/height); helper boundary is MAP-exact. */
 RwImage *ImageWriteTGA(RwImage *image, const char *path) {
   RwImage *result;
   MkHwFileRequest *file;
@@ -127,7 +127,7 @@ RwImage *ImageWriteTGA(RwImage *image, const char *path) {
     header.descriptor = values.descriptor;
     debug_file_write(file, &header, sizeof(header));
 
-    result = tga_write_pixels(file, image, values);
+    result = tgaImageWriteUncompressed24bitRGB(file, image, values);
     debug_file_close(file);
     return result;
   }
