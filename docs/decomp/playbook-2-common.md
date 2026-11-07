@@ -417,6 +417,11 @@ Signedness, narrowing. REQUIRE loads, callers, arithmetic range.
 - Pointer-difference index `[da]`: retail signed divide (`divw` / signed shift
   seq) by record size; unsigned index merges webs/drops temp. TRY `s32` index
   (`PipelineNodeDestroy`, /40).
+- Retail narrows a call argument (`clrlwi r3,count,16` before `bl randu0`)
+  but `(unsigned short)count` also flips a register-allocation spill round:
+  REQUIRE the narrowing is real (PS2 `andi a0,s7,0xffff`). TRY
+  `randu0(count & 0xFFFF)`: same `clrlwi`, an AND node instead of a
+  conversion node, spill choice unchanged (`mk_chess_drone_get_close_to_piece`).
 
 ## H04
 
@@ -3073,6 +3078,18 @@ straight in (`mps_dec`).
   IRO hoists it as a loop-invariant temp, so it no longer sits in a late
   simplify sweep. Then fix the remaining named order by declaration
   (`pselect_update_selbox_pos`). Removing only one of them can lose fuzzy.
+- Caller result of a value-returning inline helper is coloured as the
+  helper's local (`distance = helper(dx, dy)` -> web `inl:helper.distance`,
+  inline band, pops early) while retail colours it as a caller named local:
+  REQUIRE an original out-parameter form of the operation (PS2 call passing
+  `&local`, or an existing unit helper with the same body). TRY
+  `T v; helper_out(..., &v);`: after inlining removes the address, the
+  caller's named `v` owns the web (`mk_chess_drone_get_close_to_piece`:
+  `mk_chess_event_direction(dy, dx, &distance)`, direction ignored). Then
+  order the named run: a loop-body local declared at function scope between
+  the right neighbours (`unsigned int move;` after `best_y`, before
+  `prefer_capture`) takes its retail saved register (first declared =
+  highest).
 - Web kind follows local types; sweep them before declaration orders. REQUIRE
   value-preserving flips only. (1) `unsigned char x = p->byte_field` copied
   into an int array inside an inline loop is propagated and its zero

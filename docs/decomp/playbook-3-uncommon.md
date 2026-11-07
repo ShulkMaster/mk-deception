@@ -256,6 +256,11 @@ FP operands + schedule. REQUIRE same math, grouping, rounding.
   owner. Confirm load order, reciprocal literal bytes and operand orientation;
   coefficient-first retail multiplication may not admit this form. Do not
   stage the coefficient through a misleading half-width local.
+  Same lever when the literal is shared with earlier `0.5f * v` sites of the
+  block (IRO CSE temp goes left): `middle_1->y = middle_0->y / 2.0f` keeps
+  retail dividend-first because the reciprocal rewrite runs after IRO CSE
+  (`mk_chess_choose_middle_control_points_for_fight_cam`, three sites); a
+  non-power-of-two `y = y * 0.9f` there needs `y *= 0.9f`.
 - Half-span multiply has reversed operands after binary commutation:
   REQUIRE native evidence that the floating constant moves left, retail keeps
   it right, and the derived half-span is the real subsequent accumulator.
@@ -883,7 +888,16 @@ are proven. Shared headers only for proven ownership; unused O0 param takes
   (`gcnHostCloseCommand::serviceState` -> `handleNotStartedState` 0x50 ->
   `int gcnHostFileHandle::close()` 0x44, `case 0: handleNotStartedState();
   break; ... return 2;`: service stops inlining it, both exact). Convert only
-  when every census edge is closed (`mwFileGCPlatform`: 13 still open).
+  when every census edge is closed. Depth lever = a real layer, not a pragma:
+  existing accessor (`getFile()` in Flush `handleNotStartedState`), shared
+  lock class whose ctor calls an out-of-line TU member (`mwFileMutexLock` ->
+  `mwFileMutex::lock`), header wrapper (`append(const charT*)` ->
+  `traits::length` keeps `convertPath` a call), named semantic method
+  (`mount_point->unlock()` in `unlockAndUnmount`); header template function
+  without explicit instantiation stays a call from non-template code
+  (`mwRoundUp`). Check one callee with `inline_probe_gdb.py` (C++ wrapper
+  `scratch/opus-h6/tools/iprobe.py`): rejected = cost 513-515 (depth
+  sentinel). `mwFileGCPlatform`: 0 edges, unit neutral-or-better.
 - Repeated macro expansion (list unlink) with volatile coloring rotated,
   macro block locals number lowest: REQUIRE TU allows explicit inlining. TRY
   macro as `static inline` function; params/locals become FE temps, number
@@ -1060,6 +1074,14 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   user; extern-only file-scope const tables -> define with retail bytes at
   the parse slot between the owners of the neighbouring `@N` records
   (`mk_chess` `.rodata` 72.6->99.0, fight_cam pool-offset rows gone).
+  `-str reuse,pool` literals under deferred pool in EMISSION order (reverse
+  source), not parse order: MAP-UNUSED string owners must exist
+  (`mwFileGCPlatform` 22 non-template strings exact in reverse-MAP order).
+  Template instances emit after all non-template code: class templates in
+  reverse declaration order, members in class declaration order; some
+  members (`basic_string` `change_size`/`reserve`) land in a later group
+  whatever their body. Template-tail string order unsolved there: keep a
+  verified pool stand-in until it reproduces.
   `auto,deferred` callee policy: native candidacy (0x55cd60) = <= 30
   statements excluding kinds 1/2, locals <= 0x400, fixed at the closing
   brace. Retail `bl` to a small static = it had > 30 statements (merge an

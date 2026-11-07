@@ -9294,8 +9294,8 @@ static void mk_chess_game_event(unsigned int event, ChessPiece** pieces,
 }
 
 
-/* TODO: [near miss] 99.81938%; 16 FPR rows: side-1/type-5 block numbering (f8-f12) and
- * three fmuls operand orders; .rodata pool offsets now retail. */
+/* TODO: [near miss] 99.88506%; 12 FPR rows in the side-1/type-5 block: offset primary webs,
+ * second_offset and the normal_unit.z CSE colour f6-f12; operand orders now retail. */
 static int mk_chess_choose_middle_control_points_for_fight_cam(
     const Vec* normal, const Vec* axis, const Vec* camera_position, Vec* center,
     unsigned int camera_side, unsigned int camera_type, Vec* camera_start,
@@ -9344,7 +9344,7 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_1->x = camera_end->x;
             middle_1->y = camera_end->y;
             middle_1->z = camera_end->z;
-            middle_1->y = middle_0->y * 0.5f;
+            middle_1->y = middle_0->y / 2.0f;
             offset.x = 50.0f * normal_unit.x;
             offset.z = 50.0f * normal_unit.z;
             middle_1->x += offset.x;
@@ -9461,7 +9461,7 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_0->x = camera_start->x;
             middle_0->y = camera_start->y;
             middle_0->z = camera_start->z;
-            middle_0->y = middle_0->y * 0.9f;
+            middle_0->y *= 0.9f;
             offset.x = -35.0f * normal_unit.x;
             offset.z = -35.0f * normal_unit.z;
             middle_0->x += offset.x;
@@ -9474,7 +9474,7 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_1->x = camera_end->x;
             middle_1->y = camera_end->y;
             middle_1->z = camera_end->z;
-            middle_1->y = middle_0->y * 0.5f;
+            middle_1->y = middle_0->y / 2.0f;
             offset.x = 50.0f * normal_unit.x;
             offset.z = 50.0f * normal_unit.z;
             middle_1->x += offset.x;
@@ -9502,7 +9502,7 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_1->x = middle_1->x + center->x;
             middle_1->y = middle_1->y + center->y;
             middle_1->z = middle_1->z + center->z;
-            middle_1->y = middle_0->y * 0.5f;
+            middle_1->y = middle_0->y / 2.0f;
             offset.x = 30.0f * axis_unit.x;
             offset.z = 30.0f * axis_unit.z;
             middle_1->x += offset.x;
@@ -16214,13 +16214,12 @@ static int mk_chess_drone_handle_power_cell_strategy(ChessDroneState* drone)
 }
 
 
-/* TODO: [near miss] 99.1%; count/move must number above the inline distance web; retail
- * u16 count at randu0 (clrlwi) flips our round-1 spill from the board base to selected. */
 static int mk_chess_drone_get_close_to_piece(ChessDroneState* drone,
     ChessPiece* target, ChessPiece** selected, int* next_x, int* next_y) {
     ChessAttackerInfo candidates[16];
-    unsigned int best_x = 0, best_y = 0;
     unsigned int count = 0;
+    unsigned int best_x = 0, best_y = 0;
+    unsigned int move;
     int prefer_capture = 1;
     unsigned int index;
     for (index = 0; index < drone->live_piece_count; index++) {
@@ -16239,14 +16238,15 @@ static int mk_chess_drone_get_close_to_piece(ChessDroneState* drone,
         best_distance = 7;
         for (x = 0; x < 10; x++) {
             for (y = 0; y < 10; y++) {
-                unsigned int move = (drone->pieces[index]->move_map->rows[y] >> (3 * x)) & 7;
+                move = (drone->pieces[index]->move_map->rows[y] >> (3 * x)) & 7;
                 if (move != 0 &&
                     (mk_chess_pdata->sides[target->side]->desired_x != x ||
                      mk_chess_pdata->sides[target->side]->desired_y != y ||
                      (unsigned short)randu0(100) >= 90)) {
                     int dx = (int)target->cell_x - (int)x;
                     int dy = (int)target->cell_y - (int)y;
-                    unsigned int distance = mk_chess_neighbor_distance(dx, dy);
+                    unsigned int distance;
+                    mk_chess_event_direction(dy, dx, &distance);
                     if ((distance < best_distance ||
                          (distance == best_distance && (unsigned short)randu0(100) < 20)) &&
                         (prefer_capture != 0 || move != 2 ||
@@ -16269,7 +16269,7 @@ static int mk_chess_drone_get_close_to_piece(ChessDroneState* drone,
         }
     }
     if (count != 0) {
-        unsigned int choice = (unsigned short)randu0(count);
+        unsigned int choice = (unsigned short)randu0(count & 0xFFFF);
         *selected = candidates[choice].piece;
         *next_x = candidates[choice].cell_x;
         *next_y = candidates[choice].cell_y;
