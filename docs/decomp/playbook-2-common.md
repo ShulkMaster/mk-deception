@@ -1140,6 +1140,21 @@ interval. Reject redundant aliases, identity wrappers, permuter residue.
   0x158 via `mk_chess_fetch_d_distance_param(direction, x, y, cur_x, cur_y)`
   0x68; `(direction, dx, dy)` is 0x60 and keeps the old colours). The split
   fixed the inline-object webs of both cursor selectors (34 -> 10 rows).
+- Retail expands a member body but calls the accessor that produced its
+  object (`mr r3,this; bl alloc(); cmplwi p,0; beq; copy` = `alloc().
+  construct(p, x)`, no `construct` symbol in MAP), ours calls both: REQUIRE
+  the unit's `-inline level`. GC2.7 runs `level=N` passes over the statement
+  list; a callee whose saved body still holds an inline call at remaining
+  depth 0 is rejected (cost budget+1 sentinel); a call in the object/argument
+  of a statement-level expansion is reached only in the next pass. So
+  `construct` (`new (p) T(x)` holds the inline placement `__nw`) never expands
+  at level=1; level=2 expands it and leaves `alloc()` a call. No spelling,
+  `throw()`, POD element or allocator form changes this: TRY the unit mode in
+  scratch, then hand flag + header-depth evidence to the coordinator
+  (`mwFileMount` Callback insert; Midway `mwMem.o`, `MovieManagerGC_Disp`
+  match `-inline auto,deferred,level=2`). Non-inline definitions inlined into
+  functions emitted earlier = deferred with reversed definitions; parse-time
+  `@N` order (static dtor chain, char literals) confirms the source order.
 - Hand-nested copies of one walker body (same loop at 2-3 depths, callee
   calls only at the innermost depth, then `bl self`): TRY the plain recursive
   function; GC2.7 self-inlines recursion up to its inline budget. Inline-visible
@@ -2065,6 +2080,13 @@ Joins. REQUIRE real branch destinations + effect ownership.
   and in-loop returns measured (extra cmpwi/beq or duplicated tails). TRY a
   forward `goto fail;` to the shared tail (AGENTS.md exception;
   `gc_format_procedure`, MK:DA retail has the same join).
+- Retail hoists the return copy above the guard (`clrlwi. r0,rX,24; mr
+  r3,rX; bne exit`), ours keeps `beq; mr r3,rX; b exit`: REQUIRE the returned
+  flag and the fallback value reach one return. TRY one multi-def result
+  local: `bool result = flag; if (!result) { ...; result = test == false; }
+  return result;`. Spell the late test as a comparison: `!test` computes into
+  r0 + `mr r3`; reusing `flag` itself or returning inside the `if` regresses
+  (`mwFileServerNotQueued::queryActive`).
 
 ## H12
 
