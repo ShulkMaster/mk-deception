@@ -1843,10 +1843,13 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_cmc.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/mpv/mpv_lib.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/mpv/mpv_lib.c",
-                extra_cflags=["-sdata 0", "-sdata2 0", "-use_lmw_stmw on"],
+                extra_cflags=[
+                    "-sdata 0", "-sdata2 0", "-use_lmw_stmw on",
+                    "-inline auto,deferred", "-str reuse,readonly",
+                ],
             ),
             Object(
                 Matching,
@@ -2091,7 +2094,7 @@ config.libs = [
                 extra_cflags=["-sdata 0", "-sdata2 0", "-use_lmw_stmw on", "-pooldata off"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_mps.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_mps.c",
                 extra_cflags=["-use_lmw_stmw on", "-sdata 0"],

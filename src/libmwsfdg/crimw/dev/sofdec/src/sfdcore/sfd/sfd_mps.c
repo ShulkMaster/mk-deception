@@ -53,19 +53,8 @@ typedef char SfmpsSeekSnapshotSizeCheck[
 typedef char SfmpsSavedSystemHeadersSizeCheck[
     sizeof(SfmpsSavedSystemHeaders) == 0x168 ? 1 : -1];
 
-typedef struct SfmpsMpsLibWork {
-    MpsErrorCallback error_callback;
-    MpsCallbackObject error_object;
-    int error;
-    int handle_count;
-    MpsHandle handles[8];
-} SfmpsMpsLibWork;
-
-typedef char SfmpsMpsLibWorkSizeCheck[
-    sizeof(SfmpsMpsLibWork) == 0x810 ? 1 : -1];
-
 int copy_sj_error;
-static SfmpsMpsLibWork sfmps_libwork;
+static unsigned char sfmps_libwork[0x10 + 8 * sizeof(MpsHandle)];
 
 typedef struct SfmpsBufHn {
     unsigned char pad[0x1308];
@@ -77,6 +66,37 @@ typedef struct SfmpsBufHn {
 
 extern void SFHDS_ReprocessHdr(SfdHandle* handle);
 static int sfmps_ExecServerSub(SfdHandle* handle);
+static int SFMPS_Init(SfdHandle* handle);
+static int SFMPS_Finish(SfdHandle* handle);
+static int SFMPS_ExecServer(SfdHandle* handle);
+static int SFMPS_Create(SfdHandle* handle);
+static int SFMPS_Destroy(SfdHandle* handle);
+static int SFMPS_Standby(SfdHandle* handle);
+static int SFMPS_Start(SfdHandle* handle);
+static int SFMPS_Stop(SfdHandle* handle);
+static int SFMPS_Pause(SfdHandle* handle, int state);
+static int SFMPS_GetWrite(SfdHandle* handle, void* buffer);
+static int SFMPS_AddWrite(SfdHandle* handle, int parameter, int value);
+static int SFMPS_GetRead(SfdHandle* handle, void* buffer);
+static int SFMPS_AddRead(SfdHandle* handle, int parameter, int value);
+static int SFMPS_Seek(SfdHandle* handle, int parameter, int value);
+
+const SfdTransportInterface SFD_tr_sd_mps = {
+    SFMPS_Init,
+    SFMPS_Finish,
+    SFMPS_ExecServer,
+    SFMPS_Create,
+    SFMPS_Destroy,
+    SFMPS_Standby,
+    SFMPS_Start,
+    SFMPS_Stop,
+    SFMPS_Pause,
+    SFMPS_GetWrite,
+    SFMPS_AddWrite,
+    SFMPS_GetRead,
+    SFMPS_AddRead,
+    SFMPS_Seek,
+};
 
 static SfmpsWork* sfmps_GetWork(SfdHandle* handle)
 {
@@ -1097,7 +1117,7 @@ static int SFMPS_Init(SfdHandle* handle)
         for (;;) {
         }
     }
-    if (MPS_Init(8, (MpsLibWork*)&sfmps_libwork) != 0) {
+    if (MPS_Init(8, (MpsLibWork*)sfmps_libwork) != 0) {
         return SFLIB_SetErr(0, 0xFF000D01);
     }
     copy_sj_error = 0;
@@ -1123,20 +1143,3 @@ int SFD_SetElementOutSj(SfdHandle* handle, int element_id, SJ* stream,
     work->element_outputs[element_id - 0xBC] = stream;
     return 0;
 }
-
-const SfdTransportInterface SFD_tr_sd_mps = {
-    SFMPS_Init,
-    SFMPS_Finish,
-    SFMPS_ExecServer,
-    SFMPS_Create,
-    SFMPS_Destroy,
-    SFMPS_Standby,
-    SFMPS_Start,
-    SFMPS_Stop,
-    SFMPS_Pause,
-    SFMPS_GetWrite,
-    SFMPS_AddWrite,
-    SFMPS_GetRead,
-    SFMPS_AddRead,
-    SFMPS_Seek,
-};
