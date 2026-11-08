@@ -150,8 +150,8 @@ void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
 }
 
 #pragma push
-/* TODO: [near miss] 98.73418%; hidden aggregate-result force precedes the
- * descriptor load; recover the original argument owner without new records. */
+/* TODO: [blocked] 98.73418%; unit opt_propagation off forms the by-value fields address
+ * early; scoped opt_propagation on matches the whole unit (needs pragma approval). */
 void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
 {
     unsigned char* cursor;

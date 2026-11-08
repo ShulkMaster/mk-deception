@@ -29,6 +29,19 @@ across TU, REQUIRE sibling evidence + all-function and section baselines.
   required, and report C-only header/view failures as failures, not neutral
   mode results (`ADXT_GetTime`). Archive the command before closing a mode
   hypothesis; see [the ADXT language evidence](reports/adxt-cpp-static-bss.md).
+- By-value struct argument, `-schedule off`: retail copies the struct before the
+  first argument load but forms its address in argument order (`stw; stw;
+  lwz r3,a1; addi r4,r1,tmp`), ours `addi r4` before `lwz r3`. With IRO
+  `opt_propagation off`, GC2.7 evaluates the copy and its address together in
+  the hascall-argument phase; propagation on leaves a plain `&temp` that is
+  materialized in argument order. REQUIRE an `opt_propagation off` unit/scope
+  and the address row as the only residue. No source spelling moves it (named
+  local, field, global, deref, param, struct-returning call, comma, nested
+  assign, implicit decl, union/array struct, other GC versions: all early).
+  TRY `opt_propagation on` scoped to the function (pragma = approval), or
+  unit-wide on + `off` scoped to the siblings that need it; recheck all
+  (`pfx_set_memory`: unit 100 either way; `pfx_effect_memory_alloc` needs
+  `off` for its neg-first mask).
 - Legacy local optimization scope justified by a historical compiler crash:
   REQUIRE a fresh compile with the current source, headers, and pinned
   compiler. TRY removing the workaround alone before source tuning; a stale

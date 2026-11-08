@@ -4300,6 +4300,13 @@ reuses another var's zero on failure path.
   (`scan_switch_sequences`). `x = x - y` is turned into `x -= y` before
   pass 1, so it does not help.
 
+- Base-left pointer add (`lwz base; lbz off; add rB,rB,rO; addi +K`), ours
+  `add rB,rO,rB`: every one-expression form (`base + (field + K)`,
+  `base + field + K`, typed header-at-offset `+ 1`, `&base[...]`) is
+  reassociated by the front end into ADD(field, base). TRY in-place
+  `p = base; p += field; p += K;` (fixedBlockHeapCorrectPads in
+  `fixedBlockHeapResetHeap`, partial). `p = base + field; p += K` regresses.
+
 - A float result derived from an int call result needs its own statement ahead
   of the next call's receiver setup (XORIS before LIS, conversion temps
   0x48/0x40/0x38 order): REQUIRE single-use staged locals measured as folding
