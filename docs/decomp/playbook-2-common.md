@@ -4288,6 +4288,18 @@ reuses another var's zero on failure path.
   no added scratch locals, casts, aliases or stack padding. Check each retail
   conversion role against the native resolver, not scratch-object UID order.
 
+- Load and its in-place result in one register (`lwz r6; rlwinm r28,r6;
+  subf r6,r28,r6`), ours loads into r0 (`timing` temp) and computes into a
+  second web: REQUIRE no other use of the loaded value. One variable with a
+  compound update keeps one range (SplitLifetimes joins `x op= e` with the def
+  that reaches it). The load itself must not be expression-propagated: with
+  `x op= e` the update operand is Assigned, so x20 counts only the other use
+  and pass 1 splices the load into it (CSE temp, r0). TRY
+  `x = p[1]; ...; p += 3; y = x & M; x -= y;`: the pointer advance between the
+  load and its first use kills the propagation (load depends on `p`)
+  (`scan_switch_sequences`). `x = x - y` is turned into `x -= y` before
+  pass 1, so it does not help.
+
 - A float result derived from an int call result needs its own statement ahead
   of the next call's receiver setup (XORIS before LIS, conversion temps
   0x48/0x40/0x38 order): REQUIRE single-use staged locals measured as folding
