@@ -2379,14 +2379,13 @@ int mwFileXPReadUnbufferedCommand<T, H>::handleSignalState()
     return mwFileCommandPluginBase::handleSignalState();
 }
 
-/* TODO: [near miss] 97.73469%; retail keeps the mixin base (this+80) in r31 for both
- * mixin calls; ours folds nativeProgress to 104(r30); a named command/mixin local is no gain. */
 template <class T, class H>
 int mwFileXPReadUnbufferedCommand<T, H>::handleReadingState()
 {
     mwFileError result;
+    mwFileGCIOMixIn<T>& io = *static_cast<T*>(this);
 
-    if (!static_cast<T*>(this)->nativeContinueRead(result)) {
+    if (!io.nativeContinueRead(result)) {
         if (this->isAborted()) {
             bytes_read = 0;
             this->error = -16;
@@ -2397,7 +2396,7 @@ int mwFileXPReadUnbufferedCommand<T, H>::handleReadingState()
             bytes_read = 0;
             return 2;
         }
-        bytes_read = static_cast<T*>(this)->nativeProgress();
+        bytes_read = io.nativeProgress();
         return 2;
     }
     _mwFilePlatformInterlockedDecrement(this->reference_count);
