@@ -264,8 +264,8 @@ void update_string_obj_pfx(StringObj* obj, PfxFontSlot* font, const char* text) 
     }
 }
 
-/* TODO: [near miss] 96.50%; y_off load/test precedes vertical conversion;
- * shared setter expansion regresses the exact standalone setter. */
+/* TODO: [near miss] 97.35%; valign read after the render_y store (H27); y_off load/test still
+ * precedes the vertical conversion; shared setter expansion regresses the exact standalone setter. */
 void update_string_obj(StringObj* obj, int font, const char* text) {
     int halign;
     int valign;
@@ -293,9 +293,9 @@ void update_string_obj(StringObj* obj, int font, const char* text) {
         }
     }
     y_off = obj->y_off;
-    valign = obj->valign;
     font_height = font_table[font].slot.metrics->cell_height;
     obj->render_y = obj->y;
+    valign = obj->valign;
     if (y_off != 0) {
         switch (valign) {
         case 0:

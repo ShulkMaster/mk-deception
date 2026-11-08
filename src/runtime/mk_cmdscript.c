@@ -1528,12 +1528,9 @@ static void _copy_column_address_to_register(void) {
     }
 }
 
-/* TODO: [near miss] 93.37838%; table-slot and index producers still differ;
- * recover slot ownership and the two address-add operands. */
 static void _copy_column_to_register(void) {
     unsigned int* args;
     CmdScript* script;
-    const unsigned int* table_slot;
     const unsigned int* row_slot;
     unsigned int destination;
     unsigned int offset;
@@ -1546,19 +1543,17 @@ static void _copy_column_to_register(void) {
     value = 0;
     args = current_args;
     script = active_cmdscript;
-    table_slot = cmdscript_register_slot(script, args[2]);
     row_slot = cmdscript_register_slot(script, args[3]);
     destination = args[1];
     offset = args[4];
-    table = *table_slot;
+    table = *cmdscript_register_slot(script, args[2]);
     stride = args[5];
     size = args[6];
     row = *row_slot;
     if (table != 0) {
         unsigned int* destination_slot;
 
-        table += row * stride;
-        table += offset;
+        table += row * stride + offset;
         memcpy(&value, (void*)table, size);
         destination_slot = cmdscript_mutable_register_slot(active_cmdscript, destination);
         *destination_slot = value;
