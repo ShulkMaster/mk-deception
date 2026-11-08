@@ -337,17 +337,28 @@ void __VMBASEISIServiceException(OSContext* context)
     OSLoadContext(context);
 }
 
-/* TODO: [blocked] 61.11111%; two icbi sites await F28 multi-block support
- * and function-specific authorization; retain the recovered C body. */
+/* TODO: [near miss] 96.67%; icbi blocks exact; first flush args li r4/addi r3
+ * swapped (pre-RA LI opcode-rank tie kept post-RA); spelling sweeps neutral. */
 void __VMBASERestoreExceptionHandlers(void)
 {
+    register void* vector;
+    register u32 zero;
+
     if (g_baseInitialized == 1) {
         *(u32*)0x80000300 = *(u32*)__VMBASEDSIExceptionHandler_SetOriginalInstruction;
         DCFlushRangeNoSync((void*)0x80000300, 4);
         __sync();
+        vector = (void*)0x80000300;
+        zero = 0;
+        __isync();
+        asm { SEQ___VMBASERestoreExceptionHandlers_IcbiDsi(vector, zero) }
         *(u32*)0x80000400 = *(u32*)__VMBASEISIExceptionHandler_SetOriginalInstruction;
         DCFlushRangeNoSync((void*)0x80000400, 4);
         __sync();
+        vector = (void*)0x80000400;
+        zero = 0;
+        __isync();
+        asm { SEQ___VMBASERestoreExceptionHandlers_IcbiIsi(vector, zero) }
     }
 }
 

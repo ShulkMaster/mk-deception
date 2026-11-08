@@ -206,6 +206,8 @@
     {"name": "CFT_Ycc420plnToArgb8888Init", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/cft/srcgc/cftyp422_ppc.s", "address": "0x802C15FC", "size": "0x10C", "symbols": {"@241": "cft_version_string"}},
     {"name": "mwsffrm_AnalySofdecHeader", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/mwply/mwsfdfrm.s", "address": "0x802B9240", "size": "0x1D8", "jump_tables": {"@612": "mwsffrm_AnalySofdecHeader_jumptable"}},
     {"name": "MPV_Init_MfHid2", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_lib.s", "function": "MPV_Init", "address": "0x80291448", "size": "0x4", "text": true},
-    {"name": "MPV_Init_StHid2", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_lib.s", "function": "MPV_Init", "address": "0x80291450", "size": "0x4", "text": true, "stack": {"name": "hid2", "offset": "0x8", "size": "0x4", "scalar": true}}
+    {"name": "MPV_Init_StHid2", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_lib.s", "function": "MPV_Init", "address": "0x80291450", "size": "0x4", "text": true, "stack": {"name": "hid2", "offset": "0x8", "size": "0x4", "scalar": true}},
+    {"name": "__VMBASERestoreExceptionHandlers_IcbiDsi", "assembly": "vmbase.a/VMBase.s", "function": "__VMBASERestoreExceptionHandlers", "address": "0x802E9F34", "size": "0x4", "operands": {"addr": "r3", "zero": "r0"}},
+    {"name": "__VMBASERestoreExceptionHandlers_IcbiIsi", "assembly": "vmbase.a/VMBase.s", "function": "__VMBASERestoreExceptionHandlers", "address": "0x802E9F68", "size": "0x4", "operands": {"addr": "r3", "zero": "r0"}}
   ]
 }
