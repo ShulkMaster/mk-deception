@@ -1201,6 +1201,22 @@ built objects; only linked DOL hash catches wrong layout.
   tables off `gqr_save`), restore retail order by referencing them in that
   order in the next C user; never add a dummy referencing function
   (`cftyp422_ppc` `CFT_Ycc420plnToArgb8888Init`, RE4 used `cftyp_bss_order`).
+- Asm statics reachable only via section anchor: IF retail MAP tree shows
+  `func -> ...bss.0 -> every .bss object` and the approved asm sequence
+  addresses them as `first_obj@ha/@l + OFF` | REQUIRE no C user left in the
+  unit | inline asm can never name `...bss.0` (`"...bss.0"@ha`, `.bss@ha` are
+  syntax errors; asm relocs always hit the named object), so the linker
+  strips the rest. Relocation-target edits cannot fix it; only a real C user
+  or an object flag (`-pragma "force_active on"`, `mpv_vlc` precedent) keeps
+  them: user decision (`cftyp422_ppc`, held 2026-11-07).
+- Whole-function asm stand-in in a deferred unit: MWCC assembles `asm`
+  functions at parse time (CFunc_ParseFuncDef -> Assembler), C bodies wait in
+  the deferred export list (LIFO at EOF), so the asm lands at `.text` start
+  whatever its source position (`static inline asm` is refused). No source
+  order fixes it. Forward mode with reversed defs keeps code but tentatives
+  then follow first reference, not retail's reverse-decl map (`sfd_mpv`:
+  `SFMPV_Destroy`/`sfmpv_IsSkip`). Link needs C 100% or a block entry inside a
+  C function: stop, report.
 - 2.7 C `-inline auto` (not deferred), measured `ai.c`: `.sbss` tentatives =
   reverse decl order, use irrelevant. `.bss` tentative defined before use =
   first-use order by generated function, operand order as written (`c ? &A :
@@ -1273,7 +1289,9 @@ built objects; only linked DOL hash catches wrong layout.
   IRO-dead branch, empty-inline arg, data initializer `&x` do not count, an
   unreferenced static function does; never-used statics go last, reverse decl.
   Under `-inline auto,deferred` all tentatives incl. never-used statics = reverse
-  decl order: such a map is deferred evidence, not a lost user. In a unit kept
+  decl order: such a map is deferred evidence, not a lost user (`mpv_lib`:
+  map in source decl order, forward mode puts CheckHn's `mpvobj` first; flag
+  + reversed defs + reversed tentatives = 100 + link). In a unit kept
   non-deferred, only a MAP-UNUSED owner of MAP size referencing them in retail
   order places them (`p_mk_chess_game_setup` messages): user decision, not
   original shape.
