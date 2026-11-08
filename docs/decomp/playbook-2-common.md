@@ -1899,6 +1899,11 @@ Loops. REQUIRE zero-trip behavior + test/update order.
   one IV. IV vregs number above `last_temporary_register` (capture, tier 4
   Hard stops): no source web kind numbers above them. Retail web pops after
   them -> degree levers only, never kind/decl order (`scan_switches`).
+  IRO (front-end band) SR runs only `if (!copts.optimizesize &&
+  copts.strengthreduction)` (IroLoop.c): under `-O4,s` every SR IV is a BE
+  vreg; `-O4,p` turns `base + i*size` into a pointer IV instead, so loop or
+  index-type spellings cannot renumber an `-O4,s` offset IV
+  (`convert_cdf_quad_to_collision_box`).
 - Retail `addi rB,h,i*size` once + member at big displacement (`lwz
   0x1318(rB)`), ours folds array offset into index (`(h+0x1308)+i*0x74`):
   a named `&h->arr[i]` element view can fold the embedded-array offset into
@@ -5249,6 +5254,15 @@ at that moment; its whole long-lived cluster follows (velocity x6 + ticks in
     two members in the IR walk (IroVars.c `record_var_part_use`); CSE temp =
     first repeated read; inline object = text order of the inline calls
     (H30); codegen temp = emission order (statement, operand left to right).
+    Split temp vs original (`iro_split_probe.py`): IRO_SplitLifetimes keeps
+    the ORIGINAL Object for the entry pseudo-def and for the EARLIEST
+    surviving def (components run latest -> earliest); only middle defs get
+    low split temps. A def folded by IRO_ExpressionPropagation (x20 == 1:
+    one read of v later in the same IRO node, reads past a redefinition
+    count; no read in another node; no kill of the RHS depends) is deleted
+    by deadstore BEFORE the split, so folding the first def makes the next
+    def the original (`mk_chess_choose_middle_control_points_for_zoom_cam`:
+    h4 x folded -> distance>=10 first x stays original).
   - survival: X pushed in an earlier sweep only because it is scanned late;
     the printed band is the kind it must have. A constant codegen temp
     (`_mkproc_sleep_ticks = 1.0f`) can NOT move to the front-end band: the
