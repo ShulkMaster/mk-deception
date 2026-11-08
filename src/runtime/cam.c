@@ -4000,6 +4000,25 @@ static inline void make_interaction_look_target(Vec* out) {
         out, &conversation_midpoint, yaw, height, radius);
 }
 
+static inline void get_interaction_midpoint(Vec* midpoint) {
+    MkObj* hero;
+    MkObj* target;
+
+    hero = MK_HDR_LIVE(g_ic_data.hero, g_ic_data.hero_instance);
+    if (hero != 0) {
+        target = MK_HDR_LIVE(g_ic_data.target, g_ic_data.target_instance);
+        if (target != 0) {
+            midpoint->x = hero->pos.value.x - target->pos.value.x;
+            midpoint->z = hero->pos.value.z - target->pos.value.z;
+            midpoint->x = 0.5f * midpoint->x;
+            midpoint->z = 0.5f * midpoint->z;
+            midpoint->x += target->pos.value.x;
+            midpoint->z += target->pos.value.z;
+            midpoint->y = (hero->ground_colls_y + target->ground_colls_y) / 2.0f;
+        }
+    }
+}
+
 static inline float get_interaction_angle(void) {
     MkObj* hero;
     MkObj* target;
@@ -4032,8 +4051,6 @@ static inline float get_interaction_angle(void) {
 static float p_interaction_cam(void) {
     CameraObj* entry_camera;
     CameraObj* active_camera;
-    MkObj* hero;
-    MkObj* target;
     Vec hit_point;
     Vec desired_camera_position;
     Vec look_target;
@@ -4043,14 +4060,13 @@ static float p_interaction_cam(void) {
     float ease_step;
     float ease_phase;
     float blend;
-    int track_targets;
     int snap_angles;
+    int track_targets;
 
     track_targets = g_ic_data.created_process;
     check_reverse_interaction_cam_targets();
     g_ic_data.created_process = 0;
-    snap_angles = g_ic_data.ticks;
-    snap_angles = snap_angles == 1;
+    snap_angles = g_ic_data.ticks == 1;
     entry_camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
 
     if (entry_camera == 0) {
@@ -4084,25 +4100,7 @@ static float p_interaction_cam(void) {
             blend = 0.5f * (1.0f - gxMathCos(ease_phase));
 
             if (track_targets != 0) {
-                hero = MK_HDR_LIVE(g_ic_data.hero, g_ic_data.hero_instance);
-
-                if (hero != 0) {
-                    target = MK_HDR_LIVE(g_ic_data.target, g_ic_data.target_instance);
-
-                    if (target != 0) {
-                        conversation_midpoint.x =
-                            hero->pos.value.x - target->pos.value.x;
-                        conversation_midpoint.z =
-                            hero->pos.value.z - target->pos.value.z;
-                        conversation_midpoint.x = 0.5f * conversation_midpoint.x;
-                        conversation_midpoint.z = 0.5f * conversation_midpoint.z;
-                        conversation_midpoint.x += target->pos.value.x;
-                        conversation_midpoint.z += target->pos.value.z;
-                        conversation_midpoint.y =
-                            (hero->ground_colls_y +
-                             target->ground_colls_y) / 2.0f;
-                    }
-                }
+                get_interaction_midpoint(&conversation_midpoint);
 
                 conversation_interaction_angle = get_interaction_angle();
             }

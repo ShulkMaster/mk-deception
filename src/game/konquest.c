@@ -2321,21 +2321,19 @@ static inline void calc_closest_point_on_line(
     float x_product;
     float z_product;
     float projection_numerator;
-    float projection;
     x_product = point->x - start->x;
     z_product = point->z - start->z;
     edge_x = end->x - start->x;
     edge_y = end->y - start->y;
     edge_z = end->z - start->z;
     x_product *= edge_x;
-    z_product = edge_z * z_product;
+    z_product = (float)(z_product * edge_z);
     projection_numerator = x_product + z_product;
     length_squared = edge_x * edge_x + edge_y * edge_y + edge_z * edge_z;
     length = gxMathFastSqrt(length_squared);
-    projection = projection_numerator / (length * length);
-    out->x = projection * (end->x - start->x) + start->x;
+    out->x = (projection_numerator / (length * length)) * (end->x - start->x) + start->x;
     out->y = 0.0f;
-    out->z = projection * (end->z - start->z) + start->z;
+    out->z = (projection_numerator / (length * length)) * (end->z - start->z) + start->z;
 }
 
 void turn_to_face_exterior_door(void);
@@ -6348,8 +6346,8 @@ static inline void update_child_object_matrix(
     }
 }
 
-/* TODO: [near miss] 99.01395%; one FPR sweep decision: +1 phantom degree on position remaining_ticks
- * reproduces retail; find the float copy/inline boundary live across it. */
+/* TODO: [near miss] 99.35%; position velocity.x first written after the angle velocities (scalarizer
+ * order); remaining FPR sweep needs +1 phantom degree on position remaining_ticks. */
 static void object_transition_to_state(
     KonquestChildObject* record, int state, int play_sound) {
     struct KonquestObjectState* state_data;
@@ -6392,12 +6390,12 @@ static void object_transition_to_state(
     target_angles.y = record->base_angles.y + state_data->angles.y;
     target_angles.z = record->base_angles.z + state_data->angles.z;
 
-    position_motion.velocity.x = target_position.x - record->position.x;
     position_motion.velocity.y = target_position.y - record->position.y;
     position_motion.velocity.z = target_position.z - record->position.z;
     angle_motion.velocity.x = target_angles.x - angles->x;
     angle_motion.velocity.y = target_angles.y - angles->y;
     angle_motion.velocity.z = target_angles.z - angles->z;
+    position_motion.velocity.x = target_position.x - record->position.x;
 
     position_motion.length_squared =
         position_motion.velocity.x * position_motion.velocity.x +
@@ -6596,8 +6594,8 @@ void konquest_open_door(int enumeration, int remain_open) {
     }
 }
 
-/* TODO: [near miss] 99.24%; helper products: retail keeps both products in fresh split webs
- * (z via commuted multiply here); edge/x-product homes and loop delta.z extra store remain. */
+/* TODO: [near miss] 99.30%; helper z product in split form (user-approved identity cast), projection read
+ * inline; edge/x-product homes and loop delta.z extra store remain. */
 void turn_to_face_exterior_door(void) {
     Vec closest;
     KonquestChildObject* door;

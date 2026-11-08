@@ -103,24 +103,21 @@ static KonquestTimedEvent* which_event_is_more_recent(
     return event_b;
 }
 
-/* TODO: [near miss] 91.27119%; month/year homes and partial-mask owners differ;
- * recover original producers; canonical helper and neutral controls regress. */
+/* TODO: [near miss] 91.92%; event_a month read in place, b month/dow bits OR-ed in one statement;
+ * month/year homes and partial-mask owners still differ; canonical helper regresses. */
 int does_event_a_trump_event_b(
     const KonquestTimedEvent* event_a, const KonquestTimedEvent* event_b) {
-    int month_a;
     int day_of_month_a;
     unsigned int specificity_a;
     unsigned int specificity_b;
 
-    month_a = event_a->time.month;
     day_of_month_a = event_a->time.day_of_month;
     specificity_a = (day_of_month_a == -1 ? 0 : 8) |
                     ((event_a->time.day_of_week == -1 ? 0 : 4) |
-                     ((month_a == -1 ? 0 : 2) |
+                     ((event_a->time.month == -1 ? 0 : 2) |
                       (event_a->time.year == -1 ? 0 : 1)));
     specificity_b = event_b->time.year != -1;
-    specificity_b |= event_b->time.month == -1 ? 0 : 2;
-    specificity_b |= event_b->time.day_of_week == -1 ? 0 : 4;
+    specificity_b = specificity_b | (event_b->time.month == -1 ? 0 : 2) | (event_b->time.day_of_week == -1 ? 0 : 4);
     specificity_b |= event_b->time.day_of_month == -1 ? 0 : 8;
     if (specificity_a > specificity_b) {
         return 1;

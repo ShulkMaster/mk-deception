@@ -98,11 +98,6 @@ static int baraka_advance_active_moveset(
     PlyrPdata* pdata, PlyrMirrorSlots* context);
 extern AnimPdata* anim_pdata;
 static float p_baraka_jaw_controller(void);
-static inline int set_plyr_anim_script_frame(
-    AnimPdata* animation, AniData* script,
-    unsigned int flags, float frame) {
-    return set_anim_script_frame(animation, script, flags, frame);
-}
 static float p_baraka_blades_controller(void);
 extern int is_weapon_style(PlyrFighterDefinition* style);
 extern void plyr_weapon_show(
@@ -2504,11 +2499,11 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
         player->slot.mirror_a->hide_flag_bits.bit6;
 
     if ((player_animation->flags & 8) != 0) {
-        set_plyr_anim_script_frame(
+        set_anim_script_frame(
             sidekick_animation, player_animation->animation,
             0xB, player_animation->frame);
     } else {
-        set_plyr_anim_script_frame(
+        set_anim_script_frame(
             sidekick_animation, player_animation->animation,
             3, player_animation->frame);
     }
@@ -2532,10 +2527,10 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
 
     player->slot.mirror_a->hide_flag_bits.bit6 = saved_hide_bit;
     if ((saved_animation_flags & 8) != 0) {
-        set_plyr_anim_script_frame(
+        set_anim_script_frame(
             player_animation, saved_animation, 8, saved_frame);
     } else {
-        set_plyr_anim_script_frame(
+        set_anim_script_frame(
             player_animation, saved_animation, 0, saved_frame);
     }
     player_animation->step = saved_step;

@@ -637,6 +637,18 @@ boundary.
 Retained value or address. REQUIRE shared uses + unchanged ownership
 interval. Reject redundant aliases, identity wrappers, permuter residue.
 
+- C++: retail keeps an adjusted base subobject (`addi r31,r30,80`) in a
+  saved register for two calls into a mixin/base, and reads the base's
+  inlined field off it (`lwz 24(r31)`); ours re-adjusts per call and folds
+  the field to `104(this)`: REQUIRE the base offset is a fixed upcast of
+  `this`. TRY binding it once as a REFERENCE (`Base<T>& io =
+  *static_cast<T*>(this);`, then `io.f()` / `io.g()`): no null test, one
+  value. A pointer local adds the null-checked conversion (worse), a `T&`
+  to the derived class is neutral. `mwFileXPReadUnbufferedCommand::
+  handleReadingState` = exact. In a shared template, check every
+  instantiation: the same form in `mwFileCommandPlugin<T>::service` fixes
+  one instantiation and breaks four.
+
 - Retail scan compares with `lwzx base,i*12` and forms the record address
   only inside the match block (`add r4,r6,r4` reusing the SR offset): TRY
   indexing members directly in loop test and match block (`a[i].description`,
@@ -2026,7 +2038,14 @@ Joins. REQUIRE real branch destinations + effect ownership.
   return;`) fold to one skip each; one `if (a || b) return;` keeps retail's
   `b<cc> L; b exit` on the second operand: copy a matched sibling's guard
   (`SpreadSheet::ScrollLeft/Right` from ScrollUp/Down; `ScreenPoly::Render`
-  `hidden != 0 || colorTex == 0`). Inline helper variant: retail caller
+  `hidden != 0 || colorTex == 0`). Front-end `optimizeif` (COptimizer.c)
+  inverts `If L; return/goto; L:` too, but never past a label: the pair
+  survives only when a LIVE jump target label sits before the return. Two
+  tests both to the body (`beq body; beq body; b exit`): `if (a && b) return;`
+  has no live label (folds to `bne exit`); fold the preceding early-return
+  guard in, `if (x || (a && b)) return;`, so x's then-label stays
+  (`bind_to_bone`: `load_ctx == 0 || (oid != A && oid != B)`; switch, `||`-if,
+  nested ifs, empty arms, bool helpers all fold). Inline helper variant: retail caller
   `beq ZERO; b MAIN` with no second test, helper out-of-line 2 instrs under
   MAP: the second operand is a pointer param the call site passes as `&local`
   (`if (!door || !normal) return 0.0f;`, `find_door_normal_vector_and_angle`
@@ -2871,6 +2890,15 @@ branch-only alias = dishonest even at 100.
   base (`generate_door_paths`: -0.04 alone, then a staged call-containing
   argument in `get_door_position`, `path` at function scope, a helper decl
   move and an H26 in-place sum = exact).
+- Named pointer temp holds a pure inline accessor result early (`slot =
+  register_slot(s, args[2]); ... v = *slot;`) and retail's address math for
+  that slot comes after the other loads: REQUIRE the helper is pure (no store,
+  no real call) and nothing between writes its inputs. TRY drop the temp and
+  read the helper at the use (`v = *register_slot(s, args[2]);`), then
+  re-search: spellsearch counts helper calls as calls, so its move/inline ops
+  never carry such a temp (`scratch/opus-i4/ss_pure.py` treats pure helpers
+  as expressions). `_copy_column_to_register`: temp drop +6.1, then joined
+  `table += row * stride + offset` = exact.
 - Retail computes a value into the argument register and copies it to its
   saved home (`addi r5,r4,-1; mr r23,r5`), ours the reverse (`addi r23; mr
   r5,r23`): REQUIRE the named local is assigned the same pure expression
@@ -4484,6 +4512,15 @@ advances ordered differently, REQUIRE unchanged semantics (no alias between
 moved accesses), TRY statements in retail order: compute packed words before
 storing, advance cursors after stores, load node output ptr before size store
 (mk-da `MCBlockDecDCNest`, `gop_decode`). Stack-member stores: H14.
+
+- FPR saved homes of a scalarized struct local (IRO_ScalarizeClassDataMembers
+  temps) rotate and no decl order helps: REQUIRE the members' first writes
+  are independent statements. TRY moving one member's FIRST access later
+  (or earlier) across other independent statements, up to ~8 lines: the
+  scalarizer numbers temps in first-access order, which moves the whole
+  sweep. spellsearch moves only 3 lines; use `scratch/opus-i4/ss_pure.py`
+  (distance 8). `object_transition_to_state`: position_motion.velocity.x
+  written after the three angle_motion velocities, +0.35.
 
 - Several single-use locals computed up front, every output stored at the
   end, whole-block FPR rows plus schedule rows (register-blind > 0) with the
