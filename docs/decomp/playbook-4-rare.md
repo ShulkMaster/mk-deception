@@ -67,6 +67,17 @@ owns a web in place, e.g. translate a parameter id through its table
 (`movie = table[movie]; play_movie(movie, 0);`): the load defines the
 parameter web, `MR r3,v` survives to allocation and is coalesced, the block
 gets its post-RA pass (`screen_engine_play_movie`: `li r4,0` after `lwzx`).
+Coalesced copy fixes the order but recolours (phantom degree: every web live
+across the copy +1): REQUIRE register-blind exact with the copy. TRY a dead
+instruction instead: `eliminatedeadcode` (start of `buildinterferencegraph`)
+deletes it before the interference matrix, so it clears `fScheduled` with zero
+graph change. Honest source: a mask-then-shift flag read
+`(byte & 0x40) != 0` / `>> 6` in that block; `adjustforward` merges the two
+`rlwinm` into the retail `extrwi` and leaves the mask `rlwinm` dead
+(`active_sidekick_swap`: `saved_hide_bit = (sidekick->hide_flags & 0x40) != 0;`).
+`(byte >> 6) & 1` and the bitfield emit one `rlwinm` (no dead op). Scratch
+probe: `#pragma opt_dead_assignments off` + a dead local load in the block
+(lead only).
 Trace all blocks with `sched.py --trace SYM --block 1`;
 `--block N --phase post` prints nothing when block N has no post-RA pass.
 

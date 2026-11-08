@@ -2415,8 +2415,6 @@ static inline MkHdr* plyr_live_animation(PlyrPdata* owner) {
     return pdata_of_proc(MK_LIVE(owner->anim_proc, (int)owner->anim_proc_instance));
 }
 
-/* TODO: [near miss] 98.87324%; saved-state block lacks retail's post-RA reschedule; needs a
- * coalesced copy there that adds no new interfering GPR web. */
 float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     PlyrInfo* player;
     MkObj* sidekick;
@@ -2457,7 +2455,7 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     }
 
     saved_animation = sidekick_animation->animation;
-    saved_hide_bit = sidekick->hide_flag_bits.bit6;
+    saved_hide_bit = (sidekick->hide_flags & 0x40) != 0;
     saved_step = sidekick_animation->step;
     saved_weight = sidekick_animation->weight;
     saved_frame = sidekick_animation->frame;
