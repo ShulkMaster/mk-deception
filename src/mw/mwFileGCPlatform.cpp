@@ -1687,16 +1687,14 @@ int gcnHostOpenCommand::handleNotStartedState()
     return 2;
 }
 
-#pragma push
-#pragma opt_common_subs off
 mwFileAsyncResult gcnHostOpenCommand::getResult() const
 {
     mwFileAsyncResult result;
-    result.value.file = error == 0 ? file : 0;
-    result.error = error;
+    mwFileAsyncResult* r = &result;
+    r->value.file = error == 0 ? file : 0;
+    r->error = error;
     return result;
 }
-#pragma pop
 
 gcnHostWriteCommand::gcnHostWriteCommand(mwFileCallback completion_callback,
                                          void* completion_data, mwFile* owning_file,
@@ -2209,14 +2207,13 @@ mwFileXPOpenCommand<H>::~mwFileXPOpenCommand()
     }
 }
 
-/* TODO: [blocked] 82.69231%; retail reloads error after an aliasing result store;
- * the exact alias-pointer form awaits a policy ruling. */
 template <class H>
 mwFileAsyncResult mwFileXPOpenCommand<H>::getResult() const
 {
     mwFileAsyncResult result;
-    result.value.file = this->error != 0 ? 0 : this->file;
-    result.error = this->error;
+    mwFileAsyncResult* r = &result;
+    r->value.file = this->error != 0 ? 0 : this->file;
+    r->error = this->error;
     return result;
 }
 
