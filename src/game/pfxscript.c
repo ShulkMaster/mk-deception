@@ -2163,8 +2163,6 @@ void emit_roundrobin_mechanism(int field, int source) {
     }
 }
 
-/* TODO: [near miss] 99.575%; build_case_ranges merges adjacent OID labels;
- * equality guards fold the retail exit pair; recover original dispatch boundary. */
 void bind_to_bone(int bone_index) {
     struct PfxScriptEnvironment* environment;
     MkPfx* effect;
@@ -2175,18 +2173,15 @@ void bind_to_bone(int bone_index) {
     if (bone_index == 0 || active_cmdscript == 0 || active_cmdscript->mko == 0) {
         return;
     }
-    if (active_cmdscript->mko->load_ctx == 0) return;
-    object = active_cmdscript->mko->load_ctx->bgnd_obj;
-    switch (object->oid) {
-    case 0x1001:
-    case 0x1002:
-        effect->bound_obj = object;
-        if (effect->bound_obj != 0) {
-            pfx_bind_emitter_to_obj_bone(effect, effect->bound_obj, bone_index);
-        }
-        break;
-    default:
+    if (active_cmdscript->mko->load_ctx == 0 ||
+        (active_cmdscript->mko->load_ctx->bgnd_obj->oid != 0x1001 &&
+         active_cmdscript->mko->load_ctx->bgnd_obj->oid != 0x1002)) {
         return;
+    }
+    object = active_cmdscript->mko->load_ctx->bgnd_obj;
+    effect->bound_obj = object;
+    if (effect->bound_obj != 0) {
+        pfx_bind_emitter_to_obj_bone(effect, effect->bound_obj, bone_index);
     }
 }
 
