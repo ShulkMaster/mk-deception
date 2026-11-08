@@ -2581,10 +2581,10 @@ config.libs = [
         "progress_category": "game",
         "objects": [
             Object(
-                NonMatching,
+                Matching,
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/pfx_memory.o",
                 source="libmkparticle/pfx_memory.c",
-                extra_cflags=["-schedule off", "-inline noauto", "-opt nopeephole", "-pragma \"opt_propagation off\"", "-pragma \"optimize_for_size on\""],
+                extra_cflags=["-schedule off", "-inline noauto", "-opt nopeephole", "-pragma \"optimize_for_size on\""],
             ),
             Object(
                 Matching,

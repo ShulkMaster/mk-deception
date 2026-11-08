@@ -149,9 +149,6 @@ void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
                      estimate->runtime_buffers_size;
 }
 
-#pragma push
-/* TODO: [blocked] 98.73418%; unit opt_propagation off forms the by-value fields address
- * early; scoped opt_propagation on matches the whole unit (needs pragma approval). */
 void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
 {
     unsigned char* cursor;
@@ -249,7 +246,6 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
     }
 }
 
-#pragma pop
 void pfx_copy_behavior_list(PfxVm* pfx, int count, const PfxBehavior* source)
 {
     int index;
@@ -272,6 +268,8 @@ void pfx_copy_behavior_list(PfxVm* pfx, int count, const PfxBehavior* source)
     }
 }
 
+#pragma push
+#pragma opt_propagation off
 void* pfx_effect_memory_alloc(PfxVm* vm, int size, int align)
 {
     unsigned char* allocation;
@@ -297,3 +295,4 @@ void* pfx_effect_memory_alloc(PfxVm* vm, int size, int align)
     }
     return aligned;
 }
+#pragma pop
