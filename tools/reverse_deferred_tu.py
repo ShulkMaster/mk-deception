@@ -139,14 +139,6 @@ for kind, text, ftext in units:
             declared.add(m.group(1))
 undefs = [x for x in prefix if re.match(r'\s*#undef\b', x)]
 prefix = [x for x in prefix if x not in undefs]
-NOTE = """
-/*
- * Retail builds this unit with -inline noauto,deferred, which emits functions
- * in reverse source order. The definitions below are therefore in reverse of
- * the retail .text order; that order also fixes the pooled-string layout and
- * the anonymous .rodata initializer order.
- */
-"""
-out = ''.join(prefix) + NOTE + '\n' + ''.join(reversed(funcs)) + ''.join(undefs) + tail
+out = ''.join(prefix) + ''.join(reversed(funcs)) + ''.join(undefs) + tail
 open(sys.argv[2], 'w', encoding='utf-8').write(out)
 print(f"{len(funcs)} functions reversed", file=sys.stderr)
