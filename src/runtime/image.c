@@ -21,12 +21,12 @@ static float p_animate_textures(void);
 static void update_atc_block(MkHdr* hdr);
 static void _destroy_screen_obj_oid_mask(MkHdr* hdr);
 
-int suppress_normal_2d_items;
-MkPtr* ani_texture_control_list;
-MkPtr* screen_obj_list;
-
-static int oid_to_kill_mask;
 static int oid_to_kill;
+static int oid_to_kill_mask;
+
+MkPtr* screen_obj_list;
+MkPtr* ani_texture_control_list;
+int suppress_normal_2d_items;
 
 static const float kZero = 0.0f;
 static const float kOne = 1.0f;

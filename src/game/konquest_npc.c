@@ -474,10 +474,9 @@ struct KonquestCmdScriptView {
     char execution_state[0x140];
 };
 
-KonquestNpc* g_active_npc;
-static struct NpcManagerPdata* npc_manager_pdata;
-static int current_npc_count;
-static int wait_ticks;
+extern KonquestNpc* g_active_npc;
+extern struct NpcManagerPdata* npc_manager_pdata;
+extern int current_npc_count;
 extern struct KonquestNpcPdata* konquest_pdata;
 int konquest_human_bones[17] = {
     16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0
@@ -2927,6 +2926,7 @@ static inline void npc_manager_update_model_list(void) {
 }
 
 void npc_update(int update_all) {
+    static int wait_ticks;
     MkPtr* link;
     int models_made_visible = 0;
 
@@ -3000,6 +3000,10 @@ void npc_update(int update_all) {
         }
     }
 }
+
+static int current_npc_count;
+KonquestNpc* g_active_npc;
+static struct NpcManagerPdata* npc_manager_pdata;
 
 static void npc_invisible_update(KonquestNpc* npc) {
     if (konquest_editor_mode_on == 0) {
@@ -3881,6 +3885,21 @@ void npc_change_path_speed(float speed) {
         g_active_npc->path->speed = (int)speed;
     }
 }
+void make_collision_volume_for_npc(KonquestNpc* npc) {
+    CollisionShape shape;
+    Vec center;
+
+    if (npc_event_has_active_animation(npc) != 0) {
+        center.x = npc->animation->object->pos.value.x;
+        center.y = npc->animation->object->pos.value.y;
+        center.z = npc->animation->object->pos.value.z;
+        center.y += -1.0f;
+        build_col_shape_vertical_cylinder(&shape, &center, 0.3f, 3.0f);
+        npc->animation->editor_object =
+            add_shape_to_global_collision_list(&shape, npc->data_table_index + 0x10001);
+    }
+}
+
 void npc_set_ani_speed(float speed) {
     g_active_npc->animation_speed = speed;
     if (g_active_npc->animation != 0) {

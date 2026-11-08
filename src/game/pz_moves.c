@@ -237,11 +237,11 @@ struct PuzzleSpacingTable {
 };
 
 extern struct PuzzleMovesEngineView g_pz_fighters_engine;
+int g_pz_cam_already_shaking;
 struct PuzzleProjectile* g_global_projectile;
 extern struct PuzzleSharedAnimations pz_shared_ani;
 extern struct PuzzleSharedCombatAnimations shared_ani;
 extern ScriptSlot* pz_shared_cmo;
-int g_pz_cam_already_shaking;
 
 float pz_fighter_laugh(void);
 float pz_fighter_whatever2(void);
