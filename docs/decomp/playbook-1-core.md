@@ -153,6 +153,7 @@ Tools:
 | Retail keeps value/address source recomputes, or reverse | H06 |
 | Retail derives value in the register it loaded into | H26 |
 | Raw operand in own web, ours loads into the delta web; second operand snapshot named | H26 nested-assignment subtraction, exact same-TU siblings |
+| `v = a; v op= b` keeps load+result in one reg, retail result in a fresh reg | H26 non-update split form `v = (T)(v op b)` / `v = b op v` |
 | Signed-conversion stack roles rotate; viewport math/casts already agree | H26, M03 |
 | Home swap, decl sweeps neutral, single-use selector/index/latch local | H28 |
 | Load/store/pointer-advance order differs, same ops | H27, H14 |

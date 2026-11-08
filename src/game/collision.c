@@ -366,35 +366,6 @@ static inline int collision_point_inside_shape(
     }
 }
 
-static inline void insert_player_attack_node_unshifted(
-    PlayerCollisionData* storage,
-    const PlayerCollisionNode* source) {
-    CollisionShape* recorded;
-    unsigned int index;
-
-    if (storage->joint_count == 0U) {
-        return;
-    }
-    index = storage->field_93F4;
-    if (index >= 36U) {
-        return;
-    }
-    if ((g_game_info.pause_flags & 1) != 0 &&
-        g_game_info.switch_input_flags.field_bit5 == 0 &&
-        storage->recorded_count >= 36U) {
-        return;
-    }
-
-    storage->attacks[index] = *source;
-    storage->field_93F4++;
-    if ((g_game_info.pause_flags & 1) != 0 &&
-        g_game_info.switch_input_flags.field_bit5 == 0) {
-        recorded = storage->recorded_shapes;
-        recorded[storage->recorded_count] = storage->attacks[index].world_shape;
-        storage->recorded_count++;
-    }
-}
-
 static inline void init_collision_sphere(
     CollisionShape* shape, float radius, const Vec* center) {
     shape->type = 1;
@@ -471,40 +442,6 @@ static inline void transform_collision_node(
         break;
     }
     }
-}
-
-static inline PlayerCollisionNode* insert_player_attack_node(
-    PlayerCollisionData* storage,
-    const PlayerCollisionNode* source, const Vec* movement) {
-    CollisionShape* recorded;
-    unsigned int index;
-
-    if (storage->joint_count == 0U) {
-        return 0;
-    }
-    index = storage->field_93F4;
-    if (index >= 36U) {
-        return 0;
-    }
-    if ((g_game_info.pause_flags & 1) != 0 &&
-        g_game_info.switch_input_flags.field_bit5 == 0 &&
-        storage->recorded_count >= 36U) {
-        return 0;
-    }
-
-    storage->attacks[index] = *source;
-    v3_add_v3(
-        &storage->attacks[index].world_shape.sphere.center,
-        &storage->attacks[index].world_shape.sphere.center, movement);
-    storage->field_93F4++;
-
-    if ((g_game_info.pause_flags & 1) != 0 &&
-        g_game_info.switch_input_flags.field_bit5 == 0) {
-        recorded = storage->recorded_shapes;
-        recorded[storage->recorded_count] = storage->attacks[index].world_shape;
-        storage->recorded_count++;
-    }
-    return &storage->attacks[index];
 }
 
 static inline void update_all_collision_flags(
@@ -1242,8 +1179,45 @@ void start_plyr_attack(float radius) {
     collision->attack_region_index = 0;
 }
 
-/* TODO: [near miss] 99.9798%; one saved-GPR web remains (pair-scan `second` index addi r29 vs r25);
- * declaration order exhausted (spellsearch round 2 neutral); kind change of that web still unknown. */
+static inline PlayerCollisionNode* add_attack_collision_node(
+    PlayerCollisionNode* node, Vec* movement) {
+    PlayerCollisionData* storage;
+    CollisionShape* recorded;
+    unsigned int index;
+
+    storage = plyr_pdata->plyr_info->collision_data;
+    if (storage->joint_count == 0U) {
+        return 0;
+    }
+    index = storage->field_93F4;
+    if (index >= 36U) {
+        return 0;
+    }
+    if ((g_game_info.pause_flags & 1) != 0 &&
+        g_game_info.switch_input_flags.field_bit5 == 0 &&
+        storage->recorded_count >= 36U) {
+        return 0;
+    }
+
+    storage->attacks[index] = *node;
+    if (movement) {
+        v3_add_v3(
+            &storage->attacks[index].world_shape.sphere.center,
+            &storage->attacks[index].world_shape.sphere.center, movement);
+    }
+    storage->field_93F4++;
+
+    if ((g_game_info.pause_flags & 1) != 0 &&
+        g_game_info.switch_input_flags.field_bit5 == 0) {
+        recorded = storage->recorded_shapes;
+        recorded[storage->recorded_count] = storage->attacks[index].world_shape;
+        storage->recorded_count++;
+    }
+    return &storage->attacks[index];
+}
+
+/* TODO: [near miss] 99.9798%; last_pair_index takes saved r25 (retail r29); replay needs extra
+ * edges to first_index and two bone-loop temps or an earlier pop; no single lever. */
 static void generate_weapon_collision_nodes(
     PlayerCollisionData* collision_data, MkObj* weapon, float radius) {
     PlayerCollisionNode node;
@@ -1279,15 +1253,13 @@ static void generate_weapon_collision_nodes(
         node.local_shape = local_shape;
         node.world_shape = local_shape;
         transform_collision_node(&node);
-        insert_player_attack_node(
-            plyr_pdata->plyr_info->collision_data, &node, &movement);
+        add_attack_collision_node(&node, &movement);
     }
 
     init_collision_sphere(
         &node.local_shape, radius * definition.radius, &definition.offset);
     transform_collision_node(&node);
-    insert_player_attack_node(
-        plyr_pdata->plyr_info->collision_data, &node, &movement);
+    add_attack_collision_node(&node, &movement);
 
     index = first_index;
     last_pair_index = collision_data->field_93F4 - 2;
@@ -1306,8 +1278,7 @@ static void generate_weapon_collision_nodes(
             node.world_shape.type = 1;
             v3_x_v_add_v3(
                 &node.world_shape.sphere.center, &difference, 0.5f);
-            insert_player_attack_node_unshifted(
-                plyr_pdata->plyr_info->collision_data, &node);
+            add_attack_collision_node(&node, 0);
         }
         index++;
     }
@@ -1387,8 +1358,7 @@ static void add_plyr_body_attack_nodes(
             transform_collision_node(&node);
         }
 
-        inserted_node = insert_player_attack_node(
-            plyr_pdata->plyr_info->collision_data, &node, &movement);
+        inserted_node = add_attack_collision_node(&node, &movement);
         if (inserted_node != 0) {
             inserted[inserted_count] = inserted_node;
             inserted_count++;
@@ -1411,8 +1381,7 @@ static void add_plyr_body_attack_nodes(
             node.world_shape.type = 1;
             v3_x_v_add_v3(
                 &node.world_shape.sphere.center, &difference, scale);
-            insert_player_attack_node_unshifted(
-                plyr_pdata->plyr_info->collision_data, &node);
+            add_attack_collision_node(&node, 0);
         }
 
         entries++;
@@ -1489,8 +1458,7 @@ void set_plyr_attack_region(
             v3_x_v_add_v3(
                 &interpolated_sphere->center,
                 &difference, 0.5f);
-            insert_player_attack_node_unshifted(
-                plyr_pdata->plyr_info->collision_data, &interpolated);
+            add_attack_collision_node(&interpolated, 0);
         }
     }
 }

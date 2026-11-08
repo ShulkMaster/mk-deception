@@ -2328,7 +2328,7 @@ static inline void calc_closest_point_on_line(
     edge_y = end->y - start->y;
     edge_z = end->z - start->z;
     x_product *= edge_x;
-    z_product *= edge_z;
+    z_product = edge_z * z_product;
     projection_numerator = x_product + z_product;
     length_squared = edge_x * edge_x + edge_y * edge_y + edge_z * edge_z;
     length = gxMathFastSqrt(length_squared);
@@ -2376,8 +2376,8 @@ static inline KonquestChildObject* find_door_partner_inline(
     MkPtr* next;
     struct KonquestEnumerationEntry* entry;
     MkPtr* link;
-    int uid;
     int partner_uid;
+    int uid;
 
     if (door == 0) {
         return 0;
@@ -5484,8 +5484,9 @@ static inline float find_door_normal_vector_and_angle(KonquestChildObject* door,
     if (!door || !normal) {
         return 0.0f;
     }
-    angle = norm_angle_inline(door->base_angles.y +
-        konquest_pdata->region_table->enumerations[door->info->enumeration_index].angle);
+    angle = door->base_angles.y;
+    angle += konquest_pdata->region_table->enumerations[door->info->enumeration_index].angle;
+    angle = norm_angle_inline(angle);
     rotate_xz(&rotated, normal, angle);
     normal->x = rotated.x;
     normal->y = rotated.y;
@@ -5496,10 +5497,11 @@ static inline float find_door_normal_vector_and_angle(KonquestChildObject* door,
 static inline void get_door_position(KonquestChildObject* door, Vec* position) {
     MkSobj* model = MK_HDR_LIVE(door->info->object, door->info->object_instance);
     Vec rotated;
+    const Vec* center;
 
     if (model != 0) {
-        rotate_xz(&rotated, (const Vec*)&RpAtomicGetWorldBoundingSphere(model->atomic)->center,
-            door->base_angles.y);
+        center = (const Vec*)&RpAtomicGetWorldBoundingSphere(model->atomic)->center;
+        rotate_xz(&rotated, center, door->base_angles.y);
         position->x = door->base_position.x + rotated.x;
         position->z = door->base_position.z + rotated.z;
         position->y = 0.0f;
@@ -5508,9 +5510,8 @@ static inline void get_door_position(KonquestChildObject* door, Vec* position) {
     }
 }
 
-/* TODO: [breakthrough] 98.51744%; CFG exact (angle helper guards both pointers, MAP 0xfc);
- * 13 saved homes rotate (partner inline result vs partner copy across the center call). */
 static void generate_door_paths(void) {
+    KonquestWaypoint* path;
     int waypoint_index;
     int generated_count;
     MkPtr* link;
@@ -5530,7 +5531,6 @@ static void generate_door_paths(void) {
         while (link != 0) {
             KonquestChildObject* partner;
             struct KonquestSobjInfo* info;
-            KonquestWaypoint* path;
             Vec forward;
             Vec center;
             Vec partner_center;
@@ -5558,7 +5558,7 @@ static void generate_door_paths(void) {
                 if (konquest_pdata->region_table
                         ->enumerations[enumeration_index]
                         .partner_uid != -1) {
-                    partner = (KonquestChildObject*)find_door_partner_inline(door);
+                    partner = find_door_partner_inline(door);
                     if (partner != 0) {
                         get_door_position(partner, &partner_center);
                         center.x += partner_center.x;
@@ -6596,8 +6596,8 @@ void konquest_open_door(int enumeration, int remain_open) {
     }
 }
 
-/* TODO: [near miss] 99.21519%; FPR colouring of the two inlined helper copies + loop
- * delta.z store/square order; next: why.py operand owners of edge/offset webs. */
+/* TODO: [near miss] 99.24%; helper products: retail keeps both products in fresh split webs
+ * (z via commuted multiply here); edge/x-product homes and loop delta.z extra store remain. */
 void turn_to_face_exterior_door(void) {
     Vec closest;
     KonquestChildObject* door;
@@ -9321,8 +9321,6 @@ static void handle_monk_input(void) {
     }
 }
 
-/* TODO: [near miss] 99.95025%; in-place displacement_x keeps x before the z loads, but its
- * req.x load shares the dx web (retail loads into a temp); find the non-propagated x producer. */
 static int check_additional_trigger_fire_requirements(
     struct KonquestTriggerStruct* owner, MkObj* hero) {
     KonquestTriggerRequirement* requirement;
@@ -9396,7 +9394,7 @@ static int check_additional_trigger_fire_requirements(
                 requirement = owner->requirement;
                 displacement_y = requirement->position.y - hero->pos.value.y;
                 displacement_x = requirement->position.x;
-                displacement_x -= hero->pos.value.x;
+                displacement_x = (float)(displacement_x - hero->pos.value.x);
                 displacement_z = requirement->position.z - hero->pos.value.z;
                 if (displacement_z * direction.z +
                         (displacement_x * direction.x + displacement_y * direction.y) <

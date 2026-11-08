@@ -1666,6 +1666,14 @@ settings. Verify emitted calls, helper symbols, every consumer.
   around one call, 0x3c): REQUIRE out-of-line size = MAP. TRY calling the
   helper at every site; the counter becomes an inline local and claims its
   saved home above the late temps (`gc_mem_card_status_changes`).
+- Two invented helpers differ only by one guarded call (shifted/unshifted
+  insert), retail inlines both shapes with no guard: REQUIRE PS2 counterpart
+  calling one helper at all sites (NULL pointer at some). TRY one helper with
+  a nullable pointer tested as `if (p)`: GC2.7 folds `if (p)` for an inlined
+  `&local` argument but keeps `if (p != 0)` (`addic. r0,r1,N; beq` per site,
+  every `-inline` mode); NULL sites fold either way. Exemplar
+  `add_attack_collision_node(node, movement)` at all six collision sites
+  (`add_plyr_body_attack_nodes`, `set_plyr_attack_region` stay exact).
 
 ## H08
 
@@ -2853,6 +2861,16 @@ branch-only alias = dishonest even at 100.
 
 ## H16
 
+- Identity cast on an inline helper result (`p = (T*)helper(x);`, helper
+  already returns `T*`) and why.py OPERAND SUBSTITUTIONS where retail's next
+  consumer reads the helper's result web (`lfs 60(r25)` on the inline result,
+  `mr r24,r25` = p a separate saved copy): REQUIRE the cast is a no-op. TRY
+  drop the cast first, even if that alone loses fuzzy: the cast blocks IRO
+  copy propagation of the inline result, so every later spelling search ran
+  on the wrong shape. Re-run `spellsearch.py --helpers 1` on the cast-free
+  base (`generate_door_paths`: -0.04 alone, then a staged call-containing
+  argument in `get_door_position`, `path` at function scope, a helper decl
+  move and an H26 in-place sum = exact).
 - Retail computes a value into the argument register and copies it to its
   saved home (`addi r5,r4,-1; mr r23,r5`), ours the reverse (`addi r23; mr
   r5,r23`): REQUIRE the named local is assigned the same pure expression
@@ -4233,8 +4251,19 @@ reuses another var's zero on failure path.
   Fused dot test `dz*c + (dx*s + dy*0) < 0`: propagated single-use operands
   emit pre-order down the fmadds tree (outer multiplicand first); retail dx
   fsubs before the dz loads = dx not propagated. TRY `dx = a; dx -= b;` for
-  that operand only (`check_additional_trigger_fire_requirements`, partial:
-  its load then shares the dx web).
+  that operand only.
+  In-place derivation blocks propagation but keeps load and result in ONE
+  web (`lfs f5; fsubs f5,f5,f3`), retail loads a temp and computes into a
+  fresh web (`lfs f4; fsubs f5,f4,f3`): REQUIRE the result register differs
+  from the load register in retail. TRY the second statement as a non-update
+  tree: `dx = (float)(dx - b);` (identity cast, style already present as
+  `(float)(a * a)` operands) or, for `+`/`*`, the commuted `v = e * v;`. IRO
+  treats only `v = v op e` / `v op= e` as an update; any other tree splits
+  the lifetime (load = temp, result = own split web) and still blocks
+  expression propagation (`check_additional_trigger_fire_requirements`
+  exact; `calc_closest_point_on_line` z product in
+  `turn_to_face_exterior_door`, partial). The commute flips operand order;
+  prefer it only when retail's operand order agrees.
   FP difference landing in the left operand's load register (`lfs f3,b;
   lfsx f1,a; fsubs f1,f1,f3`) where ours coalesces the result with the right
   (`fsubs f1,f3,f1`): `a - b` emits the left load first (lower cg-temp). TRY

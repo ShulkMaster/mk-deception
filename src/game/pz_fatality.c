@@ -934,8 +934,8 @@ static inline void pz_grinder_scale_launch_vector(
 void pz_fighter_get_grinder_post(int player, Vec* post);
 float r_pz_fighter_rx_get_to_point(void);
 
-static struct PuzzleFighterRenderObject* fleshchunk_obj;
-static struct PuzzleFleshchunkPdata* pdata_fleshchunk;
+static struct PuzzleFleshchunkPdata* pdata_fleshchunk = 0;
+static struct PuzzleFighterRenderObject* fleshchunk_obj = 0;
 
 void cleanup_pz_fatality_stuff(void) {
     memset(&g_pz_fighter_fatality_engine, 0,
@@ -1777,7 +1777,7 @@ static float pz_fighter_grinder_actively_fighting(int active) {
 }
 
 static float pz_fighters_grinder_fatality_prep(void) {
-    static int fatality_attackbegun;
+    static int fatality_attackbegun = 0;
     struct PuzzleFighterRenderObject* attacker_object;
     struct PuzzleFighterMove* victim_move;
     float delta_x;
@@ -2249,7 +2249,7 @@ static float pz_fighter_chomper_actively_fighting(int active) {
 }
 
 static float pz_fighters_chomper_fatality_prep(void) {
-    static int attack_begun;
+    static int attack_begun = 0;
     struct PuzzleFatalityHazardObject *chomper;
     struct PuzzleFighterRenderObject *attacker_object;
     struct PuzzleFighterMove *victim_move;
@@ -2399,9 +2399,9 @@ static float pz_fighters_chomper_fatality_prep(void) {
 }
 
 static float pz_fighters_chomper_fatality_in_progress(void) {
-    static int mode_timer;
+    static int mode_timer = 0;
     static int launch_sounds = 1;
-    static float flesh_path_timer;
+    static float flesh_path_timer = 0.0f;
     struct PuzzleFatalityHazardObject* spike;
     struct PuzzleFighterRenderObject* attacker_object;
     PlyrPdata* attacker_data;
@@ -2990,7 +2990,7 @@ static float pz_fighter_chomper2_actively_fighting(int active) {
 }
 
 static float pz_fighters_chomper2_fatality_prep(void) {
-    static int fatality_attackbegun;
+    static int fatality_attackbegun = 0;
     struct PuzzleFatalityHazardObject *chomper;
     struct PuzzleFighterRenderObject *attacker_object;
     struct PuzzleFighterMove *victim_move;
@@ -4595,8 +4595,8 @@ static inline void pz_snake_start_victim_anim(void) {
 }
 
 static float pz_fighters_snake_fatality_prep(void) {
-    static int attack_begun;
-    static int loser_anim;
+    static int attack_begun = 0;
+    static int loser_anim = 0;
     struct PuzzleFighterRenderObject *attacker_object;
     struct PuzzleFighterMove *victim_move;
     PlyrPdata *victim_data;
@@ -5019,8 +5019,8 @@ static inline float pz_burn_signed_distance(
 }
 
 static float pz_fighters_burn_fatality_prep(void) {
-    static int start_burn;
-    static int attack_begun;
+    static int start_burn = 0;
+    static int attack_begun = 0;
     struct PuzzleFighterRenderObject* attacker_object;
     struct PuzzleFighterMove* victim_move;
     float signed_distance;
