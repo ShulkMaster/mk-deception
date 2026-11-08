@@ -1686,6 +1686,22 @@ settings. Verify emitted calls, helper symbols, every consumer.
   every `-inline` mode); NULL sites fold either way. Exemplar
   `add_attack_collision_node(node, movement)` at all six collision sites
   (`add_plyr_body_attack_nodes`, `set_plyr_attack_region` stay exact).
+- MAP-UNUSED helper whose obvious body never hits MAP size, while its sites
+  disagree on one call-argument copy (pre-RA trace: `FMR f1,vN` before the
+  `bl` at some sites, the producer writes f1 directly at others): REQUIRE
+  every site loads the same `@N` initializer (one owner; two functions with
+  equal initializers get two objects), no UNUSED `.rodata` for the unit,
+  and an exact enumerated size for a thin wrapper. TRY MAP helper = one-line
+  wrapper passing a struct member into a `static inline` body with a scalar
+  parameter that owns the initializer. Sites that pass a member or variable
+  keep the copy, which is a phantom degree for loop-long webs (H31). Sites
+  that pass an expression get CInline substitution, with no copy and a
+  shorter scheduler height (`p_interaction_cam`: `convert_cyl_coords_to_cart_coords`
+  0x118 = `make_interaction_cyl_offset(cart, cyl->x, cyl)`, plus
+  `convert_cart_coords_to_cyl_coords` 0x114 with float* outputs, plus the
+  multi-return `get_interaction_angle` 0xe0; `check_reverse_interaction_cam_targets`
+  stays exact). Enumerate signatures, out-pointer kinds and pre-call reads
+  in one scratch TU (sizes only) before scoring.
 
 ## H08
 
