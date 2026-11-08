@@ -633,8 +633,8 @@ static int nb_npc_hurt_player(
     return 0;
 }
 
-/* TODO: [near miss] 99.34782%; 23 FPR-home rows remain (blend values need temp-band
- * webs above the divisor CSE; named and Vec-local forms fail); recover blend owners. */
+/* TODO: [near miss] 99.50593%; 17 FPR-home rows: named blend temps (weighted_sum,
+ * weighted_target, correction) must number above their split webs; recover blend owner. */
 static void nb_npc_slave_hit_by_plyr(int npc_id) {
     struct NbNpcState* npc;
     Vec target = {0.0f, 0.0f, 0.0f};
@@ -643,7 +643,6 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     float previous_hit;
     float force;
     float inverse_length;
-    float inverse_mass;
     float old_x;
     float old_y;
     float old_z;
@@ -708,7 +707,6 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
         target.x *= force;
         target.z *= force;
         target_weight = 1.0f;
-        inverse_mass = 1.0f / (npc->acceleration_divisor + target_weight);
         correction_weight = 0.9f;
         weighted_sum = old_x * npc->acceleration_divisor;
         weighted_target = target.x * target_weight;
@@ -728,9 +726,9 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
         weighted_sum += weighted_target;
         correction *= correction_weight;
         blended_momentum.z = weighted_sum + correction;
-        blended_momentum.x *= inverse_mass;
-        blended_momentum.y *= inverse_mass;
-        blended_momentum.z *= inverse_mass;
+        blended_momentum.x *= 1.0f / (npc->acceleration_divisor + target_weight);
+        blended_momentum.y *= 1.0f / (npc->acceleration_divisor + target_weight);
+        blended_momentum.z *= 1.0f / (npc->acceleration_divisor + target_weight);
 
         if ((reaction_fetch_current_flags(player_index) & 0x80) != 0) {
             blended_momentum.x = 0.205f * blended_momentum.x;

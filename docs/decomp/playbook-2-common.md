@@ -2038,9 +2038,9 @@ Joins. REQUIRE real branch destinations + effect ownership.
   return;`) fold to one skip each; one `if (a || b) return;` keeps retail's
   `b<cc> L; b exit` on the second operand: copy a matched sibling's guard
   (`SpreadSheet::ScrollLeft/Right` from ScrollUp/Down; `ScreenPoly::Render`
-  `hidden != 0 || colorTex == 0`). Front-end `optimizeif` (COptimizer.c)
-  inverts `If L; return/goto; L:` too, but never past a label: the pair
-  survives only when a LIVE jump target label sits before the return. Two
+  `hidden != 0 || colorTex == 0`). That pass (and front-end `optimizeif`,
+  inline bodies only) never inverts past a Label: the pair survives only when
+  a LIVE jump-target label sits between the If and the return. Two
   tests both to the body (`beq body; beq body; b exit`): `if (a && b) return;`
   has no live label (folds to `bne exit`); fold the preceding early-return
   guard in, `if (x || (a && b)) return;`, so x's then-label stays
