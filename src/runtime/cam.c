@@ -163,8 +163,7 @@ static inline void camera_turn_on_impl(void) {
     turn_display_on();
 }
 
-static inline void make_interaction_orbit_offset(
-    Vec* out, float angle, float height, float radius);
+static inline void make_interaction_cyl_offset(Vec* cart, float angle, Vec* cyl);
 
 struct BezierCamera {
     Vec control[4];
@@ -663,7 +662,11 @@ static inline void interaction_camera_distance_squared(
 
 static inline void make_interaction_camera_position(
     Vec* out, const Vec* midpoint, float angle, float height, float radius) {
-    make_interaction_orbit_offset(out, angle, height, radius);
+    Vec cyl;
+
+    cyl.y = radius;
+    cyl.z = height;
+    make_interaction_cyl_offset(out, angle, &cyl);
     out->x += midpoint->x;
     out->y += midpoint->y;
     out->z += midpoint->z;
@@ -3685,22 +3688,92 @@ void reset_camera_paths(void) {
 static inline void make_interaction_orbit_offset(Vec* out, float angle,
                                                  float height,
                                                  float radius) {
-    Vec unit_z = {0.0f, 0.0f, 1.0f};
-    float length_squared;
-    float inverse_length;
+    Vec cyl;
 
-    rotate_xz(out, &unit_z, angle);
-    length_squared = out->x * out->x + out->z * out->z;
-    inverse_length = gxMathFastInvSqrt(length_squared);
-    out->x *= inverse_length;
-    out->z *= inverse_length;
-    out->x *= radius;
-    out->z *= radius;
-    out->y = height;
+    cyl.y = radius;
+    cyl.z = height;
+    make_interaction_cyl_offset(out, angle, &cyl);
 }
 
 int interaction_cam_glitched(void) {
     return g_ic_data.glitched;
+}
+
+static inline void make_interaction_cyl_offset(Vec* cart, float angle, Vec* cyl) {
+    Vec unit_z = {0.0f, 0.0f, 1.0f};
+    float length_squared;
+    float inverse_length;
+    float radius;
+
+    radius = cyl->y;
+    rotate_xz(cart, &unit_z, angle);
+    length_squared = cart->x * cart->x + cart->z * cart->z;
+    inverse_length = gxMathFastInvSqrt(length_squared);
+    cart->x *= inverse_length;
+    cart->z *= inverse_length;
+    cart->x *= radius;
+    cart->z *= radius;
+    cart->y = cyl->z;
+}
+
+static void convert_cyl_coords_to_cart_coords(Vec* cart, Vec* cyl) {
+    make_interaction_cyl_offset(cart, cyl->x, cyl);
+}
+
+static void convert_cart_coords_to_cyl_coords(Vec* cart, Vec* origin, float* angle, float* radius, float* height) {
+    Vec offset;
+    float yaw;
+
+    offset.x = cart->x - origin->x;
+    offset.y = cart->y - origin->y;
+    offset.z = cart->z - origin->z;
+    yaw = gxMathArcTanYX(offset.x, offset.z);
+    *radius = gxMathFastSqrt(offset.x * offset.x + offset.z * offset.z);
+    *angle = yaw - conversation_interaction_angle;
+    *height = offset.y;
+}
+
+static float get_interaction_angle(void) {
+    MkObj* hero;
+    MkObj* target;
+    float half_dx;
+    float half_dz;
+    float interaction_angle;
+
+    hero = MK_HDR_LIVE(g_ic_data.hero, g_ic_data.hero_instance);
+    if (hero == 0) {
+        return 0.0f;
+    }
+    target = MK_HDR_LIVE(g_ic_data.target, g_ic_data.target_instance);
+    if (target == 0) {
+        return 0.0f;
+    }
+    half_dx = 0.5f * (hero->pos.value.x - target->pos.value.x);
+    half_dz = 0.5f * (hero->pos.value.z - target->pos.value.z);
+    if (hero == target) {
+        return hero->ang.y;
+    }
+    interaction_angle = atan2(half_dx, half_dz);
+    return interaction_angle;
+}
+
+static void get_interaction_midpoint(Vec* midpoint) {
+    MkObj* hero;
+    MkObj* target;
+
+    hero = MK_HDR_LIVE(g_ic_data.hero, g_ic_data.hero_instance);
+    if (hero != 0) {
+        target = MK_HDR_LIVE(g_ic_data.target, g_ic_data.target_instance);
+        if (target != 0) {
+            midpoint->x = hero->pos.value.x - target->pos.value.x;
+            midpoint->z = hero->pos.value.z - target->pos.value.z;
+            midpoint->x = 0.5f * midpoint->x;
+            midpoint->z = 0.5f * midpoint->z;
+            midpoint->x += target->pos.value.x;
+            midpoint->z += target->pos.value.z;
+            midpoint->y = (hero->ground_colls_y + target->ground_colls_y) / 2.0f;
+        }
+    }
 }
 
 static inline void interaction_camera_collision_origin(
@@ -3957,97 +4030,23 @@ static void look_at_interaction_target(Vec* target, int snap_angles) {
     }
 }
 
-static inline void interpolate_interaction_camera_position(
-    Vec* desired_camera_position, const Vec* entry_offset,
-    float entry_radius, float entry_relative_yaw, float blend) {
-    float yaw_delta;
-    float camera_yaw;
-    float camera_height;
-    float camera_radius;
-    int fixed_camera_yaw;
-
-    yaw_delta = g_ic_data.camera_yaw_offset - entry_relative_yaw;
-    if (yaw_delta > 3.1415927f) {
-        yaw_delta -= 6.2831855f;
-    } else if (yaw_delta < -3.1415927f) {
-        yaw_delta += 6.2831855f;
-    }
-    camera_yaw = conversation_interaction_angle + (yaw_delta * blend + entry_relative_yaw);
-    fixed_camera_yaw = 166886.1f * camera_yaw;
-    fixed_camera_yaw &= 0xFFFFF;
-    camera_yaw = 0.000005992112f * (float)fixed_camera_yaw;
-    camera_height =
-        blend * (g_ic_data.camera_height - entry_offset->y) +
-        entry_offset->y;
-    camera_radius =
-        blend * (g_ic_data.camera_radius - entry_radius) +
-        entry_radius;
-
-    make_interaction_camera_position(
-        desired_camera_position, &conversation_midpoint,
-        camera_yaw, camera_height, camera_radius);
-}
-
 static inline void make_interaction_look_target(Vec* out) {
-    float height;
     float radius;
+    float height;
     float yaw;
+    Vec cyl;
 
     radius = g_ic_data.look_radius;
     height = g_ic_data.look_height;
     yaw = g_ic_data.look_yaw_offset + conversation_interaction_angle;
-    make_interaction_camera_position(
-        out, &conversation_midpoint, yaw, height, radius);
+    cyl.y = radius;
+    cyl.z = height;
+    make_interaction_cyl_offset(out, yaw, &cyl);
+    out->x += conversation_midpoint.x;
+    out->y += conversation_midpoint.y;
+    out->z += conversation_midpoint.z;
 }
 
-static inline void get_interaction_midpoint(Vec* midpoint) {
-    MkObj* hero;
-    MkObj* target;
-
-    hero = MK_HDR_LIVE(g_ic_data.hero, g_ic_data.hero_instance);
-    if (hero != 0) {
-        target = MK_HDR_LIVE(g_ic_data.target, g_ic_data.target_instance);
-        if (target != 0) {
-            midpoint->x = hero->pos.value.x - target->pos.value.x;
-            midpoint->z = hero->pos.value.z - target->pos.value.z;
-            midpoint->x = 0.5f * midpoint->x;
-            midpoint->z = 0.5f * midpoint->z;
-            midpoint->x += target->pos.value.x;
-            midpoint->z += target->pos.value.z;
-            midpoint->y = (hero->ground_colls_y + target->ground_colls_y) / 2.0f;
-        }
-    }
-}
-
-static inline float get_interaction_angle(void) {
-    MkObj* hero;
-    MkObj* target;
-    float half_dx;
-    float half_dz;
-    float interaction_angle;
-
-    hero = MK_HDR_LIVE(g_ic_data.hero, g_ic_data.hero_instance);
-    if (hero == 0) {
-        interaction_angle = 0.0f;
-    } else {
-        target = MK_HDR_LIVE(g_ic_data.target, g_ic_data.target_instance);
-        if (target == 0) {
-            interaction_angle = 0.0f;
-        } else {
-            half_dx = 0.5f * (hero->pos.value.x - target->pos.value.x);
-            half_dz = 0.5f * (hero->pos.value.z - target->pos.value.z);
-            if (hero == target) {
-                interaction_angle = hero->ang.y;
-            } else {
-                interaction_angle = atan2(half_dx, half_dz);
-            }
-        }
-    }
-    return interaction_angle;
-}
-
-/* TODO: [near miss] 99.86622%; one FPR colouring group (entry radius, yaw, look height/radius,
- * hoisted 1.0f) with no pop order; the 1.0f and yaw webs sit at the K=32 phantom-degree boundary. */
 static float p_interaction_cam(void) {
     CameraObj* entry_camera;
     CameraObj* active_camera;
@@ -4055,13 +4054,19 @@ static float p_interaction_cam(void) {
     Vec desired_camera_position;
     Vec look_target;
     Vec entry_offset;
+    Vec cyl;
     float entry_radius;
     float entry_relative_yaw;
     float ease_step;
     float ease_phase;
+    float yaw_delta;
+    float camera_yaw;
+    float camera_height;
+    float camera_radius;
     float blend;
     int snap_angles;
     int track_targets;
+    int fixed_camera_yaw;
 
     track_targets = g_ic_data.created_process;
     check_reverse_interaction_cam_targets();
@@ -4081,12 +4086,8 @@ static float p_interaction_cam(void) {
 
     ease_phase = 0.0f;
     ease_step = 3.1415927f * (1.0f / (float)g_ic_data.ticks);
-    entry_offset.x = entry_camera->pos.x - conversation_midpoint.x;
-    entry_offset.y = entry_camera->pos.y - conversation_midpoint.y;
-    entry_offset.z = entry_camera->pos.z - conversation_midpoint.z;
-    entry_relative_yaw = gxMathArcTanYX(entry_offset.x, entry_offset.z);
-    entry_radius = gxMathFastSqrt(entry_offset.x * entry_offset.x + entry_offset.z * entry_offset.z);
-    entry_relative_yaw -= conversation_interaction_angle;
+    convert_cart_coords_to_cyl_coords(&entry_camera->pos, &conversation_midpoint,
+                                      &entry_relative_yaw, &entry_radius, &entry_offset.y);
     entry_relative_yaw = normalize_interaction_angle(entry_relative_yaw);
 
     make_interaction_look_target(&look_target);
@@ -4105,9 +4106,29 @@ static float p_interaction_cam(void) {
                 conversation_interaction_angle = get_interaction_angle();
             }
 
-            interpolate_interaction_camera_position(
-                &desired_camera_position, &entry_offset, entry_radius,
-                entry_relative_yaw, blend);
+            yaw_delta = g_ic_data.camera_yaw_offset - entry_relative_yaw;
+            if (yaw_delta > 3.1415927f) {
+                yaw_delta -= 6.2831855f;
+            } else if (yaw_delta < -3.1415927f) {
+                yaw_delta += 6.2831855f;
+            }
+            camera_yaw = conversation_interaction_angle + (yaw_delta * blend + entry_relative_yaw);
+            fixed_camera_yaw = 166886.1f * camera_yaw;
+            fixed_camera_yaw &= 0xFFFFF;
+            camera_yaw = 0.000005992112f * (float)fixed_camera_yaw;
+            camera_height =
+                blend * (g_ic_data.camera_height - entry_offset.y) +
+                entry_offset.y;
+            camera_radius =
+                blend * (g_ic_data.camera_radius - entry_radius) +
+                entry_radius;
+            cyl.x = camera_yaw;
+            cyl.y = camera_radius;
+            cyl.z = camera_height;
+            convert_cyl_coords_to_cart_coords(&desired_camera_position, &cyl);
+            desired_camera_position.x += conversation_midpoint.x;
+            desired_camera_position.y += conversation_midpoint.y;
+            desired_camera_position.z += conversation_midpoint.z;
             make_interaction_look_target(&look_target);
 
             if (collide_segment_against_global_collision_list(
