@@ -2305,7 +2305,8 @@ static inline struct PfxBank* bank_alloc(int effect_count, char* name) {
     unsigned int size;
     int effect_index;
 
-    size = sizeof(*bank) + effect_count * sizeof(struct PfxEffectLatch);
+    size = sizeof(*bank);
+    size += effect_count * sizeof(struct PfxEffectLatch);
     owners_offset = size;
     size += effect_count * sizeof(unsigned int);
     name_offset = size;
@@ -2371,8 +2372,6 @@ static inline unsigned int get_new_bank(int effect_count, char* name) {
     return build_bank_handle(bank_index);
 }
 
-/* TODO: [near miss] 99.96894%; bank_alloc zero-init loop: the stored zero reuses the
- * counter init li in ours (VN), retail emits it after the two SR induction inits. */
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     struct PfxLoadScriptLatch load;
     struct PfxBankLoadRow* rows;

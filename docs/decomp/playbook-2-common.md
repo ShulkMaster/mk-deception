@@ -4820,6 +4820,24 @@ makes the index inline-owned (`p_player_body_explode`).
   a new SR owner is not automatically outside. Preserve latch validation,
   callbacks and both coin snapshots where applicable; never seed the index
   from an unrelated value or add a byte-offset carrier.
+- First-SR-vreg sharing: retail `li rIV,0; li rZero,0` beside `mtctr`, ours
+  `li; mr`, backend probe shows the IV is the first SR vreg (= captured
+  `last_temporary_register`, inclusive): REQUIRE no earlier SR loop. TRY an
+  earlier element-count reset loop over a REAL one-element array (indexed
+  access elsewhere, next field right after it). SR gives that loop the bound
+  vreg, `deleteloopheader` (one trip) erases it, ConstantPropagation folds its
+  store; the later IV leaves the window (`mk_chess_create_piece`:
+  `ChessPieceRuntimeFields.timers[1]`, indexed by
+  `mk_chess_piece_test_and_set_timer`). No array owner: no loop.
+- Dead counter init absorbs the hoisted zero (ours `li rZero` first, retail
+  `li rIV; li rIV2; li rZero`, IVs above the window): REQUIRE probe shows the
+  inline counter LI alive at VN2 and NO `COpt_LoadDeletion` event
+  (`optimizelevel4` runs `deletedeadloads` only if ConstantPropagation changed
+  something anywhere in the function). TRY the honest spelling that leaves
+  one backend constant fold, e.g. start an accumulator from its constant and
+  `+=` like its sibling parts (`size = sizeof(*bank); size += n * 8;`,
+  `load_effect_bank_with_context`): LI+ADD -> ADDI, same bytes, load deletion
+  drops the dead counter LI. Any fold anywhere works; land only an honest one.
 - Opening a width loop recovers independent zero loads but moves its addressed
   glyph-width scratch: REQUIRE original font walk, zero producers and scratch
   slot are verified. TRY caller-named line/maximum widths with a complete

@@ -3133,7 +3133,9 @@ static inline ChessPiece* mk_chess_initialize_piece(
 
     piece = mk_chess_pdata->sides[side]->pieces[slot];
     piece->effects = 0;
-    piece->runtime.fields.timer_0 = 0;
+    for (i = 0; i < sizeof(piece->runtime.fields.timers) / sizeof(piece->runtime.fields.timers[0]); i++) {
+        piece->runtime.fields.timers[i] = 0;
+    }
     piece->flags_word = 0;
     piece->state = 0;
     piece->id = class_slot;
@@ -11023,8 +11025,6 @@ static void mk_chess_create_piece_obj(
 }
 
 
-/* TODO: [breakthrough needed] 97.57954%; second value numbering shares reset
- * zero with the new SR index; recover reset ownership after old-index deletion. */
 static void mk_chess_create_piece(
     unsigned char side, unsigned int slot, int class_slot, unsigned char x,
     unsigned char y, float health, int character, int active) {

@@ -120,7 +120,7 @@ typedef struct ChessPieceMovement {
 } ChessPieceMovement;
 
 typedef struct ChessPieceRuntimeFields {
-    unsigned int timer_0;
+    unsigned int timers[1];
     Vec cell_offset; /* +0x04 */
     unsigned int primary_effect; /* +0x10 */
     unsigned int secondary_effect; /* +0x14 */
