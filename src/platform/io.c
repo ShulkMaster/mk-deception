@@ -524,8 +524,8 @@ static void execute_scan_sequence_cmd(unsigned int action,
 
 }
 
-/* TODO: [near miss] 99.88%; timing load home (retail derives max_tick_gap in its
- * register) and the requirement_count decrement order remain. */
+/* TODO: [near miss] 99.93%; requirement_count decrement order: retail issues the SR
+ * requirements*4 decrement before it (pre-RA pcode has biv first); next: CTR/peephole order. */
 void scan_switch_sequences(unsigned int* sequence) {
     struct SwitchLogEntry* switch_log;
     int requirement_count;
@@ -535,7 +535,6 @@ void scan_switch_sequences(unsigned int* sequence) {
     int sequence_index;
     int execution_mode;
     int max_tick_gap;
-    int timing;
     unsigned int action;
     unsigned int toward;
     unsigned int away;
@@ -567,12 +566,12 @@ void scan_switch_sequences(unsigned int* sequence) {
     while (sequence_index < 12) {
         sequence_id = sequence[0];
         if (sequence_id + 0x10000 == 0x0000FFFF) break;
-        timing = sequence[1];
+        max_tick_gap = sequence[1];
         requirement_count = 0;
         action = sequence[2];
-        execution_mode = timing & 0x0F000000;
-        max_tick_gap = timing - execution_mode;
         sequence += 3;
+        execution_mode = max_tick_gap & 0x0F000000;
+        max_tick_gap -= execution_mode;
         while (1) {
             requirement = *sequence;
             if (requirement + 0x10000 == 0x0000FFFF ||

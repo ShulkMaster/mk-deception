@@ -5737,8 +5737,6 @@ void SetVisible__10ScreenTextFUi(ScreenText* text, unsigned int visible) {
     obj->visibility.hidden = (visible == 0);
 }
 
-/* TODO: [near miss] 99.92727%; pointer adds `cursor += consumed` / `p += consumed` emit
- * pointer-left (retail consumed-left); next: a loop shape whose IV rewrite yields add ptr,int,ptr. */
 int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount) {
     int left;
     char* p;
@@ -5815,10 +5813,9 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
         while (consumed < i) {
             consumed++;
         }
-        cursor += consumed;
+        cursor += consumed + 1;
         remain -= consumed + 1;
         lineCount++;
-        cursor++;
     }
 
     *outCount = lineCount;
@@ -5890,12 +5887,10 @@ int* GetStartArray__10ScreenTextFPcRi(ScreenText* text, char* str, int* outCount
         while (consumed < i) {
             consumed++;
         }
-        p += consumed;
-        startOff = consumed + startOff;
+        p += consumed + 1;
+        startOff += consumed + 1;
         left -= consumed + 1;
         lineIndex++;
-        p++;
-        startOff++;
     }
     return starts;
 }

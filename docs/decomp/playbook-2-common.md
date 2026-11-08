@@ -4121,6 +4121,14 @@ One-row operand/constant/copy residue. One at a time:
   Enumerate the spellings mechanically: `spellsearch.py SYMBOL` (ops `join`,
   `commute`, `.agent-work/tooling/README.md`).
 
+- `add x,x,n` where retail has `add x,n,x` and a later `addi x,x,K` on the
+  same variable: REQUIRE no use of `x` between the add and the `+K`. Source
+  commute cannot help for a pointer (`padd` always puts the pointer left).
+  GC2.7 `combine` (Operands.c) puts a reg+imm operand first: `x + (n + K)`
+  = `add t,n,x` then `addi x,t,K`. TRY one compound step
+  `x += n + K;` for `x += n; x++;` (`GetStartArray__10ScreenTextFPcRi`:
+  cursor, p and an int offset).
+
 - Guarded field update loses a retail reload before backend optimization:
   REQUIRE initial/build PCode evidence and the same comparison, lazy guard
   and actual read-modify-write. TRY the natural compound field update
