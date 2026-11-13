@@ -54,44 +54,6 @@
 
 
 
-GlobalBackgroundEntry global_background_data[] = {
-    {beetlelair_file_table, "beetlelair.mko", 0x00000012, 0x00000001},
-    {courtyard_file_table, "courtyard.mko", 0x0000001C, 0x00000009},
-    {darkprison_file_table, "darkprison.mko", 0x00000024, 0x00000001},
-    {deadpool_file_table, "deadpool.mko", 0x00000020, 0x00000009},
-    {dka_file_table, "dka.mko", 0x00000026, 0x00000001},
-    {dragonmountain_file_table, "dragonmountain.mko", 0x0000001A, 0x00000001},
-    {fallingcliff_file_table, "fallingcliff.mko", 0x0000001B, 0x00000001},
-    {fortress_file_table, "fortress.mko", 0x00000022, 0x00000001},
-    {hellsfoundry_file_table, "hellsfoundry.mko", 0x00000019, 0x00000001},
-    {kangtomb_file_table, "kangtomb.mko", 0x00000013, 0x00000001},
-    {kuatanpalace_file_table, "kuatanpalace.mko", 0x00000023, 0x00000001},
-    {livingforest_file_table, "livingforest.mko", 0x00000027, 0x00000009},
-    {lostwarriors_file_table, "lostwarriors.mko", 0x00000016, 0x00000001},
-    {lower_mines_file_table, "lower_mines.mko", 0x00000021, 0x00000001},
-    {netherbelly_file_table, "netherbelly.mko", 0x00000017, 0x00000001},
-    {nexus_arena_file_table, "nexus_arena.mko", 0x00000028, 0x00000001},
-    {portal_file_table, "portal.mko", 0x0000001D, 0x00000009},
-    {reddragon_file_table, "reddragon.mko", 0x00000015, 0x00000001},
-    {skytemple_file_table, "skytemple.mko", 0x00000018, 0x00000001},
-    {slaughterhouse_file_table, "slaughterhouse.mko", 0x00000014, 0x00000001},
-    {thepit_file_table, "thepit.mko", 0x0000001E, 0x00000009},
-    {yinyang_file_table, "yinyang.mko", 0x0000001F, 0x00000001},
-    {ladder_file_table, "ladder.mko", 0x00000000, 0x00000020},
-    {pz_ladder_file_table, "pz_ladder.mko", 0x00000000, 0x00000020},
-    {krypt_file_table, "krypt.mko", 0x00000000, 0x00000010},
-    {kq_er1_fight_file_table, "earth_1.mko", 0x00000000, 0x00000004},
-    {kq_er1_fight_file_table, "earth_1.mko", 0x00000000, 0x00000004},
-    {kq_er2_fight_file_table, "earth_2.mko", 0x00000000, 0x00000004},
-    {kq_nr1_fight_file_table, "netherrealm_1.mko", 0x00000000, 0x00000004},
-    {kq_cr1_fight_file_table, "chaosrealm_1.mko", 0x00000000, 0x00000004},
-    {kq_ow1_fight_file_table, "outworld_1.mko", 0x00000000, 0x00000004},
-    {kq_or1_fight_file_table, "orderrealm_1.mko", 0x00000000, 0x00000004},
-    {kq_ed1_fight_file_table, "edenia_1.mko", 0x00000000, 0x00000004},
-    {kq_nx1_fight_file_table, "nexus_1.mko", 0x00000000, 0x00000004},
-    {kq_nexus_nis_file_table, "nexus_nis.mko", 0x00000000, 0x00000000},
-};
-
 typedef struct SlaughterhouseData {
     MkHdr hdr;
     MkHdrLatch lower_level_pebbles[5];
@@ -520,9 +482,6 @@ static int launch_sobj_watch_y_far_down(BgndSobjLaunchEntry* entry,
 static int launch_sobj_watch_y_ground_plane(BgndSobjLaunchEntry* entry,
                                              unsigned int unused);
 
-extern int nb_slave_bones[];
-extern int konquest_npc_bones[];
-extern MkFlippedBoneMap flipped_nb_slave_bones;
 typedef struct BgndReactionInfo {
     PlyrInfo* player_info;
     int reaction;
@@ -539,33 +498,25 @@ static BgndUvScrollControlItem bgnd_uv_scroll_control_item[8];
 BgndDangerZone bgnd_danger_zones[24];
 BgndReactionInfo g_current_reaction_info;
 Vec g_bgnd_scratch_pad_vectors[9];
-char bgnd_animations[0x84] __attribute__((aligned(4)));
-extern BgndObstacleEventData* g_active_obstacle_event_data;
-extern BgndCollisionItem* g_active_bgnd_col_item;
-extern ProfileUnlockBits64 default_bgnd_bits;
-extern ProfileUnlockBits64 default_pz_bgnd_bits;
-extern PebbleData* g_bl_beetles;
-extern BlBeetlePdata* g_bl_beetles_pdata;
+AnimScript* bgnd_animations[33];
+ProfileUnlockBits64 default_bgnd_bits = {0x3E6145};
+ProfileUnlockBits64 default_pz_bgnd_bits = {0xC0101};
+MkSobj* g_active_sobj = 0;
+MkObj* g_latest_obj_pfx = 0;
+BgndObstacleEventData* g_active_obstacle_event_data = 0;
+BgndCollisionItem* g_active_bgnd_col_item = 0;
+PebbleData* g_bgnd_cracks = 0;
+unsigned int g_bgnd_last_crack_overwritten = 0;
+BgndPebbleControl* g_current_pebble = 0;
+BgndChunkLaunchMonitor* g_chunk_launch_monitor_pdata = 0;
+BgndSobjLaunchEntry* g_active_launched_sobj_pdata = 0;
+BgndSobjLaunchEntry* g_launched_sobj_crossing_plane_pdata = 0;
+BgndSobjLaunchMonitor* g_sobj_launch_monitor_pdata = 0;
+unsigned int g_active_bgnd_danger_zone = 0;
+static PebbleData* g_bl_beetles = 0;
 extern SlaughterhouseData* g_slaughterhouse_pdata;
-extern BgndPebbleControl* g_current_pebble;
-extern MkSobj* g_active_sobj;
-extern unsigned int g_active_bgnd_danger_zone;
-extern MorphScript linear_slow_script;
-extern MorphScript linear_140_script;
-extern MorphScript linear_240_script;
-extern MorphScript cos_script;
-extern MorphScript cos_fast_script;
-extern MorphScript skytemple_banner_script;
-extern MorphScript kuatan_banner_script;
 extern void stop_me(void);
 extern float r_call_script_function(void);
-extern MkObj* g_latest_obj_pfx;
-extern BgndSobjLaunchEntry* g_launched_sobj_crossing_plane_pdata;
-extern BgndSobjLaunchEntry* g_active_launched_sobj_pdata;
-extern BgndSobjLaunchMonitor* g_sobj_launch_monitor_pdata;
-extern BgndChunkLaunchMonitor* g_chunk_launch_monitor_pdata;
-extern PebbleData* g_bgnd_cracks;
-extern unsigned int g_bgnd_last_crack_overwritten;
 float bgnd_process_collision_info(
     unsigned int operation, float value1, float value2, float value3,
     float value4, float value5, float value6, float value7, float value8);
@@ -578,7 +529,6 @@ extern void set_ani_speed(float speed);
 extern int random_voice(int group);
 extern void random_hit(int group);
 extern unsigned char shared_ani[];
-extern AnimScript** bgnd_animation_table;
 extern void transition_to_anim_script(
     AnimPdata* animation, AnimScript* script, int flags,
     float transition_frames);
@@ -632,12 +582,48 @@ BgndPebblePlayerData* g_pebbles_pdata[20] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
+GlobalBackgroundEntry global_background_data[] = {
+    {beetlelair_file_table, "beetlelair.mko", 0x00000012, 0x00000001},
+    {courtyard_file_table, "courtyard.mko", 0x0000001C, 0x00000009},
+    {darkprison_file_table, "darkprison.mko", 0x00000024, 0x00000001},
+    {deadpool_file_table, "deadpool.mko", 0x00000020, 0x00000009},
+    {dka_file_table, "dka.mko", 0x00000026, 0x00000001},
+    {dragonmountain_file_table, "dragonmountain.mko", 0x0000001A, 0x00000001},
+    {fallingcliff_file_table, "fallingcliff.mko", 0x0000001B, 0x00000001},
+    {fortress_file_table, "fortress.mko", 0x00000022, 0x00000001},
+    {hellsfoundry_file_table, "hellsfoundry.mko", 0x00000019, 0x00000001},
+    {kangtomb_file_table, "kangtomb.mko", 0x00000013, 0x00000001},
+    {kuatanpalace_file_table, "kuatanpalace.mko", 0x00000023, 0x00000001},
+    {livingforest_file_table, "livingforest.mko", 0x00000027, 0x00000009},
+    {lostwarriors_file_table, "lostwarriors.mko", 0x00000016, 0x00000001},
+    {lower_mines_file_table, "lower_mines.mko", 0x00000021, 0x00000001},
+    {netherbelly_file_table, "netherbelly.mko", 0x00000017, 0x00000001},
+    {nexus_arena_file_table, "nexus_arena.mko", 0x00000028, 0x00000001},
+    {portal_file_table, "portal.mko", 0x0000001D, 0x00000009},
+    {reddragon_file_table, "reddragon.mko", 0x00000015, 0x00000001},
+    {skytemple_file_table, "skytemple.mko", 0x00000018, 0x00000001},
+    {slaughterhouse_file_table, "slaughterhouse.mko", 0x00000014, 0x00000001},
+    {thepit_file_table, "thepit.mko", 0x0000001E, 0x00000009},
+    {yinyang_file_table, "yinyang.mko", 0x0000001F, 0x00000001},
+    {ladder_file_table, "ladder.mko", 0x00000000, 0x00000020},
+    {pz_ladder_file_table, "pz_ladder.mko", 0x00000000, 0x00000020},
+    {krypt_file_table, "krypt.mko", 0x00000000, 0x00000010},
+    {kq_er1_fight_file_table, "earth_1.mko", 0x00000000, 0x00000004},
+    {kq_er1_fight_file_table, "earth_1.mko", 0x00000000, 0x00000004},
+    {kq_er2_fight_file_table, "earth_2.mko", 0x00000000, 0x00000004},
+    {kq_nr1_fight_file_table, "netherrealm_1.mko", 0x00000000, 0x00000004},
+    {kq_cr1_fight_file_table, "chaosrealm_1.mko", 0x00000000, 0x00000004},
+    {kq_ow1_fight_file_table, "outworld_1.mko", 0x00000000, 0x00000004},
+    {kq_or1_fight_file_table, "orderrealm_1.mko", 0x00000000, 0x00000004},
+    {kq_ed1_fight_file_table, "edenia_1.mko", 0x00000000, 0x00000004},
+    {kq_nx1_fight_file_table, "nexus_1.mko", 0x00000000, 0x00000004},
+    {kq_nexus_nis_file_table, "nexus_nis.mko", 0x00000000, 0x00000000},
+};
 
 void RwImageSetGamma(float gamma);
 void init_misc_bgnd_data(void);
 int mslSoundIsValid(MslSoundHandle sound);
 void snd_stop(MslSoundHandle sound);
-extern MkVtable5 vtbl_slaughterhouse_pdata;
 void initialize_bgnd_collisions(BgndDataTable* background);
 void bgnd_level_fatality_end(void);
 void bgnd_level_fatality_start(int player);
@@ -647,6 +633,113 @@ int bgnd_cycle_tbl[22] = {
     0, 0x13, 0x12, 0xF, 6, 0xB, 0xC, 0xE, 7, 1, 8,
     0x10, 0x14, 0x11, 9, 0x15, 2, 5, 3, 0xD, 0xA, -1
 };
+
+struct MorphFrameHeader linear_slow_keys[3] = {
+    {0, 0, 0, 0.0f},
+    {90, 0, 1, 1.0f},
+    {180, 1, 0, 1.0f},
+};
+struct MorphFrameHeader linear_140_keys[3] = {
+    {0, 0, 0, 0.0f},
+    {140, 0, 1, 1.0f},
+    {280, 1, 0, 1.0f},
+};
+struct MorphFrameHeader linear_240_keys[3] = {
+    {0, 0, 0, 0.0f},
+    {240, 0, 1, 1.0f},
+    {480, 1, 0, 1.0f},
+};
+struct MorphFrameHeader cos_keys[9] = {
+    {0, 0, 1, 0.0f},
+    {80, 0, 1, 0.25f},
+    {120, 0, 1, 0.5f},
+    {160, 0, 1, 0.75f},
+    {240, 0, 1, 1.0f},
+    {320, 1, 0, 0.25f},
+    {360, 1, 0, 0.5f},
+    {400, 1, 0, 0.75f},
+    {480, 1, 0, 1.0f},
+};
+struct MorphFrameHeader cos_fast_keys[9] = {
+    {0, 0, 1, 0.0f},
+    {46, 0, 1, 0.25f},
+    {70, 0, 1, 0.5f},
+    {93, 0, 1, 0.75f},
+    {140, 0, 1, 1.0f},
+    {186, 1, 0, 0.25f},
+    {210, 1, 0, 0.5f},
+    {233, 1, 0, 0.75f},
+    {280, 1, 0, 1.0f},
+};
+struct MorphFrameHeader skytemple_banner_keys[9] = {
+    {0, 0, 1, 0.0f},
+    {25, 0, 1, 0.25f},
+    {37, 0, 1, 0.5f},
+    {50, 0, 1, 0.75f},
+    {75, 0, 1, 1.0f},
+    {100, 1, 0, 0.25f},
+    {112, 1, 0, 0.5f},
+    {125, 1, 0, 0.75f},
+    {150, 1, 0, 1.0f},
+};
+struct MorphFrameHeader kuatan_banner_keys[25] = {
+    {0, 1, 2, 0.0f},
+    {6, 1, 2, 0.25f},
+    {12, 1, 2, 0.5f},
+    {18, 1, 2, 0.75f},
+    {24, 1, 2, 1.0f},
+    {30, 2, 3, 0.25f},
+    {36, 2, 3, 0.5f},
+    {42, 2, 3, 0.75f},
+    {48, 2, 3, 1.0f},
+    {54, 3, 4, 0.25f},
+    {60, 3, 4, 0.5f},
+    {66, 3, 4, 0.75f},
+    {72, 3, 4, 1.0f},
+    {78, 4, 5, 0.25f},
+    {84, 4, 5, 0.5f},
+    {90, 4, 5, 0.75f},
+    {96, 4, 5, 1.0f},
+    {102, 5, 6, 0.25f},
+    {108, 5, 6, 0.5f},
+    {114, 5, 6, 0.75f},
+    {120, 5, 6, 1.0f},
+    {126, 6, 1, 0.25f},
+    {132, 6, 1, 0.5f},
+    {138, 6, 1, 0.75f},
+    {144, 6, 1, 1.0f},
+};
+
+int nb_slave_bones[12] = {17, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+int _flipped_nb_slave_bones[12] = {0, 2, 1, 3, 5, 4, 6, 9, 8, 7, 11, 10};
+int konquest_npc_bones[18] = {
+    17, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 0
+};
+
+typedef struct SlaughterhouseVtable {
+    MkVtableCastFn fn0;
+    MkVtableCastFn fn1;
+    MkVtableCastFn fn2;
+    MkVtblFn fn3;
+    void (*destroy)(SlaughterhouseData* owner);
+} SlaughterhouseVtable;
+typedef char check_SlaughterhouseVtable_size[(sizeof(SlaughterhouseVtable) == sizeof(MkVtable5)) ? 1 : -1];
+
+void vdestroy_slaughterhouse_pdata(SlaughterhouseData* pdata);
+SlaughterhouseVtable vtbl_slaughterhouse_pdata = {
+    not_mkproc, is_mkpdata, not_mksobj, not_mkmaterial,
+    vdestroy_slaughterhouse_pdata,
+};
+
+MorphScript linear_slow_script = {2, &linear_slow_keys[0].frame};
+MorphScript linear_140_script = {2, &linear_140_keys[0].frame};
+MorphScript linear_240_script = {2, &linear_240_keys[0].frame};
+MorphScript cos_script = {8, &cos_keys[0].frame};
+MorphScript cos_fast_script = {8, &cos_fast_keys[0].frame};
+MorphScript skytemple_banner_script = {8, &skytemple_banner_keys[0].frame};
+MorphScript kuatan_banner_script = {24, &kuatan_banner_keys[0].frame};
+AnimScript** bgnd_animation_table = bgnd_animations;
+MkFlippedBoneMap flipped_nb_slave_bones = {12, _flipped_nb_slave_bones};
 unsigned int get_next_bgnd(void);
 void bgnd_force_specularity_off_for_material( unsigned int object_id, unsigned int material_id);
 void bgnd_sobj_set_texture_kl_values( unsigned int object_id, unsigned int material_id, int dual_texture, float l, int k);
@@ -850,7 +943,6 @@ void bgnd_sh_level_2(void);
 void bgnd_sh_level_1(void);
 void bgnd_clean_slaughterhouse(void);
 static void destroy_slaughterhouse_pdata(SlaughterhouseData* pdata);
-void vdestroy_slaughterhouse_pdata(SlaughterhouseData* pdata);
 static inline void sh_destroy_latched_object(MkHdrLatch* latch) {
     MkHdr* object;
 
@@ -867,7 +959,6 @@ static float bl_bounce_fast_amount = 0.008f;
 static int bl_bounce_fast_ticks = 3;
 static float bl_bounce_calm_amount = 0.005f;
 static int bl_bounce_calm_ticks = 3;
-static unsigned int next_beetle_exec_tick_counter;
 
 
 static inline void bl_move_beetle_on_surface(
@@ -1028,7 +1119,7 @@ float r_beetle_lair_transition(void);
 static float p_beetle_lair_watch_remaining_fall_scene(void);
 static float winner_watching_him_fall(void);
 static float victim_fall_down_a_level(void);
-static int g_go_back_to_fight_position;
+static int g_go_back_to_fight_position = 0;
 
 static float p_beetle_lair_downstairs_wall_break_cam_control(void);
 static float plyr_is_prone(void);
@@ -1254,8 +1345,6 @@ static inline void bl_launch_final_column_fx(const char* name, MkSobj* piece) {
         }
     }
 }
-
-static unsigned int bl_column_dust_number;
 
 static inline void bl_launch_column_misc_fx(MkSobj* piece) {
     MkPfx* effect;
@@ -8565,6 +8654,7 @@ static float p_bl_flip_column_piece(void) {
 }
 
 static float p_launch_column_piece(void) {
+    static unsigned int dust_num = 0;
     BlFinalColumnPieceData* data;
     int ticks;
     MkSobj* piece;
@@ -8591,22 +8681,24 @@ static float p_launch_column_piece(void) {
 
     bl_launch_column_misc_fx(piece);
 
-    if (bl_column_dust_number == 0) {
+    if (dust_num == 0) {
         bl_launch_column_dust("dust_small_1", piece);
-    } else if (bl_column_dust_number == 1) {
+    } else if (dust_num == 1) {
         bl_launch_column_dust("dust_small_2", piece);
-    } else if (bl_column_dust_number == 2) {
+    } else if (dust_num == 2) {
         bl_launch_column_dust("dust_small_3", piece);
     } else {
         return -1.0f;
     }
 
-    ++bl_column_dust_number;
-    if (bl_column_dust_number > 2) {
-        bl_column_dust_number = 0;
+    ++dust_num;
+    if (dust_num > 2) {
+        dust_num = 0;
     }
     return -1.0f;
 }
+
+BlBeetlePdata* g_bl_beetles_pdata = 0;
 
 static float p_launch_final_column_piece(void) {
     BlFinalColumnPieceData* data;
@@ -10571,6 +10663,7 @@ static int beetle_squashed(
 }
 
 static float p_bl_beetle_brains(void) {
+    static unsigned int next_beetle_exec_tick_cntr = 0;
     BlBeetlePdata* pdata;
     BlBeetleControl* beetle;
     PebbleData* pebble_data;
@@ -10623,9 +10716,9 @@ static float p_bl_beetle_brains(void) {
         if (beetle_squashed(beetle, &squashing_player) == 1) {
             beetle->position.y = 0.005f + g_game_info.field_34;
             spawn_bld_splat("beetlesplat", 0, &beetle->position);
-            if (exec_tick_ctr >= next_beetle_exec_tick_counter) {
+            if (exec_tick_ctr >= next_beetle_exec_tick_cntr) {
                 snd_req(0x94);
-                next_beetle_exec_tick_counter = exec_tick_ctr + 10;
+                next_beetle_exec_tick_cntr = exec_tick_ctr + 10;
             }
             beetle->personality = 6;
             beetle->position.y = 1000.0f;
@@ -10750,6 +10843,7 @@ static float p_bl_beetle_brains(void) {
     }
     return 1.0f;
 }
+SlaughterhouseData* g_slaughterhouse_pdata = 0;
 void start_bl_beetles_live_top_floor(void) {
     BlBeetlePdata* data;
     MkSobj* object;

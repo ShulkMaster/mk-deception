@@ -5,6 +5,14 @@ typedef struct AnimPdata AnimPdata;
 typedef struct MkHdr MkHdr;
 typedef struct MkObj MkObj;
 
+struct MorphFrameHeader {
+    unsigned short frame;
+    unsigned char target;
+    unsigned char next_target;
+    float position;
+};
+typedef char MorphFrameHeaderSize[(sizeof(struct MorphFrameHeader) == 8) ? 1 : -1];
+
 typedef struct MorphScript {
     unsigned int frame_count;
     unsigned short* frame_table;

@@ -28,14 +28,6 @@ static float p_bone_matcher(void);
 
 MkProc* morph_proc;
 
-struct MorphFrameHeader {
-    unsigned short frame;
-    unsigned char target;
-    unsigned char next_target;
-    float position;
-};
-typedef char MorphFrameHeaderSize[(sizeof(struct MorphFrameHeader) == 8) ? 1 : -1];
-
 struct MorphState {
     MkHdr hdr;
     unsigned int morph_target_count;

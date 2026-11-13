@@ -92,12 +92,14 @@ struct LadderCoinType coin_offset_tbl[6] = {
     {5, "LAD_WALLETKOIN_GOLD"},
 };
 enum { LADDER_COIN_TYPE_COUNT = sizeof(coin_offset_tbl) / sizeof(coin_offset_tbl[0]) };
+static int ladder_data_tbl_offset = -1;
 const char* ladder_koins[4] = {
     "LAD_WALLETKOIN_SAPPHIRE",
     "LAD_WALLETKOIN_JADE",
     "LAD_WALLETKOIN_RUBY",
     "LAD_WALLETKOIN_GOLD",
 };
+unsigned short n_ladder_koins = 4;
 int koin_award_table[9] = {20, 30, 40, 50, 60, 70, 80, 100, 0};
 int pz_koin_award_table[7] = {50, 70, 80, 100, 120, 150, 0};
 
@@ -522,7 +524,6 @@ int ladder_piece_bones[18] = {
     17, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 0
 };
 
-extern unsigned short n_ladder_koins;
 extern struct LadderBgndAnimations bgnd_animations;
 
 AnimPdata* animate_obj(
@@ -533,11 +534,10 @@ AnimPdata* animate_obj(
     void* ground_collisions,
     float playback_rate,
     int active);
-static int ladder_data_tbl_offset = -1;
-static int curr_ladder_pos;
-static int curr_ladder_char;
-static struct LadderStringRef bgnd_name_item;
 static struct LadderEntry* current_ladder_tbl;
+static struct LadderStringRef bgnd_name_item;
+static int curr_ladder_char;
+static int curr_ladder_pos;
 const char* ladder_koin_type_to_string(int type) {
     int i;
 
@@ -977,8 +977,11 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
 }
 
 extern MkFileInfo sec_fightingart;
-extern const char* pz_ladder_koins[2];
-extern unsigned short n_pz_ladder_koins;
+const char* pz_ladder_koins[2] = {
+    "LAD_WALLETKOIN_PLATINUM",
+    "LAD_WALLETKOIN_ONYX",
+};
+unsigned short n_pz_ladder_koins = 2;
 
 static inline void ladder_sleep(float ticks) {
     _mkproc_sleep_ticks = ticks;

@@ -123,9 +123,8 @@ struct BgPselectPdata {
 };
 
 extern int menu_player;
-extern ProfileUnlockBits64 default_char_bits;
-extern ProfileUnlockBits64 default_alt_char_bits;
-extern ProfileUnlockBits64 default_pz_char_bits;
+ProfileUnlockBits64 default_char_bits = {0xC97C4EFB};
+ProfileUnlockBits64 default_pz_char_bits = {0x16B};
 
 static void check_reset_player_selection(int player, int start_pos);
 void wager_cancelled(void);
@@ -159,21 +158,22 @@ extern struct ChessDefInfo g_chess_definition_info;
 float p_mk_chess(void);
 
 static int pselect_mode;
-static int p1_selbox_start_pos;
-static int p2_selbox_start_pos;
+static int background_selbox_pos;
 static int p1_selbox_pos;
 static int p2_selbox_pos;
+static int p1_selbox_start_pos;
+static int p2_selbox_start_pos;
+static int name_sound_state;
+static int name_sound_active;
+static int wager_completed_ran;
 static RwTexture* p1_alternate;
 static RwTexture* p2_alternate;
 static RwTexture* p1_alternate_alpha;
 static RwTexture* p2_alternate_alpha;
-static int name_sound_state;
-static int background_selbox_pos;
-static int name_sound_active;
 int psel_p1_handicap;
 int psel_p2_handicap;
-static int wager_completed_ran;
 static int f_arena_select_active;
+ProfileUnlockBits64 default_alt_char_bits;
 
 static const float sleep_ticks_one = 1.0f;
 static const float sleep_ticks_neg_one = -1.0f;
