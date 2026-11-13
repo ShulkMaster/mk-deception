@@ -6585,12 +6585,12 @@ void mkScreenEngineClient::HandleAction(ScreenMgr* mgr, const ScreenAction* acti
                 if (p1_profile_status != 1) {
                     break;
                 }
-                if (*(int*)((unsigned char*)&p1_profile + 0x514) == 0) {
+                if (p1_profile.bg_team_valid == 0) {
                     break;
                 }
             } else {
                 if (p2_profile_status != 1 ||
-                    *(int*)((unsigned char*)&p2_profile + 0x514) == 0) {
+                    p2_profile.bg_team_valid == 0) {
                     break;
                 }
             }

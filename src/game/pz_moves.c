@@ -40,33 +40,6 @@ struct PuzzlePresentState {
     PlyrPdata* owner;
 };
 
-struct PuzzleMovesEngineView {
-    char pad00[0x74];
-    int peak_mode;
-    unsigned int special_move_enabled;
-    char pad7C[0x0C];
-    int peak_active;
-    unsigned char pad_flags_7 : 1;
-    unsigned char special_move_4 : 1;
-    unsigned char special_move_5 : 1;
-    unsigned char pad_flags_4 : 1;
-    unsigned char continuation_allowed : 1;
-    unsigned char continuation_reset : 1;
-    unsigned char easy_continuation : 1;
-    unsigned char pad_flags_0 : 1;
-    unsigned char continuation_blocked : 1;
-    unsigned char pad_flags2_6_0 : 7;
-    char pad8E[0xC2];
-    MkObj* present_object;
-    MkObj* projectile_objects[2];
-    char pad15C[8];
-    int breakout;
-    char pad168[0x54];
-    struct PuzzlePresentState* present;
-    char pad1C0[0x24];
-    int reactions_disabled;
-};
-
 struct PuzzleReactionTransferData {
     MkHdr hdr;
     MkProc* opponent_proc;
@@ -236,7 +209,7 @@ struct PuzzleSpacingTable {
     struct PuzzleSpacingChoice choices[15];
 };
 
-extern struct PuzzleMovesEngineView g_pz_fighters_engine;
+extern PuzzleFightersEngine g_pz_fighters_engine;
 int g_pz_cam_already_shaking;
 struct PuzzleProjectile* g_global_projectile;
 extern struct PuzzleSharedAnimations pz_shared_ani;
@@ -649,22 +622,22 @@ float pz_fighter_clear_out_external_forces(void) {
 }
 
 void pz_fighter_allow_continuation(void) {
-    g_pz_fighters_engine.easy_continuation = 0;
-    g_pz_fighters_engine.continuation_allowed = 1;
+    g_pz_fighters_engine.fighter_move.policy_bits.easy_continuation = 0;
+    g_pz_fighters_engine.fighter_move.policy_bits.continuation_allowed = 1;
 }
 
 void pz_fighter_disallow_continuation(void) {
-    g_pz_fighters_engine.continuation_allowed = 0;
-    g_pz_fighters_engine.continuation_blocked = 0;
+    g_pz_fighters_engine.fighter_move.policy_bits.continuation_allowed = 0;
+    g_pz_fighters_engine.fighter_move.runtime_bits.enabled = 0;
 }
 
 void pz_fighter_reset_continuation(void) {
-    g_pz_fighters_engine.continuation_reset = 0;
+    g_pz_fighters_engine.fighter_move.policy_bits.continuation_pending = 0;
 }
 
 void pz_fighter_allow_easy_continuation(void) {
-    g_pz_fighters_engine.easy_continuation = 1;
-    g_pz_fighters_engine.continuation_allowed = 1;
+    g_pz_fighters_engine.fighter_move.policy_bits.easy_continuation = 1;
+    g_pz_fighters_engine.fighter_move.policy_bits.continuation_allowed = 1;
 }
 
 static float p_present_control(void) {
@@ -1728,8 +1701,8 @@ static float pz_fighter_peak(void) {
     blend_to_ani(pz_shared_ani.peak, flags, 0.1f);
     set_ani_speed(1.1f);
     ani_to_frame_x(46.0f);
-    g_pz_fighters_engine.peak_active = 1;
-    g_pz_fighters_engine.peak_mode = 2;
+    g_pz_fighters_engine.fighter_move.has_followup = 1;
+    g_pz_fighters_engine.fighter_move.mode = 2;
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.1f);
     aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
@@ -2959,7 +2932,7 @@ static float pz_fighter_jax_attack_start(void) {
         ani_1_frame();
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
-        if (g_pz_fighters_engine.special_move_4) {
+        if (g_pz_fighters_engine.fighter_move.policy_bits.special_move_4) {
             break;
         }
         ticks++;
@@ -2981,7 +2954,7 @@ static float pz_fighter_jax_attack_start(void) {
         ani_1_frame();
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
-        if (g_pz_fighters_engine.special_move_5) {
+        if (g_pz_fighters_engine.fighter_move.policy_bits.special_move_5) {
             break;
         }
         ticks++;
@@ -3099,82 +3072,82 @@ int pz_finish_him_request(void) {
 float pz_fighter_perform_special_move(void) {
     switch (plyr_pdata->character_id) {
     case 0:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
+        if (g_pz_fighters_engine.fighter_move.script_move == 1) {
             aproc->vtbl->jump_sleep(pz_fighter_scorpion_attack_start, 0.0f);
             return 0.0f;
         }
         break;
     case 12:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
+        if (g_pz_fighters_engine.fighter_move.script_move == 1) {
             active_cmdscript->unk28 = 0x12;
             aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 19:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
+        if (g_pz_fighters_engine.fighter_move.script_move == 1) {
             aproc->vtbl->jump_sleep(pz_fighter_jax_attack_start, 0.0f);
             return 0.0f;
         }
         break;
     case 8:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
+        if (g_pz_fighters_engine.fighter_move.script_move == 1) {
             active_cmdscript->unk28 = 0x11;
             aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 4:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
+        if (g_pz_fighters_engine.fighter_move.script_move == 1) {
             active_cmdscript->unk28 = 0x0F;
             aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 5:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
+        if (g_pz_fighters_engine.fighter_move.script_move == 1) {
             active_cmdscript->unk28 = 0x17;
             aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 10:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
+        if (g_pz_fighters_engine.fighter_move.script_move == 1) {
             active_cmdscript->unk28 = 0x0F;
             aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 1:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
+        if (g_pz_fighters_engine.fighter_move.script_move == 1) {
             active_cmdscript->unk28 = 0x0D;
             aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 3:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
+        if (g_pz_fighters_engine.fighter_move.script_move == 1) {
             active_cmdscript->unk28 = 0x13;
             aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 23:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
+        if (g_pz_fighters_engine.fighter_move.script_move == 1) {
             active_cmdscript->unk28 = 0x18;
             aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 21:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
+        if (g_pz_fighters_engine.fighter_move.script_move == 1) {
             active_cmdscript->unk28 = 0x16;
             aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
         }
         break;
     case 29:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
+        if (g_pz_fighters_engine.fighter_move.script_move == 1) {
             active_cmdscript->unk28 = 0x14;
             aproc->vtbl->jump_sleep(r_call_character_cmo_function, 0.0f);
             return 0.0f;
@@ -3186,7 +3159,7 @@ float pz_fighter_perform_special_move(void) {
     case 9:
     case 11:
     case 33:
-        if (g_pz_fighters_engine.special_move_enabled == 1) {
+        if (g_pz_fighters_engine.fighter_move.script_move == 1) {
             aproc->vtbl->jump_sleep(pz_fighter_jax_attack_start, 0.0f);
             return 0.0f;
         }
@@ -3199,9 +3172,9 @@ float pz_fighter_perform_special_move(void) {
 
 int pz_fighter_should_handle_special_move(unsigned int player, unsigned int move) {
     if (move == 4) {
-        g_pz_fighters_engine.special_move_4 = 1;
+        g_pz_fighters_engine.fighter_move.policy_bits.special_move_4 = 1;
     } else if (move == 5) {
-        g_pz_fighters_engine.special_move_5 = 1;
+        g_pz_fighters_engine.fighter_move.policy_bits.special_move_5 = 1;
     } else if (move == 1) {
         return 1;
     }

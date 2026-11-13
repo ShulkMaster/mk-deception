@@ -52,7 +52,7 @@ struct MkMaterialExt {
 };
 
 struct SpecularGeometryExt {
-    int field_0x00;
+    void* field_0x00;
     int material_index;
 };
 

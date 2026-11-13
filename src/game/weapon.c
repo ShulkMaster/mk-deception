@@ -19,12 +19,6 @@
 #include "game/plyr.h"
 #include "game/moves.h"
 
-typedef struct ImpaleSecondaryObject {
-    MkHdr hdr;
-    char pad08[0x40];
-    float strength;
-} ImpaleSecondaryObject;
-
 typedef struct WeaponCollisionDef {
     float radius;
     Vec offset;
@@ -296,7 +290,7 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
     PlyrPdata* victim;
     MkObj* victim_object;
     MkObj* secondary;
-    ImpaleSecondaryObject* attachment;
+    BoneMatcherState* attachment;
     MkHdr* weapon_hdr;
 
     definition = weapon->field_5C;
@@ -330,9 +324,9 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
                     &impale->child_offset, &impale->rotation, 0) != 0) {
                 RESOLVE_WEAPON_LATCH(
                     secondary, &victim->impaled_item_a_secondary);
-                attachment = (ImpaleSecondaryObject*)secondary;
+                attachment = (BoneMatcherState*)secondary;
                 if (attachment != 0) {
-                    attachment->strength = 5.0f;
+                    attachment->blend_ticks = 5.0f;
                 }
                 start_gusher(
                     heart_beat, victim, victim_object,
@@ -362,9 +356,9 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
                         &impale->child_offset, &impale->rotation, 0) != 0) {
                     RESOLVE_WEAPON_LATCH(
                         secondary, &victim->impaled_item_a_secondary);
-                    attachment = (ImpaleSecondaryObject*)secondary;
+                    attachment = (BoneMatcherState*)secondary;
                     if (attachment != 0) {
-                        attachment->strength = 5.0f;
+                        attachment->blend_ticks = 5.0f;
                     }
                     start_gusher(
                         heart_beat, victim, victim_object,

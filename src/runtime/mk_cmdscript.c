@@ -20,16 +20,6 @@ static float p_run_one_shot_script(void);
 
 typedef void (*ScriptBuiltinFn)(void);
 
-
-struct CmdScriptProcVtable {
-    void* prefix[6];
-    void (*sleep)(void);
-    void* stack_ops[2];
-    MkProcJumpSleepFn jump_sleep;
-};
-
-#define CMDSCRIPT_PROC_VTBL(proc_) ((struct CmdScriptProcVtable*)(proc_)->vtbl)
-
 static void _set_bit_field(void);
 static void _get_bit_field(void);
 static void _copy_stream_to_address(void);
@@ -221,7 +211,7 @@ void one_shot_script_func(ScriptSlot* script, unsigned int function, int wait) {
             one = kOne;
             while (MK_HDR_LIVE(proc, instance) != 0) {
                 _mkproc_sleep_ticks = one;
-                CMDSCRIPT_PROC_VTBL(aproc)->sleep();
+                aproc->vtbl->sleep();
             }
         }
     }
@@ -601,10 +591,10 @@ void cmdscript_set_parameters(CmdScript* script, unsigned int count, ...) {
 float call_player_script_function(ScriptSlot* slot) {
     execute_cmdscript(slot);
     if (active_cmdscript->continuation != 0) {
-        CMDSCRIPT_PROC_VTBL(aproc)->jump_sleep(active_cmdscript->continuation, kZero);
+        aproc->vtbl->jump_sleep(active_cmdscript->continuation, kZero);
         return kZero;
     } else {
-        CMDSCRIPT_PROC_VTBL(aproc)->jump_sleep(j_exit, kZero);
+        aproc->vtbl->jump_sleep(j_exit, kZero);
         return kZero;
     }
 }

@@ -46,16 +46,9 @@
 
 #define LOAD_PLYR_MODEL_PID 0x9032
 
-struct LoadPlyrFlagBits {
-    unsigned char alternate : 1;
-    unsigned char alternate_costume : 1;
-    unsigned char pad_bits : 6;
-    unsigned char pad_bytes[3];
-};
-
 union LoadPlyrFlags {
     unsigned int word;
-    struct LoadPlyrFlagBits bits;
+    PlyrInfoFlags14 bits;
 };
 
 struct LoadPlyrModelPdata {
@@ -1161,7 +1154,7 @@ static float p_load_plyr_model_async(void) {
     } else {
         language = 7;
     }
-    alternate = flags.bits.alternate;
+    alternate = flags.bits.alternate_costume;
     if (alternate != 0) {
         model_files =
             global_player_data[char_id].alternate_model_files;
@@ -1180,12 +1173,12 @@ static float p_load_plyr_model_async(void) {
     data = get_data_table(
         script, script->table_count);
     if (alternate != 0) {
-        if (flags.bits.alternate_costume) {
+        if (flags.bits.alternate_palette) {
             art_section = data->alternate_palette_art_section;
         } else {
             art_section = data->alternate_art_section;
         }
-    } else if (flags.bits.alternate_costume) {
+    } else if (flags.bits.alternate_palette) {
         art_section = data->palette_art_section;
     } else {
         art_section = data->primary_art_section;

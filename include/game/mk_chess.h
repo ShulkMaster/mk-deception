@@ -199,7 +199,7 @@ typedef struct ChessBoardRow {
 } ChessBoardRow; /* 0x208 */
 
 typedef struct ChessSideHudState {
-    char pad00[8];
+    MkHdr hdr;
     union {
         struct {
             unsigned char flags;
@@ -280,7 +280,7 @@ typedef struct ChessSideControllerFlags {
 } ChessSideControllerFlags;
 
 typedef struct ChessSideController {
-    char pad00[8];
+    MkHdr hdr;
     union {
         struct { ChessSideControllerFlags flags; char pad09[3]; };
         unsigned int flags_word;
@@ -303,7 +303,7 @@ typedef struct ChessSaveInputFlags {
 } ChessSaveInputFlags;
 
 typedef struct ChessSpellState {
-    char pad00[8];
+    MkHdr hdr;
     unsigned int side; /* +0x08 */
     int state; /* +0x0C */
     char pad10[8];

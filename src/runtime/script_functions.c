@@ -672,17 +672,7 @@ struct ScriptExitArgs {
 #define CURRENT_PLAYER_PDATA (plyr_pdata)
 #define ACTIVE_SCRIPT_EXIT ((struct ScriptExitView*)active_cmdscript)
 
-struct ScriptObjectRef {
-    MkHdr* object;
-    unsigned int instance;
-};
 
-struct ScriptGroundObjView {
-    MkHdr header;
-    unsigned char flags08;
-    unsigned char launched : 1;
-    unsigned char : 7;
-};
 
 struct ScriptActiveState {
     char pad00[8];
@@ -1562,8 +1552,8 @@ static void _get_limb_obj(void) {
     ((struct ScriptPointerResult*)active_cmdscript)->value = object;
 }
 
-static inline MkHdr* script_live_item_object(const struct ScriptObjectRef* ref) {
-    MkHdr* object = ref->object;
+static inline MkHdr* script_live_item_object(const MkHdrLatch* ref) {
+    MkHdr* object = ref->hdr;
 
     if (object != 0) {
         return object->instance == ref->instance ? object : 0;
@@ -1573,15 +1563,15 @@ static inline MkHdr* script_live_item_object(const struct ScriptObjectRef* ref) 
 
 static void _destroy_item_obj(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
-    struct ScriptObjectRef* ref = args->slots[0].pointer;
+    MkHdrLatch* ref = args->slots[0].pointer;
 
     if (script_live_item_object(ref) != 0) {
-        MkHdr* object = ref->object;
+        MkHdr* object = ref->hdr;
         if (object->instance != 0) {
             MkHdrVtable* vtable = object->typed_vtbl;
             vtable->destroy(object);
         }
-        ref->object = 0;
+        ref->hdr = 0;
         ref->instance = 0;
     }
 }
@@ -1596,8 +1586,8 @@ static void _init_item_obj(void) {
 
 static void _ck_item_obj(void) {
     struct ScriptRawArgs* args = (struct ScriptRawArgs*)current_args;
-    struct ScriptObjectRef* ref = args->slots[0].pointer;
-    MkHdr* object = MK_LIVE(ref->object, ref->instance);
+    MkHdrLatch* ref = args->slots[0].pointer;
+    MkHdr* object = MK_LIVE(ref->hdr, ref->instance);
 
     ((struct ScriptPointerResult*)active_cmdscript)->value = object;
 }
@@ -2222,7 +2212,7 @@ static void _miss_branch(void) {
 }
 
 static void _disable_grounding(void) {
-    ((struct ScriptGroundObjView*)plyr_obj)->launched = 0;
+    plyr_obj->flags_09_bits.launched = 0;
 }
 
 static void _set_player_hiframe(void) {
@@ -2331,15 +2321,15 @@ static void _glitch_to_ani(void) {
 }
 
 static void _enable_grounding(void) {
-    struct ScriptGroundObjView* player;
+    MkObj* player;
     MkHdr* object;
 
-    ((struct ScriptGroundObjView*)plyr_obj)->launched = 1;
-    player = (struct ScriptGroundObjView*)plyr_obj;
-    object = player != 0 ? as_mkhdr((MkHdr*)player) : 0;
+    plyr_obj->flags_09_bits.launched = 1;
+    player = plyr_obj;
+    object = player != 0 ? as_mkhdr(&player->hdr) : 0;
     update_bone_hierarchy(object);
-    player = (struct ScriptGroundObjView*)plyr_obj;
-    object = player != 0 ? as_mkhdr((MkHdr*)player) : 0;
+    player = plyr_obj;
+    object = player != 0 ? as_mkhdr(&player->hdr) : 0;
     ground_me(object);
 }
 

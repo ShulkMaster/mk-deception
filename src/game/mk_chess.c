@@ -12559,7 +12559,7 @@ static float p_mk_chess_continue(void) {
     mk_chess_pdata->loaded_library_count = 0;
     mk_chess_pdata->sides[0] = (ChessSideState*)get_mkpdata_generic(sizeof(ChessSideState));
     mk_chess_pdata->sides[1] = (ChessSideState*)get_mkpdata_generic(sizeof(ChessSideState));
-    mk_chess_pdata->board = get_mem(0x1454);
+    mk_chess_pdata->board = get_mem(sizeof(ChessBoardWithMonitor));
     for (index = 0; index < 17; index++) {
         mk_chess_pdata->sides[0]->pieces[index] = get_mem(sizeof(ChessPiece));
         mk_chess_pdata->sides[1]->pieces[index] = get_mem(sizeof(ChessPiece));

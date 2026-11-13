@@ -10,6 +10,7 @@
 #include "runtime/mk_fileinfo.h"
 #include "runtime/mk_particle.h"
 #include "runtime/mk_pebble.h"
+#include "runtime/bone_matcher.h"
 #include "runtime/asset.h"
 #include "runtime/cstring.h"
 #include "runtime/mk_pdata.h"
@@ -95,7 +96,7 @@ typedef struct FatalityState {
     MkObj* victim_object;
     MkProc* victim_proc;
     MkProc* attacker_proc;
-    struct FatalityAnimationView* animation;
+    AnimPdata* animation;
     PlyrPdata* opponent;
     int mirror_camera;
     union {
@@ -114,11 +115,6 @@ typedef struct FatalityState {
     unsigned char resetAC[10];
     char padB6[0x1E];
 } FatalityState;
-
-typedef struct FatalityAnimationView {
-    char pad00[0xB4];
-    float movement_scale;
-} FatalityAnimationView;
 
 typedef struct FatalityObjectLatch {
     char pad00[8];
@@ -144,25 +140,6 @@ typedef struct FatalityObjectMatcherPdata {
     unsigned int destination_instance;
     float blend;
 } FatalityObjectMatcherPdata;
-
-typedef union FatalityBoneMatcherFlags {
-    unsigned char value;
-    struct {
-        unsigned char inactive : 1;
-        unsigned char copy_bone_matrix : 1;
-        unsigned char copy_clone_matrix : 1;
-        unsigned char preserve_bone_matrix : 1;
-        unsigned char copy_parent_angles : 1;
-        unsigned char flip_parent_angle_y : 1;
-        unsigned char release_parent_weight : 1;
-        unsigned char blend_child_transform : 1;
-    } bits;
-} FatalityBoneMatcherFlags;
-
-typedef struct FatalityBoneMatcher {
-    MkHdr hdr;
-    FatalityBoneMatcherFlags flags;
-} FatalityBoneMatcher;
 
 typedef struct FatalityGroundBouncePdata {
     MkHdr hdr;
@@ -289,32 +266,13 @@ typedef struct FatalityWeaponReflectionSet {
     unsigned int secondary_instance;
 } FatalityWeaponReflectionSet;
 
-typedef struct FatalityWeaponAttachment {
-    MkHdr hdr;
-    MkSobjFlags08 flags08;
-    char pad09[7];
-    MkHdr* bound_object;
-    unsigned int bound_instance;
-    int bone_id;
-    Vec position;
-    char pad28[0x14];
-    Vec velocity;
-} FatalityWeaponAttachment;
-
-typedef struct FatalityIceChunkPebble {
-    MkHdr hdr;
-    RwMatrix* matrices;
-    char pad0C[4];
-    int matrix_count;
-} FatalityIceChunkPebble;
-
 typedef struct FatalityIceChunkPdata {
     MkHdr hdr;
     MkObj* owner;
     unsigned int owner_instance;
     MkObj* model;
     unsigned int model_instance;
-    FatalityIceChunkPebble* chunks[9];
+    PebbleData* chunks[9];
 } FatalityIceChunkPdata;
 
 typedef struct FatalityIceChunkMap {
@@ -358,11 +316,6 @@ typedef struct FatalityEmitterBind {
     int bone_id;
     Vec position;
 } FatalityEmitterBind;
-
-typedef struct FatalityObjectGroupView {
-    char pad00[0x2C];
-    int group;
-} FatalityObjectGroupView;
 
 typedef struct FatalityBgndScriptView {
     char pad00[8];
@@ -485,10 +438,7 @@ static void sindel_load_projectile_obj_for_sonic_waves(
     FatalitySonicWavePdata* data);
 void update_mkobj_pdata(MkObj* object, MkHdr* pdata);
 void bone_matcher_parent_set_offset(
-    FatalityBoneMatcher* matcher, Vec* offset);
-FatalityBoneMatcher* start_bone_matcher(
-    MkObj* parent, int parent_bone, MkObj* child, int child_bone,
-    float blend_ticks);
+    BoneMatcherState* matcher, Vec* offset);
 void obj_set_bone_collapse_flag(MkObj* object, int bone_id);
 void glitch_to_stance(float blend);
 void face_opponent_now(void);
@@ -594,7 +544,7 @@ void subzero_start_ice_chunks(PlyrPdata* player) {
     MkHdr* process;
     MkObj* model;
     MkSobj* subobject;
-    FatalityIceChunkPebble* chunk;
+    PebbleData* chunk;
     RwRGBA color;
     int index;
 
@@ -614,8 +564,7 @@ void subzero_start_ice_chunks(PlyrPdata* player) {
             data->model = model;
             data->model_instance = model->hdr.instance;
             insert_fgnd_mkobj(model);
-            ((FatalityObjectGroupView*)model)->group =
-                ((FatalityObjectGroupView*)plyr_obj)->group;
+            model->light_flags = plyr_obj->light_flags;
             mk_insert(&model->hdr, &plyr_obj->child_list);
             color.red = 0xFF;
             color.green = 0xFF;
@@ -628,7 +577,7 @@ void subzero_start_ice_chunks(PlyrPdata* player) {
                     obj_find_sobj_by_id(
                         model, sz_hk_icechunk_map[index].subobject_id);
                 if (subobject != 0) {
-                    chunk = (FatalityIceChunkPebble*)create_pebble_userdata(
+                    chunk = create_pebble_userdata(
                         subobject,
                         sz_hk_icechunk_map[index].pebble_id, 0);
                     if (chunk != 0) {
@@ -672,7 +621,7 @@ static float p_subzero_ice_chunk(void) {
     int bone_index;
     MKMATRIX rotation;
     Vec offset;
-    FatalityIceChunkPebble* chunk;
+    PebbleData* chunk;
     RwMatrix* limb_matrix;
     RwMatrix* chunk_matrix;
     int fix_index;
@@ -686,12 +635,12 @@ static float p_subzero_ice_chunk(void) {
         fix_index = 0;
         for (chunk_index = 0; chunk_index < 9; chunk_index++) {
             chunk = data->chunks[chunk_index];
-            if (chunk->matrix_count !=
+            if (chunk->active_count !=
                 sz_hk_icechunk_map[chunk_index].pebble_id) {
                 goto cleanup;
             }
             for (matrix_index = 0;
-                 matrix_index < chunk->matrix_count;
+                 matrix_index < chunk->active_count;
                  matrix_index++) {
                 bone_index = sz_hk_icechunk_map_array[fix_index];
                 if (owner == g_game_info.plyr0.slot.mirror_a) {
@@ -705,7 +654,7 @@ static float p_subzero_ice_chunk(void) {
                 if (limb == 0) {
                     goto cleanup;
                 }
-                chunk_matrix = &chunk->matrices[matrix_index];
+                chunk_matrix = &chunk->pebbles[matrix_index].matrix;
                 limb_matrix = limb->field_24;
                 YXZ_angles_to_MKMATRIX(
                     &sz_ice_chunk_ang_fix[bone_index], &rotation);
@@ -1784,7 +1733,7 @@ MkObj* fatality_boraicho_get_jug(Vec* angles, Vec* offset) {
     const int* bone_tags;
     MkObj* jug;
     RpMaterial* material;
-    FatalityBoneMatcher* matcher;
+    BoneMatcherState* matcher;
     int player;
     int parent_bone;
 
@@ -1853,12 +1802,12 @@ MkObj* fatality_boraicho_get_jug(Vec* angles, Vec* offset) {
             0,
             0.0f);
         fatality_state.range34.fields34.bone_matcher = &matcher->hdr;
-        matcher->flags.bits.copy_bone_matrix = 1;
+        matcher->flags_08.bits.copy_bone_matrix = 1;
         YXZ_angles_to_MKMATRIX(
             angles, jug->bones[0]->parent_matrix);
         YXZ_angles_to_quat(angles, &jug->bones[0]->rotation);
         bone_matcher_parent_set_offset(
-            (FatalityBoneMatcher*)fatality_state.range34.fields34.bone_matcher,
+            (BoneMatcherState*)fatality_state.range34.fields34.bone_matcher,
             offset);
     }
     return jug;
@@ -2936,9 +2885,9 @@ void bone_matcher_reset_dest_mat_rot(MkObj* object, int bone_index) {
 }
 
 void bone_matcher_set_ang_pos(
-    FatalityBoneMatcher* matcher, MkObj* object, int bone_index,
+    BoneMatcherState* matcher, MkObj* object, int bone_index,
     const Vec* angles, Vec* offset, int copy_bone_matrix) {
-    matcher->flags.bits.copy_bone_matrix = copy_bone_matrix;
+    matcher->flags_08.bits.copy_bone_matrix = copy_bone_matrix;
     if (angles != 0) {
         YXZ_angles_to_MKMATRIX(
             angles,
@@ -2972,18 +2921,18 @@ done:
     return object;
 }
 
-FatalityWeaponAttachment* regrab_weapon(
-    int secondary, MkObj* object, MkHdr* bound_object, int bone_id,
+BoneMatcherState* regrab_weapon(
+    int secondary, MkObj* object, MkObj* bound_object, int bone_id,
     const Vec* angles, const Vec* scale, const Vec* position) {
-    FatalityWeaponAttachment* attachment;
+    BoneMatcherState* attachment;
     MkBone* bone;
 
     if (secondary == 0) {
-        attachment = (FatalityWeaponAttachment*)MK_HDR_LIVE(
+        attachment = (BoneMatcherState*)MK_HDR_LIVE(
             plyr_pdata->mirror_slots->weapon[0].secondary.obj,
             plyr_pdata->mirror_slots->weapon[0].secondary.instance);
     } else {
-        attachment = (FatalityWeaponAttachment*)MK_HDR_LIVE(
+        attachment = (BoneMatcherState*)MK_HDR_LIVE(
             plyr_pdata->mirror_slots->weapon[1].secondary.obj,
             plyr_pdata->mirror_slots->weapon[1].secondary.instance);
     }
@@ -3005,18 +2954,18 @@ FatalityWeaponAttachment* regrab_weapon(
             object->flags_08_bits.scale_active = 1;
         }
         if (position != 0) {
-            attachment->position.x = position->x;
-            attachment->position.y = position->y;
-            attachment->position.z = position->z;
-            attachment->velocity.z = 0.0f;
-            attachment->velocity.y = 0.0f;
-            attachment->velocity.x = 0.0f;
+            attachment->parent_offset.x = position->x;
+            attachment->parent_offset.y = position->y;
+            attachment->parent_offset.z = position->z;
+            attachment->child_offset.z = 0.0f;
+            attachment->child_offset.y = 0.0f;
+            attachment->child_offset.x = 0.0f;
         }
-        attachment->bound_object = bound_object;
-        attachment->bound_instance = bound_object->instance;
-        attachment->bone_id = bone_id;
-        attachment->flags08.bit6 = 1;
-        attachment->flags08.bit0 = 0;
+        attachment->parent_obj = bound_object;
+        attachment->parent_instance = bound_object->hdr.instance;
+        attachment->parent_bid = bone_id;
+        attachment->flags_08.bits.copy_bone_matrix = 1;
+        attachment->flags_08.bits.blend_child_transform = 0;
     }
     return attachment;
 }
@@ -3256,7 +3205,7 @@ int fatality_check_distance(unsigned int action) {
 
 void fatality_release_other_player(void) {
     release_other_player();
-    fatality_state.animation->movement_scale = 1.0f;
+    fatality_state.animation->hand_transition = 1.0f;
     his_obj->flags_09_bits.launched = 0;
     his_obj->flags_09_bits.bit4 = 0;
     his_obj->flags_09_bits.head_tracking = 0;
@@ -3372,7 +3321,7 @@ static void run_fatality_sequence(
 
     FATALITY_SLEEP(1.0f);
     release_other_player();
-    fatality_state.animation->movement_scale = 1.0f;
+    fatality_state.animation->hand_transition = 1.0f;
     his_obj->flags_09_bits.launched = 0;
     his_obj->flags_09_bits.bit4 = 0;
     his_obj->flags_09_bits.head_tracking = 0;
@@ -3489,7 +3438,7 @@ static int init_fatality_world(void) {
     fatality_state.victim_proc = process;
     process = MK_HDR_LIVE(his_pdata->anim_proc, his_pdata->anim_proc_instance);
     fatality_state.attacker_proc = process;
-    fatality_state.animation = (FatalityAnimationView*)pdata_of_proc(process);
+    fatality_state.animation = (AnimPdata*)pdata_of_proc(process);
     fatality_state.opponent = plyr_pdata->his_plyr_pdata;
     memset(fatality_state.range34.reset34, 0, 10);
     memset(fatality_state.reset84, 0, 10);

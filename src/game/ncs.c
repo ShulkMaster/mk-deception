@@ -8,6 +8,7 @@
 #include "libmkparticle/fields.h"
 #include "libmkparticle/particle.h"
 #include "runtime/anim_pdata.h"
+#include "runtime/bone_matcher.h"
 #include "runtime/anim_api.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_obj_bone.h"
@@ -45,18 +46,6 @@ static void trigger_blood_glops(
 MkObj* obj_sever_limb(
     MkObj* object, int limb, Vec* limb_velocities, int include_children);
 
-
-struct NcsBoneMatcher {
-    MkHdr hdr;
-    unsigned char inactive : 1;
-    unsigned char copy_bone_matrix : 1;
-    unsigned char flags_low : 6;
-    char pad09[7];
-    MkObj* parent;
-    unsigned int parent_instance;
-    char pad18[0x2C];
-    float blend;
-};
 
 struct NcsLimbSet;
 
@@ -128,7 +117,7 @@ struct SpearProcPdata {
     PlyrPdata* owner;
     MkObj* spear_object;
     unsigned int spear_object_instance;
-    struct NcsBoneMatcher* bonematcher;
+    BoneMatcherState* bonematcher;
     MkHdr* bound_object;
     unsigned int bound_object_instance;
     int field_34;
@@ -397,9 +386,6 @@ void mkobj_get_matrix_right(void* obj, void* out);
 void* limb_sever_find_limbset(PlyrInfo* player);
 void pz_fighter_reaction_xfer_him(int reaction);
 int reaction_xfer_him(int reaction, float rate, int strength);
-struct NcsBoneMatcher* start_bone_matcher(
-    MkObj* parent, int parent_bone, MkObj* child, int child_bone,
-    float blend_ticks);
 void plyr_aux_weapon_release(PlyrPdata* player);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
 MslSoundHandle random_hit(int group);
@@ -2389,14 +2375,14 @@ void insert_mkobj_spearproc_parentobjitem(MkObj* parent, MkProc* proc) {
 
     pdata = (struct SpearProcPdata*)pdata_of_proc(proc);
     if (pdata != 0) {
-        pdata->bonematcher->parent = parent;
+        pdata->bonematcher->parent_obj = parent;
         pdata->bonematcher->parent_instance = parent->hdr.instance;
     }
 }
 
 void destroy_spearproc_bonematcher(MkProc* proc) {
     struct SpearProcPdata* pdata;
-    struct NcsBoneMatcher* matcher;
+    BoneMatcherState* matcher;
 
     pdata = (struct SpearProcPdata*)pdata_of_proc(proc);
     if (pdata != 0) {
@@ -2966,13 +2952,13 @@ static float p_sc_spear2(void) {
             return 0.0f;
         }
         if (!pdata_sc_spear->flag_bits.no_hit_reaction) {
-            pdata_sc_spear->bonematcher->blend = 0.4f;
+            pdata_sc_spear->bonematcher->child_offset.z = 0.4f;
             (aproc->vtbl)->jump_sleep(
                 p_sc_spear3_pre, 25.0f);
             return 25.0f;
         }
-        pdata_sc_spear->bonematcher->blend = 0.25f;
-        pdata_sc_spear->bonematcher->copy_bone_matrix = 1;
+        pdata_sc_spear->bonematcher->child_offset.z = 0.25f;
+        pdata_sc_spear->bonematcher->flags_08.bits.copy_bone_matrix = 1;
         (aproc->vtbl)->jump_sleep(
             player_sleep_forever, 1.0f);
         return 1.0f;

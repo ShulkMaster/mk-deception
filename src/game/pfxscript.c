@@ -271,13 +271,6 @@ struct PfxBankLoadRow {
     int effect_count;
 };
 
-typedef void (*PfxBankDestroyFn)(MkHdr* bank);
-
-struct PfxBankVtablePrefix {
-    void* reserved[4];
-    PfxBankDestroyFn destroy;
-};
-
 struct PfxBank;
 
 struct PfxBankLatch {
@@ -2878,9 +2871,9 @@ void fxbanks_unload_by_owner(unsigned int owner_flags) {
         bank = MK_HDR_LIVE(banks[index].bank, banks[index].bank_instance);
         if (bank != 0 && (bank->owner_flags & owner_flags) != 0) {
             if (bank->hdr.instance != 0U) {
-                struct PfxBankVtablePrefix* vtbl;
+                MkHdrVtable* vtbl;
 
-                vtbl = (struct PfxBankVtablePrefix*)bank->hdr.vtbl;
+                vtbl = bank->hdr.typed_vtbl;
                 vtbl->destroy(&bank->hdr);
             }
             banks[index].bank = 0;
@@ -2890,10 +2883,10 @@ void fxbanks_unload_by_owner(unsigned int owner_flags) {
 }
 
 static inline void bank_destroy(MkHdr* bank) {
-    struct PfxBankVtablePrefix* vtbl;
+    MkHdrVtable* vtbl;
 
     if (bank->instance != 0U) {
-        vtbl = (struct PfxBankVtablePrefix*)bank->vtbl;
+        vtbl = bank->typed_vtbl;
         vtbl->destroy(bank);
     }
 }

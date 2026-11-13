@@ -4,6 +4,7 @@
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_vtbl.h"
 #include "game/pz_fighters.h"
+#include "game/bgnd.h"
 #include "game/game_info.h"
 #include "game/plyr_globals.h"
 #include "game/ejb.h"
@@ -39,12 +40,6 @@ struct FirstMoveMadeTable {
 union PuzzleFloatBits {
     float value;
     unsigned int bits;
-};
-
-struct PuzzleEffectBankContext {
-    int slot;
-    int field_04;
-    int field_08;
 };
 
 typedef void (*PuzzleObjectArrivalFn)(int x, int y);
@@ -109,8 +104,7 @@ static int pz_fighters_idle_process(void);
 static float pz_fighters_handle_next_pending_move_simplified(void);
 static void pz_fighter_calculate_start_pos(void);
 static float p_puzzle_fighter_master(void);
-void load_effect_bank_with_context(
-    char* name, struct PuzzleEffectBankContext* context);
+void load_effect_bank_with_context(char* name, LoadBgndCtx* context);
 float pz_fighter_exit(void);
 float p_plyr_pz_fighter_entry(void);
 float pz_fighter_dizzy(void);
@@ -415,7 +409,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
         break;
     case 1:
     {
-        struct PuzzleEffectBankContext effect_context;
+        LoadBgndCtx effect_context;
         unsigned int index;
 
         g_pz_fighters_engine.balance = 0.0f;
@@ -474,8 +468,8 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
         g_pz_fighters_engine.fatality_objects[0]->flags_08_bits.airborne = 1;
         insert_fgnd_mkobj(g_pz_fighters_engine.fatality_objects[0]);
         hide_obj(g_pz_fighters_engine.fatality_objects[0]);
-        effect_context.slot = 0x70038;
-        effect_context.field_04 = 0;
+        effect_context.art_id = 0x70038;
+        effect_context.bgnd_obj = 0;
         effect_context.field_08 = 0;
         load_effect_bank_with_context("pz_mini_fx.mko", &effect_context);
 
@@ -916,7 +910,7 @@ check_continuation:
         g_pz_fighters_engine.fighter_move.runtime_bits.enabled == 1 &&
         (event_type == 0 || event_type == 1) &&
         (priority > 1 || move == 1 ||
-         g_pz_fighters_engine.fighter_move.policy_bits.bit1)) {
+         g_pz_fighters_engine.fighter_move.policy_bits.easy_continuation)) {
         return 1;
     }
     return 0;
@@ -937,7 +931,7 @@ static void pz_fighter_fight_request(
     if (continuation == 1) {
         g_pz_fighters_engine.fighter_move.continuation_move = move;
         g_pz_fighters_engine.fighter_move.continuation_priority = priority;
-        g_pz_fighters_engine.fighter_move.policy_bits.bit2 = 1;
+        g_pz_fighters_engine.fighter_move.policy_bits.continuation_pending = 1;
         return;
     }
 
@@ -2813,7 +2807,7 @@ void pz_fighter_attack(
     } else {
         g_pz_fighters_engine.fighter_move.has_followup = 1;
     }
-    if (g_pz_fighters_engine.fighter_move.policy_bits.distance_reaction) {
+    if (g_pz_fighters_engine.fighter_move.policy_bits.continuation_allowed) {
         g_pz_fighters_engine.fighter_move.runtime_bits.enabled = 1;
     } else {
         g_pz_fighters_engine.fighter_move.runtime_bits.enabled = 0;

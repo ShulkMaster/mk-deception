@@ -585,19 +585,6 @@ struct MonkStateData {
     MkProcEntryFn control_proc;
 };
 
-typedef struct KonquestDestroyable KonquestDestroyable;
-typedef int (*KonquestDestroyFn)(KonquestDestroyable* object);
-
-struct KonquestDestroyVtable {
-    void* reserved[4];
-    KonquestDestroyFn destroy;
-};
-
-struct KonquestDestroyable {
-    struct KonquestDestroyVtable* vtbl;
-    unsigned int instance;
-};
-
 struct KonquestObject {
     MkHdr hdr;
     int uid;
@@ -605,13 +592,13 @@ struct KonquestObject {
     MkPtr* list_18;
     char pad1C[0x30];
     MkPtr* list_4C;
-    KonquestDestroyable* owned_object;
+    MkHdr* owned_object;
 };
 
 struct KonquestSobj {
     MkHdr hdr;
     char pad08[0x40];
-    KonquestDestroyable* owned_object;
+    MkHdr* owned_object;
     unsigned int owned_object_instance;
 };
 
@@ -1032,13 +1019,6 @@ struct KonquestDoorPdata {
     int remain_open;
     KonquestChildObject* door;
     int play_sound;
-};
-
-struct KonquestAttachedSound {
-    MkHdr hdr;
-    char pad08[0x24];
-    int enabled;
-    int uid;
 };
 
 struct KonquestTile {
@@ -4156,13 +4136,13 @@ void attach_sound_to_object_by_uid(
 }
 
 void enable_attached_sound_by_uid(int uid, int enabled) {
-    struct KonquestAttachedSound* sound;
+    TrackedSound* sound;
     MkPtr* link;
 
     if (konquest_has_list(&konquest_pdata->attached_sounds)) {
         link = konquest_pdata->attached_sounds;
         while (link != 0) {
-            sound = (struct KonquestAttachedSound*)link->hdr;
+            sound = (TrackedSound*)link->hdr;
             if (link->instance != sound->hdr.instance) {
                 MkPtr* next;
 
@@ -4170,8 +4150,8 @@ void enable_attached_sound_by_uid(int uid, int enabled) {
                 discard_stale_mkptr(link);
                 link = next;
             } else {
-                if (sound->uid == uid) {
-                    sound->enabled = enabled;
+                if (sound->owner_uid == uid) {
+                    sound->tracking_enabled = enabled;
                 }
                 link = link->next;
             }
@@ -7753,9 +7733,9 @@ void change_monk_age(int age) {
 
         if (face_texture != 0) {
             if (grounding->camera_target->face_texture->instance != 0) {
-                ((KonquestDestroyable*)grounding->camera_target->face_texture)
-                    ->vtbl->destroy(
-                        (KonquestDestroyable*)grounding->camera_target
+                ((MkHdr*)grounding->camera_target->face_texture)
+                    ->typed_vtbl->destroy(
+                        (MkHdr*)grounding->camera_target
                             ->face_texture);
             }
             grounding->camera_target->face_texture = 0;
@@ -10331,8 +10311,8 @@ static float p_display_konquest_title(void) {
     }
 
     if (title->instance != 0) {
-        ((KonquestDestroyable*)title)->vtbl->destroy(
-            (KonquestDestroyable*)title);
+        ((MkHdr*)title)->typed_vtbl->destroy(
+            (MkHdr*)title);
     }
     return -1.0f;
 }
@@ -10457,8 +10437,8 @@ static float p_konquest_interaction(void) {
 
         if (current_turn_proc != 0) {
             if (pdata->npc->fields.turn_proc->instance != 0) {
-                ((KonquestDestroyable*)pdata->npc->fields.turn_proc)->vtbl->destroy(
-                    (KonquestDestroyable*)pdata->npc->fields.turn_proc);
+                ((MkHdr*)pdata->npc->fields.turn_proc)->typed_vtbl->destroy(
+                    (MkHdr*)pdata->npc->fields.turn_proc);
             }
             pdata->npc->fields.turn_proc = 0;
             pdata->npc->fields.turn_proc_instance = 0;
@@ -10675,8 +10655,8 @@ void konquest_start_npc_interaction(void) {
     fade = 0;
     fade_proc = find_mkproc_pid(0x822B);
     if (fade_proc != 0 && fade_proc->instance != 0) {
-        ((KonquestDestroyable*)fade_proc)->vtbl->destroy(
-            (KonquestDestroyable*)fade_proc);
+        ((MkHdr*)fade_proc)->typed_vtbl->destroy(
+            (MkHdr*)fade_proc);
     }
     if (_create_mkproc_generic_tinystack(
             0x822B, 0x1F, p_fade_ambient_sounds, sizeof(*fade),
@@ -10821,8 +10801,8 @@ void konquest_end_npc_interaction(void) {
     fade = 0;
     fade_proc = find_mkproc_pid(0x822B);
     if (fade_proc != 0 && fade_proc->instance != 0) {
-        ((KonquestDestroyable*)fade_proc)->vtbl->destroy(
-            (KonquestDestroyable*)fade_proc);
+        ((MkHdr*)fade_proc)->typed_vtbl->destroy(
+            (MkHdr*)fade_proc);
     }
     if (_create_mkproc_generic_tinystack(
             0x822B, 0x1F, p_fade_ambient_sounds, sizeof(*fade),
@@ -10906,8 +10886,8 @@ void konquest_start_npc_nis(void) {
     fade = 0;
     fade_proc = find_mkproc_pid(0x822B);
     if (fade_proc != 0 && fade_proc->instance != 0) {
-        ((KonquestDestroyable*)fade_proc)->vtbl->destroy(
-            (KonquestDestroyable*)fade_proc);
+        ((MkHdr*)fade_proc)->typed_vtbl->destroy(
+            (MkHdr*)fade_proc);
     }
     if (_create_mkproc_generic_tinystack(
             0x822B, 0x1F, p_fade_ambient_sounds, sizeof(*fade),
@@ -10951,8 +10931,8 @@ void konquest_end_npc_nis(void) {
     fade = 0;
     fade_proc = find_mkproc_pid(0x822B);
     if (fade_proc != 0 && fade_proc->instance != 0) {
-        ((KonquestDestroyable*)fade_proc)->vtbl->destroy(
-            (KonquestDestroyable*)fade_proc);
+        ((MkHdr*)fade_proc)->typed_vtbl->destroy(
+            (MkHdr*)fade_proc);
     }
     if (_create_mkproc_generic_tinystack(
             0x822B, 0x1F, p_fade_ambient_sounds, sizeof(*fade),
@@ -12255,8 +12235,8 @@ int spawn_dynamic_pui_at_pos(
         if (source_type == 3) {
             if (position == 0) {
                 if (proc->instance != 0) {
-                    ((KonquestDestroyable*)proc)->vtbl->destroy(
-                        (KonquestDestroyable*)proc);
+                    ((MkHdr*)proc)->typed_vtbl->destroy(
+                        (MkHdr*)proc);
                 }
                 return 0;
             }
@@ -12266,8 +12246,8 @@ int spawn_dynamic_pui_at_pos(
         } else {
             if (source == 0) {
                 if (proc->instance != 0) {
-                    ((KonquestDestroyable*)proc)->vtbl->destroy(
-                        (KonquestDestroyable*)proc);
+                    ((MkHdr*)proc)->typed_vtbl->destroy(
+                        (MkHdr*)proc);
                 }
                 return 0;
             }
@@ -13096,16 +13076,16 @@ static float p_show_koin_award_text(void) {
     icon = MK_LIVE(konquest_pdata->award_art.hdr, konquest_pdata->award_art.instance);
     if (text != 0) {
         if (text->instance != 0) {
-            ((KonquestDestroyable*)text)->vtbl->destroy(
-                (KonquestDestroyable*)text);
+            ((MkHdr*)text)->typed_vtbl->destroy(
+                (MkHdr*)text);
         }
         konquest_pdata->award_text.hdr = 0;
         konquest_pdata->award_text.instance = 0;
     }
     if (icon != 0) {
         if (icon->instance != 0) {
-            ((KonquestDestroyable*)icon)->vtbl->destroy(
-                (KonquestDestroyable*)icon);
+            ((MkHdr*)icon)->typed_vtbl->destroy(
+                (MkHdr*)icon);
         }
         konquest_pdata->award_art.hdr = 0;
         konquest_pdata->award_art.instance = 0;
@@ -15169,7 +15149,7 @@ void create_inventory_image_list(
 }
 
 static void vdestroy_konquest_obj(struct KonquestObject* object) {
-    KonquestDestroyable* owned_object;
+    MkHdr* owned_object;
 
     destroy_list(&object->list_18);
     destroy_list(&object->list_4C);
@@ -15177,7 +15157,7 @@ static void vdestroy_konquest_obj(struct KonquestObject* object) {
     owned_object = object->owned_object;
     if (owned_object != 0) {
         if (owned_object->instance != 0) {
-            owned_object->vtbl->destroy(owned_object);
+            owned_object->typed_vtbl->destroy(owned_object);
         }
         object->owned_object = 0;
     }
@@ -15188,12 +15168,12 @@ static void vdestroy_konquest_obj(struct KonquestObject* object) {
 
 #pragma opt_common_subs off
 static void vdestroy_konquest_sobj(struct KonquestSobj* object) {
-    KonquestDestroyable* owned_object =
+    MkHdr* owned_object =
         MK_LIVE(object->owned_object, object->owned_object_instance);
 
     if (owned_object != 0) {
         if (object->owned_object->instance != 0) {
-            object->owned_object->vtbl->destroy(object->owned_object);
+            object->owned_object->typed_vtbl->destroy(object->owned_object);
         }
         object->owned_object = 0;
         object->owned_object_instance = 0;

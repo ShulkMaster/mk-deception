@@ -10,6 +10,7 @@
 #include "game/pfxscript.h"
 #include "game/pselect.h"
 #include "game/pz_fatality.h"
+#include "game/pz_fighters.h"
 #include "game/controller.h"
 #include "game/game_info.h"
 #include "game/ladder.h"
@@ -698,13 +699,6 @@ struct PuzzleControl {
     int piece_sequence_length;
 };
 
-struct PuzzleFightersEngine {
-    char pad00[0x198];
-    unsigned char startup_enabled : 1;
-    unsigned char pad : 7;
-    char pad199[0x4F];
-};
-
 struct PuzzleMatchContextFlagBits {
     unsigned char matched_latch : 1;
     unsigned char flags_pad : 7;
@@ -753,7 +747,7 @@ int is_pz_net_master;
 int pz_loss_in_a_row;
 int __mini_game_display_ctrl;
 static struct PuzzleControl* puzzle_ctrl;
-extern struct PuzzleFightersEngine g_pz_fighters_engine;
+extern PuzzleFightersEngine g_pz_fighters_engine;
 extern MkFileInfo sec_pz_bgnd_beetlelair;
 extern MkFileInfo sec_pz_bgnd_hellsfoundry;
 extern MkFileInfo sec_pz_bgnd_lukangtomb;
@@ -2095,7 +2089,7 @@ void load_puzzle_champion_screen(void) {
 }
 
 void cleanup_minigame_system(void) {
-    g_pz_fighters_engine.startup_enabled = 0;
+    g_pz_fighters_engine.start_flag_bits.enabled = 0;
     memset(&g_pz_fighters_engine, 0, sizeof(g_pz_fighters_engine));
     cleanup_pz_fatality_stuff();
     puzzle_ctrl = 0;

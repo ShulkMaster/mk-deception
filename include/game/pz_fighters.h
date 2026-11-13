@@ -10,12 +10,12 @@ typedef struct MkProc MkProc;
 
 typedef struct PuzzleAttackPolicyFlags {
     unsigned char bit7 : 1;
-    unsigned char bit6 : 1;
-    unsigned char bit5 : 1;
+    unsigned char special_move_4 : 1; /* bit6 */
+    unsigned char special_move_5 : 1; /* bit5 */
     unsigned char bit4 : 1;
-    unsigned char distance_reaction : 1; /* bit3 */
-    unsigned char bit2 : 1;
-    unsigned char bit1 : 1;
+    unsigned char continuation_allowed : 1; /* bit3 */
+    unsigned char continuation_pending : 1; /* bit2 */
+    unsigned char easy_continuation : 1; /* bit1 */
     unsigned char bit0 : 1;
 } PuzzleAttackPolicyFlags;
 

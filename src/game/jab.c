@@ -6,6 +6,7 @@
 #include "libmkparticle/fields.h"
 #include "libmkparticle/texture_anim.h"
 #include "runtime/mk_pdata.h"
+#include "runtime/bone_matcher.h"
 #include "runtime/mk_particle.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_proc.h"
@@ -143,18 +144,6 @@ union FlashScreenPdataRef {
     struct FlashScreenPdata* flash;
 };
 
-struct JabBoneMatcherState {
-    MkHdr hdr;
-    unsigned char inactive : 1;
-    unsigned char copy_bone_matrix : 1;
-    unsigned char copy_clone_matrix : 1;
-    unsigned char preserve_bone_matrix : 1;
-    unsigned char copy_parent_angles : 1;
-    unsigned char flip_parent_angle_y : 1;
-    unsigned char release_parent_weight : 1;
-    unsigned char blend_child_transform : 1;
-};
-
 struct JabObjectRef {
     MkHdr* object;
     unsigned int instance;
@@ -187,11 +176,8 @@ struct JadeBindPdata {
     int parent_bone;
 };
 
-struct JabBoneMatcherState* start_bone_matcher(
-    MkObj* parent, int parent_bone, MkObj* child, int child_bone,
-    float blend);
 void bone_matcher_parent_set_offset(
-    struct JabBoneMatcherState* matcher, float* offset);
+    BoneMatcherState* matcher, float* offset);
 unsigned int pfxhandle_bgnd_spawn_at_position(
     const char* effect_name, float x, float y, float z);
 static void sh_spawn_grinder_crush_blood(void);
@@ -461,7 +447,7 @@ void jab_destroy_drink_obj_in_hand(void) {
 void jab_attach_drink_obj_to_hand(
     MkObj* drink, float* offset, const Vec* angles) {
     MkObj* player;
-    struct JabBoneMatcherState* matcher;
+    BoneMatcherState* matcher;
 
     player = get_my_plyr_obj();
     drink->light_flags = player->light_flags;
@@ -469,7 +455,7 @@ void jab_attach_drink_obj_to_hand(
     matcher = start_bone_matcher(
         player, 0x19, drink, 0, 0.0f);
     if (matcher != 0) {
-        matcher->copy_bone_matrix = 1;
+        matcher->flags_08.bits.copy_bone_matrix = 1;
         YXZ_angles_to_MKMATRIX(angles, drink->bones[0]->parent_matrix);
         YXZ_angles_to_quat(angles, &drink->bones[0]->rotation);
         bone_matcher_parent_set_offset(matcher, offset);

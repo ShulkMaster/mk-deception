@@ -5,7 +5,7 @@ typedef struct Vec Vec;
 
 struct MkObj;
 struct MkHdr;
-struct FatalityWeaponAttachment;
+struct BoneMatcherState;
 struct FatalityRadiusCheck;
 struct FatalityEmitterBind;
 
@@ -13,8 +13,8 @@ struct FatalityEmitterBind;
 extern "C" {
 #endif
 
-struct FatalityWeaponAttachment* regrab_weapon(
-    int secondary, struct MkObj* object, struct MkHdr* bound_object, int bone_id,
+struct BoneMatcherState* regrab_weapon(
+    int secondary, struct MkObj* object, struct MkObj* bound_object, int bone_id,
     const Vec* angles, const Vec* scale, const Vec* position);
 int fat_bgnd_char_setup_radius_check(struct FatalityRadiusCheck* check);
 int fatality_check_distance(unsigned int action);
