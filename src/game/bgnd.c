@@ -6803,13 +6803,13 @@ void bgnd_pebble_set_current_info(unsigned int field, float value) {
     case 2:
         g_current_pebble->velocity.z = value;
         break;
-    case 3:
+    case 9:
         g_current_pebble->position.x = value;
         break;
-    case 4:
+    case 10:
         g_current_pebble->position.y = value;
         break;
-    case 5:
+    case 11:
         g_current_pebble->position.z = value;
         break;
     case 6:
@@ -6821,22 +6821,22 @@ void bgnd_pebble_set_current_info(unsigned int field, float value) {
     case 8:
         g_current_pebble->angles.z = value;
         break;
-    case 9:
+    case 12:
         g_current_pebble->scale.x = value;
         break;
-    case 10:
+    case 13:
         g_current_pebble->scale.y = value;
         break;
-    case 11:
+    case 14:
         g_current_pebble->scale.z = value;
         break;
-    case 12:
+    case 3:
         g_current_pebble->angular_velocity.x = value;
         break;
-    case 13:
+    case 4:
         g_current_pebble->angular_velocity.y = value;
         break;
-    case 14:
+    case 5:
         g_current_pebble->angular_velocity.z = value;
         break;
     case 15:
