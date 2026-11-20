@@ -697,7 +697,7 @@ struct SEParticle {
     int pad04;
     void* liveObject;
     unsigned int unk0c;
-    char* fxName;
+    int fxId;
     float posX;
     float posY;
     float posZ;
@@ -711,7 +711,7 @@ struct SEChar {
 struct ScreenParticle {
     void* vtbl;
     unsigned char pad04[0x0C];
-    char* fxName;
+    int fxId;
     int fxHandle;
     void* pfx;
     int hide;
@@ -728,7 +728,7 @@ struct ScreenModel {
 extern void* __vt__14ScreenParticle[15];
 extern void* __vt__11ScreenModel[15];
 extern void load_effect_bank_with_context(char* name, void* ctx);
-extern int fx_by_id(char* name, int flags);
+extern unsigned int fx_by_id(int effect_id, unsigned int owner);
 extern int curr_pipeline_used;
 extern void* __dt__10ScreenNodeFv(void* node, short del);
 extern void __dl__10ScreenNodeFPv(void* node);
@@ -6817,7 +6817,7 @@ static inline ScreenParticle* create_screen_particle(void) {
         particle->vtbl = &__vt__14ScreenParticle;
         particle->pfx = 0;
         particle->fxHandle = 0;
-        particle->fxName = 0;
+        particle->fxId = 0;
         particle->hide = 0;
     }
     return particle;
@@ -6836,9 +6836,9 @@ ScreenParticle* CreateParticleNode__20mkScreenEngineClientFP12SEParticle_t(
     load_effect_bank_with_context("screen_fx.mko", fxCtx);
 
     particle = create_screen_particle();
-    char* effectName = sePtcl->fxName;
-    particle->fxName = effectName;
-    particle->fxHandle = fx_by_id(effectName, 8);
+    int effectId = sePtcl->fxId;
+    particle->fxId = effectId;
+    particle->fxHandle = fx_by_id(effectId, 8);
     if (particle->fxHandle != 0) {
         particle->pfx = find_pfx_by_handle(particle->fxHandle);
     }

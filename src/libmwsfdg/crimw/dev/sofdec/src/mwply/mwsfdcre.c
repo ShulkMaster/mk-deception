@@ -136,8 +136,8 @@ typedef struct MwsPlayerInterface {
     void (*pause)(MwsPlayer*, int);
     void (*set_volume)(MwsPlayer*, int);
     int (*get_volume)(MwsPlayer*);
-    void (*set_pan)(MwsPlayer*, int);
-    int (*get_pan)(MwsPlayer*);
+    void (*set_pan)(MwsPlayer*, int, int);
+    int (*get_pan)(MwsPlayer*, int);
     void (*start_sj)(MwsPlayer*, SJ*);
     void (*start_memory)(MwsPlayer*, void*, int);
 } MwsPlayerInterface;
@@ -186,8 +186,8 @@ extern void mwSfdGetTime(MwsPlayer*, int*, int*);
 extern void mwSfdPause(MwsPlayer*, int);
 extern void mwSfdSetOutVol(MwsPlayer*, int);
 extern int mwSfdGetOutVol(MwsPlayer*);
-extern void mwSfdSetOutPan(MwsPlayer*, int);
-extern int mwSfdGetOutPan(MwsPlayer*);
+extern void mwSfdSetOutPan(MwsPlayer*, int, int);
+extern int mwSfdGetOutPan(MwsPlayer*, int);
 extern void mwSfdStartSj(MwsPlayer*, SJ*);
 extern void mwSfdStartMem(MwsPlayer*, void*, int);
 
