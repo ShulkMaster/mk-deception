@@ -231,7 +231,7 @@ static inline ClothCollisionVolume* create_cloth_coll_on_obj(
         volume->bone_count = 0;
         volume->collision_fn = cloth_coll_point_cyl_rel;
         volume->cylinder_bottom = -radius;
-        volume->cylinder_top = radius + 1.0f / bone->field_5C;
+        volume->cylinder_top = radius + 1.0f / bone->inverse_length;
         volume->reference_bone->flags_54_bits.calculation_locked = 1;
         if (volume->reference_bone->transform_parent != 0) {
             volume->reference_bone->transform_parent->flags_54_bits.calculation_locked = 1;
@@ -1236,7 +1236,7 @@ static void do_cloth_colls(MkHdr* collision) {
             &cloth_coll_bone_uv.xyz);
         PSVECScale(
             &cloth_coll_bone_uv.xyz, &cloth_coll_bone_uv.xyz,
-            cloth_coll_bone->field_5C);
+            cloth_coll_bone->inverse_length);
         RwMatrixInvert(
             &cloth_coll_bone_parent_world_mat_inv,
             &cloth_coll_bone->transform_parent->matrix);
@@ -1872,7 +1872,7 @@ void mks_npc_cc1_eq_insert_cloth_coll(
             volume->bone_count = 0;
             volume->collision_fn = cloth_coll_point_cyl_rel;
             volume->cylinder_bottom = -radius;
-            volume->cylinder_top = radius + 1.0f / bone->field_5C;
+            volume->cylinder_top = radius + 1.0f / bone->inverse_length;
             volume->reference_bone->flags_54_bits.calculation_locked = 1;
             if (volume->reference_bone->transform_parent != 0) {
                 volume->reference_bone->transform_parent->flags_54_bits.calculation_locked = 1;

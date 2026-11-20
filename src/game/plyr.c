@@ -606,7 +606,7 @@ void switch_to_bgnd_moveset(PlyrPdata* pdata, int moveset_index) {
 
             if (reflection == 0) {
                 reflection = load_bgnd_weapon_reflection(
-                    primary->field_5C);
+                    primary->weapon_definition);
                 if (reflection != 0) {
                     moveset->reflection_weapon = reflection;
                     moveset->reflection_weapon_instance =

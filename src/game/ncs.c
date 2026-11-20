@@ -2542,16 +2542,16 @@ float p_sc_spear_kill(void) {
     sc_spear_obj->flags_08_bits.gravity_enabled = 0;
     sc_spear_obj->field_60 = 0;
     if (pdata_sc_spear->owner->character_id == 0) {
-        sc_spear_obj->field_5C = get_data_table(pdata_sc_spear->owner->cmo, 0x18);
+        sc_spear_obj->weapon_definition = get_data_table(pdata_sc_spear->owner->cmo, 0x18);
     }
     if (pdata_sc_spear->owner->character_id == 0x1C) {
-        sc_spear_obj->field_5C = get_data_table(pdata_sc_spear->owner->cmo, 0x15);
+        sc_spear_obj->weapon_definition = get_data_table(pdata_sc_spear->owner->cmo, 0x15);
     }
     if (pdata_sc_spear->owner->character_id == 0x19) {
-        sc_spear_obj->field_5C = get_data_table(pdata_sc_spear->owner->cmo, 2);
+        sc_spear_obj->weapon_definition = get_data_table(pdata_sc_spear->owner->cmo, 2);
     }
     if (pdata_sc_spear->owner->character_id == 0x1A) {
-        sc_spear_obj->field_5C = get_data_table(pdata_sc_spear->owner->cmo, 2);
+        sc_spear_obj->weapon_definition = get_data_table(pdata_sc_spear->owner->cmo, 2);
     }
     plyr_aux_weapon_grab(pdata_sc_spear->owner, sc_spear_obj);
     pdata_sc_spear->owner->duck_reaction_active = 0;
@@ -3098,16 +3098,16 @@ MkProc* fire_sc_spear(
         if (weapon->field_60 == 0) {
             weapon->field_60 = 1;
             if (player->character_id == 0) {
-                weapon->field_5C = get_data_table(player->cmo, 0x19);
+                weapon->weapon_definition = get_data_table(player->cmo, 0x19);
             }
             if (player->character_id == 0x1C) {
-                weapon->field_5C = get_data_table(player->cmo, 0x16);
+                weapon->weapon_definition = get_data_table(player->cmo, 0x16);
             }
             if (player->character_id == 0x19) {
-                weapon->field_5C = get_data_table(player->cmo, 3);
+                weapon->weapon_definition = get_data_table(player->cmo, 3);
             }
             if (player->character_id == 0x1A) {
-                weapon->field_5C = get_data_table(player->cmo, 3);
+                weapon->weapon_definition = get_data_table(player->cmo, 3);
             }
             plyr_aux_weapon_grab(player, weapon);
         }
@@ -3167,16 +3167,16 @@ MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks) {
             if (weapon->field_60 == 0) {
                 weapon->field_60 = 1;
                 if (player->character_id == 0) {
-                    weapon->field_5C = get_data_table(player->cmo, 0x19);
+                    weapon->weapon_definition = get_data_table(player->cmo, 0x19);
                 }
                 if (player->character_id == 0x1C) {
-                    weapon->field_5C = get_data_table(player->cmo, 0x16);
+                    weapon->weapon_definition = get_data_table(player->cmo, 0x16);
                 }
                 if (player->character_id == 0x19) {
-                    weapon->field_5C = get_data_table(player->cmo, 3);
+                    weapon->weapon_definition = get_data_table(player->cmo, 3);
                 }
                 if (player->character_id == 0x1A) {
-                    weapon->field_5C = get_data_table(player->cmo, 3);
+                    weapon->weapon_definition = get_data_table(player->cmo, 3);
                 }
                 plyr_aux_weapon_grab(player, weapon);
             }

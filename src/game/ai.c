@@ -8672,11 +8672,11 @@ void drone_ai_reset_ai_cmd(void) {
     drone->command_active = 0;
 }
 
-void drone_ai_get_min_time_in_block(void) {
+int drone_ai_get_min_time_in_block(void) {
     struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
-    handicap_calc_min_time_in_block(drone);
+    return handicap_calc_min_time_in_block(drone);
 }
 
 int drone_ai_check_block_fakeout(void) {

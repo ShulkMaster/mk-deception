@@ -54,7 +54,7 @@ typedef struct MkBone {
         unsigned int flags_word_54;
     };
     struct ClothBone* cloth_link; /* +0x58 - optional cloth state */
-    float field_5C;
+    float inverse_length; /* +0x5C - 1 / |translation|, 0 for the root */
     float field_60;
     float field_64;
     unsigned int update_tick; /* +0x68 - last hierarchy update tick */

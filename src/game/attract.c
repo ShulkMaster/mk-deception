@@ -394,8 +394,8 @@ static void atm_bio_screen(void) {
         next_bio_screen = (randu0(0x1AU) & 0xFFFFU);
     }
 
-    primary_unlock_hi = gp_data.cat7.words[0];
-    primary_unlock_lo = gp_data.cat7.words[1];
+    primary_unlock_hi = (unsigned int)(gp_data.cat7.value >> 32);
+    primary_unlock_lo = (unsigned int)gp_data.cat7.value;
     bio_index = next_unlocked_bio(&next_bio_screen,
         primary_unlock_hi, primary_unlock_lo);
 

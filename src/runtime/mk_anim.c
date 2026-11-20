@@ -3299,7 +3299,7 @@ MkBone* alloc_bone(void) {
             bone->rotations[count].z = 0.0f;
             bone->rotations[count].w = 1.0f;
         }
-        bone->field_5C = 0.0f;
+        bone->inverse_length = 0.0f;
         bone->scale.x = 1.0f;
         bone->scale.y = 1.0f;
         bone->scale.z = 1.0f;
@@ -3452,7 +3452,7 @@ static void process_obj_bones(MkObj* obj, int* tags) {
                 bone->bind_offset.y - parent->bind_offset.y;
             bone->translation.value.z =
                 bone->bind_offset.z - parent->bind_offset.z;
-            bone->field_5C = 1.0f / length_v3(&bone->translation.value);
+            bone->inverse_length = 1.0f / length_v3(&bone->translation.value);
             if (bone->tree_next == 0) {
                 parent->flags_54_bits.has_children = 1;
                 tail = parent->tree_child;
@@ -3470,7 +3470,7 @@ static void process_obj_bones(MkObj* obj, int* tags) {
             bone->translation.value.x = 0.0f;
             bone->translation.value.y = 0.0f;
             bone->translation.value.z = 0.0f;
-            bone->field_5C = 0.0f;
+            bone->inverse_length = 0.0f;
             bone->transform_parent = 0;
         }
 

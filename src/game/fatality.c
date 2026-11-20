@@ -2998,7 +2998,7 @@ MkObj* show_single_weapon(PlyrPdata* player, int secondary) {
         }
         player->fighter_definition = player->weapon_styles[player->player_slot];
         player->mirror_slots = &player->fighter_definition->mirror_slots;
-        player->fighter_definition_instance = player->fighter_definition->instance;
+        player->active_move_display = player->fighter_definition->move_blend_data;
     }
 
     if (secondary == 0 &&
