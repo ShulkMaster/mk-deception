@@ -5,7 +5,7 @@ Read every task. Deeper tier only when triage points there.
 | Tier | File | Holds |
 |---|---|---|
 | 1 | this | protocol, gates, triage, H index, stops |
-| 2 | [playbook-2-common.md](playbook-2-common.md) | H01-H30 detail |
+| 2 | [playbook-2-common.md](playbook-2-common.md) | H01-H32 detail |
 | 3 | [playbook-3-uncommon.md](playbook-3-uncommon.md) | M01-M17: modes, FP, ABI shape, inline/macro, data/link |
 | 4 | [playbook-4-rare.md](playbook-4-rare.md) | N01-N14, trace procedure, hard stops, dead ends, permuter |
 
@@ -153,6 +153,7 @@ Tools:
 | Retail keeps value/address source recomputes, or reverse | H06 |
 | Retail derives value in the register it loaded into | H26 |
 | Raw operand in own web, ours loads into the delta web; second operand snapshot named | H26 nested-assignment subtraction, exact same-TU siblings |
+| `v = a; v op= b` keeps load+result in one reg, retail result in a fresh reg | H26 non-update split form `v = (T)(v op b)` / `v = b op v` |
 | Signed-conversion stack roles rotate; viewport math/casts already agree | H26, M03 |
 | Home swap, decl sweeps neutral, single-use selector/index/latch local | H28 |
 | Load/store/pointer-advance order differs, same ops | H27, H14 |
@@ -169,6 +170,7 @@ Tools:
 | Stack slots, frame size, store order | H14, H24 |
 | Local struct in stack (`lfs`/`stfs` off r1) vs FPRs, or reverse | M07 |
 | Dead `b` after loop arm, `li r,0` on normal exit | H11, M13 |
+| Unreachable `bl` (no arg setup) jumped by `b`; test with empty arm; empty counted loop | H07, H11, H09 (debug residue) |
 | `li rX,0` vs `mr rX,rZero`; `li;li` vs `li;mr` in a preheader | H29, H15, H11 |
 | Retail-only `b` to a case body between switch dispatch and first arm | N14 |
 | Differing instruction absent from pre-RA `initial` pcode | H29, N14 (not coloring) |
@@ -196,6 +198,7 @@ Tools:
 | Byte-swap folding, float word view, uninit stack | N08-N10 |
 | Asm-sequence ICE | N12 |
 | Several honest byte-neutral edits, no single fix | N13 |
+| Saved homes swap, phantomsearch says no twin, decl/spelling sweeps neutral | H32 sweep lever |
 | Only coloring left, permuter | tier 4 |
 
 ## H index
@@ -257,7 +260,8 @@ Core line only; detail = `## Hxx` in tier 2.
   retail reuses dead outer regs; kind sets web number | open-code + reuse
   outer locals; copy-free helper; change web kind before decl sweeps:
   local type flips (uchar/int/unsigned), `p = a[i];` statement instead of
-  `(p = a[i])->f` in a condition.
+  `(p = a[i])->f` in a condition; block-scoped copies of one loop role ->
+  one function-scope decl + `declclimb.py` (`SpreadSheet_text::Update`).
 - **H22 One-row residue** | operand/constant/copy residue in one row |
   single row | try one listed spelling at a time.
 - **H23 Unit-owned data** | base rematerialized each use | symbol in this
@@ -282,6 +286,21 @@ Core line only; detail = `## Hxx` in tier 2.
   both are statement-level inline objects | move the earlier helper call into
   a wrapper inline (nested objects number below top-level ones); match handle
   types to the API.
+- **H31 Phantom copy** | same ops, saved homes swap, every pop order moves a
+  parameter / no pop order, decl sweeps neutral | `phantomsearch.py` Step A:
+  N extra coalesced copies across a named web reproduce retail | add exactly N
+  honest surviving copies in that range from the measured catalogue (hero-shape
+  live helper, block-local call result in a multi-def helper, call result
+  passed twice, join with a call arm); plain hoists add none.
+- **H32 Sweep lever** | saved homes swap, pop order needs a kind change or
+  no pop order, no twin (H31), decl sweeps neutral | `numedge.py` Step A: the
+  web is pushed at degree K-1 (or K) in its simplify sweep; one exact
+  zero-collateral lever printed (copy / numbering / survival / edge) with
+  the compiler creation rule | realise that lever only: scalarizer temps =
+  first member access order; CSE = first repeated read; inline objects =
+  expansion order; codegen temps = emission order; a constant codegen temp
+  never becomes a front-end object. Check register-blind rows and fuzzy:
+  a lever that reorders IroPropagate hoists can cost more than it gains.
 
 ## Stop
 

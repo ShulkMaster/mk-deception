@@ -1,4 +1,5 @@
 #include "msl/CriticalSection.h"
+#include "dolphin/os.h"
 #include "dolphin/mutex.h"
 #include "msl/mslsupport.h"
 

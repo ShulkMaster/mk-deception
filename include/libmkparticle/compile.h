@@ -1,7 +1,7 @@
 #ifndef LIBMKPARTICLE_COMPILE_H
 #define LIBMKPARTICLE_COMPILE_H
 
-#include "libmkparticle/vm.h"
+typedef struct PfxVm PfxVm;
 
 void pfxvm_compile(PfxVm* pfx);
 

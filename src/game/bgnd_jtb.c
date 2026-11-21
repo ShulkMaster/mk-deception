@@ -8,18 +8,16 @@
 #include "math/mk_math.h"
 #include "platform/gcutils.h"
 #include "platform/main.h"
-#include "runtime/anim_pdata.h"
 #include "runtime/plyr_anim_pdata.h"
 #include "game/plyr.h"
 #include "runtime/cam.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_proc.h"
 #include "runtime/utils.h"
-
+#include "game/ejb.h"
+#include "game/bgnd_jmt.h"
 
 void ani_to_frame_x(float frame);
-void launch_me_up(float velocity, float gravity);
-void land_chores(int sound, int flags, float velocity, float gravity);
 
 struct NbNpcState {
     MkHdr hdr;
@@ -61,18 +59,12 @@ struct NbFighterHurtView {
 };
 
 static float p_npc_on_pendulum_rope(void);
-static void nb_get_desired_acceleration(
-    struct NbNpcState* state, Vec* acceleration, const Vec* surface_normal);
 int bgnd_preload_named_model(const char* model_name, int slot);
 void bgnd_set_active_sobj_in_obj(int model_index, int object_id);
-void bgnd_unhide_preload_obj(int model_index);
-void bgnd_unhide_active_sobj(void);
 void bgnd_set_active_sobj_pos(float x, float y, float z);
-void bgnd_preload_obj_attach_rope(int model_index);
 void bgnd_create_named_npc_in_slot(
     int npc_id, const char* model_name, int model_id, int flags);
 void bgnd_add_brains_to_npc(int npc_id, MkProcEntryFn brains);
-MkObj* bgnd_fetch_obj(int object_id);
 struct NbNpcState* bgnd_fetch_npc(int npc_id);
 void bgnd_attach_rope_to_bgnd_obj(
     int rope_model_index, int target_model_index, int object_id);
@@ -86,525 +78,233 @@ void xfer_player_proc_to_script_manual_messaging(
     FighterMirror* fighter, MkObj* object, int message);
 MkProc* get_player_proc(MkObj* object);
 int is_my_chest_to_screen(void);
-void bgnd_collision_if_disable_col(int list_id, unsigned int collision_id);
-void bgnd_collision_if_enable_col(int list_id, unsigned int collision_id);
 int spad_set_vector(int index, int source);
 float spad_get_pos(int index, int component);
 int spad_sub_vectors(int lhs, int rhs, int out);
 int spad_norm_vector(int index);
 int spad_scale_vector(int destination, int source, float scale);
-float spad_xz_dot_xz(int lhs, int rhs);
-float spad_xz_length_vector(int index);
 int reaction_fetch_current_power_level(int player_index);
 int reaction_fetch_current_flags(int player_index);
-int is_pX_airborn(int player_index);
 void bgnd_launch_fx_at_bid_of_mkobj(
     const char* effect_name, MkObj* object, int bone);
 
 float r_chest2_stumble(void);
 
-static void nb_npc_slave_hit_by_plyr(int npc_id);
-static int nb_npc_hurt_player(
-    struct NbNpcState* hit, unsigned int player_index, float impact);
-
-
-void lower_mines_ani_to_point(
-    void* script, float start_frame, float animation_step, float end_frame,
-    int landing_sound, float vertical_velocity, float gravity,
-    float transition, Vec* target, unsigned int frame_offset) {
-    MkHdr* object_header;
-    float root;
-    float radicand;
-    float frames;
-    float root_b;
-    float inverse_frames;
-    float delta_x;
-    float delta_z;
-    float height_term;
-
-    plyr_anim_pdata->flags |= 0x40;
-    transition_to_anim_script(transition, plyr_anim_pdata, script, 0x43);
-
-    _mkproc_sleep_ticks = 1.0f;
-    aproc->vtbl->sleep();
-
-    if (start_frame != 0.0f) {
-        plyr_anim_pdata->step = animation_step;
-        ani_to_frame_x(start_frame);
-        plyr_anim_pdata->step = 1.0f;
-    }
-
-    launch_me_up(vertical_velocity, gravity);
-    plyr_obj->flags_09_bits.launched = 0;
-
-    radicand = vertical_velocity * vertical_velocity;
-    height_term = (2.0f * gravity) *
-        ((plyr_obj->pos.value.y - 0.19f) - plyr_obj->ground_colls_y);
-    radicand -= height_term;
-    root = 0.001f;
-    if (radicand >= root) {
-        root = radicand;
-    }
-    root = gxMathFastSqrt(root);
-
-    radicand = (root - vertical_velocity) / gravity;
-    root_b = (-root - vertical_velocity) / gravity;
-    if (radicand < 0.0f ||
-        (root_b > 0.0f && root_b < radicand)) {
-        radicand = root_b;
-    }
-
-    frames = 1.0f;
-    radicand = radicand - (float)frame_offset;
-    if (radicand >= frames) {
-        frames = radicand;
-    }
-
-    plyr_anim_pdata->step = (end_frame - start_frame) / frames;
-    inverse_frames = 1.0f / frames;
-    delta_x = target->x;
-    delta_x -= plyr_obj->pos.value.x;
-    delta_z = target->z - plyr_obj->pos.value.z;
-    delta_x *= inverse_frames;
-    plyr_obj->pos_vel.x = delta_x;
-    plyr_obj->pos_vel.z = delta_z * inverse_frames;
-    ani_to_frame_x(end_frame);
-
-    plyr_obj->flags_09_bits.launched = 1;
-    if (plyr_obj != 0) {
-        object_header = as_mkhdr(&plyr_obj->hdr);
-    } else {
-        object_header = 0;
-    }
-    update_bone_hierarchy(object_header);
-    if (plyr_obj != 0) {
-        object_header = as_mkhdr(&plyr_obj->hdr);
-    } else {
-        object_header = 0;
-    }
-    ground_me(object_header);
-    land_chores(landing_sound, 0, 0.0f, 0.0f);
+void bgnd_jtb_debug_info(float arg0, float arg1, float arg2) {
 }
 
-static const Vec nb_collision_x_axis = {1.0f, 0.0f, 0.0f};
-static const Vec nb_collision_z_axis = {0.0f, 0.0f, 1.0f};
-static const Vec nb_impact_zero = {0.0f, 0.0f, 0.0f};
-static const Vec nb_rope_preload_rotation = {1.0f, 0.0f, 0.0f};
-static const Vec nb_world_up = {0.0f, 1.0f, 0.0f};
-static const Vec nb_hit_zero = {0.0f, 0.0f, 0.0f};
-static const Vec nb_collision_zero = {0.0f, 0.0f, 0.0f};
+static void convert_to_new_coord_sys(
+    Vec* v, Vec* new_x, Vec* new_z, Vec* result, Vec* orig_x, Vec* orig_z) {
+    Vec x_axis = {1.0f, 0.0f, 0.0f};
+    Vec z_axis = {0.0f, 0.0f, 1.0f};
+    float z = v->x * new_z->x + v->z * new_z->z;
 
-/* TODO: [breakthrough needed] 98.15044%; MAP convert/restore_to_*_coord_sys
- * own the basis change and the axis records; bodies unrecovered. */
-void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
-    static unsigned int last_sound_time;
-    struct NbNpcState* npc;
-    Vec push_direction;
-    Vec facing;
-    Vec side = nb_collision_zero;
-    Vec local_z;
-    Vec local_x;
-    float player_index;
-    float speed;
-    float separation;
-    float impact_scale;
-    float alignment;
-    float momentum_x;
-    float momentum_y;
-    float momentum_z;
-    int attack_flags;
-    int play_impact_sound;
-    float x_on_facing;
-    float x_on_side;
-    float z_on_facing;
-    float z_on_side;
-
-    npc = bgnd_fetch_npc(npc_id);
-    spad_set_vector(0, 0x1A);
-    player_index = spad_get_pos(0, 0);
-    spad_set_vector(0, 0x15);
-    spad_set_vector_setting(
-        1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
-    spad_sub_vectors(0, 1, 0);
-    if (spad_get_pos(0, 1) > 1.8f) {
-        return;
-    }
-
-    npc->swing_ticks = refresh_rate() * -15;
-    bgnd_collision_if_disable_col(5, npc_id + 0x12C);
-    spad_set_vector(0, 0x1D);
-    if (((int)spad_get_pos(0, 0) & 1) == 0) {
-        nb_npc_slave_hit_by_plyr(npc_id);
-        return;
-    }
-
-    momentum_y = npc->momentum.y;
-    momentum_x = npc->momentum.x;
-    momentum_z = npc->momentum.z;
-    speed = gxMathFastSqrt(
-        momentum_z * momentum_z +
-        (momentum_x * momentum_x + momentum_y * momentum_y));
-    spad_set_vector(0, 0x1C);
-    attack_flags = spad_get_pos(0, 0);
-
-    if (speed < 0.03f) {
-        spad_set_vector(0, 0x15);
-        spad_set_vector_setting(
-            1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
-        spad_sub_vectors(2, 1, 0);
-        separation = spad_xz_length_vector(2);
-        spad_norm_vector(2);
-        if (separation < 0.35f) {
-            spad_scale_vector(3, 2, -1.0f * (0.45f - separation));
-            spad_sub_vectors(1, 1, 3);
-            npc->object->pos.value.x = spad_get_pos(1, 0);
-            npc->object->pos.value.z = spad_get_pos(1, 2);
-        }
-        if (npc->swing_angle != 0.0f || (unsigned short)randu0(100) < 80) {
-            npc->swing_angle = 0.035f + frand(0.03f);
-        }
-        if (attack_flags != 0) {
-            spad_scale_vector(0, 2, 0.065f);
-        } else {
-            spad_scale_vector(0, 2, 0.02f);
-        }
-        push_direction.x = spad_get_pos(0, 0);
-        push_direction.y = 0.0f;
-        push_direction.z = spad_get_pos(0, 2);
-        rotate_xz(&push_direction, &push_direction, 0.5235988f);
-        npc->momentum.x = push_direction.x;
-        npc->momentum.y = push_direction.y;
-        npc->momentum.z = push_direction.z;
-        bgnd_collision_if_enable_col(5, npc_id + 0x12C);
-        return;
-    }
-
-    spad_set_vector(0, 0x15);
-    spad_set_vector_setting(
-        1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
-    spad_sub_vectors(0, 0, 1);
-    spad_set_vector_y(0, 0.0f);
-    spad_norm_vector(0);
-    spad_set_vector_setting(
-        1, npc->momentum.x, 0.0f, npc->momentum.z);
-    spad_norm_vector(1);
-    if (spad_xz_dot_xz(0, 1) < -0.1f) {
-        spad_set_vector(0, 0x15);
-        spad_set_vector_setting(
-            1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
-        spad_sub_vectors(2, 1, 0);
-        if (spad_xz_length_vector(2) < 0.35f) {
-            npc->momentum.x = 1.1f * npc->momentum.x;
-            npc->momentum.z = 1.1f * npc->momentum.z;
-        }
-        bgnd_collision_if_enable_col(5, npc_id + 0x12C);
-        return;
-    }
-
-    if (attack_flags == 0 || (attack_flags & 0x800) != 0) {
-        impact_scale = 0.45f;
-    } else if ((attack_flags & 0x400) != 0) {
-        impact_scale = 0.05f;
-    } else {
-        impact_scale = 0.7f;
-    }
-    play_impact_sound = 1;
-    if ((attack_flags & 0x2000) != 0 || attack_flags == 0) {
-        int index = player_index;
-
-        if (is_pX_airborn(index) == 0 && speed > 0.11f) {
-            impact_scale = 0.2f;
-            play_impact_sound = 0;
-            if (nb_npc_hurt_player(
-                    npc, index, speed) == 1) {
-                impact_scale = -0.05f;
-            }
-        }
-    }
-    if (play_impact_sound == 1 &&
-        last_sound_time < (unsigned int)exec_tick_ctr && speed > 0.06f) {
-        last_sound_time = (unsigned int)exec_tick_ctr + 30;
-        random_hit(1);
-    }
-
-    spad_set_vector(0, 0x1E);
-    uv_from_angle_y(&facing, spad_get_pos(0, 1));
-    side.x = facing.z;
-    side.z = -facing.x;
-    spad_set_vector(0, 0x15);
-    spad_set_vector_setting(
-        1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
-    spad_sub_vectors(0, 0, 1);
-    spad_set_vector_setting(1, facing.x, facing.y, facing.z);
-    alignment = spad_xz_dot_xz(0, 1);
-    if (alignment > -0.4f && alignment < 0.4f) {
-        float swap_x;
-        float swap_y;
-        float swap_z;
-
-        if (side.x * npc->object->pos.value.x +
-                side.z * npc->object->pos.value.z <
-            0.0f) {
-            side.x = -1.0f * side.x;
-            side.z = -1.0f * side.z;
-        }
-        swap_x = side.x;
-        swap_y = side.y;
-        swap_z = side.z;
-
-        side.x = facing.x;
-        side.y = facing.y;
-        side.z = facing.z;
-        facing.x = swap_x;
-        facing.y = swap_y;
-        facing.z = swap_z;
-    } else if (alignment < 0.0f) {
-        facing.x = -1.0f * facing.x;
-        facing.z = -1.0f * facing.z;
-    }
-
-    local_x = nb_collision_x_axis;
-    local_z = nb_collision_z_axis;
-    momentum_x = npc->momentum.x;
-    momentum_z = npc->momentum.z;
-    x_on_facing = local_x.x * facing.x + local_x.z * facing.z;
-    x_on_side = local_x.x * side.x + local_x.z * side.z;
-    z_on_facing = local_z.x * facing.x + local_z.z * facing.z;
-    z_on_side = local_z.x * side.x + local_z.z * side.z;
-    npc->momentum.x =
-        -1.0f * impact_scale * (momentum_x * facing.x + momentum_z * facing.z);
-    npc->momentum.z = momentum_x * side.x + momentum_z * side.z;
-    momentum_y = npc->momentum.y;
-    momentum_x = npc->momentum.x;
-    momentum_z = npc->momentum.z;
-    npc->momentum.x = momentum_x * x_on_facing + momentum_z * x_on_side;
-    npc->momentum.z = momentum_x * z_on_facing + momentum_z * z_on_side;
-    npc->momentum.y = momentum_y;
-    bgnd_collision_if_enable_col(5, npc_id + 0x12C);
+    result->x = v->x * new_x->x + v->z * new_x->z;
+    result->z = z;
+    orig_x->x = x_axis.x * new_x->x + x_axis.z * new_x->z;
+    orig_x->y = x_axis.y;
+    orig_x->z = x_axis.x * new_z->x + x_axis.z * new_z->z;
+    orig_z->x = z_axis.x * new_x->x + z_axis.z * new_x->z;
+    orig_z->y = z_axis.y;
+    orig_z->z = z_axis.x * new_z->x + z_axis.z * new_z->z;
 }
 
-/* TODO: [near miss] 99.34782%; 23 FPR-home rows remain (blend values need temp-band
- * webs above the divisor CSE; named and Vec-local forms fail); recover blend owners. */
-static void nb_npc_slave_hit_by_plyr(int npc_id) {
-    struct NbNpcState* npc;
-    Vec target = nb_hit_zero;
-    Vec delta;
-    float player_side;
-    float previous_hit;
-    float force;
-    float inverse_length;
-    float inverse_mass;
-    float old_x;
-    float old_y;
-    float old_z;
-    Vec blended_momentum;
-    float target_weight;
-    float correction_weight;
-    float weighted_sum;
-    float weighted_target;
-    float correction;
-    int player_index;
-    unsigned int collision_id;
-    int hit_id;
+static void restore_to_orig_coord_sys(Vec* v, Vec* orig_x, Vec* orig_z) {
+    Vec temp;
 
-    npc = bgnd_fetch_npc(npc_id);
-    collision_id = npc_id + 0x12CU;
-    bgnd_collision_if_disable_col(5, collision_id);
-
-    spad_set_vector(0, 0x1A);
-    player_side = spad_get_pos(0, 0);
-    previous_hit = npc->last_hit_id[0];
-    if (player_side == 1.0f) {
-        previous_hit = npc->last_hit_id[1];
-    }
-
-    spad_set_vector(0, 0x1B);
-    hit_id = spad_get_pos(0, 0);
-    if ((float)hit_id != previous_hit) {
-        int power;
-
-        if (player_side == 0.0f) {
-            npc->last_hit_id[0] = hit_id;
-        } else {
-            npc->last_hit_id[1] = hit_id;
-        }
-
-        spad_set_vector(0, 0x15);
-        spad_set_vector(1, 0x14);
-        spad_sub_vectors(0, 1, 0);
-        delta.x = spad_get_pos(0, 0);
-        delta.y = spad_get_pos(0, 1);
-        delta.z = spad_get_pos(0, 2);
-        old_x = npc->momentum.x;
-        old_y = npc->momentum.y;
-        old_z = npc->momentum.z;
-
-        player_index = player_side;
-        power = reaction_fetch_current_power_level(player_index);
-        if (power > 3) {
-            force = 0.095f + frand(0.08f);
-        } else if (power > 2) {
-            force = 0.07f + frand(0.08f);
-        } else if (power > 1) {
-            force = 0.05f + frand(0.08f);
-        } else {
-            force = 0.05f + frand(0.05f);
-        }
-
-        inverse_length = gxMathFastInvSqrt(
-            delta.x * delta.x + delta.z * delta.z);
-        target.x = delta.x * inverse_length;
-        target.z = delta.z * inverse_length;
-        target.x *= force;
-        target.z *= force;
-        target_weight = 1.0f;
-        inverse_mass = 1.0f / (npc->acceleration_divisor + target_weight);
-        correction_weight = 0.9f;
-        weighted_sum = old_x * npc->acceleration_divisor;
-        weighted_target = target.x * target_weight;
-        correction = target.x - old_x;
-        weighted_sum += weighted_target;
-        correction *= correction_weight;
-        blended_momentum.x = weighted_sum + correction;
-        weighted_sum = old_y * npc->acceleration_divisor;
-        weighted_target = target.y * target_weight;
-        correction = target.y - old_y;
-        weighted_sum += weighted_target;
-        correction *= correction_weight;
-        blended_momentum.y = weighted_sum + correction;
-        weighted_sum = old_z * npc->acceleration_divisor;
-        weighted_target = target.z * target_weight;
-        correction = target.z - old_z;
-        weighted_sum += weighted_target;
-        correction *= correction_weight;
-        blended_momentum.z = weighted_sum + correction;
-        blended_momentum.x *= inverse_mass;
-        blended_momentum.y *= inverse_mass;
-        blended_momentum.z *= inverse_mass;
-
-        if ((reaction_fetch_current_flags(player_index) & 0x80) != 0) {
-            blended_momentum.x = 0.205f * blended_momentum.x;
-            blended_momentum.y = 0.2f;
-            blended_momentum.z = 0.205f * blended_momentum.z;
-            npc->active |= 1;
-            npc->swing_angle = 0.02f + frand(0.02f);
-        } else if (npc->swing_angle != 0.0f || (unsigned short)randu0(100) < 80) {
-            npc->swing_angle = 0.08f + frand(0.09f);
-            if ((unsigned short)randu0(100) < 50) {
-                npc->swing_angle *= -1.0f;
-            }
-        }
-
-        snd_req(0x110);
-        random_hit(1);
-        npc->momentum.x = blended_momentum.x;
-        npc->momentum.y = blended_momentum.y;
-        npc->momentum.z = blended_momentum.z;
-    }
-
-    bgnd_collision_if_enable_col(5, collision_id);
+    temp.x = v->x;
+    temp.y = v->y;
+    temp.z = v->z;
+    v->x = temp.x * orig_x->x + temp.z * orig_x->z;
+    v->z = temp.x * orig_z->x + temp.z * orig_z->z;
+    v->y = temp.y;
 }
 
-static inline int nb_npc_side_reaction_is_left(
-    struct NbFighterHurtView* fighter_view, struct NbNpcState* hit) {
+static int is_behind_relative_to_cam(MkObj* object, MkObj* reference) {
     CameraObj* camera;
-    MkObj* current_object;
-    MkObj* npc_object;
-    int use_left_reaction;
-    float camera_to_player_z;
+    float camera_to_reference_z;
     float camera_x;
-    float camera_to_player_x;
-    float camera_to_npc_z;
-    float camera_to_npc_x;
+    float camera_to_reference_x;
+    float camera_to_object_z;
+    float camera_to_object_x;
 
-    use_left_reaction = 0;
-    current_object = fighter_view->object_slot->object;
-    plyr_obj = current_object;
-    his_obj = fighter_view->opponent_object;
-    plyr_anim_pdata = &fighter_view->anim_pdata;
-    npc_object = hit->object;
     camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
-
-    camera_to_npc_z = camera->pos.z - npc_object->pos.value.z;
-    camera_to_player_z = camera->pos.z - current_object->pos.value.z;
+    camera_to_object_z = camera->pos.z - object->pos.value.z;
+    camera_to_reference_z = camera->pos.z - reference->pos.value.z;
     camera_x = camera->pos.x;
-    camera_to_npc_x = camera_x - npc_object->pos.value.x;
-    camera_to_player_x = camera_x - current_object->pos.value.x;
-    if (camera_to_npc_x * camera_to_npc_x +
-            camera_to_npc_z * camera_to_npc_z >
-        camera_to_player_x * camera_to_player_x +
-            camera_to_player_z * camera_to_player_z) {
-        if (is_my_chest_to_screen() == 0) {
-            use_left_reaction = 1;
-        }
-    } else if (is_my_chest_to_screen() != 0) {
-        use_left_reaction = 1;
-    }
-
-    plyr_obj = 0;
-    his_obj = 0;
-    plyr_anim_pdata = 0;
-
-    return use_left_reaction;
-}
-
-static int nb_npc_hurt_player(
-    struct NbNpcState* hit, unsigned int player_index, float impact) {
-    MkObj* player_object;
-    FighterMirror* fighter;
-    struct NbFighterHurtView* fighter_view;
-    Vec facing;
-    Vec direction;
-    float hit_length_inverse;
-    float facing_length_inverse;
-    float alignment;
-
-    player_object = g_game_info.plyr0.slot.mirror_a;
-    fighter = g_game_info.plyr0.slot.fighter;
-    if (player_index == 1) {
-        player_object = g_game_info.plyr1.slot.mirror_a;
-        fighter = g_game_info.plyr1.slot.fighter;
-    }
-    fighter_view = (struct NbFighterHurtView*)fighter;
-
-    random_hit(0xD);
-    uv_from_angle_y(&facing, player_object->ang.y);
-    hit_length_inverse = gxMathFastInvSqrt(
-        hit->momentum.x * hit->momentum.x +
-        hit->momentum.z * hit->momentum.z);
-    direction.x = hit->momentum.x * hit_length_inverse;
-    direction.z = hit->momentum.z * hit_length_inverse;
-    facing_length_inverse = gxMathFastInvSqrt(
-        facing.x * facing.x + facing.z * facing.z);
-    facing.x *= facing_length_inverse;
-    facing.z *= facing_length_inverse;
-    alignment = direction.x * facing.x + direction.z * facing.z;
-
-    if (impact > 0.115f && alignment > 0.7f && alignment < 1.3f) {
-        xfer_player_proc_to_script_manual_messaging(
-            fighter, player_object, 0xA);
+    camera_to_object_x = camera_x - object->pos.value.x;
+    camera_to_reference_x = camera_x - reference->pos.value.x;
+    if (camera_to_object_x * camera_to_object_x +
+            camera_to_object_z * camera_to_object_z >
+        camera_to_reference_x * camera_to_reference_x +
+            camera_to_reference_z * camera_to_reference_z) {
         return 1;
-    }
-    if (impact > 0.125f && alignment > -1.15f && alignment < -0.85f) {
-        xfer_player_proc_to_script_manual_messaging(
-            fighter, player_object, 9);
-        return 1;
-    }
-    if (alignment > -0.45f && alignment < 0.45f) {
-        int use_left_reaction = nb_npc_side_reaction_is_left(fighter_view, hit);
-        if (use_left_reaction != 0) {
-            xfer_player_proc_to_script_manual_messaging(
-                fighter, player_object, 0xB);
-        } else {
-            xfer_player_proc_to_script_manual_messaging(
-                fighter, player_object, 0xC);
-        }
-        return 1;
-    }
-    if (alignment > -1.55f && alignment < -0.55f) {
-        xfer_player_proc(get_player_proc(player_object), r_chest2_stumble);
     }
     return 0;
+}
+
+void rd_set_impact_vector(float scale) {
+    Vec impact = {0.0f, 0.0f, 0.0f};
+    float squared_length;
+    float inverse_length;
+
+    impact.x =
+        g_game_info.player_objects[1]->pos.value.x -
+        g_game_info.player_objects[0]->pos.value.x;
+    impact.z =
+        g_game_info.player_objects[1]->pos.value.z -
+        g_game_info.player_objects[0]->pos.value.z;
+
+    squared_length = impact.x * impact.x + impact.z * impact.z;
+    inverse_length = gxMathFastInvSqrt(squared_length);
+    impact.x *= inverse_length;
+    impact.z *= inverse_length;
+
+    g_game_info.impact_vector.y = impact.y;
+    g_game_info.impact_vector.x = impact.x;
+    g_game_info.impact_vector.z = impact.z;
+    g_game_info.impact_vector.x *= scale;
+    g_game_info.impact_vector.y *= scale;
+    g_game_info.impact_vector.z *= scale;
+}
+
+void nb_place_slave_in_bgnd(
+    int npc_id, int rope_model_index, const char* model_name, int model_id,
+    float anchor_x, float anchor_y, float anchor_z, float rope_length,
+    float local_angle_x, float local_angle_y, float local_angle_z,
+    float object_angle_x, float object_angle_y, float object_angle_z,
+    float acceleration_divisor, float acceleration_scale, float field_8C) {
+    struct NbNpcState* npc;
+    MkObj* preload_object;
+    Vec* object_position;
+    Vec local_angles;
+    Vec rope_offset = {1.0f, 0.0f, 0.0f};
+    MKMATRIX rotation;
+    float collision_offset_z;
+
+    bgnd_preload_named_model("ROPE", rope_model_index);
+    bgnd_set_active_sobj_in_obj(rope_model_index, 0);
+    bgnd_unhide_preload_obj(rope_model_index);
+    bgnd_unhide_active_sobj();
+    bgnd_set_active_sobj_pos(anchor_x, anchor_y, anchor_z);
+    bgnd_preload_obj_attach_rope(rope_model_index);
+
+    bgnd_create_named_npc_in_slot(npc_id, model_name, model_id, 0);
+    bgnd_add_brains_to_npc(npc_id, p_npc_on_pendulum_rope);
+    preload_object = bgnd_fetch_obj(npc_id);
+    preload_object->light_flags = 4;
+    bgnd_attach_rope_to_bgnd_obj(rope_model_index, npc_id, 8);
+    bgnd_rope_adjust_length(rope_model_index, 1, rope_length);
+
+    npc = bgnd_fetch_npc(npc_id);
+    npc->anchor.x = anchor_x;
+    npc->anchor.y = anchor_y;
+    npc->anchor.z = anchor_z;
+    npc->rope_length = rope_length;
+    npc->acceleration_divisor = acceleration_divisor;
+    npc->field_8C = field_8C;
+    npc->acceleration_scale = acceleration_scale;
+    npc->active = 0;
+    npc->swing_angle = 0.0f;
+    npc->field_44 = 0.0f;
+    npc->last_hit_id[1] = 0.0f;
+    npc->last_hit_id[0] = 0.0f;
+    npc->phase = 0.17444445f * (float)(unsigned int)npc_id;
+    npc->swing_ticks = 3000;
+
+    npc->object->ang_vel.z = 0.0f;
+    npc->object->ang_vel.y = 0.0f;
+    npc->object->ang_vel.x = 0.0f;
+    npc->object->ang.x = object_angle_x;
+    npc->object->ang.y = object_angle_y;
+    npc->object->ang.z = object_angle_z;
+
+    object_position = &npc->object->pos.value;
+    local_angles.x = local_angle_x;
+    local_angles.y = local_angle_y;
+    local_angles.z = local_angle_z;
+    rope_offset.x = rope_length;
+    XYZ_angles_to_MKMATRIX(&local_angles, &rotation);
+    v3_x_mat(object_position, &rope_offset, &rotation);
+    object_position->x += npc->anchor.x;
+    object_position->y += npc->anchor.y;
+    collision_offset_z = object_position->z;
+    object_position->z += npc->anchor.z;
+
+    bgnd_npc_add_collision_shape(
+        npc_id, npc_id + 0x12C, 1, 0.3f, 2.0f, -1.2f,
+        collision_offset_z);
+}
+
+static inline void nb_scale_desired_force(Vec* force, float scale)
+{
+    force->y *= scale;
+    force->x *= scale;
+    force->z *= scale;
+}
+
+static void nb_get_desired_acceleration(
+    struct NbNpcState* state, Vec* acceleration, const Vec* surface_normal) {
+    Vec force;
+    float swing_angle;
+    float scale;
+    float inv_length;
+    float squared_length;
+    float normal_component;
+    Vec normal;
+    float tangent_force_y;
+    float tangent_force_x;
+    float tangent_force_z;
+
+    force.z = 0.0f;
+    acceleration->z = 0.0f;
+    force.y = 0.0f;
+    force.x = 0.0f;
+    acceleration->y = 0.0f;
+    acceleration->x = 0.0f;
+    swing_angle = state->phase;
+
+    if (state->swing_ticks < 0) {
+        force.y = -1.0f;
+    } else {
+        scale = 24.0f * (float)refresh_rate();
+        if (scale) {
+            scale = (float)state->swing_ticks / scale;
+            if (scale > 1.0f) {
+                scale = 1.0f;
+            }
+            force.x = scale * gxMathSin(swing_angle);
+            force.z = scale * gxMathCos(swing_angle);
+            force.y = -6.0f;
+        }
+    }
+
+    squared_length =
+        force.z * force.z + (force.x * force.x + force.y * force.y);
+    inv_length = gxMathFastInvSqrt(squared_length);
+
+    force.y *= inv_length;
+    force.x *= inv_length;
+    force.z *= inv_length;
+    nb_scale_desired_force(&force, state->acceleration_scale);
+
+    normal.x = surface_normal->x;
+    normal.y = surface_normal->y;
+    normal.z = surface_normal->z;
+    normal_component =
+        -(float)(force.z * normal.z +
+                 (force.x * normal.x + force.y * normal.y));
+
+    tangent_force_x = normal.x * normal_component;
+    tangent_force_y = normal.y * normal_component;
+    tangent_force_z = normal.z * normal_component;
+    tangent_force_x += force.x;
+    tangent_force_y += force.y;
+    tangent_force_z += force.z;
+
+    acceleration->x = tangent_force_x / state->acceleration_divisor;
+    acceleration->y = tangent_force_y / state->acceleration_divisor;
+    acceleration->z = tangent_force_z / state->acceleration_divisor;
 }
 
 static inline void nb_apply_tangent_momentum(
@@ -669,15 +369,15 @@ static inline void nb_get_rope_angle(
     angle_vector->z *= angle;
 }
 
-/* TODO: [breakthrough needed] 97.41940%; unit is -inline deferred;
- * find the construct that re-stores acceleration before each momentum add. */
+/* TODO: [breakthrough needed] 98.42388%; acceleration re-stored before each momentum add
+ * (backend frsp forwarding, PS2 too); construct unknown, self-copy helpers dead. */
 static float p_npc_on_pendulum_rope(void) {
     MkObj* object;
     struct NbNpcState* npc;
     Vec acceleration;
     Vec normal;
     Vec angle_vector;
-    Vec world_up = nb_world_up;
+    Vec world_up = {0.0f, 1.0f, 0.0f};
     Vec displacement;
     Vec velocity_direction;
     Vec tangent;
@@ -687,7 +387,7 @@ static float p_npc_on_pendulum_rope(void) {
     float response;
 
     npc = ((struct NbNpcProcPdata*)apdata)->npc;
-    object = npc->object;
+    object = ((struct NbNpcProcPdata*)apdata)->npc->object;
     npc->momentum.z = 0.0f;
     npc->momentum.y = 0.0f;
     npc->momentum.x = 0.0f;
@@ -847,170 +547,458 @@ static float p_npc_on_pendulum_rope(void) {
     }
 }
 
-static inline void nb_scale_desired_force(Vec* force, float scale)
-{
-    force->y *= scale;
-    force->x *= scale;
-    force->z *= scale;
-}
+static int nb_which_side(
+    struct NbFighterHurtView* fighter_view, struct NbNpcState* hit) {
+    MkObj* current_object;
+    MkObj* npc_object;
+    int use_left_reaction;
 
-static void nb_get_desired_acceleration(
-    struct NbNpcState* state, Vec* acceleration, const Vec* surface_normal) {
-    Vec force;
-    float swing_angle;
-    float scale;
-    float inv_length;
-    float squared_length;
-    float normal_component;
-    Vec normal;
-    float tangent_force_y;
-    float tangent_force_x;
-    float tangent_force_z;
-
-    force.z = 0.0f;
-    acceleration->z = 0.0f;
-    force.y = 0.0f;
-    force.x = 0.0f;
-    acceleration->y = 0.0f;
-    acceleration->x = 0.0f;
-    swing_angle = state->phase;
-
-    if (state->swing_ticks < 0) {
-        force.y = -1.0f;
-    } else {
-        scale = 24.0f * (float)refresh_rate();
-        if (scale) {
-            scale = (float)state->swing_ticks / scale;
-            if (scale > 1.0f) {
-                scale = 1.0f;
-            }
-            force.x = scale * gxMathSin(swing_angle);
-            force.z = scale * gxMathCos(swing_angle);
-            force.y = -6.0f;
+    use_left_reaction = 0;
+    current_object = fighter_view->object_slot->object;
+    plyr_obj = current_object;
+    his_obj = fighter_view->opponent_object;
+    plyr_anim_pdata = &fighter_view->anim_pdata;
+    npc_object = hit->object;
+    if (is_behind_relative_to_cam(npc_object, current_object)) {
+        if (is_my_chest_to_screen() == 0) {
+            use_left_reaction = 1;
         }
+    } else if (is_my_chest_to_screen() != 0) {
+        use_left_reaction = 1;
     }
 
-    squared_length =
-        force.z * force.z + (force.x * force.x + force.y * force.y);
-    inv_length = gxMathFastInvSqrt(squared_length);
+    plyr_obj = 0;
+    his_obj = 0;
+    plyr_anim_pdata = 0;
 
-    force.y *= inv_length;
-    force.x *= inv_length;
-    force.z *= inv_length;
-    nb_scale_desired_force(&force, state->acceleration_scale);
-
-    normal.x = surface_normal->x;
-    normal.y = surface_normal->y;
-    normal.z = surface_normal->z;
-    normal_component =
-        -(float)(force.z * normal.z +
-                 (force.x * normal.x + force.y * normal.y));
-
-    tangent_force_x = normal.x * normal_component;
-    tangent_force_y = normal.y * normal_component;
-    tangent_force_z = normal.z * normal_component;
-    tangent_force_x += force.x;
-    tangent_force_y += force.y;
-    tangent_force_z += force.z;
-
-    acceleration->x = tangent_force_x / state->acceleration_divisor;
-    acceleration->y = tangent_force_y / state->acceleration_divisor;
-    acceleration->z = tangent_force_z / state->acceleration_divisor;
+    return use_left_reaction;
 }
 
-void nb_place_slave_in_bgnd(
-    int npc_id, int rope_model_index, const char* model_name, int model_id,
-    float anchor_x, float anchor_y, float anchor_z, float rope_length,
-    float local_angle_x, float local_angle_y, float local_angle_z,
-    float object_angle_x, float object_angle_y, float object_angle_z,
-    float acceleration_divisor, float acceleration_scale, float field_8C) {
+static int nb_npc_hurt_player(
+    struct NbNpcState* hit, unsigned int player_index, float impact) {
+    MkObj* player_object;
+    FighterMirror* fighter;
+    struct NbFighterHurtView* fighter_view;
+    Vec facing;
+    Vec direction;
+    float hit_length_inverse;
+    float facing_length_inverse;
+    float alignment;
+
+    player_object = g_game_info.plyr0.slot.mirror_a;
+    fighter = g_game_info.plyr0.slot.fighter;
+    if (player_index == 1) {
+        player_object = g_game_info.plyr1.slot.mirror_a;
+        fighter = g_game_info.plyr1.slot.fighter;
+    }
+    fighter_view = (struct NbFighterHurtView*)fighter;
+
+    random_hit(0xD);
+    uv_from_angle_y(&facing, player_object->ang.y);
+    hit_length_inverse = gxMathFastInvSqrt(
+        hit->momentum.x * hit->momentum.x +
+        hit->momentum.z * hit->momentum.z);
+    direction.x = hit->momentum.x * hit_length_inverse;
+    direction.z = hit->momentum.z * hit_length_inverse;
+    facing_length_inverse = gxMathFastInvSqrt(
+        facing.x * facing.x + facing.z * facing.z);
+    facing.x *= facing_length_inverse;
+    facing.z *= facing_length_inverse;
+    alignment = direction.x * facing.x + direction.z * facing.z;
+
+    if (impact > 0.115f && alignment > 0.7f && alignment < 1.3f) {
+        xfer_player_proc_to_script_manual_messaging(
+            fighter, player_object, 0xA);
+        return 1;
+    }
+    if (impact > 0.125f && alignment > -1.15f && alignment < -0.85f) {
+        xfer_player_proc_to_script_manual_messaging(
+            fighter, player_object, 9);
+        return 1;
+    }
+    if (alignment > -0.45f && alignment < 0.45f) {
+        int use_left_reaction = nb_which_side(fighter_view, hit);
+        if (use_left_reaction != 0) {
+            xfer_player_proc_to_script_manual_messaging(
+                fighter, player_object, 0xB);
+        } else {
+            xfer_player_proc_to_script_manual_messaging(
+                fighter, player_object, 0xC);
+        }
+        return 1;
+    }
+    if (alignment > -1.55f && alignment < -0.55f) {
+        xfer_player_proc(get_player_proc(player_object), r_chest2_stumble);
+    }
+    return 0;
+}
+
+/* TODO: [near miss] 99.50593%; 17 FPR-home rows: named blend temps (weighted_sum,
+ * weighted_target, correction) must number above their split webs; recover blend owner. */
+static void nb_npc_slave_hit_by_plyr(int npc_id) {
     struct NbNpcState* npc;
-    MkObj* preload_object;
-    Vec* object_position;
-    Vec local_angles;
-    Vec rope_offset;
-    MKMATRIX rotation;
-    float collision_offset_z;
-
-    rope_offset = nb_rope_preload_rotation;
-    bgnd_preload_named_model("ROPE", rope_model_index);
-    bgnd_set_active_sobj_in_obj(rope_model_index, 0);
-    bgnd_unhide_preload_obj(rope_model_index);
-    bgnd_unhide_active_sobj();
-    bgnd_set_active_sobj_pos(anchor_x, anchor_y, anchor_z);
-    bgnd_preload_obj_attach_rope(rope_model_index);
-
-    bgnd_create_named_npc_in_slot(npc_id, model_name, model_id, 0);
-    bgnd_add_brains_to_npc(npc_id, p_npc_on_pendulum_rope);
-    preload_object = bgnd_fetch_obj(npc_id);
-    preload_object->light_flags = 4;
-    bgnd_attach_rope_to_bgnd_obj(rope_model_index, npc_id, 8);
-    bgnd_rope_adjust_length(rope_model_index, 1, rope_length);
+    Vec target = {0.0f, 0.0f, 0.0f};
+    Vec delta;
+    float player_side;
+    float previous_hit;
+    float force;
+    float inverse_length;
+    float old_x;
+    float old_y;
+    float old_z;
+    Vec blended_momentum;
+    float target_weight;
+    float correction_weight;
+    float weighted_sum;
+    float weighted_target;
+    float correction;
+    int player_index;
+    unsigned int collision_id;
+    int hit_id;
 
     npc = bgnd_fetch_npc(npc_id);
-    npc->anchor.x = anchor_x;
-    npc->anchor.y = anchor_y;
-    npc->anchor.z = anchor_z;
-    npc->rope_length = rope_length;
-    npc->acceleration_divisor = acceleration_divisor;
-    npc->field_8C = field_8C;
-    npc->acceleration_scale = acceleration_scale;
-    npc->active = 0;
-    npc->swing_angle = 0.0f;
-    npc->field_44 = 0.0f;
-    npc->last_hit_id[1] = 0.0f;
-    npc->last_hit_id[0] = 0.0f;
-    npc->phase = 0.17444445f * (float)(unsigned int)npc_id;
-    npc->swing_ticks = 3000;
+    collision_id = npc_id + 0x12CU;
+    bgnd_collision_if_disable_col(5, collision_id);
 
-    npc->object->ang_vel.z = 0.0f;
-    npc->object->ang_vel.y = 0.0f;
-    npc->object->ang_vel.x = 0.0f;
-    npc->object->ang.x = object_angle_x;
-    npc->object->ang.y = object_angle_y;
-    npc->object->ang.z = object_angle_z;
+    spad_set_vector(0, 0x1A);
+    player_side = spad_get_pos(0, 0);
+    previous_hit = npc->last_hit_id[0];
+    if (player_side == 1.0f) {
+        previous_hit = npc->last_hit_id[1];
+    }
 
-    object_position = &npc->object->pos.value;
-    local_angles.x = local_angle_x;
-    local_angles.y = local_angle_y;
-    local_angles.z = local_angle_z;
-    rope_offset.x = rope_length;
-    XYZ_angles_to_MKMATRIX(&local_angles, &rotation);
-    v3_x_mat(object_position, &rope_offset, &rotation);
-    object_position->x += npc->anchor.x;
-    object_position->y += npc->anchor.y;
-    collision_offset_z = object_position->z;
-    object_position->z += npc->anchor.z;
+    spad_set_vector(0, 0x1B);
+    hit_id = spad_get_pos(0, 0);
+    if ((float)hit_id != previous_hit) {
+        int power;
 
-    bgnd_npc_add_collision_shape(
-        npc_id, npc_id + 0x12C, 1, 0.3f, 2.0f, -1.2f,
-        collision_offset_z);
+        if (player_side == 0.0f) {
+            npc->last_hit_id[0] = hit_id;
+        } else {
+            npc->last_hit_id[1] = hit_id;
+        }
+
+        spad_set_vector(0, 0x15);
+        spad_set_vector(1, 0x14);
+        spad_sub_vectors(0, 1, 0);
+        delta.x = spad_get_pos(0, 0);
+        delta.y = spad_get_pos(0, 1);
+        delta.z = spad_get_pos(0, 2);
+        old_x = npc->momentum.x;
+        old_y = npc->momentum.y;
+        old_z = npc->momentum.z;
+
+        player_index = player_side;
+        power = reaction_fetch_current_power_level(player_index);
+        if (power > 3) {
+            force = 0.095f + frand(0.08f);
+        } else if (power > 2) {
+            force = 0.07f + frand(0.08f);
+        } else if (power > 1) {
+            force = 0.05f + frand(0.08f);
+        } else {
+            force = 0.05f + frand(0.05f);
+        }
+
+        inverse_length = gxMathFastInvSqrt(
+            delta.x * delta.x + delta.z * delta.z);
+        target.x = delta.x * inverse_length;
+        target.z = delta.z * inverse_length;
+        target.x *= force;
+        target.z *= force;
+        target_weight = 1.0f;
+        correction_weight = 0.9f;
+        weighted_sum = old_x * npc->acceleration_divisor;
+        weighted_target = target.x * target_weight;
+        correction = target.x - old_x;
+        weighted_sum += weighted_target;
+        correction *= correction_weight;
+        blended_momentum.x = weighted_sum + correction;
+        weighted_sum = old_y * npc->acceleration_divisor;
+        weighted_target = target.y * target_weight;
+        correction = target.y - old_y;
+        weighted_sum += weighted_target;
+        correction *= correction_weight;
+        blended_momentum.y = weighted_sum + correction;
+        weighted_sum = old_z * npc->acceleration_divisor;
+        weighted_target = target.z * target_weight;
+        correction = target.z - old_z;
+        weighted_sum += weighted_target;
+        correction *= correction_weight;
+        blended_momentum.z = weighted_sum + correction;
+        blended_momentum.x *= 1.0f / (npc->acceleration_divisor + target_weight);
+        blended_momentum.y *= 1.0f / (npc->acceleration_divisor + target_weight);
+        blended_momentum.z *= 1.0f / (npc->acceleration_divisor + target_weight);
+
+        if ((reaction_fetch_current_flags(player_index) & 0x80) != 0) {
+            blended_momentum.x = 0.205f * blended_momentum.x;
+            blended_momentum.y = 0.2f;
+            blended_momentum.z = 0.205f * blended_momentum.z;
+            npc->active |= 1;
+            npc->swing_angle = 0.02f + frand(0.02f);
+        } else if (npc->swing_angle != 0.0f || (unsigned short)randu0(100) < 80) {
+            npc->swing_angle = 0.08f + frand(0.09f);
+            if ((unsigned short)randu0(100) < 50) {
+                npc->swing_angle *= -1.0f;
+            }
+        }
+
+        snd_req(0x110);
+        random_hit(1);
+        npc->momentum.x = blended_momentum.x;
+        npc->momentum.y = blended_momentum.y;
+        npc->momentum.z = blended_momentum.z;
+    }
+
+    bgnd_collision_if_enable_col(5, collision_id);
 }
 
-void rd_set_impact_vector(float scale) {
-    Vec impact = nb_impact_zero;
-    float squared_length;
-    float inverse_length;
+void nb_npc_slave_plyr_process_collision(unsigned int npc_id) {
+    static unsigned int last_sound_time;
+    struct NbNpcState* npc;
+    Vec push_direction;
+    Vec facing;
+    Vec side = {0.0f, 0.0f, 0.0f};
+    Vec orig_z;
+    Vec orig_x;
+    Vec new_momentum;
+    float player_index;
+    float speed;
+    float separation;
+    float impact_scale;
+    float alignment;
+    float momentum_x;
+    float momentum_y;
+    float momentum_z;
+    int attack_flags;
+    int play_impact_sound;
 
-    impact.x =
-        g_game_info.player_objects[1]->pos.value.x -
-        g_game_info.player_objects[0]->pos.value.x;
-    impact.z =
-        g_game_info.player_objects[1]->pos.value.z -
-        g_game_info.player_objects[0]->pos.value.z;
+    npc = bgnd_fetch_npc(npc_id);
+    spad_set_vector(0, 0x1A);
+    player_index = spad_get_pos(0, 0);
+    spad_set_vector(0, 0x15);
+    spad_set_vector_setting(
+        1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
+    spad_sub_vectors(0, 1, 0);
+    if (spad_get_pos(0, 1) > 1.8f) {
+        return;
+    }
 
-    squared_length = impact.x * impact.x + impact.z * impact.z;
-    inverse_length = gxMathFastInvSqrt(squared_length);
-    impact.x *= inverse_length;
-    impact.z *= inverse_length;
+    npc->swing_ticks = refresh_rate() * -15;
+    bgnd_collision_if_disable_col(5, npc_id + 0x12C);
+    spad_set_vector(0, 0x1D);
+    if (((int)spad_get_pos(0, 0) & 1) == 0) {
+        nb_npc_slave_hit_by_plyr(npc_id);
+        return;
+    }
 
-    g_game_info.impact_vector.y = impact.y;
-    g_game_info.impact_vector.x = impact.x;
-    g_game_info.impact_vector.z = impact.z;
-    g_game_info.impact_vector.x *= scale;
-    g_game_info.impact_vector.y *= scale;
-    g_game_info.impact_vector.z *= scale;
+    momentum_y = npc->momentum.y;
+    momentum_x = npc->momentum.x;
+    momentum_z = npc->momentum.z;
+    speed = gxMathFastSqrt(
+        momentum_z * momentum_z +
+        (momentum_x * momentum_x + momentum_y * momentum_y));
+    spad_set_vector(0, 0x1C);
+    attack_flags = spad_get_pos(0, 0);
+
+    if (speed < 0.03f) {
+        spad_set_vector(0, 0x15);
+        spad_set_vector_setting(
+            1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
+        spad_sub_vectors(2, 1, 0);
+        separation = spad_xz_length_vector(2);
+        spad_norm_vector(2);
+        if (separation < 0.35f) {
+            spad_scale_vector(3, 2, -1.0f * (0.45f - separation));
+            spad_sub_vectors(1, 1, 3);
+            npc->object->pos.value.x = spad_get_pos(1, 0);
+            npc->object->pos.value.z = spad_get_pos(1, 2);
+        }
+        if (npc->swing_angle != 0.0f || (unsigned short)randu0(100) < 80) {
+            npc->swing_angle = 0.035f + frand(0.03f);
+        }
+        if (attack_flags != 0) {
+            spad_scale_vector(0, 2, 0.065f);
+        } else {
+            spad_scale_vector(0, 2, 0.02f);
+        }
+        push_direction.x = spad_get_pos(0, 0);
+        push_direction.y = 0.0f;
+        push_direction.z = spad_get_pos(0, 2);
+        rotate_xz(&push_direction, &push_direction, 0.5235988f);
+        npc->momentum.x = push_direction.x;
+        npc->momentum.y = push_direction.y;
+        npc->momentum.z = push_direction.z;
+        bgnd_collision_if_enable_col(5, npc_id + 0x12C);
+        return;
+    }
+
+    spad_set_vector(0, 0x15);
+    spad_set_vector_setting(
+        1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
+    spad_sub_vectors(0, 0, 1);
+    spad_set_vector_y(0, 0.0f);
+    spad_norm_vector(0);
+    spad_set_vector_setting(
+        1, npc->momentum.x, 0.0f, npc->momentum.z);
+    spad_norm_vector(1);
+    if (spad_xz_dot_xz(0, 1) < -0.1f) {
+        spad_set_vector(0, 0x15);
+        spad_set_vector_setting(
+            1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
+        spad_sub_vectors(2, 1, 0);
+        if (spad_xz_length_vector(2) < 0.35f) {
+            npc->momentum.x = 1.1f * npc->momentum.x;
+            npc->momentum.z = 1.1f * npc->momentum.z;
+        }
+        bgnd_collision_if_enable_col(5, npc_id + 0x12C);
+        return;
+    }
+
+    if (attack_flags == 0 || (attack_flags & 0x800) != 0) {
+        impact_scale = 0.45f;
+    } else if ((attack_flags & 0x400) != 0) {
+        impact_scale = 0.05f;
+    } else {
+        impact_scale = 0.7f;
+    }
+    play_impact_sound = 1;
+    if ((attack_flags & 0x2000) != 0 || attack_flags == 0) {
+        int index = player_index;
+
+        if (is_pX_airborn(index) == 0 && speed > 0.11f) {
+            impact_scale = 0.2f;
+            play_impact_sound = 0;
+            if (nb_npc_hurt_player(
+                    npc, index, speed) == 1) {
+                impact_scale = -0.05f;
+            }
+        }
+    }
+    if (play_impact_sound == 1 &&
+        last_sound_time < (unsigned int)exec_tick_ctr && speed > 0.06f) {
+        last_sound_time = (unsigned int)exec_tick_ctr + 30;
+        random_hit(1);
+    }
+
+    spad_set_vector(0, 0x1E);
+    uv_from_angle_y(&facing, spad_get_pos(0, 1));
+    side.x = facing.z;
+    side.z = -facing.x;
+    spad_set_vector(0, 0x15);
+    spad_set_vector_setting(
+        1, npc->object->pos.value.x, npc->object->pos.value.y, npc->object->pos.value.z);
+    spad_sub_vectors(0, 0, 1);
+    spad_set_vector_setting(1, facing.x, facing.y, facing.z);
+    alignment = spad_xz_dot_xz(0, 1);
+    if (alignment > -0.4f && alignment < 0.4f) {
+        float swap_x;
+        float swap_y;
+        float swap_z;
+
+        if (side.x * npc->object->pos.value.x +
+                side.z * npc->object->pos.value.z <
+            0.0f) {
+            side.x = -1.0f * side.x;
+            side.z = -1.0f * side.z;
+        }
+        swap_x = side.x;
+        swap_y = side.y;
+        swap_z = side.z;
+
+        side.x = facing.x;
+        side.y = facing.y;
+        side.z = facing.z;
+        facing.x = swap_x;
+        facing.y = swap_y;
+        facing.z = swap_z;
+    } else if (alignment < 0.0f) {
+        facing.x = -1.0f * facing.x;
+        facing.z = -1.0f * facing.z;
+    }
+
+    convert_to_new_coord_sys(
+        &npc->momentum, &facing, &side, &new_momentum, &orig_x, &orig_z);
+    npc->momentum.x = -1.0f * impact_scale * new_momentum.x;
+    npc->momentum.z = new_momentum.z;
+    restore_to_orig_coord_sys(&npc->momentum, &orig_x, &orig_z);
+    bgnd_collision_if_enable_col(5, npc_id + 0x12C);
 }
 
-void bgnd_jtb_debug_info(void) {
+void lower_mines_ani_to_point(
+    void* script, float start_frame, float animation_step, float end_frame,
+    int landing_sound, float vertical_velocity, float gravity,
+    float transition, Vec* target, unsigned int frame_offset) {
+    MkHdr* object_header;
+    float root;
+    float radicand;
+    float frames;
+    float root_b;
+    float inverse_frames;
+    float delta_x;
+    float delta_z;
+    float height_term;
+
+    plyr_anim_pdata->flags |= 0x40;
+    transition_to_anim_script(transition, plyr_anim_pdata, script, 0x43);
+
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+
+    if (start_frame != 0.0f) {
+        plyr_anim_pdata->step = animation_step;
+        ani_to_frame_x(start_frame);
+        plyr_anim_pdata->step = 1.0f;
+    }
+
+    launch_me_up(vertical_velocity, gravity);
+    plyr_obj->flags_09_bits.launched = 0;
+
+    radicand = vertical_velocity * vertical_velocity;
+    height_term = (2.0f * gravity) *
+        ((plyr_obj->pos.value.y - 0.19f) - plyr_obj->ground_colls_y);
+    radicand -= height_term;
+    root = 0.001f;
+    if (radicand >= root) {
+        root = radicand;
+    }
+    root = gxMathFastSqrt(root);
+
+    radicand = (root - vertical_velocity) / gravity;
+    root_b = (-root - vertical_velocity) / gravity;
+    if (radicand < 0.0f ||
+        (root_b > 0.0f && root_b < radicand)) {
+        radicand = root_b;
+    }
+
+    frames = 1.0f;
+    radicand = radicand - (float)frame_offset;
+    if (radicand >= frames) {
+        frames = radicand;
+    }
+
+    plyr_anim_pdata->step = (end_frame - start_frame) / frames;
+    inverse_frames = 1.0f / frames;
+    delta_x = target->x;
+    delta_x -= plyr_obj->pos.value.x;
+    delta_z = target->z - plyr_obj->pos.value.z;
+    delta_x *= inverse_frames;
+    plyr_obj->pos_vel.x = delta_x;
+    plyr_obj->pos_vel.z = delta_z * inverse_frames;
+    ani_to_frame_x(end_frame);
+
+    plyr_obj->flags_09_bits.launched = 1;
+    if (plyr_obj != 0) {
+        object_header = as_mkhdr(&plyr_obj->hdr);
+    } else {
+        object_header = 0;
+    }
+    update_bone_hierarchy(object_header);
+    if (plyr_obj != 0) {
+        object_header = as_mkhdr(&plyr_obj->hdr);
+    } else {
+        object_header = 0;
+    }
+    ground_me(object_header);
+    land_chores(landing_sound, 0, 0.0f, 0.0f);
 }

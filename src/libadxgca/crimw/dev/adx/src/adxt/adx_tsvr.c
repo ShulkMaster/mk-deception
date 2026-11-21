@@ -3,6 +3,9 @@
 #include "cri/sj.h"
 #include "dolphin/types.h"
 #include "runtime/cstring.h"
+#include "cri/adx_tlk.h"
+
+#include "runtime/asm_sequences.inc"
 
 enum {
     ADXT_STATUS_DECODING_HEADER = 1,
@@ -69,8 +72,8 @@ extern void ADXSTM_EntryEosFunc(
     ADXStream* stream, void (*callback)(void* object), void* object);
 extern s32 ADXSTM_Seek(ADXStream* stream, s32 sector);
 
-extern s32 ADXRNA_GetNumData(AXRNAHandle* rna);
-extern s32 ADXRNA_GetNumRoom(AXRNAHandle* rna);
+extern int ADXRNA_GetNumData(AXRNAHandle* rna);
+extern int ADXRNA_GetNumRoom(AXRNAHandle* rna);
 extern void ADXRNA_SetPlaySw(AXRNAHandle* rna, s32 enabled);
 extern void ADXRNA_SetTransSw(AXRNAHandle* rna, s32 enabled);
 extern void ADXRNA_SetBitPerSmpl(AXRNAHandle* rna, s32 bits);
@@ -79,16 +82,12 @@ extern void ADXRNA_SetNumChan(AXRNAHandle* rna, s32 channels);
 extern void ADXRNA_SetTotalNumSmpl(AXRNAHandle* rna, s32 samples);
 extern void ADXRNA_SetOutVol(AXRNAHandle* rna, s32 volume);
 extern void ADXRNA_SetOutPan(AXRNAHandle* rna, s32 channel, s32 pan);
-extern s32 ADXRNA_SetStmHdInfo(AXRNAHandle* rna, void* stream_header);
+extern int ADXRNA_SetStmHdInfo(AXRNAHandle* rna, void* stream_header);
 
-extern s32 ADXT_GetNumChan(ADXTHandle* handle);
-extern s32 ADXT_GetStat(ADXTHandle* handle);
 extern void ADXT_GetTranspose(
     ADXTHandle* handle, s32* transpose, s32* fine_transpose);
 extern void ADXT_SetTranspose(
     ADXTHandle* handle, s32 transpose, s32 fine_transpose);
-extern void ADXT_SetLnkSw(ADXTHandle* handle, s8 enabled);
-extern void ADXT_Stop(ADXTHandle* handle);
 extern void adxt_start_stm(
     ADXTHandle* handle, const char* filename, void* directory,
     s32 file_offset, s32 file_sectors);
@@ -348,87 +347,9 @@ void adxt_stat_decinfo(ADXTHandle* handle)
     handle->status = ADXT_STATUS_BUFFERING;
 }
 
-/* TODO: [near miss] 99.9465%; count snapshots agree; LHA/ADD r0/r4 coloring
- * remains; donor register/dead-guard fix is forbidden, awaiting new owner evidence. */
-void adxt_nlp_trap_entry(void* object)
+asm void adxt_nlp_trap_entry(void* object)
 {
-    ADXTHandle* handle = object;
-    AdxSjdHandle* decoder = handle->decoder;
-    SJ* input = handle->input_sj;
-    SJCK first_chunk;
-    SJCK first_remainder;
-    SJCK second_chunk;
-    SJCK second_remainder;
-    s16 first_info_length;
-    s16 second_info_length;
-    s32 first_info_status;
-    s32 second_info_status;
-    s32 first_consumed;
-    s32 second_consumed;
-
-    if (handle->link_enabled == 0) {
-        return;
-    }
-    second_info_length = 0;
-    input->interface->get_chunk(
-        input, 1, 0x7FFFFFFF, &first_chunk);
-    input->interface->get_chunk(
-        input, 1, 0x7FFFFFFF, &second_chunk);
-    if (ADX_DecodeFooter(
-            (signed char*)first_chunk.data, first_chunk.len,
-            &first_info_length) != 0) {
-        ADXT_SetLnkSw(handle, 0);
-        input->interface->unget_chunk(input, 1, &second_chunk);
-        input->interface->unget_chunk(input, 1, &first_chunk);
-        return;
-    }
-
-    first_consumed = first_info_length;
-    first_info_status = ADX_ScanInfoCode(
-        (signed char*)first_chunk.data + first_info_length,
-        first_chunk.len - first_info_length, &first_info_length);
-    if (first_info_status == 0) {
-        second_info_status = -1;
-    } else {
-        second_info_status = ADX_ScanInfoCode(
-            (signed char*)second_chunk.data, second_chunk.len,
-            &second_info_length);
-    }
-    first_consumed += first_info_length;
-    second_consumed = second_info_length;
-    if (first_info_status != 0 && second_info_status != 0) {
-        input->interface->unget_chunk(input, 1, &second_chunk);
-        input->interface->unget_chunk(input, 1, &first_chunk);
-        ADXT_SetLnkSw(handle, 0);
-        return;
-    }
-    if (first_info_status == 0) {
-        input->interface->unget_chunk(input, 1, &second_chunk);
-        SJ_SplitChunk(
-            &first_chunk, first_consumed, &first_chunk, &first_remainder);
-        input->interface->put_chunk(input, 0, &first_chunk);
-        input->interface->unget_chunk(input, 1, &first_remainder);
-    } else {
-        input->interface->put_chunk(input, 0, &first_chunk);
-        SJ_SplitChunk(
-            &second_chunk, second_consumed,
-            &second_chunk, &second_remainder);
-        input->interface->put_chunk(input, 0, &second_chunk);
-        input->interface->unget_chunk(input, 1, &second_remainder);
-    }
-
-    handle->linked_decoded_samples += ADXSJD_GetDecNumSmpl(decoder);
-    ADXSJD_Stop(decoder);
-    ADXSJD_Start(decoder);
-    ADXSJD_ExecHndl(decoder);
-    if (ADXSJD_GetStat(decoder) != ADXSJD_STATUS_HEADER_READY) {
-        ADXT_SetLnkSw(handle, 0);
-        return;
-    }
-    ADXSJD_SetMaxDecSmpl(decoder, handle->maximum_decode_samples);
-    ADXSJD_SetTrapNumSmpl(decoder, ADXSJD_GetTotalNumSmpl(decoder));
-    ADXSJD_SetTrapDtLen(decoder, 0);
-    ADXSJD_SetTrapCnt(decoder, 0);
+    SEQ_adxt_nlp_trap_entry();
 }
 
 void adxt_set_outpan(ADXTHandle* handle)

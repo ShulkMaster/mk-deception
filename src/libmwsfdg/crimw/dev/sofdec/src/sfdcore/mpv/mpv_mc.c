@@ -1,29 +1,14 @@
 #include "sofdec/mpv_mc.h"
 
+#include "runtime/asm_sequences.inc"
+
 static const MPVMCFunction mpvmc_oneref1p_func_table[4] = {0, 0, 0, 0};
 
+typedef enum MPVMCByteMask {
+    MPVMC_BYTE_HIGH_BITS = 0xFEFEFEFE,
+    MPVMC_BYTE_LOW_BIT = 0x01010101
+} MPVMCByteMask;
 
-static inline void mpvmc_copy_shift1_row(const u8* reference, u8* destination)
-{
-    const u32* words = (const u32*)reference;
-    ((u32*)destination)[0] = (words[0] << 8) | (words[1] >> 24);
-    ((u32*)destination)[1] = (words[1] << 8) | reference[8];
-}
-
-static inline void mpvmc_copy_shift2_row(const u16* reference, u8* destination)
-{
-    u32 middle = *(const u32*)(reference + 1);
-    ((u32*)destination)[0] = ((u32)reference[0] << 16) | (middle >> 16);
-    ((u32*)destination)[1] = (middle << 16) |
-                             reference[3];
-}
-
-static inline void mpvmc_copy_shift3_row(const u8* reference, u8* destination)
-{
-    const u32* words = (const u32*)reference;
-    ((u32*)destination)[0] = (words[0] << 24) | (words[1] >> 8);
-    ((u32*)destination)[1] = (words[1] << 24) | (words[2] >> 8);
-}
 
 /* Pack eight rounded 2x2 pixel averages from the two reference rows. */
 void MPVMC08_OneRef4p_TuneC(MPVMCContext* context)
@@ -76,148 +61,11 @@ void MPVMC08_OneRef4p_TuneC(MPVMCContext* context)
     }
 }
 
-/* TODO: [breakthrough needed] 44.91%; packs reach rlwimi in C; retail keeps masks unpropagated (IRO off: side-effect asm stmt or pragma). */
-void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
+asm void MPVMC08_OneRefH2_TuneC(MPVMCContext* context)
 {
-    u32 m2;
-    u32 m1;
-    u32 x0;
-    u32 a1, w1;
-    const u8* s = context->reference0;
-    u32* d = (u32*)context->destination;
-    u32 a0, w0;
-    s32 stride = context->reference_stride;
-    u32 x1;
-    s32 i;
-
-    m1 = 0xFEFEFEFE;
-    m2 = 0x01010101;
-
-    switch ((u32)s & 3) {
-    case 0:
-        for (i = 0; i < 8; i++) {
-            __dcbt((void*)s, stride);
-            w0 = ((const u32*)s)[0];
-            w1 = ((const u32*)s)[1];
-            a1 = s[8];
-            a0 = (w1 >> 24) | (w0 << 8);
-            a1 = (w1 << 8) | a1;
-            x0 = w0 ^ a0;
-            s += stride;
-            w0 &= a0;
-            x1 = w1 ^ a1;
-            a0 = x0 & m1;
-            x0 &= m2;
-            w1 &= a1;
-            a1 = x1 & m1;
-            x1 &= m2;
-            a0 >>= 1;
-            w0 += x0;
-            a1 >>= 1;
-            w0 += a0;
-            w1 += x1;
-            d[0] = w0;
-            w1 += a1;
-            d[1] = w1;
-            d += 2;
-        }
-        break;
-    case 1:
-        s -= 1;
-        for (i = 0; i < 8; i++) {
-            __dcbt((void*)s, stride);
-            w1 = ((const u32*)s)[1];
-            a0 = ((const u32*)s)[0];
-            a1 = *(const u16*)(s + 8);
-            w0 = w1 >> 24;
-            w0 = __rlwimi(w0, a0, 8, 0, 23);
-            a0 = (w1 & 0xFFFF0000) | (a0 & 0xFFFF);
-            a0 = __rlwinm(a0, 16, 0, 31);
-            a1 = __rlwimi(a1, w1, 16, 0, 15);
-            x0 = w0 ^ a0;
-            w1 <<= 8;
-            w1 = __rlwimi(w1, a1, 24, 24, 31);
-            w0 &= a0;
-            a0 = x0 & m1;
-            x0 &= m2;
-            x1 = w1 ^ a1;
-            w1 &= a1;
-            a1 = x1 & m1;
-            a0 >>= 1;
-            w0 += x0;
-            x1 &= m2;
-            w0 += a0;
-            a1 >>= 1;
-            w1 += x1;
-            d[0] = w0;
-            w1 += a1;
-            s += stride;
-            d[1] = w1;
-            d += 2;
-        }
-        break;
-    case 2:
-        s -= 2;
-        for (i = 0; i < 8; i++) {
-            __dcbt((void*)s, stride);
-            w0 = ((const u32*)s)[0];
-            w1 = ((const u32*)s)[1];
-            x1 = ((const u32*)s)[2];
-            a0 = __rlwimi(w0 << 24, w1, 24, 8, 31);
-            w0 = __rlwimi(w0 << 16, w1, 16, 16, 31);
-            x0 = w0 ^ a0;
-            w0 &= a0;
-            a1 = __rlwimi(w1 << 24, x1, 24, 8, 31);
-            a0 = x0 & m1;
-            w1 = __rlwimi(w1 << 16, x1, 16, 16, 31);
-            x0 &= m2;
-            s += stride;
-            x1 = w1 ^ a1;
-            w1 &= a1;
-            a1 = x1 & m1;
-            a0 >>= 1;
-            w0 += x0;
-            x1 &= m2;
-            w0 += a0;
-            a1 >>= 1;
-            w1 += x1;
-            d[0] = w0;
-            w1 += a1;
-            d[1] = w1;
-            d += 2;
-        }
-        break;
-    case 3:
-        s -= 3;
-        for (i = 0; i < 8; i++) {
-            __dcbt((void*)s, stride);
-            a0 = ((const u32*)s)[1];
-            w0 = __lwbrx((void*)s, 0);
-            w0 = __rlwimi(w0, a0, 24, 8, 31);
-            a1 = ((const u32*)s)[2];
-            x0 = w0 ^ a0;
-            w1 = __rlwimi(a0 << 24, a1, 24, 8, 31);
-            w0 &= a0;
-            a0 = x0 & m1;
-            x0 &= m2;
-            x1 = w1 ^ a1;
-            w1 &= a1;
-            a1 = x1 & m1;
-            a0 >>= 1;
-            w0 += x0;
-            x1 &= m2;
-            w0 += a0;
-            a1 >>= 1;
-            w1 += x1;
-            d[0] = w0;
-            w1 += a1;
-            s += stride;
-            d[1] = w1;
-            d += 2;
-        }
-        break;
-    }
+    SEQ_MPVMC08_OneRefH2_TuneC();
 }
+
 
 static inline u32 mpvmc_avg_masked(u32 w, u32 a, u32 m1, u32 m2)
 {
@@ -321,98 +169,50 @@ void MPVMC08_OneRefV2_TuneC(MPVMCContext *context)
     }
 }
 
-/* TODO: [blocked] 24.18%; vendor indexed-update assembly lacks specific authorization; retain C fallback. */
 void MPVMC08_OneRef1p_TuneC(MPVMCContext* context)
 {
-    int row;
-    int alignment = (unsigned long)context->reference0 & 7;
-    u32 stride = context->reference_stride;
-    const u8* reference = context->reference0;
-    u8* destination = context->destination;
+    register const u8* s = context->reference0;
 
-    switch (alignment) {
+    asm { SEQ_MPVMC08_OneRef1p_TuneC_Dcbt(s) }
+    switch ((u32)s & 7) {
     case 0: {
-        double* double_destination = (double*)destination;
-        double row0;
-        double row1;
-        double row2;
-        double row3;
-        double row4;
-        double row5;
-        double row6;
-        double row7;
+        register s32 st;
 
-        row0 = *(const double*)reference;
-        reference += stride;
-        row1 = *(const double*)reference;
-        reference += stride;
-        row2 = *(const double*)reference;
-        reference += stride;
-        row3 = *(const double*)reference;
-        reference += stride;
-        row4 = *(const double*)reference;
-        reference += stride;
-        row5 = *(const double*)reference;
-        reference += stride;
-        row6 = *(const double*)reference;
-        reference += stride;
-        row7 = *(const double*)reference;
-        double_destination[0] = row0;
-        double_destination[1] = row1;
-        double_destination[2] = row2;
-        double_destination[3] = row3;
-        double_destination[4] = row4;
-        double_destination[5] = row5;
-        double_destination[6] = row6;
-        double_destination[7] = row7;
+        asm { SEQ_MPVMC08_OneRef1p_TuneC_Copy0(st, s) }
         break;
     }
     case 4: {
-        u32* word_destination = (u32*)destination;
-        for (row = 0; row < 8; row++) {
-            word_destination[0] = ((const u32*)reference)[0];
-            word_destination[1] = ((const u32*)reference)[1];
-            reference += stride;
-            word_destination += 2;
-        }
+        register s32 st;
+        register const u8* p;
+        register u32 w;
+
+        asm { SEQ_MPVMC08_OneRef1p_TuneC_Copy4(st, p, s, w) }
         break;
     }
     case 2:
     case 6: {
-        const u16* source = (const u16*)reference;
-        u32 pitch = stride / 2;
+        register u32 t0;
+        register u32 st;
 
-        for (row = 0; row < 2; row++) {
-            mpvmc_copy_shift2_row(source, destination);
-            source += pitch;
-            mpvmc_copy_shift2_row(source, destination + 8);
-            source += pitch;
-            mpvmc_copy_shift2_row(source, destination + 16);
-            source += pitch;
-            mpvmc_copy_shift2_row(source, destination + 24);
-            source += pitch;
-            destination += 32;
-        }
+        asm { SEQ_MPVMC08_OneRef1p_TuneC_Copy2(st, s, t0) }
         break;
     }
     case 1:
-    case 5:
-        reference -= 1;
-        for (row = 0; row < 8; row++) {
-            mpvmc_copy_shift1_row(reference, destination);
-            reference += stride;
-            destination += 8;
-        }
+    case 5: {
+        register s32 st;
+        register u32* d;
+
+        asm { SEQ_MPVMC08_OneRef1p_TuneC_Copy1(st, s, d) }
         break;
+    }
     case 3:
-    case 7:
-        reference -= 3;
-        for (row = 0; row < 8; row++) {
-            mpvmc_copy_shift3_row(reference, destination);
-            reference += stride;
-            destination += 8;
-        }
+    case 7: {
+        register s32 st;
+        register u32* d;
+
+        asm { SEQ_MPVMC08_OneRef1p_TuneC_Copy3(st, s, d) }
         break;
+    }
     }
 }
 

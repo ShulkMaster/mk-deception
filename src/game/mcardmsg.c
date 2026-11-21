@@ -29,12 +29,7 @@ int f_writing_to_memcard;
 int mcard_hault_msg_active;
 int mcard_msg_active;
 
-extern void (*msg_routine_table[])(void);
 
-void set_popup_type(int type);
-void set_popup_options_text(const char* text);
-void set_popup_message_text(const char* text);
-void set_popup_title_text(const char* text);
 int get_game_state(void);
 void pop_game_state(int state);
 void push_game_state(int state);

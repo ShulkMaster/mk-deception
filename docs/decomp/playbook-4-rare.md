@@ -61,7 +61,24 @@ our block never gets. GC2.7 reruns the scheduler after allocation only on
 blocks that allocation changed (a copy coalesced away). TRY computing the
 value into an honest named local and passing that local, so the block gains a
 copy that allocation deletes (`p_konquest_map_screen`: `cursor_x = ...;`
-before the call). Trace all blocks with `sched.py --trace SYM --block 1`;
+before the call). Fresh single-use local propagated (no MR in pre-RA
+`initial`, block still pre-RA only): reassign the variable that already
+owns a web in place, e.g. translate a parameter id through its table
+(`movie = table[movie]; play_movie(movie, 0);`): the load defines the
+parameter web, `MR r3,v` survives to allocation and is coalesced, the block
+gets its post-RA pass (`screen_engine_play_movie`: `li r4,0` after `lwzx`).
+Coalesced copy fixes the order but recolours (phantom degree: every web live
+across the copy +1): REQUIRE register-blind exact with the copy. TRY a dead
+instruction instead: `eliminatedeadcode` (start of `buildinterferencegraph`)
+deletes it before the interference matrix, so it clears `fScheduled` with zero
+graph change. Honest source: a mask-then-shift flag read
+`(byte & 0x40) != 0` / `>> 6` in that block; `adjustforward` merges the two
+`rlwinm` into the retail `extrwi` and leaves the mask `rlwinm` dead
+(`active_sidekick_swap`: `saved_hide_bit = (sidekick->hide_flags & 0x40) != 0;`).
+`(byte >> 6) & 1` and the bitfield emit one `rlwinm` (no dead op). Scratch
+probe: `#pragma opt_dead_assignments off` + a dead local load in the block
+(lead only).
+Trace all blocks with `sched.py --trace SYM --block 1`;
 `--block N --phase post` prints nothing when block N has no post-RA pass.
 
 An unchanged opcode count or zero peephole-rule return is not an unchanged
@@ -130,6 +147,16 @@ RA-time def/use/edge or pre-RA join that leaves no code:
 RE4 `volatile` reloads in `sftim_GetTimeExtClock` are the join variant).
 Blocked until an honest construct leaves such a compare; donor-confirm by
 compiling the RE4 unit with MKD flags and deleting its dead arm.
+- Which constants survive: IRO keeps a compare of a `long`-typed local
+  (`s32`/`u32`/CRI `Sint32`) assigned a constant; an `int` local and a
+  constant inline-helper argument are folded away (measured on `sfh_main`
+  readers: `int size = 4; if (size == 2)` and `helper(..., 4L)` both fold).
+  IF retail shows a runtime test of a constant (`li rX,0x380; clrlwi.` or
+  `li rX,0x1380; cmplwi rX,0x2000`) | REQUIRE the compare/branch rows exist in
+  retail (a size/alignment sanity check, not an invisible arm) | TRY one `s32`
+  local per checked constant (`siz_mcbuf = 0x380; if ((siz_mcbuf & 0x1F) != 0)`,
+  `siz_obj = sizeof(T); if ((u32)siz_obj > 0x2000)`; `MPV_Init`, RE4 donor).
+  This does not license the invisible dead arm above: retail must keep the code.
 
 ## N10
 
@@ -258,6 +285,15 @@ joint sweep of recorded neutrals before any soft ceiling.
   count as uses), then sum into the named owner
   (`radial_move_to_game_position`: `next_radius = x*x; target_radius =
   next_radius + z*z;` exact; a fresh single-use local fuses to `fmadds`).
+  Correction (`generic_victory_camera` 99.80 -> 99.97): retail splices one
+  component too; the residue was the spliced load's NUMBER. IF why.py pairs
+  the spliced `cg-temp` load against a pooled-constant `cg-temp` (`2.0f`
+  load) and wants it numbered lower, REQUIRE both webs `cg-temp` (emission
+  order), TRY writing the spliced component's store first, before the
+  constant's first use (`look->z = z; step = 2.0f*uv; look->x = x; look->y =
+  y; look->* += step`): the splice follows the first store, its load is
+  emitted there, and the other two stay named inline locals. Moving all
+  three stores before the products changes the structure (26 rows).
 - Scalarized Vec holder for repeated scaled-offset pairs. IF a function adds
   `K * v.x` / `K * v.z` into pointer components at several sites
   (`p->x += (float)(K * v.x); p->z += (float)(K * v.z);`), the schedule already
@@ -604,6 +640,12 @@ Don't repeat without new evidence:
 - Asm stubs for coloring ceilings: rejected by user, regress callers `[da]`.
 - Renaming locals (H21/Traps); moving inline boundaries around already-right
   code (H21).
+- Retail row order = WAR edges on ONE web per reused variable across switch
+  cases/ranges (`and w0,a0` before `x0 & m1`, in-place `rlwimi`): GC2.7
+  IRO_SplitLifetimes gives every fresh assignment its own temp unless the
+  variable is an asm operand or `opt_lifetimes` is off. Statement/decl
+  orders, block-scoped or renamed temps, intrinsic/or-pack spellings only
+  move the free schedule (`MPVMC08_OneRefH2_TuneC`: asm/pragma-only).
 
 ## Permuter and search
 

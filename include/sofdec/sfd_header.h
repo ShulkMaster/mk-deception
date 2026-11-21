@@ -1,7 +1,7 @@
 #ifndef MKD_SOFDEC_SFD_HEADER_H
 #define MKD_SOFDEC_SFD_HEADER_H
 
-#include "sofdec/sfd_player_types.h"
+typedef struct SfdHandle SfdHandle;
 
 typedef struct SfdHeaderAudioInfo {
     int codec;

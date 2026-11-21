@@ -19,7 +19,7 @@
  */
 
 #include "game/bgnd_types.h"
-#include "game/controller_types.h"
+typedef struct SwitchMapEntry SwitchMapEntry;
 #include "math/gxVect.h"
 #include "runtime/plyr_info.h"
 #include "runtime/mk_struct.h"

@@ -1,4 +1,3 @@
-#include "dolphin/base/PPCArch.h"
 #include "dolphin/os.h"
 #include "runtime/cstring.h"
 #include "runtime/asm_sequences.inc"

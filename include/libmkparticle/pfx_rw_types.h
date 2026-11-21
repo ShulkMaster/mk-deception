@@ -1,7 +1,8 @@
 #ifndef LIBMKPARTICLE_PFX_RW_TYPES_H
 #define LIBMKPARTICLE_PFX_RW_TYPES_H
 
-#include "libmkparticle/pfx2d.h"
+typedef struct PfxNativeRasterView PfxNativeRasterView;
+typedef struct RwTexture RwTexture;
 
 /* Particle renderer view of the texture's native raster prefix. */
 typedef struct PfxRwTextureView {

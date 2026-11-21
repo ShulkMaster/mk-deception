@@ -9,7 +9,7 @@ typedef SFXHandle SfxTagInfo;
 
 typedef SJCK SfxDataRange;
 
-void SFXZ_SetTagInf(SfxEffect* effect, void* data, int size);
+void SFXZ_SetTagInf(SfxEffect* effect, void* data, s32 size);
 
 int SFX_GetColAdj(SfxTagInfo* info);
 void SFX_SetColAdj(SfxTagInfo* info, int adjustment);

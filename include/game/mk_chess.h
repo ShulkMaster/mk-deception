@@ -120,7 +120,7 @@ typedef struct ChessPieceMovement {
 } ChessPieceMovement;
 
 typedef struct ChessPieceRuntimeFields {
-    unsigned int timer_0;
+    unsigned int timers[1];
     Vec cell_offset; /* +0x04 */
     unsigned int primary_effect; /* +0x10 */
     unsigned int secondary_effect; /* +0x14 */
@@ -199,7 +199,7 @@ typedef struct ChessBoardRow {
 } ChessBoardRow; /* 0x208 */
 
 typedef struct ChessSideHudState {
-    char pad00[8];
+    MkHdr hdr;
     union {
         struct {
             unsigned char flags;
@@ -280,7 +280,7 @@ typedef struct ChessSideControllerFlags {
 } ChessSideControllerFlags;
 
 typedef struct ChessSideController {
-    char pad00[8];
+    MkHdr hdr;
     union {
         struct { ChessSideControllerFlags flags; char pad09[3]; };
         unsigned int flags_word;
@@ -303,7 +303,7 @@ typedef struct ChessSaveInputFlags {
 } ChessSaveInputFlags;
 
 typedef struct ChessSpellState {
-    char pad00[8];
+    MkHdr hdr;
     unsigned int side; /* +0x08 */
     int state; /* +0x0C */
     char pad10[8];
@@ -550,13 +550,8 @@ typedef struct ChessCameraSoundState {
 typedef struct ChessLibraryEntry {
     const char* name; /* +0x00 */
     int character_id; /* +0x04 */
-    union {
-        char pad08[8];
-        struct {
-            unsigned int field_08; /* +0x08 - nonzero offsets right portrait by 128 */
-            int sound_variant; /* +0x0C - selects paired chess voice sounds */
-        };
-    };
+    unsigned int field_08; /* +0x08 - nonzero offsets right portrait by 128 */
+    int sound_variant; /* +0x0C - selects paired chess voice sounds */
 } ChessLibraryEntry; /* 0x10-byte library table stride */
 
 typedef struct ChessModeState {
@@ -669,4 +664,42 @@ void mk_chess_game_just_ended(void);
 float mk_chess_transition_from_fight(void);
 float p_mk_chess(void);
 
+int mk_chess_fetch_bp_num_based_on_pchr_num(unsigned int character_number);
+void mk_chess_launch_up(float vertical_speed, float gravity);
+void mk_chess_stop_me(void);
+MkObj* launch_fx_at_pos_with_obj( unsigned int effect, float x, float y, float z);
+void mk_chess_rotate_towards_cell(float x, float y, float step, int track_other, float offset);
+void mk_chess_piece_die(void);
+void mk_chess_piece_event_from_script(int);
+void mk_chess_place_special_cell_at(unsigned int x, unsigned int y, int type, float px, float py, float pz, float scale, int restored);
+int mk_chess_xfer_piece_from_scripts(int, int, int);
+void mk_chess_blend_into_cell_orgin_in_x_frames(float);
+void mk_chess_force_away(float speed, int delay, float damping, int frames);
+void mk_chess_ani_to_end(void);
+void mk_chess_snap_to_stance(void);
+void mk_chess_shifter_switch(int, int, float, float);
+void mk_chess_launch_special_fx(unsigned int, unsigned int, unsigned int);
+void mk_chess_activate_my_properties(void);
+void mk_chess_snd_request(unsigned int event);
+float mk_chess_get_piece_event_data(int);
+void mk_chess_piece_temporarily_gone(void);
+void mk_chess_ani_idle(void);
+void mk_chess_set_piece_type_as(int, int);
+void mk_chess_ani_until_reached_destination(float start_x, float start_y, float target_x, float target_y, float frames, int airborne);
+void mk_chess_ani_to_blend_frame(float blend_frames);
+int mk_chess_active_piece_near_edge(void);
+void mk_chess_deactivate_my_properties(void);
+void mk_chess_wait_until_attack_cam_closes_in(void);
+int mk_chess_piece_test_and_set_timer(unsigned int timer_slot, unsigned int duration);
+void mk_chess_ani_loop_more_frames(float frames);
+void mk_chess_blend_into_cell_orgin_in_x_frames_by_caller(void);
+void mk_chess_snap_to_my_cell_now(void);
+void mk_chess_ani_to_frame_x(float target);
+void mk_chess_init_piece(int slot, int character);
+unsigned int mk_chess_request_piece_script_for_action(int action);
+int mk_chess_should_i_fall_down(void);
+MkObj* mk_chess_launch_fx_at_pos_with_obj_emit_based(unsigned int effect, float x, float y, float z);
+void mk_chess_init_bgnd_for_fight_mode(void);
+void mk_chess_set_breaker_value(void);
+int mk_chess_did_the_king_just_lose(void);
 #endif

@@ -32,4 +32,12 @@ void init_port_info_struct(void);
 void dispatch_pad_sticks(int port);
 void dispatch_right_sticks(int port);
 
+extern int p1_rumble_on;
+extern int p2_rumble_on;
+extern SwitchMapEntry p1_temp_switch_map[];
+extern int p2_use_temp_switch_map;
+extern int p2_temp_rumble_state;
+extern int p1_temp_rumble_state;
+extern int p1_use_temp_switch_map;
+extern SwitchMapEntry p2_temp_switch_map[];
 #endif

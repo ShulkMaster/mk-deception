@@ -41,6 +41,10 @@
 #include "game/nis.h"
 #include "runtime/plyr_anim_pdata.h"
 #include "platform/display_metrics.h"
+#include "runtime/cam_shake.h"
+#include "game/mcardmsg.h"
+#include "game/ai.h"
+#include "game/ncs.h"
 
 struct KonquestMissionTuneEntry {
     int round_one_music;
@@ -67,11 +71,6 @@ struct KonquestSuccessCondition {
 
 struct KonquestScreenLatch {
     ScreenObj* object;
-    unsigned int instance;
-};
-
-struct KonquestStringLatch {
-    StringObj* object;
     unsigned int instance;
 };
 
@@ -190,14 +189,6 @@ struct KonquestMissionSaveData {
     unsigned int background_and_flags;
     int passed_last_mission;
     int progression;
-};
-
-struct KonquestRegionAsset {
-    void* fight_files;
-    const MkFileEntry* art_files;
-    char pad08[4];
-    char* string_bank;
-    char pad10[4];
 };
 
 struct KonquestMissionRegion {
@@ -319,26 +310,16 @@ struct TrialWrapupData generic_char_wrapup_data = {
 extern struct KonquestMissionSaveData konquest_save_data;
 extern MslSoundHandle bgnd_music_ptr1;
 extern struct KonquestMissionPdata* konquest_pdata;
-extern MkProc* plyr_anim_proc;
 extern struct KonquestTrialAnimations bgnd_animations;
-extern int mcard_msg_active;
-extern struct KonquestRegionAsset konquest_region_data[9];
-extern int round_winner;
-extern int winner;
-extern int f_fatality_finished;
 int text_window_state;
 
 void snd_stop(MslSoundHandle sound);
-void setDroneOverrideSwitch(int activated, struct DroneOverrideInfo* info);
 void set_ani_speed(float speed);
 static float p_run_special_move(void);
 static float call_mission_script(void);
-void move_player(MkObj* object, Vec* position, Vec* angle);
 int is_weapon_style(PlyrFighterDefinition* fighter);
-int is_pX_airborn(int player);
 MkProc* konquest_set_dialog_text(
     const char* text, const LipSyncKeyframe* lip_sync_keyframes);
-void calc_print_speed_for_nis_dialog(MkProc* dialog, unsigned int ticks);
 void duck_sounds(float volume);
 float duration_of_lip_sync(const LipSyncKeyframe* keyframes);
 MslSoundHandle plyr_snd_req(int sound_id);
@@ -346,12 +327,8 @@ void plyr_weapon_hide(
     PlyrPdata* player, int show_aux, PlyrMirrorSlots* slots);
 void plyr_weapon_show(
     PlyrPdata* player, int show_aux, PlyrMirrorSlots* slots);
-void do_win_effect(void);
 void end_music(void);
-void destroy_onscreen_fight_2d_objects(void);
-void reset_fight(int mode);
 MkProc* load_hero_model(AnimScript* animation);
-void insert_ground_me_mkobj(MkObj* object);
 AniTextureControl* konquest_create_monk_face_ani_texture(MkObj* object);
 static void trial_load_monk(void);
 static void increment_required_moves_progress(
@@ -382,21 +359,13 @@ static void ps_konquest_trial_monk(void);
 static void pw_konquest_trial_monk(void);
 static float p_finish_transform_monk(void);
 static float p_finish_transform_player(void);
-void become_plyr1_proc(void);
-void become_plyr2_proc(void);
 void face_opponent_now(void);
 void ani_to_blend_frame(float frame);
 float p_do_lip_synch(void);
-float getup_from_ground(void);
-float j_stay_down_dead(void);
-void start_mkpfx_FadeSnapShot(void);
-void move_plyrs_to_round_start(void);
 void start_constrain_proc(void);
 void stop_tunes(void);
 void animpdata_ani_1_frame(AnimPdata* animation);
 void animpdata_ani_to_frame_x(AnimPdata* animation, float frame);
-void shake_camera(int strength, float duration);
-void hide_player(PlyrPdata* player, int hide_weapons);
 static void start_hero_transform_effect(MkObj* object);
 static float p_blood_rush(void);
 
@@ -1274,7 +1243,6 @@ void plot_and_show_window_frame(struct KonquestTrialWindowPdata* unused) {
     place_frame_piece(&pdata->frame[8], right, top, 1.0f, 1.0f, 0);
 }
 
-#pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
 static void text_window_fade_out(unsigned char ticks) {
     struct KonquestTrialWindowPdata* pdata =
@@ -1326,7 +1294,6 @@ static void text_window_fade_out(unsigned char ticks) {
     }
 }
 #pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
 
 void text_window_fade_in(unsigned char ticks) {
     int alpha = 0;
@@ -2807,7 +2774,6 @@ void trial_start_new_round(void) {
         mission_state->drone->field_10;
 }
 
-#pragma opt_unroll_loops off
 #pragma ppc_unroll_instructions_limit 1
 int trial_end_round(void) {
     struct KonquestMissionState* state;
@@ -3063,7 +3029,6 @@ int trial_end_round(void) {
     return 1;
 }
 #pragma ppc_unroll_instructions_limit 40
-#pragma opt_unroll_loops reset
 
 void skip_end_of_trial_wrapup(void) {
     if ((aproc->pid == 0x1001 ? 0 : 1) ==

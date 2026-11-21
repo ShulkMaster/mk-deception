@@ -22,7 +22,7 @@
  * Do not store widened non-ILP32 pointers inside the blob.
  */
 
-#include "libmkparticle/pfxfont.h"
+typedef struct PfxFontSlot PfxFontSlot;
 
 typedef struct StringObj StringObj;
 typedef struct ScreenText ScreenText;

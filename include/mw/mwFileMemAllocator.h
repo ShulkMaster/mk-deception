@@ -54,7 +54,13 @@ public:
 
     size_type max_size() const { return (size_type)-1 / sizeof(T); }
 
-    void construct(pointer p, const T& x) { new (p) T(x); }
+    void construct(pointer p, const T& x)
+    {
+        if (p != 0) {
+            new (p) T;
+            *p = x;
+        }
+    }
     void destroy(pointer p) { p->~T(); }
 };
 

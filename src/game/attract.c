@@ -31,6 +31,8 @@
 #include "runtime/section.h"
 #include "runtime/utils.h"
 #include "movie/movie_info.h"
+#include "game/mk_chess.h"
+#include "game/bgnd.h"
 
 struct AtmObjLatch {
     MkHdr* obj;
@@ -73,7 +75,6 @@ static const float bio_text_scale_c = 0.8f;
 
 extern MkFileInfo sec_eu_biofont;
 
-extern int b_game_timer_off;
 
 static int atm_current_page;
 static struct AtmObjLatch press_start_item;
@@ -83,11 +84,7 @@ static int atm_logo_tapped_out;
 static int atm_movie_tapped_out;
 static int memcard_boot_screen_displayed;
 
-extern float p_puzzle_fighter(void);
-extern float p_mk_chess(void);
 
-void xfer_puzzle_exit(int arg);
-unsigned int get_next_bgnd(void);
 
 static void atm_old_mkda_logo(void);
 static void atm_bio_screen(void);
@@ -397,8 +394,8 @@ static void atm_bio_screen(void) {
         next_bio_screen = (randu0(0x1AU) & 0xFFFFU);
     }
 
-    primary_unlock_hi = gp_data.cat7.words[0];
-    primary_unlock_lo = gp_data.cat7.words[1];
+    primary_unlock_hi = (unsigned int)(gp_data.cat7.value >> 32);
+    primary_unlock_lo = (unsigned int)gp_data.cat7.value;
     bio_index = next_unlocked_bio(&next_bio_screen,
         primary_unlock_hi, primary_unlock_lo);
 

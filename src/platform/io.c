@@ -78,7 +78,7 @@ static inline void clear_controller_buttons(GameInfo* game) {
 void vdebug_print_message(const char* format, ...) {
     static char buf[0x100];
     __va_list args;
-    __builtin_va_info(&args);
+    va_start(args, format);
     vsprintf(buf, format, args);
 }
 
@@ -524,15 +524,26 @@ static void execute_scan_sequence_cmd(unsigned int action,
 
 }
 
-/* TODO: [near miss] 98.40635%; two decrement-order rows and saved-owner topology remain;
- * original execution boundary is neutral; recover counter and invariant owners. */
+/* TODO: [near miss] 99.93%; requirement_count decrement order: retail issues the SR
+ * requirements*4 decrement before it (pre-RA pcode has biv first); next: CTR/peephole order. */
 void scan_switch_sequences(unsigned int* sequence) {
     struct SwitchLogEntry* switch_log;
+    int requirement_count;
+    struct SwitchLogEntry* entry;
+    int history;
     int log_index;
-    int player_state;
+    int sequence_index;
+    int execution_mode;
+    int max_tick_gap;
+    unsigned int action;
     unsigned int toward;
     unsigned int away;
-    int sequence_index;
+    int requirements[30];
+    int player_state;
+    unsigned int requirement;
+    unsigned int sequence_id;
+    int expected;
+    int tick_delta;
 
     if (plyr_pdata == g_game_info.plyr0.slot.pdata) {
         log_index = p1_pad_log_index;
@@ -553,24 +564,16 @@ void scan_switch_sequences(unsigned int* sequence) {
     }
     sequence_index = 0;
     while (sequence_index < 12) {
-        unsigned int sequence_id = sequence[0];
-        int timing;
-        unsigned int action;
-        int execution_mode;
-        int max_tick_gap;
-        int requirements[30];
-        int requirement_count;
-        int history;
-
+        sequence_id = sequence[0];
         if (sequence_id + 0x10000 == 0x0000FFFF) break;
-        timing = sequence[1];
+        max_tick_gap = sequence[1];
         requirement_count = 0;
         action = sequence[2];
-        execution_mode = timing & 0x0F000000;
-        max_tick_gap = timing - execution_mode;
         sequence += 3;
+        execution_mode = max_tick_gap & 0x0F000000;
+        max_tick_gap -= execution_mode;
         while (1) {
-            unsigned int requirement = *sequence;
+            requirement = *sequence;
             if (requirement + 0x10000 == 0x0000FFFF ||
                 !(requirement & 0x80000000)) break;
             if (requirement_count >= 30) return;
@@ -580,10 +583,7 @@ void scan_switch_sequences(unsigned int* sequence) {
         }
         history = log_index;
         for (; requirement_count-- > 0;) {
-            struct SwitchLogEntry* entry = &switch_log[history];
-            int expected;
-            int tick_delta;
-
+            entry = &switch_log[history];
             if (--history < 0) history = 29;
             expected = requirements[requirement_count];
             switch (expected) {

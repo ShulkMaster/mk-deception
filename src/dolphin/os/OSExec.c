@@ -16,7 +16,6 @@ extern OSExecParams* __OSExecParams : 0x800030F0;
 extern volatile unsigned long __PIRegs[] : 0xCC003000;
 #define PI_REGISTERS __PIRegs
 
-extern int __OSIsGcam;
 
 static int Prepared;
 

@@ -1,7 +1,6 @@
 #ifndef GAME_JMT_H
 #define GAME_JMT_H
 
-#include "math/gxVect.h"
 
 typedef struct AnimPdata AnimPdata;
 typedef struct MkHdr MkHdr;
@@ -43,4 +42,27 @@ void enable_no_sync_anim_f(int enabled);
 void enable_no_adjustment_f(int enabled);
 void kill_plyr_life(int player);
 
+void kabal_collision_control_victim(int);
+void plyr_set_vel_xz_y(float xz_velocity, float y_velocity);
+float plyr_get_anim_hiframe(void);
+float plyr_get_anim_frame(void);
+void check_bgnd_effect(void);
+void start_subzero_decoy(void*, float);
+void resume_effect_at_obj_bid(MkObj*, int, unsigned int, int, int);
+float mks_get_victim_to_tr_dot(int);
+void destroy_kabal_smoke(void);
+void start_kabal_smoke(void *, float);
+int is_drone(void);
+void plyr_scale_pos_vel(float x_scale, float y_scale, float z_scale);
+int get_taunts_performed(void);
+void start_bow(int player, float strength);
+void mks_victim_bleed(int, int);
+int rotate_towards_sync(float angle);
+int get_collision_result(void);
+void online_combo_record(void);
+void release_both_players(void);
+void plyr_set_gravity(float gravity);
+void mks_npc_build_bones_tbl(int model_id, const int* bone_tags);
+int is_reaction_xfer_him_allowed(void);
+void destroy_subzero_decoy(void);
 #endif

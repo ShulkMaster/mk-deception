@@ -8,7 +8,6 @@ unsigned int ScreenParams::GetCount() const {
 int ScreenParams::GetType(unsigned int index) const {
     return m_entries[index]->type;
 }
-#pragma dont_inline off
 
 float ScreenParams::GetFloat(unsigned int index) {
     return m_entries[index]->float_data;

@@ -7,7 +7,6 @@ extern int MPVHDEC_DecPicture(MPVContext* context, SJ* stream);
 extern int MPVM2V_DecodeFrm(MPVContext* context, SJ* stream,
                             MPVFrameBuffers* buffers);
 extern void MPVUMC_SetGqr(void);
-extern void DCT_FsriSetGqr(void);
 extern void MPVUMC_InitOutRfb(MPVContext* context);
 extern void MPVCMC_InitMcOiRt(MPVContext* context);
 extern void MPVCMC_SetCcnt(MPVContext* context);

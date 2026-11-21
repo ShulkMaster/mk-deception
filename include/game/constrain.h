@@ -86,4 +86,13 @@ struct PlyrPdata;
 int local_collision_allowed(struct PlyrPdata* player);
 void vdestroy_obstacle(ArenaObstacle* obstacle);
 
+void uv_to_opponent(Vec* direction);
+extern void delete_obstacle_from_background_by_id(int obstacle_id);
+int local_collision_allowed_plyr_pdata(void);
+extern Vec tightrope_uv;
+float get_constrain_player_distance(void);
+ArenaObstacle* get_obstacle(void);
+float dist_behind_me(void);
+void terminate_bgnd_collisions(void);
+void reset_obstacle_internal_id(void);
 #endif

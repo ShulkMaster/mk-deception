@@ -387,8 +387,22 @@ void GCNSetupNonRenderwarePipeline(RpClump* clump, MkObj* owner) {
 }
 #pragma pop
 
-/* TODO: [breakthrough needed] 95.77895%; BSS first-reference order and scroll
- * guard need original source; C++ layout recovery regresses sibling code. */
+static void SetupGamecubeVtxFmts(void) {
+    RpGameCubeVtxFmtInit(&gamecube_vtxfmt_generic);
+    RpGameCubeVtxFmtInit(&gamecube_vtxfmt_skinned2);
+    RpGameCubeVtxFmtInit(&gamecube_vtxfmt_skinned);
+    RpGameCubeVtxFmtSetNormal(&gamecube_vtxfmt_generic, 1, 0);
+    RpGameCubeVtxFmtSetTexCoord(&gamecube_vtxfmt_generic, 1, 3, 11);
+    RpGameCubeVtxFmtSetNormal(&gamecube_vtxfmt_skinned2, 1, 0);
+    RpGameCubeVtxFmtSetPosition(&gamecube_vtxfmt_skinned2, 3, 11);
+    RpGameCubeVtxFmtSetTexCoord(&gamecube_vtxfmt_skinned2, 1, 3, 12);
+    RpGameCubeVtxFmtSetNormal(&gamecube_vtxfmt_skinned, 1, 0);
+    RpGameCubeVtxFmtSetPosition(&gamecube_vtxfmt_skinned, 3, 12);
+    RpGameCubeVtxFmtSetTexCoord(&gamecube_vtxfmt_skinned, 1, 3, 12);
+}
+
+/* TODO: [near miss] 99.62%; loop scan/setup offset IVs (strength-reduced temps) colour
+ * against the array-load temps (retail r3/r28 vs ours r4/r26). */
 static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, MkObj* owner) {
     RpGeometry* geometry;
     MksobjPluginData* atomic_data;
@@ -457,17 +471,20 @@ static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, MkObj* owner) {
     while (material_index < material_count) {
         RpMaterial* material = geometry->matList.materials[material_index];
         MkmaterialPluginData* data = MK_MATERIAL_PLUGIN(material);
-        MkmaterialUvScroll* scroll = data->vec4;
         int material_type = data->field_20;
+        MkmaterialUvScroll* scroll = data->vec4;
         float u1;
         float v1;
         float u2;
         float v2;
         if (scroll != 0) {
+            u1 = scroll->u1;
             v1 = scroll->v1;
             u2 = scroll->u2;
             v2 = scroll->v2;
-            u1 = scroll->u1;
+            if ((data->flags & 0x10000000) && !u1) {
+                u1 = scroll->u1;
+            }
         } else {
             u1 = v1 = u2 = v2 = 0.0f;
         }

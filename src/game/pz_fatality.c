@@ -18,6 +18,7 @@
 #include "runtime/cstring.h"
 #include "rw/rwframe.h"
 #include "rw/rpworld_types.h"
+#include "game/ai.h"
 
 struct AniScript;
 struct MkFlippedBoneMap;
@@ -355,7 +356,7 @@ void ani_to_end(void);
 float pz_fighter_long_exit(void);
 void unload_pz_fighter_fatality_banks(void);
 void snd_req_delay(int sound, int delay);
-void snd_stop(int handle);
+void snd_stop(MslSoundHandle handle);
 struct PuzzleFighterRenderObject* pz_fighter_get_player_obj(int player);
 struct PuzzleProcess* pz_fighter_get_player_proc(int player);
 struct PuzzleFighterMove* pz_get_fighter_move(void);
@@ -363,13 +364,12 @@ PlyrPdata* pz_get_pdata_by_id(int player);
 void xfer_proc(struct PuzzleProcess* process, PuzzleFatalityProcessFn entry);
 void minigame_event(int* event);
 float xz_distance_between_players(void);
-int pan_snd_req(int sound, float pan);
-int pan_vol_snd_req(int sound, float pan, float volume);
-int plyr_snd_req(int sound);
-void bgnd_launch_fx_at_position(const char* name, float x, float y, float z);
+MslSoundHandle pan_snd_req(int sound_id, float pan);
+MslSoundHandle pan_vol_snd_req(int sound_id, float pan, float volume);
+MslSoundHandle plyr_snd_req(int sound_offset);
 void snd_major_hit_voice(void);
 void snd_death_voice(void);
-void random_hit(int group);
+MslSoundHandle random_hit(int group);
 void plyr_bleed_mouth(PlyrPdata* player_data);
 void face_bleed_me(int amount);
 void mkproc_die(void);
@@ -400,7 +400,7 @@ void obj_set_bone_collapse_flag(
     struct PuzzleFighterRenderObject* object, int bone);
 void calc_bone_world_mat(struct PuzzleFighterRenderObject* object, int bone);
 float pz_fighter_clear_out_external_forces(void);
-void random_voice(int group);
+MslSoundHandle random_voice(int group);
 void bgnd_launch_fx_at_bid_of_mkobj(
     const char* effect, struct PuzzleFighterRenderObject* object, int bone);
 void resume_effect_at_obj_bid(
@@ -481,7 +481,7 @@ int transition_to_anim_script_frame(
     struct PuzzleAnimPdata* pdata, struct AniScript* animation,
     unsigned int flags, float transition_frames, float frame);
 void set_pdata_anim_step(struct PuzzleAnimPdata* pdata, float step);
-void pz_fighter_clear_out_all_external_forces(void* fighter);
+void pz_fighter_clear_out_all_external_forces(MkObj* fighter);
 static float p_grinder_meat_throw_controller(void);
 static float p_grinder_noise(void);
 void* _create_mkproc_generic_tinystack(
@@ -502,7 +502,6 @@ static void ft_fleshchunk_postsleep(void);
 static void ft_fleshchunk_prewake(void);
 void freeze_player(void);
 void unfreeze_player(void);
-void got_hit_fx(int strength, int bone, int blood, int unused1, int unused2, float scale, int active);
 void hide_obj(struct PuzzleFighterRenderObject* object);
 void insert_fgnd_mkobj(struct PuzzleFighterRenderObject* object);
 void obj_set_pos(struct PuzzleFighterRenderObject* object, Vec* position);
@@ -603,7 +602,6 @@ static float pz_fighters_lightning_preround(void);
 static float pz_fighters_snake_fatality_preround(void);
 static float pz_fighters_burn_fatality_preround(void);
 
-float p_track_cam_ang_y_light(void);
 static float pz_fighter_load_and_place_initial_grinders(void);
 static float pz_fighter_load_and_place_initial_chompers(void);
 static float pz_fighter_load_and_place_initial_chompers2(void);
@@ -936,8 +934,8 @@ static inline void pz_grinder_scale_launch_vector(
 void pz_fighter_get_grinder_post(int player, Vec* post);
 float r_pz_fighter_rx_get_to_point(void);
 
-static struct PuzzleFighterRenderObject* fleshchunk_obj;
-static struct PuzzleFleshchunkPdata* pdata_fleshchunk;
+static struct PuzzleFleshchunkPdata* pdata_fleshchunk = 0;
+static struct PuzzleFighterRenderObject* fleshchunk_obj = 0;
 
 void cleanup_pz_fatality_stuff(void) {
     memset(&g_pz_fighter_fatality_engine, 0,
@@ -1779,7 +1777,7 @@ static float pz_fighter_grinder_actively_fighting(int active) {
 }
 
 static float pz_fighters_grinder_fatality_prep(void) {
-    static int fatality_attackbegun;
+    static int fatality_attackbegun = 0;
     struct PuzzleFighterRenderObject* attacker_object;
     struct PuzzleFighterMove* victim_move;
     float delta_x;
@@ -2251,7 +2249,7 @@ static float pz_fighter_chomper_actively_fighting(int active) {
 }
 
 static float pz_fighters_chomper_fatality_prep(void) {
-    static int attack_begun;
+    static int attack_begun = 0;
     struct PuzzleFatalityHazardObject *chomper;
     struct PuzzleFighterRenderObject *attacker_object;
     struct PuzzleFighterMove *victim_move;
@@ -2401,9 +2399,9 @@ static float pz_fighters_chomper_fatality_prep(void) {
 }
 
 static float pz_fighters_chomper_fatality_in_progress(void) {
-    static int mode_timer;
+    static int mode_timer = 0;
     static int launch_sounds = 1;
-    static float flesh_path_timer;
+    static float flesh_path_timer = 0.0f;
     struct PuzzleFatalityHazardObject* spike;
     struct PuzzleFighterRenderObject* attacker_object;
     PlyrPdata* attacker_data;
@@ -2983,7 +2981,6 @@ static float pz_fighter_chomper2_victim_crushed(void) {
     return 0.0f;
 }
 
-#pragma opt_propagation off
 static float pz_fighter_chomper2_actively_fighting(int active) {
     g_pz_fighter_fatality_engine.controller->phase = active;
     if (active == 0) {
@@ -2991,10 +2988,9 @@ static float pz_fighter_chomper2_actively_fighting(int active) {
     }
     return 0.0f;
 }
-#pragma opt_propagation reset
 
 static float pz_fighters_chomper2_fatality_prep(void) {
-    static int fatality_attackbegun;
+    static int fatality_attackbegun = 0;
     struct PuzzleFatalityHazardObject *chomper;
     struct PuzzleFighterRenderObject *attacker_object;
     struct PuzzleFighterMove *victim_move;
@@ -3344,20 +3340,17 @@ static float pz_fighter_load_and_place_initial_chompers2(void) {
     return 0.0f;
 }
 
-#pragma opt_propagation off
 static float pz_fighter_chomper2_round_over(void) {
     g_pz_fighter_fatality_engine.controller->state = 1;
     g_pz_fighter_fatality_engine.controller->phase = 0;
     reset_chomper_motion(1);
     return 0.0f;
 }
-#pragma opt_propagation reset
 
 static float pz_fighter_chomper2_unload(void) {
     return pz_fatality_unload_banks();
 }
 
-#pragma opt_propagation off
 static void pz_fighter_chomper2_entering_fatality(
     int attacker, int victim) {
     g_pz_fighter_fatality_engine.active_effect = 0;
@@ -3370,7 +3363,6 @@ static void pz_fighter_chomper2_entering_fatality(
 
     reset_chomper_motion(1);
 }
-#pragma opt_propagation reset
 
 static void pz_fighter_set_objects_falling_obj(
     struct PuzzleFighterRenderObject* object1,
@@ -4603,8 +4595,8 @@ static inline void pz_snake_start_victim_anim(void) {
 }
 
 static float pz_fighters_snake_fatality_prep(void) {
-    static int attack_begun;
-    static int loser_anim;
+    static int attack_begun = 0;
+    static int loser_anim = 0;
     struct PuzzleFighterRenderObject *attacker_object;
     struct PuzzleFighterMove *victim_move;
     PlyrPdata *victim_data;
@@ -5027,8 +5019,8 @@ static inline float pz_burn_signed_distance(
 }
 
 static float pz_fighters_burn_fatality_prep(void) {
-    static int start_burn;
-    static int attack_begun;
+    static int start_burn = 0;
+    static int attack_begun = 0;
     struct PuzzleFighterRenderObject* attacker_object;
     struct PuzzleFighterMove* victim_move;
     float signed_distance;

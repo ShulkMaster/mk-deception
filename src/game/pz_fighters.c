@@ -4,6 +4,7 @@
 #include "runtime/mk_pdata.h"
 #include "runtime/mk_vtbl.h"
 #include "game/pz_fighters.h"
+#include "game/bgnd.h"
 #include "game/game_info.h"
 #include "game/plyr_globals.h"
 #include "game/ejb.h"
@@ -19,6 +20,7 @@
 #include "runtime/asset.h"
 #include "runtime/cstring.h"
 #include "runtime/utils.h"
+#include "fdlibm.h"
 
 #define PZ_FIGHTER_DISTANCE_FIXED 0x04
 
@@ -38,12 +40,6 @@ struct FirstMoveMadeTable {
 union PuzzleFloatBits {
     float value;
     unsigned int bits;
-};
-
-struct PuzzleEffectBankContext {
-    int slot;
-    int field_04;
-    int field_08;
 };
 
 typedef void (*PuzzleObjectArrivalFn)(int x, int y);
@@ -94,15 +90,9 @@ struct PuzzleFighterMoveTables {
 struct PuzzleSharedAnimations pz_shared_ani;
 PuzzleFightersEngine g_pz_fighters_engine;
 struct PuzzleFighterMoveTables g_pz_fighter_tables;
-extern PlyrPdata* his_pdata;
 extern struct PuzzleProjectile* g_global_projectile;
 ScriptSlot* pz_shared_cmo;
 
-double sqrt(double value);
-float puzzle_fighter_get_super_bar_level(unsigned int player);
-int pz_fighter_fatality_during_round_stuff_over(void);
-void pz_fighters_fatality_prep_chores(void);
-void pz_fighters_fatality_in_progress(void);
 static void check_fighter_constraints(void);
 static void pz_fighter_process_immediate_request(void);
 static int pz_fighter_check_for_player_to_center_position_control(void);
@@ -114,8 +104,7 @@ static int pz_fighters_idle_process(void);
 static float pz_fighters_handle_next_pending_move_simplified(void);
 static void pz_fighter_calculate_start_pos(void);
 static float p_puzzle_fighter_master(void);
-void load_effect_bank_with_context(
-    char* name, struct PuzzleEffectBankContext* context);
+void load_effect_bank_with_context(char* name, LoadBgndCtx* context);
 float pz_fighter_exit(void);
 float p_plyr_pz_fighter_entry(void);
 float pz_fighter_dizzy(void);
@@ -156,11 +145,8 @@ void attack_to_frame_x(
     AniData* animation, float frame1, float frame2, float frame3,
     float frame4, unsigned int field0C, unsigned int field10, int field14);
 void force_forward(float velocity, int duration, float damping, int interval);
-void force_away(float velocity, int duration, float damping, int interval);
-void move_player(MkObj* fighter, Vec* position, Vec* angle);
 void puzzle_fighter_get_num_blocks_on_screen(
     unsigned int* player1_blocks, unsigned int* player2_blocks);
-int puzzle_fighter_plyr_winning_big_based_on_points(void);
 void face_opponent_now(void);
 void glitch_to_stance(float blend);
 static float pz_fighter_handle_dual_off_center_Move(PuzzleFighterMove* move);
@@ -205,7 +191,6 @@ float pz_fighter_perform_scripted_move(void);
 int pz_fighter_should_handle_special_move(
     unsigned int player, unsigned int move);
 void pz_fighter_disallow_continuation(void);
-int pz_fighter_check_fatality_random_event(void);
 float pz_fighters_react_to_bomb_explosion(void);
 float pz_fighter_big_time_happy(void);
 float pz_fighter_whatever2(void);
@@ -219,12 +204,8 @@ void pz_fighter_anim_object_to(
     Vec* target, Vec* velocity, int minimum_velocity_y,
     unsigned int target_ticks, float frame_rate, float gravity_step,
     int bounce, PuzzleObjectArrivalFn arrival);
-void pz_fighters_fatality_round_over(void);
-void pz_fighters_fatality_unload(void);
-void pz_fighters_fatality_normal_fighting(int enabled);
 void pz_fighters_fatality_start(
     unsigned int victim, unsigned int attacker);
-void pz_fighters_fatality_preround_event(void);
 void pz_fighter_load_place_fatality_elements(unsigned int fatality);
 void pz_fighter_kill_present(void);
 void pz_fighter_kill_global_projectile(void);
@@ -428,7 +409,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
         break;
     case 1:
     {
-        struct PuzzleEffectBankContext effect_context;
+        LoadBgndCtx effect_context;
         unsigned int index;
 
         g_pz_fighters_engine.balance = 0.0f;
@@ -487,8 +468,8 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
         g_pz_fighters_engine.fatality_objects[0]->flags_08_bits.airborne = 1;
         insert_fgnd_mkobj(g_pz_fighters_engine.fatality_objects[0]);
         hide_obj(g_pz_fighters_engine.fatality_objects[0]);
-        effect_context.slot = 0x70038;
-        effect_context.field_04 = 0;
+        effect_context.art_id = 0x70038;
+        effect_context.bgnd_obj = 0;
         effect_context.field_08 = 0;
         load_effect_bank_with_context("pz_mini_fx.mko", &effect_context);
 
@@ -929,7 +910,7 @@ check_continuation:
         g_pz_fighters_engine.fighter_move.runtime_bits.enabled == 1 &&
         (event_type == 0 || event_type == 1) &&
         (priority > 1 || move == 1 ||
-         g_pz_fighters_engine.fighter_move.policy_bits.bit1)) {
+         g_pz_fighters_engine.fighter_move.policy_bits.easy_continuation)) {
         return 1;
     }
     return 0;
@@ -950,7 +931,7 @@ static void pz_fighter_fight_request(
     if (continuation == 1) {
         g_pz_fighters_engine.fighter_move.continuation_move = move;
         g_pz_fighters_engine.fighter_move.continuation_priority = priority;
-        g_pz_fighters_engine.fighter_move.policy_bits.bit2 = 1;
+        g_pz_fighters_engine.fighter_move.policy_bits.continuation_pending = 1;
         return;
     }
 
@@ -2826,7 +2807,7 @@ void pz_fighter_attack(
     } else {
         g_pz_fighters_engine.fighter_move.has_followup = 1;
     }
-    if (g_pz_fighters_engine.fighter_move.policy_bits.distance_reaction) {
+    if (g_pz_fighters_engine.fighter_move.policy_bits.continuation_allowed) {
         g_pz_fighters_engine.fighter_move.runtime_bits.enabled = 1;
     } else {
         g_pz_fighters_engine.fighter_move.runtime_bits.enabled = 0;

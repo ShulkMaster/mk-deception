@@ -66,44 +66,20 @@
 #include "rw/rpskin.h"
 #include "rw/rwfreelist.h"
 #include "rw/rwresources.h"
+#include "game/collision.h"
+#include "game/blood.h"
+#include "game/constrain.h"
+#include "game/pfxscript.h"
 
-void limb_sever_reset_limbs(PlyrInfo* player);
 
-extern int p1_profile_status;
-extern int p2_profile_status;
-extern int p1_profile_device;
-extern int p2_profile_device;
-extern int p1_profile_slot;
-extern int p2_profile_slot;
-extern int p1_rumble_on;
-extern int p2_rumble_on;
-extern int mcard_msg_active;
 extern MslSoundHandle bgnd_music_ptr1;
 extern MslSoundHandle bgnd_music_ptr2;
 
-extern MkHdr* apdata_save;
-extern PlyrPdata* his_pdata;
-extern MkProc* plyr_anim_proc;
-extern int f_fatality_finished;
-extern int f_fatality_available;
-extern int f_fatality_was_done;
-extern int b_game_timer_off;
 extern int konquest_human_bones[17];
 extern MkFlippedBoneMap flipped_konquest_human_bones;
 extern unsigned char monk_ground_colls[];
 
-void init_bgnd_info_struct(void);
-void setDroneOverrideSwitch(int activated, void* info);
-void reset_obstacle_internal_id(void);
-void terminate_bgnd_collisions(void);
-void screen_engine_cleanup(void);
-void delete_light_lists(void);
-void cleanup_fight(void);
-void term_collision_system(void);
-void bleed_init(void);
 void mslUnDuckAll(_mslSystem* system);
-void init_collision_system(void);
-void pfxscript_initialize(void);
 
 struct FixedHeapConfigStorage {
     FixedHeapConfig heaps;
@@ -445,13 +421,12 @@ int play_movie(int movie_id, MovieTapoutFn tapout_cb) {
     return 0;
 }
 
-/* TODO: [near miss] 87.50%; pre-RA scheduler fills the movie-ID address-latency slot
- * with zero tapout; original producer dependency remains unresolved. */
-void screen_engine_play_movie(int index) {
-    if (index >= 0xC8) {
-        index -= 0xC8;
+void screen_engine_play_movie(int movie) {
+    if (movie >= 0xC8) {
+        movie -= 0xC8;
     }
-    play_movie(screen_engine_movie_table[index], 0);
+    movie = screen_engine_movie_table[movie];
+    play_movie(movie, 0);
 }
 
 int are_death_traps_on(void) {
@@ -1652,7 +1627,6 @@ static RpMaterial* material_set_uv_scroll_matrix(RpMaterial* material,
 static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material,
                                                    void* matrix);
 
-#pragma dont_inline on
 
 static void uv_scroll_dual_pass(UvScrollControl* ctrl) {
     float rate_v;
@@ -1699,7 +1673,6 @@ static void uv_scroll_pass_1(UvScrollControl* ctrl) {
     RpGeometryForAllMaterials(geom, material_set_uv_scroll_matrix, &ctrl->mtx1);
 }
 
-#pragma dont_inline off
 
 static RpMaterial* material_set_uv_scroll_matrix_2(RpMaterial* material,
                                                    void* matrix) {

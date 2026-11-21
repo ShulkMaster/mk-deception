@@ -9,7 +9,6 @@
 #include "msl/CriticalSection.h"
 #include "msl/listpool.h"
 #include "msl/mslqueue.h"
-#include "msl/msl_types.h"
 
 struct _mslSound;
 struct mslLoadedBank;

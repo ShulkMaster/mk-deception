@@ -71,15 +71,10 @@ void load_lights(LightDef** defs, MkPtr** list);
 MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent);
 MkxRpLight* find_mkx_rplight_in_obj(MkObj* obj);
 MkxRpLight* get_mkx_rplight(RpLight* light);
-void bind_rplight_to_obj(RpLight* light, MkObj* obj);
 void vdestroy_mkx_rplight(MkxRpLight* light);
 
 extern MkObj* light_obj;
 extern LightPdata* light_pdata;
-extern MkPtr* point_light_list;
-extern MkPtr* skinned_obj_light_list;
 extern MkPtr* bgnd_light_list;
-extern MkPtr* bgnd_spec_light_list;
-extern MkPtr* plyr_light_list;
 
 #endif

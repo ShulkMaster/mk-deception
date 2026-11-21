@@ -13,23 +13,12 @@
 #include "runtime/mk_struct.h"
 #include "runtime/mk_vtbl.h"
 #include "runtime/section.h"
+#include "runtime/script_functions.h"
 
 static void fixup_data_tables(ScriptSlot* slot);
 static float p_run_one_shot_script(void);
 
 typedef void (*ScriptBuiltinFn)(void);
-
-extern ScriptBuiltinFn script_callable_function_table[];
-extern int number_of_script_functions;
-
-struct CmdScriptProcVtable {
-    void* prefix[6];
-    void (*sleep)(void);
-    void* stack_ops[2];
-    MkProcJumpSleepFn jump_sleep;
-};
-
-#define CMDSCRIPT_PROC_VTBL(proc_) ((struct CmdScriptProcVtable*)(proc_)->vtbl)
 
 static void _set_bit_field(void);
 static void _get_bit_field(void);
@@ -222,7 +211,7 @@ void one_shot_script_func(ScriptSlot* script, unsigned int function, int wait) {
             one = kOne;
             while (MK_HDR_LIVE(proc, instance) != 0) {
                 _mkproc_sleep_ticks = one;
-                CMDSCRIPT_PROC_VTBL(aproc)->sleep();
+                aproc->vtbl->sleep();
             }
         }
     }
@@ -602,10 +591,10 @@ void cmdscript_set_parameters(CmdScript* script, unsigned int count, ...) {
 float call_player_script_function(ScriptSlot* slot) {
     execute_cmdscript(slot);
     if (active_cmdscript->continuation != 0) {
-        CMDSCRIPT_PROC_VTBL(aproc)->jump_sleep(active_cmdscript->continuation, kZero);
+        aproc->vtbl->jump_sleep(active_cmdscript->continuation, kZero);
         return kZero;
     } else {
-        CMDSCRIPT_PROC_VTBL(aproc)->jump_sleep(j_exit, kZero);
+        aproc->vtbl->jump_sleep(j_exit, kZero);
         return kZero;
     }
 }
@@ -1529,12 +1518,9 @@ static void _copy_column_address_to_register(void) {
     }
 }
 
-/* TODO: [near miss] 93.37838%; table-slot and index producers still differ;
- * recover slot ownership and the two address-add operands. */
 static void _copy_column_to_register(void) {
     unsigned int* args;
     CmdScript* script;
-    const unsigned int* table_slot;
     const unsigned int* row_slot;
     unsigned int destination;
     unsigned int offset;
@@ -1547,19 +1533,17 @@ static void _copy_column_to_register(void) {
     value = 0;
     args = current_args;
     script = active_cmdscript;
-    table_slot = cmdscript_register_slot(script, args[2]);
     row_slot = cmdscript_register_slot(script, args[3]);
     destination = args[1];
     offset = args[4];
-    table = *table_slot;
+    table = *cmdscript_register_slot(script, args[2]);
     stride = args[5];
     size = args[6];
     row = *row_slot;
     if (table != 0) {
         unsigned int* destination_slot;
 
-        table += row * stride;
-        table += offset;
+        table += row * stride + offset;
         memcpy(&value, (void*)table, size);
         destination_slot = cmdscript_mutable_register_slot(active_cmdscript, destination);
         *destination_slot = value;

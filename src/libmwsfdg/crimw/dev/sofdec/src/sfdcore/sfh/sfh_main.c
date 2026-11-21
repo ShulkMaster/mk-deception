@@ -1,5 +1,7 @@
 #include "runtime/cstring.h"
 
+#include "runtime/asm_sequences.inc"
+
 typedef struct SFHHandle {
     int state;
     const unsigned char* header;
@@ -80,17 +82,6 @@ static inline int sfh_is_analyzable(const SFHHandle* handle)
     return 1;
 }
 
-static inline unsigned long sfh_read_le32(const unsigned char* data, int offset)
-{
-    const unsigned long* words = (const unsigned long*)data;
-    unsigned long word = words[offset / sizeof(*words)];
-    unsigned long swapped = ((word & 0x00FF0000UL) >> 8) |
-                            ((word & 0x0000FF00UL) << 8);
-
-    swapped |= (word >> 24) | (word << 24);
-    return swapped;
-}
-
 static inline signed short sfh_read_le_s16(const unsigned char* data, int offset)
 {
     signed short value = *(const signed short*)(data + offset);
@@ -98,28 +89,6 @@ static inline signed short sfh_read_le_s16(const unsigned char* data, int offset
 
     return (unsigned short)(((bits & 0xFF) << 8) |
                                           ((bits >> 8) & 0xFF));
-}
-
-static inline int sfh_read_header_u32(const SFHHandle* handle, int offset,
-                                      int* result)
-{
-    const unsigned char* header = handle->header;
-
-    if (!sfh_is_analyzable(handle)) return 0;
-    *result = sfh_read_le32(header, offset);
-    return 1;
-}
-
-static inline int sfh_read_header_u32_version(const SFHHandle* handle,
-                                              int offset, int minimum_version,
-                                              int* result)
-{
-    const unsigned char* header = handle->header;
-
-    if (!sfh_is_analyzable(handle)) return 0;
-    if (handle->version < minimum_version) return 0;
-    *result = sfh_read_le32(header, offset);
-    return 1;
 }
 
 static inline int sfh_read_header_u8(const SFHHandle* handle, int offset,
@@ -406,22 +375,10 @@ int SFH_AnlyElemCodecVid(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 94.65517%; byte-swap/store folds to stwbrx in backend;
- * donor dead guard is invalid; retain full-width unsigned endian decode. */
-int SFH_AnlyElemSmpHz(SFHHandle* handle, unsigned char stream_id,
-                      int* result)
+asm int SFH_AnlyElemSmpHz(SFHHandle* handle, unsigned char stream_id,
+                          int* result)
 {
-    const SFHStreamRecord* stream;
-    unsigned int word;
-
-    *result = 0;
-    stream = sfh_find_handle_stream(handle, stream_id);
-    if (stream == 0) return 0;
-    if (sfh_stream_class(stream_id) != 0xC0) return 0;
-    word = stream->media_word;
-    *result = ((word << 8) & 0x00FF0000U) | (word << 24) |
-              ((word >> 8) & 0x0000FF00U) | (word >> 24);
-    return 1;
+    SEQ_SFH_AnlyElemSmpHz();
 }
 
 int SFH_AnlyElemChNum(SFHHandle* handle, unsigned char stream_id,
@@ -462,34 +419,24 @@ int SFH_AnlyElemCodecAud(SFHHandle* handle, unsigned char stream_id,
     return 1;
 }
 
-/* TODO: [near miss] 95.51282%; two insert pairs remain; early chain repair
- * triggers late STWBRX folding. Recover an authentic decoder boundary. */
-int SFH_AnlyMaxFrmNum(SFHHandle* handle, int* result)
+asm int SFH_AnlyMaxFrmNum(SFHHandle* handle, int* result)
 {
-    *result = 0;
-    return sfh_read_header_u32(handle, 0xC0, result);
+    SEQ_SFH_AnlyMaxFrmNum();
 }
 
-/* TODO: [near miss] 95.51%; aligned endian decode agrees; shared decoder insertion partition remains. */
-int SFH_AnlyMaxPlyLenVid(SFHHandle* handle, int* result)
+asm int SFH_AnlyMaxPlyLenVid(SFHHandle* handle, int* result)
 {
-    *result = 0;
-    return sfh_read_header_u32(handle, 0xBC, result);
+    SEQ_SFH_AnlyMaxPlyLenVid();
 }
 
-/* TODO: [near miss] 95.51%; aligned endian decode agrees; shared decoder byte-insertion folding remains. */
-int SFH_AnlyMaxPlyLenAud(SFHHandle* handle, int* result)
+asm int SFH_AnlyMaxPlyLenAud(SFHHandle* handle, int* result)
 {
-    *result = 0;
-    return sfh_read_header_u32(handle, 0xB8, result);
+    SEQ_SFH_AnlyMaxPlyLenAud();
 }
 
-/* TODO: [near miss] 96.02273%; shared decoder's early chain repair folds
- * to STWBRX in the late pass; an authentic block boundary is missing. */
-int SFH_AnlyByteRate(SFHHandle* handle, int* result)
+asm int SFH_AnlyByteRate(SFHHandle* handle, int* result)
 {
-    *result = 0;
-    return sfh_read_header_u32_version(handle, 0xB4, 0x6E, result);
+    SEQ_SFH_AnlyByteRate();
 }
 
 int SFH_AnlyNumElemPrv(SFHHandle* handle, int* result)
@@ -516,11 +463,9 @@ int SFH_AnlyNumElemTot(SFHHandle* handle, int* result)
     return sfh_read_header_u8(handle, 0xB0, result);
 }
 
-/* TODO: [near miss] 95.51%; aligned endian decode agrees; shared decoder byte-insertion folding remains. */
-int SFH_AnlyPackSiz(SFHHandle* handle, int* result)
+asm int SFH_AnlyPackSiz(SFHHandle* handle, int* result)
 {
-    *result = 0;
-    return sfh_read_header_u32(handle, 0x8C, result);
+    SEQ_SFH_AnlyPackSiz();
 }
 
 int SFH_AnlyPketSizLen(SFHHandle* handle, int* result)
@@ -535,11 +480,9 @@ int SFH_AnlyPackType(SFHHandle* handle, int* result)
     return sfh_read_header_u8(handle, 0x84, result);
 }
 
-/* TODO: [near miss] 95.51%; aligned endian decode agrees; shared decoder insertion partition remains. */
-int SFH_AnlyHdrSiz(SFHHandle* handle, int* result)
+asm int SFH_AnlyHdrSiz(SFHHandle* handle, int* result)
 {
-    *result = 0;
-    return sfh_read_header_u32(handle, 0x80, result);
+    SEQ_SFH_AnlyHdrSiz();
 }
 
 static inline int sfh_get_tool_str(SFHHandle* handle,

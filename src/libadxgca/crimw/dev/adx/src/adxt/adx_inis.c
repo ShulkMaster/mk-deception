@@ -1,10 +1,11 @@
 #include "cri/adxt_internal.h"
 #include "cri/svm.h"
 #include "runtime/cstring.h"
+#include "cri/adx_mgc.h"
+#include "cri/adx_tlk.h"
 
 typedef void (*AdxErrorCallback)(void* object, const char* message);
 
-extern void ADXT_DestroyAll(void);
 extern void ADXRNA_Finish(void);
 extern void ADXF_Finish(void);
 extern void ADXSTM_Finish(void);
@@ -19,17 +20,15 @@ extern void ADXCRS_Init(void);
 extern void SJUNI_Init(void);
 extern void SJMEM_Init(void);
 extern void ADXERR_Init(void);
-extern void ADXSTM_Init(void);
+extern s32 ADXSTM_Init(void);
 extern void ADXSJD_Init(void);
 extern void ADXF_Init(void);
 extern void ADXRNA_Init(void);
 extern void LSC_Init(void);
 extern void ADXRNA_EntryErrFunc(AdxErrorCallback callback, void* object);
 extern void LSC_EntryErrFunc(AdxErrorCallback callback, void* object);
-extern int ADXM_IsSetupThrd(void);
 extern void ADXT_SetDefSvrFreq(int frequency);
 extern void ADXT_ExecFsSvr(void);
-extern void ADXT_ExecServer(void);
 extern void LSC_ExecServer(void);
 extern void ADXERR_CallErrFunc1(const char* message);
 

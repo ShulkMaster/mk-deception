@@ -3,6 +3,8 @@
 #include "sofdec/sfd_transport.h"
 #include "sofdec/uty_mem.h"
 
+#include "runtime/asm_sequences.inc"
+
 typedef struct SFHHandle {
     int state;
     const unsigned char* header;
@@ -430,71 +432,11 @@ static int sfhds_SetHdrRaw(SfdHandle* handle, const unsigned char* data,
     return 1;
 }
 
-/* RE4 also uses a no-inline scope for its raw-header helper. Here a caller scope
- * preserves both the exact helper and the retail call; helper-only scope does not. */
-#pragma dont_inline on
-/* TODO: [near miss] 99.14286%; flag/header saved homes differ; original helper
- * contracts do not yet reproduce byte-reader extents or inline ownership. */
-int SFHDS_SetHdr(SfdHandle* handle, int stream_index,
-                 const unsigned char* data, int size, int* header_flag)
+asm int SFHDS_SetHdr(SfdHandle* handle, int stream_index,
+                     const unsigned char* data, int size, int* header_flag)
 {
-    SFHHandle* decoder;
-    unsigned int start_byte_1;
-    unsigned int start_byte_0;
-    unsigned char prefix_byte_0;
-    unsigned char prefix_byte_1;
-    int is_sfd_header;
-    int header_valid;
-    const unsigned char* header;
-    int header_size;
-    unsigned int start_code;
-
-    *header_flag = 0;
-    if (stream_index != 2) {
-        return 0;
-    }
-    header = data - 6;
-    start_byte_0 = data[-6];
-    start_byte_1 = header[1];
-    header_size = size + 6;
-    start_code = start_byte_0;
-    start_code = (start_code << 8) | start_byte_1;
-    start_code <<= 8;
-    start_code |= header[2];
-    start_code <<= 8;
-    start_code |= header[3];
-    if ((int)start_code != 0x1BF) {
-        prefix_byte_0 = header[-2];
-        header -= 2;
-        prefix_byte_1 = header[1];
-        header_size += 2;
-        start_code = prefix_byte_0;
-        start_code = (start_code << 8) | prefix_byte_1;
-        start_code <<= 8;
-        start_code |= start_byte_0;
-        start_code <<= 8;
-        start_code |= start_byte_1;
-        if ((int)start_code != 0x1BF) {
-            return 0;
-        }
-    }
-    decoder = SFH_Create(header - 12, header_size + 12);
-    if (decoder == 0) {
-        header_valid = 0;
-    } else {
-        if (SFH_IsSfdHeader(decoder, &is_sfd_header) == 0) {
-            is_sfd_header = 0;
-        }
-        SFH_Destroy(decoder);
-        header_valid = is_sfd_header;
-    }
-    if (header_valid == 0) {
-        return 0;
-    }
-    *header_flag = sfhds_SetHdrRaw(handle, header - 12, header_size + 12);
-    return 1;
+    SEQ_SFHDS_SetHdr();
 }
-#pragma dont_inline reset
 
 void SFHDS_FinishFhd(SfdHeaderState* state)
 {

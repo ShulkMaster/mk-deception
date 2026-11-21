@@ -14,12 +14,10 @@
 #include "game/specular.h"
 #include "math/mk_math.h"
 #include "rw/rwframe.h"
-
-typedef struct ImpaleSecondaryObject {
-    MkHdr hdr;
-    char pad08[0x40];
-    float strength;
-} ImpaleSecondaryObject;
+#include "game/plyr_globals.h"
+#include "game/cloth.h"
+#include "game/plyr.h"
+#include "game/moves.h"
 
 typedef struct WeaponCollisionDef {
     float radius;
@@ -40,8 +38,6 @@ typedef struct WeaponCollisionDef {
         }                                                                 \
     } while (0)
 
-extern MkPtr* weapon_trail_mkobj_list;
-extern MkObj* plyr_obj;
 extern WeaponDefinition goro_gauntlets_weapon_desc_lr;
 extern WeaponDefinition goro_gauntlets_weapon_desc_ll;
 
@@ -55,21 +51,12 @@ static MkObj* plyr_obj_item_release(PlyrPdata* player,
 void plyr_weapon_trail_hide(PlyrMirrorSlots* slots);
 void obj_unhide_material_by_id(MkObj* object, int id);
 void obj_hide_material_by_id(MkObj* object, int id);
-void mkobj_zero_bone_rots(MkObj* object);
-int get_player_number(MkObj* object);
-void pull_bone_hierarchy_mkobj(MkObj* object);
-void obj_force_culling_off(MkObj* object);
-void start_cloth_bones(MkObj* object);
 static void start_weapon_trail(MkObj* weapon, MkObj* trail_model);
-RpMaterial* obj_find_material_by_id(MkObj* object, int material_id);
-void sobj_use_material_color(MkSobj* sobj);
+void sobj_use_material_color(void* sobj);
 void obj_set_material_fade(
     MkObj* object, unsigned int material_id, signed char alpha);
-void material_set_zbias(RpMaterial* material, float bias);
 MkProc* fade_material(float delta, MkObj* object, unsigned int sobj_id,
                       unsigned int material_id, int frames);
-void advance_my_moveset(void);
-void mkobj_bones_dest_mat_no_update(MkObj* object);
 static Vec trail_p_to_c_uv = {1.0f, 0.0f, 0.0f};
 
 WeaponTrailMap goro_gauntlets_trail_anchors[3] = {
@@ -157,7 +144,7 @@ static inline MkObj* load_goro_weapon_inline(
     weapon->light_flags = 0x100C;
     weapon->hide_flag_bits.hidden = 1;
     weapon->hide_flag_bits.weapon_effect = 1;
-    weapon->field_5C = definition;
+    weapon->weapon_definition = definition;
     insert_fgnd_mkobj(weapon);
     start_weapon_trail(weapon, trail_model);
     return weapon;
@@ -303,10 +290,10 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
     PlyrPdata* victim;
     MkObj* victim_object;
     MkObj* secondary;
-    ImpaleSecondaryObject* attachment;
+    BoneMatcherState* attachment;
     MkHdr* weapon_hdr;
 
-    definition = weapon->field_5C;
+    definition = weapon->weapon_definition;
     if (definition == 0) {
         return;
     }
@@ -337,9 +324,9 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
                     &impale->child_offset, &impale->rotation, 0) != 0) {
                 RESOLVE_WEAPON_LATCH(
                     secondary, &victim->impaled_item_a_secondary);
-                attachment = (ImpaleSecondaryObject*)secondary;
+                attachment = (BoneMatcherState*)secondary;
                 if (attachment != 0) {
-                    attachment->strength = 5.0f;
+                    attachment->blend_ticks = 5.0f;
                 }
                 start_gusher(
                     heart_beat, victim, victim_object,
@@ -350,7 +337,7 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
     }
 
     if (second_weapon != 0) {
-        definition = second_weapon->field_5C;
+        definition = second_weapon->weapon_definition;
         impale = definition->impale_data;
         if (impale->bone_index > 0) {
             RESOLVE_WEAPON_LATCH(victim_object, &victim->tracked_obj_latch);
@@ -369,9 +356,9 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
                         &impale->child_offset, &impale->rotation, 0) != 0) {
                     RESOLVE_WEAPON_LATCH(
                         secondary, &victim->impaled_item_a_secondary);
-                    attachment = (ImpaleSecondaryObject*)secondary;
+                    attachment = (BoneMatcherState*)secondary;
                     if (attachment != 0) {
-                        attachment->strength = 5.0f;
+                        attachment->blend_ticks = 5.0f;
                     }
                     start_gusher(
                         heart_beat, victim, victim_object,
@@ -394,10 +381,10 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
 }
 
 void get_weapon_collision_def(MkObj* object, WeaponCollisionDef* collision) {
-    collision->radius = ((const WeaponDefinition*)object->field_5C)->field_4c.x;
-    collision->offset.x = ((const WeaponDefinition*)object->field_5C)->field_4c.y;
-    collision->offset.y = ((const WeaponDefinition*)object->field_5C)->field_4c.z;
-    collision->offset.z = ((const WeaponDefinition*)object->field_5C)->field_58;
+    collision->radius = object->weapon_definition->field_4c.x;
+    collision->offset.x = object->weapon_definition->field_4c.y;
+    collision->offset.y = object->weapon_definition->field_4c.z;
+    collision->offset.z = object->weapon_definition->field_58;
 }
 
 static inline MkObj* weapon_latch_object(PlyrMirrorObjLatch* latch) {
@@ -963,8 +950,8 @@ void mkobj_update_weapon_trail(MkHdr* hdr) {
     int map_index;
 
     weapon = MK_HDR_LIVE((MkObj*)trail_model->parent_hdr, trail_model->parent_inst);
-    if (weapon == 0 || weapon->field_5C == 0 ||
-        trail_model->field_5C == 0) {
+    if (weapon == 0 || weapon->weapon_definition == 0 ||
+        trail_model->weapon_definition == 0) {
         goto invalid_trail;
     }
     weapon_matrix = &weapon->frame->modelling;
@@ -975,7 +962,7 @@ void mkobj_update_weapon_trail(MkHdr* hdr) {
     trail_position = &trail_matrix->pos_vec;
 
     for (map_index = 0;
-         map_index < (definition = trail_model->field_5C)->trail_map_count;
+         map_index < (definition = trail_model->weapon_definition)->trail_map_count;
          map_index++) {
         MkBone* mapped_parent;
         MkBone* mapped_bone;
@@ -1100,7 +1087,7 @@ static void start_weapon_trail(MkObj* weapon, MkObj* trail_model) {
     trail_model->parent_inst = weapon->hdr.instance;
     mk_insert(&trail_model->hdr, &weapon->list_44);
     mk_insert(&trail_model->hdr, &weapon->child_list);
-    trail_model->field_5C = weapon->field_5C;
+    trail_model->weapon_definition = weapon->weapon_definition;
     trail_model->light_flags = 0x10;
     trail_model->hide_flag_bits.hidden = 1;
     insert_fgnd_mkobj(trail_model);
@@ -1188,7 +1175,7 @@ MkObj* load_weapon(
     weapon->light_flags = 0x100C;
     weapon->hide_flag_bits.hidden = 1;
     weapon->hide_flag_bits.weapon_effect = 1;
-    weapon->field_5C = definition;
+    weapon->weapon_definition = definition;
     insert_fgnd_mkobj(weapon);
     start_weapon_trail(weapon, trail_model);
     return weapon;
@@ -1313,7 +1300,7 @@ MkObj* load_weapon_from_slot(WeaponDefinition* definition, int slot) {
     weapon->light_flags = 0x100C;
     weapon->hide_flag_bits.hidden = 1;
     weapon->hide_flag_bits.weapon_effect = 1;
-    weapon->field_5C = definition;
+    weapon->weapon_definition = definition;
     insert_fgnd_mkobj(weapon);
     start_weapon_trail(weapon, trail_model);
     return weapon;

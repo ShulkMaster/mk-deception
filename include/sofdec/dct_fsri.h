@@ -31,4 +31,8 @@ typedef char DctFsriBlockSizeCheck[
 typedef char DctFsriParamsSizeCheck[
     sizeof(DctFsriParams) == 0x54 ? 1 : -1];
 
+extern void DCT_FsriTransCbp(DctFsriParams* params);
+extern void DCT_FsriSetGqr(void);
+extern void DCT_FsriTrans6Blk(DctFsriParams* params);
+extern void DCT_FsriInitScanTbl(const signed char source[64], signed char destination[64]);
 #endif

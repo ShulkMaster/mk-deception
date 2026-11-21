@@ -1,7 +1,5 @@
 #include "sofdec/mpv_mc.h"
 
-extern void DCT_FsriTransCbp(DctFsriParams* params);
-extern void DCT_FsriTrans6Blk(DctFsriParams* params);
 
 static inline void MPVCDEC_ClearCoefficients(f64** cursor)
 {

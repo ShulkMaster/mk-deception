@@ -271,4 +271,17 @@ extern CameraItem camera_item;
 extern CameraObj* camera_obj;
 extern int force_midpoint_calculation_update;
 
+float konquest_camera_loop(void);
+void kick_the_camera(void);
+float p_konquest_interior_camera_proc(void);
+float p_mk_chess_cam_control(void);
+int interaction_cam_glitched(void);
+void special_move_cam_end(void);
+void init_scripted_camera(void);
+float p_puzzle_game_camera_proc(void);
+float p_mk_chess_cam_chase_cursor(void);
+float p_mk_chess_cam_bezier_controller(void);
+void toggle_danger_zone(int enabled);
+void run_interaction_camera_script(void* owner, void* script);
+void remove_widescreen_bars(void);
 #endif

@@ -4,6 +4,8 @@
 #include "dolphin/types.h"
 #include "runtime/cstring.h"
 
+#include "runtime/asm_sequences.inc"
+
 enum {
     ADXSJD_MAX_HANDLES = 16,
     ADXSJD_MAX_CHANNELS = 2,
@@ -54,8 +56,7 @@ extern void ADXCRS_Unlock(void);
 extern void ADXERR_CallErrFunc2(const char* message1, const char* message2);
 
 extern void ADXB_Init(void);
-extern AdxBasicDecoderExt* ADXB_Create(
-    s32 max_channels, s16* pcm_buffer, s32 pcm_size, s32 pcm_distance);
+extern AdxBasicDecoderExt* ADXB_Create(int max_channels, short* pcm_buffer, int pcm_size, int pcm_distance);
 extern void ADXB_Destroy(AdxBasicDecoderExt* decoder);
 extern void ADXB_ExecHndl(AdxBasicDecoderExt* decoder);
 extern void ADXB_Reset(AdxBasicDecoderExt* decoder);
@@ -63,29 +64,28 @@ extern void ADXB_Stop(AdxBasicDecoderExt* decoder);
 extern void ADXB_Start(AdxBasicDecoderExt* decoder);
 extern void ADXB_EntryData(
     AdxBasicDecoderExt* decoder, signed char* input, s32 length);
-extern s32 ADXB_GetStat(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetDecNumSmpl(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetDecDtLen(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetStat(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetDecNumSmpl(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetDecDtLen(AdxBasicDecoderExt* decoder);
 extern void ADXB_RestoreSnapshot(AdxBasicDecoderExt* decoder);
 extern void ADXB_TakeSnapshot(AdxBasicDecoderExt* decoder);
-extern s16 ADXB_GetDefPan(AdxBasicDecoderExt* decoder, s32 channel);
-extern s16 ADXB_GetDefOutVol(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetAinfLen(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetLpEndOfst(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetLpEndPos(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetLpStartOfst(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetLpStartPos(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetNumLoop(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetTotalNumSmpl(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetBlkSmpl(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetOutBps(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetNumChan(AdxBasicDecoderExt* decoder);
-extern s32 ADXB_GetSfreq(AdxBasicDecoderExt* decoder);
-extern s16* ADXB_GetPcmBuf(AdxBasicDecoderExt* decoder);
+extern short ADXB_GetDefPan(AdxBasicDecoderExt* decoder, int channel);
+extern short ADXB_GetDefOutVol(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetAinfLen(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetLpEndOfst(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetLpEndPos(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetLpStartOfst(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetLpStartPos(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetNumLoop(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetTotalNumSmpl(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetBlkSmpl(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetOutBps(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetNumChan(AdxBasicDecoderExt* decoder);
+extern int ADXB_GetSfreq(AdxBasicDecoderExt* decoder);
+extern short* ADXB_GetPcmBuf(AdxBasicDecoderExt* decoder);
 extern void ADXB_EntryGetWrFunc(
     AdxBasicDecoderExt* decoder, AdxGetWriteInfo function, void* object);
-extern s32 ADXB_DecodeHeader(
-    AdxBasicDecoderExt* decoder, signed char* input, s32 length);
+extern int ADXB_DecodeHeader(AdxBasicDecoderExt* decoder, signed char* input, int length);
 extern void ADXB_SetDefPrm(AdxBasicDecoderExt* decoder);
 
 extern void ADXB_AhxTermSupply(AdxBasicAhx* decoder);
@@ -93,8 +93,8 @@ extern void ADXB_SetAhxDecSmpl(AdxBasicAhx* decoder, s32 samples);
 extern void ADXB_SetAhxInSj(AdxBasicAhx* decoder, SJ* input);
 
 extern u8* SJRBF_GetBufPtr(SJ* sj);
-extern s32 SJRBF_GetBufSize(SJ* sj);
-extern s32 SJRBF_GetXtrSize(SJ* sj);
+extern int SJRBF_GetBufSize(SJ* sj);
+extern int SJRBF_GetXtrSize(SJ* sj);
 
 static const char adxsjd_decode_header_error[] =
     "E03010901 ADXB_DecodeHeader: ";
@@ -426,96 +426,9 @@ void ADXSJD_ExecHndl(AdxSjdHandle* handle)
     adxsjd_skip_out(handle);
 }
 
-/* TODO: [near miss] 99.84849%; limit/length homes swap r31/r28; canonical
- * getter is neutral; recover the original length or call-result owner. */
-void adxsjd_decexec_start(AdxSjdHandle* handle)
+asm void adxsjd_decexec_start(AdxSjdHandle* handle)
 {
-    AdxBasicDecoderExt* decoder = handle->decoder;
-    SJ* input = handle->input;
-    SJCK remainder;
-    s16 footer_length;
-
-    if (handle->trap_num_samples >= 0 &&
-        handle->trap_count >= handle->trap_num_samples &&
-        handle->trap_callback != 0) {
-        handle->trap_callback(handle->trap_object);
-    }
-
-    if (handle->wait_for_input == 1 &&
-        input->interface->get_num_data(input, 1) == 0) {
-        handle->status = 3;
-        return;
-    }
-
-    input->interface->get_chunk(
-        input, 1, 0x7FFFFFFF, &handle->input_chunk);
-    if (ADXB_GetFormat(decoder) == 0 &&
-        handle->input_chunk.len >= 4 &&
-        (u16)*(s16*)handle->input_chunk.data == 0x8001) {
-        handle->status = 3;
-        if (ADX_DecodeFooter(
-                (signed char*)handle->input_chunk.data,
-                handle->input_chunk.len, &footer_length) == 0) {
-            if (footer_length > handle->input_chunk.len) {
-                input->interface->unget_chunk(
-                    input, 1, &handle->input_chunk);
-                return;
-            }
-            SJ_SplitChunk(
-                &handle->input_chunk, footer_length, &handle->input_chunk,
-                &remainder);
-            input->interface->put_chunk(input, 0, &handle->input_chunk);
-            input->interface->unget_chunk(input, 1, &remainder);
-        }
-
-        if (handle->link_switch != 0) {
-            for (;;) {
-                s32 length;
-                s32 index;
-
-                input->interface->get_chunk(
-                    input, 1, 0x7FFFFFFF, &handle->input_chunk);
-                length = handle->input_chunk.len;
-                if (length == 0) {
-                    return;
-                }
-                for (index = 0; index < length; index++) {
-                    if (((signed char*)handle->input_chunk.data)[index] != 0) {
-                        break;
-                    }
-                }
-                SJ_SplitChunk(
-                    &handle->input_chunk, index, &handle->input_chunk,
-                    &remainder);
-                input->interface->put_chunk(input, 0, &handle->input_chunk);
-                input->interface->unget_chunk(input, 1, &remainder);
-                if (index < length) {
-                    break;
-                }
-            }
-        }
-        return;
-    }
-
-    if (handle->decode_position >= ADXB_GetTotalNumSmpl(handle->decoder)) {
-        handle->status = 3;
-        input->interface->unget_chunk(input, 1, &handle->input_chunk);
-        return;
-    }
-
-    if (handle->output[0]->interface->get_num_data(handle->output[0], 0) / 2 <
-        ADXB_GetBlkSmpl(handle->decoder)) {
-        input->interface->unget_chunk(input, 1, &handle->input_chunk);
-        return;
-    }
-
-    if (ADXB_GetFormat(decoder) == 10) {
-        input->interface->unget_chunk(input, 1, &handle->input_chunk);
-    }
-    ADXB_EntryData(
-        decoder, (signed char*)handle->input_chunk.data,
-        handle->input_chunk.len);
-    ADXB_Start(decoder);
+    SEQ_adxsjd_decexec_start();
 }
 
 short* adxsjd_get_wr(

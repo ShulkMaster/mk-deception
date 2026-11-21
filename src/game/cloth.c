@@ -15,6 +15,7 @@
 #include "game/plyr_globals.h"
 #include "rw/rtquat.h"
 #include "rw/rwframe.h"
+#include "game/bgnd.h"
 
 static float p_cloth(void);
 static float p_wind(void);
@@ -29,10 +30,7 @@ static void pw_axis(void);
 static void ps_axis(void);
 static void mkobj_update_cloth(MkHdr* hdr);
 void mkobj_update_weapon_trail(MkHdr* hdr);
-RpMaterial* obj_find_material_by_id(MkObj* obj, int material_id);
-void material_set_zbias(RpMaterial* material, float zbias);
 
-extern MkObj* g_bgnd_preloaded_models[15];
 struct ClothCollisionVector {
     Vec xyz;
     float w;
@@ -233,7 +231,7 @@ static inline ClothCollisionVolume* create_cloth_coll_on_obj(
         volume->bone_count = 0;
         volume->collision_fn = cloth_coll_point_cyl_rel;
         volume->cylinder_bottom = -radius;
-        volume->cylinder_top = radius + 1.0f / bone->field_5C;
+        volume->cylinder_top = radius + 1.0f / bone->inverse_length;
         volume->reference_bone->flags_54_bits.calculation_locked = 1;
         if (volume->reference_bone->transform_parent != 0) {
             volume->reference_bone->transform_parent->flags_54_bits.calculation_locked = 1;
@@ -1238,7 +1236,7 @@ static void do_cloth_colls(MkHdr* collision) {
             &cloth_coll_bone_uv.xyz);
         PSVECScale(
             &cloth_coll_bone_uv.xyz, &cloth_coll_bone_uv.xyz,
-            cloth_coll_bone->field_5C);
+            cloth_coll_bone->inverse_length);
         RwMatrixInvert(
             &cloth_coll_bone_parent_world_mat_inv,
             &cloth_coll_bone->transform_parent->matrix);
@@ -1874,7 +1872,7 @@ void mks_npc_cc1_eq_insert_cloth_coll(
             volume->bone_count = 0;
             volume->collision_fn = cloth_coll_point_cyl_rel;
             volume->cylinder_bottom = -radius;
-            volume->cylinder_top = radius + 1.0f / bone->field_5C;
+            volume->cylinder_top = radius + 1.0f / bone->inverse_length;
             volume->reference_bone->flags_54_bits.calculation_locked = 1;
             if (volume->reference_bone->transform_parent != 0) {
                 volume->reference_bone->transform_parent->flags_54_bits.calculation_locked = 1;
@@ -1953,10 +1951,10 @@ void mks_obj_enable_update_cloth(MkObj* obj, int enabled) {
     obj->flags_0C_bits.cloth_update = enabled;
 }
 
-void mks_debug_display_cloth_coll_cyl(void) {
+void mks_debug_display_cloth_coll_cyl(int arg0, int arg1, int arg2) {
 }
 
-void mks_debug_display_cloth_coll_plane(void) {
+void mks_debug_display_cloth_coll_plane(float arg0) {
 }
 
 void mks_debug_display_cloth_ontop(int enabled) {

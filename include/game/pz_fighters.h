@@ -10,12 +10,12 @@ typedef struct MkProc MkProc;
 
 typedef struct PuzzleAttackPolicyFlags {
     unsigned char bit7 : 1;
-    unsigned char bit6 : 1;
-    unsigned char bit5 : 1;
+    unsigned char special_move_4 : 1; /* bit6 */
+    unsigned char special_move_5 : 1; /* bit5 */
     unsigned char bit4 : 1;
-    unsigned char distance_reaction : 1; /* bit3 */
-    unsigned char bit2 : 1;
-    unsigned char bit1 : 1;
+    unsigned char continuation_allowed : 1; /* bit3 */
+    unsigned char continuation_pending : 1; /* bit2 */
+    unsigned char easy_continuation : 1; /* bit1 */
     unsigned char bit0 : 1;
 } PuzzleAttackPolicyFlags;
 
@@ -118,4 +118,16 @@ typedef struct PuzzleFightersEngine {
     int reactions_disabled; /* +0x1E4 */
 } PuzzleFightersEngine;
 
+float pz_fighter_check_breakout(void);
+void pz_fighter_dont_fudge_desired_distance(void);
+int pz_fighter_is_losing_big(unsigned int player);
+float pz_fighter_fetch_plyr_to_home_post_distance(int player);
+int pz_fighter_should_he_breakout(void);
+void pz_fighter_set_y_constrain(MkObj* player_obj, int mode, float value);
+int pz_fighter_is_winning_big(unsigned int player);
+float pz_fighter_fetch_distance_to_center_pos(void);
+void pz_fighter_move_into_fighting_position(void);
+extern struct PuzzleFighterMoveTables g_pz_fighter_tables;
+void pz_fighter_force_repel_during_attack(void);
+extern float p_plyr_pz_fighter_start(void);
 #endif

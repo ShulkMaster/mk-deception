@@ -38,19 +38,17 @@
 #include "runtime/plyr_pdata.h"
 #include "runtime/sound_bank.h"
 #include "runtime/utils.h"
+#include "game/game.h"
+#include "game/jmt.h"
+#include "game/ejb.h"
+#include "game/fx.h"
+#include "game/pz_fighters.h"
 
 #define LOAD_PLYR_MODEL_PID 0x9032
 
-struct LoadPlyrFlagBits {
-    unsigned char alternate : 1;
-    unsigned char alternate_costume : 1;
-    unsigned char pad_bits : 6;
-    unsigned char pad_bytes[3];
-};
-
 union LoadPlyrFlags {
     unsigned int word;
-    struct LoadPlyrFlagBits bits;
+    PlyrInfoFlags14 bits;
 };
 
 struct LoadPlyrModelPdata {
@@ -92,16 +90,8 @@ extern void snd_stop(MslSoundHandle handle);
 static int baraka_advance_active_moveset(
     PlyrPdata* pdata, PlyrMirrorSlots* context);
 extern AnimPdata* anim_pdata;
-extern void* get_bone_with_tag(MkObj* object, int tag);
 static float p_baraka_jaw_controller(void);
-static inline int set_plyr_anim_script_frame(
-    AnimPdata* animation, AniData* script,
-    unsigned int flags, float frame) {
-    return set_anim_script_frame(animation, script, flags, frame);
-}
 static float p_baraka_blades_controller(void);
-extern int get_current_bgnd(void);
-extern void clear_my_face_opponent_flag(void);
 extern int is_weapon_style(PlyrFighterDefinition* style);
 extern void plyr_weapon_show(
     PlyrPdata* player, int show_aux, PlyrMirrorSlots* slots);
@@ -111,30 +101,17 @@ extern MkObj* plyr_weapon_release(PlyrPdata* player);
 extern MkObj* plyr_weapon2_release(PlyrPdata* player);
 extern void plyr_weapon_grab(PlyrPdata* player, MkObj* weapon);
 extern void plyr_weapon2_grab(PlyrPdata* player, MkObj* weapon);
-extern MkObj* load_bgnd_weapon_reflection(WeaponDefinition* definition);
-extern void show_fighting_style(GlobalMoveset* moveset, int player);
-extern int is_load_meter_active(void);
 extern void damage_p1(float damage);
 extern void damage_p2(float damage);
-extern void drone_ai_watcher(void);
 extern float p_plyr_start(void);
 extern void plyr_aux_weapon_grab(PlyrPdata* pdata, MkObj* weapon);
 extern void select_fighter_voice_in_bank(int player, int alternate_voice);
-extern int is_local_plyr(void);
 extern void advance_active_moveset(PlyrPdata* pdata);
 extern void load_player_fstyle_signs(PlyrPdata* pdata);
 extern MkFileInfo cmo_script_reactions;
-extern void limb_sever_hide_z_meat_chunks_all(MkObj* object);
 extern void plyr_obj_load_bld_data(
     FighterMirror* pdata, BloodModelData* blood_data, MkObj* object,
     const char* path_name);
-extern void init_debug_variables(void);
-extern void pull_bone_hierarchy_mkobj(void* object);
-extern void create_shadow_proc(
-    int pid, PlyrPdata* controller, MkObj* source, MkObj* shadow);
-extern void player_initialize_chores(void);
-extern int shadow_bones[37];
-extern float p_plyr_pz_fighter_start(void);
 
 GlobalPlayerEntry global_player_data[44] = {
     {"SCORPION", scorpion_file_table, scorpion_alt_file_table,
@@ -217,11 +194,9 @@ unsigned char goro_hand_to_hand2_remapping[0x56] = {
     0x50, 0x51, 0x52, 0x53, 0x54, 0x55,
 };
 extern float r_call_script_function(void);
-extern void kill_fstyle_signs_for_plyr(PlyrInfo* player);
 extern void term_player_collision(PlyrInfo* player);
 extern void transition_to_anim_script(
     AnimPdata* animation, AniData* script, int flags, float blend);
-extern void obj_set_gravity(MkObj* object, float gravity);
 extern void snd_req_delay(int sound, int delay);
 extern void animpdata_ani_to_frame_x(
     AnimPdata* animation, float frame);
@@ -631,7 +606,7 @@ void switch_to_bgnd_moveset(PlyrPdata* pdata, int moveset_index) {
 
             if (reflection == 0) {
                 reflection = load_bgnd_weapon_reflection(
-                    primary->field_5C);
+                    primary->weapon_definition);
                 if (reflection != 0) {
                     moveset->reflection_weapon = reflection;
                     moveset->reflection_weapon_instance =
@@ -1179,7 +1154,7 @@ static float p_load_plyr_model_async(void) {
     } else {
         language = 7;
     }
-    alternate = flags.bits.alternate;
+    alternate = flags.bits.alternate_costume;
     if (alternate != 0) {
         model_files =
             global_player_data[char_id].alternate_model_files;
@@ -1198,12 +1173,12 @@ static float p_load_plyr_model_async(void) {
     data = get_data_table(
         script, script->table_count);
     if (alternate != 0) {
-        if (flags.bits.alternate_costume) {
+        if (flags.bits.alternate_palette) {
             art_section = data->alternate_palette_art_section;
         } else {
             art_section = data->alternate_art_section;
         }
-    } else if (flags.bits.alternate_costume) {
+    } else if (flags.bits.alternate_palette) {
         art_section = data->palette_art_section;
     } else {
         art_section = data->primary_art_section;
@@ -2433,8 +2408,6 @@ static inline MkHdr* plyr_live_animation(PlyrPdata* owner) {
     return pdata_of_proc(MK_LIVE(owner->anim_proc, (int)owner->anim_proc_instance));
 }
 
-/* TODO: [near miss] 98.87324%; saved-state block lacks retail's post-RA reschedule; needs a
- * coalesced copy there that adds no new interfering GPR web. */
 float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     PlyrInfo* player;
     MkObj* sidekick;
@@ -2475,7 +2448,7 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
     }
 
     saved_animation = sidekick_animation->animation;
-    saved_hide_bit = sidekick->hide_flag_bits.bit6;
+    saved_hide_bit = (sidekick->hide_flags & 0x40) != 0;
     saved_step = sidekick_animation->step;
     saved_weight = sidekick_animation->weight;
     saved_frame = sidekick_animation->frame;
@@ -2517,11 +2490,11 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
         player->slot.mirror_a->hide_flag_bits.bit6;
 
     if ((player_animation->flags & 8) != 0) {
-        set_plyr_anim_script_frame(
+        set_anim_script_frame(
             sidekick_animation, player_animation->animation,
             0xB, player_animation->frame);
     } else {
-        set_plyr_anim_script_frame(
+        set_anim_script_frame(
             sidekick_animation, player_animation->animation,
             3, player_animation->frame);
     }
@@ -2545,10 +2518,10 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
 
     player->slot.mirror_a->hide_flag_bits.bit6 = saved_hide_bit;
     if ((saved_animation_flags & 8) != 0) {
-        set_plyr_anim_script_frame(
+        set_anim_script_frame(
             player_animation, saved_animation, 8, saved_frame);
     } else {
-        set_plyr_anim_script_frame(
+        set_anim_script_frame(
             player_animation, saved_animation, 0, saved_frame);
     }
     player_animation->step = saved_step;

@@ -6,6 +6,7 @@
 #include "runtime/cstring.h"
 #include "sofdec/sfd_mpvf.h"
 #include "sofdec/sfd_player.h"
+#include "movie/mwsfx.h"
 
 typedef struct LSC LSC;
 typedef struct SFXHandle SFXHandle;
@@ -135,8 +136,8 @@ typedef struct MwsPlayerInterface {
     void (*pause)(MwsPlayer*, int);
     void (*set_volume)(MwsPlayer*, int);
     int (*get_volume)(MwsPlayer*);
-    void (*set_pan)(MwsPlayer*, int);
-    int (*get_pan)(MwsPlayer*);
+    void (*set_pan)(MwsPlayer*, int, int);
+    int (*get_pan)(MwsPlayer*, int);
     void (*start_sj)(MwsPlayer*, SJ*);
     void (*start_memory)(MwsPlayer*, void*, int);
 } MwsPlayerInterface;
@@ -152,7 +153,6 @@ extern const SfdTransportInterface SFD_tr_vo_manu, SFD_tr_ao_auto_p;
 extern MwsLibraryWork* MWSFLIB_GetLibWorkPtr(void);
 extern int MWSFLIB_SetErrCode(int);
 extern void MWSFLIB_SfdErrFunc(SfdCallbackObject, int);
-extern void MWSFSVM_Error(const char*, ...);
 extern int MWSFD_GetUsePicUsr(void);
 extern void MWSFPLY_SetFlowLimit(MwsPlayer*);
 extern void MWSFSVR_SetHnMwplySvrFlg(MwsPlayer*, int);
@@ -168,7 +168,7 @@ extern SFXHandle* MWSFSFX_Create(void*, int, int, int);
 extern void MWSFSFX_Destroy(SFXHandle*);
 extern int MWSFSFX_CalcHnWorkSiz(int, int);
 extern void MWSFSFX_SetCompoMode(MwsPlayer*, int);
-extern ADXStream* MWSTM_Create(SJ*);
+extern ADXStream* MWSTM_Create(void* source);
 extern void MWSTM_Destroy(ADXStream*);
 extern LSC* LSC_Create(SJ*);
 extern void LSC_Destroy(LSC*);
@@ -186,8 +186,8 @@ extern void mwSfdGetTime(MwsPlayer*, int*, int*);
 extern void mwSfdPause(MwsPlayer*, int);
 extern void mwSfdSetOutVol(MwsPlayer*, int);
 extern int mwSfdGetOutVol(MwsPlayer*);
-extern void mwSfdSetOutPan(MwsPlayer*, int);
-extern int mwSfdGetOutPan(MwsPlayer*);
+extern void mwSfdSetOutPan(MwsPlayer*, int, int);
+extern int mwSfdGetOutPan(MwsPlayer*, int);
 extern void mwSfdStartSj(MwsPlayer*, SJ*);
 extern void mwSfdStartMem(MwsPlayer*, void*, int);
 
@@ -246,8 +246,8 @@ static SfdAdxtParameters mwsfd_adxtpara = {0x5DCC, 0x120, 0, 2, 0xBB80, 0xC1C0, 
 static long mwsfd_packsize = 0x800;
 
 
-static int mwsfdcre_bufnum;
-static int mwsfdcre_bufsize;
+static long mwsfdcre_bufnum;
+static long mwsfdcre_bufsize;
 static void* mwsfdcre_bufptr[16];
 
 static int adxibuf;
@@ -260,9 +260,29 @@ static long sib;
 static int sjb;
 static unsigned char* mwsfd_sisjadr;
 
+static inline void* mwsfcre_UsrMalloc(long size)
+{
+    MwsLibraryWork* work = MWSFLIB_GetLibWorkPtr();
+
+    return work->malloc_fn(work->allocator_object, size);
+}
+
+static inline void* mwsfcre_OrgMalloc(MwsPlayer* player, long size)
+{
+    void* memory;
+
+    if (player->arena_used + size > player->arena_size) {
+        memory = 0;
+    } else {
+        memory = player->arena_cursor;
+        player->arena_cursor += size;
+        player->arena_used += size;
+    }
+    return memory;
+}
+
 static inline void* mwsfcre_Alloc(MwsPlayer* player, long size)
 {
-    MwsLibraryWork* work;
     void* memory;
     if (player->allocation_count >= 32) {
         MWSFSVM_Error(allocation_count_exceeded);
@@ -270,16 +290,9 @@ static inline void* mwsfcre_Alloc(MwsPlayer* player, long size)
     }
     if (size < 0) return 0;
     if (player->arena != 0) {
-        if (player->arena_used + size > player->arena_size) {
-            memory = 0;
-        } else {
-            memory = player->arena_cursor;
-            player->arena_cursor += size;
-            player->arena_used += size;
-        }
+        memory = mwsfcre_OrgMalloc(player, size);
     } else {
-        work = MWSFLIB_GetLibWorkPtr();
-        memory = work->malloc_fn(work->allocator_object, size);
+        memory = mwsfcre_UsrMalloc(size);
     }
     if (memory != 0) {
         player->allocations[player->allocation_count] = memory;
@@ -404,8 +417,6 @@ void mwSfdDestroy(MWPLY handle)
     MWSFCRE_DestroySfd(player);
 }
 
-/* TODO: [near miss] 97.76836%; retained allocation owners rotate;
- * recover coupled source ownership while preserving exact MallocRfb. */
 static int mwsfcre_MallocCompoWork(MwsPlayer* player)
 {
     const MwsCreateParams* create = &player->create;
@@ -992,7 +1003,8 @@ static int mwsfcre_MallocRfb(MwsPlayer* player,
     int frame_size;
 
     frame_size = mwsfcre_CalcFrameSize(params->width, params->height);
-    if (mwsfdcre_bufnum != 0) {
+    switch (mwsfdcre_bufnum) {
+    default:
         if (mwsfdcre_bufnum < 2 ||
             mwsfdcre_bufsize < frame_size ||
             mwsfdcre_bufsize < frame_size) {
@@ -1003,9 +1015,11 @@ static int mwsfcre_MallocRfb(MwsPlayer* player,
             output->buffers[0] = mwsfdcre_bufptr[0];
             output->buffers[1] = mwsfdcre_bufptr[1];
         }
-    } else {
+        break;
+    case 0:
         output->buffers[0] = mwsfcre_Alloc(player, frame_size);
         output->buffers[1] = mwsfcre_Alloc(player, frame_size);
+        break;
     }
     if (output->buffers[0] == 0 || output->buffers[1] == 0) result = -1;
     return result;

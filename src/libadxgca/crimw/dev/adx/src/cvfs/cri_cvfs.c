@@ -432,8 +432,6 @@ void cvFsEntryErrFunc(CvFsErrorCallback callback, void* object)
     cvfs_errobj = object;
 }
 
-/* TODO: [near miss] 99.74747%; device pointer must be variousProc's own param object (above the table IV);
- * the named device_name local is substituted instead; recover the original non-trivial argument. */
 int cvFsGetFileSize(const char* filename)
 {
     CvFsInterface* interface;
@@ -452,8 +450,7 @@ int cvFsGetFileSize(const char* filename)
         return 0;
     }
 
-    device_name = device;
-    interface = variousProc(device_name, file, filename);
+    interface = variousProc(device_name = device, file, filename);
     if (device == NULL) {
         cvFsError(size_bad_device);
     }
@@ -596,8 +593,7 @@ CvFsObject* cvFsOpen(const char* filename, void* parameter, int mode)
         return NULL;
     }
 
-    device_name = device;
-    handle->interface = variousProc(device_name, file, filename);
+    handle->interface = variousProc(device_name = device, file, filename);
     if (device == NULL) {
         releaseHandle(handle);
         cvFsError(open_bad_device);

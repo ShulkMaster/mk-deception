@@ -28,6 +28,10 @@
 #include "runtime/section.h"
 #include "runtime/sound.h"
 #include "runtime/utils.h"
+#include "game/minigames.h"
+#include "platform/disc_error.h"
+#include "game/krypt.h"
+#include "game/konquest.h"
 
 struct SoundtrackTitleEntry {
     const char* meta;
@@ -81,32 +85,12 @@ struct PauseMenuPdata {
     int was_paused;
 };
 
-extern int disc_error_occurred;
-extern int last_switch_time;
-extern SwitchMapEntry p1_temp_switch_map[];
-extern SwitchMapEntry p2_temp_switch_map[];
-extern int p1_rumble_on;
-extern int p2_rumble_on;
-extern int p1_temp_rumble_state;
-extern int p2_temp_rumble_state;
-extern int p1_use_temp_switch_map;
-extern int p2_use_temp_switch_map;
 extern const char* number_strings[];
 extern unsigned long display_off;
 extern int pause_player;
-extern int __mini_game_display_ctrl;
 
 void snd_stop(MslSoundHandle handle);
-int get_menu_mode_sub_var(void);
-int get_gameoption_exitwithsave(void);
-void set_button_repeat_time(int ticks);
-void set_default_button_repeat_time(void);
-void ck_do_profile_save(void);
-void xfer_puzzle_exit(int mode);
 
-extern float p_konquest_mode(void);
-extern float p_kontent(void);
-extern float p_krypt_mode(void);
 
 static float p_controller_watcher(void);
 
@@ -509,7 +493,6 @@ void set_menu_mode(int mode) {
     menu_mode_net = mode;
 }
 
-#pragma optimize_for_size on
 void controller_setup_save_to_profile(int player, int save) {
     MkProc* proc;
     int* rumble_on;
@@ -555,7 +538,6 @@ void controller_setup_save_to_profile(int player, int save) {
         *use_temp_map = 1;
     }
 }
-#pragma optimize_for_size reset
 
 void cconfig_get_button_textures(GVTexturePair out) {
     out.colors[0] = load_named_tga_from_slot(0x90046, &stringBase0[0x40B]);
@@ -598,7 +580,6 @@ int controller_get_player_last_button(int player) {
     return 0;
 }
 
-#pragma optimize_for_size on
 void cconfig_assign_button(int player, int button) {
     struct ControllerConfigPdata* pdata;
     int cell;
@@ -660,9 +641,7 @@ void cconfig_assign_button(int player, int button) {
         fire_screen_studio_event(player + 0x1FAC, player);
     }
 }
-#pragma optimize_for_size reset
 
-#pragma optimize_for_size on
 void cconfig_set_current_cell(int player, int cell) {
     MkProc* proc;
     struct ControllerConfigPdata* pdata;
@@ -679,7 +658,6 @@ void cconfig_set_current_cell(int player, int cell) {
         }
     }
 }
-#pragma optimize_for_size reset
 
 int controller_get_num_adjustable_buttons(void) {
     return 7;

@@ -143,7 +143,6 @@ static float drone_ai_perform_block(void);
 float drone_ai_perform_reversal(void);
 static float jump_towards_opponent_with_attack(void);
 static float jump_away_opponent_with_jexit(void);
-void set_my_secondary_state(int state);
 int drone_ai_attacker_reacting_watcher(void);
 int drone_ai_attacker_defenseless_watcher(void);
 int drone_ai_attacker_not_facing_watcher(void);
@@ -416,8 +415,6 @@ static unsigned int g_minBlockHiHeldTime[9] = {
     300, 300, 240, 180, 120, 120, 60, 50, 40
 };
 
-extern PlyrPdata* his_pdata;
-extern MkProc* plyr_anim_proc;
 extern struct AiSharedAnimations shared_ani;
 extern struct DroneAI g_DroneAI1;
 extern struct DroneAI g_DroneAI2;
@@ -436,22 +433,15 @@ void fight_fx_blades_clash(PlyrPdata* player);
 float frand(float range);
 MslSoundHandle pan_vol_pitch_snd_req(
     int sound_id, float pan, float volume, float pitch);
-float dist_behind_me(void);
 void run_reaction_cleanup_function(PlyrPdata* player);
 float r_call_script_function(void);
-int get_his_attack_counter(void);
 void init_air_move(void);
-void plyr_bleed_large_ext(
-    PlyrPdata* player, unsigned int bone, PlyrPdata* source);
-void start_blood_particles(
-    int effect, unsigned int bone, PlyrPdata* player, MkObj* object);
-void start_sweat_particles(
-    int effect, unsigned int bone, PlyrPdata* player, MkObj* object);
-void gut_bleed_me(int size);
+void plyr_bleed_large_ext(PlyrPdata* pdata, int bone, PlyrPdata* owner);
+unsigned int start_blood_particles(int particle_mask, unsigned int bone, PlyrPdata* player, MkObj* object);
+void start_sweat_particles(int particle_mask, int bone, PlyrPdata* player, MkObj* object);
 void face_bleed_me(int size);
 void plyr_bleed_mouth(PlyrPdata* player);
 
-int get_player_number(MkObj* player);
 MkProc* get_player_proc(MkObj* player);
 static int drone_ai_im_dizzy(void);
 int drone_ai_check_for_berserker_movement(struct DroneAI* drone);
@@ -461,8 +451,6 @@ static int drone_ai_change_attack_to_low(struct DroneAI* drone);
 static int drone_ai_should_be_attacking(
     struct DroneAI* drone, int* attack_state, int force);
 int handicap_get_current_difficulty(struct DroneAI* drone);
-int is_he_airborn(void);
-int is_he_duck_blocking(void);
 static int InAttackRange(void);
 static int InAttackRange2(void);
 static int InAttackRange_close(void);
@@ -472,7 +460,6 @@ void drone_ai_reset_ai_cmd(void);
 float side_step_to_center_with_jexit(void);
 void drone_walk_FB_true(int (*test)(void), unsigned int ticks, int forward,
                         int allow_exit);
-void ani_to_frame_x_call(void (*callback)(void), float frame);
 int handicap_calc_min_time_in_block(struct DroneAI* drone);
 float drone_ai_watcher(void);
 static int drone_ai_force_change_style(struct DroneAI* drone, int style);
@@ -523,32 +510,22 @@ int drone_ai_attacker_defenseless(struct DroneAI* drone);
 static float drone_ai_avoid_danger_area_now(void);
 int drone_ai_can_push(struct DroneAI* drone);
 static float drone_ai_perform_knockdown(void);
-int am_i_a_big_character(void);
 int am_i_airborn(void);
-float j_flying_kick(void);
-float j_flying_kick2(void);
-void uv_to_opponent(Vec* direction);
 void snd_req_delay(int sound, int delay);
 void init_ground_move_no_aniproc(void);
 void face_opponent_now(void);
-int random_foot(int group);
-void tightrope_restrictions_off(void);
+MslSoundHandle random_foot(int group);
 void ani_to_frame_x(float frame);
-float j_stay_down_dead(void);
 static float dk_screen_taunt(void);
 float drone_ai_perform_script_attack(void);
 static float drone_ai_scripted_attack(void);
-int do_i_have_life_left(void);
 float r_call_player_char_script_function(void);
-float p_blend_to_stance_in_10(void);
 static int handicap_likelihood_for_combo_breaker(struct DroneAI* drone);
 float drone_ai_change_style(void);
 void bgnd_restore_player(void);
-void enable_all_my_blocking(void);
 int is_my_chest_to_screen(void);
 void set_ani_speed(float speed);
 void ani_loop_more_frames(float frames);
-void blend_to_fstance(float blend);
 void ani_to_blend_frame(float frame);
 void advance_active_moveset(PlyrPdata* player);
 void advance_sidekick_with_moveset(PlyrPdata* player);
@@ -574,7 +551,6 @@ extern int f_fatality_was_done;
 extern struct AiFightStyleRestrictionTable fight_style_restriction_table;
 int get_game_state(void);
 int can_i_do_fatality_now(int player);
-float do_my_suicide(void);
 static unsigned int handicap_calc_likelihood_of_blocking_in_reaction(
     struct DroneAI* drone);
 int drone_ai_should_be_blocking(struct DroneAI* drone, int reaction);
@@ -602,10 +578,8 @@ int drone_ai_charge_up_watcher_defense(struct DroneAI* drone);
 float drone_ai_perform_charge_up(void);
 float drone_ai_perform_taunt(void);
 int trial_get_drone_difficulty(void);
-int mk_chess_get_current_difficulty_for_ai(int side);
+int mk_chess_get_current_difficulty_for_ai(unsigned int side);
 extern int g_GameLossesInARow;
-int am_i_on_the_left(void);
-void init_3d_move_no_aniproc(void);
 static float p_lookat_cam(void);
 static void ai_side_clearances(float* right, float* left);
 static float ai_backward_clearance(void);
@@ -619,7 +593,6 @@ static float step_backward_with_jexit(void);
 int drone_ai_victim_dizzy_2(void);
 static int drone_ai_victim_dizzy_3(void);
 static int drone_ai_victim_throw_attempt(void);
-void show_player(PlyrPdata* player);
 
 #define AI_TRANSFER(entry) aproc->vtbl->jump_sleep((entry), 0.0f)
 
@@ -8699,11 +8672,11 @@ void drone_ai_reset_ai_cmd(void) {
     drone->command_active = 0;
 }
 
-void drone_ai_get_min_time_in_block(void) {
+int drone_ai_get_min_time_in_block(void) {
     struct DroneAI* drone;
 
     drone = get_player_number(plyr_obj) == 0 ? &g_DroneAI1 : &g_DroneAI2;
-    handicap_calc_min_time_in_block(drone);
+    return handicap_calc_min_time_in_block(drone);
 }
 
 int drone_ai_check_block_fakeout(void) {

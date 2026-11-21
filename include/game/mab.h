@@ -1,7 +1,7 @@
 #ifndef GAME_MAB_H
 #define GAME_MAB_H
 
-#include "math/gxVect.h"
+typedef struct Vec Vec;
 
 typedef struct PlyrInfo PlyrInfo;
 

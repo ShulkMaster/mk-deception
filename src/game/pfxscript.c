@@ -271,13 +271,6 @@ struct PfxBankLoadRow {
     int effect_count;
 };
 
-typedef void (*PfxBankDestroyFn)(MkHdr* bank);
-
-struct PfxBankVtablePrefix {
-    void* reserved[4];
-    PfxBankDestroyFn destroy;
-};
-
 struct PfxBank;
 
 struct PfxBankLatch {
@@ -1827,7 +1820,7 @@ void spawn_random_size(float* table) {
     }
 
     row_count = get_row_count_for_table_by_pointer(
-        g_pfx_cmo, (void*)table);
+        g_pfx_cmo, table);
     if (row_count == 0U) {
         return;
     }
@@ -2163,8 +2156,6 @@ void emit_roundrobin_mechanism(int field, int source) {
     }
 }
 
-/* TODO: [near miss] 99.575%; build_case_ranges merges adjacent OID labels;
- * equality guards fold the retail exit pair; recover original dispatch boundary. */
 void bind_to_bone(int bone_index) {
     struct PfxScriptEnvironment* environment;
     MkPfx* effect;
@@ -2175,18 +2166,15 @@ void bind_to_bone(int bone_index) {
     if (bone_index == 0 || active_cmdscript == 0 || active_cmdscript->mko == 0) {
         return;
     }
-    if (active_cmdscript->mko->load_ctx == 0) return;
-    object = active_cmdscript->mko->load_ctx->bgnd_obj;
-    switch (object->oid) {
-    case 0x1001:
-    case 0x1002:
-        effect->bound_obj = object;
-        if (effect->bound_obj != 0) {
-            pfx_bind_emitter_to_obj_bone(effect, effect->bound_obj, bone_index);
-        }
-        break;
-    default:
+    if (active_cmdscript->mko->load_ctx == 0 ||
+        (active_cmdscript->mko->load_ctx->bgnd_obj->oid != 0x1001 &&
+         active_cmdscript->mko->load_ctx->bgnd_obj->oid != 0x1002)) {
         return;
+    }
+    object = active_cmdscript->mko->load_ctx->bgnd_obj;
+    effect->bound_obj = object;
+    if (effect->bound_obj != 0) {
+        pfx_bind_emitter_to_obj_bone(effect, effect->bound_obj, bone_index);
     }
 }
 
@@ -2310,7 +2298,8 @@ static inline struct PfxBank* bank_alloc(int effect_count, char* name) {
     unsigned int size;
     int effect_index;
 
-    size = sizeof(*bank) + effect_count * sizeof(struct PfxEffectLatch);
+    size = sizeof(*bank);
+    size += effect_count * sizeof(struct PfxEffectLatch);
     owners_offset = size;
     size += effect_count * sizeof(unsigned int);
     name_offset = size;
@@ -2376,8 +2365,6 @@ static inline unsigned int get_new_bank(int effect_count, char* name) {
     return build_bank_handle(bank_index);
 }
 
-/* TODO: [breakthrough needed] 99.19876%; retail zeroes an extra stack word at 0xc
- * each row (load latch moves to 0x10); owner unknown; bank_alloc loop li order. */
 void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     struct PfxLoadScriptLatch load;
     struct PfxBankLoadRow* rows;
@@ -2387,7 +2374,7 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
     unsigned int row_number;
     unsigned int bank_handle;
     int total_effects;
-    int remaining_effects;
+    int remaining_effects[2];
     int language;
     int owner;
     MkObj* parent;
@@ -2482,13 +2469,14 @@ void load_effect_bank_with_context(char* name, LoadBgndCtx* context) {
             saved_command = active_cmdscript;
             active_cmdscript = load.command;
             load.script->load_ctx = context;
-            remaining_effects = rows[row_number - 1].effect_count;
+            remaining_effects[1] = 0;
+            remaining_effects[0] = rows[row_number - 1].effect_count;
             if (pfxscript_environment.active == 0) {
                 memset(
                     &pfxscript_environment, 0,
                     sizeof(pfxscript_environment));
                 pfxscript_environment.active = 1;
-                active_pfx_environment()->remaining_effects = &remaining_effects;
+                active_pfx_environment()->remaining_effects = remaining_effects;
             }
             cmdscript_setup_execution(load.script, rows[row_number - 1].function_index);
             cmdscript_execute(load.script);
@@ -2883,9 +2871,9 @@ void fxbanks_unload_by_owner(unsigned int owner_flags) {
         bank = MK_HDR_LIVE(banks[index].bank, banks[index].bank_instance);
         if (bank != 0 && (bank->owner_flags & owner_flags) != 0) {
             if (bank->hdr.instance != 0U) {
-                struct PfxBankVtablePrefix* vtbl;
+                MkHdrVtable* vtbl;
 
-                vtbl = (struct PfxBankVtablePrefix*)bank->hdr.vtbl;
+                vtbl = bank->hdr.typed_vtbl;
                 vtbl->destroy(&bank->hdr);
             }
             banks[index].bank = 0;
@@ -2895,10 +2883,10 @@ void fxbanks_unload_by_owner(unsigned int owner_flags) {
 }
 
 static inline void bank_destroy(MkHdr* bank) {
-    struct PfxBankVtablePrefix* vtbl;
+    MkHdrVtable* vtbl;
 
     if (bank->instance != 0U) {
-        vtbl = (struct PfxBankVtablePrefix*)bank->vtbl;
+        vtbl = bank->typed_vtbl;
         vtbl->destroy(bank);
     }
 }

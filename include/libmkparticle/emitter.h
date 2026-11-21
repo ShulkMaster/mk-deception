@@ -1,8 +1,10 @@
 #ifndef LIBMKPARTICLE_EMITTER_H
 #define LIBMKPARTICLE_EMITTER_H
 
-#include "libmkparticle/fields.h"
-#include "libmkparticle/vm.h"
+typedef struct PfxFieldSet PfxFieldSet;
+typedef struct PfxVm PfxVm;
+typedef struct PfxEmitterInstruction PfxEmitterInstruction;
+typedef struct PfxVmEmitter PfxVmEmitter;
 
 int pfx_emitter_exhausted(PfxVmEmitter* emitter);
 PfxVmEmitter* pfx_get_emitter(PfxVm* pfx, int index);

@@ -57,6 +57,14 @@ MkPfx* create_pfx(
     int bind_source, int process_id, MkProcEntryFn entry,
     MkPfx** effect_out, const struct FxPfxDefinition* definition,
     const char* name);
+void yinyang_start_lensflare(void);
+void yinyang_stop_lensflare(void);
+void turn_into_energy_player(void);
+void courtyard_start_lensflare(void);
+extern void show_fighting_style(GlobalMoveset* moveset, int player);
+extern void load_bgnd_fstyle_sign(int player);
+RpAtomic* set_atomic_material_alpha(RpAtomic* atomic, unsigned int alpha);
+extern void kill_fstyle_signs_for_plyr(PlyrInfo* player);
 
 #ifdef __cplusplus
 }

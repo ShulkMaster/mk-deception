@@ -15,7 +15,7 @@ extern s32 ADXSTM_Tell(ADXStream* stream);
 extern void ADXSTM_Stop(ADXStream* stream);
 extern void ADXSTM_ReleaseFile(ADXStream* stream);
 extern void ADXSTM_Destroy(ADXStream* stream);
-extern void ADXF_Ocbi(void* address, s32 size);
+extern void ADXF_Ocbi(void* address, unsigned long size);
 extern void ADXERR_CallErrFunc1(const char* message);
 
 static inline void adxf_SetCmdHstry(s32 command, s32 phase, ADXFFile* file,

@@ -14,13 +14,9 @@
 #include "mw/mwScreenEngineGlue.h"
 #include "runtime/utils.h"
 
-#pragma use_lmw_stmw on
 
 
 extern char konq_region_data_buffer[0x1F54];
-extern int p1_profile_device;
-extern int p1_profile_slot;
-extern int msg_cant_enter_konquest_answer;
 
 #define STR_SPACE " "
 #define STR_COUNT_UNIT "%d %s"
@@ -587,7 +583,6 @@ void region_data_corruption_message_handler(void) {
     quit_from_konquest();
 }
 
-#pragma dont_inline on
 int load_from_memcard_w_error(int device, int mode, void* settings, char* cardName, int nameLen,
                               unsigned int* freeBlocks, int* freeBytes) {
     int result;
@@ -645,7 +640,6 @@ int load_from_memcard_w_error(int device, int mode, void* settings, char* cardNa
         }
     }
 }
-#pragma dont_inline reset
 
 static void end_save_message(int mode, int result, int device, int flag) {
     switch (mode) {
@@ -830,7 +824,6 @@ int save_settings_to_memcard_w_error(int device, int mode, const char* title,
     return result == 0;
 }
 
-#pragma dont_inline on
 int save_to_memcard_w_error(int device, int mode, const char* title, void* settings, int flag,
                             unsigned int* freeBlocks, int* freeBytes) {
     StorageDevice* dev;
@@ -991,7 +984,6 @@ int save_to_memcard_w_error(int device, int mode, const char* title, void* setti
         return 0;
     }
 }
-#pragma dont_inline reset
 
 static inline void name_empty_storage_profiles(StorageDevice* base) {
     int i;

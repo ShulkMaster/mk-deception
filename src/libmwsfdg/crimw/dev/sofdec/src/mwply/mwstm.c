@@ -1,16 +1,15 @@
 #include "cri/adxt_internal.h"
 
-extern int ADXSTM_GetStat(ADXStream* stream);
+extern s32 ADXSTM_GetStat(ADXStream* stream);
 extern void ADXSTM_StopNw(ADXStream* stream);
 extern void ADXSTM_ReleaseFileNw(ADXStream* stream);
-extern int ADXSTM_Start(ADXStream* stream);
+extern s32 ADXSTM_Start(ADXStream* stream);
 extern void ADXSTM_BindFileNw(ADXStream* stream, const char* path, int offset,
                               int length, int end_position);
 extern void ADXSTM_SetEos(ADXStream* stream, int end_position);
 extern void ADXSTM_Destroy(ADXStream* stream);
-extern ADXStream* ADXSTM_Create(void* source, int priority);
-extern int ADXSTM_SetBufSize(ADXStream* stream, int minimum_size,
-                             int maximum_size);
+extern ADXStream* ADXSTM_Create(SJ* sj, s32 priority);
+extern s32 ADXSTM_SetBufSize(ADXStream* stream, s32 minimum_size, s32 maximum_size);
 
 int MWSTM_GetStat(ADXStream* stream)
 {

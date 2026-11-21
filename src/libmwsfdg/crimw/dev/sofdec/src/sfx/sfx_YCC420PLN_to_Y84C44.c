@@ -13,9 +13,7 @@ typedef struct CFTYcc420Planar {
 typedef char CFTYcc420PlanarSizeCheck[
     sizeof(CFTYcc420Planar) == 0x28 ? 1 : -1];
 
-extern void CFT_Ycc420plnToY84C44(const CFTYcc420Planar* source,
-                                   void* y, void* c, s32 y_pitch,
-                                   s32 height);
+extern void CFT_Ycc420plnToY84C44(const CFTYcc420Planar* src, u8* dst_y, u8* dst_c, s32 dst_y_stride, s32 height);
 
 static inline s32 sfxcnv_GetOutHeight(SFXHandle* handle, SFXFrameInfo* frame)
 {

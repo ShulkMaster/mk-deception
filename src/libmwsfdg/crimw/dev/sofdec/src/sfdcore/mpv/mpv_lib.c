@@ -2,13 +2,12 @@
 #include "sofdec/mpv_abdec.h"
 #include "runtime/cstring.h"
 #include "dolphin/base/PPCArch.h"
-#include "dolphin/cache.h"
 #include "sofdec/uty_mem.h"
 #include "runtime/asm_sequences.inc"
 
 struct MPVLibWork {
     int conditions[17];
-    u32 field_44;
+    int field_44;
     u32 flags;
     void* field_4C;
     void* index_work;
@@ -29,14 +28,14 @@ const int mpvlib_siz_mpvwork = sizeof(struct MPVLibWork);
 const int mpvlib_siz_mpvobj = MPV_DECODER_VERSION_SIZE;
 const int mpvlib_siz_mpvixa = 0x1C60;
 
-int mpvlib_use_lc;
-u8 mpv_clip_0_255_tbl[0x400];
-u8* mpv_clip_0_255_base;
-static MPVContext* mpvlib_mpvobj;
-void* mpvlib_oix;
-void* mpvlib_iix;
-static struct MPVLibWork mpvlib_libwork;
 static const char* cri_verstr_ptr;
+static struct MPVLibWork mpvlib_libwork;
+void* mpvlib_iix;
+void* mpvlib_oix;
+static MPVContext* mpvlib_mpvobj;
+u8* mpv_clip_0_255_base;
+u8 mpv_clip_0_255_tbl[0x400];
+int mpvlib_use_lc;
 
 extern u32* mpvvlc_run_level_8;
 extern s16* mpvvlc_run_level_4;
@@ -59,14 +58,16 @@ extern void MPVCMC_InitObj(MPVContext* handle);
 extern void MPVCMC_Init(void);
 extern void MPVHDEC_Init(void);
 extern void MPVFRM_Init(void);
-extern int MPVVLC_IsVlcSizErr(void);
-extern void MPVVLC_Init(void* work, MPVContext* decoder);
+extern s32 MPVVLC_IsVlcSizErr(void);
+extern void MPVVLC_Init(u8 *vlc, void *ixa);
 extern void MPVBDEC_Init(void* context);
 extern int MPVDEC_CheckVersion(const char* version, int object_size,
                                int picture_attribute_size);
 extern void MPV_SetUsrSj(MPVContext* handle, int index, void* stream,
                          void (*callback)(void* argument, int index),
                          void* callback_argument);
+static MPVContext* mpvlib_InitHn(MPVContext* handle);
+static MPVContext* mpvlib_SearchFreeHn(void);
 static void mpvlib_InitPicAtr(MPVPictureAttributes* attributes);
 
 static inline int mpvlib_CheckHandle(MPVContext* handle)
@@ -81,94 +82,212 @@ static inline int mpvlib_CheckHandle(MPVContext* handle)
     return 0;
 }
 
-int MPVLIB_CheckHn(MPVContext* handle)
+int MPV_Init(int handle_count, void* work)
 {
-    int state;
-
-    mpvlib_mpvobj = handle;
-    if (handle == 0) {
-        return -1;
-    }
-
-    state = handle->state;
-    return ((state - 2) | (2 - state)) >> 31;
-}
-
-int MPV_GetCond(MPVContext* handle, int index, int* value)
-{
-    int* conditions;
-
-    if (handle == 0) {
-        conditions = mpvlib_libwork.conditions;
-    } else {
-        if (mpvlib_CheckHandle(handle) != 0) {
-            return MPVERR_SetCode(0, 0xFF030210);
-        }
-        conditions = handle->condition_state.conditions;
-    }
-
-    *value = conditions[index];
-    return 0;
-}
-
-int MPV_SetCond(MPVContext* handle, int index, int value)
-{
-    MPVContext* current;
-    int* conditions;
-    int remaining;
-
-    if (index == 8 && value == 0) {
-        value = (int)MPV_MbCbFn;
-    }
-
-    if (handle == 0) {
-        current = mpvlib_libwork.handles;
-        remaining = mpvlib_libwork.handle_count;
-        while (remaining-- > 0) {
-            if (current->state == 2) {
-                current->condition_state.conditions[index] = value;
-            }
-            current++;
-        }
-        conditions = mpvlib_libwork.conditions;
-    } else {
-        if (mpvlib_CheckHandle(handle) != 0) {
-            return MPVERR_SetCode(0, 0xFF030202);
-        }
-        conditions = handle->condition_state.conditions;
-    }
-
-    conditions[index] = value;
-    MPVM2V_SetCond(handle, index, value);
-    return 0;
-}
-
-void MPV_MbCbFn(void)
-{
-}
-
-int MPV_Destroy(MPVContext* mpv)
-{
-    register MPVContext* handle = mpv;
+    static const u32 test_wrok = 0x01020304;
+    s32 siz_mcbuf = 0x380;
+    s32 siz_obj = sizeof(MPVContext);
+    u8* after_handles;
+    MPVContext* handles;
+    register u8* index_work;
     register int i;
-    if (mpvlib_CheckHandle(handle) != 0) {
-        return MPVERR_SetCode(0, 0xFF030201);
+    u32 hid2;
+    int error;
+    u8* wk;
+    u8* clip;
+    int count;
+    MPVContext* current;
+
+    cri_verstr_ptr = MPVLIB_version_str;
+    if ((siz_mcbuf & 0x1F) != 0) {
+        error = MPVERR_SetCode(0, 0xFF03FF06);
+    } else if (MPVVLC_IsVlcSizErr() != 0) {
+        error = MPVERR_SetCode(0, 0xFF03FF03);
+    } else if ((u32)siz_obj > 0x2000) {
+        error = MPVERR_SetCode(0, 0xFF03FF01);
+    } else if (mpvlib_cond_dfl[16] != 0x5A5A5A5A) {
+        error = MPVERR_SetCode(0, 0xFF03FF02);
+    } else if (MPVDEC_CheckVersion("1.933", MPV_DECODER_VERSION_SIZE,
+                                   sizeof(MPVPictureAttributes)) != 0) {
+        error = MPVERR_SetCode(0, 0xFF03FF07);
+    } else {
+        if (*(const u8*)&test_wrok != 1) {
+            for (;;) {
+                ((void (*)(void))-1)();
+            }
+        }
+        error = 0;
+    }
+    if (error != 0) {
+        if (error == 0xFF03FF05) {
+            return error;
+        }
+        for (;;) {
+        }
     }
 
-    MPVM2V_Destroy(handle);
+    asm {
+        SEQ_MPV_Init_MfHid2()
+        SEQ_MPV_Init_StHid2()
+    }
+    if (mpvlib_use_lc == 0) {
+        hid2 &= ~0x10000000;
+    }
+    mpvlib_libwork.flags = hid2;
+    wk = work;
+    if (mpvlib_libwork.field_44 != 0) {
+        wk = (u8*)((u32)work | 0x02000000);
+    }
+    handles = (MPVContext*)(((u32)wk + 0x1F) & ~0x1F);
+    UTY_MemsetDword((unsigned int*)handles, 0,
+                    (((u32)handle_count << 13) + 0x2000) >> 2);
+    after_handles = (u8*)handles + handle_count * sizeof(MPVContext);
+    index_work = after_handles + 0x3A0;
+    if ((mpvlib_libwork.flags & 0x10000000) != 0) {
+        for (i = 0; i < 0x1C60; i += 0x20) {
+            asm { SEQ_MPV_Init_DcbiDcbzLine(index_work, i) }
+        }
+    }
+
+    UTY_MemcpyDword((unsigned int*)mpvlib_libwork.conditions,
+                    (unsigned int*)mpvlib_cond_dfl,
+                    sizeof(handles->condition_state.conditions) / sizeof(unsigned int));
+    mpvlib_libwork.field_4C = after_handles;
+    mpvlib_libwork.index_work = index_work;
+    mpvlib_libwork.handle_count = handle_count;
+    mpvlib_libwork.handles = handles;
+
+    MPVERR_Init();
+    MPVHDEC_Init();
+    MPVFRM_Init();
+    MPVVLC_Init(index_work + 0x12B0, (MPVContext*)index_work);
+    MPVBDEC_Init(index_work);
+    MPVUMC_Init();
+    MPVCMC_Init();
+
+    clip = mpv_clip_0_255_tbl;
+    for (i = 0; i < 0x180; i++) {
+        *clip++ = 0;
+    }
+    for (i = 0; i < 0x100; i++) {
+        *clip++ = i;
+    }
+    for (i = 0; i < 0x180; i++) {
+        *clip++ = 0xFF;
+    }
+    mpv_clip_0_255_base = &mpv_clip_0_255_tbl[0x180];
+    if (index_work + 0x1860 != 0) {
+        UTY_MemcpyDword((unsigned int*)(index_work + 0x1860),
+                        (unsigned int*)mpv_clip_0_255_tbl,
+                        sizeof(mpv_clip_0_255_tbl) / sizeof(unsigned int));
+        mpv_clip_0_255_base = index_work + 0x19E0;
+    }
+    count = mpvlib_libwork.handle_count;
+    current = mpvlib_libwork.handles;
+    for (i = 0; i < count; i++) {
+        current->state = 1;
+        current++;
+    }
+
+    DCT_FsriInit();
+    DCT_FsriInitScaleTbl((float*)(index_work + 0x1160));
+    MPVM2V_Init();
+    return 0;
+}
+
+static void mpvlib_InitPicAtr(MPVPictureAttributes* attributes)
+{
+    memset(attributes, 0, 4);
+    attributes->width = 0;
+    attributes->height = 0;
+    attributes->macroblocks_per_row = 0;
+    attributes->macroblock_rows = 0;
+    attributes->frame_rate_code = 0;
+    attributes->temporal_reference = 0;
+    attributes->picture_type = 0;
+    attributes->drop_frame_flag = 0;
+    attributes->time_code_hours = 0;
+    attributes->time_code_minutes = 0;
+    attributes->time_code_seconds = 0;
+    attributes->time_code_pictures = 0;
+    attributes->group_count = 0;
+    attributes->sequence_header_count = 0;
+    attributes->field_38 = 3;
+    attributes->field_3C = 1;
+    attributes->field_40 = 1;
+    attributes->field_44 = 1;
+    attributes->bit_rate = 0;
+    attributes->vbv_buffer_size = 0;
+    attributes->field_50 = -1;
+    attributes->field_52 = -1;
+    attributes->field_54 = 0;
+    attributes->field_55 = -1;
+    attributes->field_56 = -1;
+    attributes->field_57 = -1;
+    attributes->field_58 = 0;
+    attributes->aspect_ratio = 1;
+    attributes->constrained_parameters = 0;
+    attributes->field_5B = 0;
+    attributes->field_5C = 0;
+    attributes->field_5D = 0xFF;
+    attributes->field_5E = -1;
+    attributes->field_5F = -1;
+    attributes->field_60 = -1;
+    attributes->field_61 = 0;
+    attributes->field_62 = 0xFF;
+    attributes->field_63 = 0xFF;
+    attributes->field_64 = 0xFF;
+}
+
+void MPV_Finish(void)
+{
+    register int i;
+    register u8* index_work;
+
+    MPVUMC_Finish();
+    MPVM2V_Finish();
+    index_work = mpvlib_libwork.index_work;
+    if ((mpvlib_libwork.flags & 0x10000000) != 0) {
+        for (i = 0; i < 0x1C60; i += 0x20) {
+            asm { SEQ_MPV_Finish_DcbiLine(index_work, i) }
+        }
+    }
+}
+
+MPVContext* MPV_Create(void)
+{
+    register MPVContext* handle;
+    register int i;
+    register MPVContext* free_handle;
+
+    free_handle = mpvlib_SearchFreeHn();
+    handle = free_handle;
+    if (handle == 0) {
+        return 0;
+    }
+
     if ((mpvlib_libwork.flags & 0x10000000) != 0) {
         for (i = 0; i < sizeof(*handle); i += 0x20) {
-            asm { SEQ_MPV_Destroy_DcbiLine(handle, i) }
+            asm { SEQ_MPV_Create_DcbiDcbzLine(free_handle, i) }
         }
     }
-    handle->state = 1;
-    return 0;
+    handle = mpvlib_InitHn(handle);
+    handle->m2v_handle = MPVM2V_Create();
+    return handle;
 }
 
-void MPV_GetDctCnt(MPVContext* handle, int* decoded, int* skipped)
+static MPVContext* mpvlib_SearchFreeHn(void)
 {
-    *decoded = handle->dct_state.decoded;
-    *skipped = handle->dct_state.skipped;
+    MPVContext* handle = mpvlib_libwork.handles;
+    int index;
+
+    for (index = 0; index < mpvlib_libwork.handle_count; index++) {
+        if (handle->state == 1) {
+            return handle;
+        }
+        handle++;
+    }
+    return 0;
 }
 
 static MPVContext* mpvlib_InitHn(MPVContext* handle)
@@ -237,240 +356,92 @@ static MPVContext* mpvlib_InitHn(MPVContext* handle)
     return handle;
 }
 
-static MPVContext* mpvlib_SearchFreeHn(void)
+void MPV_GetDctCnt(MPVContext* handle, int* decoded, int* skipped)
 {
-    MPVContext* handle = mpvlib_libwork.handles;
-    int index;
-
-    for (index = 0; index < mpvlib_libwork.handle_count; index++) {
-        if (handle->state == 1) {
-            return handle;
-        }
-        handle++;
-    }
-    return 0;
+    *decoded = handle->dct_state.decoded;
+    *skipped = handle->dct_state.skipped;
 }
 
-MPVContext* MPV_Create(void)
+int MPV_Destroy(MPVContext* mpv)
 {
-    register MPVContext* handle;
+    register MPVContext* handle = mpv;
     register int i;
-    register MPVContext* free_handle;
-
-    free_handle = mpvlib_SearchFreeHn();
-    handle = free_handle;
-    if (handle == 0) {
-        return 0;
+    if (mpvlib_CheckHandle(handle) != 0) {
+        return MPVERR_SetCode(0, 0xFF030201);
     }
 
+    MPVM2V_Destroy(handle);
     if ((mpvlib_libwork.flags & 0x10000000) != 0) {
         for (i = 0; i < sizeof(*handle); i += 0x20) {
-            asm { SEQ_MPV_Create_DcbiDcbzLine(free_handle, i) }
+            asm { SEQ_MPV_Destroy_DcbiLine(handle, i) }
         }
     }
-    handle = mpvlib_InitHn(handle);
-    handle->m2v_handle = MPVM2V_Create();
-    return handle;
-}
-
-void MPV_Finish(void)
-{
-    register int i;
-    register u8* index_work;
-
-    MPVUMC_Finish();
-    MPVM2V_Finish();
-    index_work = mpvlib_libwork.index_work;
-    if ((mpvlib_libwork.flags & 0x10000000) != 0) {
-        for (i = 0; i < 0x1C60; i += 0x20) {
-            asm { SEQ_MPV_Finish_DcbiLine(index_work, i) }
-        }
-    }
-}
-
-static void mpvlib_InitPicAtr(MPVPictureAttributes* attributes)
-{
-    memset(attributes, 0, 4);
-    attributes->width = 0;
-    attributes->height = 0;
-    attributes->macroblocks_per_row = 0;
-    attributes->macroblock_rows = 0;
-    attributes->frame_rate_code = 0;
-    attributes->temporal_reference = 0;
-    attributes->picture_type = 0;
-    attributes->drop_frame_flag = 0;
-    attributes->time_code_hours = 0;
-    attributes->time_code_minutes = 0;
-    attributes->time_code_seconds = 0;
-    attributes->time_code_pictures = 0;
-    attributes->group_count = 0;
-    attributes->sequence_header_count = 0;
-    attributes->field_38 = 3;
-    attributes->field_3C = 1;
-    attributes->field_40 = 1;
-    attributes->field_44 = 1;
-    attributes->bit_rate = 0;
-    attributes->vbv_buffer_size = 0;
-    attributes->field_50 = -1;
-    attributes->field_52 = -1;
-    attributes->field_54 = 0;
-    attributes->field_55 = -1;
-    attributes->field_56 = -1;
-    attributes->field_57 = -1;
-    attributes->field_58 = 0;
-    attributes->aspect_ratio = 1;
-    attributes->constrained_parameters = 0;
-    attributes->field_5B = 0;
-    attributes->field_5C = 0;
-    attributes->field_5D = 0xFF;
-    attributes->field_5E = -1;
-    attributes->field_5F = -1;
-    attributes->field_60 = -1;
-    attributes->field_61 = 0;
-    attributes->field_62 = 0xFF;
-    attributes->field_63 = 0xFF;
-    attributes->field_64 = 0xFF;
-}
-/* TODO: [breakthrough] 76.89%; locked-cache loop is an approved asm block; remaining:
- * error-ladder CFG (retail hang is a bctrl through null), HID2 spill slot, rodata/BSS layout. */
-int MPV_Init(int handle_count, void* work)
-{
-    static const u32 test_wrok = 0x01020304;
-    static const char version_check[] = "1.933";
-    MPVContext* handles;
-    u8* after_handles;
-    register u8* index_work;
-    register int i;
-    u32 hid2;
-    u32 work_address;
-    int error;
-    int remaining;
-    u8* clip;
-    u8 value;
-    MPVContext* current;
-
-    cri_verstr_ptr = MPVLIB_version_str;
-    if ((0x380 & 31) != 0) {
-        error = MPVERR_SetCode(0, 0xFF03FF06);
-    } else if (MPVVLC_IsVlcSizErr() != 0) {
-        error = MPVERR_SetCode(0, 0xFF03FF03);
-    } else if (sizeof(MPVContext) > 0x2000) {
-        error = MPVERR_SetCode(0, 0xFF03FF01);
-    } else if (mpvlib_cond_dfl[16] != 0x5A5A5A5A) {
-        error = MPVERR_SetCode(0, 0xFF03FF02);
-    } else if (MPVDEC_CheckVersion(version_check,
-                                   MPV_DECODER_VERSION_SIZE, sizeof(MPVPictureAttributes)) != 0) {
-        error = MPVERR_SetCode(0, 0xFF03FF07);
-    } else {
-        if (*(const u8*)&test_wrok != 1) {
-            for (;;) {
-            }
-        }
-        error = 0;
-    }
-    if (error != 0) {
-        if (error == 0xFF030005) {
-            return error;
-        }
-        for (;;) {
-        }
-    }
-
-    hid2 = PPCMfhid2();
-    if (mpvlib_use_lc == 0) {
-        hid2 &= ~0x10000000;
-    }
-    mpvlib_libwork.flags = hid2;
-
-    work_address = (u32)work;
-    if (mpvlib_libwork.field_44 != 0) {
-        work_address |= 0x02000000;
-    }
-    handles = (MPVContext*)((work_address + 31) & ~31);
-    UTY_MemsetDword((unsigned int*)handles, 0,
-                    (((u32)handle_count << 13) + 0x2000) >> 2);
-
-    after_handles = (u8*)handles + handle_count * sizeof(MPVContext);
-    index_work = after_handles + 0x3A0;
-    if ((mpvlib_libwork.flags & 0x10000000) != 0) {
-        for (i = 0; i < 0x1C60; i += 0x20) {
-            asm { SEQ_MPV_Init_DcbiDcbzLine(index_work, i) }
-        }
-    }
-
-    UTY_MemcpyDword((unsigned int*)mpvlib_libwork.conditions,
-                    (unsigned int*)mpvlib_cond_dfl,
-                    sizeof(handles->condition_state.conditions) / sizeof(unsigned int));
-    mpvlib_libwork.field_4C = after_handles;
-    mpvlib_libwork.index_work = index_work;
-    mpvlib_libwork.handle_count = handle_count;
-    mpvlib_libwork.handles = handles;
-
-    MPVERR_Init();
-    MPVHDEC_Init();
-    MPVFRM_Init();
-    MPVVLC_Init(index_work + 0x12B0, (MPVContext*)index_work);
-    MPVBDEC_Init(index_work);
-    MPVUMC_Init();
-    MPVCMC_Init();
-
-    clip = mpv_clip_0_255_tbl;
-    remaining = 0x30;
-    do {
-        clip[0] = 0;
-        clip[1] = 0;
-        clip[2] = 0;
-        clip[3] = 0;
-        clip[4] = 0;
-        clip[5] = 0;
-        clip[6] = 0;
-        clip[7] = 0;
-        clip += 8;
-    } while (--remaining != 0);
-
-    value = 0;
-    remaining = 0x20;
-    do {
-        clip[0] = value++;
-        clip[1] = value++;
-        clip[2] = value++;
-        clip[3] = value++;
-        clip[4] = value++;
-        clip[5] = value++;
-        clip[6] = value++;
-        clip[7] = value++;
-        clip += 8;
-    } while (--remaining != 0);
-
-    remaining = 0x30;
-    do {
-        clip[0] = 0xFF;
-        clip[1] = 0xFF;
-        clip[2] = 0xFF;
-        clip[3] = 0xFF;
-        clip[4] = 0xFF;
-        clip[5] = 0xFF;
-        clip[6] = 0xFF;
-        clip[7] = 0xFF;
-        clip += 8;
-    } while (--remaining != 0);
-    mpv_clip_0_255_base = mpv_clip_0_255_tbl + 0x180;
-    if (index_work + 0x1860 != 0) {
-        UTY_MemcpyDword((unsigned int*)(index_work + 0x1860),
-                        (unsigned int*)mpv_clip_0_255_tbl,
-                        sizeof(mpv_clip_0_255_tbl) / sizeof(unsigned int));
-        mpv_clip_0_255_base = index_work + 0x19E0;
-    }
-
-    current = handles;
-    remaining = handle_count;
-    while (remaining-- > 0) {
-        current->state = 1;
-        current++;
-    }
-
-    DCT_FsriInit();
-    DCT_FsriInitScaleTbl((float*)(index_work + 0x1160));
-    MPVM2V_Init();
+    handle->state = 1;
     return 0;
+}
+
+void MPV_MbCbFn(void)
+{
+}
+
+int MPV_SetCond(MPVContext* handle, int index, int value)
+{
+    MPVContext* current;
+    int* conditions;
+    int remaining;
+
+    if (index == 8 && value == 0) {
+        value = (int)MPV_MbCbFn;
+    }
+
+    if (handle == 0) {
+        current = mpvlib_libwork.handles;
+        remaining = mpvlib_libwork.handle_count;
+        while (remaining-- > 0) {
+            if (current->state == 2) {
+                current->condition_state.conditions[index] = value;
+            }
+            current++;
+        }
+        conditions = mpvlib_libwork.conditions;
+    } else {
+        if (mpvlib_CheckHandle(handle) != 0) {
+            return MPVERR_SetCode(0, 0xFF030202);
+        }
+        conditions = handle->condition_state.conditions;
+    }
+
+    conditions[index] = value;
+    MPVM2V_SetCond(handle, index, value);
+    return 0;
+}
+
+int MPV_GetCond(MPVContext* handle, int index, int* value)
+{
+    int* conditions;
+
+    if (handle == 0) {
+        conditions = mpvlib_libwork.conditions;
+    } else {
+        if (mpvlib_CheckHandle(handle) != 0) {
+            return MPVERR_SetCode(0, 0xFF030210);
+        }
+        conditions = handle->condition_state.conditions;
+    }
+
+    *value = conditions[index];
+    return 0;
+}
+
+int MPVLIB_CheckHn(MPVContext* handle)
+{
+    int state;
+
+    mpvlib_mpvobj = handle;
+    if (handle == 0) {
+        return -1;
+    }
+
+    state = handle->state;
+    return ((state - 2) | (2 - state)) >> 31;
 }

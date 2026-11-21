@@ -18,6 +18,8 @@
 #include "game/plyr.h"
 #include "runtime/sound.h"
 #include "runtime/light.h"
+#include "game/bgnd.h"
+#include "runtime/anim_pdata.h"
 
 struct MiscBgndData {
     int collision_object_id;
@@ -176,7 +178,6 @@ static struct MkObjRef debug_p1_axis_item;
 
 void snd_stop(MslSoundHandle handle);
 MslSoundHandle plyr_snd_req(int sound_id);
-void init_collision_system(void);
 int is_weapon_style(int style);
 void advance_active_moveset(FighterMirror* fighter);
 static float p_player_body_explode(void);
@@ -185,10 +186,7 @@ MkObj* obj_sever_limb(
     MkObj* object, int limb, Vec* limb_velocities, int include_children);
 void limb_sever_show_z_meat_chunks(
     MkObj* object, int limb, int include_children);
-void limb_sever_show_z_meat_chunks_all(MkObj* object);
 void bgnd_hide_mirror_guys(void);
-float p_anim_idle(void);
-void mkobj_zero_bone_rots(MkObj* object);
 extern MkPtr* gusher_list;
 static float p_monitor_objs_sobjs(void);
 static void p_statue_xpd_callback(MkSobj* object);
@@ -198,7 +196,6 @@ static float p_fish_attack_bloodsplat(void);
 static float p_cam_bounce_monitor(void);
 void bgnd_launch_fx_at_position(
     const char* effect, float x, float y, float z);
-float p_track_cam_ang_y_light(void);
 
 const char* rock_xpd_effects[6] = {
     "rock_explode_effect", "rock_explode_effect1", "rock_explode_effect2",

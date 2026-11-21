@@ -1,7 +1,7 @@
 #ifndef GAME_BLOOD_H
 #define GAME_BLOOD_H
 
-#include "math/gxVect.h"
+typedef struct Vec Vec;
 
 typedef struct GusherPdata GusherPdata;
 typedef struct MkObj MkObj;
@@ -28,4 +28,10 @@ GusherPdata* start_gusher(
     GusherStep* steps, void* owner, MkObj* object, int bone,
     Vec* position, Vec* direction);
 
+int is_blood_disabled(void);
+void gusher_destroy_list(void);
+void reset_blood_decals(void);
+extern void bleed_startup(void);
+void bleed_init(void);
+extern void bleed_restart(void);
 #endif

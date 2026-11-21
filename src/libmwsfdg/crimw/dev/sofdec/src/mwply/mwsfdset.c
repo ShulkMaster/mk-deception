@@ -1,6 +1,7 @@
 #include "cri/sj.h"
 #include "cri/adxt_internal.h"
 #include "sofdec/sfd_player_types.h"
+#include "sofdec/sfd_player.h"
 
 typedef struct SfdHandle SfdHandle;
 typedef struct MwsLoader MwsLoader;
@@ -28,16 +29,12 @@ typedef struct MwsPlayer {
 
 extern void MWSFSVM_Error(const char* message, ...);
 extern int MWSFLIB_SetErrCode(int error);
-extern int MWSFRNA_GetOutPan(MwsPlayer* player);
-extern void MWSFRNA_SetOutPan(MwsPlayer* player, int pan);
+extern int MWSFRNA_GetOutPan(MwsPlayer* player, int channel);
+extern void MWSFRNA_SetOutPan(MwsPlayer* player, int channel, int pan);
 extern int MWSFRNA_GetOutVol(MwsPlayer* player);
 extern void MWSFRNA_SetOutVol(MwsPlayer* player, int volume);
 extern int MWSST_GetOutVol(MwsSound* sound);
 extern void MWSST_SetOutVol(MwsSound* sound, int volume);
-extern int SFD_GetTime(SfdHandle* handle, int* value, int* scale);
-extern int SFD_SetCond(SfdHandle* handle, int condition,
-                       SfdConditionValue value);
-extern int SFD_GetHnStat(SfdHandle* handle);
 extern int SFD_SetAudioCh(SfdHandle* handle, int channel);
 extern void MWSTM_SetFlowLimit(ADXStream* stream, int minimum_size,
                                int maximum_size);
@@ -74,22 +71,22 @@ static const char audio_channel_invalid[] =
 static const char audio_channel_failed[] =
     "E10911A mwPlySetAudioCh: Invalid ch no.";
 
-int mwSfdGetOutPan(MwsPlayer* player)
+int mwSfdGetOutPan(MwsPlayer* player, int channel)
 {
     if (mwsfd_IsEnabled(player) == 0) {
         MWSFSVM_Error(get_pan_invalid);
         return 0;
     }
-    return MWSFRNA_GetOutPan(player);
+    return MWSFRNA_GetOutPan(player, channel);
 }
 
-void mwSfdSetOutPan(MwsPlayer* player, int pan)
+void mwSfdSetOutPan(MwsPlayer* player, int channel, int pan)
 {
     if (mwsfd_IsEnabled(player) == 0) {
         MWSFSVM_Error(set_pan_invalid);
         return;
     }
-    MWSFRNA_SetOutPan(player, pan);
+    MWSFRNA_SetOutPan(player, channel, pan);
 }
 
 int mwSfdGetOutVol(MwsPlayer* player)

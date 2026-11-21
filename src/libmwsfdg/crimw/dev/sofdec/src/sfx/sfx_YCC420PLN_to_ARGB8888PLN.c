@@ -25,9 +25,7 @@ typedef char CFTArgb8888OutputSizeCheck[
 extern void CFT_Ycc420plnToArgb8888(const CFTYcc420Planar* source,
                                     const CFTArgb8888Output* destination,
                                     void* table);
-extern void CFT_Ycc420plnToA256V(const CFTYcc420Planar* source,
-                                 const CFTArgb8888Output* destination,
-                                 void* table);
+extern void CFT_Ycc420plnToA256V(const CFTYcc420Planar* source, const CFTArgb8888Output* destination, const u8* table);
 extern void CFT_Argb420ToArgb8(const void* source, void* destination,
                                s32 width, s32 height);
 extern s32 SFX_DecideTableAlph3(SfxTagInfo* info, s32 composition_mode);

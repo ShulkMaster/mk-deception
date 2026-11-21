@@ -3,6 +3,7 @@
 #include "runtime/cstdio.h"
 #include "sofdec/sfd_error.h"
 #include "sofdec/sfd_library.h"
+#include "movie/mwsfx.h"
 
 typedef struct MwsInitParam {
     float frame_rate;
@@ -85,7 +86,6 @@ int mwsfd_init_cnt;
 
 extern int mwg_vcnt;
 extern SfdHandle* mwPlyGetSfdHn(void* player);
-extern void MWSFSVM_Error(const char* message, ...);
 extern void MWSFSVM_Init(int parameter);
 extern void MWSFSVM_Finish(void);
 extern void MWSFSVM_DeleteVfunc(void);
@@ -110,7 +110,7 @@ extern void LSC_Init(void);
 extern void LSC_Finish(void);
 extern void LSC_EntryErrFunc(void (*function)(void*, const char*), void* object);
 extern int MWSTM_InitStatic(void);
-extern void MWSTM_FinishStatic(void);
+extern int MWSTM_FinishStatic(void);
 extern void SJMEM_Init(void);
 extern void SJMEM_Finish(void);
 extern void SJUNI_Init(void);

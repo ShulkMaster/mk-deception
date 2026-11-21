@@ -98,12 +98,25 @@ void mks_mat_id_set_zbias(int material_id, float zbias);
 void mks_cloth_bones_init_by_tbl(ClothInitEntry* table, int flags);
 int find_cloth_bone_id_from_tag(MkObj* obj, int tag);
 void mks_debug_display_cloth_ontop(int enabled);
-void mks_debug_display_cloth_coll_plane(void);
-void mks_debug_display_cloth_coll_cyl(void);
+void mks_debug_display_cloth_coll_plane(float arg0);
+void mks_debug_display_cloth_coll_cyl(int arg0, int arg1, int arg2);
 void cloth_change_ground_plane_for(float ground_plane);
 void vdestroy_cloth_coll_volume(MkHdr* hdr);
 void vdestroy_cloth_coll_plane(MkHdr* hdr);
 void vdestroy_cloth_coll(MkHdr* hdr);
 void start_cloth_proc(void);
 
+void mks_ccp1_eq_insert_cloth_coll_plane(int, float, float, float, float);
+void mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_inside(void);
+void mks_cc1_expand_cyl(float top, float bottom);
+void mks_npc_set_target(int model_index, int source_bone_id, int target_bone_id);
+void mks_cc1_set_coll_fnc_eq_cloth_coll_vector_cyl(void);
+void mks_insert_cloth_force_bones(float, float);
+void mks_ccp1_eq_insert_cloth_coll_plane_4_pts_ave(int, float, int, float, int, float, int, float);
+void mks_npc_cc1_eq_insert_cloth_coll( int model_index, int bone_index, float radius);
+void mks_cb1_set_scale( int include_children, float scale_x, float scale_y, float scale_z);
+void mks_start_axis_indicator_p_axis_track_bone_world_mat( int bone_tag, float scale);
+void mks_obj_enable_update_cloth(MkObj* obj, int enabled);
+void mks_cc1_set_coll_fnc_eq_cloth_coll_point_cyl_abs(void);
+void mks_cc1_eq_insert_cloth_coll(int bone_index, float radius);
 #endif

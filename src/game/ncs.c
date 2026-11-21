@@ -8,6 +8,7 @@
 #include "libmkparticle/fields.h"
 #include "libmkparticle/particle.h"
 #include "runtime/anim_pdata.h"
+#include "runtime/bone_matcher.h"
 #include "runtime/anim_api.h"
 #include "runtime/mk_obj.h"
 #include "runtime/mk_obj_bone.h"
@@ -34,9 +35,10 @@
 #include "runtime/cstring.h"
 #include "runtime/utils.h"
 #include "runtime/sound.h"
+#include "game/game.h"
+#include "game/konquest_missions.h"
 
 extern LightDef* pbl_gore2_lights[3];
-extern MkPtr* gore2_light_list;
 extern int blood_type_list[12];
 
 static void trigger_blood_glops(
@@ -44,20 +46,6 @@ static void trigger_blood_glops(
 MkObj* obj_sever_limb(
     MkObj* object, int limb, Vec* limb_velocities, int include_children);
 
-extern int f_fatality_was_done;
-extern PlyrPdata* his_pdata;
-
-struct NcsBoneMatcher {
-    MkHdr hdr;
-    unsigned char inactive : 1;
-    unsigned char copy_bone_matrix : 1;
-    unsigned char flags_low : 6;
-    char pad09[7];
-    MkObj* parent;
-    unsigned int parent_instance;
-    char pad18[0x2C];
-    float blend;
-};
 
 struct NcsLimbSet;
 
@@ -129,7 +117,7 @@ struct SpearProcPdata {
     PlyrPdata* owner;
     MkObj* spear_object;
     unsigned int spear_object_instance;
-    struct NcsBoneMatcher* bonematcher;
+    BoneMatcherState* bonematcher;
     MkHdr* bound_object;
     unsigned int bound_object_instance;
     int field_34;
@@ -391,33 +379,21 @@ struct NcsCameraWallPdata {
 };
 
 void plyr_aux_weapon_grab(PlyrPdata* player, MkObj* item);
-void insert_ground_me_mkobj(void* object);
-void fx_transfer(unsigned int handle, unsigned int owner);
 void start_decal_emitter_watcher(void);
 void fx_resume_emit(unsigned int handle);
-int am_i_on_the_left2(MkObj* opponent, MkObj* me);
-void mkobj_get_matrix_at(MkObj* object, Vec* out);
-void mkobj_get_matrix_right(MkObj* object, Vec* out);
+void mkobj_get_matrix_at(void* obj, void* out);
+void mkobj_get_matrix_right(void* obj, void* out);
 void* limb_sever_find_limbset(PlyrInfo* player);
-void trial_state_collision_check(int collision_result, int player);
 void pz_fighter_reaction_xfer_him(int reaction);
 int reaction_xfer_him(int reaction, float rate, int strength);
-struct NcsBoneMatcher* start_bone_matcher(
-    MkObj* parent, int parent_bone, MkObj* child, int child_bone,
-    float blend_ticks);
 void plyr_aux_weapon_release(PlyrPdata* player);
-void hide_atomic(void* atomic);
-void unhide_atomic(void* atomic);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
-void random_hit(int hit);
+MslSoundHandle random_hit(int group);
 MKMATRIX* force_calc_bone_world_mat(MkObj* object, int bone);
 void init_plyr_severed_limb_list(PlyrInfo* player);
-void obj_set_ang_vel(MkObj* object, void* velocity);
-void obj_set_pos_vel(MkObj* object, void* velocity);
 void spawn_decal_emitter(
     const char* name, FighterMirror* owner, Vec* position,
     const MKMATRIX* orientation, float angle);
-MKMATRIX* mkobj_get_matrix(MkObj* object);
 void limb_sever_show_z_meat_chunks(
     MkObj* object, int limb, int include_children);
 MkProc* fire_sc_spear(
@@ -2399,14 +2375,14 @@ void insert_mkobj_spearproc_parentobjitem(MkObj* parent, MkProc* proc) {
 
     pdata = (struct SpearProcPdata*)pdata_of_proc(proc);
     if (pdata != 0) {
-        pdata->bonematcher->parent = parent;
+        pdata->bonematcher->parent_obj = parent;
         pdata->bonematcher->parent_instance = parent->hdr.instance;
     }
 }
 
 void destroy_spearproc_bonematcher(MkProc* proc) {
     struct SpearProcPdata* pdata;
-    struct NcsBoneMatcher* matcher;
+    BoneMatcherState* matcher;
 
     pdata = (struct SpearProcPdata*)pdata_of_proc(proc);
     if (pdata != 0) {
@@ -2566,16 +2542,16 @@ float p_sc_spear_kill(void) {
     sc_spear_obj->flags_08_bits.gravity_enabled = 0;
     sc_spear_obj->field_60 = 0;
     if (pdata_sc_spear->owner->character_id == 0) {
-        sc_spear_obj->field_5C = get_data_table(pdata_sc_spear->owner->cmo, 0x18);
+        sc_spear_obj->weapon_definition = get_data_table(pdata_sc_spear->owner->cmo, 0x18);
     }
     if (pdata_sc_spear->owner->character_id == 0x1C) {
-        sc_spear_obj->field_5C = get_data_table(pdata_sc_spear->owner->cmo, 0x15);
+        sc_spear_obj->weapon_definition = get_data_table(pdata_sc_spear->owner->cmo, 0x15);
     }
     if (pdata_sc_spear->owner->character_id == 0x19) {
-        sc_spear_obj->field_5C = get_data_table(pdata_sc_spear->owner->cmo, 2);
+        sc_spear_obj->weapon_definition = get_data_table(pdata_sc_spear->owner->cmo, 2);
     }
     if (pdata_sc_spear->owner->character_id == 0x1A) {
-        sc_spear_obj->field_5C = get_data_table(pdata_sc_spear->owner->cmo, 2);
+        sc_spear_obj->weapon_definition = get_data_table(pdata_sc_spear->owner->cmo, 2);
     }
     plyr_aux_weapon_grab(pdata_sc_spear->owner, sc_spear_obj);
     pdata_sc_spear->owner->duck_reaction_active = 0;
@@ -2976,13 +2952,13 @@ static float p_sc_spear2(void) {
             return 0.0f;
         }
         if (!pdata_sc_spear->flag_bits.no_hit_reaction) {
-            pdata_sc_spear->bonematcher->blend = 0.4f;
+            pdata_sc_spear->bonematcher->child_offset.z = 0.4f;
             (aproc->vtbl)->jump_sleep(
                 p_sc_spear3_pre, 25.0f);
             return 25.0f;
         }
-        pdata_sc_spear->bonematcher->blend = 0.25f;
-        pdata_sc_spear->bonematcher->copy_bone_matrix = 1;
+        pdata_sc_spear->bonematcher->child_offset.z = 0.25f;
+        pdata_sc_spear->bonematcher->flags_08.bits.copy_bone_matrix = 1;
         (aproc->vtbl)->jump_sleep(
             player_sleep_forever, 1.0f);
         return 1.0f;
@@ -3122,16 +3098,16 @@ MkProc* fire_sc_spear(
         if (weapon->field_60 == 0) {
             weapon->field_60 = 1;
             if (player->character_id == 0) {
-                weapon->field_5C = get_data_table(player->cmo, 0x19);
+                weapon->weapon_definition = get_data_table(player->cmo, 0x19);
             }
             if (player->character_id == 0x1C) {
-                weapon->field_5C = get_data_table(player->cmo, 0x16);
+                weapon->weapon_definition = get_data_table(player->cmo, 0x16);
             }
             if (player->character_id == 0x19) {
-                weapon->field_5C = get_data_table(player->cmo, 3);
+                weapon->weapon_definition = get_data_table(player->cmo, 3);
             }
             if (player->character_id == 0x1A) {
-                weapon->field_5C = get_data_table(player->cmo, 3);
+                weapon->weapon_definition = get_data_table(player->cmo, 3);
             }
             plyr_aux_weapon_grab(player, weapon);
         }
@@ -3191,16 +3167,16 @@ MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks) {
             if (weapon->field_60 == 0) {
                 weapon->field_60 = 1;
                 if (player->character_id == 0) {
-                    weapon->field_5C = get_data_table(player->cmo, 0x19);
+                    weapon->weapon_definition = get_data_table(player->cmo, 0x19);
                 }
                 if (player->character_id == 0x1C) {
-                    weapon->field_5C = get_data_table(player->cmo, 0x16);
+                    weapon->weapon_definition = get_data_table(player->cmo, 0x16);
                 }
                 if (player->character_id == 0x19) {
-                    weapon->field_5C = get_data_table(player->cmo, 3);
+                    weapon->weapon_definition = get_data_table(player->cmo, 3);
                 }
                 if (player->character_id == 0x1A) {
-                    weapon->field_5C = get_data_table(player->cmo, 3);
+                    weapon->weapon_definition = get_data_table(player->cmo, 3);
                 }
                 plyr_aux_weapon_grab(player, weapon);
             }

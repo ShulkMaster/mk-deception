@@ -1,7 +1,7 @@
 #ifndef LIBMKPARTICLE_PARTICLE_SYSTEM_H
 #define LIBMKPARTICLE_PARTICLE_SYSTEM_H
 
-#include "libmkparticle/vm.h"
+typedef struct PfxVm PfxVm;
 
 struct RwCamera;
 

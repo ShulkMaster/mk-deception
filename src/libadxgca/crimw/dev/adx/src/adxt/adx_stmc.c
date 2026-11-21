@@ -63,11 +63,11 @@ extern void ADXERR_CallErrFunc2(const char* message1, const char* message2);
 
 extern CvFsObject* cvFsOpen(const char* filename, void* directory, s32 mode);
 extern void cvFsClose(CvFsObject* file);
-extern s32 cvFsSeek(CvFsObject* file, s32 offset, s32 origin);
-extern s32 cvFsTell(CvFsObject* file);
-extern s32 cvFsGetFileSize(const char* filename);
+extern int cvFsSeek(CvFsObject* handle, int offset, int origin);
+extern int cvFsTell(CvFsObject* handle);
+extern int cvFsGetFileSize(const char* filename);
 extern s32 cvFsGetStat(CvFsObject* file);
-extern s32 cvFsReqRd(CvFsObject* file, s32 sectors, void* buffer);
+extern int cvFsReqRd(CvFsObject* handle, int sectors, void* buffer);
 extern void cvFsStopTr(CvFsObject* file);
 
 s32 adxstmf_rtim_ofst = 0;

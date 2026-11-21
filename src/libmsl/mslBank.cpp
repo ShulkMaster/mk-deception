@@ -164,8 +164,8 @@ extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 87.43624%; GC addressed-slot producer is missing;
- * verified PS2 IOP slices do not justify the scratch store or empty name loop. */
+/* TODO: [breakthrough needed] 93.88%; loop 2 lacks retail's register cursor (r10) beside the
+ * address-taken command_item slot (8(r1)); remaining rows follow from it. */
 extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
     mslBankSoundDefinition* definition;
     mslBankSoundEntry* sound_entry;
@@ -211,6 +211,10 @@ extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
         for (i = 0; i < bank->wave_count; i++, wave++) {
             wave->name.offset += bank->string_table.offset;
         }
+    }
+
+    sound_entry = bank->sounds.pointer;
+    for (i = 0; i < bank->sound_count; i++, sound_entry++) {
     }
 
     sound_entry = bank->sounds.pointer;

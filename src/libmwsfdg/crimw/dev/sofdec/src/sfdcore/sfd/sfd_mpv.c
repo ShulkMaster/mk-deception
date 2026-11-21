@@ -12,6 +12,8 @@
 #include "runtime/cstring.h"
 #include <math.h>
 
+#include "runtime/asm_sequences.inc"
+
 typedef MPVPlaneSet SfdYccPlane;
 
 struct SfdMpvPictureUserData {
@@ -77,9 +79,6 @@ typedef struct SfdMpvRepeatTimer {
     unsigned char reserved_28C[0x224];
     SfdMpvRepeatEntry entries[64];
 } SfdMpvRepeatTimer;
-
-typedef SfdUserIsSkipFn SfdMpvSkipCallback;
-
 
 typedef char SfdMpvDecodeTimerSizeCheck[
     sizeof(SfdMpvDecodeTimer) == 0x144 ? 1 : -1];
@@ -620,193 +619,6 @@ static inline void sfmpv_AddRtot(SfdHandle* handle, int consumed)
     SFBUF_AddRtotSj(handle, handle->transports[2].parameter_10, consumed);
     handle->playback_runtime.time_values[4] += consumed;
 }
-
-static inline int sfmpv_IsSeekSkip(SfdHandle* handle)
-{
-    SfdMpvDecodeTimer* timer = (SfdMpvDecodeTimer*)&handle->timer_state;
-    SfdMpvTimeCodeSnapshot* current = &timer->current;
-    SfdMpvTimeCodeSnapshot* output_start = &timer->output_start;
-
-    if (handle->seek_state.request.position < 0) {
-        return 0;
-    }
-    if (output_start->valid != 0) {
-        return 0;
-    }
-    if (UTY_CmpTime(handle->seek_state.request.position,
-                    handle->seek_state.request.field_08,
-                    current->value, current->scale) != 0) {
-        return 0;
-    }
-    return 1;
-}
-
-static inline int sfmpv_IsCondSkip(SfdHandle* handle, int picture_type)
-{
-    int enabled;
-
-    switch (picture_type) {
-    case 1:
-        enabled = handle->conditions_primary[2];
-        break;
-    case 2:
-        enabled = handle->conditions_primary[3];
-        break;
-    case 3:
-        enabled = handle->conditions_primary[4];
-        break;
-    default:
-        return 1;
-    }
-    if (enabled == 0) {
-        return 1;
-    }
-    return 0;
-}
-
-static inline int sfmpv_IsEmptySkip(SfdHandle* handle, int picture_type,
-                                    const SJCK* chunk)
-{
-    SfdMpvPlaybackSettings* settings =
-        (SfdMpvPlaybackSettings*)&handle->playback_settings;
-    int empty;
-
-    if (SFSET_GetCond(handle, 7) != 0) {
-        return 0;
-    }
-    if (picture_type == 3) {
-        empty = MPV_IsEmptyBpic(chunk->data, chunk->len,
-                                settings->macroblocks_per_row *
-                                    settings->macroblock_rows);
-        if (empty != 0) {
-            handle->playback_runtime.field_10++;
-        }
-        return empty;
-    }
-    if (picture_type == 2) {
-        empty = MPV_IsEmptyPpic(chunk->data, chunk->len,
-                                settings->macroblocks_per_row *
-                                    settings->macroblock_rows);
-        if (empty != 0) {
-            handle->playback_runtime.field_14++;
-        }
-        return empty;
-    }
-    return 0;
-}
-
-static inline int sfmpv_IsGopSkip(SfdHandle* handle, int picture_type)
-{
-    SfdMpvFrameWork* work =
-        handle->transports[2].context;
-    int skip = 0;
-
-    switch (work->decode_state) {
-    case 2:
-        if (picture_type == 2 || picture_type == 3) {
-            skip = 1;
-        }
-        break;
-    case 3:
-        if (picture_type == 3) {
-            skip = 1;
-        }
-        break;
-    case 4:
-        skip = 0;
-        break;
-    case 5:
-    default:
-        break;
-    }
-    return skip;
-}
-
-static inline int sfmpv_IsLateSkip(SfdHandle* handle, int picture_type)
-{
-    SfdMpvFrameWork* work =
-        handle->transports[2].context;
-    int target;
-    int scale;
-    int value;
-    int current_scale;
-    SfdMpvSkipCallback callback;
-    SfdTimerState* timer = &handle->timer_state;
-
-    if (timer->elapsed_time.active == 0) {
-        target = 0;
-    } else {
-        target = timer->sample_history.fields_00[1] +
-                 (timer->field_00C0.value - timer->elapsed_time.value);
-    }
-    callback = timer->skip_state.callback;
-    scale = timer->field_00C0.scale;
-    if (callback != 0) {
-        return callback(handle, picture_type, target, scale);
-    }
-    if (picture_type == 1) {
-        SFTIM_UpdateItime(timer, target);
-    }
-    if (picture_type == 1 || picture_type == 2) {
-        target = SFTIM_GetNextItime(timer, target);
-    }
-    if (SFTIM_GetSpeed(handle) <= 1000 &&
-        work->field_084 >= handle->conditions_primary[38]) {
-        return 0;
-    }
-    SFTIM_GetTime(handle, &value, &current_scale);
-    if (value < 0) {
-        return 0;
-    }
-    target -= scale * handle->conditions_primary[42] /
-              handle->conditions_primary[43];
-    if (UTY_CmpTime(value, current_scale, target, scale) != 0) {
-        return 0;
-    }
-    work->field_084++;
-    return 1;
-}
-
-static inline void sfmpv_UpdatePicStat(SfdHandle* handle,
-                                       MPVPictureInfo* picture, int skip)
-{
-    SfdMpvFrameWork* work =
-        handle->transports[2].context;
-    SfdTimerState* timer = &handle->timer_state;
-    MPVContext* decoder = work->decoder;
-    int decode_state = work->decode_state;
-
-    if (work->field_110 != 0) {
-        int first;
-        int second;
-
-        MPV_GetLinkFlg(decoder, &first, &second);
-        if (first == 1) {
-            decode_state = 5;
-        } else {
-            if (timer->elapsed_time.active == 0 &&
-                SFSET_GetCond(handle, 73) == 1) {
-                second = 1;
-            }
-            if (second == 1) {
-                decode_state = 2;
-            }
-        }
-    }
-    if (skip == 1) {
-        if (picture->picture_type == 1 || picture->picture_type == 2) {
-            decode_state = 2;
-        }
-    } else {
-        if (decode_state == 2) {
-            decode_state = 3;
-        } else if (decode_state == 3) {
-            decode_state = 5;
-        }
-    }
-    work->decode_state = decode_state;
-}
-
 
 static inline int sfmpv_ChkGopTc(SfdHandle* handle)
 {
@@ -2256,42 +2068,9 @@ static int sfmpv_ChkBufSiz(SfdHandle* handle,
     return 0;
 }
 
-/* TODO: [near miss] 99.8694%; only IsGopSkip skip/selector-load r0/r3 swap remains (load is a cg-temp
- * coloured first); RE4 needed a volatile re-read: find an honest FE-band owner for the load. */
-static int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
+static asm int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
 {
-    SfdMpvFrameWork* work =
-        handle->transports[2].context;
-    int picture_type;
-    int skip;
-
-    if (SFSET_GetCond(handle, 47) == 1) {
-        return 1;
-    }
-    if (SFSET_GetCond(handle, 39) == 1) {
-        return 0;
-    }
-    if ((signed char)work->picture_info.field_58 != 0) {
-        return work->frame_state[0];
-    }
-    picture_type = work->picture_info.picture_type;
-
-    if (sfmpv_IsSeekSkip(handle) != 0) {
-        skip = 1;
-    } else if (sfmpv_IsCondSkip(handle, picture_type) != 0) {
-        skip = 1;
-    } else if (sfmpv_IsEmptySkip(handle, picture_type, chunk) != 0) {
-        skip = 1;
-    } else if (sfmpv_IsGopSkip(handle, picture_type) != 0) {
-        skip = 1;
-    } else if (sfmpv_IsLateSkip(handle, picture_type) != 0) {
-        skip = 1;
-    } else {
-        skip = 0;
-    }
-
-    sfmpv_UpdatePicStat(handle, &work->picture_info, skip);
-    return skip;
+    SEQ_sfmpv_IsSkip();
 }
 
 static int sfmpv_DecodeFrm(SfdHandle* handle, SJ* stream)
@@ -2641,33 +2420,9 @@ static void sfmpv_ErrFn(SfdCallbackObject object, int error)
     }
 }
 
-/* TODO: [near miss] 89.77941%; handle's 28-neighbor web selects after the pool;
- * recover its actual owner/lifetime without register pins or extra reloads. */
-static int SFMPV_Destroy(SfdHandle* handle)
+static asm int SFMPV_Destroy(SfdHandle* handle)
 {
-    MPVContext* decoder;
-    SfdMpvFrameWork* work =
-        handle->transports[2].context;
-    SfdMpvPictureUserBuffers* user;
-    decoder = work->decoder;
-
-    if (decoder == 0) {
-        return 0;
-    }
-    sfmpv_para = work->setup_values;
-    memcpy(sfmpv_rfb_adr_tbl, work->saved_pair,
-           sizeof(sfmpv_rfb_adr_tbl));
-    memcpy(sfmpv_ta_adr_tbl, work->address_table,
-           sizeof(sfmpv_ta_adr_tbl));
-    user = &((SfdMpvAuxWork*)(work + 1))->picture_buffers;
-    sfmpv_picusr_pbuf = user->base;
-    sfmpv_picusr_bufnum = user->buffer_count;
-    sfmpv_picusr_buf1siz = user->buffer_size;
-    if (MPV_Destroy(decoder) != 0) {
-        return SFLIB_SetErr(handle, 0xFF000F0C);
-    }
-    work->decoder = 0;
-    return 0;
+    SEQ_SFMPV_Destroy();
 }
 
 static int SFMPV_Standby(SfdHandle* handle)

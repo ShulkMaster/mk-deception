@@ -39,4 +39,15 @@ extern int force_bgnd_num;
 int ok_to_join_in(void);
 float do_join_in(void);
 
+void ck_do_profile_save(void);
+void move_plyrs_to_round_start(void);
+void do_win_effect(void);
+void reset_fight(int mode);
+void round_init(void);
+void destroy_onscreen_fight_2d_objects(void);
+float do_continue(void);
+int ck_fatality_available(void);
+void show_damage_text(int player, int combo_hits, int displayed_damage);
+void cleanup_fight(void);
+int get_continue_timer(void);
 #endif

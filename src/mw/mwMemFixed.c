@@ -117,8 +117,9 @@ static inline void fixedBlockHeapCorrectPads(_mwMemHeap* heap) {
         base_block_size = heap->blockSize + sizeof(MwMemUsedHeader);
         heap->blockPrefixSize =
             fixedBlockAlignmentPadding(base_block_size, alignment_mask);
-        arena_start =
-            heap->heapStart + (heap->blockPrefixSize + sizeof(MwMemUsedHeader));
+        arena_start = heap->heapStart;
+        arena_start += heap->blockPrefixSize;
+        arena_start += sizeof(MwMemUsedHeader);
         heap->arenaAlignmentPadding =
             fixedBlockAlignmentPadding((u32)arena_start, alignment_mask);
     }
@@ -164,8 +165,8 @@ static inline void privFBHeapPartition(_mwMemHeap* heap) {
     }
 }
 
-/* TODO: [near miss] 99.65218%; payload ADD inputs commute; block-size,
- * prefix and split-cursor scratch homes remain different. */
+/* TODO: [near miss] 99.739%; loop-tail blockSize/prefix loads and the split header web
+ * swap r0/r3; needs a prefix-load or header-split kind change, not decl order. */
 void fixedBlockHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
     MwMemUsedHeader* used;
 

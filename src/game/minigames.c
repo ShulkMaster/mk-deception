@@ -10,6 +10,7 @@
 #include "game/pfxscript.h"
 #include "game/pselect.h"
 #include "game/pz_fatality.h"
+#include "game/pz_fighters.h"
 #include "game/controller.h"
 #include "game/game_info.h"
 #include "game/ladder.h"
@@ -43,6 +44,7 @@
 #include "runtime/cstdio.h"
 #include "runtime/cstring.h"
 #include "runtime/sound.h"
+#include "game/blood.h"
 
 #define PUZZLE_FLAG_ACCEPT_INPUT 0x10
 #define PUZZLE_FLAG_COUNTER_DROPS 0x20
@@ -78,7 +80,7 @@
 
 void preload_screen_data(const char* name, int slot);
 int am_i_female(PlyrPdata* fighter);
-unsigned int pan_snd_req(int sound_id, float pan);
+MslSoundHandle pan_snd_req(int sound_id, float pan);
 void wait_for_a_sound_bank_to_load(int bank);
 unsigned short randu0(int limit);
 float frand(float max);
@@ -87,20 +89,10 @@ void push_game_state(int state);
 int signrand(unsigned short range);
 int get_language(void);
 void set_string_obj_alpha(void* object, float alpha);
-extern int game_save_loop_count;
-extern int winner;
-extern int p1_profile_status;
-extern int p2_profile_status;
-int get_current_wager_koin(void);
-void init_wagering(void);
 void award_koins_to_player(int player, int amount, int koin_type);
 void show_koin_award(int player, int amount, int koin_type, int y);
 int pz_fighter_fatality_over(void);
 int pz_fighter_is_round_over(void);
-int advance_ladder_position(void);
-void ck_do_profile_save(void);
-float do_continue(void);
-float p_ladder_select(void);
 static void minigame_puzzlefighter_destroy(void);
 void fade_to_black(int frames, int flag);
 void pop_game_state(void);
@@ -707,13 +699,6 @@ struct PuzzleControl {
     int piece_sequence_length;
 };
 
-struct PuzzleFightersEngine {
-    char pad00[0x198];
-    unsigned char startup_enabled : 1;
-    unsigned char pad : 7;
-    char pad199[0x4F];
-};
-
 struct PuzzleMatchContextFlagBits {
     unsigned char matched_latch : 1;
     unsigned char flags_pad : 7;
@@ -762,7 +747,7 @@ int is_pz_net_master;
 int pz_loss_in_a_row;
 int __mini_game_display_ctrl;
 static struct PuzzleControl* puzzle_ctrl;
-extern struct PuzzleFightersEngine g_pz_fighters_engine;
+extern PuzzleFightersEngine g_pz_fighters_engine;
 extern MkFileInfo sec_pz_bgnd_beetlelair;
 extern MkFileInfo sec_pz_bgnd_hellsfoundry;
 extern MkFileInfo sec_pz_bgnd_lukangtomb;
@@ -805,8 +790,6 @@ extern MkFileInfo sec_pz_ending_champion;
 extern MkFileInfo sec_puzzlefighter;
 extern MkFileInfo sec_fightingart;
 extern MkFileInfo sec_pz_plyr_art;
-extern int b_game_timer_off;
-extern int round_winner;
 extern struct PuzzleLocalizedImageEntry pzlang_image_table[];
 
 static void puzzle_fighter_display_floor_msg(struct PuzzlePlayerState* player,
@@ -823,10 +806,6 @@ static float p_puzzle_fighter_real_one(void);
 static float p_pz_mode_clear(void);
 static float p_puzzle_fighter_chain_msg(void);
 static void minigame_puzzlefighter_setup(void);
-void bleed_startup(void);
-void init_weapon_trail_light_list(void);
-void round_init(void);
-float p_puzzle_game_camera_proc(void);
 static struct PuzzleBoardCell*
 puzzle_fighter_rotate_drop_pieces(int direction,
                                   struct PuzzlePlayerState* player);
@@ -2110,7 +2089,7 @@ void load_puzzle_champion_screen(void) {
 }
 
 void cleanup_minigame_system(void) {
-    g_pz_fighters_engine.startup_enabled = 0;
+    g_pz_fighters_engine.start_flag_bits.enabled = 0;
     memset(&g_pz_fighters_engine, 0, sizeof(g_pz_fighters_engine));
     cleanup_pz_fatality_stuff();
     puzzle_ctrl = 0;

@@ -4,7 +4,6 @@
 #include "libmkparticle/fields.h"
 #include "libmkparticle/emitter.h"
 #include "libmkparticle/metrics.h"
-#include "libmkparticle/particle.h"
 #include "libmkparticle/shader.h"
 #include "libmkparticle/vm.h"
 #include "runtime/mk_mem.h"
@@ -150,10 +149,6 @@ void pfx_estimate_size(PfxVm* pfx, PfxEstimate* estimate,
                      estimate->runtime_buffers_size;
 }
 
-#pragma push
-#pragma optimize_for_size on
-/* TODO: [near miss] 98.73418%; hidden aggregate-result force precedes the
- * descriptor load; recover the original argument owner without new records. */
 void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
 {
     unsigned char* cursor;
@@ -251,7 +246,6 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
     }
 }
 
-#pragma pop
 void pfx_copy_behavior_list(PfxVm* pfx, int count, const PfxBehavior* source)
 {
     int index;
@@ -274,6 +268,8 @@ void pfx_copy_behavior_list(PfxVm* pfx, int count, const PfxBehavior* source)
     }
 }
 
+#pragma push
+#pragma opt_propagation off
 void* pfx_effect_memory_alloc(PfxVm* vm, int size, int align)
 {
     unsigned char* allocation;
@@ -299,3 +295,4 @@ void* pfx_effect_memory_alloc(PfxVm* vm, int size, int align)
     }
     return aligned;
 }
+#pragma pop

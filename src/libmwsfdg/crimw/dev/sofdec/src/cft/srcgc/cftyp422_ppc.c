@@ -7,12 +7,12 @@ static const char cft_version_string[] =
 const char* CFT_version = cft_version_string;
 
 static u32 gqr_save = 0;
-static float cr_r[256];
-static float cr_g[256];
-static float cb_b[256];
-static float cb_g[256];
-static float y__r[256] __attribute__((aligned(32)));
 static const char* CFT_dummy;
+static float y__r[256] __attribute__((aligned(32)));
+static float cb_g[256];
+static float cb_b[256];
+static float cr_g[256];
+static float cr_r[256];
 
 #define CFT_CB_TBL(tbl) ((float*)((u8*)(tbl) + 0x1000))
 #define CFT_CR_TBL(tbl) ((float*)((u8*)(tbl) + 0x2000))
@@ -145,7 +145,6 @@ void CFT_MakeArgb8888AlpLumiTbl(
     }
 }
 
-/* TODO: [blocked] 33.27%; vendor cache/update assembly boundary needs specific authorization; retain C fallback. */
 void CFT_Ycc420plnToY84C44(
     const CFTYcc420Planar* src,
     u8* dst_y,
@@ -153,66 +152,113 @@ void CFT_Ycc420plnToY84C44(
     s32 dst_y_stride,
     s32 height)
 {
-    s32 tile_y;
-    s32 tile_x;
-    f64* y_output = (f64*)dst_y;
-    u32* c_output = (u32*)dst_c;
-    const f64* y_row0 = (const f64*)src->y;
-    const u32* cb_row0 = (const u32*)src->cb;
-    const u32* cr_row0 = (const u32*)src->cr;
-    s32 chroma_count = src->y_stride / 2 / 4;
-    s32 chroma_skip = (src->cb_stride - src->y_stride / 2) / 4;
+    register s32 ofs;
+    s32 n;
+    f64* y3;
+    s32 yskip;
+    s32 dskip;
+    f64* y2;
+    f64* y1;
+    register f64* d;
+    register f64* y0;
+    s32 yw2;
+    s32 hblk;
+    s32 cnt;
+    s32 i;
+    register f64 w0;
+    register f64 w1;
+    register f64 w2;
+    register f64 w3;
+    u32* cbp3;
+    u32* cbp2;
+    u32* cbp1;
+    u32* crp3;
+    u32* crp2;
+    u32* crp1;
+    s32 o3;
+    s32 o2;
+    s32 o1;
+    s32 cskip;
+    u32* cbp0;
+    u32* crp0;
+    u32 crv;
+    u32 cbv;
+    register u32* c;
+    s32 ywidth;
+    s32 yw3;
 
-    for (tile_y = 0; tile_y < height / 4; tile_y++) {
-        const f64* row0 = y_row0;
-        const f64* row1 = (const f64*)((const u8*)row0 + src->y_stride);
-        const f64* row2 = (const f64*)((const u8*)row1 + src->y_stride);
-        const f64* row3 = (const f64*)((const u8*)row2 + src->y_stride);
-        s32 y_count = src->y_stride / 8;
-
-        while (y_count-- > 0) {
-            *y_output++ = *row0++;
-            *y_output++ = *row1++;
-            *y_output++ = *row2++;
-            *y_output++ = *row3++;
+    ywidth = src->y_stride;
+    yw2 = ywidth * 2;
+    y0 = (f64*)src->y;
+    d = (f64*)dst_y - 1;
+    yw3 = ywidth * 3;
+    yskip = yw3 / 8 * 8;
+    cnt = ywidth / 8;
+    hblk = height / 4;
+    dskip = (dst_y_stride - ywidth) / 8 * 32;
+    ofs = 8;
+    for (i = 0; i < hblk; i++) {
+        y1 = (f64*)(ywidth + (u32)y0);
+        y2 = (f64*)(yw2 + (u32)y0);
+        y3 = (f64*)(yw3 + (u32)y0);
+        n = cnt;
+        while (n-- > 0) {
+            asm { SEQ_CFT_Ycc420plnToY84C44_DcbzY(d, ofs) }
+            w0 = *y0;
+            w1 = *y1;
+            w2 = *y2;
+            w3 = *y3;
+            asm { SEQ_CFT_Ycc420plnToY84C44_DcbtY(y0, ofs) }
+            asm { SEQ_CFT_Ycc420plnToY84C44_StoreY0(w0, d) }
+            asm { SEQ_CFT_Ycc420plnToY84C44_StoreY1(w1, d) }
+            asm { SEQ_CFT_Ycc420plnToY84C44_StoreY2(w2, d) }
+            asm { SEQ_CFT_Ycc420plnToY84C44_StoreY3(w3, d) }
+            y0++;
+            y3++;
+            y2++;
+            y1++;
         }
-        y_output += ((dst_y_stride - src->y_stride) / 8) * 4;
-        y_row0 = (const f64*)((const u8*)row0 + ((src->y_stride * 3) / 8) * 8);
+        d = (f64*)((u8*)d + dskip);
+        y0 = (f64*)((u8*)y0 + yskip);
     }
 
-    for (tile_y = 0; tile_y < height / 8; tile_y++) {
-        const u32* cr0 = cr_row0;
-        const u32* cr1 = (const u32*)((const u8*)cr0 + src->cb_stride);
-        const u32* cr2 = (const u32*)((const u8*)cr1 + src->cb_stride);
-        const u32* cr3 = (const u32*)((const u8*)cr2 + src->cb_stride);
-        const u32* cb0 = cb_row0;
-        const u32* cb1 = (const u32*)((const u8*)cb0 + src->cb_stride);
-        const u32* cb2 = (const u32*)((const u8*)cb1 + src->cb_stride);
-        const u32* cb3 = (const u32*)((const u8*)cb2 + src->cb_stride);
-
-        for (tile_x = 0; tile_x < chroma_count; tile_x++) {
-            u32 cb;
-            u32 cr;
-#define STORE_CHROMA_ROW(cbRow, crRow)                                      \
-            do {                                                            \
-                cb = *(cbRow)++;                                            \
-                cr = *(crRow)++;                                            \
-                *c_output++ = (cb & 0xff000000) |                           \
-                    ((cr >> 8) & 0x00ff0000) |                              \
-                    ((cb >> 8) & 0x0000ff00) | ((cr >> 16) & 0xff);         \
-                *c_output++ = ((cb << 16) & 0xff000000) |                   \
-                    ((cr << 8) & 0x00ff0000) |                              \
-                    ((cb << 8) & 0x0000ff00) | (cr & 0xff);                 \
-            } while (0)
-            STORE_CHROMA_ROW(cb0, cr0);
-            STORE_CHROMA_ROW(cb1, cr1);
-            STORE_CHROMA_ROW(cb2, cr2);
-            STORE_CHROMA_ROW(cb3, cr3);
+    cnt = src->y_stride / 2 / 4;
+    cskip = (src->cb_stride - src->y_stride / 2) / 4;
+    hblk = height / 2 / 4;
+    ywidth = src->cb_stride / 4;
+    yw3 = ywidth * 3;
+    o1 = ywidth * 4;
+    o2 = ywidth * 8;
+    o3 = yw3 * 4;
+    c = (u32*)dst_c - 1;
+    cbp0 = (u32*)src->cb;
+    crp0 = (u32*)src->cr;
+    ofs = 4;
+    for (i = 0; i < hblk; i++) {
+        crp1 = (u32*)(o1 + (u32)crp0);
+        crp2 = (u32*)(o2 + (u32)crp0);
+        crp3 = (u32*)(o3 + (u32)crp0);
+        cbp1 = (u32*)(o1 + (u32)cbp0);
+        cbp2 = (u32*)(o2 + (u32)cbp0);
+        cbp3 = (u32*)(o3 + (u32)cbp0);
+        for (n = 0; n < cnt; n++) {
+            asm { SEQ_CFT_Ycc420plnToY84C44_DcbzC(c, ofs) }
+#define STORE_CHROMA_ROW(cbRow, crRow)                                       \
+            crv = *(crRow)++;                                                \
+            cbv = *(cbRow)++;                                                \
+            *++c = (cbv & 0xFF000000) | ((crv >> 8) & 0x00FF0000) |          \
+                ((cbv >> 8) & 0xFF00) | ((crv >> 16) & 0xFF);                \
+            *++c = ((cbv << 16) & 0xFF000000) | ((crv << 8) & 0x00FF0000) |  \
+                ((cbv << 8) & 0xFF00) | (crv & 0xFF)
+            STORE_CHROMA_ROW(cbp0, crp0);
+            STORE_CHROMA_ROW(cbp1, crp1);
+            STORE_CHROMA_ROW(cbp2, crp2);
+            STORE_CHROMA_ROW(cbp3, crp3);
 #undef STORE_CHROMA_ROW
         }
-        c_output += chroma_skip * 8;
-        cb_row0 = cb0 + (src->cb_stride / 4) * 3 + chroma_skip;
-        cr_row0 = cr0 + (src->cb_stride / 4) * 3 + chroma_skip;
+        c += cskip * 8;
+        cbp0 += yw3 + cskip;
+        crp0 += yw3 + cskip;
     }
 }
 
@@ -265,33 +311,7 @@ void CFT_Ycc420plnToArgb8888(
     }
 }
 
-/* TODO: [near miss] 99.64179%; link-data requests fix table placement;
- * recover the earlier converter's real table-reference boundary. */
-void CFT_Ycc420plnToArgb8888Init(void)
+asm void CFT_Ycc420plnToArgb8888Init(void)
 {
-    s32 i;
-    float* y_luminance;
-    float* cb_green;
-    float* cb_blue;
-    float* cr_red;
-    float* cr_green;
-    float value;
-    s32 offset;
-
-    cr_red = cr_r;
-    cr_green = cr_g;
-    cb_blue = cb_b;
-    cb_green = cb_g;
-    y_luminance = y__r;
-    CFT_dummy = CFT_version;
-    for (i = 0; i != 256; i++) {
-        offset = i - 16;
-        value = 1.164f * (float)offset;
-        offset = i - 128;
-        *y_luminance++ = value;
-        *cb_green++ = -0.392f * (float)offset;
-        *cb_blue++ = 2.017f * (float)offset;
-        *cr_red++ = 1.596f * (float)offset;
-        *cr_green++ = -0.813f * (float)offset;
-    }
+    SEQ_CFT_Ycc420plnToArgb8888Init();
 }

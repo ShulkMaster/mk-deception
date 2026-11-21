@@ -1,6 +1,6 @@
 #include "game/konquest_time.h"
 
-static inline unsigned int event_time_specificity(const KonquestTime* time) {
+static inline unsigned int calc_priority_value_for_event(const KonquestTime* time) {
     int has_year = time->year != -1;
     unsigned int specified = time->month == -1 ? 0 : 2;
 
@@ -11,14 +11,7 @@ static inline unsigned int event_time_specificity(const KonquestTime* time) {
 }
 
 int is_valid_event_time(const KonquestTime* time) {
-    int has_year = time->year != -1;
-    unsigned int specified = time->month == -1 ? 0 : 2;
-
-    specified = has_year | specified;
-    specified |= time->day_of_week == -1 ? 0 : 4;
-    specified |= time->day_of_month == -1 ? 0 : 8;
-
-    if (specified == 0xF) {
+    if (calc_priority_value_for_event(time) == 0xF) {
         return 0;
     }
     return time->hour != -1;
@@ -95,8 +88,8 @@ static KonquestTimedEvent* which_event_is_more_recent(
     if (event_b->time.minute > event_a->time.minute) {
         return event_b;
     }
-    specificity_a = event_time_specificity(&event_a->time);
-    specificity_b = event_time_specificity(&event_b->time);
+    specificity_a = calc_priority_value_for_event(&event_a->time);
+    specificity_b = calc_priority_value_for_event(&event_b->time);
     if (specificity_a > specificity_b) {
         a_more_recent = 1;
     } else if (specificity_b > specificity_a) {
@@ -110,24 +103,21 @@ static KonquestTimedEvent* which_event_is_more_recent(
     return event_b;
 }
 
-/* TODO: [near miss] 91.27119%; month/year homes and partial-mask owners differ;
- * recover original producers; canonical helper and neutral controls regress. */
+/* TODO: [near miss] 91.92%; event_a month read in place, b month/dow bits OR-ed in one statement;
+ * month/year homes and partial-mask owners still differ; canonical helper regresses. */
 int does_event_a_trump_event_b(
     const KonquestTimedEvent* event_a, const KonquestTimedEvent* event_b) {
-    int month_a;
     int day_of_month_a;
     unsigned int specificity_a;
     unsigned int specificity_b;
 
-    month_a = event_a->time.month;
     day_of_month_a = event_a->time.day_of_month;
     specificity_a = (day_of_month_a == -1 ? 0 : 8) |
                     ((event_a->time.day_of_week == -1 ? 0 : 4) |
-                     ((month_a == -1 ? 0 : 2) |
+                     ((event_a->time.month == -1 ? 0 : 2) |
                       (event_a->time.year == -1 ? 0 : 1)));
     specificity_b = event_b->time.year != -1;
-    specificity_b |= event_b->time.month == -1 ? 0 : 2;
-    specificity_b |= event_b->time.day_of_week == -1 ? 0 : 4;
+    specificity_b = specificity_b | (event_b->time.month == -1 ? 0 : 2) | (event_b->time.day_of_week == -1 ? 0 : 4);
     specificity_b |= event_b->time.day_of_month == -1 ? 0 : 8;
     if (specificity_a > specificity_b) {
         return 1;
@@ -273,7 +263,7 @@ int calc_next_occurrence_of_event(
     next.hour = event_time->hour;
     next.minute = event_time->minute;
 
-    specified = event_time_specificity(event_time);
+    specified = calc_priority_value_for_event(event_time);
 
     switch (specified) {
     case 0:

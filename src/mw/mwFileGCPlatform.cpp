@@ -7,14 +7,7 @@
 #include "mslcpp/memory.h"
 #include "dolphin/cache.h"
 #include "runtime/cstring.h"
-
-class mwFileMutex : public OSMutex {
-public:
-    mwFileMutex();
-    ~mwFileMutex();
-    void lock();
-    void unlock();
-};
+#include "mw/mwFileMutex.h"
 
 class mwFileCondition : public OSCond {
 public:
@@ -27,6 +20,8 @@ public:
 class mwFileEvent {
 public:
     mwFileEvent();
+    ~mwFileEvent();
+    void wait();
     void reset();
     void set();
 
@@ -34,17 +29,6 @@ private:
     OSMutex mutex;
     OSCond condition;
     unsigned char signaled;
-};
-
-class mwFileOSMutexLock {
-public:
-    explicit mwFileOSMutexLock(OSMutex& value) : mutex(&value) { OSLockMutex(mutex); }
-    ~mwFileOSMutexLock() { OSUnlockMutex(mutex); }
-
-private:
-    OSMutex* mutex;
-    mwFileOSMutexLock(const mwFileOSMutexLock&);
-    mwFileOSMutexLock& operator=(const mwFileOSMutexLock&);
 };
 
 static const char stringBase0[] =
@@ -102,12 +86,14 @@ enum {
     BUFFERED_READ_NAME = 0x256,
     CLOSE_COMMAND_NAME = 0x273,
     DVD_WRITE_MESSAGE = 0x288,
+    ERROR_EMULATION_MESSAGE = 0x2C3,
     STL_ALLOCATION_NAME = 0x361,
     READ_COMMAND_NAME = 0x39D,
     OPEN_COMMAND_NAME = 0x3B1,
     STRING_CONSTRUCTOR_MESSAGE = 0x3C5,
     PLATFORM_HANDLE_NAME = 0x3E7
 };
+
 
 enum mwFileError {
     MWFILE_ERROR_NONE = 0,
@@ -127,6 +113,8 @@ enum mwFileErrorState {
 struct mwFileTypeInfo {
 };
 
+struct _mwFileProfileData;
+
 class mwFileServer;
 class mwFileMountPoint;
 class mwFile;
@@ -144,6 +132,8 @@ template <class T>
 bool mwFileMemAlloc(T*& memory, unsigned long size, mwTargetMemAlign alignment, const char* name);
 
 extern void _mwFileNoOp(...);
+extern int _mwFilePlatformInterlockedIncrement(volatile int& value);
+extern int _mwFilePlatformInterlockedDecrement(volatile int& value);
 extern void _mwFileServiceThread();
 extern int mwFileRegisterFileServer(mwFileServer&);
 extern int mwFileUnregisterFileServer(mwFileServer&);
@@ -391,6 +381,8 @@ public:
 
     const char* getName() const { return name; }
     volatile int& referenceCount() { return mount_count; }
+    void lock() { _mwFilePlatformInterlockedIncrement(mount_count); }
+    void unlock() { _mwFilePlatformInterlockedDecrement(mount_count); }
 
     static void* operator new(unsigned long size, mwTargetMemAlign alignment,
                               const char* name)
@@ -499,6 +491,7 @@ namespace std {
 template <class T>
 struct char_traits {
     static void assign(T& c1, const T& c2) { c1 = c2; }
+    static unsigned long length(const T* s) { return strlen(s); }
 };
 
 template <class Base, class Member>
@@ -550,6 +543,7 @@ public:
 
     void reserve(size_type size);
     basic_string& append(const T* text, size_type count);
+    basic_string& append(const T* text) { return append(text, Traits::length(text)); }
     basic_string& operator=(const T* text);
     const T* data() const;
     iterator begin();
@@ -710,7 +704,15 @@ public:
                                   unsigned long long offset, void* buffer,
                                   unsigned long length, unsigned char priority);
     virtual ~mwFileXPReadUnbufferedCommand();
-    virtual unsigned char isA(mwFileTypeInfo*, const void*&) const;
+    virtual unsigned char isA(mwFileTypeInfo* type, const void*& object) const
+    {
+        if (type == &mwFileClassTypeInfo<mwFileCommandProgress>::sTypeInfo) {
+            object = static_cast<const mwFileCommandProgress*>(this);
+            return true;
+        }
+        object = 0;
+        return false;
+    }
     virtual int abort();
     virtual mwFileAsyncResult getResult() const;
     virtual int getProgressBytes(unsigned long&);
@@ -750,7 +752,15 @@ public:
                                 unsigned long long offset, void* buffer,
                                 unsigned long length, unsigned char priority);
     virtual ~mwFileXPReadBufferedCommand();
-    virtual unsigned char isA(mwFileTypeInfo*, const void*&) const;
+    virtual unsigned char isA(mwFileTypeInfo* type, const void*& object) const
+    {
+        if (type == &mwFileClassTypeInfo<mwFileCommandProgress>::sTypeInfo) {
+            object = static_cast<const mwFileCommandProgress*>(this);
+            return true;
+        }
+        object = 0;
+        return false;
+    }
     virtual int abort();
     virtual mwFileAsyncResult getResult() const;
     virtual int getProgressBytes(unsigned long&);
@@ -836,28 +846,9 @@ public:
     int nativeOpen(const char* path, unsigned long open_flags);
     DVDFileInfo* handle(unsigned char priority, int** open_count);
 
-    bool openInstance(unsigned char index)
-    {
-        if (open_counts[index] != 0) {
-            return true;
-        }
-        if (DVDFastOpen(entry_number, &file_info[index])) {
-            ++open_counts[index];
-            return true;
-        }
-        return false;
-    }
-
-    int nativeClose()
-    {
-        for (unsigned short i = 0; i < 3; i++) {
-            if (open_counts[i] != 0) {
-                DVDClose(&file_info[i]);
-                --open_counts[i];
-            }
-        }
-        return 0;
-    }
+    bool openFileHandle(unsigned char index);
+    int nativeClose();
+    bool isOpen(unsigned char index) const { return open_counts[index] != 0; }
 
 private:
     long entry_number;
@@ -878,7 +869,18 @@ public:
     }
 
     virtual ~mwFileGCCloseCommand() {}
-    virtual unsigned char isA(mwFileTypeInfo*, const void*&) const;
+    virtual unsigned char isA(mwFileTypeInfo* type, const void*& object) const
+    {
+        if (type == &mwFileClassTypeInfo<mwFileGCErrorState>::sTypeInfo) {
+            object = static_cast<const mwFileGCErrorState*>(this);
+            return true;
+        }
+        if (mwFileQueryable::isA(type, object)) {
+            return true;
+        }
+        object = 0;
+        return false;
+    }
 };
 
 class mwFileGCReadUnbufferedCommand
@@ -887,15 +889,22 @@ class mwFileGCReadUnbufferedCommand
 public:
     mwFileGCReadUnbufferedCommand(mwFileCallback completion_callback, void* completion_data,
                                   mwFile* owning_file, unsigned long long offset,
-                                  void* buffer, unsigned long length, unsigned char priority)
-        : mwFileXPReadUnbufferedCommand<mwFileGCReadUnbufferedCommand, mwFileGCHandle>(
-              completion_callback, completion_data, owning_file, offset, buffer, length,
-              priority)
-    {
-    }
+                                  void* buffer, unsigned long length, unsigned char priority);
 
     virtual ~mwFileGCReadUnbufferedCommand() {}
-    virtual unsigned char isA(mwFileTypeInfo*, const void*&) const;
+    virtual unsigned char isA(mwFileTypeInfo* type, const void*& object) const
+    {
+        if (type == &mwFileClassTypeInfo<mwFileGCErrorState>::sTypeInfo) {
+            object = static_cast<const mwFileGCErrorState*>(this);
+            return true;
+        }
+        if (mwFileXPReadUnbufferedCommand<mwFileGCReadUnbufferedCommand, mwFileGCHandle>::isA(
+                type, object)) {
+            return true;
+        }
+        object = 0;
+        return false;
+    }
 };
 
 class mwFileGCReadBufferedCommand
@@ -904,15 +913,22 @@ class mwFileGCReadBufferedCommand
 public:
     mwFileGCReadBufferedCommand(mwFileCallback completion_callback, void* completion_data,
                                 mwFile* owning_file, unsigned long long offset,
-                                void* buffer, unsigned long length, unsigned char priority)
-        : mwFileXPReadBufferedCommand<mwFileGCReadBufferedCommand, mwFileGCHandle>(
-              completion_callback, completion_data, owning_file, offset, buffer, length,
-              priority)
-    {
-    }
+                                void* buffer, unsigned long length, unsigned char priority);
 
     virtual ~mwFileGCReadBufferedCommand() {}
-    virtual unsigned char isA(mwFileTypeInfo*, const void*&) const;
+    virtual unsigned char isA(mwFileTypeInfo* type, const void*& object) const
+    {
+        if (type == &mwFileClassTypeInfo<mwFileGCErrorState>::sTypeInfo) {
+            object = static_cast<const mwFileGCErrorState*>(this);
+            return true;
+        }
+        if (mwFileXPReadBufferedCommand<mwFileGCReadBufferedCommand, mwFileGCHandle>::isA(
+                type, object)) {
+            return true;
+        }
+        object = 0;
+        return false;
+    }
 };
 
 class mwFileGCServer : public mwFileServerQueued {
@@ -922,16 +938,19 @@ public:
 
 class gcnDriver {
 public:
-    gcnDriver() : service_stack(0), wakeup_stack(0), initialized(false) {}
+    gcnDriver();
     ~gcnDriver();
 
+    bool isInServiceThread() const;
     static void* serviceThreadThunk(void*);
     static void* wakeupThreadThunk(void*);
+    void wakeupThread();
+    void wakeupCommand(mwFileCommand* command);
     static void unlockAndUnmount(const char* mount);
 
     int initialize(_mwFileInitParam* param);
     void shutdown();
-    void queryErrorState();
+    void queryErrorState() { server.queryErrorState(); }
 
     mwFileGCServer server;
     OSThread service_thread;
@@ -957,7 +976,7 @@ public:
     virtual mwFileServer& getServer();
 
 protected:
-    OSMutex mutex;
+    mwFileMutex mutex;
     char internal_path[36];
     mwFileServer& server;
 };
@@ -1019,14 +1038,11 @@ struct gcnHostFileTraits {
 
 class gcnHostFileHandle : public mwFileHandlePlugin<gcnHostFileTraits> {
 public:
-    gcnHostFileHandle(mwFileMountPoint& mount_point, unsigned long open_flags,
-                      const mwFileString& path)
-        : mwFileHandlePlugin<gcnHostFileTraits>(mount_point, open_flags), host_file(0)
-    {
-        setDebugName(path.data());
-    }
-
+    gcnHostFileHandle(gcnHostMountPoint& mount_point, const mwFileString& path,
+                      unsigned long open_flags);
     virtual ~gcnHostFileHandle();
+    int open(const char* path);
+    int close();
 
     FILE* host_file;
 };
@@ -1034,28 +1050,21 @@ public:
 class gcnHostCloseCommand : public mwFileCommandPlugin<gcnHostCloseCommand> {
 public:
     gcnHostCloseCommand(mwFileCallback completion_callback, void* completion_data,
-                        mwFile* owning_file)
-        : mwFileCommandPlugin<gcnHostCloseCommand>(completion_callback, completion_data,
-                                                   owning_file)
-    {
-    }
+                        mwFile* owning_file);
 
     virtual ~gcnHostCloseCommand();
     virtual mwFileAsyncResult getResult() const;
+    int handleNotStartedState();
     int serviceState(int state);
 };
 
 class gcnHostFlushCommand : public mwFileCommandPlugin<gcnHostFlushCommand> {
 public:
     gcnHostFlushCommand(mwFileCallback completion_callback, void* completion_data,
-                        mwFile* owning_file)
-        : mwFileCommandPlugin<gcnHostFlushCommand>(completion_callback, completion_data,
-                                                   owning_file)
-    {
-    }
+                        mwFile* owning_file);
 
-    virtual ~gcnHostFlushCommand();
     virtual mwFileAsyncResult getResult() const;
+    int handleNotStartedState();
     int serviceState(int state);
 };
 
@@ -1064,18 +1073,10 @@ public:
     gcnHostWriteCommand(mwFileCallback completion_callback, void* completion_data,
                         mwFile* owning_file, unsigned long long offset_value,
                         const void* source_buffer, unsigned long write_length,
-                        unsigned char write_priority)
-        : mwFileCommandPlugin<gcnHostWriteCommand>(completion_callback, completion_data,
-                                                   owning_file),
-          source(source_buffer),
-          offset(offset_value),
-          length(write_length),
-          priority(write_priority)
-    {
-    }
+                        unsigned char write_priority);
 
-    virtual ~gcnHostWriteCommand();
     virtual mwFileAsyncResult getResult() const;
+    int handleNotStartedState();
     int serviceState(int state);
 
 private:
@@ -1121,20 +1122,9 @@ private:
 }
 
 template <class T>
-T mwRoundUp(T value, unsigned int alignment);
-
-static inline void gcnInterlockedIncrement(volatile int& value)
+T mwRoundUp(T value, unsigned int alignment)
 {
-    int enabled = OSDisableInterrupts();
-    ++value;
-    OSRestoreInterrupts(enabled);
-}
-
-static inline void gcnInterlockedDecrement(volatile int& value)
-{
-    int enabled = OSDisableInterrupts();
-    --value;
-    OSRestoreInterrupts(enabled);
+    return (value + alignment - 1) & ~static_cast<T>(alignment - 1);
 }
 
 static inline mwFileError gcnConvertDVDStatus(long status)
@@ -1160,231 +1150,367 @@ static inline mwFileError gcnConvertDVDStatus(long status)
     }
 }
 
-void mwFileGCServer::queryErrorState()
-{
-    mwFileOSMutexLock lock(mutex);
-
-    for (unsigned char i = 0; i <= 2; i++) {
-        mwFileCommand* command = active[i];
-        if (command != 0) {
-            void* queried_object;
-            mwFileGCErrorState* state;
-            if (command->isA(&mwFileClassTypeInfo<mwFileGCErrorState>::sTypeInfo,
-                             queried_object)) {
-                state = static_cast<mwFileGCErrorState*>(queried_object);
-            } else {
-                state = 0;
-            }
-            if (state != 0) {
-                state->queryErrorState();
-            }
-        }
-    }
-}
-
 namespace {
-const char* gcnCDMountPoint::convertPath(const char* path)
+int gcnHostCloseCommand::serviceState(int state)
 {
-    full_path = &stringBase0[SLASH_STRING];
-    full_path.append(path, strlen(path));
-    std::replace(full_path.begin(), full_path.end(), '\\', '/');
-    return full_path.data();
-}
-
-gcnCDMountPoint::gcnCDMountPoint(const char* mount_name, mwFileServer& server_ref)
-    : mwFileDevicePlugin<gcnCDMountPoint, mwFileXPOpenCommand<mwFileGCHandle> >(mount_name,
-                                                                               server_ref)
-{
-    full_path.reserve(0x200);
-}
-
-const char* gcnHostMountPoint::convertPath(const char* path)
-{
-    full_path = &stringBase0[SLASH_STRING];
-    full_path.append(path, strlen(path));
-    std::replace(full_path.begin(), full_path.end(), '\\', '/');
-    return full_path.data();
-}
-
-gcnHostMountPoint::gcnHostMountPoint(const char* mount_name, mwFileServer& server_ref)
-    : mwFileDevicePlugin<gcnHostMountPoint, gcnHostOpenCommand>(mount_name, server_ref)
-{
-    full_path.reserve(0x200);
-}
-
-gcnHostFileHandle::~gcnHostFileHandle()
-{
-}
-
-mwFileAsyncResult gcnHostCloseCommand::getResult() const
-{
-    mwFileAsyncResult result;
-    result.value.bytes = error;
-    result.error = error;
-    return result;
-}
-
-gcnHostCloseCommand::~gcnHostCloseCommand()
-{
-    delete file;
-    file = 0;
-}
-
-gcnHostFlushCommand::~gcnHostFlushCommand()
-{
-}
-
-mwFileAsyncResult gcnHostFlushCommand::getResult() const
-{
-    mwFileAsyncResult result;
-    result.error = error;
-    result.value.bytes = error;
-    return result;
-}
-
-gcnHostWriteCommand::~gcnHostWriteCommand()
-{
-}
-
-mwFileAsyncResult gcnHostWriteCommand::getResult() const
-{
-    mwFileAsyncResult result;
-    result.error = error;
-    result.value.bytes = bytes_written;
-    return result;
-}
-
-#pragma push
-#pragma opt_common_subs off
-mwFileAsyncResult gcnHostOpenCommand::getResult() const
-{
-    mwFileAsyncResult result;
-    result.value.file = error == 0 ? file : 0;
-    result.error = error;
-    return result;
-}
-#pragma pop
-
-/* TODO: [Scope warn] Write requests require append or truncate mode, as supplied by mwFileOpenModeToFlags. */
-static inline int openHostFile(gcnHostFileHandle* handle, const char* path)
-{
-    unsigned long open_flags = handle->getFlags();
-    char type;
-    char plus = 0;
-
-    if ((open_flags & 2) != 0) {
-        if ((open_flags & 4) != 0) {
-            type = 'a';
-            if ((open_flags & 1) != 0) {
-                plus = '+';
-            }
-        } else if ((open_flags & 8) != 0) {
-            type = 'w';
-            if ((open_flags & 1) != 0) {
-                plus = '+';
-            }
-        }
-    } else {
-        _mwFileNoOp(&stringBase0[HOST_READ_MESSAGE], path);
-        return -13;
+    switch (state) {
+    case 0:
+        handleNotStartedState();
+        break;
+    default:
+        return mwFileCommandPlugin<gcnHostCloseCommand>::serviceState(state);
     }
-
-    char mode[4];
-    mode[0] = type;
-    mode[1] = 'b';
-    mode[2] = plus;
-    mode[3] = '\0';
-    handle->host_file = fopen(path, mode);
-    if (handle->host_file == 0) {
-        return -18;
-    } else {
-        long position = ftell(handle->host_file);
-        fseek(handle->host_file, 0, 2);
-        handle->setSize(ftell(handle->host_file));
-        fseek(handle->host_file, position, 0);
-        return 0;
-    }
-}
-
-int gcnHostOpenCommand::handleNotStartedState()
-{
-    if (file == 0) {
-        error = -10;
-        return 2;
-    }
-
-    const char* path = name.data();
-    error = openHostFile(static_cast<gcnHostFileHandle*>(file), path);
     return 2;
 }
 
-gcnHostOpenCommand::~gcnHostOpenCommand()
+int gcnHostFlushCommand::serviceState(int state)
 {
-    if (error != 0) {
-        delete file;
-        file = 0;
+    switch (state) {
+    case 0:
+        handleNotStartedState();
+        break;
+    default:
+        return mwFileCommandPlugin<gcnHostFlushCommand>::serviceState(state);
     }
+    return 2;
 }
 
-gcnHostOpenCommand::gcnHostOpenCommand(mwFileCallback completion_callback,
-                                       void* completion_data, const mwFileString& path,
-                                       unsigned long open_flags,
-                                       gcnHostMountPoint& mount_point)
-    : mwFileCommandPlugin<gcnHostOpenCommand>(completion_callback, completion_data, 0),
-      name(path)
+int gcnHostWriteCommand::serviceState(int state)
 {
-    gcnHostFileHandle* handle = new (MW_TARGET_MEM_ALIGN_32, &stringBase0[HOST_HANDLE_NAME])
-        gcnHostFileHandle(mount_point, open_flags, path);
-    file = handle;
-}
+    switch (state) {
+    case 0:
+        return handleNotStartedState();
+    }
+    return mwFileCommandPlugin<gcnHostWriteCommand>::serviceState(state);
 }
 
-void* gcnDriver::serviceThreadThunk(void*)
+int gcnHostOpenCommand::serviceState(int state)
 {
-    _mwFileServiceThread();
+    switch (state) {
+    case 0:
+        return handleNotStartedState();
+    }
+    return mwFileCommandPlugin<gcnHostOpenCommand>::serviceState(state);
+}
+
+}
+
+gcnDriver& gcnGetDriver()
+{
+    static gcnDriver sDriver;
+    return sDriver;
+}
+
+void _mwFilePlatformTick()
+{
+    gcnGetDriver().queryErrorState();
+}
+
+int mwFileStringCompareIgnoreCase(const char* left, const char* right)
+{
+    while (*left != '\0' && *right != '\0') {
+        int left_char = std::tolower(*left++);
+        int right_char = std::tolower(*right++);
+
+        if (left_char != right_char) {
+            return left_char < right_char ? -1 : 1;
+        }
+    }
+
+    if (*left == '\0' && *right == '\0') {
+        return 0;
+    }
+    if (*left == '\0') {
+        return -1;
+    }
+    return 1;
+}
+
+void _mwFilePlatformYieldTimeSlice()
+{
+    OSYieldThread();
+}
+
+int _mwFilePlatformInterlockedIncrement(volatile int& value)
+{
+    int interrupts = OSDisableInterrupts();
+    int result = ++value;
+    OSRestoreInterrupts(interrupts);
+    return result;
+}
+
+int _mwFilePlatformInterlockedDecrement(volatile int& value)
+{
+    int interrupts = OSDisableInterrupts();
+    int result = --value;
+    OSRestoreInterrupts(interrupts);
+    return result;
+}
+
+bool _mwFilePlatformIsInServiceThread()
+{
+    return gcnGetDriver().isInServiceThread();
+}
+
+void _mwFilePlatformEmulateErrors(unsigned char, unsigned short, mwFileError)
+{
+    _mwFileNoOp(&stringBase0[ERROR_EMULATION_MESSAGE]);
+}
+
+int _mwFilePlatformInit(_mwFileInitParam* param)
+{
+    mwFileXPHandle<mwFileGCHandle>::setBufferSize(param->file_handle_tracking_size);
+    if (!gcnGetDriver().server.isInitialized()) {
+        int error = gcnGetDriver().initialize(param);
+        if (error != 0) {
+            return error;
+        }
+    }
     return 0;
 }
 
-void* gcnDriver::wakeupThreadThunk(void* argument)
+void _mwFilePlatformEnumerateProfileData(void (*)(_mwFileProfileData*, void*), void*)
 {
-    gcnDriver* driver = static_cast<gcnDriver*>(argument);
-    mwFileCommand* command;
+}
 
-    for (;;) {
-        OSReceiveMessage(&driver->wakeup_queue,
-                         reinterpret_cast<OSMessage*>(&command), 1);
-        if (command == 0) {
-            break;
-        }
-        command->wakeup();
+mwFileMutex::mwFileMutex()
+{
+    OSInitMutex(this);
+}
+
+mwFileMutex::~mwFileMutex()
+{
+}
+
+void mwFileMutex::lock()
+{
+    OSLockMutex(this);
+}
+
+void mwFileMutex::unlock()
+{
+    OSUnlockMutex(this);
+}
+
+mwFileEvent::mwFileEvent() : signaled(false)
+{
+    OSInitMutex(&mutex);
+    OSInitCond(&condition);
+}
+
+mwFileEvent::~mwFileEvent()
+{
+}
+
+void mwFileEvent::set()
+{
+    OSLockMutex(&mutex);
+    signaled = true;
+    OSUnlockMutex(&mutex);
+    OSSignalCond(&condition);
+}
+
+void mwFileEvent::reset()
+{
+    OSLockMutex(&mutex);
+    signaled = false;
+    OSUnlockMutex(&mutex);
+}
+
+void mwFileEvent::wait()
+{
+    OSLockMutex(&mutex);
+    while (!signaled) {
+        OSWaitCond(&condition, &mutex);
+    }
+    OSUnlockMutex(&mutex);
+}
+
+mwFileCondition::mwFileCondition()
+{
+    OSInitCond(this);
+}
+
+mwFileCondition::~mwFileCondition()
+{
+}
+
+void mwFileCondition::signal()
+{
+    OSSignalCond(this);
+}
+
+void mwFileCondition::wait(mwFileMutex& mutex)
+{
+    OSWaitCond(this, &mutex);
+}
+
+mwFileGCReadUnbufferedCommand::mwFileGCReadUnbufferedCommand(
+    mwFileCallback completion_callback, void* completion_data, mwFile* owning_file,
+    unsigned long long offset, void* buffer, unsigned long length, unsigned char priority)
+    : mwFileXPReadUnbufferedCommand<mwFileGCReadUnbufferedCommand, mwFileGCHandle>(
+          completion_callback, completion_data, owning_file, offset, buffer, length, priority)
+{
+}
+
+mwFileGCReadBufferedCommand::mwFileGCReadBufferedCommand(
+    mwFileCallback completion_callback, void* completion_data, mwFile* owning_file,
+    unsigned long long offset, void* buffer, unsigned long length, unsigned char priority)
+    : mwFileXPReadBufferedCommand<mwFileGCReadBufferedCommand, mwFileGCHandle>(
+          completion_callback, completion_data, owning_file, offset, buffer, length, priority)
+{
+}
+
+mwFileGCHandle::mwFileGCHandle(mwFileMountPoint& mount_point, unsigned long open_flags)
+    : mwFileXPHandle<mwFileGCHandle>(mount_point, open_flags), entry_number(-1)
+{
+    memset(file_info, 0, sizeof(file_info));
+    memset(open_counts, 0, sizeof(open_counts));
+}
+
+mwFileGCHandle::~mwFileGCHandle()
+{
+    OSGetCurrentThread();
+}
+
+unsigned long mwFileGCHandle::getReadAlign()
+{
+    return 32;
+}
+
+unsigned long mwFileGCHandle::getFileAlign()
+{
+    return 4;
+}
+
+int mwFileGCHandle::nativeOpen(const char* path, unsigned long open_flags)
+{
+    if ((open_flags & 2) != 0) {
+        _mwFileNoOp(&stringBase0[DVD_WRITE_MESSAGE], path);
+        return -24;
     }
 
+    entry_number = DVDConvertPathToEntrynum(path);
+    if (entry_number == -1) {
+        return -18;
+    }
+    if (openFileHandle(1)) {
+        size = handle(1, 0)->length;
+        field_0x18 = handle(1, 0)->start_address >> 11;
+        return 0;
+    }
+    return -18;
+}
+
+int mwFileGCHandle::nativeClose()
+{
+    for (unsigned short i = 0; i < 3; i++) {
+        if (open_counts[i] != 0) {
+            DVDClose(&file_info[i]);
+            --open_counts[i];
+        }
+    }
     return 0;
 }
 
-void gcnDriver::unlockAndUnmount(const char* mount)
+bool mwFileGCHandle::openFileHandle(unsigned char index)
 {
-    mwFileMountPoint* mount_point;
-
-    if (mwFileMountTable::get().getMountPointFromName(mount_point, mount) == 0) {
-        gcnInterlockedDecrement(mount_point->referenceCount());
-        mwFileUnmount(mount);
+    if (isOpen(index)) {
+        return true;
     }
+    if (DVDFastOpen(entry_number, &file_info[index])) {
+        ++open_counts[index];
+        return true;
+    }
+    return false;
 }
 
-void gcnDriver::shutdown()
+DVDFileInfo* mwFileGCHandle::handle(unsigned char priority, int** open_count)
 {
-    if (initialized) {
-        OSJoinThread(&service_thread, 0);
-        unlockAndUnmount(&stringBase0[HOST_MOUNT_NAME]);
-        unlockAndUnmount(&stringBase0[CDROM_MOUNT_NAME]);
-        mwFileUnregisterFileServer(server);
-        if (server.isInitialized()) {
-            server.shutdown();
+    if (open_counts[priority & 3] == 0) {
+        if (!openFileHandle(priority & 3)) {
+            return 0;
         }
-        OSJamMessage(&wakeup_queue, 0, 1);
-        OSJoinThread(&wakeup_thread, 0);
-        initialized = false;
+    }
+    if (open_count != 0) {
+        *open_count = &open_counts[priority & 3];
+    }
+    return &file_info[priority & 3];
+}
+
+int mwFileGCHandle::startCloseFileCommand(mwFileCommand*& command,
+                                          mwFileCallback completion_callback,
+                                          void* completion_data)
+{
+    command = new (MW_TARGET_MEM_ALIGN_32, &stringBase0[CLOSE_COMMAND_NAME])
+        mwFileGCCloseCommand(completion_callback, completion_data, this);
+    return addCommand(command, 1);
+}
+
+int mwFileGCHandle::startReadFileCommand(mwFileCommand*& command, unsigned long long offset,
+                                         void* buffer, unsigned long length,
+                                         unsigned char priority,
+                                         mwFileCallback completion_callback,
+                                         void* completion_data)
+{
+    bool aligned = false;
+
+    if (offset == mwRoundUp(offset, 4) && length == mwRoundUp(length, 32) &&
+        (unsigned long)buffer == mwRoundUp((unsigned long)buffer, 32)) {
+        aligned = true;
+    }
+    bool unbuffered = aligned;
+    if (aligned && (unsigned long)buffer >= 0x7E000000 && (unsigned long)buffer < 0x80000000) {
+        unbuffered = false;
+    }
+
+    if (unbuffered) {
+        command = new (MW_TARGET_MEM_ALIGN_32, &stringBase0[UNBUFFERED_READ_NAME])
+            mwFileGCReadUnbufferedCommand(completion_callback, completion_data, this, offset,
+                                          buffer, length, priority);
+    } else {
+        _mwFileNoOp(&stringBase0[BUFFERED_READ_MESSAGE], getDebugName(), (int)offset, length);
+        command = new (MW_TARGET_MEM_ALIGN_32, &stringBase0[BUFFERED_READ_NAME])
+            mwFileGCReadBufferedCommand(completion_callback, completion_data, this, offset,
+                                        buffer, length, priority);
+    }
+    return addCommand(command, priority);
+}
+
+int mwFileGCHandle::startWriteFileCommand(mwFileCommand*& command, unsigned long long offset,
+                                          const void* buffer, unsigned long length,
+                                          unsigned char priority,
+                                          mwFileCallback completion_callback,
+                                          void* completion_data)
+{
+    command = new (MW_TARGET_MEM_ALIGN_32, &stringBase0[WRITE_COMMAND_NAME])
+        mwFileNotSupportedCommand(completion_callback, completion_data, this);
+    return addCommand(command, priority);
+}
+
+int mwFileGCHandle::startFlushFileCommand(mwFileCommand*& command,
+                                          mwFileCallback completion_callback,
+                                          void* completion_data)
+{
+    command = new (MW_TARGET_MEM_ALIGN_32, &stringBase0[FLUSH_COMMAND_NAME])
+        mwFileNotSupportedCommand(completion_callback, completion_data, this);
+    return addCommand(command, 1);
+}
+
+gcnDriver::gcnDriver() : service_stack(0), wakeup_stack(0), initialized(false)
+{
+}
+
+gcnDriver::~gcnDriver()
+{
+    shutdown();
+    if (wakeup_stack != 0) {
+        mwFileMultithreadedMemTraits::deallocate(wakeup_stack);
+        wakeup_stack = 0;
+    }
+    if (service_stack != 0) {
+        mwFileMultithreadedMemTraits::deallocate(service_stack);
+        service_stack = 0;
     }
 }
 
@@ -1445,7 +1571,7 @@ int gcnDriver::initialize(_mwFileInitParam* param)
         delete cd_mount;
         return error;
     }
-    gcnInterlockedIncrement(cd_mount->referenceCount());
+    cd_mount->lock();
 
     gcnHostMountPoint* host_mount =
         new (MW_TARGET_MEM_ALIGN_32, &stringBase0[HOST_MOUNT_POINT_NAME])
@@ -1458,331 +1584,317 @@ int gcnDriver::initialize(_mwFileInitParam* param)
         delete host_mount;
         return error;
     }
-    gcnInterlockedIncrement(host_mount->referenceCount());
+    host_mount->lock();
 
     initialized = true;
     return 0;
 }
 
-gcnDriver::~gcnDriver()
+void gcnDriver::shutdown()
 {
-    shutdown();
-    if (wakeup_stack != 0) {
-        mwFileMultithreadedMemTraits::deallocate(wakeup_stack);
-        wakeup_stack = 0;
-    }
-    if (service_stack != 0) {
-        mwFileMultithreadedMemTraits::deallocate(service_stack);
-        service_stack = 0;
+    if (initialized) {
+        OSJoinThread(&service_thread, 0);
+        unlockAndUnmount(&stringBase0[HOST_MOUNT_NAME]);
+        unlockAndUnmount(&stringBase0[CDROM_MOUNT_NAME]);
+        mwFileUnregisterFileServer(server);
+        if (server.isInitialized()) {
+            server.shutdown();
+        }
+        OSJamMessage(&wakeup_queue, 0, 1);
+        OSJoinThread(&wakeup_thread, 0);
+        initialized = false;
     }
 }
 
-int mwFileGCHandle::startFlushFileCommand(mwFileCommand*& command,
-                                          mwFileCallback completion_callback,
-                                          void* completion_data)
+void gcnDriver::unlockAndUnmount(const char* mount)
 {
-    command = new (MW_TARGET_MEM_ALIGN_32, &stringBase0[FLUSH_COMMAND_NAME])
-        mwFileNotSupportedCommand(completion_callback, completion_data, this);
-    return addCommand(command, 1);
-}
+    mwFileMountPoint* mount_point;
 
-int mwFileGCHandle::startWriteFileCommand(mwFileCommand*& command, unsigned long long offset,
-                                          const void* buffer, unsigned long length,
-                                          unsigned char priority,
-                                          mwFileCallback completion_callback,
-                                          void* completion_data)
-{
-    command = new (MW_TARGET_MEM_ALIGN_32, &stringBase0[WRITE_COMMAND_NAME])
-        mwFileNotSupportedCommand(completion_callback, completion_data, this);
-    return addCommand(command, priority);
-}
-
-int mwFileGCHandle::startReadFileCommand(mwFileCommand*& command, unsigned long long offset,
-                                         void* buffer, unsigned long length,
-                                         unsigned char priority,
-                                         mwFileCallback completion_callback,
-                                         void* completion_data)
-{
-    bool aligned = false;
-
-    if (offset == mwRoundUp(offset, 4) && length == mwRoundUp(length, 32) &&
-        (unsigned long)buffer == mwRoundUp((unsigned long)buffer, 32)) {
-        aligned = true;
+    if (mwFileMountTable::get().getMountPointFromName(mount_point, mount) == 0) {
+        mount_point->unlock();
+        mwFileUnmount(mount);
     }
-    bool unbuffered = aligned;
-    if (aligned && (unsigned long)buffer >= 0x7E000000 && (unsigned long)buffer < 0x80000000) {
-        unbuffered = false;
-    }
-
-    if (unbuffered) {
-        command = new (MW_TARGET_MEM_ALIGN_32, &stringBase0[UNBUFFERED_READ_NAME])
-            mwFileGCReadUnbufferedCommand(completion_callback, completion_data, this, offset,
-                                          buffer, length, priority);
-    } else {
-        _mwFileNoOp(&stringBase0[BUFFERED_READ_MESSAGE], getDebugName(), (int)offset, length);
-        command = new (MW_TARGET_MEM_ALIGN_32, &stringBase0[BUFFERED_READ_NAME])
-            mwFileGCReadBufferedCommand(completion_callback, completion_data, this, offset,
-                                        buffer, length, priority);
-    }
-    return addCommand(command, priority);
 }
 
-int mwFileGCHandle::startCloseFileCommand(mwFileCommand*& command,
-                                          mwFileCallback completion_callback,
-                                          void* completion_data)
+void gcnDriver::wakeupCommand(mwFileCommand* command)
 {
-    command = new (MW_TARGET_MEM_ALIGN_32, &stringBase0[CLOSE_COMMAND_NAME])
-        mwFileGCCloseCommand(completion_callback, completion_data, this);
-    return addCommand(command, 1);
+    if (!OSSendMessage(&wakeup_queue, command, 0)) {
+        _mwFileNoOp(&stringBase0[WAKEUP_ERROR_MESSAGE]);
+    }
 }
 
-DVDFileInfo* mwFileGCHandle::handle(unsigned char priority, int** open_count)
+void gcnDriver::wakeupThread()
 {
-    if (open_counts[priority & 3] == 0) {
-        if (!openInstance(priority & 3)) {
-            return 0;
+    mwFileCommand* command;
+
+    for (;;) {
+        OSReceiveMessage(&wakeup_queue, reinterpret_cast<OSMessage*>(&command), 1);
+        if (command == 0) {
+            break;
+        }
+        command->wakeup();
+    }
+}
+
+void* gcnDriver::wakeupThreadThunk(void* argument)
+{
+    gcnDriver* driver = static_cast<gcnDriver*>(argument);
+    driver->wakeupThread();
+    return 0;
+}
+
+void* gcnDriver::serviceThreadThunk(void*)
+{
+    _mwFileServiceThread();
+    return 0;
+}
+
+bool gcnDriver::isInServiceThread() const
+{
+    return OSGetCurrentThread() == &service_thread;
+}
+
+namespace {
+gcnHostOpenCommand::gcnHostOpenCommand(mwFileCallback completion_callback,
+                                       void* completion_data, const mwFileString& path,
+                                       unsigned long open_flags,
+                                       gcnHostMountPoint& mount_point)
+    : mwFileCommandPlugin<gcnHostOpenCommand>(completion_callback, completion_data, 0),
+      name(path)
+{
+    gcnHostFileHandle* handle = new (MW_TARGET_MEM_ALIGN_32, &stringBase0[HOST_HANDLE_NAME])
+        gcnHostFileHandle(mount_point, path, open_flags);
+    file = handle;
+}
+
+gcnHostOpenCommand::~gcnHostOpenCommand()
+{
+    if (error != 0) {
+        delete file;
+        file = 0;
+    }
+}
+
+int gcnHostOpenCommand::handleNotStartedState()
+{
+    if (file == 0) {
+        error = -10;
+        return 2;
+    }
+
+    const char* path = name.data();
+    error = static_cast<gcnHostFileHandle*>(file)->open(path);
+    return 2;
+}
+
+mwFileAsyncResult gcnHostOpenCommand::getResult() const
+{
+    mwFileAsyncResult result;
+    mwFileAsyncResult* r = &result;
+    r->value.file = error == 0 ? file : 0;
+    r->error = error;
+    return result;
+}
+
+gcnHostWriteCommand::gcnHostWriteCommand(mwFileCallback completion_callback,
+                                         void* completion_data, mwFile* owning_file,
+                                         unsigned long long offset_value,
+                                         const void* source_buffer, unsigned long write_length,
+                                         unsigned char write_priority)
+    : mwFileCommandPlugin<gcnHostWriteCommand>(completion_callback, completion_data, owning_file),
+      source(source_buffer),
+      offset(offset_value),
+      length(write_length),
+      priority(write_priority)
+{
+}
+
+int gcnHostWriteCommand::handleNotStartedState()
+{
+    gcnHostFileHandle* handle = static_cast<gcnHostFileHandle*>(file);
+    if (offset != (unsigned long)ftell(handle->host_file)) {
+        unsigned long seek_result = fseek(handle->host_file,
+                                          (long)(offset & 0x7FFFFFFF), 0);
+        if (seek_result != (unsigned long)(offset & 0x7FFFFFFF)) {
+            error = -9;
+            return 2;
         }
     }
-    if (open_count != 0) {
-        *open_count = &open_counts[priority & 3];
+    bytes_written = fwrite(source, 1, length, handle->host_file);
+    if (offset + bytes_written > handle->getSize()) {
+        handle->updateSize(offset + bytes_written);
     }
-    return &file_info[priority & 3];
+    error = 0;
+    return 2;
 }
 
-int mwFileGCHandle::nativeOpen(const char* path, unsigned long open_flags)
+mwFileAsyncResult gcnHostWriteCommand::getResult() const
 {
+    mwFileAsyncResult result;
+    result.error = error;
+    result.value.bytes = bytes_written;
+    return result;
+}
+
+gcnHostFlushCommand::gcnHostFlushCommand(mwFileCallback completion_callback,
+                                         void* completion_data, mwFile* owning_file)
+    : mwFileCommandPlugin<gcnHostFlushCommand>(completion_callback, completion_data, owning_file)
+{
+}
+
+int gcnHostFlushCommand::handleNotStartedState()
+{
+    fflush(static_cast<gcnHostFileHandle*>(getFile())->host_file);
+    error = 0;
+    return 2;
+}
+
+mwFileAsyncResult gcnHostFlushCommand::getResult() const
+{
+    mwFileAsyncResult result;
+    result.error = error;
+    result.value.bytes = error;
+    return result;
+}
+
+gcnHostCloseCommand::gcnHostCloseCommand(mwFileCallback completion_callback,
+                                         void* completion_data, mwFile* owning_file)
+    : mwFileCommandPlugin<gcnHostCloseCommand>(completion_callback, completion_data, owning_file)
+{
+}
+
+gcnHostCloseCommand::~gcnHostCloseCommand()
+{
+    delete file;
+    file = 0;
+}
+
+int gcnHostCloseCommand::handleNotStartedState()
+{
+    static_cast<gcnHostFileHandle*>(file)->close();
+    error = 0;
+    return 2;
+}
+
+mwFileAsyncResult gcnHostCloseCommand::getResult() const
+{
+    mwFileAsyncResult result;
+    result.value.bytes = error;
+    result.error = error;
+    return result;
+}
+
+gcnHostFileHandle::gcnHostFileHandle(gcnHostMountPoint& mount_point, const mwFileString& path,
+                                     unsigned long open_flags)
+    : mwFileHandlePlugin<gcnHostFileTraits>(mount_point, open_flags), host_file(0)
+{
+    setDebugName(path.data());
+}
+
+gcnHostFileHandle::~gcnHostFileHandle()
+{
+}
+
+int gcnHostFileHandle::open(const char* path)
+{
+    unsigned long open_flags = getFlags();
+    char type;
+    char plus = 0;
+
     if ((open_flags & 2) != 0) {
-        _mwFileNoOp(&stringBase0[DVD_WRITE_MESSAGE], path);
-        return -24;
+        if ((open_flags & 4) != 0) {
+            type = 'a';
+            if ((open_flags & 1) != 0) {
+                plus = '+';
+            }
+        } else if ((open_flags & 8) != 0) {
+            type = 'w';
+            if ((open_flags & 1) != 0) {
+                plus = '+';
+            }
+        }
+    } else {
+        _mwFileNoOp(&stringBase0[HOST_READ_MESSAGE], path);
+        return -13;
     }
 
-    entry_number = DVDConvertPathToEntrynum(path);
-    if (entry_number == -1) {
+    char mode[4];
+    mode[0] = type;
+    mode[1] = 'b';
+    mode[2] = plus;
+    mode[3] = '\0';
+    host_file = fopen(path, mode);
+    if (host_file == 0) {
         return -18;
-    }
-    if (openInstance(1)) {
-        size = handle(1, 0)->length;
-        field_0x18 = handle(1, 0)->start_address >> 11;
+    } else {
+        long position = ftell(host_file);
+        fseek(host_file, 0, 2);
+        setSize(ftell(host_file));
+        fseek(host_file, position, 0);
         return 0;
     }
-    return -18;
 }
 
-unsigned long mwFileGCHandle::getFileAlign()
+int gcnHostFileHandle::close()
 {
-    return 4;
-}
-
-unsigned long mwFileGCHandle::getReadAlign()
-{
-    return 32;
-}
-
-mwFileGCHandle::~mwFileGCHandle()
-{
-    OSGetCurrentThread();
-}
-
-mwFileGCHandle::mwFileGCHandle(mwFileMountPoint& mount_point, unsigned long open_flags)
-    : mwFileXPHandle<mwFileGCHandle>(mount_point, open_flags), entry_number(-1)
-{
-    memset(file_info, 0, sizeof(file_info));
-    memset(open_counts, 0, sizeof(open_counts));
-}
-
-void mwFileCondition::wait(mwFileMutex& mutex)
-{
-    OSWaitCond(this, &mutex);
-}
-
-void mwFileCondition::signal()
-{
-    OSSignalCond(this);
-}
-
-mwFileCondition::~mwFileCondition()
-{
-}
-
-mwFileCondition::mwFileCondition()
-{
-    OSInitCond(this);
-}
-
-void mwFileEvent::reset()
-{
-    OSLockMutex(&mutex);
-    signaled = false;
-    OSUnlockMutex(&mutex);
-}
-
-void mwFileEvent::set()
-{
-    OSLockMutex(&mutex);
-    signaled = true;
-    OSUnlockMutex(&mutex);
-    OSSignalCond(&condition);
-}
-
-mwFileEvent::mwFileEvent() : signaled(false)
-{
-    OSInitMutex(&mutex);
-    OSInitCond(&condition);
-}
-
-void mwFileMutex::unlock()
-{
-    OSUnlockMutex(this);
-}
-
-void mwFileMutex::lock()
-{
-    OSLockMutex(this);
-}
-
-mwFileMutex::~mwFileMutex()
-{
-}
-
-mwFileMutex::mwFileMutex()
-{
-    OSInitMutex(this);
-}
-
-int _mwFilePlatformInit(_mwFileInitParam* param)
-{
-    mwFileXPHandle<mwFileGCHandle>::setBufferSize(param->file_handle_tracking_size);
-    if (!gcnGetDriver().server.isInitialized()) {
-        int error = gcnGetDriver().initialize(param);
-        if (error != 0) {
-            return error;
-        }
+    if (host_file != 0) {
+        fclose(host_file);
+        host_file = 0;
     }
     return 0;
 }
 
-bool _mwFilePlatformIsInServiceThread()
+gcnHostMountPoint::gcnHostMountPoint(const char* mount_name, mwFileServer& server_ref)
+    : mwFileDevicePlugin<gcnHostMountPoint, gcnHostOpenCommand>(mount_name, server_ref)
 {
-    gcnDriver& driver = gcnGetDriver();
-    return OSGetCurrentThread() == &driver.service_thread;
+    full_path.reserve(0x200);
 }
 
-int _mwFilePlatformInterlockedDecrement(volatile int& value)
+const char* gcnHostMountPoint::convertPath(const char* path)
 {
-    int interrupts = OSDisableInterrupts();
-    int result = --value;
-    OSRestoreInterrupts(interrupts);
-    return result;
+    full_path = &stringBase0[SLASH_STRING];
+    full_path.append(path);
+    std::replace(full_path.begin(), full_path.end(), '\\', '/');
+    return full_path.data();
 }
 
-int _mwFilePlatformInterlockedIncrement(volatile int& value)
+gcnCDMountPoint::gcnCDMountPoint(const char* mount_name, mwFileServer& server_ref)
+    : mwFileDevicePlugin<gcnCDMountPoint, mwFileXPOpenCommand<mwFileGCHandle> >(mount_name,
+                                                                               server_ref)
 {
-    int interrupts = OSDisableInterrupts();
-    int result = ++value;
-    OSRestoreInterrupts(interrupts);
-    return result;
+    full_path.reserve(0x200);
 }
 
-void _mwFilePlatformYieldTimeSlice()
+const char* gcnCDMountPoint::convertPath(const char* path)
 {
-    OSYieldThread();
+    full_path = &stringBase0[SLASH_STRING];
+    full_path.append(path);
+    std::replace(full_path.begin(), full_path.end(), '\\', '/');
+    return full_path.data();
 }
 
-int mwFileStringCompareIgnoreCase(const char* left, const char* right)
-{
-    while (*left != '\0' && *right != '\0') {
-        int left_char = std::tolower(*left++);
-        int right_char = std::tolower(*right++);
-
-        if (left_char != right_char) {
-            return left_char < right_char ? -1 : 1;
-        }
-    }
-
-    if (*left == '\0' && *right == '\0') {
-        return 0;
-    }
-    if (*left == '\0') {
-        return -1;
-    }
-    return 1;
 }
 
-void _mwFilePlatformTick()
+void mwFileGCServer::queryErrorState()
 {
-    gcnGetDriver().queryErrorState();
-}
+    mwFileMutexLock lock(mutex);
 
-gcnDriver& gcnGetDriver()
-{
-    static gcnDriver sDriver;
-    return sDriver;
-}
-
-namespace {
-int gcnHostOpenCommand::serviceState(int state)
-{
-    switch (state) {
-    case 0:
-        return handleNotStartedState();
-    }
-    return mwFileCommandPlugin<gcnHostOpenCommand>::serviceState(state);
-}
-
-int gcnHostWriteCommand::serviceState(int state)
-{
-    switch (state) {
-    case 0: {
-        gcnHostFileHandle* handle = static_cast<gcnHostFileHandle*>(file);
-        if (offset != (unsigned long)ftell(handle->host_file)) {
-            unsigned long seek_result = fseek(handle->host_file,
-                                              (long)(offset & 0x7FFFFFFF), 0);
-            if (seek_result != (unsigned long)(offset & 0x7FFFFFFF)) {
-                error = -9;
-                return 2;
+    for (unsigned char i = 0; i <= 2; i++) {
+        mwFileCommand* command = active[i];
+        if (command != 0) {
+            void* queried_object;
+            mwFileGCErrorState* state;
+            if (command->isA(&mwFileClassTypeInfo<mwFileGCErrorState>::sTypeInfo,
+                             queried_object)) {
+                state = static_cast<mwFileGCErrorState*>(queried_object);
+            } else {
+                state = 0;
+            }
+            if (state != 0) {
+                state->queryErrorState();
             }
         }
-        bytes_written = fwrite(source, 1, length, handle->host_file);
-        if (offset + bytes_written > handle->getSize()) {
-            handle->updateSize(offset + bytes_written);
-        }
-        error = 0;
-        return 2;
     }
-    }
-    return mwFileCommandPlugin<gcnHostWriteCommand>::serviceState(state);
-}
-
-int gcnHostFlushCommand::serviceState(int state)
-{
-    switch (state) {
-    case 0:
-        fflush(static_cast<gcnHostFileHandle*>(file)->host_file);
-        error = 0;
-        break;
-    default:
-        return mwFileCommandPlugin<gcnHostFlushCommand>::serviceState(state);
-    }
-    return 2;
-}
-
-int gcnHostCloseCommand::serviceState(int state)
-{
-    switch (state) {
-    case 0: {
-        gcnHostFileHandle* handle = static_cast<gcnHostFileHandle*>(file);
-        if (handle->host_file != 0) {
-            fclose(handle->host_file);
-            handle->host_file = 0;
-        }
-        error = 0;
-        break;
-    }
-    default:
-        return mwFileCommandPlugin<gcnHostCloseCommand>::serviceState(state);
-    }
-    return 2;
-}
 }
 
 /* TODO: [near miss] 99.16667% for mwFileGCReadBufferedCommand; this/previous
@@ -1815,7 +1927,7 @@ template <class T, class OpenCommand>
 mwFileMountPointPlugin<T, OpenCommand>::mwFileMountPointPlugin(const char* mount_name,
                                                                mwFileServer& server_ref)
     : mwFileMountPoint(mount_name),
-      server((OSInitMutex(&mutex), server_ref))
+      server(server_ref)
 {
     strcpy(internal_path, &stringBase0[SLASH_STRING]);
     strcat(internal_path, mount_name);
@@ -1828,7 +1940,7 @@ int mwFileMountPointPlugin<T, OpenCommand>::startOpenFileCommand(
     mwFileCallback completion_callback, void* completion_data)
 {
     {
-        mwFileOSMutexLock lock(mutex);
+        mwFileMutexLock lock(mutex);
         const char* converted = static_cast<T*>(this)->convertPath(path);
         if (converted == 0) {
             return -15;
@@ -1853,7 +1965,7 @@ template <class T, class OpenCommand>
 int mwFileMountPointPlugin<T, OpenCommand>::convertToPlatformPath(
     char* buffer, const char* path, unsigned long size, unsigned long& required)
 {
-    mwFileOSMutexLock lock(mutex);
+    mwFileMutexLock lock(mutex);
     const char* converted = static_cast<T*>(this)->convertPath(path);
     if (converted == 0) {
         return -15;
@@ -2095,14 +2207,13 @@ mwFileXPOpenCommand<H>::~mwFileXPOpenCommand()
     }
 }
 
-/* TODO: [breakthrough needed] 82.69231%; error reload/copy remain;
- * definition/body CSE scopes restore before deferred emission. */
 template <class H>
 mwFileAsyncResult mwFileXPOpenCommand<H>::getResult() const
 {
     mwFileAsyncResult result;
-    result.value.file = this->error != 0 ? 0 : this->file;
-    result.error = this->error;
+    mwFileAsyncResult* r = &result;
+    r->value.file = this->error != 0 ? 0 : this->file;
+    r->error = this->error;
     return result;
 }
 
@@ -2233,18 +2344,6 @@ mwFileXPReadUnbufferedCommand<T, H>::~mwFileXPReadUnbufferedCommand()
 }
 
 template <class T, class H>
-inline unsigned char mwFileXPReadUnbufferedCommand<T, H>::isA(mwFileTypeInfo* type,
-                                                        const void*& object) const
-{
-    if (type == &mwFileClassTypeInfo<mwFileCommandProgress>::sTypeInfo) {
-        object = static_cast<const mwFileCommandProgress*>(this);
-        return true;
-    }
-    object = 0;
-    return false;
-}
-
-template <class T, class H>
 int mwFileXPReadUnbufferedCommand<T, H>::abort()
 {
     int result = mwFileCommandPluginBase::abort();
@@ -2280,14 +2379,13 @@ int mwFileXPReadUnbufferedCommand<T, H>::handleSignalState()
     return mwFileCommandPluginBase::handleSignalState();
 }
 
-/* TODO: [breakthrough needed] 96.63265%; recover per-consumer nativeProgress
- * expansion and mixin ownership while preserving exact getProgressBytes. */
 template <class T, class H>
 int mwFileXPReadUnbufferedCommand<T, H>::handleReadingState()
 {
     mwFileError result;
+    mwFileGCIOMixIn<T>& io = *static_cast<T*>(this);
 
-    if (!static_cast<T*>(this)->nativeContinueRead(result)) {
+    if (!io.nativeContinueRead(result)) {
         if (this->isAborted()) {
             bytes_read = 0;
             this->error = -16;
@@ -2298,10 +2396,10 @@ int mwFileXPReadUnbufferedCommand<T, H>::handleReadingState()
             bytes_read = 0;
             return 2;
         }
-        bytes_read = static_cast<T*>(this)->nativeProgress();
+        bytes_read = io.nativeProgress();
         return 2;
     }
-    gcnInterlockedDecrement(this->reference_count);
+    _mwFilePlatformInterlockedDecrement(this->reference_count);
     return 7;
 }
 
@@ -2341,18 +2439,6 @@ mwFileXPReadBufferedCommand<T, H>::mwFileXPReadBufferedCommand(
 template <class T, class H>
 mwFileXPReadBufferedCommand<T, H>::~mwFileXPReadBufferedCommand()
 {
-}
-
-template <class T, class H>
-inline unsigned char mwFileXPReadBufferedCommand<T, H>::isA(mwFileTypeInfo* type,
-                                                      const void*& object) const
-{
-    if (type == &mwFileClassTypeInfo<mwFileCommandProgress>::sTypeInfo) {
-        object = static_cast<const mwFileCommandProgress*>(this);
-        return true;
-    }
-    object = 0;
-    return false;
 }
 
 template <class T, class H>
@@ -2465,7 +2551,7 @@ int mwFileXPReadBufferedCommand<T, H>::handleFillingState()
         }
         return 7;
     }
-    gcnInterlockedDecrement(this->reference_count);
+    _mwFilePlatformInterlockedDecrement(this->reference_count);
     return 8;
 }
 
@@ -2481,48 +2567,6 @@ int mwFileXPReadBufferedCommand<T, H>::handleNotStartedState()
         return 2;
     }
     return static_cast<H*>(this->file)->lockBuffer(read_buffer) ? 7 : 0;
-}
-
-unsigned char mwFileGCCloseCommand::isA(mwFileTypeInfo* type, const void*& object) const
-{
-    if (type == &mwFileClassTypeInfo<mwFileGCErrorState>::sTypeInfo) {
-        object = static_cast<const mwFileGCErrorState*>(this);
-        return true;
-    }
-    if (mwFileQueryable::isA(type, object)) {
-        return true;
-    }
-    object = 0;
-    return false;
-}
-
-unsigned char mwFileGCReadUnbufferedCommand::isA(mwFileTypeInfo* type,
-                                                  const void*& object) const
-{
-    if (type == &mwFileClassTypeInfo<mwFileGCErrorState>::sTypeInfo) {
-        object = static_cast<const mwFileGCErrorState*>(this);
-        return true;
-    }
-    if (mwFileXPReadUnbufferedCommand<mwFileGCReadUnbufferedCommand, mwFileGCHandle>::isA(
-            type, object)) {
-        return true;
-    }
-    object = 0;
-    return false;
-}
-
-unsigned char mwFileGCReadBufferedCommand::isA(mwFileTypeInfo* type, const void*& object) const
-{
-    if (type == &mwFileClassTypeInfo<mwFileGCErrorState>::sTypeInfo) {
-        object = static_cast<const mwFileGCErrorState*>(this);
-        return true;
-    }
-    if (mwFileXPReadBufferedCommand<mwFileGCReadBufferedCommand, mwFileGCHandle>::isA(
-            type, object)) {
-        return true;
-    }
-    object = 0;
-    return false;
 }
 
 template <class Command>
@@ -2706,11 +2750,8 @@ void mwFileGCIOMixIn<Command>::gcCallbackThunk(long result, DVDFileInfo* info)
     io->busy = false;
     --*io->open_count;
     Command* command = static_cast<Command*>(io);
-    if (!OSSendMessage(&gcnGetDriver().wakeup_queue, command, 0)) {
-        _mwFileNoOp(&stringBase0[WAKEUP_ERROR_MESSAGE]);
-    }
+    gcnGetDriver().wakeupCommand(command);
 }
-
 
 template <unsigned long ResultValue, int ResultError>
 mwFileFailCommand<ResultValue, ResultError>::~mwFileFailCommand()
@@ -2780,18 +2821,3 @@ void mwFileFailCommand<ResultValue, ResultError>::deleteSelf()
     }
 }
 
-template class mwFileFailCommand<0, -13>;
-
-void gcnDriver::queryErrorState()
-{
-    server.queryErrorState();
-}
-
-template <class T>
-T mwRoundUp(T value, unsigned int alignment)
-{
-    return (value + alignment - 1) & ~static_cast<T>(alignment - 1);
-}
-
-template unsigned long mwRoundUp<unsigned long>(unsigned long, unsigned int);
-template unsigned long long mwRoundUp<unsigned long long>(unsigned long long, unsigned int);

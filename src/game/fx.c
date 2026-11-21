@@ -24,6 +24,8 @@
 #include "platform/main.h"
 #include "platform/io.h"
 #include "platform/display_metrics.h"
+#include "game/game.h"
+#include "game/plyr.h"
 
 #define YINYANG_LENSFLARE_PID 0x3019
 #define FREEZE_TEXTURE_HANDLE 0x10005
@@ -135,10 +137,7 @@ static int f_p1_showing_fatatality;
 static int f_p2_showing_fatatality;
 static int f_p1_show_fatality_off;
 static int f_p2_show_fatality_off;
-extern int check_for_winner(void);
 extern void kill_fstyle_signs_for_plyr(PlyrInfo* player);
-extern MkPtr* freeze_light_list;
-extern PlyrPdata* his_pdata;
 double __fabs(double value);
 static RpMaterial* material_set_specular(RpMaterial* material,
                                          void* data);

@@ -8,7 +8,6 @@ extern "C" {
 void __mwMovie_initVideo(void);
 void __mwMovie_shutdownVideo(void);
 void __mwMovie_syncFrame(void);
-void ADXM_ExecMain(void);
 void initADXwithDVD(const char* path, int audio_enable);
 void initADXwithPC(const char* path, int audio_enable);
 void initADXwithMEM(int audio_enable);

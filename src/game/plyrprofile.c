@@ -24,18 +24,12 @@
 #include "runtime/sound.h"
 #include "runtime/cstring.h"
 #include "runtime/cstdio.h"
+#include "game/mcardmsg.h"
 
-void reset_sg_status(StorageDevice* device, int slot);
-void ppc_set_stage_value(int stage);
 static void pne_set_players_name_to_default(char* name, int* charPos);
 static float p_player_profile_whats_loaded_screen(void);
-void set_sal_cursor(int v);
 static void pv_recalculate_profiles_and_position(int* outDevice, int* outSlot,
                                                  int* outCount, int* outPosition);
-int is_memcard_scanner_running(void);
-void kill_async_memcard_scan(void);
-int get_multi_profile_cursor_p1(void);
-int get_multi_profile_cursor_p2(void);
 void move_player_name(const char* src, char* dst);
 void move_player_pin(const unsigned char* src, unsigned char* dst);
 
@@ -125,7 +119,6 @@ extern ProfileUnlockBits64 default_alt_char_bits;
 extern ProfileUnlockBits64 default_bgnd_bits;
 extern ProfileUnlockBits64 default_pz_char_bits;
 extern ProfileUnlockBits64 default_pz_bgnd_bits;
-void pselect_update_profile_settings(void);
 
 #define PROFILE_MENU_SCREEN_SLOT 0x90046
 #define PROFILE_VIEW_SCREEN "common/player_profile/pp_view_profile"
@@ -176,9 +169,6 @@ static inline void spawn_ppwls_timeout_proc(void) {
 
 PlayerProfile p1_profile;
 PlayerProfile p2_profile;
-extern int mcard_msg_active;
-extern int p1_rumble_on;
-extern int p2_rumble_on;
 
 static inline void copy_profile_switch_defaults(PlayerProfile* profile) {
     int i;
@@ -238,53 +228,7 @@ static inline int find_device_display_status_impl(int device, int compact_no_fil
     }
     return 1;
 }
-
-void erase_player_profile(int device, int slot) {
-    StorageDevice* base;
-    int* freeBytes;
-    unsigned int* freeBlocks;
-    const char* title;
-    int region;
-    int ok;
-
-    if (device < 0 || device >= STORAGE_MAX_DEVICES || slot < 0 || slot >= STORAGE_MAX_SLOTS) {
-        return;
-    }
-    base = DEVICE_AT(device);
-    reset_sg_status(base, slot);
-    storage_status_change_calculations(device);
-    mcard_msg_deleting_data(device);
-    clear_region_buffer();
-
-    freeBlocks = &base->freeBlocks;
-    freeBytes = &base->freeBytes;
-    region = 1;
-    ok = 1;
-    while (region < 9 && ok != 0) {
-        title = nbc_find_text(NBC_MEMCARD_TITLE, 1);
-        ok = save_konquest_region_to_memcard_w_error(
-            device, slot, 5, title, region,
-            konq_region_data_buffer, 0, freeBlocks, freeBytes);
-        if (ok != 0 && mcard_msg_active != MCARD_MSG_ACTIVE_PROGRESS) {
-            mcard_msg_end();
-            mcard_msg_deleting_data(device);
-        }
-        region++;
-    }
-
-    if (ok != 0) {
-        ok = save_to_memcard_w_error(
-            device, 4, nbc_find_text(NBC_MEMCARD_TITLE, 1), &base->settings, 0,
-            freeBlocks, freeBytes);
-    }
-
-    if (ok != 0) {
-        mcard_msg_delete_successful_generic();
-    } else {
-        mcard_msg_delete_failed_generic();
-    }
-    mcard_msg_end();
-}
+void erase_player_profile(int device, int slot);
 
 static inline void delete_selected_profile(void) {
     int device;
@@ -330,190 +274,12 @@ static inline void delete_selected_profile(void) {
         mcard_msg_end();
     }
 }
-
-float p_delete_profile(void) {
-    int statusChanged;
-
-    number_profiles = 0;
-    position = 0;
-    screen_obj = 0;
-    scan_cards_timer = 0x3C;
-    pos_device = -1;
-    pos_slot = -1;
-    pprofile_player = menu_player;
-
-    if (pprofile_player == 0 || pprofile_player == 1) {
-        pprofile_pad = (&g_game_info.plyr0)[pprofile_player].pad_index;
-        set_mode_of_play(3);
-        push_game_state(0xD);
-        set_player_state(&(&g_game_info.plyr0)[pprofile_player], 2);
-        setup_sound_banks(1);
-        wait_for_sound_banks_to_load();
-        unload_player_profiles();
-        set_mode_of_play(3);
-        pv_recalculate_profiles_and_position(&pos_device, &pos_slot, &number_profiles, &position);
-        load_screen(PROFILE_DELETE_SCREEN, PROFILE_MENU_SCREEN_SLOT, 0, 1);
-        turn_camera_on();
-        turn_controllers_on();
-        button_answer = 0;
-
-        while (button_answer != 2) {
-            statusChanged = scan_cards_timer;
-            scan_cards_timer = statusChanged - 1;
-            if (statusChanged == 0) {
-                if (update_storage_status(0) != 0) {
-                    pv_recalculate_profiles_and_position(&pos_device, &pos_slot, &number_profiles,
-                                                        &position);
-                }
-                fire_screen_studio_event(PROFILE_MENU_EVENT_REFRESH, 0);
-                scan_cards_timer = 0x1E;
-            }
-
-            if (pos_device != -1 && pos_slot != -1 && number_profiles > 0 && button_answer == 1) {
-                mcard_msg_confirm_erase();
-                while (mcard_msg_confirm_erase_answer == 0) {
-                    _mkproc_sleep_ticks = kOne;
-                    mkproc_sleep();
-                }
-                mcard_msg_end();
-
-                if (mcard_msg_confirm_erase_answer == 1) {
-                    if (update_storage_status(0) == 0) {
-                        delete_selected_profile();
-                    }
-                }
-                pv_recalculate_profiles_and_position(&pos_device, &pos_slot, &number_profiles,
-                                                    &position);
-                _mkproc_sleep_ticks = kOne;
-                mkproc_sleep();
-                fire_screen_studio_event(PROFILE_MENU_EVENT_REFRESH, 0);
-                button_answer = 0;
-            }
-
-            _mkproc_sleep_ticks = kOne;
-            mkproc_sleep();
-        }
-
-        fade_to_black(PROFILE_MENU_FADE_FRAMES, 1);
-    }
-
-    set_player_state(&(&g_game_info.plyr0)[pprofile_player], 0);
-    set_mode_of_play(0xD);
-    pop_game_state();
-    gamelogic_jump(6, p_main_menu);
-    return kNegOne;
-}
-
-void ppv_get_current_profile_koins(char* dest, int index) {
-    StorageProfileSlot* slot;
-    int value;
-
-    if (pos_device >= 0 && pos_device < STORAGE_MAX_DEVICES &&
-        pos_slot >= 0 && pos_slot < STORAGE_MAX_SLOTS) {
-        slot = &DEVICE_AT(pos_device)->profiles[pos_slot];
-    } else {
-        slot = 0;
-    }
-    if (index < 0 || index >= 6 || slot == 0) {
-        value = 0;
-    } else {
-        value = slot->koins[index];
-    }
-    format_value_to_display(dest, value);
-}
-
-static void format_profile_stat_pair(char* result, unsigned int raw_first,
-                                            unsigned int raw_second) {
-    char first_text[12];
-    char second_text[12];
-    unsigned int first;
-    unsigned int second;
-
-    first = raw_first < 1000000U ? raw_first : 999999U;
-    second = raw_second < 1000000U ? raw_second : 999999U;
-    format_value_to_display(first_text, first);
-    format_value_to_display(second_text, second);
-    sprintf(result, "%s / %s", first_text, second_text);
-}
-
-void get_profile_stats(char** outs) {
-    StorageProfileSlot* slot;
-    char result[24];
-    int out_index;
-
-    for (out_index = 0; out_index < 9; out_index++) {
-        strcpy(outs[out_index], "0 / 0");
-    }
-
-    if (pos_device >= 0 && pos_device < STORAGE_MAX_DEVICES &&
-        pos_slot >= 0 && pos_slot < STORAGE_MAX_SLOTS) {
-        slot = &DEVICE_AT(pos_device)->profiles[pos_slot];
-    } else {
-        slot = 0;
-    }
-    if (slot != 0) {
-        format_profile_stat_pair(result, slot->view_stats_early[0][0],
-                                 slot->view_stats_early[0][1]);
-        strcpy(outs[0], result);
-        format_profile_stat_pair(result, slot->view_stats_early[1][0],
-                                 slot->view_stats_early[1][1]);
-        strcpy(outs[1], result);
-        format_profile_stat_pair(result, slot->view_stats_early[2][0],
-                                 slot->view_stats_early[2][1]);
-        strcpy(outs[2], result);
-        format_profile_stat_pair(result, slot->view_stats_mid[0][0],
-                                 slot->view_stats_mid[0][1]);
-        strcpy(outs[3], result);
-        format_profile_stat_pair(result, slot->view_stats_mid[1][0],
-                                 slot->view_stats_mid[1][1]);
-        strcpy(outs[4], result);
-        format_profile_stat_pair(result, slot->view_stats_mid[2][0],
-                                 slot->view_stats_mid[2][1]);
-        strcpy(outs[5], result);
-        format_profile_stat_pair(result, slot->view_stats_late[0][0],
-                                 slot->view_stats_late[0][1]);
-        strcpy(outs[6], result);
-        format_profile_stat_pair(result, slot->view_stats_late[1][0],
-                                 slot->view_stats_late[1][1]);
-        strcpy(outs[7], result);
-        format_profile_stat_pair(result, slot->view_stats_late[2][0],
-                                 slot->view_stats_late[2][1]);
-        strcpy(outs[8], result);
-    }
-}
-
-void ppv_get_current_profile_arcade_finishes(char* dest) {
-    StorageProfileSlot* slot;
-    int value;
-
-    if (pos_device >= 0 && pos_device < STORAGE_MAX_DEVICES &&
-        pos_slot >= 0 && pos_slot < STORAGE_MAX_SLOTS) {
-        slot = &DEVICE_AT(pos_device)->profiles[pos_slot];
-    } else {
-        slot = 0;
-    }
-    if (slot != 0) {
-        value = slot->arcade_finishes;
-    } else {
-        value = 0;
-    }
-    format_value_to_display(dest, value);
-}
-
-char* ppv_get_current_profile_name(void) {
-    StorageProfileSlot* slot;
-
-    if (pos_device >= 0 && pos_device < STORAGE_MAX_DEVICES &&
-        pos_slot >= 0 && pos_slot < STORAGE_MAX_SLOTS) {
-        slot = &DEVICE_AT(pos_device)->profiles[pos_slot];
-    } else {
-        slot = 0;
-    }
-    if (slot != 0) {
-        return slot->name;
-    }
-    return (char*)nbc_find_text(NBC_EMPTY_PROFILE_NAME, 1);
-}
+float p_delete_profile(void);
+void ppv_get_current_profile_koins(char* dest, int index);
+static inline void format_profile_stat_pair(char* result, unsigned int raw_first, unsigned int raw_second);
+void get_profile_stats(char** outs);
+void ppv_get_current_profile_arcade_finishes(char* dest);
+char* ppv_get_current_profile_name(void);
 
 static inline void advance_device_slot(int* device, int* slot) {
     if (*device < 0 || *device >= STORAGE_MAX_DEVICES || *slot < 0 || *slot >= STORAGE_MAX_SLOTS) {
@@ -565,26 +331,6 @@ static inline int profile_count_all(void) {
     }
     return total;
 }
-
-#pragma auto_inline off
-static void pv_recalculate_profiles_and_position(int* outDevice, int* outSlot,
-                                                 int* outCount, int* outPosition) {
-    int i;
-
-    *outDevice = -1;
-    *outSlot = -1;
-    *outCount = profile_count_all();
-    *outPosition = *outCount / 2;
-    if (*outCount > 0) {
-        *outDevice = 1;
-        *outSlot = 6;
-        for (i = 0; i < *outPosition + 1; i++) {
-            pv_find_next_present_profile(outDevice, outSlot);
-        }
-    }
-}
-
-#pragma auto_inline reset
 
 
 static inline void ppv_find_previous_present(int* device, int* slot) {
@@ -693,73 +439,8 @@ static inline StorageProfileSlot* ppv_profile_at(int device, int slot) {
     }
     return result;
 }
-
-void ppv_view_profile_icon_list(GVTexturePair out) {
-    StorageProfileSlot* profile;
-    int i;
-    int device;
-    int slot;
-    int before;
-    int after;
-    int start;
-    int count;
-    int steps;
-    int profiles;
-
-    device = pos_device;
-    slot = pos_slot;
-    for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
-        out.colors[i] = 0;
-    }
-    if ((profiles = number_profiles) == 0) {
-        return;
-    }
-
-    before = 3;
-    if (position < 3) {
-        before = position;
-    }
-    after = 3;
-    if (profiles - position <= 3) {
-        after = profiles - position - 1;
-    }
-    count = before + after + (profiles != 0);
-    start = 3 - before;
-
-    steps = before;
-    while (steps > 0) {
-        ppv_find_previous_present(&device, &slot);
-        steps--;
-    }
-
-    for (i = start; i < count + start; i++) {
-        if (i == start) {
-            profile = ppv_profile_at(device, slot);
-        } else {
-            profile = ppv_find_next_present(&device, &slot);
-        }
-        if (profile != 0) {
-            out.colors[i] =
-                load_named_tga_from_slot(PROFILE_MENU_SCREEN_SLOT, ppwls_icon[profile->icon].alpha);
-        }
-    }
-}
-
-void ppv_update_profile_cursor(int delta) {
-    int newPosition;
-
-    newPosition = position + delta;
-    if (newPosition >= 0 && newPosition < number_profiles) {
-        if (delta > 0) {
-            (void)ppv_find_next_present(&pos_device, &pos_slot);
-            position++;
-        } else {
-            ppv_find_previous_present(&pos_device, &pos_slot);
-            position--;
-        }
-    }
-    fire_screen_studio_event(PROFILE_MENU_EVENT_REFRESH, 0);
-}
+void ppv_view_profile_icon_list(GVTexturePair out);
+void ppv_update_profile_cursor(int delta);
 
 static inline int begin_profile_view(void) {
     number_profiles = 0;
@@ -771,58 +452,9 @@ static inline int begin_profile_view(void) {
     pprofile_player = menu_player;
     return pprofile_player;
 }
-
-float p_view_profile(void) {
-    int statusChanged;
-    int player;
-
-    player = begin_profile_view();
-
-    if (player == 0 || player == 1) {
-        pprofile_pad = g_game_info.players[player].pad_index;
-        set_mode_of_play(3);
-        push_game_state(0xD);
-        set_player_state(&g_game_info.players[pprofile_player], 2);
-        setup_sound_banks(1);
-        wait_for_sound_banks_to_load();
-        pv_recalculate_profiles_and_position(&pos_device, &pos_slot, &number_profiles, &position);
-        load_screen(PROFILE_VIEW_SCREEN, PROFILE_MENU_SCREEN_SLOT, 0, 1);
-        turn_camera_on();
-        turn_controllers_on();
-        button_answer = 0;
-
-        while (button_answer != 2) {
-            statusChanged = scan_cards_timer;
-            scan_cards_timer = statusChanged - 1;
-            if (statusChanged == 0) {
-                if (update_storage_status(0) != 0) {
-                    pv_recalculate_profiles_and_position(&pos_device, &pos_slot, &number_profiles,
-                                                        &position);
-                    fire_screen_studio_event(PROFILE_MENU_EVENT_REFRESH, 0);
-                }
-                scan_cards_timer = 0x1E;
-            }
-            _mkproc_sleep_ticks = kOne;
-            mkproc_sleep();
-        }
-
-        fade_to_black(PROFILE_MENU_FADE_FRAMES, 1);
-    }
-
-    pop_game_state();
-    set_mode_of_play(0xD);
-    set_player_state(&g_game_info.players[pprofile_player], 0);
-    gamelogic_jump(6, p_main_menu);
-    return kNegOne;
-}
-
-char* get_current_create_a_profile_name(void) {
-    return player_name;
-}
-
-int pne_is_name_already_used(void) {
-    return 0;
-}
+float p_view_profile(void);
+char* get_current_create_a_profile_name(void);
+int pne_is_name_already_used(void);
 
 static inline void initialize_player_name_entry(void)
 {
@@ -850,121 +482,11 @@ static inline void pp_store_player_name_char(unsigned char value, int position)
     }
     *out = value;
 }
-
-void pp_name_entry_proces_char_entry(const char* key_name) {
-    int found;
-    int key;
-    int i;
-    unsigned char value;
-
-    found = 0;
-    key = 0;
-    if (key_name == 0) {
-        return;
-    }
-    i = 0;
-    while (i < 39 && found == 0) {
-        strcmp(key_name, pne_alpha_data_table[i].name);
-        if (strcmp(key_name, pne_alpha_data_table[i].name) == 0) {
-            found = 1;
-            key = i;
-        }
-        i++;
-    }
-    if (found == 0) {
-        return;
-    }
-
-    switch (key) {
-    case 0:
-    case 1:
-    case 2:
-    case 3:
-    case 4:
-    case 5:
-    case 6:
-    case 7:
-    case 8:
-    case 9:
-    case 10:
-    case 11:
-    case 12:
-    case 13:
-    case 14:
-    case 15:
-    case 16:
-    case 17:
-    case 18:
-    case 19:
-    case 20:
-    case 21:
-    case 22:
-    case 23:
-    case 24:
-    case 25:
-    case 26:
-    case 27:
-    case 28:
-    case 29:
-    case 30:
-    case 31:
-    case 32:
-    case 33:
-    case 34:
-    case 35:
-    case 36:
-        initialize_player_name_entry();
-        if (pne_char_position < 10) {
-            value = pne_alpha_data_table[key].value;
-            pp_store_player_name_char(value, pne_char_position);
-            fire_screen_studio_event(0x2FA8, 0);
-            if (pne_char_position < 10) {
-                pne_char_position++;
-            }
-        }
-        break;
-    case 37:
-        if (first_button_press != 0) {
-            initialize_player_name_entry();
-            pne_char_position = 1;
-        }
-        if (pne_char_position >= 1) {
-            pne_char_position--;
-            value = pne_alpha_data_table[key].value;
-            pp_store_player_name_char(value, pne_char_position);
-            fire_screen_studio_event(0x2FA8, 0);
-        }
-        break;
-    case 38:
-        if (pne_char_position > 0) {
-            name_entry_done = 1;
-        }
-        break;
-    default:
-        break;
-    }
-}
-
-void ppc_set_button_answer(int answer) {
-    button_answer = answer;
-}
-
-void ppc_set_current_icon_selection(int icon) {
-    player_icon = icon;
-}
-
-int ppc_get_code_state(void) {
-    return profile_code_state[pprofile_player];
-}
-
-void ppc_transition_pause(int paused) {
-    if (paused != 0) {
-        turn_controllers_off();
-    } else {
-        turn_controllers_on();
-        disable_all_ports_but_me(pprofile_pad);
-    }
-}
+void pp_name_entry_proces_char_entry(const char* key_name);
+void ppc_set_button_answer(int answer);
+void ppc_set_current_icon_selection(int icon);
+int ppc_get_code_state(void);
+void ppc_transition_pause(int paused);
 
 static inline void create_profile_sleep(float ticks) {
     _mkproc_sleep_ticks = ticks;
@@ -1045,6 +567,1469 @@ static inline int find_free_profile_slot(StorageDevice* storage) {
         }
     }
     return slot;
+}
+float p_create_profile(void);
+void format_value_to_display(char* dest, unsigned int value);
+char* get_heros_name(int which);
+
+static inline unsigned long long profile_unlock_bits_masked(
+    ProfileUnlockBits64* bits, unsigned long long mask) {
+    return bits->value & mask;
+}
+int is_mark_as_unlocked(PlayerProfile* profile, int category, int character);
+void mark_as_locked(PlayerProfile* profile, int category, int character);
+
+static inline void mark_bitset_unlocked(
+    ProfileUnlockBits64* bits, unsigned long long mask) {
+    bits->value |= mask;
+}
+void mark_as_unlocked(PlayerProfile* profile, int category, int character);
+void summarize_unlocked_items(void);
+
+static inline int profile_pins_equal(
+    PlayerProfile* live, StorageProfileSlot* slot) {
+    unsigned char* stored_pin;
+    unsigned char* live_pin;
+    int i;
+
+    stored_pin = slot->pin;
+    live_pin = live->pin;
+    for (i = 0; i < 6; i++) {
+        if (*live_pin != *stored_pin) {
+            return 0;
+        }
+        live_pin++;
+        stored_pin++;
+    }
+    return 1;
+}
+
+static inline int profile_names_equal(
+    PlayerProfile* live, StorageProfileSlot* slot) {
+    char* stored_name;
+    char* live_name;
+    int i;
+
+    stored_name = slot->name;
+    live_name = live->name;
+    for (i = 0; i < STORAGE_NAME_LEN; i++) {
+        if (*live_name != *stored_name) {
+            return 0;
+        }
+        live_name++;
+        stored_name++;
+    }
+    return 1;
+}
+
+static inline int profile_fully_matches(
+    PlayerProfile* live, StorageProfileSlot* slot) {
+    if (profile_pins_equal(live, slot) == 0) return 0;
+    if (profile_names_equal(live, slot) == 0) return 0;
+    return live->idChecksum == slot->idChecksum;
+}
+void check_new_mu_for_in_use_profiles(int device);
+
+/* TODO: [near miss] 99.67%; first profile_fully_matches swaps slot/pin temps r6/r8, coloring only. */
+static inline int profile_device_slot_fully_matches(
+    PlayerProfile* live, StorageDevice* device, int index) {
+    StorageProfileSlot* slot = &device->profiles[index];
+    return profile_fully_matches(live, slot);
+}
+int validate_save_location(int player);
+int validate_konq_save_location(int player);
+int validate_konq_load_location(int player);
+void quit_from_konquest(void);
+
+static inline int multi_code_matches_slot(
+    const unsigned char* code, StorageProfileSlot* slot) {
+    unsigned char* pin_cursor;
+    int i;
+
+    pin_cursor = slot->pin;
+    for (i = 0; i < 6; i++) {
+        if (*pin_cursor != *code) {
+            return 0;
+        }
+        pin_cursor++;
+        code++;
+    }
+    return 1;
+}
+
+static inline int multi_code_matches_pin(
+    const unsigned char* code, const unsigned char* pin) {
+    int i;
+
+    for (i = 0; i < 6; i++) {
+        if (*code != *pin) {
+            return 0;
+        }
+        code++;
+        pin++;
+    }
+    return 1;
+}
+
+static inline StorageProfileSlot* find_next_matching_profile(
+    const unsigned char* code, int* device, int* slot) {
+    int walkDevice;
+    int walkSlot;
+    int startDevice;
+    int startSlot;
+    int first;
+
+    startDevice = walkDevice = *device;
+    startSlot = walkSlot = *slot;
+    first = 1;
+    advance_device_slot(&walkDevice, &walkSlot);
+    while (walkDevice != startDevice || walkSlot != startSlot) {
+        if (DEVICE_AT(walkDevice)->profiles[walkSlot].present == 1 &&
+            DEVICE_AT(walkDevice)->inUse[walkSlot] == 0 &&
+            multi_code_matches_pin(
+                code, DEVICE_AT(walkDevice)->profiles[walkSlot].pin) != 0) {
+            *device = walkDevice;
+            *slot = walkSlot;
+            return &DEVICE_AT(walkDevice)->profiles[walkSlot];
+        }
+        advance_device_slot(&walkDevice, &walkSlot);
+        if (first != 0) {
+            advance_device_slot(&startDevice, &startSlot);
+            first = 0;
+        }
+    }
+    *device = -1;
+    *slot = -1;
+    return 0;
+}
+
+static inline void find_next_matching_slot(
+    const unsigned char* code, int* device, int* slot) {
+    int walkDevice;
+    int walkSlot;
+    int startDevice;
+    int startSlot;
+    int first;
+
+    startDevice = walkDevice = *device;
+    startSlot = walkSlot = *slot;
+    first = 1;
+    advance_device_slot(&walkDevice, &walkSlot);
+    while (walkDevice != startDevice || walkSlot != startSlot) {
+        if (DEVICE_AT(walkDevice)->profiles[walkSlot].present == 1 &&
+            DEVICE_AT(walkDevice)->inUse[walkSlot] == 0 &&
+            multi_code_matches_pin(
+                code, DEVICE_AT(walkDevice)->profiles[walkSlot].pin) != 0) {
+            *device = walkDevice;
+            *slot = walkSlot;
+            return;
+        }
+        advance_device_slot(&walkDevice, &walkSlot);
+        if (first != 0) {
+            advance_device_slot(&startDevice, &startSlot);
+            first = 0;
+        }
+    }
+    *device = -1;
+    *slot = -1;
+}
+int move_to_profile(int count, unsigned char* code, int* devicePtr, int* slotPtr);
+
+#define PPL_LIST_PID_P1 0x9026
+#define PPL_LIST_PID_P2 0x9027
+#define PPL_NAME_SLOTS 14
+
+static inline int ppl_count_matching_profiles(const unsigned char* code) {
+    int device;
+    int slotIndex;
+    int count;
+
+    count = 0;
+    for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
+        for (slotIndex = 0; slotIndex < STORAGE_MAX_SLOTS; slotIndex++) {
+            if (DEVICE_AT(device)->profiles[slotIndex].present != 0) {
+                if (multi_code_matches_pin(
+                        code, DEVICE_AT(device)->profiles[slotIndex].pin) != 0 &&
+                    DEVICE_AT(device)->inUse[slotIndex] == 0) {
+                    count += 1;
+                }
+            }
+        }
+    }
+    return count;
+}
+
+static inline int ppl_fill_matching_names(
+    const unsigned char* code, char** out) {
+    int device;
+    int slotIndex;
+    int count;
+
+    count = 0;
+    for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
+        for (slotIndex = 0; slotIndex < STORAGE_MAX_SLOTS; slotIndex++) {
+            if (DEVICE_AT(device)->profiles[slotIndex].present != 0 &&
+                DEVICE_AT(device)->inUse[slotIndex] == 0) {
+                if (multi_code_matches_pin(
+                        code, DEVICE_AT(device)->profiles[slotIndex].pin) != 0) {
+                    out[count] = DEVICE_AT(device)->profiles[slotIndex].name;
+                    count += 1;
+                }
+            }
+        }
+    }
+    return count;
+}
+int ppl_get_multi_profile_names_p2(char** out);
+int ppl_get_multi_profile_names_p1(char** out);
+
+static void ppl_get_multi_profile_icons(
+    unsigned char* code, GVTexturePair* out, int count);
+void ppl_get_multi_profile_icon_p2(GVTexturePair out, int count);
+void ppl_get_multi_profile_icon_p1(GVTexturePair out, int count);
+int ppl_get_multi_profile_count(int player);
+
+static inline StorageProfileSlot* storage_profile_at(
+    const int* devicePtr, const int* slotPtr) {
+    int slot;
+    int device;
+
+    device = *devicePtr;
+    if (device >= 0 && device < STORAGE_MAX_DEVICES) {
+        slot = *slotPtr;
+        if (slot >= 0 && slot < STORAGE_MAX_SLOTS) {
+            return &DEVICE_AT(device)->profiles[slot];
+        }
+    }
+    return 0;
+}
+
+static inline void mark_profile_as_in_use_impl(int device, int slot) {
+    if (device < 0) {
+        return;
+    }
+    if (device >= STORAGE_MAX_DEVICES) {
+        return;
+    }
+    if (slot < 0 || slot >= STORAGE_MAX_SLOTS) {
+        return;
+    }
+    DEVICE_AT(device)->inUse[slot] = 1;
+}
+StorageProfileSlot* scan_storage_for_code(int* state, int player, int port, unsigned char* code, int* device, int* slot);
+void memory_save_profile(int player, PlayerProfile* dest);
+void memory_load_profile(int player, PlayerProfile* src);
+int move_profile_p2_to_p1(void);
+int move_profile_p1_to_p2(void);
+int count_all_profiles(void);
+void mark_profile_as_in_use(int device, int slot);
+int find_device_display_status(int device);
+float p_reset_ppwls_timeout(void);
+void reset_ppwls_timeout(void);
+void format_or_recreate_a_device(int device);
+void set_ppwls_input_done(void);
+float p_player_profile_boot_screen_entry_point(void);
+
+static inline int profile_name_text_equal(char* first, char* second) {
+    int length;
+    int i;
+
+    length = strlen(first);
+    if (length != (int)strlen(second)) {
+        return 0;
+    }
+    for (i = 0; i <= length; i++) {
+        if ((signed char)*first != (signed char)*second) {
+            return 0;
+        }
+        first++;
+        second++;
+    }
+    return 1;
+}
+
+static inline int profile_count_available_named(char* name) {
+    int device;
+    int slot;
+    int hits;
+
+    hits = 0;
+    for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
+        for (slot = 0; slot < STORAGE_MAX_SLOTS; slot++) {
+            if (DEVICE_AT(device)->profiles[slot].present != 0) {
+                if (profile_name_text_equal(
+                        name, DEVICE_AT(device)->profiles[slot].name) != 0 &&
+                    DEVICE_AT(device)->inUse[slot] == 0) {
+                    hits++;
+                }
+            }
+        }
+    }
+    return hits;
+}
+
+static inline void profile_normalize_name(char* name) {
+    int i;
+    for (i = 0; i < 10; i++) {
+        if (*name == '_') {
+            *name = '\0';
+        }
+        name++;
+    }
+}
+int does_name_already_exist(const char* name);
+
+#define COFFIN_BIT_COUNT 0x258
+void set_coffin_bit(unsigned char* bits, unsigned int index, int value);
+int get_coffin_bit(const unsigned char* bits, unsigned int index);
+void set_profile_to_default(PlayerProfile* profile);
+void unload_p2_player_profile(void);
+void unload_p1_player_profile(void);
+void unload_player_profiles(void);
+void init_player_profiles(void);
+
+void init_player_profiles(void) {
+    set_profile_to_default_impl(&p1_profile);
+    p1_profile_status = 0;
+    p1_profile_device = -1;
+    p1_profile_slot = -1;
+    set_profile_to_default_impl(&p2_profile);
+    p2_profile_status = 0;
+    p2_profile_device = -1;
+    p2_profile_slot = -1;
+    p1_profile_common = p1_profile.name;
+    p2_profile_common = p2_profile.name;
+    p1_profile_konquest = p1_profile.konquest;
+    p2_profile_konquest = p2_profile.konquest;
+}
+
+void unload_player_profiles(void) {
+    unload_p1_player_profile();
+    unload_p2_player_profile();
+}
+
+void unload_p1_player_profile(void) {
+    clear_storage_in_use(p1_profile_device, p1_profile_slot);
+    set_profile_to_default_impl(&p1_profile);
+    p1_rumble_on = 0;
+    p1_profile_status = 0;
+    p1_profile_device = -1;
+    p1_profile_slot = -1;
+    switch_map_unload_player_profile(&g_game_info.plyr0);
+    profile_code_state[0] = 8;
+}
+
+void unload_p2_player_profile(void) {
+    clear_storage_in_use(p2_profile_device, p2_profile_slot);
+    set_profile_to_default_impl(&p2_profile);
+    p2_rumble_on = 0;
+    p2_profile_status = 0;
+    p2_profile_device = -1;
+    p2_profile_slot = -1;
+    switch_map_unload_player_profile(&g_game_info.plyr1);
+    profile_code_state[1] = 8;
+}
+
+void set_profile_to_default(PlayerProfile* profile) {
+    unsigned char* konquest;
+    int i;
+
+    memset(profile, 0, sizeof(*profile));
+    profile->active = 1;
+    strcpy(
+        profile->name,
+        nbc_find_text(NBC_DEFAULT_PROFILE_NAME, NBC_DEFAULT_PROFILE_SUB));
+    for (i = 0; i < PROFILE_SWITCHMAP_COUNT; i++) {
+        profile->switch_map[i] = default_switch_map[i].mask;
+    }
+    konquest = profile->konquest;
+    memset(konquest, 0, sizeof(profile->konquest));
+    *(int*)(konquest + KONQUEST_FIELD_68) = PROFILE_KONQUEST_FIELD_68;
+    profile->unlock_cat7.value = PROFILE_DEFAULT_UNLOCK_CAT7_LO;
+    profile->unlock_cat6 = PROFILE_DEFAULT_UNLOCK_CAT5;
+}
+
+int get_coffin_bit(const unsigned char* bits, unsigned int index) {
+    unsigned int mask;
+
+    if (index >= COFFIN_BIT_COUNT) {
+        return 0;
+    }
+    mask = index & 7;
+    mask = 1u << mask;
+    return (mask & bits[index >> 3]) != 0;
+}
+
+void set_coffin_bit(unsigned char* bits, unsigned int index, int value) {
+    unsigned int byte_index;
+    unsigned int mask;
+
+    if (index >= COFFIN_BIT_COUNT) {
+        return;
+    }
+    byte_index = index >> 3;
+    mask = 1 << (index & 7);
+    if (value != 0) {
+        bits[byte_index] = mask | bits[byte_index];
+    } else {
+        bits[byte_index] &= ~mask;
+    }
+}
+
+int does_name_already_exist(const char* name) {
+    char local[STORAGE_NAME_LEN];
+    int i;
+    char* p;
+    const char* q;
+
+    p = local;
+    q = name;
+    for (i = 0; i < 0xB; i++) {
+        *p++ = *q++;
+    }
+    profile_normalize_name(local);
+
+    return profile_count_available_named(local) != 0;
+}
+
+static void pne_set_players_name_to_default(char* name, int* charPos) {
+    int suffix;
+    int matches;
+    int nameLen;
+    int i;
+
+    suffix = 0;
+    matches = 1;
+    while (matches != 0 && suffix < 0x63) {
+        suffix++;
+        sprintf(name, "%s %d", nbc_find_text(0xb, 1), suffix);
+        matches = profile_count_available_named(name);
+    }
+
+    nameLen = strlen(name);
+    for (i = nameLen; i < 10; i++) {
+        name[i] = '_';
+    }
+    name[10] = '\0';
+    *charPos = nameLen;
+}
+
+float p_player_profile_boot_screen_entry_point(void) {
+    _mkproc_sleep_ticks = kOne;
+    mkproc_sleep();
+    set_section_memory_scheme(SECTION_MEMORY_SCHEME_PROFILE);
+    mkproc_jump_sleep(p_player_profile_whats_loaded_screen);
+    return kZero;
+}
+
+void set_ppwls_input_done(void) {
+    ppwls_input_done = 1;
+}
+
+static float p_player_profile_whats_loaded_screen(void) {
+    int status_changed;
+
+    turn_camera_on();
+    load_screen(PPWLS_SCREEN_PATH, PPWLS_SCREEN_SLOT, 0, 0);
+    update_storage_status(0);
+    gc_boot_space_check();
+    load_game_settings();
+    ppwls_input_done = 0;
+    spawn_ppwls_timeout_proc();
+    set_wls_left_cursor(0);
+    fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
+    fade_from_black(PPWLS_FADE_FRAMES, 1);
+    _mkproc_sleep_ticks = kSleepIntro;
+    mkproc_sleep();
+    fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
+    reset_format_or_recreate_flags();
+
+    while (ppwls_input_done == 0) {
+        status_changed = update_storage_status(1);
+        if (status_changed != 0) {
+            _mkproc_sleep_ticks = kOne;
+            mkproc_sleep();
+            fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
+            spawn_ppwls_timeout_proc();
+        }
+        check_format_or_recreate();
+        _mkproc_sleep_ticks = kSleepLoop;
+        mkproc_sleep();
+    }
+
+    fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
+    load_game_settings();
+    _mkproc_sleep_ticks = kSleepPost;
+    mkproc_sleep();
+    fade_to_black(PPWLS_FADE_FRAMES, 1);
+    turn_camera_off();
+    fire_screen_studio_event(PPWLS_EVENT_DONE, 0);
+    _mkproc_sleep_ticks = kOne;
+    mkproc_sleep();
+    gamelogic_jump(0, p_atm_loop);
+    return kNegOne;
+}
+
+void format_or_recreate_a_device(int device) {
+    int status;
+
+    status = DEVICE_AT(device)->status;
+    if (status == STORAGE_STATUS_FORMAT_NEEDED || status == STORAGE_STATUS_UNFORMATTED ||
+        DEVICE_AT(device)->status == STORAGE_STATUS_FORMAT_NEEDED ||
+        status == STORAGE_STATUS_FORMAT_ALT || is_device_unformatted(device) != 0) {
+        format_card_and_create_mkda_file(device);
+        fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
+        update_storage_status(0);
+    }
+    if (DEVICE_AT(device)->status == STORAGE_STATUS_BROKEN_FILE) {
+        if (gc_delete_file(device, MEMCARD_SAVE_FILENAME) != 0) {
+            DEVICE_AT(device)->status = STORAGE_STATUS_NO_FILE;
+        }
+        fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
+        update_storage_status(0);
+    }
+    if (DEVICE_AT(device)->status == STORAGE_STATUS_NO_FILE) {
+        create_new_mk5_profile_file(device);
+        fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
+        update_storage_status(0);
+    }
+    spawn_ppwls_timeout_proc();
+}
+
+void reset_ppwls_timeout(void) {
+    spawn_ppwls_timeout_proc();
+}
+
+float p_reset_ppwls_timeout(void) {
+    int ticks_left;
+
+    ticks_left = PPWLS_TIMEOUT_TICKS;
+    while (ticks_left != 0) {
+        _mkproc_sleep_ticks = kOne;
+        mkproc_sleep();
+        if (mcard_msg_active == 0) {
+            ticks_left--;
+        }
+    }
+    ppwls_input_done = 1;
+    return kNegOne;
+}
+
+int find_device_display_status(int device) {
+    return find_device_display_status_impl(device, 1);
+}
+
+void mark_profile_as_in_use(int device, int slot) {
+    if (device < 0) {
+        return;
+    }
+    if (device >= STORAGE_MAX_DEVICES) {
+        return;
+    }
+    if (slot < 0 || slot >= STORAGE_MAX_SLOTS) {
+        return;
+    }
+    DEVICE_AT(device)->inUse[slot] = 1;
+}
+
+int count_all_profiles(void) {
+    int total;
+    int i;
+
+    total = 0;
+    for (i = 0; i < STORAGE_MAX_DEVICES; i++) {
+        total += DEVICE_AT(i)->profileCount;
+    }
+    return total;
+}
+
+int move_profile_p1_to_p2(void) {
+    if (p2_profile_status != 0) {
+        return 0;
+    }
+    memcpy(&p2_profile, &p1_profile, PROFILE_SIZE);
+    p2_profile_status = p1_profile_status;
+    p2_profile_device = p1_profile_device;
+    p2_profile_slot = p1_profile_slot;
+    profile_code_state[1] = profile_code_state[0];
+    set_profile_to_default_impl(&p1_profile);
+    p1_profile_status = 0;
+    p1_profile_device = -1;
+    p1_profile_slot = -1;
+    profile_code_state[0] = 0;
+    p2_rumble_on = p1_rumble_on;
+    p1_rumble_on = 0;
+    return 1;
+}
+
+int move_profile_p2_to_p1(void) {
+    if (p1_profile_status != 0) {
+        return 0;
+    }
+    memcpy(&p1_profile, &p2_profile, PROFILE_SIZE);
+    p1_profile_status = p2_profile_status;
+    p1_profile_device = p2_profile_device;
+    p1_profile_slot = p2_profile_slot;
+    profile_code_state[0] = profile_code_state[1];
+    set_profile_to_default_impl(&p2_profile);
+    p2_profile_status = 0;
+    p2_profile_device = -1;
+    p2_profile_slot = -1;
+    profile_code_state[1] = 0;
+    p1_rumble_on = p2_rumble_on;
+    p2_rumble_on = 0;
+    return 1;
+}
+
+void memory_load_profile(int player, PlayerProfile* src) {
+    if (player == 0) {
+        memcpy(&p1_profile, src, PROFILE_SIZE);
+    } else {
+        memcpy(&p2_profile, src, PROFILE_SIZE);
+    }
+}
+
+void memory_save_profile(int player, PlayerProfile* dest) {
+    if (player == 0) {
+        memcpy(dest, &p1_profile, PROFILE_SIZE);
+    } else {
+        memcpy(dest, &p2_profile, PROFILE_SIZE);
+    }
+}
+
+StorageProfileSlot* scan_storage_for_code(int* state, int player, int port,
+                                          unsigned char* code, int* device, int* slot) {
+    int matchCount;
+    int previousCount;
+    int cursor;
+    int eventPlayer;
+    int selected;
+    StorageProfileSlot* profile;
+    int timer;
+
+    selected = 0;
+    if (is_memcard_scanner_running() != 0) {
+        kill_async_memcard_scan();
+    }
+    eventPlayer = player + 1;
+
+    for (;;) {
+        if (update_storage_status(0) != 0) {
+            fire_screen_studio_event(0x1FE4, 1);
+        }
+
+        matchCount = ppl_count_matching_profiles(code);
+        switch (matchCount) {
+        case 0:
+            *device = -1;
+            *slot = -1;
+            *state = 1;
+            profile_code_state[player] = 8;
+            fire_screen_studio_event(0x1FAA, eventPlayer);
+            return 0;
+        case 1:
+            *device = STORAGE_MAX_DEVICES - 1;
+            *slot = STORAGE_MAX_SLOTS - 1;
+            find_next_matching_slot(code, device, slot);
+            if (*device == -1 || *device == -1) {
+                *state = 1;
+                return 0;
+            }
+            *state = 2;
+            mark_profile_as_in_use_impl(*device, *slot);
+            return &DEVICE_AT(*device)->profiles[*slot];
+        default:
+            *device = STORAGE_MAX_DEVICES - 1;
+            *slot = STORAGE_MAX_SLOTS - 1;
+            profile = find_next_matching_profile(code, device, slot);
+            break;
+        }
+
+        profile_code_state[player] = 10;
+        fire_screen_studio_event(0x1FAA, eventPlayer);
+        previousCount = matchCount;
+        timer = 0;
+
+        while (selected == 0) {
+            matchCount = ppl_count_matching_profiles(code);
+            if (previousCount != matchCount) {
+                goto rescan;
+            }
+
+            if (timer-- == 0) {
+                if (update_storage_status(0) != 0) {
+                    fire_screen_studio_event(0x1FE4, 1);
+                    fire_screen_studio_event(0x1FE4, 2);
+                    goto rescan;
+                }
+                timer = 0x1E;
+            }
+
+            if ((selected == 0) & check_switch_action(port, 2)) {
+                if (player == 0) {
+                    fire_screen_studio_event(0x1FC2, eventPlayer);
+                    cursor = get_multi_profile_cursor_p1();
+                } else {
+                    fire_screen_studio_event(0x1FC3, eventPlayer);
+                    cursor = get_multi_profile_cursor_p2();
+                }
+                if (move_to_profile(cursor + 1, code, device, slot) != 0) {
+                    profile = storage_profile_at(device, slot);
+                    *state = 2;
+                    mark_profile_as_in_use_impl(*device, *slot);
+                    selected = 1;
+                }
+                fire_screen_studio_event(0x1FE4, 1);
+                fire_screen_studio_event(0x1FE4, 2);
+            }
+
+            if ((selected == 0) & check_switch_action(port, 1)) {
+                profile = 0;
+                *state = 3;
+                selected = 1;
+            }
+            _mkproc_sleep_ticks = kOne;
+            mkproc_sleep();
+        }
+        return profile;
+    rescan:;
+    }
+}
+
+int ppl_get_multi_profile_count(int player) {
+    int count;
+    MkProc* proc;
+    ProfileCodePdata* list;
+    const unsigned char* code;
+
+    count = 0;
+    if (player == 0) {
+        proc = find_mkproc_pid(PPL_LIST_PID_P1);
+    } else {
+        proc = find_mkproc_pid(PPL_LIST_PID_P2);
+    }
+    if (proc != 0) {
+        list = (ProfileCodePdata*)pdata_of_proc(proc);
+        if (list != 0) {
+            code = list->code;
+            count = ppl_count_matching_profiles(code);
+        }
+    }
+    return count;
+}
+
+static void ppl_get_multi_profile_icons(
+    unsigned char* code, GVTexturePair* out, int count) {
+    int i;
+    int device;
+    int slot;
+    int screenSlot;
+    StorageProfileSlot* profile;
+
+    device = STORAGE_MAX_DEVICES - 1;
+    slot = STORAGE_MAX_SLOTS - 1;
+    if (is_pselect_mode() != 0) {
+        screenSlot = PSELECT_SEC_SLOT;
+    } else {
+        screenSlot = PPWLS_SCREEN_SLOT;
+    }
+    for (i = 0; i < count; i++) {
+        profile = find_next_matching_profile(code, &device, &slot);
+        if (profile != 0) {
+            out->colors[i] =
+                load_named_tga_from_slot(screenSlot, ppwls_icon[profile->icon].color);
+        }
+    }
+}
+
+void ppl_get_multi_profile_icon_p1(GVTexturePair out, int count) {
+    int i;
+    MkProc* proc;
+    ProfileCodePdata* list;
+    GVTexturePair copy;
+
+    i = 0;
+    for (i = 0; i < count; i++) {
+        out.colors[i] = 0;
+    }
+    proc = find_mkproc_pid(PPL_LIST_PID_P1);
+    if (proc != 0) {
+        list = (ProfileCodePdata*)pdata_of_proc(proc);
+        if (list != 0) {
+            copy = out;
+            ppl_get_multi_profile_icons(list->code, &copy, count);
+        }
+    }
+}
+
+void ppl_get_multi_profile_icon_p2(GVTexturePair out, int count) {
+    int i;
+    MkProc* proc;
+    ProfileCodePdata* list;
+    GVTexturePair copy;
+
+    i = 0;
+    for (i = 0; i < count; i++) {
+        out.colors[i] = 0;
+    }
+    proc = find_mkproc_pid(PPL_LIST_PID_P2);
+    if (proc != 0) {
+        list = (ProfileCodePdata*)pdata_of_proc(proc);
+        if (list != 0) {
+            copy = out;
+            ppl_get_multi_profile_icons(list->code, &copy, count);
+        }
+    }
+}
+
+int ppl_get_multi_profile_names_p1(char** out) {
+    int i;
+    MkProc* proc;
+    ProfileCodePdata* list;
+    int count;
+    const unsigned char* code;
+
+    count = 0;
+    for (i = 0; i < PPL_NAME_SLOTS; i++) {
+        out[i] = "";
+    }
+    proc = find_mkproc_pid(PPL_LIST_PID_P1);
+    if (proc != 0) {
+        list = (ProfileCodePdata*)pdata_of_proc(proc);
+        if (list != 0) {
+            code = list->code;
+            count = ppl_fill_matching_names(code, out);
+        }
+    }
+    return count;
+}
+
+int ppl_get_multi_profile_names_p2(char** out) {
+    int i;
+    MkProc* proc;
+    ProfileCodePdata* list;
+    int count;
+    const unsigned char* code;
+
+    count = 0;
+    for (i = 0; i < PPL_NAME_SLOTS; i++) {
+        out[i] = "";
+    }
+    proc = find_mkproc_pid(PPL_LIST_PID_P2);
+    if (proc != 0) {
+        list = (ProfileCodePdata*)pdata_of_proc(proc);
+        if (list != 0) {
+            code = list->code;
+            count = ppl_fill_matching_names(code, out);
+        }
+    }
+    return count;
+}
+
+int move_to_profile(int count, unsigned char* code, int* devicePtr, int* slotPtr) {
+    int i;
+
+    i = 0;
+    *devicePtr = STORAGE_MAX_DEVICES - 1;
+    *slotPtr = STORAGE_MAX_SLOTS - 1;
+    while (i < count) {
+        find_next_matching_slot(code, devicePtr, slotPtr);
+        if (*devicePtr == -1 || *slotPtr == -1) return 0;
+        i++;
+    }
+    return 1;
+}
+
+void quit_from_konquest(void) {
+    unload_player_profiles();
+    gamelogic_jump(6, p_main_menu);
+}
+
+int validate_konq_load_location(int player) {
+    PlayerProfile* live;
+    int* devicePtr;
+    int* slotPtr;
+    StorageProfileSlot* found;
+    StorageDevice* deviceStatus;
+    int device;
+    int slotIndex;
+    int scanDevice;
+    int scanSlot;
+    int tries;
+    int waitLeft;
+    int matched;
+
+    if (player != 0 && player != 1) {
+        return 0;
+    }
+    if (player == 0) {
+        devicePtr = &p1_profile_device;
+        slotPtr = &p1_profile_slot;
+        live = &p1_profile;
+    } else {
+        devicePtr = &p2_profile_device;
+        slotPtr = &p2_profile_slot;
+        live = &p2_profile;
+    }
+    if (*devicePtr < 0 || *devicePtr >= STORAGE_MAX_DEVICES ||
+        *slotPtr < 0 || *slotPtr >= STORAGE_MAX_SLOTS) {
+        return 0;
+    }
+    if (live == 0) {
+        return 0;
+    }
+
+    do {
+        waitLeft = 0x1e;
+        while (update_storage_status(0) != 0 && waitLeft > 0) {
+            waitLeft--;
+        }
+        device = *devicePtr;
+        slotIndex = *slotPtr;
+        deviceStatus = DEVICE_AT(device);
+        matched = profile_device_slot_fully_matches(live, deviceStatus, slotIndex);
+        if (matched != 0) {
+            return 1;
+        }
+
+        scanDevice = device;
+        scanSlot = slotIndex;
+        tries = 0x49;
+        do {
+            tries--;
+            found = ppv_find_next_present(&scanDevice, &scanSlot);
+            if (found == 0) {
+                matched = 0;
+                break;
+            }
+            matched = profile_fully_matches(live, found);
+        } while ((scanDevice != device || scanSlot != slotIndex) &&
+                 matched == 0 && tries > 0);
+
+        if (matched != 0) {
+            *devicePtr = scanDevice;
+            *slotPtr = scanSlot;
+            return 1;
+        }
+        if (deviceStatus->status == 1) {
+            mcard_msg_load_no_card_konq_region_hault(
+                p1_profile.name, player, device);
+            if (msg_load_no_card_konq_region_hault_answer == 2) {
+                quit_from_konquest();
+                return 0;
+            }
+        } else {
+            mcard_msg_load_no_card_konq_region_hault(
+                p1_profile.name, player, device);
+            if (msg_load_no_card_konq_region_hault_answer == 2) {
+                quit_from_konquest();
+                return 0;
+            }
+        }
+    } while (1);
+}
+
+int validate_konq_save_location(int player) {
+    PlayerProfile* live;
+    int* devicePtr;
+    int* slotPtr;
+    StorageProfileSlot* found;
+    int device;
+    int slot;
+    int scanDevice;
+    int scanSlot;
+    int tries;
+    int waitLeft;
+    int matched;
+
+    if (player != 0 && player != 1) {
+        return 0;
+    }
+    if (player == 0) {
+        devicePtr = &p1_profile_device;
+        slotPtr = &p1_profile_slot;
+        live = &p1_profile;
+    } else {
+        devicePtr = &p2_profile_device;
+        slotPtr = &p2_profile_slot;
+        live = &p2_profile;
+    }
+    if (*devicePtr < 0 || *devicePtr >= STORAGE_MAX_DEVICES ||
+        *slotPtr < 0 || *slotPtr >= STORAGE_MAX_SLOTS) {
+        return 0;
+    }
+    if (live == 0) {
+        return 0;
+    }
+
+    for (;;) {
+        waitLeft = 0x1e;
+        while (update_storage_status(0) != 0 && waitLeft > 0) {
+            waitLeft--;
+        }
+        device = *devicePtr;
+        slot = *slotPtr;
+        if (profile_device_slot_fully_matches(live, DEVICE_AT(device), slot)) {
+            return 1;
+        }
+
+        scanDevice = device;
+        scanSlot = slot;
+        tries = 0x49;
+        do {
+            tries--;
+            found = ppv_find_next_present(&scanDevice, &scanSlot);
+            if (found == 0) {
+                matched = 0;
+                break;
+            }
+            matched = profile_fully_matches(live, found);
+        } while ((scanDevice != device || scanSlot != slot) &&
+                 matched == 0 && tries > 0);
+
+        if (matched != 0) {
+            *devicePtr = scanDevice;
+            *slotPtr = scanSlot;
+            return 1;
+        }
+        mcard_msg_save_no_card_konq_region_hault(p1_profile.name, 0);
+        if (msg_save_no_card_konq_region_hault_answer == 2) {
+            mcard_msg_end();
+            mcard_msg_quit_confirmation();
+            if (msg_quit_confirmation_answer == 1) {
+                quit_from_konquest();
+                return 0;
+            }
+        }
+    }
+}
+
+int validate_save_location(int player) {
+    PlayerProfile* live;
+    int* devicePtr;
+    int* slotPtr;
+    StorageProfileSlot* found;
+    int device;
+    int slotIndex;
+    int scanDevice;
+    int scanSlot;
+    int tries;
+    int waitLeft;
+    int matched;
+
+    if (player != 0 && player != 1) {
+        return 0;
+    }
+    if (player == 0) {
+        devicePtr = &p1_profile_device;
+        slotPtr = &p1_profile_slot;
+        live = &p1_profile;
+    } else {
+        devicePtr = &p2_profile_device;
+        slotPtr = &p2_profile_slot;
+        live = &p2_profile;
+    }
+    if (*devicePtr < 0 || *devicePtr >= STORAGE_MAX_DEVICES || *slotPtr < 0 ||
+        *slotPtr >= STORAGE_MAX_SLOTS) {
+        return 0;
+    }
+    if (live == 0) {
+        return 0;
+    }
+
+    do {
+        waitLeft = 0x1E;
+        while (update_storage_status(0) != 0 && waitLeft > 0) {
+            waitLeft -= 1;
+        }
+        device = *devicePtr;
+        slotIndex = *slotPtr;
+        matched = profile_device_slot_fully_matches(live, DEVICE_AT(device), slotIndex);
+        if (matched != 0) {
+            return 1;
+        }
+
+        scanDevice = device;
+        scanSlot = slotIndex;
+        tries = 0x49;
+        do {
+            tries -= 1;
+            found = ppv_find_next_present(&scanDevice, &scanSlot);
+            if (found == 0) {
+                matched = 0;
+                break;
+            }
+            matched = profile_fully_matches(live, found);
+        } while ((scanDevice != device || scanSlot != slotIndex) &&
+                 matched == 0 && tries > 0);
+
+        if (matched != 0) {
+            *devicePtr = scanDevice;
+            *slotPtr = scanSlot;
+            return 1;
+        }
+        mcard_msg_card_gone(live->name, player);
+        mcard_msg_end();
+    } while (msg_card_gone_answer != 2);
+    return 0;
+}
+
+void check_new_mu_for_in_use_profiles(int device) {
+    int slot;
+    int identity_matches;
+
+    if (DEVICE_AT(device)->status != 0) {
+        return;
+    }
+
+    if (p1_profile_status == 1) {
+        identity_matches = profile_fully_matches(
+            &p1_profile, &DEVICE_AT(p1_profile_device)->profiles[p1_profile_slot]);
+        if (identity_matches == 0) {
+            for (slot = 0; slot < STORAGE_MAX_SLOTS; slot++) {
+                if (DEVICE_AT(device)->profiles[slot].present == 1) {
+                    identity_matches = profile_fully_matches(
+                        &p1_profile, &DEVICE_AT(device)->profiles[slot]);
+                    if (identity_matches != 0) {
+                        DEVICE_AT(device)->inUse[slot] = 1;
+                        p1_profile_device = device;
+                        p1_profile_slot = slot;
+                    }
+                }
+            }
+        } else {
+            DEVICE_AT(p1_profile_device)->inUse[p1_profile_slot] = 1;
+        }
+    }
+
+    if (p2_profile_status == 1) {
+        identity_matches = profile_fully_matches(
+            &p2_profile, &DEVICE_AT(p2_profile_device)->profiles[p2_profile_slot]);
+        if (identity_matches == 0) {
+            for (slot = 0; slot < STORAGE_MAX_SLOTS; slot++) {
+                if (DEVICE_AT(device)->profiles[slot].present == 1) {
+                    identity_matches = profile_fully_matches(
+                        &p2_profile, &DEVICE_AT(device)->profiles[slot]);
+                    if (identity_matches != 0) {
+                        DEVICE_AT(device)->inUse[slot] = 1;
+                        p2_profile_device = device;
+                        p2_profile_slot = slot;
+                    }
+                }
+            }
+        } else {
+            DEVICE_AT(p2_profile_device)->inUse[p2_profile_slot] = 1;
+        }
+    }
+}
+
+void summarize_unlocked_items(void) {
+    int device;
+    int slot;
+
+    gp_data.cat1.value = default_char_bits.value;
+    gp_data.cat2.value = default_alt_char_bits.value;
+    gp_data.cat3.value = default_bgnd_bits.value;
+    gp_data.cat5 = 0;
+    gp_data.cat7.value = PROFILE_DEFAULT_UNLOCK_CAT7_LO;
+    gp_data.cat5 = PROFILE_DEFAULT_UNLOCK_CAT5;
+    gp_data.cat8.value = 0;
+    gp_data.pz_chars.value = default_pz_char_bits.value;
+    gp_data.pz_bgnds.value = default_pz_bgnd_bits.value;
+
+    for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
+        if (find_device_display_status_impl(device, 0) != 0) {
+            continue;
+        }
+        for (slot = 0; slot < STORAGE_MAX_SLOTS; slot++) {
+            if (DEVICE_AT(device)->profiles[slot].present == 0) {
+                continue;
+            }
+            gp_data.cat1.value |=
+                DEVICE_AT(device)->profiles[slot].unlock_cat1.value;
+            gp_data.cat2.value |=
+                DEVICE_AT(device)->profiles[slot].unlock_cat2.value;
+            gp_data.cat3.value |=
+                DEVICE_AT(device)->profiles[slot].unlock_cat3;
+            gp_data.cat5 |= DEVICE_AT(device)->profiles[slot].unlock_cat6;
+            gp_data.cat7.value |=
+                DEVICE_AT(device)->profiles[slot].unlock_cat7.value;
+            gp_data.cat8.value |=
+                DEVICE_AT(device)->profiles[slot].unlock_cat8.value;
+            gp_data.pz_chars.value |=
+                DEVICE_AT(device)->profiles[slot].unlock_cat9.value;
+            gp_data.pz_bgnds.value |=
+                DEVICE_AT(device)->profiles[slot].unlock_cat10;
+        }
+    }
+    pselect_update_profile_settings();
+}
+
+void mark_as_unlocked(PlayerProfile* profile, int category, int character) {
+    unsigned long long mask;
+    ProfileUnlockBits64* bits;
+
+    if (profile != &p1_profile && profile != &p2_profile) {
+        return;
+    }
+    switch (category) {
+    case 1:
+        if (character < 0 || character >= 44) return;
+        mask = 1ULL << character;
+        mark_bitset_unlocked(&profile->unlock_cat1, mask);
+        return;
+    case 2:
+        if (character < 0 || character >= 44) return;
+        mask = 1ULL << character;
+        mark_bitset_unlocked(&profile->unlock_cat2, mask);
+        return;
+    case 3:
+        if (character < 0 || character >= 35) return;
+        profile->unlock_cat3 |= 1ULL << character;
+        return;
+    case 6:
+        if (character < 0 || character >= 44) return;
+        mask = 1ULL << character;
+        mark_bitset_unlocked(&profile->unlock_cat4, mask);
+        return;
+    case 4:
+        if (character < 0 || character >= 11) return;
+        profile->unlock_cat5 |= 1ULL << character;
+        return;
+    case 5:
+        if (character < 0 || character >= 11) return;
+        profile->unlock_cat6 |= 1ULL << (character + 10);
+        return;
+    case 7:
+    case 8:
+        if (character < 0 || character >= 44) return;
+        bits = category == 7 ? &profile->unlock_cat7 : &profile->unlock_cat8;
+        mask = 1ULL << character;
+        mark_bitset_unlocked(bits, mask);
+        return;
+    case 9:
+        if (character < 0 || character >= 44) return;
+        mask = 1ULL << character;
+        mark_bitset_unlocked(&profile->unlock_cat9, mask);
+        return;
+    case 10:
+        if (character < 0 || character >= 35) return;
+        profile->unlock_cat10 |= 1ULL << character;
+        return;
+    default:
+        return;
+    }
+}
+
+void mark_as_locked(PlayerProfile* profile, int category, int character) {
+    unsigned long long mask;
+    ProfileUnlockBits64* bits;
+
+    if (profile != &p1_profile && profile != &p2_profile) {
+        return;
+    }
+    switch (category) {
+    case 1:
+        if (character < 0 || character >= 44) return;
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat1.value &= ~mask;
+        return;
+    case 2:
+        if (character < 0 || character >= 44) return;
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat2.value &= ~mask;
+        return;
+    case 3:
+        if (character < 0 || character >= 35) return;
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat3 &= ~mask;
+        return;
+    case 6:
+        if (character < 0 || character >= 44) return;
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat4.value &= ~mask;
+        return;
+    case 4:
+        if (character < 0 || character >= 11) return;
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat5 &= ~mask;
+        return;
+    case 5:
+        if (character < 0 || character >= 11) return;
+        mask = 1;
+        mask <<= character + 10;
+        profile->unlock_cat6 &= ~mask;
+        return;
+    case 7:
+    case 8:
+        if (character < 0 || character >= 44) return;
+        bits = category == 7 ? &profile->unlock_cat7 : &profile->unlock_cat8;
+        mask = 1;
+        mask <<= character;
+        bits->value &= ~mask;
+        return;
+    case 9:
+        if (character < 0 || character >= 44) return;
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat9.value &= ~mask;
+        return;
+    case 10:
+        if (character < 0 || character >= 35) return;
+        mask = 1;
+        mask <<= character;
+        profile->unlock_cat10 &= ~mask;
+        return;
+    default:
+        return;
+    }
+}
+
+int is_mark_as_unlocked(PlayerProfile* profile, int category, int character) {
+    unsigned long long mask;
+    unsigned long long unlocked;
+    ProfileUnlockBits64* bits;
+
+    unlocked = 0;
+    if (profile != &p1_profile && profile != &p2_profile) {
+        return 0;
+    }
+
+    switch (category) {
+    case 1:
+        if (character < 0 || character >= 44) {
+            return 0;
+        }
+        mask = 1ULL << character;
+        unlocked =
+            (profile->unlock_cat1.value | default_char_bits.value) & mask;
+        break;
+    case 2:
+        if (character < 0 || character >= 44) {
+            return 0;
+        }
+        mask = 1ULL << character;
+        unlocked = profile->unlock_cat2.value & mask;
+        break;
+    case 3:
+        if (character < 0 || character >= 35) {
+            return 0;
+        }
+        mask = 1ULL << character;
+        unlocked = (unsigned long long)profile->unlock_cat3 & mask;
+        break;
+    case 6:
+        if (character < 0 || character >= 44) {
+            return 0;
+        }
+        mask = 1ULL << character;
+        unlocked = profile->unlock_cat4.value & mask;
+        break;
+    case 4:
+        if (character < 0 || character >= 11) {
+            return 0;
+        }
+        mask = 1ULL << character;
+        unlocked = (unsigned long long)profile->unlock_cat5 & mask;
+        break;
+    case 5:
+        if (character < 0 || character >= 11) {
+            return 0;
+        }
+        mask = 1ULL << (character + 10);
+        unlocked = (unsigned long long)profile->unlock_cat6 & mask;
+        break;
+    case 7:
+    case 8:
+        if (character < 0 || character >= 44) {
+            return 0;
+        }
+        bits = category == 7 ? &profile->unlock_cat7 : &profile->unlock_cat8;
+        mask = 1ULL << character;
+        unlocked = profile_unlock_bits_masked(bits, mask);
+        break;
+    case 9:
+        if (character < 0 || character >= 44) {
+            return 0;
+        }
+        mask = 1ULL << character;
+        unlocked = profile->unlock_cat9.value & mask;
+        break;
+    case 10:
+        if (character < 0 || character >= 35) {
+            return 0;
+        }
+        mask = 1ULL << character;
+        unlocked = (unsigned long long)profile->unlock_cat10 & mask;
+        break;
+    default:
+        break;
+    }
+    return unlocked != 0;
+}
+
+char* get_heros_name(int which) {
+    char* name;
+
+    name = p2_profile.name;
+    if (which != 0) {
+        return name;
+    }
+    return p1_profile.name;
+}
+
+void format_value_to_display(char* dest, unsigned int value) {
+    char number[12] = {0};
+    int length;
+
+    strcpy(dest, "");
+    sprintf(number, "%u", value);
+    length = strlen(number);
+    switch (length) {
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+        strcpy(dest, number);
+        break;
+    case 4:
+    case 5:
+    case 6:
+        strncat(dest, number, length - 3);
+        strcat(dest, ",");
+        strncat(dest, &number[length - 3], 3);
+        break;
+    case 7:
+        strncat(dest, number, length - 6);
+        strcat(dest, ".");
+        strncat(dest, &number[length - 6], 2);
+        strcat(dest, " M");
+        break;
+    case 8:
+        strncat(dest, number, length - 6);
+        strcat(dest, ".");
+        strncat(dest, &number[length - 6], 1);
+        strcat(dest, " M");
+        break;
+    case 9:
+        strncat(dest, number, length - 6);
+        strcat(dest, " M");
+        break;
+    case 10:
+        strncat(dest, number, length - 9);
+        strcat(dest, ".");
+        strncat(dest, &number[length - 9], 2);
+        strcat(dest, " G");
+        break;
+    default:
+        strcpy(dest, nbc_find_text(0x33, 1));
+        break;
+    }
 }
 
 float p_create_profile(void) {
@@ -1321,1430 +2306,494 @@ exit:
     return kNegOne;
 }
 
-void format_value_to_display(char* dest, unsigned int value) {
-    char number[12] = {0};
-    int length;
+void ppc_transition_pause(int paused) {
+    if (paused != 0) {
+        turn_controllers_off();
+    } else {
+        turn_controllers_on();
+        disable_all_ports_but_me(pprofile_pad);
+    }
+}
 
-    strcpy(dest, "");
-    sprintf(number, "%u", value);
-    length = strlen(number);
-    switch (length) {
+int ppc_get_code_state(void) {
+    return profile_code_state[pprofile_player];
+}
+
+void ppc_set_current_icon_selection(int icon) {
+    player_icon = icon;
+}
+
+void ppc_set_button_answer(int answer) {
+    button_answer = answer;
+}
+
+void pp_name_entry_proces_char_entry(const char* key_name) {
+    int found;
+    int key;
+    int i;
+    unsigned char value;
+
+    found = 0;
+    key = 0;
+    if (key_name == 0) {
+        return;
+    }
+    i = 0;
+    while (i < 39 && found == 0) {
+        strcmp(key_name, pne_alpha_data_table[i].name);
+        if (strcmp(key_name, pne_alpha_data_table[i].name) == 0) {
+            found = 1;
+            key = i;
+        }
+        i++;
+    }
+    if (found == 0) {
+        return;
+    }
+
+    switch (key) {
     case 0:
     case 1:
     case 2:
     case 3:
-        strcpy(dest, number);
-        break;
     case 4:
     case 5:
     case 6:
-        strncat(dest, number, length - 3);
-        strcat(dest, ",");
-        strncat(dest, &number[length - 3], 3);
-        break;
-    case 7:
-        strncat(dest, number, length - 6);
-        strcat(dest, ".");
-        strncat(dest, &number[length - 6], 2);
-        strcat(dest, " M");
-        break;
-    case 8:
-        strncat(dest, number, length - 6);
-        strcat(dest, ".");
-        strncat(dest, &number[length - 6], 1);
-        strcat(dest, " M");
-        break;
-    case 9:
-        strncat(dest, number, length - 6);
-        strcat(dest, " M");
-        break;
-    case 10:
-        strncat(dest, number, length - 9);
-        strcat(dest, ".");
-        strncat(dest, &number[length - 9], 2);
-        strcat(dest, " G");
-        break;
-    default:
-        strcpy(dest, nbc_find_text(0x33, 1));
-        break;
-    }
-}
-
-char* get_heros_name(int which) {
-    char* name;
-
-    name = p2_profile.name;
-    if (which != 0) {
-        return name;
-    }
-    return p1_profile.name;
-}
-
-static inline unsigned long long profile_unlock_bits_masked(
-    ProfileUnlockBits64* bits, unsigned long long mask) {
-    return bits->value & mask;
-}
-
-int is_mark_as_unlocked(PlayerProfile* profile, int category, int character) {
-    unsigned long long mask;
-    unsigned long long unlocked;
-    ProfileUnlockBits64* bits;
-
-    unlocked = 0;
-    if (profile != &p1_profile && profile != &p2_profile) {
-        return 0;
-    }
-
-    switch (category) {
-    case 1:
-        if (character < 0 || character >= 44) {
-            return 0;
-        }
-        mask = 1ULL << character;
-        unlocked =
-            (profile->unlock_cat1.value | default_char_bits.value) & mask;
-        break;
-    case 2:
-        if (character < 0 || character >= 44) {
-            return 0;
-        }
-        mask = 1ULL << character;
-        unlocked = profile->unlock_cat2.value & mask;
-        break;
-    case 3:
-        if (character < 0 || character >= 35) {
-            return 0;
-        }
-        mask = 1ULL << character;
-        unlocked = (unsigned long long)profile->unlock_cat3 & mask;
-        break;
-    case 6:
-        if (character < 0 || character >= 44) {
-            return 0;
-        }
-        mask = 1ULL << character;
-        unlocked = profile->unlock_cat4.value & mask;
-        break;
-    case 4:
-        if (character < 0 || character >= 11) {
-            return 0;
-        }
-        mask = 1ULL << character;
-        unlocked = (unsigned long long)profile->unlock_cat5 & mask;
-        break;
-    case 5:
-        if (character < 0 || character >= 11) {
-            return 0;
-        }
-        mask = 1ULL << (character + 10);
-        unlocked = (unsigned long long)profile->unlock_cat6 & mask;
-        break;
     case 7:
     case 8:
-        if (character < 0 || character >= 44) {
-            return 0;
-        }
-        bits = category == 7 ? &profile->unlock_cat7 : &profile->unlock_cat8;
-        mask = 1ULL << character;
-        unlocked = profile_unlock_bits_masked(bits, mask);
-        break;
     case 9:
-        if (character < 0 || character >= 44) {
-            return 0;
-        }
-        mask = 1ULL << character;
-        unlocked = profile->unlock_cat9.value & mask;
-        break;
     case 10:
-        if (character < 0 || character >= 35) {
-            return 0;
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+    case 18:
+    case 19:
+    case 20:
+    case 21:
+    case 22:
+    case 23:
+    case 24:
+    case 25:
+    case 26:
+    case 27:
+    case 28:
+    case 29:
+    case 30:
+    case 31:
+    case 32:
+    case 33:
+    case 34:
+    case 35:
+    case 36:
+        initialize_player_name_entry();
+        if (pne_char_position < 10) {
+            value = pne_alpha_data_table[key].value;
+            pp_store_player_name_char(value, pne_char_position);
+            fire_screen_studio_event(0x2FA8, 0);
+            if (pne_char_position < 10) {
+                pne_char_position++;
+            }
         }
-        mask = 1ULL << character;
-        unlocked = (unsigned long long)profile->unlock_cat10 & mask;
+        break;
+    case 37:
+        if (first_button_press != 0) {
+            initialize_player_name_entry();
+            pne_char_position = 1;
+        }
+        if (pne_char_position >= 1) {
+            pne_char_position--;
+            value = pne_alpha_data_table[key].value;
+            pp_store_player_name_char(value, pne_char_position);
+            fire_screen_studio_event(0x2FA8, 0);
+        }
+        break;
+    case 38:
+        if (pne_char_position > 0) {
+            name_entry_done = 1;
+        }
         break;
     default:
         break;
     }
-    return unlocked != 0;
 }
 
-void mark_as_locked(PlayerProfile* profile, int category, int character) {
-    unsigned long long mask;
-    ProfileUnlockBits64* bits;
-
-    if (profile != &p1_profile && profile != &p2_profile) {
-        return;
-    }
-    switch (category) {
-    case 1:
-        if (character < 0 || character >= 44) return;
-        mask = 1;
-        mask <<= character;
-        profile->unlock_cat1.value &= ~mask;
-        return;
-    case 2:
-        if (character < 0 || character >= 44) return;
-        mask = 1;
-        mask <<= character;
-        profile->unlock_cat2.value &= ~mask;
-        return;
-    case 3:
-        if (character < 0 || character >= 35) return;
-        mask = 1;
-        mask <<= character;
-        profile->unlock_cat3 &= ~mask;
-        return;
-    case 6:
-        if (character < 0 || character >= 44) return;
-        mask = 1;
-        mask <<= character;
-        profile->unlock_cat4.value &= ~mask;
-        return;
-    case 4:
-        if (character < 0 || character >= 11) return;
-        mask = 1;
-        mask <<= character;
-        profile->unlock_cat5 &= ~mask;
-        return;
-    case 5:
-        if (character < 0 || character >= 11) return;
-        mask = 1;
-        mask <<= character + 10;
-        profile->unlock_cat6 &= ~mask;
-        return;
-    case 7:
-    case 8:
-        if (character < 0 || character >= 44) return;
-        bits = category == 7 ? &profile->unlock_cat7 : &profile->unlock_cat8;
-        mask = 1;
-        mask <<= character;
-        bits->value &= ~mask;
-        return;
-    case 9:
-        if (character < 0 || character >= 44) return;
-        mask = 1;
-        mask <<= character;
-        profile->unlock_cat9.value &= ~mask;
-        return;
-    case 10:
-        if (character < 0 || character >= 35) return;
-        mask = 1;
-        mask <<= character;
-        profile->unlock_cat10 &= ~mask;
-        return;
-    default:
-        return;
-    }
-}
-
-static inline void mark_bitset_unlocked(
-    ProfileUnlockBits64* bits, unsigned long long mask) {
-    bits->value |= mask;
-}
-
-void mark_as_unlocked(PlayerProfile* profile, int category, int character) {
-    unsigned long long mask;
-    ProfileUnlockBits64* bits;
-
-    if (profile != &p1_profile && profile != &p2_profile) {
-        return;
-    }
-    switch (category) {
-    case 1:
-        if (character < 0 || character >= 44) return;
-        mask = 1ULL << character;
-        mark_bitset_unlocked(&profile->unlock_cat1, mask);
-        return;
-    case 2:
-        if (character < 0 || character >= 44) return;
-        mask = 1ULL << character;
-        mark_bitset_unlocked(&profile->unlock_cat2, mask);
-        return;
-    case 3:
-        if (character < 0 || character >= 35) return;
-        profile->unlock_cat3 |= 1ULL << character;
-        return;
-    case 6:
-        if (character < 0 || character >= 44) return;
-        mask = 1ULL << character;
-        mark_bitset_unlocked(&profile->unlock_cat4, mask);
-        return;
-    case 4:
-        if (character < 0 || character >= 11) return;
-        profile->unlock_cat5 |= 1ULL << character;
-        return;
-    case 5:
-        if (character < 0 || character >= 11) return;
-        profile->unlock_cat6 |= 1ULL << (character + 10);
-        return;
-    case 7:
-    case 8:
-        if (character < 0 || character >= 44) return;
-        bits = category == 7 ? &profile->unlock_cat7 : &profile->unlock_cat8;
-        mask = 1ULL << character;
-        mark_bitset_unlocked(bits, mask);
-        return;
-    case 9:
-        if (character < 0 || character >= 44) return;
-        mask = 1ULL << character;
-        mark_bitset_unlocked(&profile->unlock_cat9, mask);
-        return;
-    case 10:
-        if (character < 0 || character >= 35) return;
-        profile->unlock_cat10 |= 1ULL << character;
-        return;
-    default:
-        return;
-    }
-}
-
-void summarize_unlocked_items(void) {
-    int device;
-    int slot;
-
-    gp_data.cat1.value = default_char_bits.value;
-    gp_data.cat2.value = default_alt_char_bits.value;
-    gp_data.cat3.value = default_bgnd_bits.value;
-    gp_data.cat5 = 0;
-    gp_data.cat7.value = PROFILE_DEFAULT_UNLOCK_CAT7_LO;
-    gp_data.cat5 = PROFILE_DEFAULT_UNLOCK_CAT5;
-    gp_data.cat8.value = 0;
-    gp_data.pz_chars.value = default_pz_char_bits.value;
-    gp_data.pz_bgnds.value = default_pz_bgnd_bits.value;
-
-    for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
-        if (find_device_display_status_impl(device, 0) != 0) {
-            continue;
-        }
-        for (slot = 0; slot < STORAGE_MAX_SLOTS; slot++) {
-            if (DEVICE_AT(device)->profiles[slot].present == 0) {
-                continue;
-            }
-            gp_data.cat1.value |=
-                DEVICE_AT(device)->profiles[slot].unlock_cat1.value;
-            gp_data.cat2.value |=
-                DEVICE_AT(device)->profiles[slot].unlock_cat2.value;
-            gp_data.cat3.value |=
-                DEVICE_AT(device)->profiles[slot].unlock_cat3;
-            gp_data.cat5 |= DEVICE_AT(device)->profiles[slot].unlock_cat6;
-            gp_data.cat7.value |=
-                DEVICE_AT(device)->profiles[slot].unlock_cat7.value;
-            gp_data.cat8.value |=
-                DEVICE_AT(device)->profiles[slot].unlock_cat8.value;
-            gp_data.pz_chars.value |=
-                DEVICE_AT(device)->profiles[slot].unlock_cat9.value;
-            gp_data.pz_bgnds.value |=
-                DEVICE_AT(device)->profiles[slot].unlock_cat10;
-        }
-    }
-    pselect_update_profile_settings();
-}
-
-static inline int profile_pins_equal(
-    PlayerProfile* live, StorageProfileSlot* slot) {
-    unsigned char* stored_pin;
-    unsigned char* live_pin;
-    int i;
-
-    stored_pin = slot->pin;
-    live_pin = live->pin;
-    for (i = 0; i < 6; i++) {
-        if (*live_pin != *stored_pin) {
-            return 0;
-        }
-        live_pin++;
-        stored_pin++;
-    }
-    return 1;
-}
-
-static inline int profile_names_equal(
-    PlayerProfile* live, StorageProfileSlot* slot) {
-    char* stored_name;
-    char* live_name;
-    int i;
-
-    stored_name = slot->name;
-    live_name = live->name;
-    for (i = 0; i < STORAGE_NAME_LEN; i++) {
-        if (*live_name != *stored_name) {
-            return 0;
-        }
-        live_name++;
-        stored_name++;
-    }
-    return 1;
-}
-
-static inline int profile_fully_matches(
-    PlayerProfile* live, StorageProfileSlot* slot) {
-    if (profile_pins_equal(live, slot) == 0) return 0;
-    if (profile_names_equal(live, slot) == 0) return 0;
-    return live->idChecksum == slot->idChecksum;
-}
-
-void check_new_mu_for_in_use_profiles(int device) {
-    int slot;
-    int identity_matches;
-
-    if (DEVICE_AT(device)->status != 0) {
-        return;
-    }
-
-    if (p1_profile_status == 1) {
-        identity_matches = profile_fully_matches(
-            &p1_profile, &DEVICE_AT(p1_profile_device)->profiles[p1_profile_slot]);
-        if (identity_matches == 0) {
-            for (slot = 0; slot < STORAGE_MAX_SLOTS; slot++) {
-                if (DEVICE_AT(device)->profiles[slot].present == 1) {
-                    identity_matches = profile_fully_matches(
-                        &p1_profile, &DEVICE_AT(device)->profiles[slot]);
-                    if (identity_matches != 0) {
-                        DEVICE_AT(device)->inUse[slot] = 1;
-                        p1_profile_device = device;
-                        p1_profile_slot = slot;
-                    }
-                }
-            }
-        } else {
-            DEVICE_AT(p1_profile_device)->inUse[p1_profile_slot] = 1;
-        }
-    }
-
-    if (p2_profile_status == 1) {
-        identity_matches = profile_fully_matches(
-            &p2_profile, &DEVICE_AT(p2_profile_device)->profiles[p2_profile_slot]);
-        if (identity_matches == 0) {
-            for (slot = 0; slot < STORAGE_MAX_SLOTS; slot++) {
-                if (DEVICE_AT(device)->profiles[slot].present == 1) {
-                    identity_matches = profile_fully_matches(
-                        &p2_profile, &DEVICE_AT(device)->profiles[slot]);
-                    if (identity_matches != 0) {
-                        DEVICE_AT(device)->inUse[slot] = 1;
-                        p2_profile_device = device;
-                        p2_profile_slot = slot;
-                    }
-                }
-            }
-        } else {
-            DEVICE_AT(p2_profile_device)->inUse[p2_profile_slot] = 1;
-        }
-    }
-}
-
-/* TODO: [near miss] 99.67%; first profile_fully_matches swaps slot/pin temps r6/r8, coloring only. */
-static inline int profile_device_slot_fully_matches(
-    PlayerProfile* live, StorageDevice* device, int index) {
-    StorageProfileSlot* slot = &device->profiles[index];
-    return profile_fully_matches(live, slot);
-}
-
-int validate_save_location(int player) {
-    PlayerProfile* live;
-    int* devicePtr;
-    int* slotPtr;
-    StorageProfileSlot* found;
-    int device;
-    int slotIndex;
-    int scanDevice;
-    int scanSlot;
-    int tries;
-    int waitLeft;
-    int matched;
-
-    if (player != 0 && player != 1) {
-        return 0;
-    }
-    if (player == 0) {
-        devicePtr = &p1_profile_device;
-        slotPtr = &p1_profile_slot;
-        live = &p1_profile;
-    } else {
-        devicePtr = &p2_profile_device;
-        slotPtr = &p2_profile_slot;
-        live = &p2_profile;
-    }
-    if (*devicePtr < 0 || *devicePtr >= STORAGE_MAX_DEVICES || *slotPtr < 0 ||
-        *slotPtr >= STORAGE_MAX_SLOTS) {
-        return 0;
-    }
-    if (live == 0) {
-        return 0;
-    }
-
-    do {
-        waitLeft = 0x1E;
-        while (update_storage_status(0) != 0 && waitLeft > 0) {
-            waitLeft -= 1;
-        }
-        device = *devicePtr;
-        slotIndex = *slotPtr;
-        matched = profile_device_slot_fully_matches(live, DEVICE_AT(device), slotIndex);
-        if (matched != 0) {
-            return 1;
-        }
-
-        scanDevice = device;
-        scanSlot = slotIndex;
-        tries = 0x49;
-        do {
-            tries -= 1;
-            found = ppv_find_next_present(&scanDevice, &scanSlot);
-            if (found == 0) {
-                matched = 0;
-                break;
-            }
-            matched = profile_fully_matches(live, found);
-        } while ((scanDevice != device || scanSlot != slotIndex) &&
-                 matched == 0 && tries > 0);
-
-        if (matched != 0) {
-            *devicePtr = scanDevice;
-            *slotPtr = scanSlot;
-            return 1;
-        }
-        mcard_msg_card_gone(live->name, player);
-        mcard_msg_end();
-    } while (msg_card_gone_answer != 2);
+int pne_is_name_already_used(void) {
     return 0;
 }
 
-int validate_konq_save_location(int player) {
-    PlayerProfile* live;
-    int* devicePtr;
-    int* slotPtr;
-    StorageProfileSlot* found;
-    int device;
-    int slot;
-    int scanDevice;
-    int scanSlot;
-    int tries;
-    int waitLeft;
-    int matched;
-
-    if (player != 0 && player != 1) {
-        return 0;
-    }
-    if (player == 0) {
-        devicePtr = &p1_profile_device;
-        slotPtr = &p1_profile_slot;
-        live = &p1_profile;
-    } else {
-        devicePtr = &p2_profile_device;
-        slotPtr = &p2_profile_slot;
-        live = &p2_profile;
-    }
-    if (*devicePtr < 0 || *devicePtr >= STORAGE_MAX_DEVICES ||
-        *slotPtr < 0 || *slotPtr >= STORAGE_MAX_SLOTS) {
-        return 0;
-    }
-    if (live == 0) {
-        return 0;
-    }
-
-    for (;;) {
-        waitLeft = 0x1e;
-        while (update_storage_status(0) != 0 && waitLeft > 0) {
-            waitLeft--;
-        }
-        device = *devicePtr;
-        slot = *slotPtr;
-        if (profile_device_slot_fully_matches(live, DEVICE_AT(device), slot)) {
-            return 1;
-        }
-
-        scanDevice = device;
-        scanSlot = slot;
-        tries = 0x49;
-        do {
-            tries--;
-            found = ppv_find_next_present(&scanDevice, &scanSlot);
-            if (found == 0) {
-                matched = 0;
-                break;
-            }
-            matched = profile_fully_matches(live, found);
-        } while ((scanDevice != device || scanSlot != slot) &&
-                 matched == 0 && tries > 0);
-
-        if (matched != 0) {
-            *devicePtr = scanDevice;
-            *slotPtr = scanSlot;
-            return 1;
-        }
-        mcard_msg_save_no_card_konq_region_hault(p1_profile.name, 0);
-        if (msg_save_no_card_konq_region_hault_answer == 2) {
-            mcard_msg_end();
-            mcard_msg_quit_confirmation();
-            if (msg_quit_confirmation_answer == 1) {
-                quit_from_konquest();
-                return 0;
-            }
-        }
-    }
+char* get_current_create_a_profile_name(void) {
+    return player_name;
 }
 
-int validate_konq_load_location(int player) {
-    PlayerProfile* live;
-    int* devicePtr;
-    int* slotPtr;
-    StorageProfileSlot* found;
-    StorageDevice* deviceStatus;
-    int device;
-    int slotIndex;
-    int scanDevice;
-    int scanSlot;
-    int tries;
-    int waitLeft;
-    int matched;
+float p_view_profile(void) {
+    int statusChanged;
+    int player;
 
-    if (player != 0 && player != 1) {
-        return 0;
-    }
-    if (player == 0) {
-        devicePtr = &p1_profile_device;
-        slotPtr = &p1_profile_slot;
-        live = &p1_profile;
-    } else {
-        devicePtr = &p2_profile_device;
-        slotPtr = &p2_profile_slot;
-        live = &p2_profile;
-    }
-    if (*devicePtr < 0 || *devicePtr >= STORAGE_MAX_DEVICES ||
-        *slotPtr < 0 || *slotPtr >= STORAGE_MAX_SLOTS) {
-        return 0;
-    }
-    if (live == 0) {
-        return 0;
-    }
+    player = begin_profile_view();
 
-    do {
-        waitLeft = 0x1e;
-        while (update_storage_status(0) != 0 && waitLeft > 0) {
-            waitLeft--;
-        }
-        device = *devicePtr;
-        slotIndex = *slotPtr;
-        deviceStatus = DEVICE_AT(device);
-        matched = profile_device_slot_fully_matches(live, deviceStatus, slotIndex);
-        if (matched != 0) {
-            return 1;
-        }
+    if (player == 0 || player == 1) {
+        pprofile_pad = g_game_info.players[player].pad_index;
+        set_mode_of_play(3);
+        push_game_state(0xD);
+        set_player_state(&g_game_info.players[pprofile_player], 2);
+        setup_sound_banks(1);
+        wait_for_sound_banks_to_load();
+        pv_recalculate_profiles_and_position(&pos_device, &pos_slot, &number_profiles, &position);
+        load_screen(PROFILE_VIEW_SCREEN, PROFILE_MENU_SCREEN_SLOT, 0, 1);
+        turn_camera_on();
+        turn_controllers_on();
+        button_answer = 0;
 
-        scanDevice = device;
-        scanSlot = slotIndex;
-        tries = 0x49;
-        do {
-            tries--;
-            found = ppv_find_next_present(&scanDevice, &scanSlot);
-            if (found == 0) {
-                matched = 0;
-                break;
-            }
-            matched = profile_fully_matches(live, found);
-        } while ((scanDevice != device || scanSlot != slotIndex) &&
-                 matched == 0 && tries > 0);
-
-        if (matched != 0) {
-            *devicePtr = scanDevice;
-            *slotPtr = scanSlot;
-            return 1;
-        }
-        if (deviceStatus->status == 1) {
-            mcard_msg_load_no_card_konq_region_hault(
-                p1_profile.name, player, device);
-            if (msg_load_no_card_konq_region_hault_answer == 2) {
-                quit_from_konquest();
-                return 0;
-            }
-        } else {
-            mcard_msg_load_no_card_konq_region_hault(
-                p1_profile.name, player, device);
-            if (msg_load_no_card_konq_region_hault_answer == 2) {
-                quit_from_konquest();
-                return 0;
-            }
-        }
-    } while (1);
-}
-
-void quit_from_konquest(void) {
-    unload_player_profiles();
-    gamelogic_jump(6, p_main_menu);
-}
-
-static inline int multi_code_matches_slot(
-    const unsigned char* code, StorageProfileSlot* slot) {
-    unsigned char* pin_cursor;
-    int i;
-
-    pin_cursor = slot->pin;
-    for (i = 0; i < 6; i++) {
-        if (*pin_cursor != *code) {
-            return 0;
-        }
-        pin_cursor++;
-        code++;
-    }
-    return 1;
-}
-
-static inline int multi_code_matches_pin(
-    const unsigned char* code, const unsigned char* pin) {
-    int i;
-
-    for (i = 0; i < 6; i++) {
-        if (*code != *pin) {
-            return 0;
-        }
-        code++;
-        pin++;
-    }
-    return 1;
-}
-
-static inline StorageProfileSlot* find_next_matching_profile(
-    const unsigned char* code, int* device, int* slot) {
-    int walkDevice;
-    int walkSlot;
-    int startDevice;
-    int startSlot;
-    int first;
-
-    startDevice = walkDevice = *device;
-    startSlot = walkSlot = *slot;
-    first = 1;
-    advance_device_slot(&walkDevice, &walkSlot);
-    while (walkDevice != startDevice || walkSlot != startSlot) {
-        if (DEVICE_AT(walkDevice)->profiles[walkSlot].present == 1 &&
-            DEVICE_AT(walkDevice)->inUse[walkSlot] == 0 &&
-            multi_code_matches_pin(
-                code, DEVICE_AT(walkDevice)->profiles[walkSlot].pin) != 0) {
-            *device = walkDevice;
-            *slot = walkSlot;
-            return &DEVICE_AT(walkDevice)->profiles[walkSlot];
-        }
-        advance_device_slot(&walkDevice, &walkSlot);
-        if (first != 0) {
-            advance_device_slot(&startDevice, &startSlot);
-            first = 0;
-        }
-    }
-    *device = -1;
-    *slot = -1;
-    return 0;
-}
-
-static inline void find_next_matching_slot(
-    const unsigned char* code, int* device, int* slot) {
-    int walkDevice;
-    int walkSlot;
-    int startDevice;
-    int startSlot;
-    int first;
-
-    startDevice = walkDevice = *device;
-    startSlot = walkSlot = *slot;
-    first = 1;
-    advance_device_slot(&walkDevice, &walkSlot);
-    while (walkDevice != startDevice || walkSlot != startSlot) {
-        if (DEVICE_AT(walkDevice)->profiles[walkSlot].present == 1 &&
-            DEVICE_AT(walkDevice)->inUse[walkSlot] == 0 &&
-            multi_code_matches_pin(
-                code, DEVICE_AT(walkDevice)->profiles[walkSlot].pin) != 0) {
-            *device = walkDevice;
-            *slot = walkSlot;
-            return;
-        }
-        advance_device_slot(&walkDevice, &walkSlot);
-        if (first != 0) {
-            advance_device_slot(&startDevice, &startSlot);
-            first = 0;
-        }
-    }
-    *device = -1;
-    *slot = -1;
-}
-
-#pragma auto_inline off
-int move_to_profile(int count, unsigned char* code, int* devicePtr, int* slotPtr) {
-    int i;
-
-    i = 0;
-    *devicePtr = STORAGE_MAX_DEVICES - 1;
-    *slotPtr = STORAGE_MAX_SLOTS - 1;
-    while (i < count) {
-        find_next_matching_slot(code, devicePtr, slotPtr);
-        if (*devicePtr == -1 || *slotPtr == -1) return 0;
-        i++;
-    }
-    return 1;
-}
-#pragma auto_inline reset
-
-#define PPL_LIST_PID_P1 0x9026
-#define PPL_LIST_PID_P2 0x9027
-#define PPL_NAME_SLOTS 14
-
-static inline int ppl_count_matching_profiles(const unsigned char* code) {
-    int device;
-    int slotIndex;
-    int count;
-
-    count = 0;
-    for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
-        for (slotIndex = 0; slotIndex < STORAGE_MAX_SLOTS; slotIndex++) {
-            if (DEVICE_AT(device)->profiles[slotIndex].present != 0) {
-                if (multi_code_matches_pin(
-                        code, DEVICE_AT(device)->profiles[slotIndex].pin) != 0 &&
-                    DEVICE_AT(device)->inUse[slotIndex] == 0) {
-                    count += 1;
-                }
-            }
-        }
-    }
-    return count;
-}
-
-static inline int ppl_fill_matching_names(
-    const unsigned char* code, char** out) {
-    int device;
-    int slotIndex;
-    int count;
-
-    count = 0;
-    for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
-        for (slotIndex = 0; slotIndex < STORAGE_MAX_SLOTS; slotIndex++) {
-            if (DEVICE_AT(device)->profiles[slotIndex].present != 0 &&
-                DEVICE_AT(device)->inUse[slotIndex] == 0) {
-                if (multi_code_matches_pin(
-                        code, DEVICE_AT(device)->profiles[slotIndex].pin) != 0) {
-                    out[count] = DEVICE_AT(device)->profiles[slotIndex].name;
-                    count += 1;
-                }
-            }
-        }
-    }
-    return count;
-}
-
-int ppl_get_multi_profile_names_p2(char** out) {
-    int i;
-    MkProc* proc;
-    ProfileCodePdata* list;
-    int count;
-    const unsigned char* code;
-
-    count = 0;
-    for (i = 0; i < PPL_NAME_SLOTS; i++) {
-        out[i] = "";
-    }
-    proc = find_mkproc_pid(PPL_LIST_PID_P2);
-    if (proc != 0) {
-        list = (ProfileCodePdata*)pdata_of_proc(proc);
-        if (list != 0) {
-            code = list->code;
-            count = ppl_fill_matching_names(code, out);
-        }
-    }
-    return count;
-}
-
-int ppl_get_multi_profile_names_p1(char** out) {
-    int i;
-    MkProc* proc;
-    ProfileCodePdata* list;
-    int count;
-    const unsigned char* code;
-
-    count = 0;
-    for (i = 0; i < PPL_NAME_SLOTS; i++) {
-        out[i] = "";
-    }
-    proc = find_mkproc_pid(PPL_LIST_PID_P1);
-    if (proc != 0) {
-        list = (ProfileCodePdata*)pdata_of_proc(proc);
-        if (list != 0) {
-            code = list->code;
-            count = ppl_fill_matching_names(code, out);
-        }
-    }
-    return count;
-}
-
-static void ppl_get_multi_profile_icons(
-    unsigned char* code, GVTexturePair* out, int count);
-
-void ppl_get_multi_profile_icon_p2(GVTexturePair out, int count) {
-    int i;
-    MkProc* proc;
-    ProfileCodePdata* list;
-    GVTexturePair copy;
-
-    i = 0;
-    for (i = 0; i < count; i++) {
-        out.colors[i] = 0;
-    }
-    proc = find_mkproc_pid(PPL_LIST_PID_P2);
-    if (proc != 0) {
-        list = (ProfileCodePdata*)pdata_of_proc(proc);
-        if (list != 0) {
-            copy = out;
-            ppl_get_multi_profile_icons(list->code, &copy, count);
-        }
-    }
-}
-
-void ppl_get_multi_profile_icon_p1(GVTexturePair out, int count) {
-    int i;
-    MkProc* proc;
-    ProfileCodePdata* list;
-    GVTexturePair copy;
-
-    i = 0;
-    for (i = 0; i < count; i++) {
-        out.colors[i] = 0;
-    }
-    proc = find_mkproc_pid(PPL_LIST_PID_P1);
-    if (proc != 0) {
-        list = (ProfileCodePdata*)pdata_of_proc(proc);
-        if (list != 0) {
-            copy = out;
-            ppl_get_multi_profile_icons(list->code, &copy, count);
-        }
-    }
-}
-
-static void ppl_get_multi_profile_icons(
-    unsigned char* code, GVTexturePair* out, int count) {
-    int i;
-    int device;
-    int slot;
-    int screenSlot;
-    StorageProfileSlot* profile;
-
-    device = STORAGE_MAX_DEVICES - 1;
-    slot = STORAGE_MAX_SLOTS - 1;
-    if (is_pselect_mode() != 0) {
-        screenSlot = PSELECT_SEC_SLOT;
-    } else {
-        screenSlot = PPWLS_SCREEN_SLOT;
-    }
-    for (i = 0; i < count; i++) {
-        profile = find_next_matching_profile(code, &device, &slot);
-        if (profile != 0) {
-            out->colors[i] =
-                load_named_tga_from_slot(screenSlot, ppwls_icon[profile->icon].color);
-        }
-    }
-}
-
-int ppl_get_multi_profile_count(int player) {
-    int count;
-    MkProc* proc;
-    ProfileCodePdata* list;
-    const unsigned char* code;
-
-    count = 0;
-    if (player == 0) {
-        proc = find_mkproc_pid(PPL_LIST_PID_P1);
-    } else {
-        proc = find_mkproc_pid(PPL_LIST_PID_P2);
-    }
-    if (proc != 0) {
-        list = (ProfileCodePdata*)pdata_of_proc(proc);
-        if (list != 0) {
-            code = list->code;
-            count = ppl_count_matching_profiles(code);
-        }
-    }
-    return count;
-}
-
-static inline StorageProfileSlot* storage_profile_at(
-    const int* devicePtr, const int* slotPtr) {
-    int slot;
-    int device;
-
-    device = *devicePtr;
-    if (device >= 0 && device < STORAGE_MAX_DEVICES) {
-        slot = *slotPtr;
-        if (slot >= 0 && slot < STORAGE_MAX_SLOTS) {
-            return &DEVICE_AT(device)->profiles[slot];
-        }
-    }
-    return 0;
-}
-
-static inline void mark_profile_as_in_use_impl(int device, int slot) {
-    if (device < 0) {
-        return;
-    }
-    if (device >= STORAGE_MAX_DEVICES) {
-        return;
-    }
-    if (slot < 0 || slot >= STORAGE_MAX_SLOTS) {
-        return;
-    }
-    DEVICE_AT(device)->inUse[slot] = 1;
-}
-
-StorageProfileSlot* scan_storage_for_code(int* state, int player, int port,
-                                          unsigned char* code, int* device, int* slot) {
-    int matchCount;
-    int previousCount;
-    int cursor;
-    int eventPlayer;
-    int selected;
-    StorageProfileSlot* profile;
-    int timer;
-
-    selected = 0;
-    if (is_memcard_scanner_running() != 0) {
-        kill_async_memcard_scan();
-    }
-    eventPlayer = player + 1;
-
-    for (;;) {
-        if (update_storage_status(0) != 0) {
-            fire_screen_studio_event(0x1FE4, 1);
-        }
-
-        matchCount = ppl_count_matching_profiles(code);
-        switch (matchCount) {
-        case 0:
-            *device = -1;
-            *slot = -1;
-            *state = 1;
-            profile_code_state[player] = 8;
-            fire_screen_studio_event(0x1FAA, eventPlayer);
-            return 0;
-        case 1:
-            *device = STORAGE_MAX_DEVICES - 1;
-            *slot = STORAGE_MAX_SLOTS - 1;
-            find_next_matching_slot(code, device, slot);
-            if (*device == -1 || *device == -1) {
-                *state = 1;
-                return 0;
-            }
-            *state = 2;
-            mark_profile_as_in_use_impl(*device, *slot);
-            return &DEVICE_AT(*device)->profiles[*slot];
-        default:
-            *device = STORAGE_MAX_DEVICES - 1;
-            *slot = STORAGE_MAX_SLOTS - 1;
-            profile = find_next_matching_profile(code, device, slot);
-            break;
-        }
-
-        profile_code_state[player] = 10;
-        fire_screen_studio_event(0x1FAA, eventPlayer);
-        previousCount = matchCount;
-        timer = 0;
-
-        while (selected == 0) {
-            matchCount = ppl_count_matching_profiles(code);
-            if (previousCount != matchCount) {
-                goto rescan;
-            }
-
-            if (timer-- == 0) {
+        while (button_answer != 2) {
+            statusChanged = scan_cards_timer;
+            scan_cards_timer = statusChanged - 1;
+            if (statusChanged == 0) {
                 if (update_storage_status(0) != 0) {
-                    fire_screen_studio_event(0x1FE4, 1);
-                    fire_screen_studio_event(0x1FE4, 2);
-                    goto rescan;
+                    pv_recalculate_profiles_and_position(&pos_device, &pos_slot, &number_profiles,
+                                                        &position);
+                    fire_screen_studio_event(PROFILE_MENU_EVENT_REFRESH, 0);
                 }
-                timer = 0x1E;
-            }
-
-            if ((selected == 0) & check_switch_action(port, 2)) {
-                if (player == 0) {
-                    fire_screen_studio_event(0x1FC2, eventPlayer);
-                    cursor = get_multi_profile_cursor_p1();
-                } else {
-                    fire_screen_studio_event(0x1FC3, eventPlayer);
-                    cursor = get_multi_profile_cursor_p2();
-                }
-                if (move_to_profile(cursor + 1, code, device, slot) != 0) {
-                    profile = storage_profile_at(device, slot);
-                    *state = 2;
-                    mark_profile_as_in_use_impl(*device, *slot);
-                    selected = 1;
-                }
-                fire_screen_studio_event(0x1FE4, 1);
-                fire_screen_studio_event(0x1FE4, 2);
-            }
-
-            if ((selected == 0) & check_switch_action(port, 1)) {
-                profile = 0;
-                *state = 3;
-                selected = 1;
+                scan_cards_timer = 0x1E;
             }
             _mkproc_sleep_ticks = kOne;
             mkproc_sleep();
         }
-        return profile;
-    rescan:;
-    }
-}
 
-void memory_save_profile(int player, PlayerProfile* dest) {
-    if (player == 0) {
-        memcpy(dest, &p1_profile, PROFILE_SIZE);
-    } else {
-        memcpy(dest, &p2_profile, PROFILE_SIZE);
+        fade_to_black(PROFILE_MENU_FADE_FRAMES, 1);
     }
-}
 
-void memory_load_profile(int player, PlayerProfile* src) {
-    if (player == 0) {
-        memcpy(&p1_profile, src, PROFILE_SIZE);
-    } else {
-        memcpy(&p2_profile, src, PROFILE_SIZE);
-    }
-}
-
-int move_profile_p2_to_p1(void) {
-    if (p1_profile_status != 0) {
-        return 0;
-    }
-    memcpy(&p1_profile, &p2_profile, PROFILE_SIZE);
-    p1_profile_status = p2_profile_status;
-    p1_profile_device = p2_profile_device;
-    p1_profile_slot = p2_profile_slot;
-    profile_code_state[0] = profile_code_state[1];
-    set_profile_to_default_impl(&p2_profile);
-    p2_profile_status = 0;
-    p2_profile_device = -1;
-    p2_profile_slot = -1;
-    profile_code_state[1] = 0;
-    p1_rumble_on = p2_rumble_on;
-    p2_rumble_on = 0;
-    return 1;
-}
-
-int move_profile_p1_to_p2(void) {
-    if (p2_profile_status != 0) {
-        return 0;
-    }
-    memcpy(&p2_profile, &p1_profile, PROFILE_SIZE);
-    p2_profile_status = p1_profile_status;
-    p2_profile_device = p1_profile_device;
-    p2_profile_slot = p1_profile_slot;
-    profile_code_state[1] = profile_code_state[0];
-    set_profile_to_default_impl(&p1_profile);
-    p1_profile_status = 0;
-    p1_profile_device = -1;
-    p1_profile_slot = -1;
-    profile_code_state[0] = 0;
-    p2_rumble_on = p1_rumble_on;
-    p1_rumble_on = 0;
-    return 1;
-}
-
-int count_all_profiles(void) {
-    int total;
-    int i;
-
-    total = 0;
-    for (i = 0; i < STORAGE_MAX_DEVICES; i++) {
-        total += DEVICE_AT(i)->profileCount;
-    }
-    return total;
-}
-
-void mark_profile_as_in_use(int device, int slot) {
-    if (device < 0) {
-        return;
-    }
-    if (device >= STORAGE_MAX_DEVICES) {
-        return;
-    }
-    if (slot < 0 || slot >= STORAGE_MAX_SLOTS) {
-        return;
-    }
-    DEVICE_AT(device)->inUse[slot] = 1;
-}
-
-int find_device_display_status(int device) {
-    return find_device_display_status_impl(device, 1);
-}
-
-float p_reset_ppwls_timeout(void) {
-    int ticks_left;
-
-    ticks_left = PPWLS_TIMEOUT_TICKS;
-    while (ticks_left != 0) {
-        _mkproc_sleep_ticks = kOne;
-        mkproc_sleep();
-        if (mcard_msg_active == 0) {
-            ticks_left--;
-        }
-    }
-    ppwls_input_done = 1;
+    pop_game_state();
+    set_mode_of_play(0xD);
+    set_player_state(&g_game_info.players[pprofile_player], 0);
+    gamelogic_jump(6, p_main_menu);
     return kNegOne;
 }
 
-void reset_ppwls_timeout(void) {
-    spawn_ppwls_timeout_proc();
-}
+void ppv_update_profile_cursor(int delta) {
+    int newPosition;
 
-void format_or_recreate_a_device(int device) {
-    int status;
-
-    status = DEVICE_AT(device)->status;
-    if (status == STORAGE_STATUS_FORMAT_NEEDED || status == STORAGE_STATUS_UNFORMATTED ||
-        DEVICE_AT(device)->status == STORAGE_STATUS_FORMAT_NEEDED ||
-        status == STORAGE_STATUS_FORMAT_ALT || is_device_unformatted(device) != 0) {
-        format_card_and_create_mkda_file(device);
-        fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
-        update_storage_status(0);
-    }
-    if (DEVICE_AT(device)->status == STORAGE_STATUS_BROKEN_FILE) {
-        if (gc_delete_file(device, MEMCARD_SAVE_FILENAME) != 0) {
-            DEVICE_AT(device)->status = STORAGE_STATUS_NO_FILE;
+    newPosition = position + delta;
+    if (newPosition >= 0 && newPosition < number_profiles) {
+        if (delta > 0) {
+            (void)ppv_find_next_present(&pos_device, &pos_slot);
+            position++;
+        } else {
+            ppv_find_previous_present(&pos_device, &pos_slot);
+            position--;
         }
-        fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
-        update_storage_status(0);
     }
-    if (DEVICE_AT(device)->status == STORAGE_STATUS_NO_FILE) {
-        create_new_mk5_profile_file(device);
-        fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
-        update_storage_status(0);
-    }
-    spawn_ppwls_timeout_proc();
+    fire_screen_studio_event(PROFILE_MENU_EVENT_REFRESH, 0);
 }
 
-static float p_player_profile_whats_loaded_screen(void) {
-    int status_changed;
-
-    turn_camera_on();
-    load_screen(PPWLS_SCREEN_PATH, PPWLS_SCREEN_SLOT, 0, 0);
-    update_storage_status(0);
-    gc_boot_space_check();
-    load_game_settings();
-    ppwls_input_done = 0;
-    spawn_ppwls_timeout_proc();
-    set_wls_left_cursor(0);
-    fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
-    fade_from_black(PPWLS_FADE_FRAMES, 1);
-    _mkproc_sleep_ticks = kSleepIntro;
-    mkproc_sleep();
-    fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
-    reset_format_or_recreate_flags();
-
-    while (ppwls_input_done == 0) {
-        status_changed = update_storage_status(1);
-        if (status_changed != 0) {
-            _mkproc_sleep_ticks = kOne;
-            mkproc_sleep();
-            fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
-            spawn_ppwls_timeout_proc();
-        }
-        check_format_or_recreate();
-        _mkproc_sleep_ticks = kSleepLoop;
-        mkproc_sleep();
-    }
-
-    fire_screen_studio_event(PPWLS_EVENT_REFRESH, 0);
-    load_game_settings();
-    _mkproc_sleep_ticks = kSleepPost;
-    mkproc_sleep();
-    fade_to_black(PPWLS_FADE_FRAMES, 1);
-    turn_camera_off();
-    fire_screen_studio_event(PPWLS_EVENT_DONE, 0);
-    _mkproc_sleep_ticks = kOne;
-    mkproc_sleep();
-    gamelogic_jump(0, p_atm_loop);
-    return kNegOne;
-}
-
-void set_ppwls_input_done(void) {
-    ppwls_input_done = 1;
-}
-
-float p_player_profile_boot_screen_entry_point(void) {
-    _mkproc_sleep_ticks = kOne;
-    mkproc_sleep();
-    set_section_memory_scheme(SECTION_MEMORY_SCHEME_PROFILE);
-    mkproc_jump_sleep(p_player_profile_whats_loaded_screen);
-    return kZero;
-}
-
-static inline int profile_name_text_equal(char* first, char* second) {
-    int length;
+void ppv_view_profile_icon_list(GVTexturePair out) {
+    StorageProfileSlot* profile;
     int i;
-
-    length = strlen(first);
-    if (length != (int)strlen(second)) {
-        return 0;
-    }
-    for (i = 0; i <= length; i++) {
-        if ((signed char)*first != (signed char)*second) {
-            return 0;
-        }
-        first++;
-        second++;
-    }
-    return 1;
-}
-
-static inline int profile_count_available_named(char* name) {
     int device;
     int slot;
-    int hits;
+    int before;
+    int after;
+    int start;
+    int count;
+    int steps;
+    int profiles;
 
-    hits = 0;
-    for (device = 0; device < STORAGE_MAX_DEVICES; device++) {
-        for (slot = 0; slot < STORAGE_MAX_SLOTS; slot++) {
-            if (DEVICE_AT(device)->profiles[slot].present != 0) {
-                if (profile_name_text_equal(
-                        name, DEVICE_AT(device)->profiles[slot].name) != 0 &&
-                    DEVICE_AT(device)->inUse[slot] == 0) {
-                    hits++;
-                }
-            }
-        }
+    device = pos_device;
+    slot = pos_slot;
+    for (i = 0; i < STORAGE_MAX_SLOTS; i++) {
+        out.colors[i] = 0;
     }
-    return hits;
-}
-
-static void pne_set_players_name_to_default(char* name, int* charPos) {
-    int suffix;
-    int matches;
-    int nameLen;
-    int i;
-
-    suffix = 0;
-    matches = 1;
-    while (matches != 0 && suffix < 0x63) {
-        suffix++;
-        sprintf(name, "%s %d", nbc_find_text(0xb, 1), suffix);
-        matches = profile_count_available_named(name);
-    }
-
-    nameLen = strlen(name);
-    for (i = nameLen; i < 10; i++) {
-        name[i] = '_';
-    }
-    name[10] = '\0';
-    *charPos = nameLen;
-}
-
-static inline void profile_normalize_name(char* name) {
-    int i;
-    for (i = 0; i < 10; i++) {
-        if (*name == '_') {
-            *name = '\0';
-        }
-        name++;
-    }
-}
-
-int does_name_already_exist(const char* name) {
-    char local[STORAGE_NAME_LEN];
-    int i;
-    char* p;
-    const char* q;
-
-    p = local;
-    q = name;
-    for (i = 0; i < 0xB; i++) {
-        *p++ = *q++;
-    }
-    profile_normalize_name(local);
-
-    return profile_count_available_named(local) != 0;
-}
-
-#define COFFIN_BIT_COUNT 0x258
-
-void set_coffin_bit(unsigned char* bits, unsigned int index, int value) {
-    unsigned int byte_index;
-    unsigned int mask;
-
-    if (index >= COFFIN_BIT_COUNT) {
+    if ((profiles = number_profiles) == 0) {
         return;
     }
-    byte_index = index >> 3;
-    mask = 1 << (index & 7);
-    if (value != 0) {
-        bits[byte_index] = mask | bits[byte_index];
-    } else {
-        bits[byte_index] &= ~mask;
+
+    before = 3;
+    if (position < 3) {
+        before = position;
+    }
+    after = 3;
+    if (profiles - position <= 3) {
+        after = profiles - position - 1;
+    }
+    count = before + after + (profiles != 0);
+    start = 3 - before;
+
+    steps = before;
+    while (steps > 0) {
+        ppv_find_previous_present(&device, &slot);
+        steps--;
+    }
+
+    for (i = start; i < count + start; i++) {
+        if (i == start) {
+            profile = ppv_profile_at(device, slot);
+        } else {
+            profile = ppv_find_next_present(&device, &slot);
+        }
+        if (profile != 0) {
+            out.colors[i] =
+                load_named_tga_from_slot(PROFILE_MENU_SCREEN_SLOT, ppwls_icon[profile->icon].alpha);
+        }
     }
 }
 
-int get_coffin_bit(const unsigned char* bits, unsigned int index) {
-    unsigned int mask;
-
-    if (index >= COFFIN_BIT_COUNT) {
-        return 0;
-    }
-    mask = index & 7;
-    mask = 1u << mask;
-    return (mask & bits[index >> 3]) != 0;
-}
-
-void set_profile_to_default(PlayerProfile* profile) {
-    unsigned char* konquest;
+static void pv_recalculate_profiles_and_position(int* outDevice, int* outSlot,
+                                                 int* outCount, int* outPosition) {
     int i;
 
-    memset(profile, 0, sizeof(*profile));
-    profile->active = 1;
-    strcpy(
-        profile->name,
-        nbc_find_text(NBC_DEFAULT_PROFILE_NAME, NBC_DEFAULT_PROFILE_SUB));
-    for (i = 0; i < PROFILE_SWITCHMAP_COUNT; i++) {
-        profile->switch_map[i] = default_switch_map[i].mask;
+    *outDevice = -1;
+    *outSlot = -1;
+    *outCount = profile_count_all();
+    *outPosition = *outCount / 2;
+    if (*outCount > 0) {
+        *outDevice = 1;
+        *outSlot = 6;
+        for (i = 0; i < *outPosition + 1; i++) {
+            pv_find_next_present_profile(outDevice, outSlot);
+        }
     }
-    konquest = profile->konquest;
-    memset(konquest, 0, sizeof(profile->konquest));
-    *(int*)(konquest + KONQUEST_FIELD_68) = PROFILE_KONQUEST_FIELD_68;
-    profile->unlock_cat7.value = PROFILE_DEFAULT_UNLOCK_CAT7_LO;
-    profile->unlock_cat6 = PROFILE_DEFAULT_UNLOCK_CAT5;
 }
 
-void unload_p2_player_profile(void) {
-    clear_storage_in_use(p2_profile_device, p2_profile_slot);
-    set_profile_to_default(&p2_profile);
-    p2_rumble_on = 0;
-    p2_profile_status = 0;
-    p2_profile_device = -1;
-    p2_profile_slot = -1;
-    switch_map_unload_player_profile(&g_game_info.plyr1);
-    profile_code_state[1] = 8;
+
+char* ppv_get_current_profile_name(void) {
+    StorageProfileSlot* slot;
+
+    if (pos_device >= 0 && pos_device < STORAGE_MAX_DEVICES &&
+        pos_slot >= 0 && pos_slot < STORAGE_MAX_SLOTS) {
+        slot = &DEVICE_AT(pos_device)->profiles[pos_slot];
+    } else {
+        slot = 0;
+    }
+    if (slot != 0) {
+        return slot->name;
+    }
+    return (char*)nbc_find_text(NBC_EMPTY_PROFILE_NAME, 1);
 }
 
-void unload_p1_player_profile(void) {
-    clear_storage_in_use(p1_profile_device, p1_profile_slot);
-    set_profile_to_default(&p1_profile);
-    p1_rumble_on = 0;
-    p1_profile_status = 0;
-    p1_profile_device = -1;
-    p1_profile_slot = -1;
-    switch_map_unload_player_profile(&g_game_info.plyr0);
-    profile_code_state[0] = 8;
+void ppv_get_current_profile_arcade_finishes(char* dest) {
+    StorageProfileSlot* slot;
+    int value;
+
+    if (pos_device >= 0 && pos_device < STORAGE_MAX_DEVICES &&
+        pos_slot >= 0 && pos_slot < STORAGE_MAX_SLOTS) {
+        slot = &DEVICE_AT(pos_device)->profiles[pos_slot];
+    } else {
+        slot = 0;
+    }
+    if (slot != 0) {
+        value = slot->arcade_finishes;
+    } else {
+        value = 0;
+    }
+    format_value_to_display(dest, value);
 }
 
-#pragma dont_inline on
-void unload_player_profiles(void) {
-    unload_p1_player_profile();
-    unload_p2_player_profile();
-}
-#pragma dont_inline reset
+static inline void format_profile_stat_pair(char* result, unsigned int raw_first,
+                                            unsigned int raw_second) {
+    char first_text[12];
+    char second_text[12];
+    unsigned int first;
+    unsigned int second;
 
-void init_player_profiles(void) {
-    set_profile_to_default(&p1_profile);
-    p1_profile_status = 0;
-    p1_profile_device = -1;
-    p1_profile_slot = -1;
-    set_profile_to_default(&p2_profile);
-    p2_profile_status = 0;
-    p2_profile_device = -1;
-    p2_profile_slot = -1;
-    p1_profile_common = p1_profile.name;
-    p2_profile_common = p2_profile.name;
-    p1_profile_konquest = p1_profile.konquest;
-    p2_profile_konquest = p2_profile.konquest;
+    first = raw_first < 1000000U ? raw_first : 999999U;
+    second = raw_second < 1000000U ? raw_second : 999999U;
+    format_value_to_display(first_text, first);
+    format_value_to_display(second_text, second);
+    sprintf(result, "%s / %s", first_text, second_text);
+}
+
+void get_profile_stats(char** outs) {
+    StorageProfileSlot* slot;
+    char result[24];
+    int out_index;
+
+    for (out_index = 0; out_index < 9; out_index++) {
+        strcpy(outs[out_index], "0 / 0");
+    }
+
+    if (pos_device >= 0 && pos_device < STORAGE_MAX_DEVICES &&
+        pos_slot >= 0 && pos_slot < STORAGE_MAX_SLOTS) {
+        slot = &DEVICE_AT(pos_device)->profiles[pos_slot];
+    } else {
+        slot = 0;
+    }
+    if (slot != 0) {
+        format_profile_stat_pair(result, slot->view_stats_early[0][0],
+                                 slot->view_stats_early[0][1]);
+        strcpy(outs[0], result);
+        format_profile_stat_pair(result, slot->view_stats_early[1][0],
+                                 slot->view_stats_early[1][1]);
+        strcpy(outs[1], result);
+        format_profile_stat_pair(result, slot->view_stats_early[2][0],
+                                 slot->view_stats_early[2][1]);
+        strcpy(outs[2], result);
+        format_profile_stat_pair(result, slot->view_stats_mid[0][0],
+                                 slot->view_stats_mid[0][1]);
+        strcpy(outs[3], result);
+        format_profile_stat_pair(result, slot->view_stats_mid[1][0],
+                                 slot->view_stats_mid[1][1]);
+        strcpy(outs[4], result);
+        format_profile_stat_pair(result, slot->view_stats_mid[2][0],
+                                 slot->view_stats_mid[2][1]);
+        strcpy(outs[5], result);
+        format_profile_stat_pair(result, slot->view_stats_late[0][0],
+                                 slot->view_stats_late[0][1]);
+        strcpy(outs[6], result);
+        format_profile_stat_pair(result, slot->view_stats_late[1][0],
+                                 slot->view_stats_late[1][1]);
+        strcpy(outs[7], result);
+        format_profile_stat_pair(result, slot->view_stats_late[2][0],
+                                 slot->view_stats_late[2][1]);
+        strcpy(outs[8], result);
+    }
+}
+
+void ppv_get_current_profile_koins(char* dest, int index) {
+    StorageProfileSlot* slot;
+    int value;
+
+    if (pos_device >= 0 && pos_device < STORAGE_MAX_DEVICES &&
+        pos_slot >= 0 && pos_slot < STORAGE_MAX_SLOTS) {
+        slot = &DEVICE_AT(pos_device)->profiles[pos_slot];
+    } else {
+        slot = 0;
+    }
+    if (index < 0 || index >= 6 || slot == 0) {
+        value = 0;
+    } else {
+        value = slot->koins[index];
+    }
+    format_value_to_display(dest, value);
+}
+
+void format_wins_losses_to_string(char* result, unsigned int wins, unsigned int losses) {
+    char wins_text[12];
+    char losses_text[12];
+
+    format_value_to_display(wins_text, wins);
+    format_value_to_display(losses_text, losses);
+    sprintf(result, "%s / %s", wins_text, losses_text);
+}
+
+float p_delete_profile(void) {
+    int statusChanged;
+
+    number_profiles = 0;
+    position = 0;
+    screen_obj = 0;
+    scan_cards_timer = 0x3C;
+    pos_device = -1;
+    pos_slot = -1;
+    pprofile_player = menu_player;
+
+    if (pprofile_player == 0 || pprofile_player == 1) {
+        pprofile_pad = (&g_game_info.plyr0)[pprofile_player].pad_index;
+        set_mode_of_play(3);
+        push_game_state(0xD);
+        set_player_state(&(&g_game_info.plyr0)[pprofile_player], 2);
+        setup_sound_banks(1);
+        wait_for_sound_banks_to_load();
+        unload_player_profiles();
+        set_mode_of_play(3);
+        pv_recalculate_profiles_and_position(&pos_device, &pos_slot, &number_profiles, &position);
+        load_screen(PROFILE_DELETE_SCREEN, PROFILE_MENU_SCREEN_SLOT, 0, 1);
+        turn_camera_on();
+        turn_controllers_on();
+        button_answer = 0;
+
+        while (button_answer != 2) {
+            statusChanged = scan_cards_timer;
+            scan_cards_timer = statusChanged - 1;
+            if (statusChanged == 0) {
+                if (update_storage_status(0) != 0) {
+                    pv_recalculate_profiles_and_position(&pos_device, &pos_slot, &number_profiles,
+                                                        &position);
+                }
+                fire_screen_studio_event(PROFILE_MENU_EVENT_REFRESH, 0);
+                scan_cards_timer = 0x1E;
+            }
+
+            if (pos_device != -1 && pos_slot != -1 && number_profiles > 0 && button_answer == 1) {
+                mcard_msg_confirm_erase();
+                while (mcard_msg_confirm_erase_answer == 0) {
+                    _mkproc_sleep_ticks = kOne;
+                    mkproc_sleep();
+                }
+                mcard_msg_end();
+
+                if (mcard_msg_confirm_erase_answer == 1) {
+                    if (update_storage_status(0) == 0) {
+                        delete_selected_profile();
+                    }
+                }
+                pv_recalculate_profiles_and_position(&pos_device, &pos_slot, &number_profiles,
+                                                    &position);
+                _mkproc_sleep_ticks = kOne;
+                mkproc_sleep();
+                fire_screen_studio_event(PROFILE_MENU_EVENT_REFRESH, 0);
+                button_answer = 0;
+            }
+
+            _mkproc_sleep_ticks = kOne;
+            mkproc_sleep();
+        }
+
+        fade_to_black(PROFILE_MENU_FADE_FRAMES, 1);
+    }
+
+    set_player_state(&(&g_game_info.plyr0)[pprofile_player], 0);
+    set_mode_of_play(0xD);
+    pop_game_state();
+    gamelogic_jump(6, p_main_menu);
+    return kNegOne;
+}
+
+void erase_player_profile(int device, int slot) {
+    StorageDevice* base;
+    int* freeBytes;
+    unsigned int* freeBlocks;
+    const char* title;
+    int region;
+    int ok;
+
+    if (device < 0 || device >= STORAGE_MAX_DEVICES || slot < 0 || slot >= STORAGE_MAX_SLOTS) {
+        return;
+    }
+    base = DEVICE_AT(device);
+    reset_sg_status(base, slot);
+    storage_status_change_calculations(device);
+    mcard_msg_deleting_data(device);
+    clear_region_buffer();
+
+    freeBlocks = &base->freeBlocks;
+    freeBytes = &base->freeBytes;
+    region = 1;
+    ok = 1;
+    while (region < 9 && ok != 0) {
+        title = nbc_find_text(NBC_MEMCARD_TITLE, 1);
+        ok = save_konquest_region_to_memcard_w_error(
+            device, slot, 5, title, region,
+            konq_region_data_buffer, 0, freeBlocks, freeBytes);
+        if (ok != 0 && mcard_msg_active != MCARD_MSG_ACTIVE_PROGRESS) {
+            mcard_msg_end();
+            mcard_msg_deleting_data(device);
+        }
+        region++;
+    }
+
+    if (ok != 0) {
+        ok = save_to_memcard_w_error(
+            device, 4, nbc_find_text(NBC_MEMCARD_TITLE, 1), &base->settings, 0,
+            freeBlocks, freeBytes);
+    }
+
+    if (ok != 0) {
+        mcard_msg_delete_successful_generic();
+    } else {
+        mcard_msg_delete_failed_generic();
+    }
+    mcard_msg_end();
 }

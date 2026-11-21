@@ -71,6 +71,7 @@ void PADSetAnalogMode(unsigned long mode);
 PADSamplingCallback PADSetSamplingCallback(PADSamplingCallback callback);
 int __PADDisableRecalibration(int disable);
 int PADIsBarrel(signed long channel);
+extern unsigned long __PADSpec;
 
 #ifdef __cplusplus
 }

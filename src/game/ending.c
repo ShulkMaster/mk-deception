@@ -20,15 +20,13 @@
 #include "platform/main_jump.h"
 #include "platform/display_metrics.h"
 #include "runtime/cstring.h"
+#include "game/konquest_missions.h"
 
 #pragma use_lmw_stmw on
 
-extern int text_window_state;
-extern float p_show_text_window(void);
-extern int char_for_ending;
-extern int winner_for_ending;
+int char_for_ending = 0x2C;
 extern MkFileInfo sec_ending_champion;
-extern int champion_bad_guys[2];
+static int champion_bad_guys[2] = {0x1D, 0};
 void snd_stop_all(void);
 void run_ending(int fighter);
 float p_character_ending_sequence(void);
@@ -89,12 +87,13 @@ struct EndingDataEntry {
     int speech_id;
 };
 
-extern struct EndingScreenObjItem ending_image_1a_item;
-extern struct EndingScreenObjItem ending_image_1b_item;
-extern struct EndingScreenObjItem ending_image_2a_item;
-extern struct EndingScreenObjItem ending_image_2b_item;
-extern struct EndingScreenObjItem ending_image_3a_item;
-extern struct EndingScreenObjItem ending_image_3b_item;
+static int ending_speech;
+struct EndingScreenObjItem ending_image_1a_item;
+struct EndingScreenObjItem ending_image_1b_item;
+struct EndingScreenObjItem ending_image_2a_item;
+struct EndingScreenObjItem ending_image_2b_item;
+struct EndingScreenObjItem ending_image_3a_item;
+struct EndingScreenObjItem ending_image_3b_item;
 extern MkFileInfo sec_ending_ashrah;
 extern MkFileInfo sec_ending_baraka;
 extern MkFileInfo sec_ending_boraicho;
@@ -121,9 +120,6 @@ extern MkFileInfo sec_ending_shujinko;
 extern MkFileInfo sec_ending_sindel;
 extern MkFileInfo sec_ending_subzero;
 extern MkFileInfo sec_ending_tanya;
-
-extern int ending_speech;
-extern int f_ending_speech_paused;
 
 struct EndingDataEntry ending_data_table[26] = {
     {7, &sec_ending_ashrah, "run_ashrah_ending", "GICO_ENDING_ASHRAH02",
@@ -207,6 +203,8 @@ struct EndingDataEntry ending_data_table[26] = {
 };
 
 static int scrolling_text_string_count;
+static int f_ending_speech_paused;
+int winner_for_ending;
 
 static void fade_ending_screen_images(int image, int ticks);
 static float p_early_out_monitor(void);

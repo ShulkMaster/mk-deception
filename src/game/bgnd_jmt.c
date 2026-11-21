@@ -137,13 +137,11 @@ struct RopeInfo g_rope_info[] = {
 static int n_rope_info = sizeof(g_rope_info) / sizeof(g_rope_info[0]);
 
 
-extern MkObj* g_bgnd_preloaded_models[];
 RopeProcLatch rope_proc_item;
 RopeProcLatch sobj_ctrl_proc_item;
 int g_ticks_delay;
 int g_delay_rnd;
 
-void* get_bone_with_tag(void* object, int tag);
 
 static void rope_controller_init(struct RopeControllerData* rope, MkObj* model);
 static void rope_controller_update(struct RopeControllerData* rope);

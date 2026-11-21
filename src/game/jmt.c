@@ -26,6 +26,9 @@
 #include "rw/rwframe.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/utils.h"
+#include "game/ai.h"
+#include "game/konquest_missions.h"
+#include "game/bgnd.h"
 
 static inline void jmt_init_decoy_visuals(
     Vec* angles, RwRGBA* light, RwRGBA* dark) {
@@ -97,46 +100,33 @@ struct JmtSharedAnimations {
 };
 
 extern struct JmtSharedAnimations shared_ani;
-extern MkObj* g_bgnd_preloaded_models[];
 extern int blood_type_list[12];
 extern MkPtr* gusher_list;
 void plyr_bleed_large_ext(PlyrPdata* player, int type, PlyrPdata* owner);
 void drone_ai_set_avoidance_area(Vec* position, float duration);
-void drone_ai_clear_avoidance_area_duration(int player);
 void fx_resume_emit(unsigned int effect);
-void pull_bone_hierarchy_mkobj(MkObj* object);
-void obj_set_all_sobjs_priority(MkObj* object, int priority);
 int pfx_plyr_bankowner(PlyrInfo* player);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, unsigned int alpha);
 
-void trial_state_collision_check(int collision_result, int player);
 
 int player_area_collision_check(
     float radius, float height, int region, float depth, int flags);
-int collision_2(int region, float radius, float height);
-void check_to_register_miss(void);
 void ani_1_frame(void);
-void start_plyr_attack(float radius);
-void set_collision_made_flag(void);
-void reaction_xfer_him(int reaction, float rate, int strength);
+int reaction_xfer_him(int reaction, float damage_scale, int block_type);
 void ani_to_frame_x(float frame);
 void slow_ani_x(float speed, float frame);
 void stop_me(void);
-void got_hit_fx(int type, int region, int arg2, int arg3, int arg4, float scale, int arg5);
 void set_ani_speed(float speed);
-void random_hit(int type);
+MslSoundHandle random_hit(int group);
 void ani_to_blend_frame(float frame);
 void face_opponent_now(void);
 void init_air_move(void);
-void force_away(float force, int duration, float damping, int animation);
-void idle_victim(void);
 static float p_decoy_shrink(void);
 static float p_bow_ctrl(void);
 static float p_bow_retract(void);
 static float kabal_collide_victim(void);
-float j_getup_back_6(void);
-void* find_pfx_by_name(const char* name);
-void restart_effect_ppfx(void* effect);
+struct PfxScriptEffect* find_pfx_by_name(const char* name);
+void restart_effect_ppfx(struct PfxScriptEffect* effect);
 static float kabal_collide_victim_falldown(void);
 static void start_kabal_smoke_pfx(struct JmtKabalSmokePdata* pdata);
 static float p_kabal_smoke(void);

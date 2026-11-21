@@ -37,8 +37,7 @@ typedef int (*ScanReadProc)(void*, int, int);
     ((map)[(unsigned char)(character) >> 3] & (1 << ((character) & 7)))
 
 int mbtowc(unsigned short* output, const char* input, unsigned long length);
-long double __strtold(int max_width, ScanReadProc read_proc,
-                      void* read_context, int* chars_scanned, int* overflow);
+long double __strtold(int max_width, int (*ReadProc)(void*, int, int), void* ReadProcArg, int* chars_scanned, int* overflow);
 
 static int __sformatter(ScanReadProc read_proc, void* read_context,
                         const char* format_string, __va_list arguments);

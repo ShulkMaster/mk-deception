@@ -230,6 +230,23 @@ void set_target_game_mode(int menu_player_arg, int mode);
 /* Returns share_pdata if instance still valid; else NULL. Callers cast. */
 void* get_screen_pdata(void);
 void screen_share_pdata(MkHdr* share);
+extern void screen_engine_cleanup(void);
+int get_menu_mode_sub_var(void);
+void set_button_repeat_time(int ticks);
+void set_default_button_repeat_time(void);
+void set_popup_title_text(const char* text);
+char* get_current_screen_name(void);
+void set_popup_message_text(const char* text);
+void set_popup_options_text(const char* text);
+void refresh_screen_by_name(char* name);
+int get_multi_profile_cursor_p2(void);
+void set_popup_type(int type);
+int get_gameoption_exitwithsave(void);
+void refresh_active_screen(void);
+int get_multi_profile_cursor_p1(void);
+void ppc_set_stage_value(int stage);
+extern const int vert_map__10ScreenPoly[4];
+int GetArtSlot__Fv(void);
 
 #ifdef __cplusplus
 }

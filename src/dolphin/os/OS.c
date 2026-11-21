@@ -8,10 +8,10 @@
 #include "dolphin/si.h"
 #include "runtime/cstring.h"
 #include "runtime/asm_sequences.inc"
+#include "dolphin/pad.h"
 
 extern void EnableMetroTRKInterrupts(void);
 extern unsigned long __DVDLongFileNameFlag;
-extern unsigned long __PADSpec;
 unsigned short __OSDeviceCode : 0x800030E6;
 volatile unsigned long __DIRegs[] : 0xCC006000;
 extern unsigned char __ArenaLo[], __ArenaHi[];

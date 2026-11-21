@@ -23,13 +23,11 @@ struct GcFilter {
 
 
 
-#pragma force_active on
 RwMemoryFunctions mem_funcs;
 static OSAlarm reset_watch_alarm;
 static OSThread reset_thread;
 static OSMutex gp_mutex;
 static unsigned char reset_handler_stack[0x820];
-#pragma force_active reset
 
 int feedback_blendrate = 0xE0;
 int gc_screen_brightness = 10;

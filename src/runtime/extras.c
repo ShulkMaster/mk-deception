@@ -1,6 +1,6 @@
 #include "ctype.h"
+#include "runtime/cfile.h"
 
-extern int __msl_strnicmp(const char* left, const char* right, unsigned long count);
 
 
 char* strupr(char* string)

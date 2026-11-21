@@ -34,8 +34,8 @@ unsigned char loading_image[0x10000] = {
 #include "platform/gcdisplay_loading_image.inc"
 };
 
-GXTexObj feedbackTex;
 static struct GcNativeDisplay gc_native_display;
+GXTexObj feedbackTex;
 static GXColor Black = {0, 0, 0, 0xFF};
 static int uFrameBlastCount = 0xF;
 static void* LastSheet;
@@ -113,100 +113,9 @@ static inline int font_string_height(char* s) {
     lines *= (font->leading * FontSize) / font->cellWidth;
     return (lines + 0xF) / 0x10;
 }
-
-void feedback_effect(void) {
-    Mtx texMtx;
-    Mtx posMtx = {
-        {1.0f, 0.0f, 0.0f, 0.0f},
-        {0.0f, 1.0f, 0.0f, 0.0f},
-        {0.0f, 0.0f, -1.0f, 0.0f},
-    };
-    GXColor color = {0xC4, 0xC4, 0xC4, 0xFF};
-    GXColor amb;
-    GXColor mat;
-    int h;
-    int w;
-    int full_w;
-    int full_h;
-
-    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 1);
-    RwEngineInstance->dOpenDevice.fpRenderStateSet(6, 0);
-    RwEngineInstance->dOpenDevice.fpRenderStateSet(0xA, 5);
-    RwEngineInstance->dOpenDevice.fpRenderStateSet(0xB, 2);
-
-    save_projection_matrix();
-    set_2d_projection();
-    GXLoadPosMtxImm(posMtx, 0);
-    GXLoadTexObj(&feedbackTex, 4);
-    PSMTXScale(texMtx, 1.0f / (float)screen_width, 1.0f / (float)screen_height, 1.0f);
-    GXLoadTexMtxImm(texMtx, 0x21, 1);
-    GXSetNumTexGens(1);
-    GXSetNumTevStages(1);
-    GXSetNumChans(1);
-
-    amb = color;
-    GXSetChanAmbColor(4, amb);
-    color.a = feedback_blendrate;
-    mat = color;
-    GXSetChanMatColor(4, mat);
-    GXSetChanCtrl(4, 0, 0, 0, 0, 0, 2);
-    GXSetTexCoordGen2(0, 1, 4, 0x21, 0, 0x7D);
-    GXSetTevOrder(0, 0, 4, 4);
-    GXSetTevOp(0, 0);
-
-    if (old_use_feedback_effect == use_feedback_effect) {
-        full_w = screen_width;
-        full_h = screen_height;
-        w = (short)full_w;
-        h = (short)full_h;
-        GXClearVtxDesc();
-        GXSetVtxDesc(9, 1);
-        GXSetVtxDesc(0xD, 1);
-        GXSetVtxAttrFmt(0, 9, 0, 3, 0);
-        GXSetVtxAttrFmt(0, 0xD, 1, 3, 0);
-        GXBegin(0x80, 0, 4);
-        wgPipe[0] = 0;
-        wgPipe[0] = 0;
-        wgPipe[0] = 0;
-        wgPipe[0] = 0;
-        wgPipe[0] = w;
-        wgPipe[0] = 0;
-        wgPipe[0] = full_w;
-        wgPipe[0] = 0;
-        wgPipe[0] = w;
-        wgPipe[0] = h;
-        wgPipe[0] = full_w;
-        wgPipe[0] = full_h;
-        wgPipe[0] = 0;
-        wgPipe[0] = h;
-        wgPipe[0] = 0;
-        wgPipe[0] = full_h;
-    }
-
-    GXSetTexCopySrc(0, 0, screen_width, screen_height);
-    GXSetTexCopyDst(screen_width, screen_height, 4, 0);
-    GXCopyTex(feedbackTexPixels, 0);
-    restore_projection_matrix();
-
-    RwEngineInstance->dOpenDevice.fpRenderStateSet(6, 1);
-    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 2);
-    RwEngineInstance->dOpenDevice.fpRenderStateSet(0xA, 5);
-    RwEngineInstance->dOpenDevice.fpRenderStateSet(0xB, 6);
-}
-
-void gc_setup_feedback_buffer_for_konquest(void) {
-    feedbackTexPixels =
-        _mwMemMalloc(permanent_heap, screen_width * screen_height * 2, 5, 0, 0, 0);
-    mk_insert(get_mkx_mem(feedbackTexPixels), &aproc->pdata_list_b);
-    if (feedbackTexPixels != 0) {
-        GXInitTexObj(&feedbackTex, feedbackTexPixels, screen_width, screen_height, 4, 0, 0,
-                     0);
-        GXInitTexObjLOD(&feedbackTex, 1, 1, 0.0f, 0.0f, 0.0f, 0, 0, 0);
-    }
-}
-
-void setup_post_effect_buffers(void) {
-}
+void feedback_effect(void);
+void gc_setup_feedback_buffer_for_konquest(void);
+void setup_post_effect_buffers(void);
 
 static inline void romfont_load_sheet(void* sheet, void* previousSheet, GXTexObj* texObj, Mtx texMtx) {
     float invW;
@@ -265,185 +174,10 @@ static inline void romfont_draw_glyph(int x, int y, int penX,
     wgPipe[0] = u0;
     wgPipe[0] = v1;
 }
-
-int romfont_puts(int x, int y, char* text) {
-    int charW;
-    void* sheet;
-    int sheetX;
-    int sheetY;
-    unsigned short cellW;
-    int penX;
-    GXTexObj texObj;
-    Mtx texMtx;
-
-    LastSheet = 0;
-    GXClearVtxDesc();
-    GXSetVtxDesc(9, 1);
-    GXSetVtxDesc(0xD, 1);
-    GXSetVtxAttrFmt(0, 9, 0, 3, 4);
-    GXSetVtxAttrFmt(0, 0xD, 1, 3, 0);
-
-    x = (short)(x << 4);
-    y <<= 4;
-    penX = 0;
-    while (*text != '\0') {
-        if (*text == '\n') {
-            penX = 0;
-            text++;
-            y += (FontData->leading * FontSize) / FontData->cellWidth;
-            continue;
-        }
-
-        text = OSGetFontTexture(text, &sheet, &sheetX, &sheetY, &charW);
-        romfont_load_sheet(sheet, LastSheet, &texObj, texMtx);
-
-        cellW = FontData->cellWidth;
-        romfont_draw_glyph(x, y, penX, sheetX, sheetY, cellW);
-
-        penX += FontSpace + (FontSize * charW) / FontData->cellWidth;
-    }
-
-    return (penX + 0xF) / 0x10;
-}
-
-void gc_native_display_render_text(char* text) {
-    if (OSGetFontEncode() == 1) {
-        FontData = _mwMemMalloc(wave_heap, OS_FONT_SIZE_SJIS, 5, 0, 0, 0);
-    } else {
-        FontData = _mwMemMalloc(wave_heap, OS_FONT_SIZE_ANSI, 5, 0, 0, 0);
-    }
-    if (FontData == 0) {
-        OSPanic("gcdisplay.c", 0x50D, "Ins. memory to load ROM font.");
-    }
-    if (OSInitFont(FontData) == 0) {
-        OSPanic("gcdisplay.c", 0x511, "ROM font is available in boot ROM ver 0.8 or later.");
-    }
-    FontSize = FontData->cellWidth << 4;
-    FontSpace = -0x10;
-    gc_native_display_render(render_text, text);
-    if (FontData != 0) {
-        _mwMemFree(FontData, 0, 0);
-        FontData = 0;
-    }
-}
-
-void gc_native_display_render_image(void) {
-    gc_native_display_render(render_image, 0);
-}
-
-void gc_native_display_render_movie(void* ctx) {
-    GXColor clearColor = {0, 0, 0, 0xFF};
-    Mtx posMtx = {
-        {1.0f, 0.0f, 0.0f, 0.0f},
-        {0.0f, 1.0f, 0.0f, 0.0f},
-        {0.0f, 0.0f, -1.0f, 0.0f},
-    };
-
-    GXSetCoPlanar(0);
-    GXSetCullMode(0);
-    GXSetClipMode(0);
-    GXSetScissor(0, 0, gc_native_display.rmode->fbWidth, gc_native_display.rmode->efbHeight);
-    GXSetScissorBoxOffset(0, 0);
-    GXSetNumIndStages(0);
-    GXSetFog(0, 0.0f, 1.0f, 0.1f, 1.0f, clearColor);
-    GXSetFogRangeAdj(0, 0, 0);
-    GXSetBlendMode(0, 4, 5, 0);
-    GXSetColorUpdate(1);
-    GXSetAlphaUpdate(1);
-    GXSetZMode(1, 3, 1);
-    GXSetZCompLoc(1);
-    GXSetDither(1);
-    GXSetDstAlpha(0, 0);
-    GXSetPixelFmt(0, 0);
-    GXLoadPosMtxImm(posMtx, 0);
-    GXSetCopyClear(clearColor, 0x00FFFFFFu);
-    GProfile_GCN_GxDrawDone();
-    VIWaitForRetrace();
-    VIFlush();
-    GXCopyDisp(_RwGCXFBDisp, 1);
-}
-
-static void gc_native_display_render(NativeRenderCb cb, void* arg) {
-    GXColor black = {0, 0, 0, 0xFF};
-    Mtx posMtx = {
-        {1.0f, 0.0f, 0.0f, 0.0f},
-        {0.0f, 1.0f, 0.0f, 0.0f},
-        {0.0f, 0.0f, -1.0f, 0.0f},
-    };
-    GXColor clearColor;
-    GXColor fogColor;
-    void* framebuffers[2];
-    void* curXfb;
-    int first;
-    int i;
-    GXRenderModeObj* mode;
-    first = 1;
-
-    if (gc_native_display.xfbDisp != 0) {
-        framebuffers[0] = gc_native_display.xfbDisp;
-        framebuffers[1] = gc_native_display.xfbCopy;
-    } else {
-        RwGameCubeGetXFBs(&framebuffers[0], &framebuffers[1]);
-    }
-
-    GXSetCoPlanar(0);
-    GXSetCullMode(2);
-    GXSetClipMode(0);
-    mode = gc_native_display.rmode;
-    GXSetScissor(0, 0, mode->fbWidth, mode->efbHeight);
-    GXSetScissorBoxOffset(0, 0);
-    GXSetNumIndStages(0);
-
-    fogColor = black;
-    GXSetFog(0, 0.0f, 1.0f, 0.1f, 1.0f, fogColor);
-    GXSetFogRangeAdj(0, 0, 0);
-    GXSetBlendMode(0, 4, 5, 0);
-    GXSetColorUpdate(1);
-    GXSetAlphaUpdate(1);
-    GXSetZMode(0, 3, 0);
-    GXSetZCompLoc(1);
-    GXSetDither(1);
-    GXSetDstAlpha(0, 0);
-    GXSetPixelFmt(0, 0);
-    GXLoadPosMtxImm(posMtx, 0);
-    VISetBlack(0);
-    VIFlush();
-
-    clearColor = black;
-    curXfb = framebuffers[0];
-    GXSetCopyClear(clearColor, 0x00FFFFFFu);
-    for (i = 0; i < uFrameBlastCount; i++) {
-        mode = gc_native_display.rmode;
-        if (mode->field_rendering != 0) {
-            GXSetViewportJitter(0.0f, 0.0f, mode->fbWidth, mode->efbHeight, 0.0f, 1.0f,
-                                VIGetNextField());
-        } else {
-            GXSetViewport(0.0f, 0.0f, mode->fbWidth, mode->efbHeight, 0.0f, 1.0f);
-        }
-
-        if (cb != 0) {
-            cb(arg);
-        }
-
-        GXCopyDisp(curXfb, 1);
-        GXDrawDone();
-
-        if (first != 0) {
-            VISetBlack(0);
-            first = 0;
-        }
-
-        VISetNextFrameBuffer(curXfb);
-        VIFlush();
-        VIWaitForRetrace();
-
-        if (curXfb == framebuffers[0]) {
-            curXfb = framebuffers[1];
-        } else {
-            curXfb = framebuffers[0];
-        }
-    }
-}
+int romfont_puts(int x, int y, char* text);
+void gc_native_display_render_text(char* text);
+void gc_native_display_render_image(void);
+void gc_native_display_render_movie(void* ctx);
 
 static inline void DrawRectangle(int left, int top, int width, int height, GXColor color) {
     GXSetNumChans(1);
@@ -482,507 +216,113 @@ static inline char* font_accumulate_glyph_width(char* s, int* width) {
     *width += FontSpace + (FontSize * charW) / FontData->cellWidth;
     return next;
 }
-
-static void render_text(void* text) {
-    char* s;
-    int msgW;
-    int msgH;
-    int x;
-    int y;
-    int maxW;
-    int lineW;
-    char* width_s;
-
-    s = text;
-    save_projection_matrix();
-    set_2d_projection();
-
-
-    DrawRectangle(0, 0, screen_width, 0x1E0, Black);
-
-    width_s = s;
-    if (FontData == 0) {
-        msgW = 0;
-    } else {
-        lineW = 0;
-        maxW = 0;
-        while (*width_s != '\0') {
-            if (*width_s == '\n') {
-                if (maxW < lineW) {
-                    maxW = lineW;
-                }
-                lineW = 0;
-            }
-            width_s = font_accumulate_glyph_width(width_s, &lineW);
-        }
-        if (maxW < lineW) {
-            maxW = lineW;
-        }
-        msgW = (maxW + 0xF) / 0x10;
-    }
-    x = (screen_width - msgW) / 2;
-    msgH = font_string_height(s);
-    y = (screen_height - msgH) / 2;
-    romfont_puts(x, y, s);
-    restore_projection_matrix();
-}
-
-#pragma dont_inline on
-static void render_text_without_clear(char* text, int x, int y) {
-    char* walk;
-    GXColor color;
-
-    walk = text;
-    color = (GXColor){0xFF, 0xFF, 0xFF, 0xFF};
-    if (FontData != 0) {
-        for (; *walk != '\0'; walk++) {
-        }
-    }
-
-    GXSetNumChans(1);
-    GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
-    GXSetNumTevStages(1);
-    GXSetNumTexGens(1);
-    GXSetTexCoordGen2(0, 1, 4, 0x3C, 0, 0x7D);
-    GXSetChanMatColor(0, color);
-    GXSetChanAmbColor(0, color);
-    GXSetTevOrder(0, 0, 0, 4);
-    GXSetTevColorIn(0, 0xF, 0xA, 8, 0xF);
-    GXSetTevColorOp(0, 0, 0, 0, 1, 0);
-    GXSetTevAlphaIn(0, 7, 5, 4, 7);
-    GXSetTevAlphaOp(0, 0, 0, 0, 1, 0);
-    romfont_puts(x, y, text);
-}
-#pragma dont_inline reset
-
-static void render_image(void* unused) {
-    save_projection_matrix();
-    set_2d_projection();
-
-    DrawRectangle(0, 0, screen_width, screen_height, Black);
-    display_image();
-    restore_projection_matrix();
-}
-
-void gc_native_display_pass_to_RW(void) {
-    GXDrawDone();
-    if (pal_565 != 0) {
-        _mwMemFree(pal_565, 0, 0);
-        pal_565 = 0;
-    }
-    _RwGCXFBDisp = gc_native_display.xfbDisp;
-    _RwGCXFBCopy = gc_native_display.xfbCopy;
-    _RwDlDefaultFifo = gc_native_display.fifo;
-}
-
-void gc_native_display_init(void) {
-    int tvFormat;
-    GXRenderModeObj* mode;
-    int xfbBytes;
-    int xfbHalf;
-    void* raw;
-    void* fifo;
-    unsigned char* xfb1;
-    unsigned char* xfb2;
-    float yscale;
-    unsigned long copyHeight;
-    int pixFmt;
-
-    gc_grab_renderpipe();
-    VIInit();
-    tvFormat = VIGetTvFormat();
-    switch (tvFormat) {
-    case VI_MPAL:
-        gc_native_display.rmode = &GXMpal480IntDf;
-        break;
-    case VI_NTSC:
-    default:
-        gc_native_display.rmode = &GXNtsc480IntDf;
-        break;
-    }
-
-    mode = gc_native_display.rmode;
-    xfbBytes = ((mode->fbWidth + 0xF) & 0xFFF0) * mode->xfbHeight;
-    xfbHalf = xfbBytes * 2;
-    raw = _mwMemMalloc(permanent_heap, _RwDlFifoSize + (xfbBytes * 4) + 0x1F, 5, 0,
-                       0, 0);
-    fifo = (void*)(((unsigned long)raw + 0x1F) & ~0x1Fu);
-    _RwDl_FIFO_XFB = raw;
-    _RwDlDefaultFifo = fifo;
-    gc_native_display.fifo = fifo;
-    DCInvalidateRange(fifo, _RwDlFifoSize);
-
-    xfb1 = (unsigned char*)_RwDlDefaultFifo + _RwDlFifoSize;
-    xfb2 = xfb1 + xfbHalf;
-    _RwGCXFBDisp = xfb1;
-    _RwGCXFB1 = xfb1;
-    gc_native_display.xfbDisp = xfb1;
-    _RwGCXFB2 = xfb2;
-    gc_native_display.xfbCopy = xfb2;
-    _RwGCXFBCopy = xfb2;
-    DCFlushRange(xfb1, xfbHalf);
-    DCFlushRange(gc_native_display.xfbCopy, xfbHalf);
-
-    VISetBlack(1);
-    VIFlush();
-    VIWaitForRetrace();
-    VIWaitForRetrace();
-
-    GXInit(gc_native_display.fifo, 0x40000);
-    VIConfigure(gc_native_display.rmode);
-
-    mode = gc_native_display.rmode;
-    GXSetScissor(0, 0, mode->fbWidth, mode->efbHeight);
-    mode = gc_native_display.rmode;
-    GXSetDispCopySrc(0, 0, mode->fbWidth, mode->efbHeight);
-
-    mode = gc_native_display.rmode;
-    if (mode->field_rendering != 0) {
-        yscale = 1.0f;
-    } else {
-        yscale = GXGetYScaleFactor(mode->efbHeight, mode->xfbHeight);
-    }
-    copyHeight = GXSetDispCopyYScale(yscale);
-    GXSetDispCopyDst(gc_native_display.rmode->fbWidth, copyHeight);
-    mode = gc_native_display.rmode;
-    GXSetCopyFilter(mode->aa, mode->sample_pattern, 1, mode->vfilter);
-
-    pixFmt = 0;
-    if (gc_native_display.rmode->aa != 0) {
-        pixFmt = 2;
-    }
-    _RwDlPixelFormat = pixFmt;
-    GXSetPixelFmt(pixFmt, 0);
-
-    mode = gc_native_display.rmode;
-    GXSetFieldMode(mode->field_rendering,
-                   mode->xfbHeight < mode->viHeight);
-
-    gc_release_renderpipe();
-
-    mode = gc_native_display.rmode;
-    screen_width = mode->fbWidth;
-    screen_height = mode->efbHeight;
-
-    if (VIGetDTVStatus() != 0) {
-        CheckFor480PMode();
-    }
-}
-
-static void CheckFor480PMode(void) {
-    PADStatus pads[4];
-    unsigned int want480p;
-    unsigned char done;
-    int i;
-
-    want480p = 0;
-    done = 0;
-    uFrameBlastCount = 3;
-    init_controller();
-    PADReset(0xC0000000);
-
-    while (done == 0) {
-        done = 1;
-        PADRead(pads);
-        for (i = 0; i < 2; i++) {
-            if (pads[i].err == PAD_ERR_NOT_READY || pads[i].err == PAD_ERR_TRANSFER) {
-                done = 0;
-            }
-        }
-    }
-
-    for (i = 0; i < 2; i++) {
-        if (pads[i].err == PAD_ERR_NONE &&
-            (pads[i].button & PAD_BUTTON_B) == PAD_BUTTON_B) {
-            want480p = 1;
-        }
-    }
-
-    if ((OSGetResetCode() & 1) != 0) {
-        want480p = 1;
-    }
-    if (OSGetProgressiveMode() == 1) {
-        want480p = 1;
-    }
-
-    if (want480p == 0) {
-        uFrameBlastCount = 0xF;
-        return;
-    }
-    if (gc_prompt_for_480P(pads) != 0) {
-        gcSetup480P();
-        displayContinueMessage(
-            pads,
-            "The display mode has been switched to\n            Progressive Scan.\n    Press "
-            "the A Button to continue.");
-    } else {
-        OSSetProgressiveMode(0);
-        displayContinueMessage(
-            pads, "  The display mode has been set to\n            Interlaced  Mode.\n    "
-                  "Press the A Button to continue.");
-    }
-    uFrameBlastCount = 0xF;
-}
-
-static void displayContinueMessage(PADStatus* pads, char* msg) {
-    DragonTextPrompt prompt;
-    char yesBuf[20];
-    char noBuf[20];
-    PADStatus prev[3];
-    OSTime start;
-    unsigned char done;
-    unsigned char ready;
-    int i;
-
-    done = 0;
-    ready = 0;
-    strcpy(yesBuf, "");
-    strcpy(noBuf, "");
-    prompt.message = msg;
-    prompt.yes_str = yesBuf;
-    prompt.no_str = noBuf;
-    start = OSGetTime();
-
-    while (done == 0) {
-        PADReset(0xC0000000);
-        for (i = 0; i < 3; i++) {
-            prev[i] = pads[i];
-        }
-
-        while (ready == 0) {
-            ready = 1;
-            PADRead(pads);
-            for (i = 0; i < 2; i++) {
-                if (pads[i].err == PAD_ERR_NOT_READY || pads[i].err == PAD_ERR_TRANSFER) {
-                    ready = 0;
-                }
-            }
-        }
-        ready = 0;
-
-        handle_reset_switch();
-        for (i = 0; i < 2; i++) {
-            if (pads[i].err == 0) {
-                if ((pads[i].button & 1) == 1 || (pads[i].button & 2) == 2) {
-                    break;
-                }
-                if ((unsigned short)(pads[i].button & 0x100 & (prev[i].button ^ pads[i].button)) != 0) {
-                    done = 1;
-                    break;
-                }
-            }
-        }
-
-        gc_grab_renderpipe();
-        gc_native_display_render(display_dragon_with_text, &prompt);
-        gc_release_renderpipe();
-
-        if (timed_out_10s(start) != 0) {
-            done = 1;
-        }
-    }
-}
-
-static void gcSetup480P(void) {
-    int xfbBytes;
-    int xfbHalf;
-    void* raw;
-    GXRenderModeObj* mode;
-    unsigned char* xfb1;
-    unsigned char* xfb2;
-    float yscale;
-    unsigned long copyHeight;
-    int i;
-
-    gc_grab_renderpipe();
-    OSSetProgressiveMode(1);
-    GXDrawDone();
-    VISetBlack(1);
-    VIFlush();
-    VIWaitForRetrace();
-
-    _mwMemFree(_RwDl_FIFO_XFB, 0, 0);
-    gc_native_display.xfbDisp = 0;
-    gc_native_display.xfbCopy = 0;
-    gc_native_display.fifo = 0;
-    if (pal_565 != 0) {
-        _mwMemFree(pal_565, 0, 0);
-        pal_565 = 0;
-    }
-
-    gc_native_display.rmode = &GXNtsc480ProgSoft;
-    xfbBytes = ((gc_native_display.rmode->fbWidth + 0xF) & 0xFFF0) *
-               gc_native_display.rmode->xfbHeight;
-    xfbHalf = xfbBytes * 2;
-    raw = _mwMemMalloc(permanent_heap, _RwDlFifoSize + (xfbBytes * 4) + 0x1F, 5, 0,
-                       0, 0);
-    _RwDl_FIFO_XFB = raw;
-    _RwDlDefaultFifo = (void*)(((unsigned long)raw + 0x1F) & ~0x1Fu);
-    gc_native_display.fifo = _RwDlDefaultFifo;
-    DCInvalidateRange(_RwDlDefaultFifo, _RwDlFifoSize);
-
-    xfb1 = (unsigned char*)_RwDlDefaultFifo + _RwDlFifoSize;
-    xfb2 = xfb1 + xfbHalf;
-    _RwGCXFBDisp = xfb1;
-    _RwGCXFB1 = xfb1;
-    gc_native_display.xfbDisp = xfb1;
-    _RwGCXFB2 = xfb2;
-    gc_native_display.xfbCopy = xfb2;
-    _RwGCXFBCopy = xfb2;
-    DCFlushRange(xfb1, xfbHalf);
-    DCFlushRange(gc_native_display.xfbCopy, xfbHalf);
-
-    VISetBlack(1);
-    VIFlush();
-    VIWaitForRetrace();
-    VIWaitForRetrace();
-
-    GXInit(gc_native_display.fifo, 0x40000);
-    VIConfigure(gc_native_display.rmode);
-
-    GXSetScissor(0, 0, gc_native_display.rmode->fbWidth,
-                 gc_native_display.rmode->efbHeight);
-    GXSetDispCopySrc(0, 0, gc_native_display.rmode->fbWidth,
-                     gc_native_display.rmode->efbHeight);
-    yscale = GXGetYScaleFactor(gc_native_display.rmode->efbHeight,
-                              gc_native_display.rmode->xfbHeight);
-    copyHeight = GXSetDispCopyYScale(yscale);
-    mode = gc_native_display.rmode;
-    GXSetDispCopyDst(mode->fbWidth, copyHeight);
-    GXSetCopyFilter(gc_native_display.rmode->aa, gc_native_display.rmode->sample_pattern, 1,
-                    gc_native_display.rmode->vfilter);
-
-    if (gc_native_display.rmode->aa != 0) {
-        GXSetPixelFmt(2, 0);
-    } else {
-        GXSetPixelFmt(0, 0);
-    }
-
-    GXSetFieldMode(
-        gc_native_display.rmode->field_rendering,
-        gc_native_display.rmode->xfbHeight < gc_native_display.rmode->viHeight);
-
-    gc_release_renderpipe();
-
-    screen_width = gc_native_display.rmode->fbWidth;
-    screen_height = gc_native_display.rmode->efbHeight;
-
-    VISetBlack(1);
-    VIFlush();
-    VIWaitForRetrace();
-    VIWaitForRetrace();
-    i = 0;
-    do {
-        VIWaitForRetrace();
-        VIFlush();
-        i++;
-    } while (i < 0xC);
-}
-
-void pokeFilter(void* vfilter) {
-    GXRenderModeObj* mode;
-
-    mode = gc_native_display.rmode;
-    GXSetCopyFilter(mode->aa, mode->sample_pattern, 1, vfilter);
-}
+void gc_native_display_pass_to_RW(void);
+void gc_native_display_init(void);
+void pokeFilter(void* vfilter);
 
 static inline unsigned int changed_buttons(unsigned short previous, unsigned short current) {
     return previous ^ current;
 }
+int gc_prompt_for_refresh_rate(PADStatus* pads);
+void tile_image(unsigned char* dest);
+int is_progressive_scan_mode(void);
 
-static int gc_prompt_for_480P(PADStatus* pads) {
-    DragonTextPrompt prompt;
-    char msgBuf[84];
-    char yesBuf[20];
-    char noBuf[20];
-    PADStatus prev[3];
-    OSTime start;
-    unsigned char yes;
-    unsigned char done;
-    unsigned char ready;
-    int i;
-    unsigned short btn;
-
-    yes = 1;
-    done = 0;
-    ready = 0;
-    strcpy(msgBuf, "Do you want to display the game\n    in Progressive Scan mode?");
-    strcpy(yesBuf, "YES");
-    strcpy(noBuf, "NO");
-    prompt.message = msgBuf;
-    prompt.yes_str = yesBuf;
-    prompt.no_str = noBuf;
-    start = OSGetTime();
-
-    while (done == 0) {
-        PADReset(0xC0000000);
-        for (i = 0; i < 3; i++) {
-            prev[i] = pads[i];
-        }
-
-        while (ready == 0) {
-            ready = 1;
-            PADRead(pads);
-            for (i = 0; i < 2; i++) {
-                if (pads[i].err == PAD_ERR_NOT_READY || pads[i].err == PAD_ERR_TRANSFER) {
-                    ready = 0;
-                }
-            }
-        }
-        ready = 0;
-
-        handle_reset_switch();
-        for (i = 0; i < 2; i++) {
-            if (pads[i].err == 0) {
-                btn = pads[i].button;
-                if ((btn & 1) == 1) {
-                    yes = 1;
-                    break;
-                }
-                if ((btn & 2) == 2) {
-                    yes = 0;
-                    break;
-                }
-                if ((unsigned short)((btn & 0x100) & changed_buttons(prev[i].button, btn)) != 0) {
-                    done = 1;
-                    break;
-                }
-            }
-        }
-
-        prompt.yes_hi = yes;
-        gc_grab_renderpipe();
-        gc_native_display_render(display_dragon_with_text, &prompt);
-        gc_release_renderpipe();
-
-        if (timed_out_10s(start) != 0) {
-            done = 1;
-        }
-    }
-    if (yes != 0) {
-        return 1;
-    }
-    return 0;
+int is_progressive_scan_mode(void) {
+    return progscan_mode;
 }
 
-int gc_prompt_for_refresh_rate(PADStatus* pads)
-{
-    DragonTextPrompt prompt;
-    char msgBuf[84];
-    char yesBuf[20];
-    char noBuf[20];
+void tile_image(unsigned char* dest) {
+    unsigned char* tmp;
+    const unsigned char* image;
+    unsigned char* output;
+    const unsigned char* tile_source;
+    int pixel;
+    int tile_x;
+    int tile_y;
+    int output_offset;
+    int tile;
 
-    strcpy(msgBuf, "Run 60Hz?");
-    strcpy(yesBuf, "YES");
-    strcpy(noBuf, "NO");
-    prompt.message = msgBuf;
-    prompt.yes_str = yesBuf;
-    prompt.no_str = noBuf;
-    prompt.yes_hi = 1;
-    gc_grab_renderpipe();
-    gc_native_display_render(display_dragon_with_text, &prompt);
-    gc_release_renderpipe();
-    return 1;
+    tmp = _mwMemMalloc(wave_heap, sizeof(loading_image), 5, 0, 0, 0);
+    image = loading_image;
+    output_offset = tile = 0;
+    for (; tile < 0x800; tile++) {
+        tile_x = (tile % 32) * 8;
+        tile_y = (tile / 32) * 4;
+        tile_source = image + tile_x;
+        output = tmp + output_offset;
+        for (pixel = 0; pixel < 0x20; pixel++) {
+            int y = tile_y + (pixel / 8);
+            output[pixel] = tile_source[y * 0x100 + (pixel % 8)];
+        }
+        output_offset += 0x20;
+    }
+    memcpy(dest, tmp, sizeof(loading_image));
+    _mwMemFree(tmp, 0, 0);
+}
+
+static void display_image(void) {
+    int i;
+    unsigned short* palette;
+    unsigned short src;
+    short left;
+    int right;
+    GXTlutObj tlut;
+    GXTexObj tex;
+    Mtx texMtx;
+
+    if (pal_565 == 0) {
+        palette = _mwMemMalloc(permanent_heap, sizeof(loading_palette), 5, 0, 0, 0);
+        if (palette == 0) {
+            return;
+        }
+        pal_565 = palette;
+        for (i = 0; i < 0x100; i++) {
+            src = loading_palette[i];
+            pal_565[i] = ((src * 2) & 0x07C0) | ((src << 11) & 0xF800) |
+                         ((src >> 10) & 0x001F);
+        }
+    }
+
+    DCFlushRange(loading_image, sizeof(loading_image));
+    DCFlushRange(pal_565, sizeof(loading_palette));
+    GXInitTlutObj(&tlut, pal_565, 1, 0x100);
+    GXLoadTlut(&tlut, 0);
+    GXInitTexObjCI(&tex, loading_image, 0x100, 0x100, 9, 0, 0, 0, 0);
+    GXInitTexObjLOD(&tex, 1, 1, 0.0f, 0.0f, 0.0f, 0, 0, 0);
+    GXLoadTexObj(&tex, 1);
+    PSMTXScale(texMtx, 0.00390625f, 0.00390625f, 1.0f);
+    GXLoadTexMtxImm(texMtx, 0x21, 1);
+    GXSetNumTexGens(1);
+    GXSetNumTevStages(1);
+    GXSetTexCoordGen2(0, 1, 4, 0x21, 0, 0x7D);
+    GXSetTevOrder(0, 0, 1, 0xFF);
+
+    left = screen_width / 2 - 0x80;
+
+    GXClearVtxDesc();
+    GXSetVtxDesc(9, 1);
+    GXSetVtxDesc(0xD, 1);
+    GXSetVtxAttrFmt(0, 9, 0, 3, 0);
+    GXSetVtxAttrFmt(0, 0xD, 1, 3, 0);
+    GXBegin(0x80, 0, 4);
+    wgPipe[0] = left;
+    right = left;
+    right += 0x100;
+    wgPipe[0] = 0x70;
+    wgPipe[0] = 0;
+    wgPipe[0] = 0;
+    wgPipe[0] = right;
+    wgPipe[0] = 0x70;
+    wgPipe[0] = 0x100;
+    wgPipe[0] = 0;
+    wgPipe[0] = right;
+    wgPipe[0] = 0x170;
+    wgPipe[0] = 0x100;
+    wgPipe[0] = 0x100;
+    wgPipe[0] = left;
+    wgPipe[0] = 0x170;
+    wgPipe[0] = 0;
+    wgPipe[0] = 0x100;
 }
 
 static void display_dragon_with_text(void* arg) {
@@ -1124,100 +464,771 @@ static void display_dragon_with_text(void* arg) {
     restore_projection_matrix();
 }
 
-static void display_image(void) {
-    int i;
-    unsigned short* palette;
-    unsigned short src;
-    short left;
-    int right;
-    GXTlutObj tlut;
-    GXTexObj tex;
-    Mtx texMtx;
+int gc_prompt_for_refresh_rate(PADStatus* pads)
+{
+    DragonTextPrompt prompt;
+    char msgBuf[84];
+    char yesBuf[20];
+    char noBuf[20];
 
-    if (pal_565 == 0) {
-        palette = _mwMemMalloc(permanent_heap, sizeof(loading_palette), 5, 0, 0, 0);
-        if (palette == 0) {
-            return;
+    strcpy(msgBuf, "Run 60Hz?");
+    strcpy(yesBuf, "YES");
+    strcpy(noBuf, "NO");
+    prompt.message = msgBuf;
+    prompt.yes_str = yesBuf;
+    prompt.no_str = noBuf;
+    prompt.yes_hi = 1;
+    gc_grab_renderpipe();
+    gc_native_display_render(display_dragon_with_text, &prompt);
+    gc_release_renderpipe();
+    return 1;
+}
+
+static int gc_prompt_for_480P(PADStatus* pads) {
+    DragonTextPrompt prompt;
+    char msgBuf[84];
+    char yesBuf[20];
+    char noBuf[20];
+    PADStatus prev[3];
+    OSTime start;
+    unsigned char yes;
+    unsigned char done;
+    unsigned char ready;
+    int i;
+    unsigned short btn;
+
+    yes = 1;
+    done = 0;
+    ready = 0;
+    strcpy(msgBuf, "Do you want to display the game\n    in Progressive Scan mode?");
+    strcpy(yesBuf, "YES");
+    strcpy(noBuf, "NO");
+    prompt.message = msgBuf;
+    prompt.yes_str = yesBuf;
+    prompt.no_str = noBuf;
+    start = OSGetTime();
+
+    while (done == 0) {
+        PADReset(0xC0000000);
+        for (i = 0; i < 3; i++) {
+            prev[i] = pads[i];
         }
-        pal_565 = palette;
-        for (i = 0; i < 0x100; i++) {
-            src = loading_palette[i];
-            pal_565[i] = ((src * 2) & 0x07C0) | ((src << 11) & 0xF800) |
-                         ((src >> 10) & 0x001F);
+
+        while (ready == 0) {
+            ready = 1;
+            PADRead(pads);
+            for (i = 0; i < 2; i++) {
+                if (pads[i].err == PAD_ERR_NOT_READY || pads[i].err == PAD_ERR_TRANSFER) {
+                    ready = 0;
+                }
+            }
+        }
+        ready = 0;
+
+        handle_reset_switch();
+        for (i = 0; i < 2; i++) {
+            if (pads[i].err == 0) {
+                btn = pads[i].button;
+                if ((btn & 1) == 1) {
+                    yes = 1;
+                    break;
+                }
+                if ((btn & 2) == 2) {
+                    yes = 0;
+                    break;
+                }
+                if ((unsigned short)((btn & 0x100) & changed_buttons(prev[i].button, btn)) != 0) {
+                    done = 1;
+                    break;
+                }
+            }
+        }
+
+        prompt.yes_hi = yes;
+        gc_grab_renderpipe();
+        gc_native_display_render(display_dragon_with_text, &prompt);
+        gc_release_renderpipe();
+
+        if (timed_out_10s(start) != 0) {
+            done = 1;
+        }
+    }
+    if (yes != 0) {
+        return 1;
+    }
+    return 0;
+}
+
+void pokeFilter(void* vfilter) {
+    GXRenderModeObj* mode;
+
+    mode = gc_native_display.rmode;
+    GXSetCopyFilter(mode->aa, mode->sample_pattern, 1, vfilter);
+}
+
+static void gcSetup480P(void) {
+    int xfbBytes;
+    int xfbHalf;
+    void* raw;
+    GXRenderModeObj* mode;
+    unsigned char* xfb1;
+    unsigned char* xfb2;
+    float yscale;
+    unsigned long copyHeight;
+    int i;
+
+    gc_grab_renderpipe();
+    OSSetProgressiveMode(1);
+    GXDrawDone();
+    VISetBlack(1);
+    VIFlush();
+    VIWaitForRetrace();
+
+    _mwMemFree(_RwDl_FIFO_XFB, 0, 0);
+    gc_native_display.xfbDisp = 0;
+    gc_native_display.xfbCopy = 0;
+    gc_native_display.fifo = 0;
+    if (pal_565 != 0) {
+        _mwMemFree(pal_565, 0, 0);
+        pal_565 = 0;
+    }
+
+    gc_native_display.rmode = &GXNtsc480ProgSoft;
+    xfbBytes = ((gc_native_display.rmode->fbWidth + 0xF) & 0xFFF0) *
+               gc_native_display.rmode->xfbHeight;
+    xfbHalf = xfbBytes * 2;
+    raw = _mwMemMalloc(permanent_heap, _RwDlFifoSize + (xfbBytes * 4) + 0x1F, 5, 0,
+                       0, 0);
+    _RwDl_FIFO_XFB = raw;
+    _RwDlDefaultFifo = (void*)(((unsigned long)raw + 0x1F) & ~0x1Fu);
+    gc_native_display.fifo = _RwDlDefaultFifo;
+    DCInvalidateRange(_RwDlDefaultFifo, _RwDlFifoSize);
+
+    xfb1 = (unsigned char*)_RwDlDefaultFifo + _RwDlFifoSize;
+    xfb2 = xfb1 + xfbHalf;
+    _RwGCXFBDisp = xfb1;
+    _RwGCXFB1 = xfb1;
+    gc_native_display.xfbDisp = xfb1;
+    _RwGCXFB2 = xfb2;
+    gc_native_display.xfbCopy = xfb2;
+    _RwGCXFBCopy = xfb2;
+    DCFlushRange(xfb1, xfbHalf);
+    DCFlushRange(gc_native_display.xfbCopy, xfbHalf);
+
+    VISetBlack(1);
+    VIFlush();
+    VIWaitForRetrace();
+    VIWaitForRetrace();
+
+    GXInit(gc_native_display.fifo, 0x40000);
+    VIConfigure(gc_native_display.rmode);
+
+    GXSetScissor(0, 0, gc_native_display.rmode->fbWidth,
+                 gc_native_display.rmode->efbHeight);
+    GXSetDispCopySrc(0, 0, gc_native_display.rmode->fbWidth,
+                     gc_native_display.rmode->efbHeight);
+    yscale = GXGetYScaleFactor(gc_native_display.rmode->efbHeight,
+                              gc_native_display.rmode->xfbHeight);
+    copyHeight = GXSetDispCopyYScale(yscale);
+    mode = gc_native_display.rmode;
+    GXSetDispCopyDst(mode->fbWidth, copyHeight);
+    GXSetCopyFilter(gc_native_display.rmode->aa, gc_native_display.rmode->sample_pattern, 1,
+                    gc_native_display.rmode->vfilter);
+
+    if (gc_native_display.rmode->aa != 0) {
+        GXSetPixelFmt(2, 0);
+    } else {
+        GXSetPixelFmt(0, 0);
+    }
+
+    GXSetFieldMode(
+        gc_native_display.rmode->field_rendering,
+        gc_native_display.rmode->xfbHeight < gc_native_display.rmode->viHeight);
+
+    gc_release_renderpipe();
+
+    screen_width = gc_native_display.rmode->fbWidth;
+    screen_height = gc_native_display.rmode->efbHeight;
+
+    VISetBlack(1);
+    VIFlush();
+    VIWaitForRetrace();
+    VIWaitForRetrace();
+    i = 0;
+    do {
+        VIWaitForRetrace();
+        VIFlush();
+        i++;
+    } while (i < 0xC);
+}
+
+static void displayContinueMessage(PADStatus* pads, char* msg) {
+    DragonTextPrompt prompt;
+    char yesBuf[20];
+    char noBuf[20];
+    PADStatus prev[3];
+    OSTime start;
+    unsigned char done;
+    unsigned char ready;
+    int i;
+
+    done = 0;
+    ready = 0;
+    strcpy(yesBuf, "");
+    strcpy(noBuf, "");
+    prompt.message = msg;
+    prompt.yes_str = yesBuf;
+    prompt.no_str = noBuf;
+    start = OSGetTime();
+
+    while (done == 0) {
+        PADReset(0xC0000000);
+        for (i = 0; i < 3; i++) {
+            prev[i] = pads[i];
+        }
+
+        while (ready == 0) {
+            ready = 1;
+            PADRead(pads);
+            for (i = 0; i < 2; i++) {
+                if (pads[i].err == PAD_ERR_NOT_READY || pads[i].err == PAD_ERR_TRANSFER) {
+                    ready = 0;
+                }
+            }
+        }
+        ready = 0;
+
+        handle_reset_switch();
+        for (i = 0; i < 2; i++) {
+            if (pads[i].err == 0) {
+                if ((pads[i].button & 1) == 1 || (pads[i].button & 2) == 2) {
+                    break;
+                }
+                if ((unsigned short)(pads[i].button & 0x100 & (prev[i].button ^ pads[i].button)) != 0) {
+                    done = 1;
+                    break;
+                }
+            }
+        }
+
+        gc_grab_renderpipe();
+        gc_native_display_render(display_dragon_with_text, &prompt);
+        gc_release_renderpipe();
+
+        if (timed_out_10s(start) != 0) {
+            done = 1;
+        }
+    }
+}
+
+static void CheckFor480PMode(void) {
+    PADStatus pads[4];
+    unsigned int want480p;
+    unsigned char done;
+    int i;
+
+    want480p = 0;
+    done = 0;
+    uFrameBlastCount = 3;
+    init_controller();
+    PADReset(0xC0000000);
+
+    while (done == 0) {
+        done = 1;
+        PADRead(pads);
+        for (i = 0; i < 2; i++) {
+            if (pads[i].err == PAD_ERR_NOT_READY || pads[i].err == PAD_ERR_TRANSFER) {
+                done = 0;
+            }
         }
     }
 
-    DCFlushRange(loading_image, sizeof(loading_image));
-    DCFlushRange(pal_565, sizeof(loading_palette));
-    GXInitTlutObj(&tlut, pal_565, 1, 0x100);
-    GXLoadTlut(&tlut, 0);
-    GXInitTexObjCI(&tex, loading_image, 0x100, 0x100, 9, 0, 0, 0, 0);
-    GXInitTexObjLOD(&tex, 1, 1, 0.0f, 0.0f, 0.0f, 0, 0, 0);
-    GXLoadTexObj(&tex, 1);
-    PSMTXScale(texMtx, 0.00390625f, 0.00390625f, 1.0f);
-    GXLoadTexMtxImm(texMtx, 0x21, 1);
-    GXSetNumTexGens(1);
+    for (i = 0; i < 2; i++) {
+        if (pads[i].err == PAD_ERR_NONE &&
+            (pads[i].button & PAD_BUTTON_B) == PAD_BUTTON_B) {
+            want480p = 1;
+        }
+    }
+
+    if ((OSGetResetCode() & 1) != 0) {
+        want480p = 1;
+    }
+    if (OSGetProgressiveMode() == 1) {
+        want480p = 1;
+    }
+
+    if (want480p == 0) {
+        uFrameBlastCount = 0xF;
+        return;
+    }
+    if (gc_prompt_for_480P(pads) != 0) {
+        gcSetup480P();
+        displayContinueMessage(
+            pads,
+            "The display mode has been switched to\n            Progressive Scan.\n    Press "
+            "the A Button to continue.");
+    } else {
+        OSSetProgressiveMode(0);
+        displayContinueMessage(
+            pads, "  The display mode has been set to\n            Interlaced  Mode.\n    "
+                  "Press the A Button to continue.");
+    }
+    uFrameBlastCount = 0xF;
+}
+
+void gc_native_display_init(void) {
+    int tvFormat;
+    GXRenderModeObj* mode;
+    int xfbBytes;
+    int xfbHalf;
+    void* raw;
+    void* fifo;
+    unsigned char* xfb1;
+    unsigned char* xfb2;
+    float yscale;
+    unsigned long copyHeight;
+    int pixFmt;
+
+    gc_grab_renderpipe();
+    VIInit();
+    tvFormat = VIGetTvFormat();
+    switch (tvFormat) {
+    case VI_MPAL:
+        gc_native_display.rmode = &GXMpal480IntDf;
+        break;
+    case VI_NTSC:
+    default:
+        gc_native_display.rmode = &GXNtsc480IntDf;
+        break;
+    }
+
+    mode = gc_native_display.rmode;
+    xfbBytes = ((mode->fbWidth + 0xF) & 0xFFF0) * mode->xfbHeight;
+    xfbHalf = xfbBytes * 2;
+    raw = _mwMemMalloc(permanent_heap, _RwDlFifoSize + (xfbBytes * 4) + 0x1F, 5, 0,
+                       0, 0);
+    fifo = (void*)(((unsigned long)raw + 0x1F) & ~0x1Fu);
+    _RwDl_FIFO_XFB = raw;
+    _RwDlDefaultFifo = fifo;
+    gc_native_display.fifo = fifo;
+    DCInvalidateRange(fifo, _RwDlFifoSize);
+
+    xfb1 = (unsigned char*)_RwDlDefaultFifo + _RwDlFifoSize;
+    xfb2 = xfb1 + xfbHalf;
+    _RwGCXFBDisp = xfb1;
+    _RwGCXFB1 = xfb1;
+    gc_native_display.xfbDisp = xfb1;
+    _RwGCXFB2 = xfb2;
+    gc_native_display.xfbCopy = xfb2;
+    _RwGCXFBCopy = xfb2;
+    DCFlushRange(xfb1, xfbHalf);
+    DCFlushRange(gc_native_display.xfbCopy, xfbHalf);
+
+    VISetBlack(1);
+    VIFlush();
+    VIWaitForRetrace();
+    VIWaitForRetrace();
+
+    GXInit(gc_native_display.fifo, 0x40000);
+    VIConfigure(gc_native_display.rmode);
+
+    mode = gc_native_display.rmode;
+    GXSetScissor(0, 0, mode->fbWidth, mode->efbHeight);
+    mode = gc_native_display.rmode;
+    GXSetDispCopySrc(0, 0, mode->fbWidth, mode->efbHeight);
+
+    mode = gc_native_display.rmode;
+    if (mode->field_rendering != 0) {
+        yscale = 1.0f;
+    } else {
+        yscale = GXGetYScaleFactor(mode->efbHeight, mode->xfbHeight);
+    }
+    copyHeight = GXSetDispCopyYScale(yscale);
+    GXSetDispCopyDst(gc_native_display.rmode->fbWidth, copyHeight);
+    mode = gc_native_display.rmode;
+    GXSetCopyFilter(mode->aa, mode->sample_pattern, 1, mode->vfilter);
+
+    pixFmt = 0;
+    if (gc_native_display.rmode->aa != 0) {
+        pixFmt = 2;
+    }
+    _RwDlPixelFormat = pixFmt;
+    GXSetPixelFmt(pixFmt, 0);
+
+    mode = gc_native_display.rmode;
+    GXSetFieldMode(mode->field_rendering,
+                   mode->xfbHeight < mode->viHeight);
+
+    gc_release_renderpipe();
+
+    mode = gc_native_display.rmode;
+    screen_width = mode->fbWidth;
+    screen_height = mode->efbHeight;
+
+    if (VIGetDTVStatus() != 0) {
+        CheckFor480PMode();
+    }
+}
+
+void gc_native_display_pass_to_RW(void) {
+    GXDrawDone();
+    if (pal_565 != 0) {
+        _mwMemFree(pal_565, 0, 0);
+        pal_565 = 0;
+    }
+    _RwGCXFBDisp = gc_native_display.xfbDisp;
+    _RwGCXFBCopy = gc_native_display.xfbCopy;
+    _RwDlDefaultFifo = gc_native_display.fifo;
+}
+
+static void render_image(void* unused) {
+    save_projection_matrix();
+    set_2d_projection();
+
+    DrawRectangle(0, 0, screen_width, screen_height, Black);
+    display_image();
+    restore_projection_matrix();
+}
+
+static void render_text_without_clear(char* text, int x, int y) {
+    char* walk;
+    GXColor color;
+
+    walk = text;
+    color = (GXColor){0xFF, 0xFF, 0xFF, 0xFF};
+    if (FontData != 0) {
+        for (; *walk != '\0'; walk++) {
+        }
+    }
+
+    GXSetNumChans(1);
+    GXSetChanCtrl(0, 0, 0, 0, 0, 0, 2);
     GXSetNumTevStages(1);
-    GXSetTexCoordGen2(0, 1, 4, 0x21, 0, 0x7D);
-    GXSetTevOrder(0, 0, 1, 0xFF);
+    GXSetNumTexGens(1);
+    GXSetTexCoordGen2(0, 1, 4, 0x3C, 0, 0x7D);
+    GXSetChanMatColor(0, color);
+    GXSetChanAmbColor(0, color);
+    GXSetTevOrder(0, 0, 0, 4);
+    GXSetTevColorIn(0, 0xF, 0xA, 8, 0xF);
+    GXSetTevColorOp(0, 0, 0, 0, 1, 0);
+    GXSetTevAlphaIn(0, 7, 5, 4, 7);
+    GXSetTevAlphaOp(0, 0, 0, 0, 1, 0);
+    romfont_puts(x, y, text);
+}
 
-    left = screen_width / 2 - 0x80;
+static void render_text(void* text) {
+    char* s;
+    int msgW;
+    int msgH;
+    int x;
+    int y;
+    int maxW;
+    int lineW;
+    char* width_s;
 
+    s = text;
+    save_projection_matrix();
+    set_2d_projection();
+
+
+    DrawRectangle(0, 0, screen_width, 0x1E0, Black);
+
+    width_s = s;
+    if (FontData == 0) {
+        msgW = 0;
+    } else {
+        lineW = 0;
+        maxW = 0;
+        while (*width_s != '\0') {
+            if (*width_s == '\n') {
+                if (maxW < lineW) {
+                    maxW = lineW;
+                }
+                lineW = 0;
+            }
+            width_s = font_accumulate_glyph_width(width_s, &lineW);
+        }
+        if (maxW < lineW) {
+            maxW = lineW;
+        }
+        msgW = (maxW + 0xF) / 0x10;
+    }
+    x = (screen_width - msgW) / 2;
+    msgH = font_string_height(s);
+    y = (screen_height - msgH) / 2;
+    romfont_puts(x, y, s);
+    restore_projection_matrix();
+}
+
+static void gc_native_display_render(NativeRenderCb cb, void* arg) {
+    GXColor black = {0, 0, 0, 0xFF};
+    Mtx posMtx = {
+        {1.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f, 1.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, -1.0f, 0.0f},
+    };
+    GXColor clearColor;
+    GXColor fogColor;
+    void* framebuffers[2];
+    void* curXfb;
+    int first;
+    int i;
+    GXRenderModeObj* mode;
+    first = 1;
+
+    if (gc_native_display.xfbDisp != 0) {
+        framebuffers[0] = gc_native_display.xfbDisp;
+        framebuffers[1] = gc_native_display.xfbCopy;
+    } else {
+        RwGameCubeGetXFBs(&framebuffers[0], &framebuffers[1]);
+    }
+
+    GXSetCoPlanar(0);
+    GXSetCullMode(2);
+    GXSetClipMode(0);
+    mode = gc_native_display.rmode;
+    GXSetScissor(0, 0, mode->fbWidth, mode->efbHeight);
+    GXSetScissorBoxOffset(0, 0);
+    GXSetNumIndStages(0);
+
+    fogColor = black;
+    GXSetFog(0, 0.0f, 1.0f, 0.1f, 1.0f, fogColor);
+    GXSetFogRangeAdj(0, 0, 0);
+    GXSetBlendMode(0, 4, 5, 0);
+    GXSetColorUpdate(1);
+    GXSetAlphaUpdate(1);
+    GXSetZMode(0, 3, 0);
+    GXSetZCompLoc(1);
+    GXSetDither(1);
+    GXSetDstAlpha(0, 0);
+    GXSetPixelFmt(0, 0);
+    GXLoadPosMtxImm(posMtx, 0);
+    VISetBlack(0);
+    VIFlush();
+
+    clearColor = black;
+    curXfb = framebuffers[0];
+    GXSetCopyClear(clearColor, 0x00FFFFFFu);
+    for (i = 0; i < uFrameBlastCount; i++) {
+        mode = gc_native_display.rmode;
+        if (mode->field_rendering != 0) {
+            GXSetViewportJitter(0.0f, 0.0f, mode->fbWidth, mode->efbHeight, 0.0f, 1.0f,
+                                VIGetNextField());
+        } else {
+            GXSetViewport(0.0f, 0.0f, mode->fbWidth, mode->efbHeight, 0.0f, 1.0f);
+        }
+
+        if (cb != 0) {
+            cb(arg);
+        }
+
+        GXCopyDisp(curXfb, 1);
+        GXDrawDone();
+
+        if (first != 0) {
+            VISetBlack(0);
+            first = 0;
+        }
+
+        VISetNextFrameBuffer(curXfb);
+        VIFlush();
+        VIWaitForRetrace();
+
+        if (curXfb == framebuffers[0]) {
+            curXfb = framebuffers[1];
+        } else {
+            curXfb = framebuffers[0];
+        }
+    }
+}
+
+void gc_native_display_render_movie(void* ctx) {
+    GXColor clearColor = {0, 0, 0, 0xFF};
+    Mtx posMtx = {
+        {1.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f, 1.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, -1.0f, 0.0f},
+    };
+
+    GXSetCoPlanar(0);
+    GXSetCullMode(0);
+    GXSetClipMode(0);
+    GXSetScissor(0, 0, gc_native_display.rmode->fbWidth, gc_native_display.rmode->efbHeight);
+    GXSetScissorBoxOffset(0, 0);
+    GXSetNumIndStages(0);
+    GXSetFog(0, 0.0f, 1.0f, 0.1f, 1.0f, clearColor);
+    GXSetFogRangeAdj(0, 0, 0);
+    GXSetBlendMode(0, 4, 5, 0);
+    GXSetColorUpdate(1);
+    GXSetAlphaUpdate(1);
+    GXSetZMode(1, 3, 1);
+    GXSetZCompLoc(1);
+    GXSetDither(1);
+    GXSetDstAlpha(0, 0);
+    GXSetPixelFmt(0, 0);
+    GXLoadPosMtxImm(posMtx, 0);
+    GXSetCopyClear(clearColor, 0x00FFFFFFu);
+    GProfile_GCN_GxDrawDone();
+    VIWaitForRetrace();
+    VIFlush();
+    GXCopyDisp(_RwGCXFBDisp, 1);
+}
+
+void gc_native_display_render_image(void) {
+    gc_native_display_render(render_image, 0);
+}
+
+void gc_native_display_render_text(char* text) {
+    if (OSGetFontEncode() == 1) {
+        FontData = _mwMemMalloc(wave_heap, OS_FONT_SIZE_SJIS, 5, 0, 0, 0);
+    } else {
+        FontData = _mwMemMalloc(wave_heap, OS_FONT_SIZE_ANSI, 5, 0, 0, 0);
+    }
+    if (FontData == 0) {
+        OSPanic("gcdisplay.c", 0x50D, "Ins. memory to load ROM font.");
+    }
+    if (OSInitFont(FontData) == 0) {
+        OSPanic("gcdisplay.c", 0x511, "ROM font is available in boot ROM ver 0.8 or later.");
+    }
+    FontSize = FontData->cellWidth << 4;
+    FontSpace = -0x10;
+    gc_native_display_render(render_text, text);
+    if (FontData != 0) {
+        _mwMemFree(FontData, 0, 0);
+        FontData = 0;
+    }
+}
+
+int romfont_puts(int x, int y, char* text) {
+    int charW;
+    void* sheet;
+    int sheetX;
+    int sheetY;
+    unsigned short cellW;
+    int penX;
+    GXTexObj texObj;
+    Mtx texMtx;
+
+    LastSheet = 0;
     GXClearVtxDesc();
     GXSetVtxDesc(9, 1);
     GXSetVtxDesc(0xD, 1);
-    GXSetVtxAttrFmt(0, 9, 0, 3, 0);
+    GXSetVtxAttrFmt(0, 9, 0, 3, 4);
     GXSetVtxAttrFmt(0, 0xD, 1, 3, 0);
-    GXBegin(0x80, 0, 4);
-    wgPipe[0] = left;
-    right = left;
-    right += 0x100;
-    wgPipe[0] = 0x70;
-    wgPipe[0] = 0;
-    wgPipe[0] = 0;
-    wgPipe[0] = right;
-    wgPipe[0] = 0x70;
-    wgPipe[0] = 0x100;
-    wgPipe[0] = 0;
-    wgPipe[0] = right;
-    wgPipe[0] = 0x170;
-    wgPipe[0] = 0x100;
-    wgPipe[0] = 0x100;
-    wgPipe[0] = left;
-    wgPipe[0] = 0x170;
-    wgPipe[0] = 0;
-    wgPipe[0] = 0x100;
-}
 
-void tile_image(unsigned char* dest) {
-    unsigned char* tmp;
-    const unsigned char* image;
-    unsigned char* output;
-    const unsigned char* tile_source;
-    int pixel;
-    int tile_x;
-    int tile_y;
-    int output_offset;
-    int tile;
-
-    tmp = _mwMemMalloc(wave_heap, sizeof(loading_image), 5, 0, 0, 0);
-    image = loading_image;
-    output_offset = tile = 0;
-    for (; tile < 0x800; tile++) {
-        tile_x = (tile % 32) * 8;
-        tile_y = (tile / 32) * 4;
-        tile_source = image + tile_x;
-        output = tmp + output_offset;
-        for (pixel = 0; pixel < 0x20; pixel++) {
-            int y = tile_y + (pixel / 8);
-            output[pixel] = tile_source[y * 0x100 + (pixel % 8)];
+    x = (short)(x << 4);
+    y <<= 4;
+    penX = 0;
+    while (*text != '\0') {
+        if (*text == '\n') {
+            penX = 0;
+            text++;
+            y += (FontData->leading * FontSize) / FontData->cellWidth;
+            continue;
         }
-        output_offset += 0x20;
+
+        text = OSGetFontTexture(text, &sheet, &sheetX, &sheetY, &charW);
+        romfont_load_sheet(sheet, LastSheet, &texObj, texMtx);
+
+        cellW = FontData->cellWidth;
+        romfont_draw_glyph(x, y, penX, sheetX, sheetY, cellW);
+
+        penX += FontSpace + (FontSize * charW) / FontData->cellWidth;
     }
-    memcpy(dest, tmp, sizeof(loading_image));
-    _mwMemFree(tmp, 0, 0);
+
+    return (penX + 0xF) / 0x10;
 }
 
-int is_progressive_scan_mode(void) {
-    return progscan_mode;
+void setup_post_effect_buffers(void) {
+}
+
+void gc_setup_feedback_buffer_for_konquest(void) {
+    feedbackTexPixels =
+        _mwMemMalloc(permanent_heap, screen_width * screen_height * 2, 5, 0, 0, 0);
+    mk_insert(get_mkx_mem(feedbackTexPixels), &aproc->pdata_list_b);
+    if (feedbackTexPixels != 0) {
+        GXInitTexObj(&feedbackTex, feedbackTexPixels, screen_width, screen_height, 4, 0, 0,
+                     0);
+        GXInitTexObjLOD(&feedbackTex, 1, 1, 0.0f, 0.0f, 0.0f, 0, 0, 0);
+    }
+}
+
+void feedback_effect(void) {
+    Mtx texMtx;
+    Mtx posMtx = {
+        {1.0f, 0.0f, 0.0f, 0.0f},
+        {0.0f, 1.0f, 0.0f, 0.0f},
+        {0.0f, 0.0f, -1.0f, 0.0f},
+    };
+    GXColor color = {0xC4, 0xC4, 0xC4, 0xFF};
+    GXColor amb;
+    GXColor mat;
+    int h;
+    int w;
+    int full_w;
+    int full_h;
+
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 1);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(6, 0);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0xA, 5);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0xB, 2);
+
+    save_projection_matrix();
+    set_2d_projection();
+    GXLoadPosMtxImm(posMtx, 0);
+    GXLoadTexObj(&feedbackTex, 4);
+    PSMTXScale(texMtx, 1.0f / (float)screen_width, 1.0f / (float)screen_height, 1.0f);
+    GXLoadTexMtxImm(texMtx, 0x21, 1);
+    GXSetNumTexGens(1);
+    GXSetNumTevStages(1);
+    GXSetNumChans(1);
+
+    amb = color;
+    GXSetChanAmbColor(4, amb);
+    color.a = feedback_blendrate;
+    mat = color;
+    GXSetChanMatColor(4, mat);
+    GXSetChanCtrl(4, 0, 0, 0, 0, 0, 2);
+    GXSetTexCoordGen2(0, 1, 4, 0x21, 0, 0x7D);
+    GXSetTevOrder(0, 0, 4, 4);
+    GXSetTevOp(0, 0);
+
+    if (old_use_feedback_effect == use_feedback_effect) {
+        full_w = screen_width;
+        full_h = screen_height;
+        w = (short)full_w;
+        h = (short)full_h;
+        GXClearVtxDesc();
+        GXSetVtxDesc(9, 1);
+        GXSetVtxDesc(0xD, 1);
+        GXSetVtxAttrFmt(0, 9, 0, 3, 0);
+        GXSetVtxAttrFmt(0, 0xD, 1, 3, 0);
+        GXBegin(0x80, 0, 4);
+        wgPipe[0] = 0;
+        wgPipe[0] = 0;
+        wgPipe[0] = 0;
+        wgPipe[0] = 0;
+        wgPipe[0] = w;
+        wgPipe[0] = 0;
+        wgPipe[0] = full_w;
+        wgPipe[0] = 0;
+        wgPipe[0] = w;
+        wgPipe[0] = h;
+        wgPipe[0] = full_w;
+        wgPipe[0] = full_h;
+        wgPipe[0] = 0;
+        wgPipe[0] = h;
+        wgPipe[0] = 0;
+        wgPipe[0] = full_h;
+    }
+
+    GXSetTexCopySrc(0, 0, screen_width, screen_height);
+    GXSetTexCopyDst(screen_width, screen_height, 4, 0);
+    GXCopyTex(feedbackTexPixels, 0);
+    restore_projection_matrix();
+
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(6, 1);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0x14, 2);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0xA, 5);
+    RwEngineInstance->dOpenDevice.fpRenderStateSet(0xB, 6);
 }

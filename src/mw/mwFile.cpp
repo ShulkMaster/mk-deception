@@ -152,9 +152,13 @@ inline void* operator new(unsigned long, void* storage)
 }
 
 extern void _mwFileNoOp(...);
+static inline unsigned long _mwFileInitHandleTracking(mwFileInitParam* parameters)
+{
+    return parameters->file_handle_tracking_size;
+}
 extern void _mwFilePlatformTick();
 extern bool _mwFilePlatformIsInServiceThread();
-extern int _mwFilePlatformInit(mwFileInitParam*);
+extern int _mwFilePlatformInit(_mwFileInitParam* param);
 extern int _mwFileMountInit();
 
 extern "C" mwFileCommand* mwFileCloseAsync(
@@ -315,8 +319,6 @@ extern "C" int mwFileOpenModeToFlags(const char* mode)
 
 extern "C" void mwFileGetDefaultInitParam(mwFileInitParam*);
 
-/* TODO: [breakthrough needed] 95.12195%; +0x60 diagnostic has no live edge;
- * original disabled-tracking producer is unproved by the PS2 counterpart. */
 extern "C" int mwFileInit(mwFileInitParam* parameters)
 {
     mwFileInitParam default_parameters;
@@ -325,6 +327,12 @@ extern "C" int mwFileInit(mwFileInitParam* parameters)
     if (parameters == 0) {
         setDefaultInitParam(&default_parameters);
         parameters = &default_parameters;
+    }
+
+    if (_mwFileInitHandleTracking(parameters) !=
+        parameters->file_handle_tracking_size) {
+        _mwFileNoOp(&stringBase0[TRACKING_INIT_MESSAGE]);
+        return 0;
     }
 
     mwFileCommand::sRetries = parameters->command_retries;

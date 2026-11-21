@@ -1,8 +1,11 @@
 /* BUILD: -inline noauto,deferred emits definitions in reverse source order;
  * this order also preserves pooled strings and anonymous initializers. */
 #include "runtime/anim_pdata.h"
+#include "runtime/bone_matcher.h"
+#include "platform/display.h"
 #include "runtime/anim_api_ext.h"
 #include "game/pfxscript_api.h"
+#include "game/pfxscript.h"
 #include "runtime/anim_api.h"
 #include "runtime/asset.h"
 #include "game/konquest.h"
@@ -11,7 +14,6 @@
 #include "game/konquest_lipsync.h"
 #include "game/collision.h"
 #include "game/nis.h"
-#include "game/player_actions.h"
 #include "math/gxMath.h"
 #include "math/mk_math.h"
 #include "runtime/mk_cmdscript.h"
@@ -34,6 +36,7 @@
 #include "rw/rwcamera_internal.h"
 #include "rw/rplight.h"
 #include "rw/rwengine.h"
+#include "game/blood.h"
 
 struct KonquestPathData {
     MkHdr hdr;
@@ -410,19 +413,6 @@ struct KonquestObjectScriptPdata {
     MkObj* object;
 };
 
-struct KonquestBoneMatcher {
-    MkHdr hdr;
-    unsigned char pad_7_4 : 4;
-    unsigned char field_bit3 : 1;
-    unsigned char pad_2_0 : 3;
-    char pad09[3];
-    float child_weight;
-    MkObj* parent;
-    unsigned int parent_instance;
-    int parent_bone;
-    Vec parent_offset;
-};
-
 struct TurnAndFacePdata {
     MkHdr hdr;
     float angle;
@@ -463,19 +453,9 @@ struct KonquestNpcShadows {
 
 typedef union ObliqueMatrixCell ObliqueMatrix[16];
 
-struct KonquestCmdScriptView {
-    char pad00[0x14];
-    unsigned int position;
-    char pad18[8];
-    int state;
-    char pad24[0x40];
-    char execution_state[0x140];
-};
-
-KonquestNpc* g_active_npc;
-static struct NpcManagerPdata* npc_manager_pdata;
-static int current_npc_count;
-static int wait_ticks;
+extern KonquestNpc* g_active_npc;
+extern struct NpcManagerPdata* npc_manager_pdata;
+extern int current_npc_count;
 extern struct KonquestNpcPdata* konquest_pdata;
 int konquest_human_bones[17] = {
     16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0
@@ -493,8 +473,6 @@ struct GroundCollTable npc_ground_colls[3] = {
 };
 extern struct GroundCollTable npc_punched_ground_colls[5];
 int npc_fast_anims[175];
-extern int konquest_editor_mode_on;
-extern void* Camera;
 static struct KonquestNpcShadows npc_shadows;
 extern struct KonquestAnimations konquest_animations;
 extern struct KonquestNpcStateDef g_event_tbl[8];
@@ -552,47 +530,30 @@ void nav_get_unit_vector_to_nav_portal(
     Vec* out, Vec* position, int area_index, int portal_id);
 int nav_what_area_is_point_in(Vec* position, int hint_area);
 int nav_which_area_is_next(int from_area, int to_area);
-void resume_hero_state_process(void);
 AniTextureControl* konquest_create_monk_face_ani_texture(MkObj* object);
 void transition_to_anim_script(
     AnimPdata* animation, AniData* script, int flags, float blend);
-float anim_script_lastframe(AniData* script);
+float anim_script_lastframe(AnimScript* script);
 void npc_travel_path(int path_id, int path_arg, int travel_mode);
-struct KonquestTileOrigin* get_nth_tile_struct(int index);
 int get_tile_from_position(const Vec* position);
 void npc_set_his_flags(KonquestNpcData* data, int flags, int enabled);
-KonquestWaypoint* get_door_path(int door_id);
-int get_konquest_game_mode(void);
-int is_game_mode_in_stack(int mode);
 void npc_ani_1_frame(void);
 void add_npc(KonquestNpcData* data);
-int check_skip_conversation_flag(void);
-void snd_stop(unsigned int sound_handle);
+void snd_stop(MslSoundHandle handle);
 int mslSoundIsValid(unsigned int sound_handle);
 static float p_wait_for_dialog(void);
 float p_do_lip_synch(void);
 float p_npc_proc(void);
 float p_npc_idle(void);
-RpMaterial* obj_find_material_by_id(MkObj* object, int material_id);
-unsigned int fx_by_owner(const char* name, unsigned int owner);
-int is_blood_disabled(void);
 void fx_resume_emit(unsigned int effect);
-void fx_reset_emit(unsigned int effect);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
-void obj_set_all_sobjs_priority(MkObj* object, int priority);
-void insert_ground_me_mkobj(MkObj* object);
 void sobj_swap_material_texture(
     MkSobj* sobj, unsigned int material_id, RwTexture* texture);
 void sobj_use_material_color(void* sobj);
-void remove_fgnd_mkobj(void* object);
 void remove_npc(KonquestNpcData* data);
-void get_visible_tile_set(int tile_set);
 void npc_make_visible(KonquestNpc* npc);
 void npc_make_invisible(KonquestNpc* npc);
 void random_snd_req_delay(int group, int delay);
-struct KonquestBoneMatcher* start_bone_matcher(
-    MkObj* parent, int parent_bone, MkObj* child, int child_bone,
-    float blend_ticks);
 
 void npc_force_state_for_npc(KonquestNpc* npc, int event_index);
 void npc_signal_event(KonquestNpc* npc, int event_index);
@@ -1018,9 +979,12 @@ static inline unsigned int find_mouth_wiff_artid(MkObj* object) {
     RpClumpForAllAtomics(
         object->clump, AtomicFindTextureWithRootString, &search);
     if (search.texture_name[0] != 0) {
+        unsigned int art_id;
+
         strupr(search.texture_name);
-        return get_artid_of_named_item_in_slot(
+        art_id = get_artid_of_named_item_in_slot(
             0x6002B, search.texture_name, 0);
+        return art_id;
     }
     return 0;
 }
@@ -1516,10 +1480,7 @@ static void npc_manager_find_model_for_npc(KonquestNpc* npc) {
     npc_manager_load_new_npc_model(npc);
 }
 
-/* TODO: [near miss] 99.71983%; npc/art_id saved homes swap; retail needs art_id
- * declared last plus one more coalesced copy across it (phantom what-if exact). */
 static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
-    unsigned int art_id;
     AniTextureControl* lip_texture = 0;
     struct NpcManagerModelSlot* slot = 0;
     int slot_handle = 0;
@@ -1528,6 +1489,7 @@ static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
     int index;
     MkObj* object;
     char* model_name;
+    unsigned int art_id;
 
     art_id = 0;
     if (is_special == 1) {
@@ -1561,8 +1523,8 @@ static void npc_manager_load_new_npc_model(KonquestNpc* npc) {
         strlwr(section_name);
         load_ssf(kon_unique_npcs_file_table);
         load_art_section_by_name(slot_handle, section_name);
-        strncpy(slot->name, model_name, 0x3F);
-        slot->name[0x3F] = 0;
+        strncpy(slot->name, model_name, sizeof(slot->name) - 1);
+        slot->name[sizeof(slot->name) - 1] = 0;
         object = load_named_model_from_slot(
             slot_handle, "NPC", 0xA002, 0);
     } else {
@@ -2940,6 +2902,7 @@ static inline void npc_manager_update_model_list(void) {
 }
 
 void npc_update(int update_all) {
+    static int wait_ticks;
     MkPtr* link;
     int models_made_visible = 0;
 
@@ -3013,6 +2976,10 @@ void npc_update(int update_all) {
         }
     }
 }
+
+static int current_npc_count;
+KonquestNpc* g_active_npc;
+static struct NpcManagerPdata* npc_manager_pdata;
 
 static void npc_invisible_update(KonquestNpc* npc) {
     if (konquest_editor_mode_on == 0) {
@@ -3894,6 +3861,21 @@ void npc_change_path_speed(float speed) {
         g_active_npc->path->speed = (int)speed;
     }
 }
+void make_collision_volume_for_npc(KonquestNpc* npc) {
+    CollisionShape shape;
+    Vec center;
+
+    if (npc_event_has_active_animation(npc) != 0) {
+        center.x = npc->animation->object->pos.value.x;
+        center.y = npc->animation->object->pos.value.y;
+        center.z = npc->animation->object->pos.value.z;
+        center.y += -1.0f;
+        build_col_shape_vertical_cylinder(&shape, &center, 0.3f, 3.0f);
+        npc->animation->editor_object =
+            add_shape_to_global_collision_list(&shape, npc->data_table_index + 0x10001);
+    }
+}
+
 void npc_set_ani_speed(float speed) {
     g_active_npc->animation_speed = speed;
     if (g_active_npc->animation != 0) {
@@ -3907,7 +3889,7 @@ void npc_set_ani_speed(float speed) {
 void npc_stand_still(void) {
     if (aproc->pid == 0xA014) {
         KonquestNpc* npc;
-        struct KonquestCmdScriptView* script;
+        CmdScript* script;
         CmdScript* saved_script;
 
         g_active_npc->queued_animation =
@@ -3925,17 +3907,17 @@ void npc_stand_still(void) {
             g_active_npc->wait_ticks = 0.0f;
             return;
         }
-        script = (struct KonquestCmdScriptView*)active_cmdscript;
+        script = active_cmdscript;
         script->state = 2;
         saved_script = active_cmdscript;
         npc = g_active_npc;
         cmdscript_step_backward();
         memcpy(
             npc->saved_script_state,
-            ((struct KonquestCmdScriptView*)active_cmdscript)->execution_state,
+            active_cmdscript->stack_mem,
             sizeof(npc->saved_script_state));
         npc->saved_script_position =
-            ((struct KonquestCmdScriptView*)active_cmdscript)->position;
+            (unsigned int)active_cmdscript->pc;
         npc->saved_script_stack_depth = get_script_stack_depth();
         active_cmdscript = saved_script;
         return;
@@ -4746,7 +4728,7 @@ void npc_ani_to_frame_x(float frame) {
 }
 
 void npc_suspend_cmdscript(void) {
-    struct KonquestCmdScriptView* script;
+    CmdScript* script;
     KonquestNpc* npc;
     CmdScript* saved_script;
 
@@ -4759,17 +4741,17 @@ void npc_suspend_cmdscript(void) {
         return;
     }
 
-    script = (struct KonquestCmdScriptView*)active_cmdscript;
+    script = active_cmdscript;
     script->state = 2;
     saved_script = active_cmdscript;
     npc = g_active_npc;
     cmdscript_step_backward();
     memcpy(
         npc->saved_script_state,
-        ((struct KonquestCmdScriptView*)active_cmdscript)->execution_state,
+        active_cmdscript->stack_mem,
         sizeof(npc->saved_script_state));
     npc->saved_script_position =
-        ((struct KonquestCmdScriptView*)active_cmdscript)->position;
+        (unsigned int)active_cmdscript->pc;
     npc->saved_script_stack_depth = get_script_stack_depth();
     active_cmdscript = saved_script;
 }
@@ -4801,7 +4783,7 @@ void npc_ani_to_blend_frame(float blend_frames) {
 
 void npc_ani_1_frame(void) {
     if (aproc->pid == 0xA014) {
-        struct KonquestCmdScriptView* script;
+        CmdScript* script;
         CmdScript* saved_script;
         KonquestNpc* npc;
 
@@ -4815,17 +4797,17 @@ void npc_ani_1_frame(void) {
             g_active_npc->wait_ticks = 0.0f;
             return;
         }
-        script = (struct KonquestCmdScriptView*)active_cmdscript;
+        script = active_cmdscript;
         script->state = 2;
         saved_script = active_cmdscript;
         npc = g_active_npc;
         cmdscript_step_backward();
         memcpy(
             npc->saved_script_state,
-            ((struct KonquestCmdScriptView*)active_cmdscript)->execution_state,
+            active_cmdscript->stack_mem,
             sizeof(npc->saved_script_state));
         npc->saved_script_position =
-            ((struct KonquestCmdScriptView*)active_cmdscript)->position;
+            (unsigned int)active_cmdscript->pc;
         npc->saved_script_stack_depth = get_script_stack_depth();
         active_cmdscript = saved_script;
     } else {
@@ -5599,7 +5581,7 @@ void npc_start_goro_bone_match(KonquestNpcData* data) {
     struct KonquestObjectScriptPdata* pdata =
         (struct KonquestObjectScriptPdata*)pdata_of_proc(aproc);
     KonquestNpc* npc;
-    struct KonquestBoneMatcher* matcher;
+    BoneMatcherState* matcher;
 
     pdata->object->flags_09_bits.bit6 = 0;
     npc = npc_find_by_data_inline(data);
@@ -5612,7 +5594,7 @@ void npc_start_goro_bone_match(KonquestNpcData* data) {
     matcher->parent_offset.x = -0.04f;
     matcher->parent_offset.y = 0.1f;
     matcher->parent_offset.z = -0.15f;
-    matcher->field_bit3 = 1;
+    matcher->flags_08.bits.copy_parent_angles = 1;
 }
 
 void npc_stop_goro_bone_match(void) {
@@ -6941,7 +6923,7 @@ void npc_wait_for_wake_up(void) {
         if (is_time_a_greater_than_time_b(
                 &konquest_pdata->current_time,
                 &g_active_npc->wake_time) == 0) {
-            struct KonquestCmdScriptView* script;
+            CmdScript* script;
             CmdScript* saved_script;
             KonquestNpc* npc;
 
@@ -6955,17 +6937,17 @@ void npc_wait_for_wake_up(void) {
                 g_active_npc->wait_ticks = 0.0f;
                 return;
             }
-            script = (struct KonquestCmdScriptView*)active_cmdscript;
+            script = active_cmdscript;
             script->state = 2;
             saved_script = active_cmdscript;
             npc = g_active_npc;
             cmdscript_step_backward();
             memcpy(
                 npc->saved_script_state,
-                ((struct KonquestCmdScriptView*)active_cmdscript)->execution_state,
+                active_cmdscript->stack_mem,
                 sizeof(npc->saved_script_state));
             npc->saved_script_position =
-                ((struct KonquestCmdScriptView*)active_cmdscript)->position;
+                (unsigned int)active_cmdscript->pc;
             npc->saved_script_stack_depth = get_script_stack_depth();
             active_cmdscript = saved_script;
         }
@@ -7086,7 +7068,7 @@ void cleanup_npc_manager(void) {
 }
 
 void npc_sleep_until_model_loaded(void) {
-    struct KonquestCmdScriptView* script;
+    CmdScript* script;
     CmdScript* saved_script;
     KonquestNpc* npc;
 
@@ -7108,17 +7090,17 @@ void npc_sleep_until_model_loaded(void) {
             return;
         }
 
-        script = (struct KonquestCmdScriptView*)active_cmdscript;
+        script = active_cmdscript;
         script->state = 2;
         saved_script = active_cmdscript;
         npc = g_active_npc;
         cmdscript_step_backward();
         memcpy(
             npc->saved_script_state,
-            ((struct KonquestCmdScriptView*)active_cmdscript)->execution_state,
+            active_cmdscript->stack_mem,
             sizeof(npc->saved_script_state));
         npc->saved_script_position =
-            ((struct KonquestCmdScriptView*)active_cmdscript)->position;
+            (unsigned int)active_cmdscript->pc;
         npc->saved_script_stack_depth = get_script_stack_depth();
         active_cmdscript = saved_script;
     }

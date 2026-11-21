@@ -128,7 +128,6 @@ void pfxfont_string_init(PfxFontString* ctx) {
 }
 #pragma dont_inline reset
 
-#pragma dont_inline on
 static unsigned char hex_char(const char* p) {
     unsigned char value;
     int i;
@@ -149,7 +148,6 @@ static unsigned char hex_char(const char* p) {
     }
     return value;
 }
-#pragma dont_inline reset
 
 #pragma dont_inline on
 static int find_drawable_boundary(const char* text, int* pos, PfxFontInstance* inst) {
@@ -403,7 +401,6 @@ void pfxfont_end_render(void) {
     nativefont_end_render();
 }
 
-#pragma dont_inline on
 void pfxfont_string_cleanup(PfxFontString* ctx) {
     PfxFontInstance* inst;
     PfxFontInstance* next;
@@ -424,4 +421,3 @@ void pfxfont_string_cleanup(PfxFontString* ctx) {
     }
     ctx->instance0.next = 0;
 }
-#pragma dont_inline reset

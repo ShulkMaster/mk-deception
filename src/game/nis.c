@@ -55,11 +55,10 @@ extern char bgnd_animations[];
 
 struct FatalityFakeBoneMatcher;
 MkProc* get_fake_bone_matcher_proc(struct FatalityFakeBoneMatcher* matcher);
-void mkscripts_destroy_fk_bonematcher(void* bonematcher);
+void mkscripts_destroy_fk_bonematcher(MkHdr* bonematcher);
 void add_anim_section_by_name_async_pal(int slot, const char* name, void* bss, int arg4, int arg5);
 void wait_for_slot_load(int slot);
 void load_art_section_by_name(int slot, const char* name);
-void kill_head_tracking(void);
 void unload_section_slot(int slot);
 void set_section_memory_scheme(int scheme);
 
@@ -75,7 +74,6 @@ static void mkproc_sleep(void) {
 }
 
 #pragma optimize_for_size on
-#pragma use_lmw_stmw on
 void show_shujinko_unlock_screen(int string_id) {
     int x_pos;
     StringObj* str_obj;
@@ -92,7 +90,6 @@ void show_shujinko_unlock_screen(int string_id) {
 }
 
 #pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
 
 static float p_fade_fullscreen_image(void) {
     float sleep_ticks;
@@ -116,7 +113,6 @@ static float p_fade_fullscreen_image(void) {
 }
 
 #pragma optimize_for_size on
-#pragma use_lmw_stmw on
 
 void release_kamidogu(MkObj* owner, void* bonematcher) {
     MkProc* matcher_proc;
@@ -170,7 +166,6 @@ static float p_drop_kamidogu(void) {
 }
 
 #pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
 
 float p_konquest_ending(void) {
     GameInfo* info;
@@ -318,7 +313,6 @@ void nis_signal_event(int event) {
 }
 
 #pragma optimize_for_size on
-#pragma use_lmw_stmw on
 
 void nis_wait_for_event(int event, int timeout) {
     unsigned int* event_word;
@@ -361,7 +355,6 @@ void nis_init(ScriptSlot* cmdscript, unsigned int scene_func, unsigned int cance
 }
 
 #pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
 
 static float p_run_nis_scene(void) {
     struct NisPdata* pdata;

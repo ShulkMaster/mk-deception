@@ -33,6 +33,9 @@
 #include "runtime/plyr_anim_pdata.h"
 #include "platform/joy.h"
 #include "game/moves.h"
+#include "runtime/cam_shake.h"
+#include "game/game.h"
+#include "game/mk_chess.h"
 
 struct EjbPlyrForcePdata {
     MkHdr hdr;
@@ -77,36 +80,25 @@ struct EjbSharedAnimationsView {
 };
 typedef char EjbSharedAnimationsViewSizeCheck[sizeof(struct EjbSharedAnimationsView) == (628 / 4) * sizeof(AniData*) ? 1 : -1];
 
-extern PlyrPdata* his_pdata;
-extern MkProc* plyr_anim_proc;
 extern AnimPdata* anim_pdata;
 
 int check_switch(SwitchData* data, int switch_id);
 int is_plyr_blocking(PlyrPdata* pdata);
 int is_my_chest_to_screen(void);
-void random_voice(int group);
+MslSoundHandle random_voice(int group);
 void transition_to_anim_script(
     AnimPdata* anim, AniData* animation, int transition, float blend_rate);
 void set_plyr_attack_region(
     int use_body, float radius, float extension);
-void start_plyr_attack(float scale);
-void online_combo_record(void);
-int collide_plyr_vs_plyr(void);
-void trial_state_collision_check(int collision_result, int player);
 static float p_wall_monitor(void);
-int drone_ai_check_button_press(int button);
-void advance_cur_cmd_idx(void);
 static int check_button_and_pad(
     unsigned int button, unsigned int direction, int pad);
-void advance_my_current_switch(void);
-void random_hit(int group);
-int local_collision_allowed_plyr_pdata(void);
+MslSoundHandle random_hit(int group);
 
 int is_weapon_style(PlyrFighterDefinition* style);
 int reaction_xfer_him(int reaction, float rate, int strength);
 void plyr_weapon_trail_hide(PlyrMirrorSlots* slots);
 void plyr_weapon_trail_show(PlyrMirrorSlots* slots);
-void drone_ai_reset_all(void);
 void plyr_bleed_small_cycle_ext(
     PlyrPdata* pdata, int bone, PlyrPdata* owner);
 void plyr_bleed_medium_cycle(PlyrPdata* pdata, int bone);
@@ -116,9 +108,7 @@ void dead_liukang_snd_chain_check(
     PlyrPdata* player, int base_delay, int delay_range,
     unsigned int likelihood);
 MslSoundHandle random_foot(int group);
-void check_bgnd_effect(void);
 void anim_set_hiframe(AnimPdata* anim, float frame);
-void uv_to_opponent(Vec* direction);
 void init_3d_move(void);
 void init_air_move(void);
 void init_air_move_no_aniproc(void);
@@ -145,21 +135,11 @@ float two_player_animation_blend(
     AniData* animation, float attacker_blend, float victim_blend,
     int attacker_mode, int victim_mode);
 void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player);
-float p_konquest_register_bleeding(void);
-int drone_ai_check_button_direction(int direction);
-int drone_ai_should_roll(int mode);
-int mk_chess_should_i_fall_down(void);
-void player_impale(MkObj* source, MkObj* target);
-void shake_camera(int ticks, float strength);
 float r_jump_slambounce_final_hit(void);
 float r_jump_chin3_final_hit(void);
 float r_hit_wall(void);
 float j_counter_caught(void);
-float x_advance_fatality(void);
 float p_plyr_pz_fighter_entry(void);
-float drone_entry(void);
-int trial_block_callback(int player);
-void show_damage_text(int player, int combo_hits, int displayed_damage);
 void trial_register_combo(
     int player, int hit_count, PlyrPdata* pdata, float damage);
 void force_away(float force, int duration, float damping, int animation);
@@ -167,9 +147,7 @@ float ani_to_frame_x_col(
     float frame, int attack_region, float x, float y, int reaction, float z,
     int collision_ticks);
 int is_he_blocking_throw(void);
-void* start_scale_proc(void* object, const unsigned int* script);
 
-extern int f_fatality_finished;
 extern struct EjbSharedAnimationsView shared_ani;
 
 static void tremor_collision_check(void);
@@ -240,34 +218,12 @@ static void (*ejb_function_pointers[0x35])(void) = {
     zero_my_hit_count,
     temp_vomit,
 };
-void liukang_in_fight_random_snd_check(void);
 float j_stay_down_dead(void);
-void mk_chess_set_breaker_value(void);
 static float ani_with_new_angle_y(
     AniData* animation, int transition, float frame,
     float step, float blend);
-int rotate_towards_sync(float angle);
 void toggle_obj_and_ani_flips(AnimPdata* anim);
-float front_rollup(void);
-float j_front_roll_left(void);
-float j_front_roll_right(void);
-float j_ass_rollup(void);
-float j_back_rollup_IN(void);
-float j_back_rollup_OUT(void);
-float victory(void);
-float big_boss_end_of_round(void);
-float fall_dead(void);
-float dizzy(void);
-extern int round_winner;
-extern int f_fatality_was_done;
 extern int end_round_cam_done;
-int mk_chess_did_the_king_just_lose(void);
-void skip_end_of_trial_wrapup(void);
-float end_of_trial_wrapup(int winner);
-float go_into_major_pain(void);
-float go_into_twitch_death(void);
-extern int go_into_major_pain_please;
-extern int go_into_twitch_death_please;
 void unfreeze_player(void);
 
 struct EjbPlyrForcePdata* plyr_force_pdata;

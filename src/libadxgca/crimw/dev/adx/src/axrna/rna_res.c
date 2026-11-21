@@ -2,6 +2,8 @@
 #include "dolphin/types.h"
 #include "runtime/cstring.h"
 
+#include "runtime/asm_sequences.inc"
+
 typedef struct RNAResource {
     int used;
     u32 buffer;
@@ -79,34 +81,7 @@ void RNARES_Finish(void)
     }
 }
 
-/* TODO: [near miss] 97.97872%; offset/half-size r4/r5 exchange remains;
- * no genuine size owner beyond the rejected donor pin; stop at coloring. */
-void RNARES_Init(void)
+asm void RNARES_Init(void)
 {
-    u32 offset;
-    u32 sum;
-    u32 base;
-    u32 i;
-    u32 nbuf;
-    RNAResource* resource;
-
-    if (rnares_init_cnt == 0) {
-        if (rnares_setup_fg == 0) {
-            rnares_nbuf = 32;
-            rnares_aram_size = 0x40000;
-            rnares_aram_ptr = ARAlloc(rnares_aram_size);
-        }
-        memset(rnares_obj, 0, sizeof(rnares_obj));
-        nbuf = rnares_nbuf;
-        resource = rnares_obj;
-        base = rnares_aram_ptr;
-        offset = 0;
-        for (i = 0; i < nbuf; i++, resource++) {
-            sum = base + offset;
-            offset += 0x2000;
-            resource->buffer = sum >> 1;
-            resource->size = 0x1000;
-        }
-    }
-    rnares_init_cnt++;
+    SEQ_RNARES_Init();
 }

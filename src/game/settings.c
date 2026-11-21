@@ -10,7 +10,6 @@
 #include "platform/gcmcard.h"
 #include "mw/mwScreenEngineGlue.h"
 
-int is_memcard_scanner_running(void);
 
 static const float default_volume_scale = 100.0f;
 static const float default_volume_offset = 0.005f;
@@ -251,7 +250,6 @@ void save_game_settings_in_action_handler(void) {
     }
 }
 
-#pragma dont_inline on
 static float p_save_game_settings(void) {
     save_game_settings();
     _mkproc_sleep_ticks = sleep_ticks_one;
@@ -259,7 +257,6 @@ static float p_save_game_settings(void) {
     fire_screen_studio_event(0x1FEB, 0);
     return sleep_ticks_neg_one;
 }
-#pragma dont_inline reset
 
 static inline int find_ready_settings_device(void) {
     int count = 0;
@@ -298,7 +295,6 @@ static inline int load_game_settings_from(int device) {
 }
 
 #pragma optimize_for_size on
-#pragma use_lmw_stmw on
 int load_game_settings(void) {
     int selected;
     int result = 0;
@@ -313,7 +309,6 @@ int load_game_settings(void) {
     return result;
 }
 #pragma optimize_for_size reset
-#pragma use_lmw_stmw reset
 
 void memory_move_game_setting(GameSettings* dst, const GameSettings* src) {
     memcpy(dst, src, sizeof(GameSettings));

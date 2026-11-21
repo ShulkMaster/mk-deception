@@ -16,4 +16,8 @@ MkObj* clone_my_weapon(
 void clone_weapon_to_secondary(
     WeaponDefinition* definition, PlyrInfo* source);
 
+void player_impale(MkObj* source, MkObj* target);
+extern MkObj* load_weapon_from_slot(WeaponDefinition* definition, int slot);
+void mks_start_goro_xtra_weapons(void);
+extern MkObj* load_bgnd_weapon_reflection(WeaponDefinition* definition);
 #endif

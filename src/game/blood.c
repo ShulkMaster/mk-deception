@@ -48,18 +48,6 @@ struct DecalEmitterWatcherPdata {
     char pad298[8];
 };
 
-struct BloodFxFlags {
-    unsigned char pad_high : 3;
-    unsigned char bit4 : 1;
-    unsigned char bit3 : 1;
-    unsigned char pad_low : 3;
-};
-
-struct BloodFxUserdata {
-    char pad00[0x40];
-    struct BloodFxFlags flags_40_bits;
-};
-
 struct GusherPdata {
     MkHdr hdr;
     GusherStep* steps;
@@ -3167,9 +3155,9 @@ static void obj_bld_surface_build_polys(
 }
 
 static void bloodfx_init(void* userdata) {
-    struct BloodFxUserdata* blood = userdata;
+    PfxVm* blood = userdata;
 
-    blood->flags_40_bits.bit4 = 1;
-    blood->flags_40_bits.bit3 = 1;
+    blood->frame_flag_bits.bit4 = 1;
+    blood->frame_flag_bits.frame_end_pending = 1;
 }
 #include "rw/rtquat.h"

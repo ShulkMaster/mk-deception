@@ -50,6 +50,11 @@ int bg_pselect_get_offender_class(int team);
 float p_bg_pselect(void);
 float p_pz_pselect(void);
 float p_pselect(void);
+extern void init_wagering(void);
+extern int get_current_wager_koin(void);
+extern void ck_restore_kiddy(void);
+extern void award_bet(void);
+void pselect_update_profile_settings(void);
 
 #ifdef __cplusplus
 }

@@ -1,7 +1,8 @@
 #ifndef MK_CMDSCRIPT_H
 #define MK_CMDSCRIPT_H
 
-#include "runtime/mk_fileinfo.h"
+typedef struct MkFileEntry MkFileEntry;
+typedef struct MkFileInfo MkFileInfo;
 #include "runtime/mk_proc.h"
 
 /*

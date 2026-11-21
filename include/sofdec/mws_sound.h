@@ -1,7 +1,7 @@
 #ifndef MKD_SOFDEC_MWS_SOUND_H
 #define MKD_SOFDEC_MWS_SOUND_H
 
-#include "cri/sj.h"
+typedef struct SJ SJ;
 
 typedef struct MwsStHandle {
     int active;

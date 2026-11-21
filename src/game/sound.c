@@ -15,7 +15,6 @@
 #include "runtime/cstring.h"
 #include "platform/io.h"
 #include "platform/main.h"
-#include "rw/rwframe.h"
 
 struct SoundRequest {
     int sound_id;
@@ -78,17 +77,14 @@ struct MslSystemInit {
 
 static struct MslInitParam g_initDefault = {sizeof(struct MslInitParam), 1, 3};
 static struct MslSystemInit g_sysinitDefault = {sizeof(struct MslSystemInit), 0, 0, 64, 0, 0};
-extern SoundBankData sbank_data[];
-extern LoadedSoundBank loaded_sbank_data[];
-extern int mk_plyr_sound_table[];
-extern int mk_foot_sound_table[7][4];
 
 #include "src/game/sound_call_tables.inc"
 #include "src/game/sound_bank_data.inc"
+#include "game/ai.h"
+#include "game/konquest.h"
 
 enum { SOUND_BANK_COUNT = sizeof(sbank_data) / sizeof(sbank_data[0]) };
 
-int can_big_boss_make_special_vo_call(unsigned int cooldown_ticks);
 static int snd_calculate_volume(struct SoundRequest* request);
 
 MslSoundHandle mslBankPlayVol(
@@ -131,7 +127,6 @@ void mslSetVol(_mslSystem* system, float volume);
 _mslSystem* mslInit(struct MslInitParam* init, struct MslSystemInit* system_init);
 int mslSetWavePath(_mslSystem* system, const char* path);
 static void check_and_load_sound_bank_async(int bank, int slot);
-void* get_konquest_region_table(void);
 static void lsba_callbank(_mslAsyncResponse* response);
 
 void dk_voice_call(int voice_group, unsigned int cooldown_ticks) {

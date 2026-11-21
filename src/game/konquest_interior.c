@@ -16,6 +16,7 @@
 #include "runtime/section.h"
 #include "runtime/utils.h"
 #include "platform/io.h"
+#include "game/collision.h"
 
 struct KonquestRoomObjectTexture {
     unsigned int material_id;
@@ -95,11 +96,6 @@ struct KonquestRegionTable {
     const char* interior_art_name;
     char pad08[0x2C];
     struct KonquestEnumerationEntry* enumerations;
-};
-
-struct KonquestChildDefinition {
-    char pad00[0x0C];
-    int enumeration_index;
 };
 
 struct KonquestChildObject {
@@ -229,56 +225,26 @@ static char global_fight_data_table_name[0x80];
 
 extern struct KonquestInteriorPdata* konquest_pdata;
 
-int is_pui_an_interior_item(const void* pui);
-int get_konquest_game_mode(void);
 static int get_door_enum_from_exterior_door_bits(int door_bits);
 static float p_konq_interior_exit_point(void);
-void handle_controller_input(void);
-void trigger_update(int force);
 void npc_update(int force);
-void pui_update(void);
 void konquest_transition_object_to_state(
     int object_uid, int enumeration, int state);
-void* find_konquest_object_struct_by_uid(int uid);
 struct KonquestChildObject* find_child_subobject_by_enumeration(
     void* object, int enumeration);
-struct KonquestChildObject* find_door_partner_sobj(struct KonquestChildObject* door);
 struct KonquestTrigger* find_trigger_by_id(unsigned int id);
 void sobj_swap_material_texture(
     MkSobj* sobj, unsigned int material_id, RwTexture* texture);
 void generate_collision_objects(
     int handle, unsigned int art_oid, const Vec* position, const Vec* angles,
     MkPtr** secondary_list);
-void set_flag_for_all_collisions(MkPtr** list, unsigned int flags);
-void stop_time_passing(void);
-void pause_weather_effects(void);
-void konquest_hide_hud(int mode);
-struct KonquestTile* get_nth_tile_struct(int index);
 void add_npc(int npc_data);
-float p_konquest_interior_camera_proc(void);
-void suspend_hero_grounding(void);
-void restore_hero_grounding(void);
-void hero_stop_moving(void);
-void suspend_hero_state_process(void);
-void resume_hero_state_process(void);
-void stop_hero_collisions(void);
-void start_hero_collisions(void);
-void set_monk_position(float x, float y, float z, float angle);
-void remove_fgnd_mkobj(void* object);
-void resume_weather_effects(void);
 struct KonquestNpcRecord* find_npc_by_data(int npc_data);
 void remove_npc(int npc_data);
 static void remove_interior_room_objects(void);
-void delete_triggers_from_tile(int tile_index);
-void update_tile_grid(void);
 void konquest_set_object_to_state(
     int object_uid, int enumeration, int state);
-void start_time_passing(void);
-void konquest_show_hud(void);
-float p_konquest_loop(void);
-float konquest_camera_loop(void);
 
-extern MkPtr* special_light_list;
 
 void set_interior_cam_pos_and_ang(void);
 void add_standard_ir_triggers(void);

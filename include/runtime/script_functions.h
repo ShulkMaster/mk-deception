@@ -8,6 +8,7 @@ extern "C" {
 typedef void (*ScriptEntryFn)(void);
 
 extern ScriptEntryFn script_callable_function_table[];
+extern int number_of_script_functions;
 
 #ifdef __cplusplus
 }

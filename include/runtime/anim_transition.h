@@ -1,7 +1,8 @@
 #ifndef RUNTIME_ANIM_TRANSITION_H
 #define RUNTIME_ANIM_TRANSITION_H
 
-#include "runtime/anim_types.h"
+typedef struct AnimPdata AnimPdata;
+typedef struct AnimScript AnimScript;
 
 #ifdef __cplusplus
 extern "C" {

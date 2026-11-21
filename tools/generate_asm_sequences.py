@@ -122,6 +122,40 @@ def read_functions(path: Path) -> dict[str, Sequence]:
     return functions
 
 
+OBJECT_RE = re.compile(r'^\.obj\s+"?([^",\s]+)"?\s*,')
+END_OBJECT_RE = re.compile(r'^\.endobj\s+"?([^",\s]+)"?\s*$')
+LABEL_WORD_RE = re.compile(
+    r"^\s*\.rel\s+([A-Za-z_][A-Za-z0-9_]*),\s*\.L_([0-9A-Fa-f]{8})\s*$"
+)
+
+
+def read_jump_table(path: Path, table: str, function: str) -> list[int]:
+    """Targets of a retail switch jump table: a data object made only of
+    `.rel <function>, .L_xxxxxxxx` words."""
+    targets: list[int] = []
+    inside = False
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        start = OBJECT_RE.match(line)
+        if start:
+            inside = start.group(1) == table
+            continue
+        if not inside:
+            continue
+        if END_OBJECT_RE.match(line):
+            if not targets:
+                raise ValueError(f"{path}:{line_number}: jump table {table} is empty")
+            return targets
+        if not line.strip() or line.lstrip().startswith(("#", "/*", ".hidden", ".balign")):
+            continue
+        word = LABEL_WORD_RE.match(line)
+        if not word or word.group(1) != function:
+            raise ValueError(
+                f"{path}:{line_number}: {table} is not a jump table of {function}: {line.strip()}"
+            )
+        targets.append(int(word.group(2), 16))
+    raise ValueError(f"{path}: jump table {table} not found")
+
+
 def load_manifest(path: Path, version: str) -> tuple[Path, Path, list[dict[str, object]]]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if data.get("version") != version:
@@ -147,7 +181,8 @@ def emit_macro(
     operands: dict[str, str] | None = None,
     symbols: dict[str, str] | None = None,
     text: bool = False,
-    stack: tuple[str, int, int] | None = None,
+    stack: tuple[str, int, int, bool] | None = None,
+    rebind: dict[str, tuple[str, int]] | None = None,
 ) -> list[str]:
     """Emit SEQ_<name>.  A whole function is a `nofralloc` asm function body.
     A block is a run of instructions inside a C function, invoked from an
@@ -156,8 +191,11 @@ def emit_macro(
     those registers replaced by the C operands passed to the macro.
     `symbols` renames retail relocation targets (@h/@ha/@l) to source
     spellings; a `text` block emits every instruction as text, with local
-    branch targets as labels, so the compiler sees its registers."""
-    parameters = list(operands) if operands else []
+    branch targets as labels, so the compiler sees its registers.
+    `rebind` (macro parameter -> (register, address)) spells a register that
+    the block redefines with a second C operand: the destination of the
+    instruction at `address` and every later use of that register."""
+    parameters = (list(operands) if operands else []) + list(rebind or {})
     register_to_parameter = {register: name for name, register in (operands or {}).items()}
     lines = [f"#define SEQ_{sequence.name}({', '.join(parameters)}) \\"]
     if not block:
@@ -206,7 +244,13 @@ def emit_macro(
                 assembly = substitute_operands(assembly, register_to_parameter)
             lines.append(f"    {assembly};{suffix}")
         elif register_to_parameter or text:
+            address = sequence.address + 4 * index
+            rebound = [(name, register) for name, (register, at) in (rebind or {}).items() if at == address]
+            for name, register in rebound:
+                assembly = REGISTER_TOKEN_RE.sub(lambda _m: name, assembly, count=1)
             lines.append(f"    {substitute_operands(assembly, register_to_parameter)};{suffix}")
+            for name, register in rebound:
+                register_to_parameter = {**register_to_parameter, register: name}
         elif EXTERNAL_BRANCH_RE.fullmatch(assembly) or SYMBOL_RELOCATION_RE.fullmatch(
             assembly
         ):
@@ -224,14 +268,20 @@ def emit_macro(
     return lines
 
 
-def name_stack_slots(assembly: str, stack: tuple[str, int, int]) -> str:
+def name_stack_slots(assembly: str, stack: tuple[str, int, int, bool]) -> str:
     """Spell r1-relative word accesses inside a C local array as `name[i]`, the
     way CodeWarrior's inline assembler addresses locals (keeps the array, and
-    so the retail frame layout, alive)."""
-    name, base, size = stack
+    so the retail frame layout, alive).  A scalar local is spelled `name`."""
+    name, base, size, scalar = stack
 
     def slot(match: re.Match[str]) -> str:
         offset = int(match.group(1), 0)
+        if scalar:
+            if offset == base:
+                return name
+            if base < offset < base + size:
+                raise ValueError(f"{assembly}: access inside scalar local {name}")
+            return match.group(0)
         if base <= offset < base + size and (offset - base) % 4 == 0:
             return f"{name}[{(offset - base) // 4}]"
         return match.group(0)
@@ -312,6 +362,44 @@ def block_sequence(
     return Sequence(name, address, tuple(instructions))
 
 
+def block_rebind(
+    name: str,
+    sequence: Sequence,
+    operands: dict[str, str] | None,
+    raw: object,
+) -> dict[str, tuple[str, int]] | None:
+    """Validate a block's `rebind` map: {"param": {"register": "rN", "at": "0x..."}}.
+    The instruction at `at` must write `register` (its first register operand)
+    while that register is another operand's; from then on the register is
+    spelled `param` (one register reused for a second C variable)."""
+    if raw is None:
+        return None
+    if not operands or not isinstance(raw, dict):
+        raise ValueError(f"{name}.rebind: needs operands and an object")
+    rebind: dict[str, tuple[str, int]] = {}
+    for parameter, spec in raw.items():
+        if not SYMBOL_RE.fullmatch(parameter) or parameter in operands:
+            raise ValueError(f"{name}.rebind: invalid or duplicate parameter {parameter!r}")
+        if not isinstance(spec, dict) or not isinstance(spec.get("register"), str):
+            raise ValueError(f"{name}.rebind.{parameter}: expected {{register, at}}")
+        register = spec["register"]
+        if register not in operands.values():
+            raise ValueError(f"{name}.rebind.{parameter}: {register} is not an operand register")
+        at = parse_int(spec.get("at"), f"{name}.rebind.{parameter}.at")
+        index = (at - sequence.address) // 4
+        if at % 4 or not 0 <= index < len(sequence.instructions):
+            raise ValueError(f"{name}.rebind.{parameter}: 0x{at:X} is outside the block")
+        assembly = sequence.instructions[index][1]
+        tokens = REGISTER_TOKEN_RE.findall(assembly)
+        mnemonic = assembly.split()[0]
+        if not tokens or tokens[0] != register or re.match(r"^(st|cmp|dcb|icb|b|tw)", mnemonic):
+            raise ValueError(
+                f"{name}.rebind.{parameter}: 0x{at:X} ({assembly}) does not write {register}"
+            )
+        rebind[parameter] = (register, at)
+    return rebind
+
+
 def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path, str]:
     assembly_relative, output_relative, entries = load_manifest(manifest_path, version)
     assembly_cache: dict[Path, dict[str, Sequence]] = {}
@@ -372,17 +460,21 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
         if not isinstance(text, bool):
             raise ValueError(f"{name}.text: expected true or false")
         raw_stack = entry.get("stack")
-        stack: tuple[str, int, int] | None = None
+        stack: tuple[str, int, int, bool] | None = None
         if raw_stack is not None:
             if not text or not isinstance(raw_stack, dict):
                 raise ValueError(f'{name}.stack: needs "text": true and an object')
             stack_name = raw_stack.get("name")
             if not isinstance(stack_name, str) or not SYMBOL_RE.fullmatch(stack_name):
                 raise ValueError(f"{name}.stack.name: invalid local name {stack_name!r}")
+            scalar = raw_stack.get("scalar", False)
+            if not isinstance(scalar, bool):
+                raise ValueError(f"{name}.stack.scalar: expected true or false")
             stack = (
                 stack_name,
                 parse_int(raw_stack.get("offset"), f"{name}.stack.offset"),
                 parse_int(raw_stack.get("size"), f"{name}.stack.size"),
+                scalar,
             )
         parent_name = entry.get("function")
         raw_operands = entry.get("operands")
@@ -404,6 +496,7 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
             if raw_operands is not None and not isinstance(raw_operands, dict):
                 raise ValueError(f"{name}.operands: expected an object")
             sequence = block_sequence(name, parent, address, size, raw_operands, text)
+            rebind = block_rebind(name, sequence, raw_operands, entry.get("rebind"))
             lines.extend(
                 emit_macro(
                     sequence,
@@ -413,11 +506,12 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
                     symbols=symbols,
                     text=text,
                     stack=stack,
+                    rebind=rebind,
                 )
             )
             lines.append("")
             continue
-        if raw_operands is not None:
+        if raw_operands is not None or "rebind" in entry:
             raise ValueError(f'{name}.operands: only blocks (with "function") take operands')
         if text:
             raise ValueError(f'{name}.text: only blocks (with "function") take text mode')
@@ -461,6 +555,27 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
                             f"{name}.end_entries: retail {label} is at "
                             f"0x{other.address + offset:X}, not 0x{end_address:X}"
                         )
+        # Switch jump tables of the asm body: retail data objects whose words
+        # are this function's own local labels.  The C source defines each
+        # table under its source name, initialised by SEQ_<table name>.
+        raw_jump_tables = entry.get("jump_tables", {})
+        if not isinstance(raw_jump_tables, dict):
+            raise ValueError(f"{name}.jump_tables: expected an object")
+        tables: list[tuple[str, list[int]]] = []
+        for retail_table, source_table in raw_jump_tables.items():
+            if not isinstance(source_table, str) or not SYMBOL_RE.fullmatch(source_table):
+                raise ValueError(f"{name}.jump_tables: invalid source name {source_table!r}")
+            targets = read_jump_table(
+                build_root / version / "asm" / function_assembly, retail_table, name
+            )
+            for target in targets:
+                if not sequence.address <= target < end_address:
+                    raise ValueError(
+                        f"{name}.jump_tables: {retail_table} target 0x{target:X} "
+                        f"is outside {name}"
+                    )
+            symbols.setdefault(retail_table, source_table)
+            tables.append((source_table, targets))
         lines.extend(
             emit_macro(
                 sequence,
@@ -471,6 +586,13 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
             )
         )
         lines.append("")
+        for source_table, targets in tables:
+            lines.append(f"#define SEQ_{source_table} {{ \\")
+            for index, target in enumerate(targets):
+                suffix = "," if index + 1 < len(targets) else ""
+                lines.append(f"    (char*){name} + 0x{target - sequence.address:X}{suffix} \\")
+            lines.append("}")
+            lines.append("")
 
     return build_root / version / "include" / output_relative, "\n".join(lines)
 

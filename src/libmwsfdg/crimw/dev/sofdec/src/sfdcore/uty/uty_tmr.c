@@ -3,7 +3,6 @@
 
 #define UTY_BUS_CLOCK (*(u32*)0x800000F8)
 
-extern u64 OSGetTime(void);
 
 s32 utytmr_ch = 0;
 volatile s32 utytmr_init_cnt = 0;

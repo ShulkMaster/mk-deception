@@ -29,6 +29,19 @@ across TU, REQUIRE sibling evidence + all-function and section baselines.
   required, and report C-only header/view failures as failures, not neutral
   mode results (`ADXT_GetTime`). Archive the command before closing a mode
   hypothesis; see [the ADXT language evidence](reports/adxt-cpp-static-bss.md).
+- By-value struct argument, `-schedule off`: retail copies the struct before the
+  first argument load but forms its address in argument order (`stw; stw;
+  lwz r3,a1; addi r4,r1,tmp`), ours `addi r4` before `lwz r3`. With IRO
+  `opt_propagation off`, GC2.7 evaluates the copy and its address together in
+  the hascall-argument phase; propagation on leaves a plain `&temp` that is
+  materialized in argument order. REQUIRE an `opt_propagation off` unit/scope
+  and the address row as the only residue. No source spelling moves it (named
+  local, field, global, deref, param, struct-returning call, comma, nested
+  assign, implicit decl, union/array struct, other GC versions: all early).
+  TRY `opt_propagation on` scoped to the function (pragma = approval), or
+  unit-wide on + `off` scoped to the siblings that need it; recheck all
+  (`pfx_set_memory`: unit 100 either way; `pfx_effect_memory_alloc` needs
+  `off` for its neg-first mask).
 - Legacy local optimization scope justified by a historical compiler crash:
   REQUIRE a fresh compile with the current source, headers, and pinned
   compiler. TRY removing the workaround alone before source tuning; a stale
@@ -256,6 +269,11 @@ FP operands + schedule. REQUIRE same math, grouping, rounding.
   owner. Confirm load order, reciprocal literal bytes and operand orientation;
   coefficient-first retail multiplication may not admit this form. Do not
   stage the coefficient through a misleading half-width local.
+  Same lever when the literal is shared with earlier `0.5f * v` sites of the
+  block (IRO CSE temp goes left): `middle_1->y = middle_0->y / 2.0f` keeps
+  retail dividend-first because the reciprocal rewrite runs after IRO CSE
+  (`mk_chess_choose_middle_control_points_for_fight_cam`, three sites); a
+  non-power-of-two `y = y * 0.9f` there needs `y *= 0.9f`.
 - Half-span multiply has reversed operands after binary commutation:
   REQUIRE native evidence that the floating constant moves left, retail keeps
   it right, and the derived half-span is the real subsequent accumulator.
@@ -675,6 +693,22 @@ public APIs keep their documented `const`.
   `dist_xz_to_xz`, `length_v3`, `uv_v3_to_v3_dist`). Per-function drop, not
   TU-wide (`YXZ_angles_to_quat` keeps const). C rejects `const T*` to `T*`
   param: drop the caller's const too, recheck caller objects byte-identical.
+- Shared inline writes an out-param and reloads a static per store; one site
+  needs the merged reload in the FE band (why.py: cg-temp LFS must number
+  below a spliced product) while the out-of-line site keeps every reload:
+  REQUIRE `initial` pcode with one LFS per store (backend merges them later)
+  and stores through a `T* const` param object. Measured (2.7): IRO CSE's the
+  static loads into one FE temp only when the stores are IRO-direct (plain
+  `T*` param substituted, or open-coded member stores); stores through any
+  const object, pointer local or nested `T* const` helper stay indirect at
+  CSE time and kill the load, in every block. IRO-direct stores also forward
+  the stored values into later hoisted reads (no `frsp`) and let the
+  scalarizer promote the out-param unless another address holder exists.
+  Retail `frsp`-forwarded hoisted reads of that out-param therefore prove the
+  stores were object-indirect, so the FE-band reload is not an IRO CSE temp:
+  stop, do not drop that `T* const` (`generic_victory_camera`, 5 rows).
+  `&local == 0` never folds (`addic.`/`beq`), so an in-body null check is not
+  an address holder either.
 - Private mutable current/time input: dropping `const` on the private
   `KonquestTime* current` (local prototype synced, caller already passes a
   mutable object) and reading `current->hour/minute` restores retail frame
@@ -791,8 +825,14 @@ are proven. Shared headers only for proven ownership; unused O0 param takes
   expansions sibling by sibling.
 - Auto-inline size limit: object-scope `-pragma "inline_max_size(N)"` (N 8..24
   inlines 3-instr helper, keeps 26-instr static as call). Compiler 2.7
-  ignores `inline_max_auto_size`; `-inline on`/`noauto`/`level=0` don't clear
-  base `-inline auto`. Only when retail inlining proves the limit.
+  ignores `inline_max_auto_size`; `-inline on`/`smart`/`level=0` don't clear
+  base `-inline auto`; a later `-inline noauto` does (konquest). Only when
+  retail inlining proves the limit. `inline_max_size` = per-callee COST budget
+  (default 512: statements + expressions + nested inline bodies), halved while
+  the caller's total exceeds `inline_max_total_size` (default 7000); it gates
+  explicit `inline` too. One budget per caller: if a caller inlines a costlier
+  candidate but calls a cheaper one (cost via `inline_probe.py`), no size flag
+  fits; candidacy itself differed (H09 rule, M15 deferred bullet).
 - Inline cost cliff: adding real coordinate/phase ownership outlines a helper.
   REQUIRE native `can_inline` cost exceeds its measured budget. GC2.7 has a
   recursive-cost branch at 0x560ce0 (mode byte 0x5ef108, evaluator 0x560fb0,
@@ -836,6 +876,41 @@ are proven. Shared headers only for proven ownership; unused O0 param takes
   before ordinary code (`std::priority_queue::~priority_queue`). Protect every
   emitted body, data role and generated symbol; reject broad depth increases
   and review address/order changes. See the deferred-policy report above.
+- Whole C++ TU off by one inline level: retail inlines depth-2 callees
+  (placement-new `construct`, base ctor with implicit vptr ctor) yet calls
+  depth-2 wrappers elsewhere. REQUIRE call-edge census: per caller, retail `bl`
+  multiset vs ours at `level=1..4` (`scratch/opus-g1/edges.py`). GC2.7 depth:
+  leaf 1; each nested inline call +1; struct copy/assign +1; out-of-class
+  non-`inline` template member 0 (auto-inlined only into later instances of
+  the same class); callee kept when depth > `level` minus pass; args of an
+  expanded call come back next pass. TRY retail lib mode (`auto,deferred,
+  level=2`, sibling Midway libs) and add one real-MSL layer at each leaf the
+  census flags: `compressed_pair` forwarding `first`/`second`, `swap` via
+  `std::swap`, `iter_swap` via `swap(*a,*b)`, `copy`->`__copy`, vector
+  forwarding `size`/`empty`/`reserve`/`resize`, storage `data()`, `inline` on
+  small out-of-class members; drop the level=1 pragmas above. `QueueItem() {}`
+  (non-POD) turns block copies into retail memberwise copies. Land only with
+  zero census edges and no function regression (libmwfile Mount/Server: six
+  functions exact, inserts 68->86 and 78->97).
+  Noauto TU with in-class/open-coded bodies where retail MAP lists UNUSED
+  out-of-line members and one callee is inlined in one caller but called in
+  another (`nativeProgress`: `handleReadingState` vs `getProgressBytes`) =
+  retail `auto`; MAP `.text` ctor-after-dtor-after-methods = deferred
+  (natural source order reversed). Retail-called small callees under `auto`:
+  restore the UNUSED nesting at MAP sizes so depth exceeds `level`
+  (`gcnHostCloseCommand::serviceState` -> `handleNotStartedState` 0x50 ->
+  `int gcnHostFileHandle::close()` 0x44, `case 0: handleNotStartedState();
+  break; ... return 2;`: service stops inlining it, both exact). Convert only
+  when every census edge is closed. Depth lever = a real layer, not a pragma:
+  existing accessor (`getFile()` in Flush `handleNotStartedState`), shared
+  lock class whose ctor calls an out-of-line TU member (`mwFileMutexLock` ->
+  `mwFileMutex::lock`), header wrapper (`append(const charT*)` ->
+  `traits::length` keeps `convertPath` a call), named semantic method
+  (`mount_point->unlock()` in `unlockAndUnmount`); header template function
+  without explicit instantiation stays a call from non-template code
+  (`mwRoundUp`). Check one callee with `inline_probe_gdb.py` (C++ wrapper
+  `scratch/opus-h6/tools/iprobe.py`): rejected = cost 513-515 (depth
+  sentinel). `mwFileGCPlatform`: 0 edges, unit neutral-or-better.
 - Repeated macro expansion (list unlink) with volatile coloring rotated,
   macro block locals number lowest: REQUIRE TU allows explicit inlining. TRY
   macro as `static inline` function; params/locals become FE temps, number
@@ -979,8 +1054,15 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   (`tools/deferred_scan.py`, Kendall tau < -0.5) = `-inline deferred`;
   functions emitted in reverse source order. Try `-inline noauto,deferred` +
   defs reversed by `tools/reverse_deferred_tu.py`; retail-inlined global
-  callees get `auto_inline on`/`reset` pair. Plain `deferred` after `-inline
-  auto` wipes static helpers. Land only on measured whole-unit gain (konquest,
+  callees get `auto_inline on`/`reset` pair. No TU flag replaces the pairs
+  when retail inlines some candidates and calls others of lower cost
+  (konquest: `p_setup_konquest_map` inlines `load_objective_beam` 211, calls
+  `konquest_restore_saved_state` 67; `auto` + `off` pairs breaks more). A
+  MAP-UNUSED global was a plain auto-inlined function, not `inline`
+  (unreferenced explicit C inline is never emitted): its out-of-line codegen
+  owns literal-pool slots. Restore it at its MAP position
+  (`check_range_for_npc_interaction` fixed konquest `.sdata2` 0xf4-0x12b).
+  Plain `deferred` after `-inline auto` wipes static helpers. Land only on measured whole-unit gain (konquest,
   minigames gained; fatality, cam didn't). Unconverted signs: `.bss` in
   exact reverse decl order, late per-function float labels (`@4226` vs reused
   `@305`), named string stand-in where retail has `@stringBase0` (add `-str
@@ -993,6 +1075,45 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   inventions: retail anonymous `@N` = function-local `Vec v = {..}` created in
   reverse-source order (`p_npc_on_pendulum_rope` research 97.42->98.42,
   .rodata kept). Flag change = coordinator; land only on whole-unit gain.
+  Order the defs by descending retail MAP `.text` index (UNUSED slots too),
+  not by reversing current source: non-deferred sources are often reordered
+  to steer `-inline auto` (`mk_chess`: 9 swaps). Choose `noauto` vs `auto`
+  by count: compile both on the reversed copy, diff `bl` multisets per
+  function vs retail; the mode with fewer callees to fix wins (`mk_chess`:
+  noauto 11 callees retail always inlines -> pairs, auto ~40 it calls).
+  Recheck MAP UNUSED neighbours (`fetch_d_distance_param` 0x68). Pool slots
+  under deferred = parse position: static inline helper with an aggregate
+  initializer pools at its definition -> define it right before its only
+  user; extern-only file-scope const tables -> define with retail bytes at
+  the parse slot between the owners of the neighbouring `@N` records
+  (`mk_chess` `.rodata` 72.6->99.0, fight_cam pool-offset rows gone).
+  `-str reuse,pool` literals under deferred pool in EMISSION order (reverse
+  source), not parse order: MAP-UNUSED string owners must exist
+  (`mwFileGCPlatform` 22 non-template strings exact in reverse-MAP order).
+  Template instances emit after all non-template code: class templates in
+  reverse declaration order, members in class declaration order; some
+  members (`basic_string` `change_size`/`reserve`) land in a later group
+  whatever their body. Template-tail string order unsolved there: keep a
+  verified pool stand-in until it reproduces.
+  `auto,deferred` callee policy: native candidacy (0x55cd60) = <= 30
+  statements excluding kinds 1/2, locals <= 0x400, fixed at the closing
+  brace. Retail `bl` to a small static = it had > 30 statements (merge an
+  invented impl helper back: `start_opening_coffin_effects` 34) or a pin;
+  helper reuse that drops a retail-called function to <= 30 inlines it
+  (`deduct_koins`: 32 -> 30 with `get_konquest_key_bit`, then inlined into
+  `handle_controller_input` 88.66). Probes (`.agent-work/tooling/scratch/
+  opus-f4/`): `cand/cand.py` (counts), `kip.py` (accept/cost), `ks.py`
+  (score with an extra flag). After the conversion rerun decl-order
+  search under the new flag: old near-miss sweeps are void (`krypt`
+  `start_opening_coffin_effects` 97.60 -> 100: exhaustive 7-local declclimb
+  + named call result passed on, H31). Byte-identity gate first: diff the
+  reversed object vs current (every function, `.text` order, data bytes +
+  relocs, symbol layout). Identical = deferred buys nothing; skip the sweep
+  rerun, residues are not inline-mode (`collision`: 80/80 identical under
+  noauto and auto + off pairs). `reverse_deferred_tu.py` carries only
+  `#pragma X on|off`..`reset` pairs: move other pairs (`optimization_level
+  0`) with their function by hand (`update_collision_obj_pos` 90.19 left
+  behind).
 - Recovered ordinary helpers under deferred emission: REQUIRE retail inline
   expansions, donor body + MAP evidence, and every function/data comparison.
   TRY reversed helper definitions with paired `auto,deferred`
@@ -1093,6 +1214,22 @@ built objects; only linked DOL hash catches wrong layout.
   tables off `gqr_save`), restore retail order by referencing them in that
   order in the next C user; never add a dummy referencing function
   (`cftyp422_ppc` `CFT_Ycc420plnToArgb8888Init`, RE4 used `cftyp_bss_order`).
+- Asm statics reachable only via section anchor: IF retail MAP tree shows
+  `func -> ...bss.0 -> every .bss object` and the approved asm sequence
+  addresses them as `first_obj@ha/@l + OFF` | REQUIRE no C user left in the
+  unit | inline asm can never name `...bss.0` (`"...bss.0"@ha`, `.bss@ha` are
+  syntax errors; asm relocs always hit the named object), so the linker
+  strips the rest. Relocation-target edits cannot fix it; only a real C user
+  or an object flag (`-pragma "force_active on"`, `mpv_vlc` precedent) keeps
+  them: user decision (`cftyp422_ppc`, held 2026-11-07).
+- Whole-function asm stand-in in a deferred unit: MWCC assembles `asm`
+  functions at parse time (CFunc_ParseFuncDef -> Assembler), C bodies wait in
+  the deferred export list (LIFO at EOF), so the asm lands at `.text` start
+  whatever its source position (`static inline asm` is refused). No source
+  order fixes it. Forward mode with reversed defs keeps code but tentatives
+  then follow first reference, not retail's reverse-decl map (`sfd_mpv`:
+  `SFMPV_Destroy`/`sfmpv_IsSkip`). Link needs C 100% or a block entry inside a
+  C function: stop, report.
 - 2.7 C `-inline auto` (not deferred), measured `ai.c`: `.sbss` tentatives =
   reverse decl order, use irrelevant. `.bss` tentative defined before use =
   first-use order by generated function, operand order as written (`c ? &A :
@@ -1107,6 +1244,22 @@ built objects; only linked DOL hash catches wrong layout.
   Retail `at_cam_data, g_DroneAI2,
   g_DroneAI1` = static used first + `g_DroneAI1; g_DroneAI2;` defined at file
   end, externs at top. All functions byte-identical either way.
+  Sole live user references them in another order: REQUIRE a MAP-UNUSED
+  function of the unit whose out-of-line size = MAP. TRY it as a plain unused
+  static before the user, referencing in retail order (`SetupGamecubeVtxFmts`
+  0xd0, generic first; DS rates the new unscored function mixed -> approval).
+- Deferred unit, functions address several statics off one section base
+  (`lis/addi base; addi rX,base,OFF`), offsets and base symbol wrong: REQUIRE
+  retail `nm -n -S` map = reverse parse order, and owner evidence for any
+  unreferenced object: consecutive parse-time `$N` with a known owner's
+  statics (`midpoint_to_cam_vector$808`, `cam_unit_vector$809`,
+  `midpoint$810`, `previous_position$811` all in `adj_cam_pos`). TRY moving
+  file-scope tentatives to the parse positions the reversed map implies (each
+  still before its first use) and declaring the unreferenced static next to
+  its `$N` neighbours (retail name, size, neighbour type). Object at offset 0
+  becomes the base symbol (`prewake_camera`, `cam_calc_right_at_up_offsets`).
+  DS rates it `mixed` (`$N` names never match): hand the draft to the
+  coordinator.
 - Function-static `name$N` suffix differs: objdiff falls back to section
   offset. Fix offset, not parse numbering. MAP `UNUSED` data absent from split
   object: omit it, else later offsets shift (`mwMem` `heapIndex`).
@@ -1144,6 +1297,27 @@ built objects; only linked DOL hash catches wrong layout.
   wrongly move them to `.data`. Verify every consumer and data value. Leave
   unknown suffix objects undefined; no guessed arrays, padding, or aggregate
   overlay. A correct partial prefix is not full-BSS or link exactness.
+  Unreferenced statics between used objects (retail map: used, unused, used):
+  under `-inline auto` "first use" = reference surviving codegen; `if (0)`,
+  IRO-dead branch, empty-inline arg, data initializer `&x` do not count, an
+  unreferenced static function does; never-used statics go last, reverse decl.
+  Under `-inline auto,deferred` all tentatives incl. never-used statics = reverse
+  decl order: such a map is deferred evidence, not a lost user (`mpv_lib`:
+  map in source decl order, forward mode puts CheckHn's `mpvobj` first; flag
+  + reversed defs + reversed tentatives = 100 + link). In a unit kept
+  non-deferred, only a MAP-UNUSED owner of MAP size referencing them in retail
+  order places them (`p_mk_chess_game_setup` messages): user decision, not
+  original shape.
+- Deferred unit `.bss`/`.sbss` placement: IF retail map is reverse decl order
+  (deferred) | REQUIRE retail offset/size/binding per object | TRY declare
+  tentatives in reverse map order; slot = FIRST tentative definition, an
+  earlier `extern` does not count; function static = its function's parse
+  position. Global parsed after a function static -> `extern` on top for
+  earlier users + definition after that function (end of file is enough).
+  Retail LOCAL object after a function static fits only extern-first then
+  `static` definition: MWCC accepts it, ISO C UB -> reviewer decision
+  (`mk_chess` `mk_chess_pdata`; unreferenced message statics need no stub,
+  `p_mk_chess_game_setup` exact).
 - Small object's first `extern` must see complete type for SDA (DVD thread
   queue); multi-record table declared as pointer falsely picks SDA. All small
   globals in `.bss` with `lis` addressing where ours uses `@sda21`: object
@@ -1170,6 +1344,16 @@ null guard.
   Keep constructor ABI and initialization order. Audit all consumers and
   additional weak destructor emission; matching instructions do not establish
   unchanged function order or data relocations.
+- Retail C++ TU split into several contiguous `.text` sections: library built
+  with debug info. `-sym on` reproduces one section per source file (code
+  unchanged): user functions go to their definition file's section,
+  compiler-generated members to the section of the function being generated,
+  in first-emission order. REQUIRE MAP section rows. Use it to tell implicit
+  from user-declared members and which header owns a template: libmwfile
+  `mwFileDummyMountPoint` dtor sits in the vector section = implicit;
+  allocator copy ctor in the `_EmptyMemberOpt`/`compressed_pair` sections =
+  implicit. A referenced non-trivial dtor is always emitted weak, even when
+  every call inlines; a base with no MAP dtor has a trivial dtor.
 - Exact constructors have GLOBAL bindings where retail has WEAK, and retail
   factory calls remain out of line: REQUIRE existing correct bodies, ELF/MAP
   ownership and all construction sites before those definitions in the same

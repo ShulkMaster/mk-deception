@@ -74,8 +74,8 @@ extern AXRNAHandle* ADXRNA_Create(
     SJ** output, s32 maximum_channels, void* work);
 extern void ADXRNA_Destroy(AXRNAHandle* rna);
 extern void ADXRNA_ExecServer(void);
-extern s32 ADXRNA_DiscardData(AXRNAHandle* rna, s32 samples);
-extern s32 ADXRNA_GetNumData(AXRNAHandle* rna);
+extern int ADXRNA_DiscardData(AXRNAHandle* rna, int samples);
+extern int ADXRNA_GetNumData(AXRNAHandle* rna);
 extern void ADXRNA_SetPlaySw(AXRNAHandle* rna, s32 enabled);
 extern void ADXRNA_SetTransSw(AXRNAHandle* rna, s32 enabled);
 extern void ADXRNA_SetOutVol(AXRNAHandle* rna, s32 volume);

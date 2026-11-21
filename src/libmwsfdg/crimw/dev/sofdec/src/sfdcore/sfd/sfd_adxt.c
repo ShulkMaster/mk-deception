@@ -1,6 +1,5 @@
 #include "cri/adx_tlk.h"
 #include "cri/sj.h"
-#include "runtime/cmath.h"
 #include <math.h>
 #include "runtime/cstring.h"
 #include "sofdec/sfd_library.h"
@@ -9,8 +8,10 @@
 #include "sofdec/uty_math.h"
 #include "sofdec/uty_mem.h"
 #include "sofdec/uty_timer.h"
+#include "fdlibm.h"
 
-extern double log(double value);
+#include "runtime/asm_sequences.inc"
+
 
 typedef SfdTimerTestWork SfdTestWork;
 typedef SfdTimerTestTime SfdTestTime;
@@ -56,19 +57,13 @@ extern void ADXT_Init(void);
 extern void ADXT_Finish(void);
 extern ADXTHandle* ADXT_Create(int maximum_channels, void* buffer,
                                int buffer_size);
-extern void ADXT_Destroy(ADXTHandle* decoder);
-extern void ADXT_Stop(ADXTHandle* decoder);
 extern void ADXT_Pause(ADXTHandle* decoder, int paused);
 extern void ADXT_SetAutoRcvr(ADXTHandle* decoder, int enabled);
 extern void ADXGC_SetAdjsfreqFlg(ADXTHandle* decoder, int enabled);
-extern int ADXT_GetStat(ADXTHandle* decoder);
 extern int ADXT_GetErrCode(ADXTHandle* decoder);
 extern int ADXT_GetSfreq(ADXTHandle* decoder);
 extern int ADXT_GetNumSmpl(ADXTHandle* decoder);
-extern int ADXT_GetNumChan(ADXTHandle* decoder);
-extern void ADXT_GetTime(ADXTHandle* decoder, s32* value, s32* scale);
 extern int ADXT_DiscardSmpl(ADXTHandle* decoder, int samples);
-extern void ADXT_TermSupply(ADXTHandle* decoder);
 extern void ADXT_SetSvrFreq(ADXTHandle* decoder, int frequency);
 extern int ADXT_IsHeader(const unsigned char* data, int size, int* header_size);
 extern int ADXT_IsEndcode(const unsigned char* data, int size, int* end_size);
@@ -119,9 +114,10 @@ static inline SfdAdxtWork* sfadxt_GetWorkStorage(SfdHandle* handle)
     return (SfdAdxtWork*)(handle->unknown_3320 + 0xA0);
 }
 
-static inline SfdAdxtSeekInfo* sfadxt_GetSeekInfo(SfdHandle* handle,
-                                                  SfdAdxtWork* work)
+static inline SfdAdxtSeekInfo* sfadxt_GetHd(SfdHandle* handle)
 {
+    SfdAdxtWork* work = sfadxt_GetWork(handle);
+
     if (handle->seek_state.work == 0) {
         return 0;
     }
@@ -132,10 +128,10 @@ static inline SfdAdxtSeekInfo* sfadxt_GetSeekInfo(SfdHandle* handle,
         ->conditions_secondary[94];
 }
 
-static inline int sfadxt_GetAudioInf(SfdHandle* handle, int* channels,
+static inline int sfadxt_GetNchSfreq(SfdHandle* handle, int* channels,
                                      int* sample_rate)
 {
-    SfdAdxtSeekInfo* seek = sfadxt_GetSeekInfo(handle, sfadxt_GetWork(handle));
+    SfdAdxtSeekInfo* seek = sfadxt_GetHd(handle);
 
     if (seek == 0) {
         return -1;
@@ -362,7 +358,7 @@ static int SFADXT_Destroy(SfdHandle* handle)
     return result;
 }
 
-static inline void sfadxt_UpdateTime(SfdAdxtWork* work,
+static inline void sfadxt_GetTimeTst(SfdAdxtWork* work,
                                      ADXTHandle* decoder,
                                      SfdTestWork* test_work)
 {
@@ -399,7 +395,7 @@ static int sfadxt_GetTime(SfdHandle* handle, int* value, int* scale)
         return 0;
     }
     if (handle->playback_state == 4) {
-        sfadxt_UpdateTime(work, decoder, test_work);
+        sfadxt_GetTimeTst(work, decoder, test_work);
     }
     *value = work->maximum_time_value;
     *scale = work->maximum_time_scale;
@@ -464,7 +460,7 @@ static inline void sfadxt_PauseOn(SfdHandle* handle)
     SFTST_Pause(sfadxt_GetTestWork(handle), 1);
 }
 
-static inline ADXTHandle* sfadxt_CreateAdxt(SfdAdxtWork* work)
+static inline ADXTHandle* sfadxt_CreateEx(SfdAdxtWork* work)
 {
     ADXTHandle* decoder;
 
@@ -497,7 +493,7 @@ static inline int sfadxt_CreateSub(SfdHandle* handle)
     if (result != 0) {
         return result;
     }
-    decoder = sfadxt_CreateAdxt(work);
+    decoder = sfadxt_CreateEx(work);
     if (decoder == 0) {
         return SFLIB_SetErr(0, 0xFF000C04);
     }
@@ -561,86 +557,16 @@ static void sfadxt_ExcludeSilence(SfdHandle* handle,
         }
         *consumed = excluded;
         handle->playback_runtime.time_values[8] += excluded;
-        if (sfadxt_GetAudioInf(handle, &channels, &sample_rate) == 0) {
+        if (sfadxt_GetNchSfreq(handle, &channels, &sample_rate) == 0) {
             work->sample_offset += (excluded / (channels * 0x12)) * 0x20;
         }
     }
 }
 
-static inline int sfadxt_SearchFrmTop(SfdHandle* handle,
-                                      const unsigned char* data, int size)
+static asm void sfadxt_ExcludeHdr(SfdHandle* handle, const unsigned char* data,
+                                  int size, int* consumed)
 {
-    const unsigned char* end;
-    const unsigned char* offset;
-    const unsigned char* position;
-    unsigned long latest_end_address;
-    const unsigned char* latest_offset;
-    const unsigned char* limit;
-    int found_end;
-
-    found_end = 0;
-    offset = data;
-    latest_end_address = 0;
-    end = data + size;
-    latest_offset = 0;
-    limit = data + 0x24;
-    while (offset < limit) {
-        position = offset;
-        found_end = 0;
-        while (position < end) {
-            if ((signed char)*position < 0) {
-                int end_size;
-
-                found_end = 1;
-                if (ADXT_IsEndcode(position, 0x12, &end_size) != 0 &&
-                    latest_end_address < (unsigned long)position) {
-                    latest_end_address = (unsigned long)position;
-                    latest_offset = offset;
-                }
-                break;
-            }
-            position += 0x12;
-        }
-        if (found_end == 0) {
-            break;
-        }
-        offset += 2;
-    }
-    if (found_end != 0) {
-        if (latest_offset == 0) {
-            SFLIB_SetErr(handle, 0xFF000C0A);
-            offset = data;
-        } else {
-            offset = latest_offset;
-        }
-    }
-    return offset - data;
-}
-
-/* TODO: [near miss] 97.52688%; caller/scan GPR owners rotate;
- * original input lifetimes remain unresolved beyond the complete scan. */
-static void sfadxt_ExcludeHdr(SfdHandle* handle, const unsigned char* data,
-                              int size, int* consumed)
-{
-    SfdAdxtWork* work;
-    int excluded;
-    int header_size;
-
-    *consumed = 0;
-    work = sfadxt_GetWork(handle);
-    if (size < 0x120) {
-        return;
-    }
-    if (ADXT_IsHeader(data, size, &header_size) != 0) {
-        excluded = header_size;
-    } else if (SFHDS_GetMuxVerNum(handle) >= 108) {
-        excluded = 0;
-    } else {
-        excluded = sfadxt_SearchFrmTop(handle, data, size);
-    }
-    work->copy = sfadxt_AdjustSync;
-    *consumed = excluded;
-    handle->playback_runtime.time_values[8] += excluded;
+    SEQ_sfadxt_ExcludeHdr();
 }
 
 static inline int sfadxt_SearchEndcode(const unsigned char* data, int limit,
@@ -687,7 +613,7 @@ static void sfadxt_AdjustSync(SfdHandle* handle, const unsigned char* data,
     *consumed = 0;
     timer = &handle->timer_state;
     work = sfadxt_GetWork(handle);
-    if (sfadxt_GetAudioInf(handle, &channels, &sample_rate) != 0) {
+    if (sfadxt_GetNchSfreq(handle, &channels, &sample_rate) != 0) {
         work->copy = sfadxt_CopyData;
         return;
     }
@@ -801,64 +727,82 @@ static inline void sfadxt_UpdateFlowCnt(SfdHandle* handle)
         SFBUF_UpdateFlowCnt(flow, read_count);
 }
 
-static inline int sfadxt_Transfer(SfdHandle* handle, int* input_size)
+static inline int sfadxt_RingGetRead(SfdHandle* handle,
+                                     const unsigned char** data, int* size)
+{
+    SfdBufferTransfer transfer;
+    int result;
+
+    result = SFBUF_RingGetRead(handle, handle->transports[3].parameter_10,
+                               &transfer);
+    *data = transfer.chunks[0].data;
+    *size = transfer.chunks[0].len;
+    return result;
+}
+
+static inline int sfadxt_RingAddRead(SfdHandle* handle, int size)
+{
+    int result;
+    int error;
+
+    result = SFBUF_RingAddRead(handle, handle->transports[3].parameter_10,
+                               size);
+    error = 0;
+    if (result != 0) {
+        error = result;
+    }
+    return error;
+}
+
+static inline int sfadxt_SupplyData(SfdHandle* handle, int* input_size)
 {
     SfdAdxtWork* work = sfadxt_GetWork(handle);
-    SfdBufferTransfer transfer;
     const unsigned char* input_data;
     int size;
     int consumed;
     int result;
-    int error;
 
-    result = SFBUF_RingGetRead(handle, handle->transports[3].parameter_10,
-                               &transfer);
-    input_data = transfer.chunks[0].data;
-    size = transfer.chunks[0].len;
+    *input_size = 0;
+    result = sfadxt_RingGetRead(handle, &input_data, &size);
     if (result != 0) {
         return result;
     }
     *input_size = size;
     work->copy(handle, input_data, size, &consumed);
-    result = SFBUF_RingAddRead(handle, handle->transports[3].parameter_10,
-                               consumed);
-    error = 0;
+    result = sfadxt_RingAddRead(handle, consumed);
     if (result != 0) {
-        error = result;
-    }
-    if (error != 0) {
-        return error;
+        return result;
     }
     sfadxt_UpdateFlowCnt(handle);
-    return error;
+    return result;
 }
 
-static inline int sfadxt_IsPlaying(ADXTHandle* decoder)
+static inline int sfadxt_IsPrepEnd(SfdHandle* handle)
 {
-    if (ADXT_GetStat(decoder) == 3) {
+    if (ADXT_GetStat(sfadxt_GetWork(handle)->decoder) == 3) {
         return 1;
     }
     return 0;
 }
 
-static inline void sfadxt_PrepOut(SfdHandle* handle)
+static inline void sfadxt_ChkPrepFlg(SfdHandle* handle)
 {
-    int output_buffer = handle->transports[3].parameter_14;
     int input_buffer = handle->transports[3].parameter_10;
+    int output_buffer = handle->transports[3].parameter_14;
 
     if (SFBUF_GetPrepFlg(handle, output_buffer) != 1) {
         if (SFBUF_GetPrepFlg(handle, input_buffer) == 1) {
-            if (sfadxt_IsPlaying(sfadxt_GetWork(handle)->decoder)) {
+            if (sfadxt_IsPrepEnd(handle)) {
                 SFBUF_SetPrepFlg(handle, output_buffer, 1);
             }
         }
     }
 }
 
-static inline void sfadxt_CheckStat(SfdHandle* handle, int input_size)
+static inline void sfadxt_ChkTermFlg(SfdHandle* handle, int input_size)
 {
-    SfdAdxtWork* work = sfadxt_GetWork(handle);
     SfdTestWork* test = sfadxt_GetTestWork(handle);
+    SfdAdxtWork* work = sfadxt_GetWork(handle);
     ADXTHandle* decoder = work->decoder;
     int status = ADXT_GetStat(decoder);
     int error = ADXT_GetErrCode(decoder);
@@ -898,7 +842,7 @@ static inline void sfadxt_CheckStat(SfdHandle* handle, int input_size)
     }
 }
 
-static inline int sfadxt_IsDecoded(ADXTHandle* decoder)
+static inline int sfadxt_IsEndDecinfo(ADXTHandle* decoder)
 {
     int status = ADXT_GetStat(decoder);
 
@@ -908,15 +852,15 @@ static inline int sfadxt_IsDecoded(ADXTHandle* decoder)
     return 1;
 }
 
-static inline void sfadxt_AnalyAhdr(SfdHandle* handle)
+static inline void sfadxt_SetAdxtHd(SfdHandle* handle)
 {
     SfdAdxtSeekInfo* seek =
-        sfadxt_GetSeekInfo(handle, sfadxt_GetWork(handle));
+        sfadxt_GetHd(handle);
 
     if (seek != 0 && seek->ready == 0) {
         ADXTHandle* decoder = sfadxt_GetWork(handle)->decoder;
 
-        if (sfadxt_IsDecoded(decoder)) {
+        if (sfadxt_IsEndDecinfo(decoder)) {
             seek->sample_rate = ADXT_GetSfreq(decoder);
             seek->sample_count = ADXT_GetNumSmpl(decoder);
             seek->channels = ADXT_GetNumChan(decoder);
@@ -928,7 +872,7 @@ static inline void sfadxt_AnalyAhdr(SfdHandle* handle)
     }
 }
 
-static inline void sfadxt_UpdateSvrFreq(SfdHandle* handle)
+static inline void sfadxt_SetSvrFreq(SfdHandle* handle)
 {
     SfdAdxtWork* work = sfadxt_GetWork(handle);
     ADXTHandle* decoder = work->decoder;
@@ -955,8 +899,8 @@ static inline void sfadxt_WriteTotSmpl(SfdHandle* handle)
     }
 }
 
-/* TODO: [near miss] 97.78409%; handle cost-stall precedes result/input;
- * handle/result ownership across supply and status phases is unresolved. */
+/* TODO: [near miss] 97.93561%; handle is the simplify stall pick (r31; retail r29 below result/input);
+ * all MAP helper sizes exact and no phantom twin: needs a new handle owner/lifetime hypothesis. */
 static int sfadxt_ExecServerSub(SfdHandle* handle)
 {
     int result;
@@ -968,12 +912,11 @@ static int sfadxt_ExecServerSub(SfdHandle* handle)
     if (SFBUF_GetTermFlg(handle, handle->transports[3].parameter_14) == 1) {
         return 0;
     }
-    input_size = 0;
-    result = sfadxt_Transfer(handle, &input_size);
-    sfadxt_PrepOut(handle);
-    sfadxt_CheckStat(handle, input_size);
-    sfadxt_AnalyAhdr(handle);
-    sfadxt_UpdateSvrFreq(handle);
+    result = sfadxt_SupplyData(handle, &input_size);
+    sfadxt_ChkPrepFlg(handle);
+    sfadxt_ChkTermFlg(handle, input_size);
+    sfadxt_SetAdxtHd(handle);
+    sfadxt_SetSvrFreq(handle);
     sfadxt_WriteTotSmpl(handle);
     return result;
 }

@@ -4,7 +4,6 @@
 
 #include "runtime/mk_hwfile.h"
 #include "runtime/mk_proc.h"
-#include "runtime/mk_vtbl.h"
 
 struct SsfReqQueue {
     SsfReqLink head;

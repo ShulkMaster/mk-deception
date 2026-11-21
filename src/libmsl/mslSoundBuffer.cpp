@@ -11,11 +11,11 @@
 #include "msl/mslStreamFile.h"
 #include "msl/mslARam.h"
 #include "msl/mslgcn.h"
-#include "msl/mslWave.h"
 #include "msl/mslgcn_globals.h"
 #include "msl/mslWave_internal.h"
 #include "mw/mwMemNewDelete.h"
 #include "runtime/cmath.h"
+#include "mw/mwMemHeap.h"
 
 struct _mslBank {
     unsigned char pad00[0x3C];
@@ -220,7 +220,6 @@ static const unsigned char SurroundPanTable[] = {
 static const char stringBase0[] =
     "SBPlayable_Stream\0SoundBuffer_Playable\0SoundBuffer_Data";
 
-extern void* MWSOUND_HEAP;
 SoundBufferUpdateList ms_UpdateList__20SoundBuffer_Playable = {0, 0};
 extern unsigned char __vt__10IRefCntRes[];
 extern unsigned char __vt__11SoundBuffer[];

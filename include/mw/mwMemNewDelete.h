@@ -13,4 +13,6 @@ void* operator new(unsigned long size, _mwMemHeap* heap, mwMemFlags flags,
 
 #endif
 
+void* __nw__FUl(unsigned long size);
+void __dl__FPv(void* p);
 #endif

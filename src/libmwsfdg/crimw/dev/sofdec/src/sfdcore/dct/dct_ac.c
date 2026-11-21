@@ -1,6 +1,6 @@
 #include <math.h>
+#include "fdlibm.h"
 
-double cos(double);
 const char* DCT_GetVerStr(void);
 
 static double dctac_i_const[8][8];

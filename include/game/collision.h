@@ -144,4 +144,17 @@ int collide_cylinder_vs_plyr(
     PlyrInfo* player, Vec* center, const Vec* angles,
     float radius, float height);
 
+void start_plyr_attack(float scale);
+void init_collision_system(void);
+void set_flag_for_all_collisions(MkPtr** list, unsigned int flags);
+void destroy_konquest_shadow_collision_lists(void);
+void remove_collision_list_from_konquest_shadow_lists(MkHdr* collision_list);
+void insert_collision_list_on_konquest_shadow_lists(MkHdr* collision_list);
+void purge_global_collision_list(void);
+CollisionObjList* get_collision_obj_list(void);
+void generate_shadow_collision_objects(int handle, unsigned int art_id);
+void render_col_shape(CollisionShape* shape, const unsigned int* color);
+void set_collision_render_state(int enabled);
+int collide_plyr_vs_plyr(void);
+void term_collision_system(void);
 #endif
