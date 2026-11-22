@@ -26,6 +26,7 @@
 #include "rw/rwframe.h"
 #include "runtime/plyr_pdata.h"
 #include "runtime/utils.h"
+#include "runtime/sound.h"
 #include "game/ai.h"
 #include "game/konquest_missions.h"
 #include "game/bgnd.h"
@@ -117,7 +118,6 @@ void ani_to_frame_x(float frame);
 void slow_ani_x(float speed, float frame);
 void stop_me(void);
 void set_ani_speed(float speed);
-MslSoundHandle random_hit(int group);
 void ani_to_blend_frame(float frame);
 void face_opponent_now(void);
 void init_air_move(void);
@@ -310,8 +310,8 @@ void kabal_collision_control_victim(int falldown) {
     if (plyr_pdata == 0) {
         return;
     }
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
-    his_obj->flags_09_bits.tightrope_restricted = 1;
+    plyr_obj->flags.tightrope_restricted = 1;
+    his_obj->flags.tightrope_restricted = 1;
     idle_victim();
     if (falldown == 0) {
         if (plyr_pdata->plyr_num == 0) {
@@ -724,7 +724,7 @@ void destroy_subzero_decoy(void) {
         return;
     }
 
-    object->flags_08_bits.scale_active = 1;
+    object->flags.scale_active = 1;
     object->scale.x = 1.0f;
     object->scale.y = 1.0f;
     object->scale.z = 1.0f;
@@ -850,7 +850,7 @@ static float p_decoy(void) {
     pdata->lifetime -= game_speed;
     if (pdata->lifetime < 0.0f || g_game_info.flag_bits.field_bit0) {
         trial_state_collision_check(0, player->controller_slot);
-        decoy->flags_08_bits.scale_active = 1;
+        decoy->flags.scale_active = 1;
         decoy->scale.x = 1.0f;
         decoy->scale.y = 1.0f;
         decoy->scale.z = 1.0f;
@@ -948,9 +948,9 @@ void start_bow(int bone, float duration) {
     if (bow == 0) {
         return;
     }
-    bow->flags_08_bits.airborne = 1;
-    bow->flags_08_bits.angular_velocity_enabled = 1;
-    bow->flags_08_bits.scale_active = 1;
+    bow->flags.airborne = 1;
+    bow->flags.angular_velocity_enabled = 1;
+    bow->flags.scale_active = 1;
     bow->scale.x = 1.0f;
     bow->scale.y = 0.0f;
     bow->scale.z = 1.0f;
@@ -1102,8 +1102,8 @@ void plyr_scale_pos_vel(float x_scale, float y_scale, float z_scale) {
 
 void plyr_set_gravity(float gravity) {
     plyr_obj->gravity = gravity;
-    plyr_obj->flags_08_bits.moving = 1;
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.moving = 1;
+    plyr_obj->flags.launched = 1;
 }
 
 float mks_get_victim_to_tr_dot(int player) {
@@ -1269,7 +1269,7 @@ void mks_plyr_stop(int player) {
         object = g_game_info.plyr1.slot.mirror_a;
     }
     if (object != 0) {
-        object->flags_08_bits.moving = 0;
+        object->flags.moving = 0;
         object->gravity = 0.0f;
         object->pos_vel.z = 0.0f;
         object->pos_vel.y = 0.0f;

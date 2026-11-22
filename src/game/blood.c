@@ -1541,8 +1541,8 @@ void spawn_bld_fall(
                         pfx, object, 0,
                         emitter_id_from_handle(effect));
                     insert_particle_mkobj(object);
-                    object->flags_08_bits.airborne = 1;
-                    object->flags_08_bits.gravity_enabled = 1;
+                    object->flags.airborne = 1;
+                    object->flags.gravity_enabled = 1;
 
                     if (bone != 0) {
                         object->pos.value.x = bone->matrix.pos.x +
@@ -2368,7 +2368,7 @@ static float p_bleed(void) {
                     }
                 } else if (--pdata->timer <= 0) {
                     object = MK_HDR_LIVE(pdata->object, pdata->object_instance);
-                    if (object != 0 && !object->hide_flag_bits.hidden) {
+                    if (object != 0 && !object->flags.hidden) {
                         step = pdata->step;
                         model = pdata->spawn_state;
                         target = &model->paths[step->target_index];
@@ -2493,7 +2493,7 @@ static void do_pfx_bleed(MkHdr* hdr) {
     if (apfx != 0) {
         MkPfx* pfx = apfx;
         vm = (PfxVm*)pfx->matrix;
-        if (!apfx_render_obj->hide_flag_bits.hidden && vm->particle_cursor != 0) {
+        if (!apfx_render_obj->flags.hidden && vm->particle_cursor != 0) {
             struct BloodParticlePosition* source;
             struct BloodParticlePosition* destination;
             struct BloodVelocityState* state;

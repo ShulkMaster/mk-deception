@@ -147,9 +147,9 @@ static inline MkObj* start_axis_indicator(
     if (axis != 0) {
         axis->pos.value.z = 0.0f;
         axis->pos.value.y = 0.025f;
-        axis->flags_08_bits.bit7 = 1;
+        axis->flags.bit08_7 = 1;
         if (track != 0) {
-            axis->hide_flag_bits.hidden = 1;
+            axis->flags.hidden = 1;
         }
         axis->light_flags = 4;
         insert_fgnd_mkobj(axis);
@@ -175,9 +175,9 @@ static inline MkObj* start_axis_indicator(
 
     if (axis != 0) {
         if (scale == 1.0f) {
-            axis->flags_08_bits.scale_active = 0;
+            axis->flags.scale_active = 0;
         } else {
-            axis->flags_08_bits.scale_active = 1;
+            axis->flags.scale_active = 1;
             axis->scale.x = axis->scale.y = axis->scale.z = scale;
         }
     }
@@ -350,7 +350,7 @@ float p_axis_track_bone_world_mat(void) {
     frame = axis_obj->frame;
     matrix = &frame->modelling;
     memcpy(matrix, &target_bone->matrix, sizeof(*matrix));
-    if (axis_obj->flags_08_bits.scale_active) {
+    if (axis_obj->flags.scale_active) {
         gxMatScaledByV3(
             (Mat33*)matrix, (Mat33*)matrix, &axis_obj->scale);
     }
@@ -358,9 +358,9 @@ float p_axis_track_bone_world_mat(void) {
     RwFrameUpdateObjects(frame);
     object = axis_obj;
     if (hide_axis != 0) {
-        object->hide_flag_bits.hidden = 1;
+        object->flags.hidden = 1;
     } else {
-        object->hide_flag_bits.hidden = 0;
+        object->flags.hidden = 0;
     }
     return 1.0f;
 }

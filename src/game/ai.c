@@ -427,7 +427,6 @@ int g_droneOverrideActiviated;
 int g_big_boss_intro_tap_out_f;
 extern unsigned int randu0(unsigned short max);
 extern void shake_camera(int ticks, float strength);
-MslSoundHandle random_hit(int group);
 MslSoundHandle random_voice(int group);
 void fight_fx_blades_clash(PlyrPdata* player);
 float frand(float range);
@@ -1008,14 +1007,14 @@ float go_into_twitch_death(void) {
     case 5:
         break;
     case 4:
-        plyr_obj->flags_09_bits.head_tracking = 0;
+        plyr_obj->flags.head_tracking = 0;
         tightrope_restrictions_off();
         plyr_anim_pdata->step = 1.0f;
         plyr_anim_pdata->transition_weight = 0.5f;
         transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.twitch_death, 0);
         AI_SLEEP(1.0f);
         ani_to_frame_x(2.0f);
-        plyr_obj->flags_09_bits.launched = 0;
+        plyr_obj->flags.launched = 0;
         xfer_proc(plyr_anim_proc, p_animate);
         break;
     default:
@@ -1027,7 +1026,7 @@ float go_into_twitch_death(void) {
 
 float go_into_major_pain(void) {
     back_to_normal();
-    plyr_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags.head_tracking = 0;
     tightrope_restrictions_off();
     switch (plyr_pdata->death_type) {
     case 4:
@@ -1039,7 +1038,7 @@ float go_into_major_pain(void) {
             transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.major_pain_a, 0);
             AI_SLEEP(1.0f);
             ani_to_frame_x(7.0f);
-            plyr_obj->flags_09_bits.launched = 0;
+            plyr_obj->flags.launched = 0;
         } else {
             init_ground_move_no_aniproc();
             plyr_anim_pdata->step = 1.0f;
@@ -1047,7 +1046,7 @@ float go_into_major_pain(void) {
             plyr_anim_pdata->flags |= 0x40;
             transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.twitch_death, 0);
             ani_to_frame_x(2.0f);
-            plyr_obj->flags_09_bits.launched = 0;
+            plyr_obj->flags.launched = 0;
         }
         if (plyr_pdata->status_data->pain_voice != 0) {
             random_snd_req(
@@ -1069,7 +1068,7 @@ float go_into_major_pain(void) {
                 }
                 xfer_player_proc(opponent_proc, force_some_distance);
             }
-            plyr_obj->flags_09_bits.head_tracking = 0;
+            plyr_obj->flags.head_tracking = 0;
             tightrope_restrictions_off();
             plyr_anim_pdata->step = 0.6f;
             if (plyr_pdata->status_data->pain_voice != 0) {
@@ -1105,7 +1104,7 @@ float getup_from_ground(void) {
 
     back_to_normal();
     object = plyr_obj;
-    object->flags_09_bits.head_tracking = 0;
+    object->flags.head_tracking = 0;
     tightrope_restrictions_off();
 
     if (plyr_pdata->death_type == 1) {
@@ -1130,7 +1129,7 @@ float getup_from_ground(void) {
         transition_to_anim_script(0.05f, plyr_anim_pdata, shared_ani.field_338, 3);
         AI_SLEEP(1.0f);
         ani_to_frame_x(2.0f);
-        plyr_obj->flags_09_bits.launched = 0;
+        plyr_obj->flags.launched = 0;
         plyr_anim_pdata->step = 0.6f;
         ani_to_frame_x(20.0f);
         random_hit(7);
@@ -3535,8 +3534,8 @@ int drone_ai_handle_arena_collisions(struct DroneAI* request) {
                 --request->arena_collision_count;
             }
             request->arena_collision_history <<= 1;
-            if ((((unsigned int)plyr_obj->flags_0B >> 4) & 1) == 1 ||
-                ((((unsigned int)plyr_obj->flags_09 >> 2) & 1) == 1 &&
+            if (plyr_obj->flags.bit0B_4 == 1 ||
+                (plyr_obj->flags.wall_restricted == 1 &&
                  (plyr_pdata->state & 0x2000) != 0)) {
                 ++request->arena_collision_count;
                 request->arena_collision_history |= 1;
@@ -6765,8 +6764,8 @@ static float drone_ai_attack_obstacle_now(void) {
         return 0.0f;
     }
 
-    plyr_obj->flags_0B_bits.bit3 = 1;
-    plyr_obj->flags_09_bits.tightrope_restricted = 0;
+    plyr_obj->flags.bit0B_3 = 1;
+    plyr_obj->flags.tightrope_restricted = 0;
     rotate_towards_position(&drone->obstacle_target, 0.2f);
     script = get_random_fightstyle_attack(
         plyr_pdata->fighter_definition, 9, 0);
@@ -7055,7 +7054,7 @@ static int drone_ai_check_change_style(struct DroneAI* drone) {
     deadline += 120;
     drone->next_style_change_tick = deadline;
     player_object = drone->player->plyr_info->slot.mirror_a;
-    if (player_object->hide_flag_bits.hidden == 1) {
+    if (player_object->flags.hidden == 1) {
         return 0;
     }
     if (drone->player->character_id == 0x1B) {
@@ -9158,7 +9157,7 @@ static unsigned int handicap_calc_likelihood_of_blocking_in_reaction(
         }
     }
     if (drone->player->his_plyr_pdata->plyr_info->slot.mirror_a
-            ->hide_flag_bits.hidden == 1) {
+            ->flags.hidden == 1) {
         if (drone->boss_stage == 4) {
             likelihood -= 8;
         } else {
@@ -9247,7 +9246,7 @@ unsigned int handicap_calc_likelihood_of_blocking(struct DroneAI* drone) {
         likelihood += 3;
     }
     if (drone->player->his_plyr_pdata->plyr_info
-            ->slot.mirror_a->hide_flag_bits.hidden == 1) {
+            ->slot.mirror_a->flags.hidden == 1) {
         if (drone->boss_stage == 4) {
             likelihood -= 8;
         } else {
@@ -9346,7 +9345,7 @@ static int handicap_likelihood_for_combo_breaker(struct DroneAI* drone) {
         likelihood = 0;
     }
     if (drone->player->his_plyr_pdata->plyr_info->slot.mirror_a
-            ->hide_flag_bits.hidden == 1) {
+            ->flags.hidden == 1) {
         likelihood += 10;
     }
     return likelihood;

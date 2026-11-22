@@ -1306,8 +1306,8 @@ void reset_fight(int death_trap) {
             }
         }
 
-        g_game_info.plyr0.slot.mirror_a->hide_flag_bits.bit6 = 0;
-        g_game_info.plyr1.slot.mirror_a->hide_flag_bits.bit6 = 1;
+        g_game_info.plyr0.slot.mirror_a->flags.bit0A_6 = 0;
+        g_game_info.plyr1.slot.mirror_a->flags.bit0A_6 = 1;
         if (mode_of_play == 8) {
             xfer_proc(
                 g_game_info.plyr0.idle_proc,
@@ -1334,8 +1334,8 @@ void reset_fight(int death_trap) {
 
         g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 0;
         g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 0;
-        g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit6 = 0;
-        g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit6 = 0;
+        g_game_info.plyr0.slot.mirror_a->flags.bit0B_6 = 0;
+        g_game_info.plyr1.slot.mirror_a->flags.bit0B_6 = 0;
         return;
     }
 
@@ -1387,8 +1387,8 @@ int round_over(void) {
 
     g_game_info.flag_bits.field_bit6 = 0;
     g_game_info.flag_bits.field_bit0 = 1;
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
+    g_game_info.plyr0.slot.mirror_a->flags.tightrope_restricted = 0;
+    g_game_info.plyr1.slot.mirror_a->flags.tightrope_restricted = 0;
 
     if (mode_of_play != 4 && mode_of_play != 10 &&
         !g_game_info.feature_flags.bits.online_game &&
@@ -1750,16 +1750,16 @@ void round_init(void) {
 
     if (g_game_info.plyr0.slot.mirror_a != 0 &&
         g_game_info.plyr1.slot.mirror_a != 0) {
-        g_game_info.plyr0.slot.mirror_a->flags_09_bits.launched = 1;
-        g_game_info.plyr0.slot.mirror_a->flags_09_bits.bit6 = 1;
-        g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 1;
-        g_game_info.plyr0.slot.mirror_a->flags_09_bits.bit4 = 1;
-        g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit6 = 0;
-        g_game_info.plyr1.slot.mirror_a->flags_09_bits.launched = 1;
-        g_game_info.plyr1.slot.mirror_a->flags_09_bits.bit6 = 1;
-        g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 1;
-        g_game_info.plyr1.slot.mirror_a->flags_09_bits.bit4 = 1;
-        g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit6 = 0;
+        g_game_info.plyr0.slot.mirror_a->flags.launched = 1;
+        g_game_info.plyr0.slot.mirror_a->flags.bit09_6 = 1;
+        g_game_info.plyr0.slot.mirror_a->flags.tightrope_restricted = 1;
+        g_game_info.plyr0.slot.mirror_a->flags.bit09_4 = 1;
+        g_game_info.plyr0.slot.mirror_a->flags.bit0B_6 = 0;
+        g_game_info.plyr1.slot.mirror_a->flags.launched = 1;
+        g_game_info.plyr1.slot.mirror_a->flags.bit09_6 = 1;
+        g_game_info.plyr1.slot.mirror_a->flags.tightrope_restricted = 1;
+        g_game_info.plyr1.slot.mirror_a->flags.bit09_4 = 1;
+        g_game_info.plyr1.slot.mirror_a->flags.bit0B_6 = 0;
     }
 
     if (find_mkproc_pid(0x1003) == 0) {

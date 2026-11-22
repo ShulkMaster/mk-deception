@@ -380,9 +380,9 @@ void jab_shake_dragon_king(float distance, float speed) {
         pdata->base_y = object->pos.value.y;
         pdata->distance = distance;
         pdata->speed = speed;
-        object->flags_08_bits.airborne = 1;
-        object->flags_09_bits.launched = 0;
-        object->flags_09_bits.bit6 = 0;
+        object->flags.airborne = 1;
+        object->flags.launched = 0;
+        object->flags.bit09_6 = 0;
     }
 }
 
@@ -508,7 +508,7 @@ void obj_scale_over_time(MkObj* object, Vec* target, float ticks) {
     float delta_z;
     float delta_x;
 
-    object->flags_08_bits.scale_active = 1;
+    object->flags.scale_active = 1;
 
     delta_x = (target->x - object->scale.x) / (ticks * game_speed);
     delta_y = (target->y - object->scale.y) / (ticks * game_speed);
@@ -549,8 +549,8 @@ void jab_release_jade_boomerang(struct JabObjectRef* proc_ref) {
         pdata = (struct JadeBindPdata*)pdata_of_proc(proc);
         boomerang = MK_HDR_LIVE(pdata->child, pdata->child_instance);
         if (boomerang != 0) {
-            boomerang->flags_08_bits.angular_velocity_enabled = 1;
-            boomerang->flags_08_bits.rotation_enabled = 1;
+            boomerang->flags.angular_velocity_enabled = 1;
+            boomerang->flags.rotation_enabled = 1;
             boomerang->ang_vel.x = 0.3f;
         }
         if (proc->instance != 0) {
@@ -595,9 +595,9 @@ void jab_start_jade_boomerang_throw(
             }
             if (boomerang != 0) {
 
-                boomerang->flags_08_bits.airborne = 1;
-                boomerang->flags_08_bits.angular_velocity_enabled = 1;
-                boomerang->flags_08_bits.rotation_enabled = 0;
+                boomerang->flags.airborne = 1;
+                boomerang->flags.angular_velocity_enabled = 1;
+                boomerang->flags.rotation_enabled = 0;
 
                 live_proc = MK_LIVE((MkProc*)proc_ref->object, proc_ref->instance);
                 bind_proc = live_proc;
@@ -888,7 +888,7 @@ void jab_kira_projectile_hand_explode(void) {
     if (effect_object == 0) {
         return;
     }
-    effect_object->flags_08_bits.airborne = 1;
+    effect_object->flags.airborne = 1;
     matrix = effect_object->field_24;
     direction.x = opponent->pos.value.x - plyr_obj->pos.value.x;
     direction.z = opponent->pos.value.z - plyr_obj->pos.value.z;

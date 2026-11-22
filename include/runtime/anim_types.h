@@ -29,8 +29,8 @@ typedef struct AnimScript {
     unsigned int tag_data_offset;
     unsigned int tag_end_offset;
     unsigned short flags;
-    short palette_index; /* +0x2E; populated by the SEC animation loader */
-    int loop_offset_x; /* fixed-point 1/10000 */
+    short palette_index;
+    int loop_offset_x;
     int loop_offset_y;
     int loop_offset_z;
     union {
@@ -101,10 +101,7 @@ typedef struct AnimPdata {
     float transition_step;
     float transition_accel;
     float hand_transition;
-    union {
-        float transition_target;
-        float hand_transition_step;
-    };
+    float hand_transition_step;
     float hand_transition_limit;
     int track_capacity;
     void** track_data;
@@ -112,7 +109,6 @@ typedef struct AnimPdata {
     unsigned char* bone_remap;
     union {
         AniData* hand_animation;
-        MkProcEntryFn hand_script;
         AnimScript* hand_anim_script;
     };
     AnimScript* next_hand_script;

@@ -864,7 +864,7 @@ MkObj* subzero_start_iceblock(void) {
         iceblock->pos.value.z -= at.z * forward;
         iceblock->pos.value.x += right.x;
         iceblock->pos.value.z += right.z;
-        iceblock->flags_08_bits.scale_active = 1;
+        iceblock->flags.scale_active = 1;
         iceblock->scale.x = 1.0f;
         iceblock->scale.y = 0.05f;
         iceblock->scale.z = 1.0f;
@@ -930,12 +930,12 @@ static void start_3d_projectile_iceball(MkProcEntryFn entry) {
     set_active_projectile_max_ticks(10);
     active_projectile_setup_done();
 
-    iceball->flags_08_bits.scale_active = 1;
+    iceball->flags.scale_active = 1;
     iceball->scale.x = 1.3f;
     iceball->scale.y = 1.3f;
     iceball->scale.z = 1.3f;
     iceball->ang.y += 1.57f;
-    iceball->flags_08_bits.angular_velocity_enabled = 1;
+    iceball->flags.angular_velocity_enabled = 1;
 
     subobject = obj_create_sobjs_by_id(iceball, 1);
     if (subobject != 0) {
@@ -1087,9 +1087,9 @@ FatalitySonicWavePdata* sindel_sonic_waves(float duration) {
                 data->waves[index].obj = wave;
                 data->waves[index].instance = wave->hdr.instance;
                 wave->flags_word_08 = 0;
-                wave->flags_08_bits.airborne = 1;
-                wave->flags_08_bits.angular_velocity_enabled = 1;
-                wave->flags_08_bits.scale_active = 1;
+                wave->flags.airborne = 1;
+                wave->flags.angular_velocity_enabled = 1;
+                wave->flags.scale_active = 1;
                 wave->pos.value.x = 0.0f;
                 wave->pos.value.y = -10000.0f;
                 wave->pos.value.z = 0.0f;
@@ -1098,7 +1098,7 @@ FatalitySonicWavePdata* sindel_sonic_waves(float duration) {
                 wave->ang_vel.x = 0.0f;
                 wave->ang_vel.y = 0.0f;
                 if (f_fatality_was_done != 0) {
-                    wave->flags_08_bits.rotation_enabled = 1;
+                    wave->flags.rotation_enabled = 1;
                     wave->ang.z = angle;
                     wave->ang_vel.z = 0.9424778f;
                     angle += 3.1415927f;
@@ -1447,9 +1447,9 @@ static float p_raiden_lightning_flash(void) {
     range = data->flash_range;
     if ((data->frame & 1) != 0) {
         range += 5.0f;
-        object->hide_flag_bits.hidden = 1;
+        object->flags.hidden = 1;
     } else {
-        object->hide_flag_bits.hidden = 0;
+        object->flags.hidden = 0;
         if (data->scroll != 0) {
             if ((unsigned short)randu0(3) == 0) {
                 data->scroll->rateU1 = -1.0f * data->scroll_step;
@@ -1489,7 +1489,7 @@ static float p_raiden_lightning_scrolling(void) {
             sizeof(FatalityObjectScalarPdata), scalar.hdr);
         scalar.data->object = object;
         scalar.data->object_instance = object->hdr.instance;
-        object->flags_08_bits.scale_active = 1;
+        object->flags.scale_active = 1;
         scalar.data->start.x = data->scalar_start.x;
         scalar.data->start.y = data->scalar_start.y;
         scalar.data->start.z = data->scalar_start.z;
@@ -1538,10 +1538,10 @@ RaidenLightningBoltPdata* ft_raiden_summon_lightning_bolt(
                 insert_fgnd_mkobj(model);
                 sobj_set_priority(subobject, 0x12);
                 subobject->z_offset = -5.0f;
-                model->hide_flag_bits.hidden = 1;
-                model->flags_08_bits.airborne = 1;
-                model->flags_08_bits.angular_velocity_enabled = 1;
-                model->flags_08_bits.scale_active = 1;
+                model->flags.hidden = 1;
+                model->flags.airborne = 1;
+                model->flags.angular_velocity_enabled = 1;
+                model->flags.scale_active = 1;
                 model->scale.x = 0.25f;
                 model->scale.y = 0.25f;
                 model->scale.z = 0.25f;
@@ -1598,9 +1598,9 @@ static float p_raiden_summon_lightning_bolt(void) {
     random_ticks = randu0(3);
     if ((data->frame & 1) != 0) {
         result = random_ticks + 2;
-        bolt->hide_flag_bits.hidden = 1;
+        bolt->flags.hidden = 1;
     } else {
-        bolt->hide_flag_bits.hidden = 0;
+        bolt->flags.hidden = 0;
         owner_object = MK_HDR_LIVE(
             data->owner->tracked_obj, data->owner->tracked_obj_instance);
         if (owner_object == 0) {
@@ -1702,8 +1702,8 @@ void ft_mileena_start_veil_ripoff(void) {
         get_bone_offset_world_pos(
             fatality_state.attacker_object, bone_id,
             &veil_offset, &veil->pos.value);
-        veil->flags_09_bits.launched = 0;
-        veil->flags_09_bits.bit6 = 0;
+        veil->flags.launched = 0;
+        veil->flags.bit09_6 = 0;
     }
 }
 
@@ -1970,7 +1970,7 @@ void start_bodyslam_bodysplat(
         object->pos.value.x = x;
         object->pos.value.y = g_game_info.field_34 + 0.001f;
         object->pos.value.z = z;
-        object->flags_08_bits.scale_active = 1;
+        object->flags.scale_active = 1;
         object->scale.x = 1.0f;
         object->scale.y = 1.0f;
         object->scale.z = 1.0f;
@@ -2597,10 +2597,10 @@ void obj_grnd_bounce(
             object->pos_vel.y = velocity->y;
             object->pos_vel.z = velocity->z;
         }
-        object->flags_08_bits.gravity_enabled = 1;
+        object->flags.gravity_enabled = 1;
         object->gravity = gravity;
         if (gravity != 0.0f) {
-            object->flags_08_bits.moving = 1;
+            object->flags.moving = 1;
         }
         data->ground_offset = ground_offset;
         data->bounce_count = bounces;
@@ -2650,11 +2650,11 @@ static float p_obj_grnd_bounce(void) {
                 (-object->pos_vel.y * data->restitution);
             data->bounce_count--;
         } else {
-            object->flags_08_bits.rotation_enabled = 0;
-            object->flags_08_bits.gravity_enabled = 0;
-            object->flags_08_bits.moving = 0;
-            object->flags_09_bits.launched = 1;
-            object->flags_09_bits.bit6 = 1;
+            object->flags.rotation_enabled = 0;
+            object->flags.gravity_enabled = 0;
+            object->flags.moving = 0;
+            object->flags.launched = 1;
+            object->flags.bit09_6 = 1;
             object->pos.value.y =
                 g_game_info.field_34 + data->ground_offset;
             return -1.0f;
@@ -2676,7 +2676,7 @@ void start_obj_scalar_proc(
             sizeof(FatalityObjectScalarPdata), &data->hdr);
         data->object = object;
         data->object_instance = object->hdr.instance;
-        object->flags_08_bits.scale_active = 1;
+        object->flags.scale_active = 1;
         data->start.x = start->x;
         data->start.y = start->y;
         data->start.z = start->z;
@@ -2811,7 +2811,7 @@ void obj_match_obj_pos(
             destination->pos.value.y = source->pos.value.y;
             destination->pos.value.z = source->pos.value.z;
         }
-        destination->flags_08_bits.airborne = 1;
+        destination->flags.airborne = 1;
         data->blend = blend;
     }
 }
@@ -2908,14 +2908,14 @@ MkObj* weapon_bm_ignore(int weapon, int ignored) {
         latch = &plyr_pdata->mirror_slots->weapon[0].secondary;
         object = MK_HDR_LIVE(latch->obj, latch->instance);
         if (object != 0) {
-            object->flags_08_bits.bit7 = ignored;
+            object->flags.bit08_7 = ignored;
             goto done;
         }
     }
     latch = &plyr_pdata->mirror_slots->weapon[1].secondary;
     object = MK_HDR_LIVE(latch->obj, latch->instance);
     if (object != 0) {
-        object->flags_08_bits.bit7 = ignored;
+        object->flags.bit08_7 = ignored;
     }
 done:
     return object;
@@ -2951,7 +2951,7 @@ BoneMatcherState* regrab_weapon(
             object->scale.x = scale->x;
             object->scale.y = scale->y;
             object->scale.z = scale->z;
-            object->flags_08_bits.scale_active = 1;
+            object->flags.scale_active = 1;
         }
         if (position != 0) {
             attachment->parent_offset.x = position->x;
@@ -2977,13 +2977,13 @@ void weapon_reflection_show_hide(
     if (secondary == 0) {
         object = MK_HDR_LIVE(player->weapon_reflections->primary, player->weapon_reflections->primary_instance);
         if (object != 0) {
-            object->hide_flag_bits.hidden = hidden;
+            object->flags.hidden = hidden;
             return;
         }
     }
     object = MK_HDR_LIVE(player->weapon_reflections->secondary, player->weapon_reflections->secondary_instance);
     if (object != 0) {
-        object->hide_flag_bits.hidden = hidden;
+        object->flags.hidden = hidden;
     }
 }
 
@@ -3006,13 +3006,13 @@ MkObj* show_single_weapon(PlyrPdata* player, int secondary) {
              player->fighter_definition->mirror_slots.weapon[0].primary.obj,
              player->fighter_definition->mirror_slots.weapon[0].primary.instance)) != 0) {
         plyr_weapon_grab(player, weapon);
-        weapon->hide_flag_bits.hidden = 0;
+        weapon->flags.hidden = 0;
         if ((g_game_info.section->flags70 & 8) != 0) {
             reflection = MK_HDR_LIVE(
                 plyr_pdata->fighter_definition->mirror_slots.weapon[0].mirror.obj,
                 plyr_pdata->fighter_definition->mirror_slots.weapon[0].mirror.instance);
             if (reflection != 0) {
-                reflection->hide_flag_bits.hidden = 0;
+                reflection->flags.hidden = 0;
             }
         }
     } else {
@@ -3021,13 +3021,13 @@ MkObj* show_single_weapon(PlyrPdata* player, int secondary) {
             player->fighter_definition->mirror_slots.weapon[1].primary.instance);
         if (weapon != 0) {
             plyr_weapon2_grab(player, weapon);
-            weapon->hide_flag_bits.hidden = 0;
+            weapon->flags.hidden = 0;
             if ((g_game_info.section->flags70 & 8) != 0) {
                 reflection = MK_HDR_LIVE(
                     plyr_pdata->fighter_definition->mirror_slots.weapon[1].mirror.obj,
                     plyr_pdata->fighter_definition->mirror_slots.weapon[1].mirror.instance);
                 if (reflection != 0) {
-                    reflection->hide_flag_bits.hidden = 0;
+                    reflection->flags.hidden = 0;
                 }
             }
         }
@@ -3206,16 +3206,16 @@ int fatality_check_distance(unsigned int action) {
 void fatality_release_other_player(void) {
     release_other_player();
     fatality_state.animation->hand_transition = 1.0f;
-    his_obj->flags_09_bits.launched = 0;
-    his_obj->flags_09_bits.bit4 = 0;
-    his_obj->flags_09_bits.head_tracking = 0;
-    his_obj->flags_09_bits.tightrope_restricted = 0;
-    his_obj->flags_09_bits.face_opponent = 0;
-    plyr_obj->flags_09_bits.launched = 0;
-    plyr_obj->flags_09_bits.bit4 = 0;
-    plyr_obj->flags_09_bits.head_tracking = 0;
-    plyr_obj->flags_09_bits.tightrope_restricted = 0;
-    plyr_obj->flags_09_bits.face_opponent = 0;
+    his_obj->flags.launched = 0;
+    his_obj->flags.bit09_4 = 0;
+    his_obj->flags.head_tracking = 0;
+    his_obj->flags.tightrope_restricted = 0;
+    his_obj->flags.face_opponent = 0;
+    plyr_obj->flags.launched = 0;
+    plyr_obj->flags.bit09_4 = 0;
+    plyr_obj->flags.head_tracking = 0;
+    plyr_obj->flags.tightrope_restricted = 0;
+    plyr_obj->flags.face_opponent = 0;
 }
 
 void set_victim_v3_units_away(float x, float z) {
@@ -3269,16 +3269,16 @@ static void run_fatality_sequence(
     int pal_mode;
     unsigned int camera_index;
 
-    plyr_obj->flags_09_bits.face_opponent = 0;
-    his_obj->flags_09_bits.face_opponent = 0;
-    plyr_obj->flags_09_bits.head_tracking = 0;
-    his_obj->flags_09_bits.head_tracking = 0;
-    plyr_obj->flags_09_bits.tightrope_restricted = 0;
-    his_obj->flags_09_bits.tightrope_restricted = 0;
-    plyr_obj->flags_09_bits.bit4 = 0;
-    his_obj->flags_09_bits.bit4 = 0;
-    plyr_obj->hide_flag_bits.still_move = 0;
-    his_obj->hide_flag_bits.still_move = 0;
+    plyr_obj->flags.face_opponent = 0;
+    his_obj->flags.face_opponent = 0;
+    plyr_obj->flags.head_tracking = 0;
+    his_obj->flags.head_tracking = 0;
+    plyr_obj->flags.tightrope_restricted = 0;
+    his_obj->flags.tightrope_restricted = 0;
+    plyr_obj->flags.bit09_4 = 0;
+    his_obj->flags.bit09_4 = 0;
+    plyr_obj->flags.still_move = 0;
+    his_obj->flags.still_move = 0;
     plyr_pdata->blocking_disabled = 1;
     his_pdata->blocking_disabled = 1;
 
@@ -3289,7 +3289,7 @@ static void run_fatality_sequence(
         0, fatality_state.mirror_camera);
     if (is_my_chest_to_screen() == 0) {
         plyr_anim_pdata->flags ^= 0x08;
-        plyr_obj->hide_flag_bits.bit6 ^= 1;
+        plyr_obj->flags.bit0A_6 ^= 1;
     }
 
     section_script = (FatalityBgndScriptView*)g_game_info.section->misc;
@@ -3303,8 +3303,8 @@ static void run_fatality_sequence(
     }
 
     head_tracking_off();
-    his_obj->flags_09_bits.launched = 1;
-    his_obj->flags_09_bits.bit6 = 1;
+    his_obj->flags.launched = 1;
+    his_obj->flags.bit09_6 = 1;
     pal_mode = is_pal_mode();
     camera_index = 0x2F;
     if (pal_mode != 0) {
@@ -3322,19 +3322,19 @@ static void run_fatality_sequence(
     FATALITY_SLEEP(1.0f);
     release_other_player();
     fatality_state.animation->hand_transition = 1.0f;
-    his_obj->flags_09_bits.launched = 0;
-    his_obj->flags_09_bits.bit4 = 0;
-    his_obj->flags_09_bits.head_tracking = 0;
-    his_obj->flags_09_bits.tightrope_restricted = 0;
-    his_obj->flags_09_bits.face_opponent = 0;
-    plyr_obj->flags_09_bits.launched = 0;
-    plyr_obj->flags_09_bits.bit4 = 0;
-    plyr_obj->flags_09_bits.head_tracking = 0;
-    plyr_obj->flags_09_bits.tightrope_restricted = 0;
-    plyr_obj->flags_09_bits.face_opponent = 0;
+    his_obj->flags.launched = 0;
+    his_obj->flags.bit09_4 = 0;
+    his_obj->flags.head_tracking = 0;
+    his_obj->flags.tightrope_restricted = 0;
+    his_obj->flags.face_opponent = 0;
+    plyr_obj->flags.launched = 0;
+    plyr_obj->flags.bit09_4 = 0;
+    plyr_obj->flags.head_tracking = 0;
+    plyr_obj->flags.tightrope_restricted = 0;
+    plyr_obj->flags.face_opponent = 0;
     xfer_proc(fatality_state.attacker_proc, p_animate);
-    plyr_obj->flags_09_bits.launched = 1;
-    his_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 1;
+    his_obj->flags.launched = 1;
 
     if (victim_script != 0) {
         victim_cmdscript = get_cmdscript_for_proc(fatality_state.victim_proc);
@@ -3391,12 +3391,12 @@ static inline void fatality_hide_opponent_auxiliaries(PlyrPdata* opponent) {
     object = MK_HDR_LIVE(opponent->aux_weapon_latch.obj,
                          opponent->aux_weapon_latch.instance);
     if (object != 0) {
-        object->hide_flag_bits.hidden = 1;
+        object->flags.hidden = 1;
     }
     object = MK_HDR_LIVE(opponent->mirror_obj.obj,
                          opponent->mirror_obj.instance);
     if (object != 0) {
-        object->hide_flag_bits.hidden = 1;
+        object->flags.hidden = 1;
     }
 }
 
@@ -3415,7 +3415,7 @@ static int init_fatality_world(void) {
     } else {
         face_opponent_now();
         if (is_my_chest_to_screen() == 0) {
-            plyr_obj->hide_flag_bits.bit6 ^= 1;
+            plyr_obj->flags.bit0A_6 ^= 1;
         }
     }
     if (is_local_plyr() != 0) {
@@ -3474,7 +3474,7 @@ float start_suicide(void) {
             plyr_pdata->status_data->fatality_definition->suicide_script != 0xFFFFFFFFU) {
             if (is_my_chest_to_screen() == 0) {
                 plyr_anim_pdata->flags ^= 0x08;
-                plyr_obj->hide_flag_bits.bit6 ^= 1;
+                plyr_obj->flags.bit0A_6 ^= 1;
             }
             section_script =
                 (FatalityBgndScriptView*)g_game_info.section->misc;
@@ -3487,9 +3487,9 @@ float start_suicide(void) {
                 cmdscript_execute(g_game_info.cmdscript);
             }
             head_tracking_off();
-            fatality_state.attacker_object->flags_09_bits.tightrope_restricted = 0;
-            fatality_state.attacker_object->flags_09_bits.bit4 = 0;
-            fatality_state.attacker_object->flags_0B_bits.bit6 = 0;
+            fatality_state.attacker_object->flags.tightrope_restricted = 0;
+            fatality_state.attacker_object->flags.bit09_4 = 0;
+            fatality_state.attacker_object->flags.bit0B_6 = 0;
             plyr_turn_off_mirrorguy(fatality_state.context);
             plyr_turn_off_shadowbox(fatality_state.context);
 

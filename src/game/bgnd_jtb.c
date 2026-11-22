@@ -73,7 +73,6 @@ void bgnd_rope_adjust_length(
 void bgnd_npc_add_collision_shape(
     int npc_id, int shape_id, int shape_type, float radius, float height,
     float offset_y, float offset_z);
-unsigned long random_hit(int group);
 void xfer_player_proc_to_script_manual_messaging(
     FighterMirror* fighter, MkObj* object, int message);
 MkProc* get_player_proc(MkObj* object);
@@ -952,7 +951,7 @@ void lower_mines_ani_to_point(
     }
 
     launch_me_up(vertical_velocity, gravity);
-    plyr_obj->flags_09_bits.launched = 0;
+    plyr_obj->flags.launched = 0;
 
     radicand = vertical_velocity * vertical_velocity;
     height_term = (2.0f * gravity) *
@@ -987,7 +986,7 @@ void lower_mines_ani_to_point(
     plyr_obj->pos_vel.z = delta_z * inverse_frames;
     ani_to_frame_x(end_frame);
 
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 1;
     if (plyr_obj != 0) {
         object_header = as_mkhdr(&plyr_obj->hdr);
     } else {

@@ -4,6 +4,7 @@
 #include "game/game_info.h"
 #include "platform/display.h"
 #include "math/mk_math.h"
+#include "runtime/cmath.h"
 #include "platform/main.h"
 #include "platform/io.h"
 #include "runtime/mk_obj.h"
@@ -111,8 +112,6 @@ struct SkyTempleExplodeMonitorPdata {
     PlyrInfo* player;
 };
 
-
-double __fabs(double value);
 
 struct FenceSection {
     float offset_z;
@@ -375,10 +374,10 @@ MkObj* cut_player_in_half(MkObj* player_object) {
         player->slot.fighter->runtime_data->half_sever_velocities, 1);
     if (severed != 0) {
         limb_sever_show_z_meat_chunks(player_object, 0xE, 1);
-        severed->flags_08_bits.airborne = 1;
-        severed->flags_08_bits.gravity_enabled = 1;
-        severed->flags_08_bits.angular_velocity_enabled = 1;
-        severed->flags_08_bits.rotation_enabled = 1;
+        severed->flags.airborne = 1;
+        severed->flags.gravity_enabled = 1;
+        severed->flags.angular_velocity_enabled = 1;
+        severed->flags.rotation_enabled = 1;
         player->slot.fighter->severed_half_obj = severed;
         player->slot.fighter->severed_half_instance = severed->hdr.instance;
         return severed;
@@ -455,7 +454,7 @@ void debug_create_axis_indicator(PlyrInfo* player, Vec* position) {
         object->pos.value.x = position->x;
         object->pos.value.z = position->z;
         object->pos.value.y = position->y;
-        object->flags_08_bits.bit7 = 1;
+        object->flags.bit08_7 = 1;
     }
 }
 
@@ -479,7 +478,7 @@ static float p_fish_attack_bloodsplat(void) {
         object->pos.value.x = pdata->position.x;
         object->pos.value.y = pdata->position.y;
         object->pos.value.z = pdata->position.z;
-        object->flags_08_bits.scale_active = 1;
+        object->flags.scale_active = 1;
         object->scale.x = 0.5f;
         object->scale.z = 0.5f;
         uv_v3_to_v3(&direction, &effect_origin, &object->pos.value);
@@ -576,8 +575,8 @@ static float p_fish_attack(void) {
         scale_v3(
             &direction, &direction, distance / 15.0f);
         gxVectCopy(&fish->pos_vel, &direction);
-        fish->flags_08_bits.gravity_enabled = 1;
-        fish->flags_08_bits.angular_velocity_enabled = 1;
+        fish->flags.gravity_enabled = 1;
+        fish->flags.angular_velocity_enabled = 1;
     }
 
     while (pdata->lifetime > 0) {
@@ -872,7 +871,7 @@ static float p_player_body_explode(void) {
     pdata = (struct PlayerBodyExplodePdata*)apdata;
     player = pdata->player;
 
-    player->slot.mirror_a->flags_09_bits.head_tracking = 0;
+    player->slot.mirror_a->flags.head_tracking = 0;
     bgnd_hide_mirror_guys();
 
     sever_missing_limbs(player);
@@ -889,10 +888,10 @@ static float p_player_body_explode(void) {
         object = MK_HDR_LIVE(fighter->severed_limbs[body_part].object,
             fighter->severed_limbs[body_part].instance);
         if (object != 0) {
-            object->flags_08_bits.gravity_enabled = 1;
-            object->flags_08_bits.angular_velocity_enabled = 1;
-            object->flags_08_bits.rotation_enabled = 1;
-            object->flags_08_bits.moving = 1;
+            object->flags.gravity_enabled = 1;
+            object->flags.angular_velocity_enabled = 1;
+            object->flags.rotation_enabled = 1;
+            object->flags.moving = 1;
             object->gravity = -0.003f;
             object->pos_vel.x =
                 pdata->direction.x * pdata->scale + sfrand(0.05f);
@@ -956,7 +955,7 @@ void yinyang_set_bad_fish_hide_flag(
         MkObj* object = fish[index].bad_fish;
 
         if (object != 0) {
-            object->hide_flag_bits.hidden = hide;
+            object->flags.hidden = hide;
         }
         if (hide == 0) {
             fish[index].active_fish->object = fish[index].bad_fish;
@@ -974,7 +973,7 @@ void yinyang_set_good_fish_hide_flag(
         MkObj* object = fish[index].good_fish;
 
         if (object != 0) {
-            object->hide_flag_bits.hidden = hide;
+            object->flags.hidden = hide;
         }
         if (hide == 0) {
             fish[index].active_fish->object = fish[index].good_fish;
@@ -1049,18 +1048,18 @@ void yinyang_make_fish_jump(struct YinyangFishPair* fish, int count) {
         wrapped_angle = (int)(166886.1f * angle) & 0xFFFFF;
         current->good_fish->ang.y =
             0.000005992112f * (float)wrapped_angle;
-        current->good_fish->flags_08_bits.angular_velocity_enabled = 1;
-        current->good_fish->flags_08_bits.airborne = 1;
+        current->good_fish->flags.angular_velocity_enabled = 1;
+        current->good_fish->flags.airborne = 1;
 
         current->active_fish->field_38 = 0.0f;
         current->active_fish->flags |= 3;
         jump_position.y = 2.0f;
         current->bad_fish->pos.value = current->good_fish->pos.value;
         current->bad_fish->ang = current->good_fish->ang;
-        bad_hidden = current->bad_fish->hide_flag_bits.hidden;
+        bad_hidden = current->bad_fish->flags.hidden;
         current->bad_fish->flags_word_08 =
             current->good_fish->flags_word_08;
-        current->bad_fish->hide_flag_bits.hidden = bad_hidden;
+        current->bad_fish->flags.hidden = bad_hidden;
         current->active_fish->field_38 = 0.0f;
     }
 }
@@ -1308,7 +1307,7 @@ static float p_skytemple_bodysplat(void) {
         object->pos.value.x = pdata->position.x;
         object->pos.value.y = pdata->position.y;
         object->pos.value.z = pdata->position.z;
-        object->flags_08_bits.scale_active = 1;
+        object->flags.scale_active = 1;
         object->scale.x = 1.0f;
         object->scale.y = 1.0f;
         object->scale.z = 1.0f;
@@ -1415,7 +1414,7 @@ void skytemple_player_explode(
         return;
     }
 
-    player->slot.mirror_a->flags_09_bits.head_tracking = 0;
+    player->slot.mirror_a->flags.head_tracking = 0;
     player->slot.mirror_a->pos.value.x = x;
     player->slot.mirror_a->pos.value.y = y;
     player->slot.mirror_a->pos.value.z = z;
@@ -1444,10 +1443,10 @@ void skytemple_player_explode(
         limb->pos.value.x = x;
         limb->pos.value.y = limb_y;
         limb->pos.value.z = z;
-        limb->flags_08_bits.gravity_enabled = 1;
-        limb->flags_08_bits.angular_velocity_enabled = 1;
-        limb->flags_08_bits.rotation_enabled = 1;
-        limb->flags_08_bits.moving = 1;
+        limb->flags.gravity_enabled = 1;
+        limb->flags.angular_velocity_enabled = 1;
+        limb->flags.rotation_enabled = 1;
+        limb->flags.moving = 1;
         limb->gravity = -0.003f;
 
         if (limb_index == 0) {
@@ -1578,7 +1577,7 @@ void skytemple_player_explode(
         ScreenObj* effect;
 
         limb->gravity = -0.003f;
-        limb->flags_08_bits.moving = 1;
+        limb->flags.moving = 1;
         shake_camera(3, 0.01f);
         effect = load_named_2d_pfxobj(
             0x2001E, 0x2094, "ST_BLOODSPLAT", 0, 0x29);

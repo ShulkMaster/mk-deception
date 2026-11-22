@@ -935,14 +935,14 @@ void trial_setup_nis_scene(int setup) {
         }
 
         if (monk != 0) {
-            monk->hide_flag_bits.pin_animation = 0;
+            monk->flags.pin_animation = 0;
             monk->pos.value.x = monk_position.x;
             monk->pos.value.y = monk_position.y;
             monk->pos.value.z = monk_position.z;
             monk->ang.x = monk_angle.x;
             monk->ang.y = monk_angle.y;
             monk->ang.z = monk_angle.z;
-            monk->hide_flag_bits.hidden = 0;
+            monk->flags.hidden = 0;
         }
         set_camera_position(&camera_position);
         set_camera_angle(&camera_angle);
@@ -970,7 +970,7 @@ void trial_restart_round(void) {
     xfer_camera(p_camera_proc, 1);
     monk = get_mission_monk();
     if (monk != 0) {
-        monk->hide_flag_bits.hidden = 1;
+        monk->flags.hidden = 1;
     }
 }
 
@@ -1774,7 +1774,7 @@ void trial_show_monk(int show) {
     MkObj* monk = get_mission_monk();
 
     if (monk != 0) {
-        monk->hide_flag_bits.hidden = show == 0;
+        monk->flags.hidden = show == 0;
     }
 }
 
@@ -2790,8 +2790,8 @@ int trial_end_round(void) {
 
     g_game_info.flag_bits.field_bit6 = 0;
     g_game_info.flag_bits.field_bit0 = 1;
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
+    g_game_info.plyr0.slot.mirror_a->flags.tightrope_restricted = 0;
+    g_game_info.plyr1.slot.mirror_a->flags.tightrope_restricted = 0;
     destroy_mkprocs_pid(0x9003);
     destroy_mkprocs_pid(0x9004);
     del_string_obj_by_id(0x9005);
@@ -2824,8 +2824,8 @@ int trial_end_round(void) {
     }
 
     turn_controllers_off();
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.face_opponent = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.face_opponent = 0;
+    g_game_info.plyr0.slot.mirror_a->flags.face_opponent = 0;
+    g_game_info.plyr1.slot.mirror_a->flags.face_opponent = 0;
     g_game_info.plyr0.slot.mirror_a->pos_vel.z = 0.0f;
     g_game_info.plyr0.slot.mirror_a->pos_vel.y = 0.0f;
     g_game_info.plyr0.slot.mirror_a->pos_vel.x = 0.0f;
@@ -3577,7 +3577,7 @@ static float p_transform_into_monk(void) {
         transition_to_anim_script_frame(
             animation, bgnd_animations.transform_animation, 0x43, 0.05f,
             105.0f);
-        plyr_obj->flags_08_bits.scale_active = 1;
+        plyr_obj->flags.scale_active = 1;
         plyr_obj->scale.z = 1.0f;
         plyr_obj->scale.x = 1.0f;
         plyr_obj->scale.y = 1.0f;
@@ -3651,12 +3651,12 @@ static float p_finish_transform_player(void) {
     _mkproc_sleep_ticks = 15.0f;
     aproc->vtbl->sleep();
 
-    plyr_obj->flags_08_bits.scale_active = 1;
+    plyr_obj->flags.scale_active = 1;
     plyr_obj->scale.z = 1.0f;
     plyr_obj->scale.x = 1.0f;
     plyr_obj->scale.y = 0.8f;
-    plyr_obj->hide_flag_bits.hidden = 0;
-    monk->hide_flag_bits.hidden = 1;
+    plyr_obj->flags.hidden = 0;
+    monk->flags.hidden = 1;
 
     while (animation->frame < animation->high_frame - 10.0f) {
         animpdata_ani_1_frame(animation);
@@ -3671,7 +3671,7 @@ static float p_finish_transform_player(void) {
     plyr_obj->scale.y = 1.0f;
     update_mkobj(
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    plyr_obj->flags_08_bits.scale_active = 0;
+    plyr_obj->flags.scale_active = 0;
     aproc->vtbl
         ->jump_sleep(j_exit_blend_stance, 0.0f);
     return 0.0f;
@@ -3725,7 +3725,7 @@ static float p_finish_transform_monk(void) {
         sidekick->pos.value.y = position.y;
         sidekick->pos.value.z = position.z;
     }
-    monk->hide_flag_bits.hidden = 0;
+    monk->flags.hidden = 0;
     while (animation->frame > 0.0f) {
         animpdata_ani_1_frame(animation);
         _mkproc_sleep_ticks = 1.0f;
@@ -3751,7 +3751,7 @@ static void start_hero_transform_effect(MkObj* hero) {
     particle = pfx_from_emitter(emitter);
     effect_object = pfx_bind_emitter_num_to_new_obj(particle, 0x6015, 0);
     get_bone_world_pos(hero, 0x10, &effect_object->pos.value);
-    effect_object->flags_08_bits.airborne = 1;
+    effect_object->flags.airborne = 1;
     update_mkobj(effect_object != 0 ? as_mkhdr(&effect_object->hdr) : 0);
     fx_restart_emit(emitter);
     emitter = fx_next_emitter(emitter);
@@ -3789,7 +3789,7 @@ static void start_hero_transform_effect(MkObj* hero) {
     particle = pfx_from_emitter(emitter);
     effect_object = pfx_bind_emitter_num_to_new_obj(particle, 0x6015, 0);
     get_bone_world_pos(hero, 0x10, &effect_object->pos.value);
-    effect_object->flags_08_bits.airborne = 1;
+    effect_object->flags.airborne = 1;
     update_mkobj(effect_object != 0 ? as_mkhdr(&effect_object->hdr) : 0);
     fx_restart_emit(emitter);
     emitter = fx_next_emitter(emitter);
@@ -3850,7 +3850,7 @@ static void trial_load_monk(void) {
     monk_process = load_hero_model(bgnd_animations.monk_animation);
     if (monk_process != 0) {
         player_object = mission_state->fight->slot.mirror_a;
-        player_object->hide_flag_bits.hidden = 1;
+        player_object->flags.hidden = 1;
         xfer_proc(monk_process, p_animate);
         animation = (AnimPdata*)pdata_of_proc(monk_process);
         mission_state->monk_process = monk_process;
@@ -3866,16 +3866,16 @@ static void trial_load_monk(void) {
             monk->ang.x = angles->x;
             monk->ang.y = angles->y;
             monk->ang.z = angles->z;
-            monk->flags_08_bits.scale_active = 1;
+            monk->flags.scale_active = 1;
             monk->scale.x = 1.1f;
             monk->scale.y = 1.1f;
             monk->scale.z = 1.1f;
-            monk->hide_flag_bits.pin_animation = 0;
+            monk->flags.pin_animation = 0;
             mission_state->monk = monk;
             mission_state->monk_instance = monk->hdr.instance;
             insert_ground_me_mkobj(monk);
-            monk->flags_09_bits.launched = 1;
-            monk->flags_09_bits.bit6 = 1;
+            monk->flags.launched = 1;
+            monk->flags.bit09_6 = 1;
         }
 
         script_process = _create_mkproc_generic_bigstack(0x9007, 0x1F, p_idle, 0, 0);
