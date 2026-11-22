@@ -23,6 +23,20 @@
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
 
+#ifdef VERSION_GQNE5D
+#define NIS_PROC_PRIORITY 0x1F
+#define NIS_SKIP_STRING 0x10001
+#define NIS_SKIP_TEXT_Y 0x1A1
+#define NIS_KAMIDOGU_DROP_SOUND 0x1789
+#endif
+
+#ifdef VERSION_SLUS_208_81
+#define NIS_PROC_PRIORITY 0x1E
+#define NIS_SKIP_STRING 0x10000
+#define NIS_SKIP_TEXT_Y 0x185
+#define NIS_KAMIDOGU_DROP_SOUND 0x17E7
+#endif
+
 struct NisPdata {
     MkHdr hdr;
     unsigned int cancel_func;
@@ -37,19 +51,14 @@ struct KamidoguDropPdata {
     Quat quat;
 };
 
-static const char stringBase0[] =
-    "SHUJINKO_UNLOCKED_A\0"
-    "SHUJINKO_UNLOCKED_B\0"
-    "nx1_nis_1_anims.sec\0"
-    "unlock_screen.sec\0"
-    "nx1_dialog_text.mko\0";
-
 const int gap_04_80314D64_rodata = 0;
 
 static unsigned int nis_event_list[4];
 
 int gap_08_80510E74_sbss;
+#ifdef VERSION_GQNE5D
 static int nis_wait_override;
+#endif
 
 extern char bgnd_animations[];
 
@@ -73,23 +82,27 @@ static void mkproc_sleep(void) {
     aproc->vtbl->sleep();
 }
 
+#ifdef VERSION_GQNE5D
 #pragma optimize_for_size on
+#endif
 void show_shujinko_unlock_screen(int string_id) {
     int x_pos;
     StringObj* str_obj;
 
     x_pos = (screen_width - 0x300) / 2;
-    load_named_2d_pfxobj_xy(0x10005, 0x7F01, &stringBase0[0], 0, x_pos, 0, 0xE);
-    load_named_2d_pfxobj_xy(0x10005, 0x7F01, &stringBase0[0x14], 0, x_pos + 0x200, 0, 0xE);
+    load_named_2d_pfxobj_xy(0x10005, 0x7F01, "SHUJINKO_UNLOCKED_A", 0, x_pos, 0, 0xE);
+    load_named_2d_pfxobj_xy(0x10005, 0x7F01, "SHUJINKO_UNLOCKED_B", 0, x_pos + 0x200, 0, 0xE);
     str_obj = create_wrapped_string(0x7F01, load_font(9), get_string_by_id(string_id | 0x20000), screen_width / 4, 0.3f * screen_height, screen_width / 2, 0, 1, 0);
     insert_2d_obj((ScreenObj*)str_obj);
     fade_from_black(8, 1);
     _mkproc_sleep_ticks = 180.0f;
     mkproc_sleep();
-    _create_mkproc_generic_tinystack(0x9031, 0x1F, p_fade_fullscreen_image, 0, 0);
+    _create_mkproc_generic_tinystack(0x9031, NIS_PROC_PRIORITY, p_fade_fullscreen_image, 0, 0);
 }
 
+#ifdef VERSION_GQNE5D
 #pragma optimize_for_size reset
+#endif
 
 static float p_fade_fullscreen_image(void) {
     float sleep_ticks;
@@ -112,7 +125,9 @@ static float p_fade_fullscreen_image(void) {
     return -1.0f;
 }
 
+#ifdef VERSION_GQNE5D
 #pragma optimize_for_size on
+#endif
 
 void release_kamidogu(MkObj* owner, void* bonematcher) {
     MkProc* matcher_proc;
@@ -128,7 +143,7 @@ void release_kamidogu(MkObj* owner, void* bonematcher) {
         return;
     }
     owner->flags.airborne = 1;
-    if (_create_mkproc_generic_nostack(0x902E, 0x1F, p_drop_kamidogu, sizeof(struct KamidoguDropPdata), (MkHdr**)&pdata) == 0) {
+    if (_create_mkproc_generic_nostack(0x902E, NIS_PROC_PRIORITY, p_drop_kamidogu, sizeof(struct KamidoguDropPdata), (MkHdr**)&pdata) == 0) {
         return;
     }
     set_mat(&matrix, owner->field_24);
@@ -139,7 +154,7 @@ void release_kamidogu(MkObj* owner, void* bonematcher) {
     mat_to_quat(&pdata->quat, &matrix);
     pdata->owner = owner;
     pdata->owner_id = owner->hdr.instance;
-    snd_req_vol(0x1789, 2.0f);
+    snd_req_vol(NIS_KAMIDOGU_DROP_SOUND, 2.0f);
 }
 
 static float p_drop_kamidogu(void) {
@@ -165,7 +180,9 @@ static float p_drop_kamidogu(void) {
     return 1.0f;
 }
 
+#ifdef VERSION_GQNE5D
 #pragma optimize_for_size reset
+#endif
 
 float p_konquest_ending(void) {
     GameInfo* info;
@@ -175,10 +192,10 @@ float p_konquest_ending(void) {
     display_load_meter(0x50014);
     turn_camera_on();
     load_background(0x22);
-    add_anim_section_by_name_async_pal(0x50014, &stringBase0[0x28], &bgnd_animations[0x28], 0, 0);
+    add_anim_section_by_name_async_pal(0x50014, "nx1_nis_1_anims.sec", &bgnd_animations[0x28], 0, 0);
     wait_for_slot_load(0x50014);
-    load_art_section_by_name(0x10005, &stringBase0[0x3C]);
-    load_string_bank(0x20000, &stringBase0[0x4E]);
+    load_art_section_by_name(0x10005, "unlock_screen.sec");
+    load_string_bank(0x20000, "nx1_dialog_text.mko");
     info = &g_game_info;
     info->plyr0.player_state = 2;
     info->plyr0.player_index = 0x19;
@@ -211,13 +228,17 @@ float p_konquest_ending(void) {
     return -1.0f;
 }
 
+#ifdef VERSION_GQNE5D
 void nis_set_wait_override(int value) {
     nis_wait_override = value;
 }
+#endif
 
 void nis_clear_event_list(void) {
     memset(nis_event_list, 0, sizeof(nis_event_list));
+#ifdef VERSION_GQNE5D
     nis_wait_override = 0;
+#endif
 }
 
 void nis_show_cancel_message(void) {
@@ -229,7 +250,7 @@ void nis_show_cancel_message(void) {
     if (parent_proc != 0) {
         pdata = (struct NisPdata*)pdata_of_proc(parent_proc);
         if (pdata != 0 && pdata->cancel_func != 0) {
-            new_proc = _create_mkproc_generic_nostack(0x901A, 0x1F, p_init_skip_nis, 0, 0);
+            new_proc = _create_mkproc_generic_nostack(0x901A, NIS_PROC_PRIORITY, p_init_skip_nis, 0, 0);
             if (new_proc != 0) {
                 mk_insert((MkHdr*)new_proc, &parent_proc->pdata_list_b);
             }
@@ -238,14 +259,16 @@ void nis_show_cancel_message(void) {
     }
 }
 
+#ifdef VERSION_GQNE5D
 #pragma optimize_for_size on
+#endif
 static float p_init_skip_nis(void) {
     const char* text;
     StringObj* str_obj;
 
-    text = get_string_by_id(0x10001);
+    text = get_string_by_id(NIS_SKIP_STRING);
     load_font(6);
-    str_obj = string_center_xy(0x900F, 6, text, screen_width / 2, 0x1A1, 0xB);
+    str_obj = string_center_xy(0x900F, 6, text, screen_width / 2, NIS_SKIP_TEXT_Y, 0xB);
     if (str_obj != 0) {
         mk_insert((MkHdr*)str_obj, &aproc->pdata_list_b);
     }
@@ -253,7 +276,9 @@ static float p_init_skip_nis(void) {
     return 0.0f;
 }
 
+#ifdef VERSION_GQNE5D
 #pragma optimize_for_size reset
+#endif
 
 static float p_check_skip_nis(void) {
     MkProc* parent_proc;
@@ -304,16 +329,19 @@ void nis_end(void) {
     destroy_mkprocs_pid(0x900C);
 }
 
-void nis_signal_event(int event) {
+void nis_signal_event(unsigned int event) {
     int bit_index;
 
     bit_index = event & 0x1F;
-    event = (unsigned int)event >> 5;
-    nis_event_list[event] |= 1U << bit_index;
+    event = event >> 5;
+    nis_event_list[event] |= 1 << bit_index;
 }
 
+#ifdef VERSION_GQNE5D
 #pragma optimize_for_size on
+#endif
 
+#ifdef VERSION_GQNE5D
 void nis_wait_for_event(int event, int timeout) {
     unsigned int* event_word;
     int bit_index;
@@ -334,15 +362,42 @@ void nis_wait_for_event(int event, int timeout) {
         mkproc_sleep();
     }
 }
+#endif
+
+#ifdef VERSION_SLUS_208_81
+void nis_wait_for_event(int event, int timeout) {
+    unsigned int mask;
+    unsigned int* event_word;
+    float sleep_ticks;
+
+    sleep_ticks = 1.0f;
+    event_word = &nis_event_list[(unsigned int)event >> 5];
+    mask = 1U << (event & 0x1F);
+    if ((*event_word & mask) == 0) {
+        do {
+            if (timeout == 0) {
+                break;
+            }
+            if (timeout > 0) {
+                timeout--;
+            }
+            _mkproc_sleep_ticks = sleep_ticks;
+            mkproc_sleep();
+        } while ((*event_word & mask) == 0);
+    }
+}
+#endif
 
 void nis_init(ScriptSlot* cmdscript, unsigned int scene_func, unsigned int cancel_func) {
     MkProc* proc;
     struct NisPdata* pdata;
 
     memset(nis_event_list, 0, sizeof(nis_event_list));
+#ifdef VERSION_GQNE5D
     nis_wait_override = 0;
+#endif
     push_game_state(0x16);
-    proc = _create_mkproc_generic_bigstack(0x900C, 0x1F, p_run_nis_scene, sizeof(struct NisPdata), (MkHdr**)&pdata);
+    proc = _create_mkproc_generic_bigstack(0x900C, NIS_PROC_PRIORITY, p_run_nis_scene, sizeof(struct NisPdata), (MkHdr**)&pdata);
     if (proc == 0) {
         return;
     }
@@ -350,11 +405,15 @@ void nis_init(ScriptSlot* cmdscript, unsigned int scene_func, unsigned int cance
     pdata->scene_func = scene_func;
     pdata->cancel_func = cancel_func;
     pdata->cmdscript = cmdscript;
+#ifdef VERSION_GQNE5D
     nis_wait_override = 0;
+#endif
     set_process_as_scriptable(proc);
 }
 
+#ifdef VERSION_GQNE5D
 #pragma optimize_for_size reset
+#endif
 
 static float p_run_nis_scene(void) {
     struct NisPdata* pdata;

@@ -1376,16 +1376,8 @@ typedef struct ChessGroundBeamPdata {
 
 static float mk_chess_continue_pre_fight_chores(void);
 
-#ifndef __MWERKS__
-extern float fmaf(float, float, float);
-#endif
-
 static inline float mk_chess_camera_distance_squared(float x, float z) {
-#ifdef __MWERKS__
-    return __fmadds(x, x, z * z);
-#else
-    return fmaf(x, x, z * z);
-#endif
+    return x * x + z * z;
 }
 static float p_mk_chess_show_fight_message(void);
 static void mk_chess_save_current_state(ChessPiece* piece, unsigned char x, unsigned char y);

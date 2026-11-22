@@ -1,5 +1,6 @@
 #include "game/game_info.h"
 #include "fdlibm.h"
+#include "runtime/cmath.h"
 #include "game/jdn.h"
 #include "game/fx.h"
 #include "libmkparticle/color.h"
@@ -147,8 +148,8 @@ static float pfx_glass_break_run(void) {
     int bounce_limit;
 
     bounce_limit = apfx->effect_state;
-    moving_damping = pow(0.99f, game_speed);
-    resting_damping = pow(0.975f, game_speed);
+    moving_damping = powf(0.99f, game_speed);
+    resting_damping = powf(0.975f, game_speed);
     gravity = 0.003f * game_speed;
     vm = (PfxVm*)apfx->matrix;
     dst_scale = pfx_get_field(vm, -2, 0x102);

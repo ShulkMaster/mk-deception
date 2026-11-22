@@ -67,21 +67,6 @@ void gamelogic_jump(int mode, MainProcEntryFn entry) {
     longjmp(exec_loop_jump_buffer, jump_target_mode);
 }
 
-union MainFloatBits {
-    float value;
-    unsigned int bits;
-};
-
-static inline float main_sqrt(float value) {
-    union MainFloatBits input;
-    union MainFloatBits estimate;
-
-    input.value = value;
-    estimate.bits = (unsigned int) GXMathSqrtTable[(input.bits >> 11) & 0x1fff] << 8;
-    estimate.bits |= (((input.bits & 0x7f800000) + 0x3f800000) >> 1) & 0x7f800000;
-    return 0.5f * (estimate.value * (3.0f - (estimate.value * estimate.value) / value));
-}
-
 int main(void) {
     gc_start_reset_watch();
     gc_aram_init();
@@ -166,11 +151,11 @@ void reset_game_speed(void) {
     if (refresh_rate() == 50) {
         game_speed = 1.2f;
         inverse_game_speed = 0.8333333f;
-        sqrt_game_speed = main_sqrt(1.2f);
+        sqrt_game_speed = gxMathFastSqrt(1.2f);
     } else {
         game_speed = 1.0f;
         inverse_game_speed = 1.0f;
-        sqrt_game_speed = main_sqrt(1.0f);
+        sqrt_game_speed = gxMathFastSqrt(1.0f);
     }
 }
 
@@ -183,29 +168,12 @@ float get_game_speed(void) {
 }
 
 void set_game_speed(float speed) {
-    union MainFloatBits estimate;
-    union MainFloatBits input;
-    float correction;
-    float estimate_squared;
     float square_root = 0.0f;
 
     game_speed = speed;
     if (speed != 0.0f) {
-        input.value = speed;
         inverse_game_speed = 1.0f / speed;
-        square_root = speed <= 0.0f
-                          ? 0.0f
-                          : (estimate.bits =
-                                 (unsigned int)GXMathSqrtTable[
-                                     (input.bits >> 11) & 0x1fff]
-                                 << 8,
-                             estimate.bits |=
-                                 (((input.bits & 0x7f800000) + 0x3f800000) >>
-                                  1) &
-                                 0x7f800000,
-                             estimate_squared = estimate.value * estimate.value,
-                             correction = 3.0f - estimate_squared / speed,
-                             0.5f * (estimate.value * correction));
+        square_root = gxMathFastSqrt(speed);
         sqrt_game_speed = square_root;
     } else {
         inverse_game_speed = 1.0e9f;

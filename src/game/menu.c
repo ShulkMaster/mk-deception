@@ -1040,7 +1040,7 @@ static inline int pause_menu_allowed(void) {
         return 0;
     }
     if (mode_of_play == 6) {
-        if ((int)display_off != 0) {
+        if (display_off != 0) {
             return 0;
         }
         if (g_game_info.flag_bits.high_res_path != 0) {

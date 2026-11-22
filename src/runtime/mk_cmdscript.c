@@ -332,20 +332,20 @@ void parse_args(const char* fmt, ...) {
     unsigned int val;
     char* strings;
 
-    __builtin_va_info(&ap);
+    va_start(ap, fmt);
     arg_index = 1;
     while (*fmt != '\0') {
         if (*fmt == 'i') {
-            int* out = *(int**)__va_arg(ap, 1);
+            int* out = va_arg(ap, int*);
             *out = current_args[arg_index];
         } else if (*fmt == 'u') {
-            unsigned int* out = *(unsigned int**)__va_arg(ap, 1);
+            unsigned int* out = va_arg(ap, unsigned int*);
             *out = current_args[arg_index];
         } else if (*fmt == 'f') {
-            float* out = *(float**)__va_arg(ap, 1);
+            float* out = va_arg(ap, float*);
             *out = ((float*)current_args)[arg_index];
         } else if (*fmt == 's') {
-            char** out = *(char***)__va_arg(ap, 1);
+            char** out = va_arg(ap, char**);
             char* result;
 
             val = current_args[arg_index];
@@ -361,10 +361,10 @@ void parse_args(const char* fmt, ...) {
             }
             *out = result;
         } else if (*fmt == 'v') {
-            void** out = *(void***)__va_arg(ap, 1);
+            void** out = va_arg(ap, void**);
             *out = (void*)current_args[arg_index];
         } else if (*fmt == 'c') {
-            ScriptBuiltinFn* out = *(ScriptBuiltinFn**)__va_arg(ap, 1);
+            ScriptBuiltinFn* out = va_arg(ap, ScriptBuiltinFn*);
             val = current_args[arg_index];
             if (val == 0) {
                 val = 0;
@@ -576,13 +576,13 @@ void cmdscript_setup_execution(ScriptSlot* slot, unsigned int func_index) {
 void cmdscript_set_parameters(CmdScript* script, unsigned int count, ...) {
     __va_list ap;
     unsigned int i;
-    int* val;
+    int val;
 
     if (script != 0 && count <= 5 && count != 0) {
-        __builtin_va_info(&ap);
+        va_start(ap, count);
         for (i = 0; i < count; i++) {
-            val = __va_arg(ap, 1);
-            script->stack_sp->args[i] = *val;
+            val = va_arg(ap, int);
+            script->stack_sp->args[i] = val;
         }
         va_end(ap);
     }

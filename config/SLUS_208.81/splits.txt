@@ -1,10 +1,16 @@
 Sections:
-	.text       type:code align:16
-	.data       type:data align:16
-	.rodata     type:rodata align:16
-	.sdata      type:data align:8
-	.sbss       type:bss align:8
-	.bss        type:bss align:16
+	.text       type:code align:16 start:0x00100000 end:0x00497360
+	.vutext     type:data align:16 start:0x00497380 end:0x004F5D80
+	.data       type:data align:16 start:0x004F5D80 end:0x00589B80
+	.vudata     type:data align:16 start:0x00589B80 end:0x00589C80
+	.rodata     type:rodata align:16 start:0x00589C80 end:0x005D2700
+	.init       type:code align:16 start:0x005D2700 end:0x005D2A50
+	.ctor       type:rodata align:4 start:0x005D2A50 end:0x005D2A70
+	.vtables    type:rodata align:16 start:0x005D2A70 end:0x005D4B20
+	.lcfdata    type:data align:16 start:0x005D4B20 end:0x005D4B80
+	.sdata      type:data align:8 start:0x005D4B80 end:0x005D6280
+	.sbss       type:bss align:8 start:0x005D6280 end:0x005D7700
+	.bss        type:bss align:16 start:0x005D7700 end:0x00759700
 
 mwMem.o:
 	.text       start:0x003B9CF0 end:0x003BB9E0

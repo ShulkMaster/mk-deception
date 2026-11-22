@@ -3271,7 +3271,7 @@ float p_setup_konquest_map(void) {
     }
 
     konquest_pdata->time_rate_changed = 1;
-    if ((int)display_off != 0) {
+    if (display_off != 0) {
         turn_camera_on();
         fade_from_black(5, 0);
     }
@@ -6391,7 +6391,7 @@ static void object_transition_to_state(
         state_data->position_speed.z * state_data->position_speed.z);
     if (position_speed > 0.0f) {
         position_motion.remaining_ticks /= position_speed;
-        position_motion.remaining_ticks = floor(position_motion.remaining_ticks);
+        position_motion.remaining_ticks = floorf(position_motion.remaining_ticks);
     }
     inverse = gxMathFastInvSqrt(position_motion.length_squared);
     position_motion.velocity.x *= inverse;
@@ -6415,7 +6415,7 @@ static void object_transition_to_state(
         state_data->angle_speed.z * state_data->angle_speed.z);
     if (angle_speed > 0.0f) {
         angle_motion.remaining_ticks /= angle_speed;
-        angle_motion.remaining_ticks = floor(angle_motion.remaining_ticks);
+        angle_motion.remaining_ticks = floorf(angle_motion.remaining_ticks);
     }
     inverse = gxMathFastInvSqrt(angle_motion.length_squared);
     angle_motion.velocity.x *= inverse;
@@ -9219,7 +9219,7 @@ static void handle_monk_input(void) {
 
         if (magnitude > 0.01f) {
             konquest_pdata->npc_interaction_state = 0;
-            target_angle = atan2(direction.y, direction.x);
+            target_angle = atan2f(direction.y, direction.x);
             target_angle = norm_angle(camera->ang.y + (target_angle - 1.5707964f));
             angle_difference = hero->ang.y - target_angle;
             angle_magnitude = angle_difference >= 0.0f
@@ -11092,11 +11092,11 @@ MkProc* konquest_set_dialog_text(
             duration_per_character =
                 duration_of_lip_sync(lip_sync_keyframes) /
                 (float)text_length;
-            if ((int)(float)ceil(duration_per_character) >= 10) {
+            if ((int)ceilf(duration_per_character) >= 10) {
                 computed_speed = 10;
             } else {
                 int rounded_speed;
-                rounded_speed = (float)ceil(duration_per_character);
+                rounded_speed = ceilf(duration_per_character);
                 computed_speed = rounded_speed;
             }
             print_speed = computed_speed;

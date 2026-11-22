@@ -39,7 +39,7 @@ unsigned char* privGetOSMemory(u32 size) {
 void MEMPRINT(const char* format, ...) {
     __va_list args;
 
-    __builtin_va_info(args);
+    va_start(args, format);
     vsprintf(printBuff, format, args);
     mwMemUserConfigPrintf(printBuff);
 }

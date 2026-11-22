@@ -1387,7 +1387,7 @@ static float p_handle_screen_engine_controller__Fv(void) {
         return kSleepOne;
     }
 
-    if (g_game_info.pause_flag_bits.controllers_disabled != 0 ||
+    if (g_game_info.flag_bytes.pause_flag_bits.controllers_disabled != 0 ||
         g_game_info.pads[ctrl->port].flag_bits.disabled != 0) {
         return kSleepOne;
     }
@@ -1947,7 +1947,12 @@ int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
         out->data->count = count;
         pair.colors = out->data->colors;
         pair.alphas = out->data->alphas;
+#ifdef VERSION_GQNE5D
         get_pselect_head_textures(pair);
+#endif
+#ifdef VERSION_SLUS_208_81
+        get_pselect_head_textures(out->data->colors);
+#endif
         break;
     case 0x1fdc:
     case 0x1fdd:
@@ -5489,7 +5494,7 @@ void Render__14ScreenParticleFP16ScreenRenderInfo(ScreenParticle* self,
 void Dispose__14ScreenParticleFv(ScreenParticle* self) {}
 
 unsigned int IsVisible__14ScreenParticleFv(ScreenParticle* self) {
-    return (unsigned int)__cntlzw(self->hide) >> 5;
+    return self->hide == 0;
 }
 
 void SetVisible__14ScreenParticleFUi(ScreenParticle* self, unsigned int visible) {
@@ -5509,7 +5514,7 @@ ScreenParticle* __dt__14ScreenParticleFv(ScreenParticle* self, short del) {
 }
 
 unsigned int IsVisible__10ScreenPolyFv(ScreenPoly* poly) {
-    return (unsigned int)__cntlzw((poly->filterFlags >> 7) & 1) >> 5;
+    return poly->filterBits.hidden == 0;
 }
 
 void SetVisible__10ScreenPolyFUi(ScreenPoly* poly, unsigned int visible) {

@@ -317,7 +317,7 @@ void render_mkatomic(RpAtomic* atomic) {
     sobj = MK_ATOMIC_PLUGIN(atomic)->sobj;
     if (sobj == 0) {
         set_render_state(0x14, 2);
-        if ((int)f_render_all_atomics != 0) {
+        if (f_render_all_atomics != 0) {
             saved_flags = atomic->object.flags;
             atomic->object.flags |= 4;
             atomic->renderCallBack(atomic);
@@ -330,7 +330,7 @@ void render_mkatomic(RpAtomic* atomic) {
         }
         return;
     }
-    if (sobj->flags09_bits.bit4 || (int)f_render_all_atomics != 0 ||
+    if (sobj->flags09_bits.bit4 || f_render_all_atomics != 0 ||
         RwCameraFrustumTestSphere(Camera, RpAtomicGetWorldBoundingSphere(atomic)) != 0) {
         if (sobj->flags09_bits.bit7)
             set_render_state(8, 0);
@@ -349,7 +349,7 @@ void render_mkatomic(RpAtomic* atomic) {
         } else {
             set_render_state(0x14, 2);
         }
-        if ((int)f_render_all_atomics != 0) {
+        if (f_render_all_atomics != 0) {
             saved_flags = atomic->object.flags;
             atomic->object.flags |= 4;
         }
@@ -360,7 +360,7 @@ void render_mkatomic(RpAtomic* atomic) {
         } else {
             atomic->renderCallBack(atomic);
         }
-        if ((int)f_render_all_atomics != 0)
+        if (f_render_all_atomics != 0)
             atomic->object.flags = saved_flags;
         if (sobj->flags09_bits.bit7)
             set_render_state(8, 1);
@@ -383,7 +383,7 @@ void render_mkobj(MkObj* object) {
     float depth;
     RwMatrix* camera_matrix;
     RwMatrix* atomic_ltm;
-    if (object->flags.hidden && (int)f_render_all_atomics == 0) {
+    if (object->flags.hidden && f_render_all_atomics == 0) {
         return;
     }
     for (clump_index = 0; clump_index < object->clump_count; clump_index++) {

@@ -689,7 +689,7 @@ static float p_do_controller_removed(void) {
         return -1.0f;
     }
 
-    while (g_game_info.flag_bits.high_res_path || (int)display_off != 0) {
+    while (g_game_info.flag_bits.high_res_path || display_off != 0) {
         if (g_game_info.pads[port].flag_bits.connected) {
             unmute_all_game_sounds();
             return -1.0f;
@@ -791,7 +791,7 @@ static float p_do_controller_removed(void) {
         }
 
         if (!g_game_info.feature_flags.bits.online_game) {
-            if ((int)display_off == 0) {
+            if (display_off == 0) {
                 pause_procs(1);
             } else {
                 pause_procs(0);
