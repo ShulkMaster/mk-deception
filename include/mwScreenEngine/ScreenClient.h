@@ -1,5 +1,6 @@
 #ifndef MWSCREENENGINE_SCREENCLIENT_H
 #define MWSCREENENGINE_SCREENCLIENT_H
+#include "dolphin/types.h"
 class ScreenObject; class ScreenMgr; class ScreenAction; class ScreenSet; class Screen;
 class ScreenRenderInfo; class ScreenResourceLibrary; class ScreenMatrixStack; class ScreenParams;
 class ScreenClient {
@@ -7,7 +8,7 @@ public:
     ScreenClient();
     virtual void PrintObjectDepth(ScreenRenderInfo*, int, int);
     virtual ~ScreenClient();
-    virtual void* Malloc(unsigned long, int, char*) = 0;
+    virtual void* Malloc(size_t, int, char*) = 0;
     virtual void Free(void*) = 0;
     virtual ScreenResourceLibrary* CreateResourceLibrary(ScreenResourceLibrary*) = 0;
     virtual void DestroyResourceLibrary(ScreenResourceLibrary*) = 0;

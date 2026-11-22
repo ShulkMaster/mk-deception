@@ -1,6 +1,8 @@
 #ifndef MSL_MSLPLAYABLE_H
 #define MSL_MSLPLAYABLE_H
 
+#include "dolphin/types.h"
+
 struct _mslBank;
 struct _GameCubeFileEntry;
 struct _AXVPB;
@@ -28,19 +30,19 @@ public:
     virtual void PrepForPlay(void);
     virtual int IsReadyToPlay(void);
     virtual int GetNumChannels(void);
-    virtual int GetStatus(unsigned long* status);
-    virtual int SetFrequency(unsigned long frequency);
+    virtual int GetStatus(u32* status);
+    virtual int SetFrequency(u32 frequency);
     virtual int SetRelativeFrequency(float frequency);
-    virtual int SetVolume(long volume);
+    virtual int SetVolume(s32 volume);
     virtual int SetRelativeVolume(float volume);
     virtual int SetPan(unsigned char pan);
     virtual int SetSurroundPan(unsigned char pan);
     virtual int SetRelativePan(float pan);
-    virtual int Play(unsigned long flags);
+    virtual int Play(u32 flags);
     virtual int Stop(void);
     virtual int Pause(void);
     virtual int UnPause(void);
-    virtual int SetCurrentPosition(unsigned long position);
+    virtual int SetCurrentPosition(u32 position);
 };
 
 class SoundBuffer_Data : public SoundBuffer {
@@ -62,37 +64,37 @@ public:
     virtual void FreeObject(void);
     virtual void FreeResources(void);
     virtual int IsReadyToPlay(void);
-    virtual int GetStatus(unsigned long* status);
-    virtual int SetFrequency(unsigned long frequency);
+    virtual int GetStatus(u32* status);
+    virtual int SetFrequency(u32 frequency);
     virtual int SetRelativeFrequency(float frequency);
-    virtual int SetVolume(long volume);
+    virtual int SetVolume(s32 volume);
     virtual int SetRelativeVolume(float volume);
     virtual int SetPan(unsigned char pan);
     virtual int SetSurroundPan(unsigned char pan);
     virtual int SetRelativePan(float pan);
-    virtual int Play(unsigned long flags);
+    virtual int Play(u32 flags);
     virtual int Stop(void);
     virtual int Pause(void);
     virtual int UnPause(void);
-    virtual int SetCurrentPosition(unsigned long position);
+    virtual int SetCurrentPosition(u32 position);
     virtual void LostVoice(_AXVPB* voice);
     virtual void iUpdate_AXUser(void);
     virtual void iUpdate_MslTick(void);
     virtual void StopIfDonePlaying(void);
     static void AcquireVoiceCallback(void* voice);
-    int iPlay(unsigned long flags, unsigned long acquire_priority,
-              unsigned long active_priority);
+    int iPlay(u32 flags, u32 acquire_priority,
+              u32 active_priority);
     void InitializeVoice(_AXVPB* voice, SPSoundEntry* sound,
                          int stream_loop, int use_loop_address);
 
     SoundBuffer_Playable* next;
     SoundBuffer_Playable* previous;
-    unsigned long current_position;
-    unsigned long mix_fader;
+    u32 current_position;
+    u32 mix_fader;
     unsigned char pan;
     unsigned char volume;
-    unsigned long frequency;
-    long state;
+    u32 frequency;
+    s32 state;
     _AXVPB* voices[2];
 };
 

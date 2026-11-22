@@ -1,6 +1,7 @@
 #ifndef DOLPHIN_VI_H
 #define DOLPHIN_VI_H
 
+#include "dolphin/types.h"
 #include "dolphin/gx.h"
 
 #define VI_TVMODE(format, scan) (((format) << 2) + (scan))
@@ -26,7 +27,7 @@ typedef enum VITVMode {
 } VITVMode;
 
 typedef enum VIXFBMode { VI_XFBMODE_SF, VI_XFBMODE_DF } VIXFBMode;
-typedef void (*VIRetraceCallback)(unsigned long retrace_count);
+typedef void (*VIRetraceCallback)(u32 retrace_count);
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,12 +35,12 @@ extern "C" {
 
 void VISetBlack(int black);
 void VIInit(void);
-unsigned long VIGetTvFormat(void);
+u32 VIGetTvFormat(void);
 void VIConfigure(const GXRenderModeObj* mode);
 void VIFlush(void);
 void VIWaitForRetrace(void);
-unsigned long VIGetDTVStatus(void);
-unsigned long VIGetNextField(void);
+u32 VIGetDTVStatus(void);
+u32 VIGetNextField(void);
 void VISetNextFrameBuffer(void* framebuffer);
 VIRetraceCallback VISetPreRetraceCallback(VIRetraceCallback callback);
 VIRetraceCallback VISetPostRetraceCallback(VIRetraceCallback callback);
@@ -47,11 +48,11 @@ void VIConfigurePan(unsigned short x, unsigned short y,
                     unsigned short width, unsigned short height);
 void VISetNextRightFrameBuffer(void* framebuffer);
 void VISet3D(int enabled);
-unsigned long VIGetRetraceCount(void);
-unsigned long VIGetCurrentLine(void);
+u32 VIGetRetraceCount(void);
+u32 VIGetCurrentLine(void);
 void* VIGetNextFrameBuffer(void);
 void* VIGetCurrentFrameBuffer(void);
-unsigned long VIGetScanMode(void);
+u32 VIGetScanMode(void);
 extern GXRenderModeObj GXNtsc480IntDf;
 extern GXRenderModeObj GXPal528IntDf;
 extern GXRenderModeObj GXMpal480IntDf;

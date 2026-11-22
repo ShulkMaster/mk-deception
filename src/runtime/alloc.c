@@ -264,7 +264,7 @@ static inline __mem_pool* get_malloc_pool(void) {
     return &pool;
 }
 
-void* calloc(unsigned long count, unsigned long size) {
+void* calloc(size_t count, size_t size) {
     void* result;
 
     __begin_critical_region(1);
@@ -273,7 +273,7 @@ void* calloc(unsigned long count, unsigned long size) {
     return result;
 }
 
-void* realloc(void* ptr, unsigned long size) {
+void* realloc(void* ptr, size_t size) {
     void* result;
 
     __begin_critical_region(1);

@@ -35,7 +35,7 @@ public:
     static void RegisterGameVariables(unsigned int unused, GameVariables* vars);
 
     virtual int HandleAction(ScreenMgr* mgr, const ScreenAction* action);
-    static void* operator new(unsigned long size);
+    static void* operator new(size_t size);
     static void operator delete(void* p);
     virtual void ProcessParams(ScreenParams* params) = 0;
     virtual void Update();

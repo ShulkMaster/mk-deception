@@ -1,6 +1,8 @@
 #ifndef DOLPHIN_PAD_H
 #define DOLPHIN_PAD_H
 
+#include "dolphin/types.h"
+
 #define PAD_SPEC_0 0
 #define PAD_SPEC_1 1
 #define PAD_SPEC_2 2
@@ -54,24 +56,24 @@ extern "C" {
 
 typedef void (*PADSamplingCallback)(void);
 
-unsigned long PADRead(PADStatus* status);
+u32 PADRead(PADStatus* status);
 void PADClampCircle(PADStatus* status);
 int PADInit(void);
-int PADReset(unsigned long channels);
-void PADControlMotor(signed long channel, unsigned long command);
-int PADRecalibrate(unsigned long channels);
-unsigned long PADRead(PADStatus* status);
-void PADSetSamplingRate(unsigned long milliseconds);
-void PADControlAllMotors(const unsigned long* commands);
-void PADSetSpec(unsigned long spec);
-unsigned long PADGetSpec(void);
-int PADGetType(signed long channel, unsigned long* type);
+int PADReset(u32 channels);
+void PADControlMotor(s32 channel, u32 command);
+int PADRecalibrate(u32 channels);
+u32 PADRead(PADStatus* status);
+void PADSetSamplingRate(u32 milliseconds);
+void PADControlAllMotors(const u32* commands);
+void PADSetSpec(u32 spec);
+u32 PADGetSpec(void);
+int PADGetType(s32 channel, u32* type);
 int PADSync(void);
-void PADSetAnalogMode(unsigned long mode);
+void PADSetAnalogMode(u32 mode);
 PADSamplingCallback PADSetSamplingCallback(PADSamplingCallback callback);
 int __PADDisableRecalibration(int disable);
-int PADIsBarrel(signed long channel);
-extern unsigned long __PADSpec;
+int PADIsBarrel(s32 channel);
+extern u32 __PADSpec;
 
 #ifdef __cplusplus
 }

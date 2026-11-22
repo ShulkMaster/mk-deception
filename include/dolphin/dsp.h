@@ -1,21 +1,22 @@
 #ifndef DOLPHIN_DSP_H
 #define DOLPHIN_DSP_H
 
+#include "dolphin/types.h"
 #include "dolphin/os.h"
 
 typedef struct DSPTaskInfo DSPTaskInfo;
 typedef void (*DSPCallback)(DSPTaskInfo* task);
 
 struct DSPTaskInfo {
-    volatile unsigned long state;
-    volatile unsigned long priority;
-    volatile unsigned long flags;
+    volatile u32 state;
+    volatile u32 priority;
+    volatile u32 flags;
     unsigned short* iramMemoryAddress;
-    unsigned long iramLength;
-    unsigned long iramAddress;
+    u32 iramLength;
+    u32 iramAddress;
     unsigned short* dramMemoryAddress;
-    unsigned long dramLength;
-    unsigned long dramAddress;
+    u32 dramLength;
+    u32 dramAddress;
     unsigned short initVector;
     unsigned short resumeVector;
     DSPCallback initCallback;
@@ -28,10 +29,10 @@ struct DSPTaskInfo {
     OSTime taskTime;
 };
 
-unsigned long DSPCheckMailToDSP(void);
-unsigned long DSPCheckMailFromDSP(void);
-unsigned long DSPReadMailFromDSP(void);
-void DSPSendMailToDSP(unsigned long mail);
+u32 DSPCheckMailToDSP(void);
+u32 DSPCheckMailFromDSP(void);
+u32 DSPReadMailFromDSP(void);
+void DSPSendMailToDSP(u32 mail);
 void DSPAssertInt(void);
 void DSPInit(void);
 int DSPCheckInit(void);

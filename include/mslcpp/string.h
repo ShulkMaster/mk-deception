@@ -4,7 +4,7 @@
 #include "runtime/cstring.h"
 #include "mslcpp/msl_error.h"
 
-extern "C" void* memmove(void* destination, const void* source, unsigned long size);
+extern "C" void* memmove(void* destination, const void* source, size_t size);
 
 namespace std {
 
@@ -16,16 +16,16 @@ struct char_traits<char> {
     typedef char char_type;
 
     static void assign(char_type& c1, const char_type& c2) { c1 = c2; }
-    static unsigned long length(const char_type* s) { return strlen(s); }
-    static char_type* copy(char_type* s1, const char_type* s2, unsigned long n)
+    static size_t length(const char_type* s) { return strlen(s); }
+    static char_type* copy(char_type* s1, const char_type* s2, size_t n)
     {
         return (char_type*)memcpy(s1, s2, n);
     }
-    static char_type* move(char_type* s1, const char_type* s2, unsigned long n)
+    static char_type* move(char_type* s1, const char_type* s2, size_t n)
     {
         return (char_type*)memmove(s1, s2, n);
     }
-    static char_type* assign(char_type* s, unsigned long n, char_type a)
+    static char_type* assign(char_type* s, size_t n, char_type a)
     {
         return (char_type*)memset(s, static_cast<unsigned char>(a), n);
     }
@@ -44,7 +44,7 @@ template <class charT, class traits, class Allocator>
 class basic_string {
 public:
     typedef Allocator allocator_type;
-    typedef unsigned long size_type;
+    typedef size_t size_type;
     typedef charT* pointer;
     typedef charT& reference;
     typedef charT* iterator;

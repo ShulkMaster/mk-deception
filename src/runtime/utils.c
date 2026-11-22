@@ -83,7 +83,7 @@ void mslUnDuckAll(_mslSystem* system);
 
 struct FixedHeapConfigStorage {
     FixedHeapConfig heaps;
-    unsigned long field_0x34;
+    u32 field_0x34;
 };
 typedef char FixedHeapConfigStorageSizeCheck[
     sizeof(struct FixedHeapConfigStorage) == 0x38 ? 1 : -1];

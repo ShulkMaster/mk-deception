@@ -1,18 +1,21 @@
 #ifndef PLATFORM_OS_TYPES_H
 #define PLATFORM_OS_TYPES_H
+
+#include "dolphin/types.h"
+
 typedef int OSHeapHandle;
 typedef struct OSContext OSContext;
 typedef struct OSThread OSThread;
 typedef struct OSMutex OSMutex;
 
 struct OSContext {
-    unsigned long gpr[32];
-    unsigned long cr, lr, ctr, xer;
+    u32 gpr[32];
+    u32 cr, lr, ctr, xer;
     double fpr[32];
-    unsigned long fpscr_pad, fpscr, srr0, srr1;
+    u32 fpscr_pad, fpscr, srr0, srr1;
     unsigned short mode, state;
-    unsigned long gqr[8];
-    unsigned long psf_pad;
+    u32 gqr[8];
+    u32 psf_pad;
     double psf[32];
 };
 
@@ -39,7 +42,7 @@ typedef struct OSMutexLink {
 struct OSMutex {
     OSThreadQueue queue;
     OSThread* thread;
-    signed long count;
+    s32 count;
     OSMutexLink link;
 };
 
@@ -47,9 +50,9 @@ struct OSThread {
     OSContext context;
     unsigned short state;
     unsigned short attr;
-    signed long suspend;
-    signed long priority;
-    signed long base;
+    s32 suspend;
+    s32 priority;
+    s32 base;
     void* value;
     OSThreadQueue* queue;
     OSThreadLink link;
@@ -58,8 +61,8 @@ struct OSThread {
     OSMutexQueue queueMutex;
     OSThreadLink linkActive;
     unsigned char* stackBase;
-    unsigned long* stackEnd;
-    signed long error;
+    u32* stackEnd;
+    s32 error;
     void* specific[2];
 };
 
@@ -73,7 +76,7 @@ typedef char OSThreadSizeCheck[sizeof(OSThread) == 0x318 ? 1 : -1];
 typedef char OSCondSizeCheck[sizeof(OSCond) == 0x08 ? 1 : -1];
 struct OSAlarm {
     void (*handler)(struct OSAlarm* alarm, OSContext* context);
-    unsigned long tag;
+    u32 tag;
     signed long long fire;
     struct OSAlarm* prev;
     struct OSAlarm* next;

@@ -39,12 +39,12 @@ _mslSystem* gMsi;
 int SoundBufferCount;
 int SoundBufferCountStream;
 int SoundBufferCountStatic;
-unsigned long mslGCN_AXCallback_Ticks;
+u32 mslGCN_AXCallback_Ticks;
 ExternalHeap* g_MSL_GCN_ARAM_Heap;
-unsigned long g_MSL_GCN_ARAM_ZeroBase;
-volatile unsigned long g_MSL_volatile_flag;
-unsigned long g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start;
-unsigned long g_MSL_GCN_ARAM_ZeroBase_ADPCM_End;
+u32 g_MSL_GCN_ARAM_ZeroBase;
+volatile u32 g_MSL_volatile_flag;
+u32 g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start;
+u32 g_MSL_GCN_ARAM_ZeroBase_ADPCM_End;
 int debugger_mbo1;
 int debugger_at1;
 int debugger_snd;
@@ -198,7 +198,7 @@ extern "C" mslRuntimeWave* CopyStreamWave(
 
 extern "C" mslRuntimeWave* LoadStreamWaveFile(
     _mslSystem* system, mslLoadedBank* bank, const char* name,
-    unsigned long flags) {
+    u32 flags) {
     mslAssetWave* entry = mslBankFileEntryFind(bank, name);
     mslRuntimeWave* wave;
 
@@ -352,7 +352,7 @@ extern "C" mslRuntimeWave* CopyStaticWave(
 
 extern "C" mslRuntimeWave* LoadStaticWaveFile(
     _mslSystem* system, mslLoadedBank* bank, const char* name,
-    unsigned long flags) {
+    u32 flags) {
     mslAssetWave* entry = mslBankFileEntryFind(bank, name);
     mslRuntimeWave* wave;
 
@@ -382,7 +382,7 @@ extern "C" int mslTick(void) {
     int head;
     int processed;
     int item_count;
-    unsigned long enabled;
+    u32 enabled;
 
     mwFileTick();
     SoundBuffer::SB_MslTickCallback();
@@ -423,7 +423,7 @@ extern "C" int mslSetWavePath(
 }
 
 static inline void mslInitCleanup(_mslSystem* system) {
-    unsigned long i;
+    u32 i;
     _ListNode* adjustment;
     mslCallback* callback;
 
@@ -463,7 +463,7 @@ static inline void mslInitCleanup(_mslSystem* system) {
 extern "C" _mslSystem* mslInit(
     mslInitParam* init, mslSysInitParam* system_init) {
     _mslSystem* system;
-    unsigned long i;
+    u32 i;
     int mode;
     int sound_mode;
 
@@ -550,10 +550,10 @@ extern "C" _mslSystem* mslInit(
         ARQRequest request;
         unsigned char zero_storage[0x420];
         void* zero_buffer = (void*)(
-            ((unsigned long)zero_storage + 0x1F) & ~0x1FUL);
+            ((uptr)zero_storage + 0x1F) & ~(uptr)0x1F);
         int cache_total;
-        unsigned long heap_base;
-        unsigned long heap_size;
+        u32 heap_base;
+        u32 heap_size;
 
         g_MSL_GCN_ARAM_ZeroBase = system_init->aram_base;
         g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start =
@@ -563,7 +563,7 @@ extern "C" _mslSystem* mslInit(
         g_MSL_volatile_flag = 1;
         memset(zero_storage, 0, sizeof(zero_storage));
         ARQPostRequest(
-            &request, 0, 0, 1, (unsigned long)zero_buffer,
+            &request, 0, 0, 1, (uptr)zero_buffer,
             g_MSL_GCN_ARAM_ZeroBase, 0x400,
             MSL_ClearVolatileFlag);
 
@@ -643,13 +643,13 @@ fail:
     return 0;
 }
 
-extern "C" void MSL_ClearVolatileFlag(unsigned long request_address) {
+extern "C" void MSL_ClearVolatileFlag(u32 request_address) {
     g_MSL_volatile_flag = 0;
 }
 
 extern "C" void mslTickCallBack_Queue(
     void (*callback)(void*), void* callback_data) {
-    unsigned long enabled = OSDisableInterrupts();
+    u32 enabled = OSDisableInterrupts();
 
     if (g_mslTickCB_NumberItems < 20) {
         int tail = g_mslTickCB_Tail;

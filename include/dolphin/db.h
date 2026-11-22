@@ -1,6 +1,7 @@
 #ifndef DOLPHIN_DB_H
 #define DOLPHIN_DB_H
 
+#include "dolphin/types.h"
 #include "dolphin/os.h"
 
 #ifdef __cplusplus
@@ -8,8 +9,8 @@ extern "C" {
 #endif
 
 typedef struct DBInterface {
-    unsigned long debugger_present;
-    unsigned long exception_mask;
+    u32 debugger_present;
+    u32 exception_mask;
     void (*exception_destination)(void);
     void* exception_return;
 } DBInterface;

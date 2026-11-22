@@ -617,7 +617,7 @@ int ScreenInstancer::LoadSetData(ScreenSet* set, void* data, unsigned int,
     if (magic == kMagicSSET) {
         int numScreens = blob->numScreens;
         set->m_numScreens = numScreens;
-        set->m_screens = (Screen*)ScreenUtil::Malloc((unsigned long)numScreens * sizeof(Screen),
+        set->m_screens = (Screen*)ScreenUtil::Malloc((size_t)numScreens * sizeof(Screen),
                                                      kMallocTag, "SS-Screens");
         for (int templateIndex = 0; templateIndex < numScreens; templateIndex++) {
             memcpy(&set->m_screens[templateIndex], &templateScreen, sizeof(Screen));

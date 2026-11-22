@@ -45,10 +45,10 @@ class mwFileMountPoint : public mwFileQueryable {
 public:
     virtual ~mwFileMountPoint();
     virtual int startOpenFileCommand(
-        mwFileCommand*&, const char*, unsigned long,
+        mwFileCommand*&, const char*, u32,
         mwFileCallback, void*) = 0;
     virtual int convertToPlatformPath(
-        char*, const char*, unsigned long, unsigned long&) = 0;
+        char*, const char*, u32, u32&) = 0;
     virtual const char* getInternalPath() const = 0;
     virtual mwFileServer& getServer() = 0;
 
@@ -76,16 +76,16 @@ class mwFileDevice {
 
 class mwFile : public mwFileQueryable {
 public:
-    mwFile(mwFileMountPoint&, unsigned long);
+    mwFile(mwFileMountPoint&, u32);
     virtual ~mwFile() = 0;
 
     virtual int startCloseFileCommand(
         mwFileCommand*&, mwFileCallback, void*) = 0;
     virtual int startReadFileCommand(
-        mwFileCommand*&, unsigned long long, void*, unsigned long,
+        mwFileCommand*&, unsigned long long, void*, u32,
         unsigned char, mwFileCallback, void*) = 0;
     virtual int startWriteFileCommand(
-        mwFileCommand*&, unsigned long long, const void*, unsigned long,
+        mwFileCommand*&, unsigned long long, const void*, u32,
         unsigned char, mwFileCallback, void*) = 0;
     virtual int startFlushFileCommand(
         mwFileCommand*&, mwFileCallback, void*) = 0;
@@ -105,13 +105,13 @@ public:
     }
 
 private:
-    unsigned long field_0x04;
+    u32 field_0x04;
     unsigned long long size;
     unsigned long long position;
     int field_0x18;
     int error;
     mwFileMountPoint* mount_point;
-    unsigned long flags;
+    u32 flags;
 };
 
 typedef char mwFileSizeCheck[sizeof(mwFile) == 0x28 ? 1 : -1];
@@ -262,7 +262,7 @@ mwFile::~mwFile()
     _mwFilePlatformInterlockedDecrement(mount_point->referenceCount());
 }
 
-mwFile::mwFile(mwFileMountPoint& owner, unsigned long open_flags)
+mwFile::mwFile(mwFileMountPoint& owner, u32 open_flags)
     : size(0),
       position(0),
       field_0x18(0),

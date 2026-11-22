@@ -1,6 +1,7 @@
 #ifndef MSLCPP_VECTOR_H
 #define MSLCPP_VECTOR_H
 
+#include "dolphin/types.h"
 #include "mslcpp/msl_utility.h"
 #include "mslcpp/msl_error.h"
 #include "mslcpp/iterator.h"
@@ -12,7 +13,7 @@ template <class T, class Allocator>
 class __vector_deleter {
 public:
     typedef Allocator allocator_type;
-    typedef unsigned long size_type;
+    typedef size_t size_type;
     typedef T* pointer;
 
     __vector_deleter(const allocator_type& a) : cap_(a, 0), size_(0), data_(0) {}
@@ -58,7 +59,7 @@ inline void swap(__vector_deleter<T, Allocator>& x, __vector_deleter<T, Allocato
         T* tmp_data = x.data_;
         x.data_ = y.data_;
         y.data_ = tmp_data;
-        unsigned long tmp_size = x.size_;
+        size_t tmp_size = x.size_;
         x.size_ = y.size_;
         y.size_ = tmp_size;
     }
@@ -74,7 +75,7 @@ template <class T, class Allocator>
 class __vector_pod {
 public:
     typedef Allocator allocator_type;
-    typedef unsigned long size_type;
+    typedef size_t size_type;
     typedef T value_type;
     typedef T* pointer;
     typedef const T* const_pointer;
@@ -251,7 +252,7 @@ class __vector_imp<T, Allocator, false> : public __vector_deleter<T, Allocator> 
 
 public:
     typedef Allocator allocator_type;
-    typedef unsigned long size_type;
+    typedef size_t size_type;
     typedef T value_type;
     typedef T* pointer;
     typedef const T* const_pointer;
@@ -327,7 +328,7 @@ __vector_imp<T, Allocator, false>::erase(iterator first, iterator last)
         return first;
     }
     pointer e = this->data_ + this->size_;
-    long n = e - last;
+    sptr n = e - last;
     if (n != 0) {
         std::copy(last, e, first);
     }
@@ -425,14 +426,14 @@ void __vector_imp<T, Allocator, false>::insert(iterator position, size_type n,
 
 template <class T, class Allocator>
 class __vector_imp<T*, Allocator, true>
-    : public __vector_pod<unsigned long,
-                          typename Allocator::template rebind<unsigned long>::other> {
-    typedef typename Allocator::template rebind<unsigned long>::other base_allocator;
-    typedef __vector_pod<unsigned long, base_allocator> base;
+    : public __vector_pod<uptr,
+                          typename Allocator::template rebind<uptr>::other> {
+    typedef typename Allocator::template rebind<uptr>::other base_allocator;
+    typedef __vector_pod<uptr, base_allocator> base;
 
 public:
     typedef Allocator allocator_type;
-    typedef unsigned long size_type;
+    typedef size_t size_type;
     typedef T* value_type;
     typedef T** iterator;
     typedef T* const* const_iterator;
@@ -448,16 +449,16 @@ public:
     size_type size() const { return base::size(); }
     reference operator[](size_type n) { return (reference)base::operator[](n); }
 
-    void push_back(const value_type& x) { base::push_back((const unsigned long&)x); }
+    void push_back(const value_type& x) { base::push_back((const uptr&)x); }
     iterator insert(iterator position, const value_type& x)
     {
-        return (iterator)base::insert((unsigned long*)position, (const unsigned long&)x);
+        return (iterator)base::insert((uptr*)position, (const uptr&)x);
     }
     void resize(size_type sz) { base::resize(sz); }
-    iterator erase(iterator position) { return (iterator)base::erase((unsigned long*)position); }
+    iterator erase(iterator position) { return (iterator)base::erase((uptr*)position); }
     iterator erase(iterator first, iterator last)
     {
-        return (iterator)base::erase((unsigned long*)first, (unsigned long*)last);
+        return (iterator)base::erase((uptr*)first, (uptr*)last);
     }
 };
 
@@ -467,7 +468,7 @@ class vector : public __vector_imp<T, Allocator, false> {
 
 public:
     typedef Allocator allocator_type;
-    typedef unsigned long size_type;
+    typedef size_t size_type;
     typedef T value_type;
     typedef T* iterator;
     typedef T& reference;
@@ -495,7 +496,7 @@ class vector<T*, Allocator> : public __vector_imp<T*, Allocator, true> {
 
 public:
     typedef Allocator allocator_type;
-    typedef unsigned long size_type;
+    typedef size_t size_type;
     typedef T* value_type;
     typedef T** iterator;
     typedef T* const* const_iterator;

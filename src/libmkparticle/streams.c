@@ -80,13 +80,13 @@ void streampool_init(void) {
     streambuffer_info[0].frame_count = 2;
     streambuffer_info[0].frame_size = STREAM_FRAME_SIZE;
     streambuffer_info[0].buffer =
-        (unsigned char*)(((unsigned long)render_memory + 15) & ~15UL);
+        (unsigned char*)(((uptr)render_memory + 15) & ~(uptr)15);
     streambuffer_info[0].current_buffer = streambuffer_info[0].buffer;
 
     streambuffer_info[1].frame_count = 2;
     streambuffer_info[1].frame_size = STREAM_FRAME_SIZE;
     streambuffer_info[1].buffer =
-        (unsigned char*)(((unsigned long)property_memory + 15) & ~15UL);
+        (unsigned char*)(((uptr)property_memory + 15) & ~(uptr)15);
     streambuffer_info[1].current_buffer = streambuffer_info[1].buffer;
 }
 

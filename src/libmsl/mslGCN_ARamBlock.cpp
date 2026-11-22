@@ -43,7 +43,7 @@ MSLGCN_ARamBlock::~MSLGCN_ARamBlock() {
 }
 
 void MSLGCN_ARamBlock::Release(void) {
-    unsigned long enabled = OSDisableInterrupts();
+    u32 enabled = OSDisableInterrupts();
 
     if (--reference_count == 0) {
         if (unknown09 != 0) {
@@ -60,7 +60,7 @@ void MSLGCN_ARamBlock::Release(void) {
 void MSLGCN_ARamBlock::SetParent(MSLGCN_ARamBlock* new_parent) {
     if (parent != new_parent) {
         if (new_parent != 0) {
-            unsigned long enabled = OSDisableInterrupts();
+            u32 enabled = OSDisableInterrupts();
             new_parent->reference_count++;
             OSRestoreInterrupts(enabled);
         }
@@ -170,7 +170,7 @@ extern "C" void mslArqRequest_Init(void) {
 
 extern "C" mslARQRequest* mslGetArqRequest(void) {
     mslARQRequest* request;
-    unsigned long enabled = OSDisableInterrupts();
+    u32 enabled = OSDisableInterrupts();
 
     request = mslARQ_Req_FreeList;
     if (request != 0) {
@@ -181,7 +181,7 @@ extern "C" mslARQRequest* mslGetArqRequest(void) {
     return request;
 }
 
-extern "C" void i_ARQCALLBACK_ReturnArq(unsigned long request_address) {
+extern "C" void i_ARQCALLBACK_ReturnArq(u32 request_address) {
     mslARQRequest* request = (mslARQRequest*)request_address;
     memset(request, 0, sizeof(mslARQRequest));
     request->next_free = mslARQ_Req_FreeList;
@@ -189,7 +189,7 @@ extern "C" void i_ARQCALLBACK_ReturnArq(unsigned long request_address) {
 }
 
 extern "C" void i_ARQCALLBACK_ReturnArqAndUserStreamBuffer(
-    unsigned long request_address) {
+    u32 request_address) {
     mslARQRequest* request = (mslARQRequest*)request_address;
     mslStreamFile_ReturnBuffer_FromInterrupt(
         request->stream_buffer);

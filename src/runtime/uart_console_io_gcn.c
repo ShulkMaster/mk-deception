@@ -21,7 +21,7 @@ static inline int __init_uart_console(void)
 }
 
 __declspec(weak) int __write_console(unsigned long file, unsigned char* buffer,
-                                     unsigned long* count, IdleProc idleProc)
+                                     size_t* count, IdleProc idleProc)
 {
     if ((OSGetConsoleType() & 0x20000000) == 0) {
         if (__init_uart_console() != 0) {

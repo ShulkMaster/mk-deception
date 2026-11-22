@@ -1,19 +1,21 @@
 #ifndef MKD_RUNTIME_CSTDLIB_H
 #define MKD_RUNTIME_CSTDLIB_H
 
+#include "dolphin/types.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void exit(int code);
-void* malloc(unsigned long size);
-void* calloc(unsigned long count, unsigned long size);
-void* realloc(void* allocation, unsigned long size);
+void* malloc(size_t size);
+void* calloc(size_t count, size_t size);
+void* realloc(void* allocation, size_t size);
 void free(void* allocation);
-void qsort(void* base, unsigned long count, unsigned long size,
+void qsort(void* base, size_t count, size_t size,
            int (*compare)(const void*, const void*));
 
-void* __sys_alloc(unsigned long size);
+void* __sys_alloc(size_t size);
 void __sys_free(void* allocation);
 
 int __abs(int value);

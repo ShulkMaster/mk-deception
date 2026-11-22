@@ -44,7 +44,7 @@ public:
     void serviceCallbackAndPendingDelete();
     void handleCompletion(mwFileAsyncResult);
 
-    static void* operator new(unsigned long size, mwTargetMemAlign alignment, const char* name)
+    static void* operator new(size_t size, mwTargetMemAlign alignment, const char* name)
     {
         return mwFileMultithreadedMemTraits::allocate(size, alignment, name);
     }
@@ -70,7 +70,7 @@ protected:
     friend class mwFileServerNotQueued;
 };
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 class mwFileFailCommand : public mwFileCommand {
 public:
     mwFileFailCommand(mwFileCallback completion_callback, void* completion_data,
@@ -175,13 +175,13 @@ public:
 
         mwFileCommand* command;
         unsigned char priority;
-        long sequence;
+        s32 sequence;
     };
 
     struct Queue {
         Queue() : sequence(0), queue(mwFileMemAllocator<QueueItem, 3>()) {}
 
-        static void* operator new(unsigned long size, mwTargetMemAlign alignment,
+        static void* operator new(size_t size, mwTargetMemAlign alignment,
                                   const char* name)
         {
             return mwFileMultithreadedMemTraits::allocate(size, alignment, name);
@@ -194,7 +194,7 @@ public:
             }
         }
 
-        void reserve(unsigned long n) { queue.reserve(n); }
+        void reserve(size_t n) { queue.reserve(n); }
         bool empty() const { return queue.empty(); }
         const QueueItem& top() const { return queue.top(); }
         void pop() { queue.pop(); }
@@ -205,7 +205,7 @@ public:
             queue.push(item);
         }
 
-        long sequence;
+        s32 sequence;
         reserve_priority_queue<QueueItem, std::greater<QueueItem> > queue;
     };
 
@@ -264,7 +264,7 @@ class mwFileServerManagerMultiThreaded : public mwFileServerManagerBase {
 public:
     mwFileServerManagerMultiThreaded();
 
-    void initialize(unsigned long callback_count);
+    void initialize(u32 callback_count);
     void service();
     void serviceThread();
     bool isActive() const;
@@ -348,7 +348,7 @@ mwFileServerManagerMultiThreaded::mwFileServerManagerMultiThreaded()
 {
 }
 
-void mwFileServerManagerMultiThreaded::initialize(unsigned long callback_count)
+void mwFileServerManagerMultiThreaded::initialize(u32 callback_count)
 {
     quit = false;
     finished.reset();

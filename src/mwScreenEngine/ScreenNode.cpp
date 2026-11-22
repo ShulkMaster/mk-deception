@@ -14,7 +14,7 @@ void ScreenNode::Render(ScreenRenderInfo*) {}
 void ScreenNode::SetComponent(ScreenAnimControl*, float*,
                               int) {}
 
-void* ScreenNode::operator new(unsigned long size) {
+void* ScreenNode::operator new(size_t size) {
     return ScreenUtil::Malloc(size, 0x494e4954, (char*)"SS-Node");
 }
 

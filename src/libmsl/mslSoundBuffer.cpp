@@ -23,17 +23,17 @@ struct _mslBank {
 };
 
 struct _GameCubeFileEntry {
-    unsigned long name;
-    unsigned long primary_aram_offset;
-    long aram_size;
+    u32 name;
+    u32 primary_aram_offset;
+    s32 aram_size;
     SPSoundTable* sound_table;
     unsigned char pad10[8];
     int has_secondary;
-    unsigned long secondary_name;
-    unsigned long secondary_aram_offset;
-    unsigned long unknown24;
+    u32 secondary_name;
+    u32 secondary_aram_offset;
+    u32 unknown24;
     SPSoundTable* secondary_sound_table;
-    unsigned long unknown2C;
+    u32 unknown2C;
 };
 
 struct mslStreamFileRequest;
@@ -52,20 +52,20 @@ typedef char SoundBufferPlayableSize[sizeof(SoundBuffer_Playable) == 0x38 ? 1 : 
 class SBPlayable_Stream : public SoundBuffer_Playable {
 public:
     static void StreamFileRead_CallBack(
-        void* buffer, unsigned long offset, int size, int error,
+        void* buffer, u32 offset, int size, int error,
         int final_chunk, void* callback_data);
     static void i_ARQCALLBACK_ArqComplete_ReturnBuffer(
-        unsigned long request_address);
+        u32 request_address);
     static void i_ARQCALLBACK_ArqComplete(
-        unsigned long request_address);
+        u32 request_address);
     static void i_ARQCALLBACK_ArqComplete_LastRead(
-        unsigned long request_address);
+        u32 request_address);
     virtual ~SBPlayable_Stream();
     virtual void FreeObject(void);
     virtual void FreeResources(void);
     virtual void PrepForPlay(void);
     virtual int IsReadyToPlay(void);
-    virtual int Play(unsigned long flags);
+    virtual int Play(u32 flags);
     virtual int Stop(void);
     virtual int Pause(void);
     virtual void iUpdate_AXUser(void);
@@ -76,42 +76,42 @@ public:
     void iAX_FindNewEndBlock(int block);
     inline void iAX_GetVoiceBlock(
         _AXVPB* voice, int channel, int& block,
-        unsigned long* raw_address);
+        u32* raw_address);
 
     unsigned char ready_to_play;
     unsigned char last_read_pending;
     unsigned char voices_started;
     unsigned char play_when_ready;
-    unsigned long play_flags;
-    unsigned long cache_buffers[2];
-    long cache_buffer_size;
-    long cache_buffer1_size;
+    u32 play_flags;
+    u32 cache_buffers[2];
+    s32 cache_buffer_size;
+    s32 cache_buffer1_size;
     _mwFile* stream_context;
-    unsigned long primary_offset;
-    unsigned long aligned_size;
-    unsigned long segment_size;
+    u32 primary_offset;
+    u32 aligned_size;
+    u32 segment_size;
     int segment_shift;
-    unsigned long source_read_offset;
-    unsigned long source_bytes_remaining;
+    u32 source_read_offset;
+    u32 source_bytes_remaining;
     mslStreamFileRequest* pending_file_request;
-    unsigned long queued_read_offset;
-    unsigned long queued_read_size;
-    unsigned long queued_block_count;
+    u32 queued_read_offset;
+    u32 queued_read_size;
+    u32 queued_block_count;
     unsigned char partial_read;
     unsigned char at_zero_buffer;
     unsigned char crossed_stream_end;
     unsigned char end_of_stream;
-    volatile long pending_arq_count;
-    long ring_block_count;
-    long source_blocks_remaining;
-    long ring_write_block;
-    long ring_play_block;
-    long pending_ax_block;
-    long ax_end_block;
-    long end_pass_count;
-    long stream_end_block;
-    unsigned long initial_position;
-    long ring_scan_stop_block;
+    volatile s32 pending_arq_count;
+    s32 ring_block_count;
+    s32 source_blocks_remaining;
+    s32 ring_write_block;
+    s32 ring_play_block;
+    s32 pending_ax_block;
+    s32 ax_end_block;
+    s32 end_pass_count;
+    s32 stream_end_block;
+    u32 initial_position;
+    s32 ring_scan_stop_block;
     unsigned char block_headers[2][0x10];
 };
 
@@ -122,7 +122,7 @@ typedef int (*SoundBufferIntMethod)(SoundBuffer_Playable*);
 typedef void (*SoundBufferLostVoiceMethod)(
     SoundBuffer_Playable*, _AXVPB*);
 typedef int (*SoundBufferLongMethod)(
-    SoundBuffer_Playable*, long);
+    SoundBuffer_Playable*, s32);
 typedef int (*SoundBufferByteMethod)(
     SoundBuffer_Playable*, unsigned char);
 typedef SoundBuffer_Playable* (*SoundBufferDestroyMethod)(
@@ -154,13 +154,13 @@ struct SoundBufferPlayableLayout {
     _GameCubeFileEntry* file_entry;
     SoundBufferPlayableLayout* next;
     SoundBufferPlayableLayout* previous;
-    unsigned long current_position;
-    unsigned long mix_fader;
+    u32 current_position;
+    u32 mix_fader;
     unsigned char pan;
     unsigned char volume;
     unsigned char pad26[2];
-    unsigned long frequency;
-    long state;
+    u32 frequency;
+    s32 state;
     _AXVPB* voices[2];
 };
 
@@ -173,36 +173,36 @@ struct SBPlayableStreamLayout {
     unsigned char last_read_pending;
     unsigned char voices_started;
     unsigned char play_when_ready;
-    unsigned long play_flags;
-    unsigned long cache_buffers[2];
-    long cache_buffer_size;
-    long cache_buffer1_size;
+    u32 play_flags;
+    u32 cache_buffers[2];
+    s32 cache_buffer_size;
+    s32 cache_buffer1_size;
     _mwFile* stream_context;
-    unsigned long primary_offset;
-    unsigned long aligned_size;
-    unsigned long segment_size;
+    u32 primary_offset;
+    u32 aligned_size;
+    u32 segment_size;
     int segment_shift;
-    unsigned long source_read_offset;
-    unsigned long source_bytes_remaining;
+    u32 source_read_offset;
+    u32 source_bytes_remaining;
     mslStreamFileRequest* pending_file_request;
-    unsigned long queued_read_offset;
-    unsigned long queued_read_size;
-    unsigned long queued_block_count;
+    u32 queued_read_offset;
+    u32 queued_read_size;
+    u32 queued_block_count;
     unsigned char partial_read;
     unsigned char at_zero_buffer;
     unsigned char crossed_stream_end;
     unsigned char end_of_stream;
-    volatile long pending_arq_count;
-    long ring_block_count;
-    long source_blocks_remaining;
-    long ring_write_block;
-    long ring_play_block;
-    long pending_ax_block;
-    long ax_end_block;
-    long end_pass_count;
-    long stream_end_block;
-    unsigned long initial_position;
-    long ring_scan_stop_block;
+    volatile s32 pending_arq_count;
+    s32 ring_block_count;
+    s32 source_blocks_remaining;
+    s32 ring_write_block;
+    s32 ring_play_block;
+    s32 pending_ax_block;
+    s32 ax_end_block;
+    s32 end_pass_count;
+    s32 stream_end_block;
+    u32 initial_position;
+    s32 ring_scan_stop_block;
     unsigned char block_headers[2][0x10];
 };
 
@@ -226,27 +226,27 @@ extern unsigned char __vt__20SoundBuffer_Playable[];
 extern unsigned char __vt__17SBPlayable_Stream[];
 
 void AXVPB_ComputeVoiceRatio(
-    unsigned long frequency, unsigned short& ratio_hi,
+    u32 frequency, unsigned short& ratio_hi,
     unsigned short& ratio_lo);
 void i_AXVPB_SetVoiceRatioOnRunningVoice(
     _AXVPB* voice, unsigned short ratio_hi, unsigned short ratio_lo);
-unsigned long i_AXVPB_GetVoice_CurrentPosition(_AXVPB* voice);
-unsigned long i_AXVPB_GetVoice_LoopPosition(_AXVPB* voice);
-unsigned long i_AXVPB_GetVoice_EndPosition(_AXVPB* voice);
+u32 i_AXVPB_GetVoice_CurrentPosition(_AXVPB* voice);
+u32 i_AXVPB_GetVoice_LoopPosition(_AXVPB* voice);
+u32 i_AXVPB_GetVoice_EndPosition(_AXVPB* voice);
 void i_AXVPB_SetVoice_Addr(_AXVPB* voice, AXPBADDR* address);
-void i_AXVPB_SetVoice_CurrentPosition(_AXVPB* voice, unsigned long position);
-void i_AXVPB_SetVoice_LoopPosition(_AXVPB* voice, unsigned long position);
-void i_AXVPB_SetVoice_EndPosition(_AXVPB* voice, unsigned long position);
-void i_AXVPB_SetVoice_Looping(_AXVPB* voice, unsigned long looping);
-void i_AXVPB_SetVoice_ADPCM_LoopPredScale(_AXVPB* voice, unsigned long pred_scale);
-void i_AXVPB_SetVoice_ADPCM_StartPredScale(_AXVPB* voice, unsigned long pred_scale);
-void i_AXVPB_SetVoice_Type(_AXVPB* voice, unsigned long type);
+void i_AXVPB_SetVoice_CurrentPosition(_AXVPB* voice, u32 position);
+void i_AXVPB_SetVoice_LoopPosition(_AXVPB* voice, u32 position);
+void i_AXVPB_SetVoice_EndPosition(_AXVPB* voice, u32 position);
+void i_AXVPB_SetVoice_Looping(_AXVPB* voice, u32 looping);
+void i_AXVPB_SetVoice_ADPCM_LoopPredScale(_AXVPB* voice, u32 pred_scale);
+void i_AXVPB_SetVoice_ADPCM_StartPredScale(_AXVPB* voice, u32 pred_scale);
+void i_AXVPB_SetVoice_Type(_AXVPB* voice, u32 type);
 void i_AXVPB_SetVoice_LoopPosition_PredScale(
-    _AXVPB* voice, unsigned long position, unsigned long pred_scale,
+    _AXVPB* voice, u32 position, u32 pred_scale,
     bool at_stream_end);
 void i_AXVPB_SetVoice_Loop_To_Zero(_AXVPB* voice);
 
-static inline int IsPlaybackLoopRequested(unsigned long flags) {
+static inline int IsPlaybackLoopRequested(u32 flags) {
     int requested = 0;
     if ((flags & 1) != 0) {
         requested = 1;
@@ -258,18 +258,18 @@ inline void SBPlayable_Stream::iAX_GetVoiceBlock(
     _AXVPB* voice,
     int channel,
     int& block,
-    unsigned long* raw_address) {
+    u32* raw_address) {
     SBPlayable_Stream* stream =
         this;
-    unsigned long address = i_AXVPB_GetVoice_CurrentPosition(voice);
+    u32 address = i_AXVPB_GetVoice_CurrentPosition(voice);
 
     if (address >= g_MSL_GCN_ARAM_ZeroBase_ADPCM_Start &&
         address <= g_MSL_GCN_ARAM_ZeroBase_ADPCM_End) {
         block = -1;
     } else {
-        address = ((long)address >> 1) -
+        address = ((s32)address >> 1) -
             stream->cache_buffers[channel];
-        block = (long)address >> stream->segment_shift;
+        block = (s32)address >> stream->segment_shift;
         if (block < 0 || block >= stream->ring_block_count) {
             _MSL_GCN_BREAK();
         }
@@ -468,7 +468,7 @@ int SBPlayable_Stream::IsReadyToPlay(void) {
     return self->ready_to_play;
 }
 
-int SBPlayable_Stream::Play(unsigned long flags) {
+int SBPlayable_Stream::Play(u32 flags) {
     SBPlayable_Stream* stream =
         this;
     SoundBuffer_Playable* self = stream;
@@ -581,8 +581,8 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
     int secondary_block;
     int channels;
     int crossed_scan_stop;
-    long next_block;
-    unsigned long primary_raw_address;
+    s32 next_block;
+    u32 primary_raw_address;
 
     if (stream->voices_started == 0) {
         return;
@@ -596,7 +596,7 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
         &primary_raw_address);
 
     if (stream->file_entry->has_secondary != 0) {
-        unsigned long secondary_raw_address;
+        u32 secondary_raw_address;
 
         channels = 2;
         iAX_GetVoiceBlock(
@@ -648,7 +648,7 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
                     }
                 }
 
-                unsigned long block_address =
+                u32 block_address =
                     (stream->ring_play_block <<
                      (stream->segment_shift + 1)) + 2;
 
@@ -700,7 +700,7 @@ void SBPlayable_Stream::iUpdate_AXUser(void) {
             }
             stream->pending_ax_block = next_block;
 
-            unsigned long block_address =
+            u32 block_address =
                 (next_block <<
                  (stream->segment_shift + 1)) + 2;
             i_AXVPB_SetVoice_LoopPosition_PredScale(stream->voices[0],
@@ -755,7 +755,7 @@ void SBPlayable_Stream::iAX_FindNewEndBlock(int block) {
     }
     stream->ax_end_block = end_block;
 
-    unsigned long end_address;
+    u32 end_address;
     if (end_block == stream->stream_end_block) {
         end_address =
             stream->initial_position +
@@ -807,9 +807,9 @@ void SBPlayable_Stream::iUpdate_MslTick(void) {
             stream->pending_arq_count == 0 &&
             stream->source_bytes_remaining != 0 &&
             stream->pending_file_request == 0) {
-            long block_count;
-            long read_size;
-            long bytes_remaining;
+            s32 block_count;
+            s32 read_size;
+            s32 bytes_remaining;
             int cannot_read = 0;
 
             stream->partial_read = 0;
@@ -935,7 +935,7 @@ int SBPlayable_Stream::iPlayPrepped(void) {
         ring_play_block = 0;
         at_zero_buffer = 0;
         voices[0] = AXAcquireVoice(
-            0x14, AcquireVoiceCallback, (unsigned long)this);
+            0x14, AcquireVoiceCallback, (uptr)this);
         if (voices[0] == 0) {
             return result;
         }
@@ -952,7 +952,7 @@ int SBPlayable_Stream::iPlayPrepped(void) {
 
         if (file_entry->has_secondary != 0) {
             voices[1] = AXAcquireVoice(
-                0x14, AcquireVoiceCallback, (unsigned long)this);
+                0x14, AcquireVoiceCallback, (uptr)this);
             if (voices[1] == 0) {
                 AXFreeVoice(voices[0]);
                 voices[0] = 0;
@@ -1004,7 +1004,7 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                  channel < GetNumChannels(); channel++) {
                 _AXVPB* voice =
                     voices[channel];
-                unsigned long base =
+                u32 base =
                     cache_buffers[channel] << 1;
 
                 i_AXVPB_SetVoice_CurrentPosition(
@@ -1026,7 +1026,7 @@ int SBPlayable_Stream::iPlayPrepped(void) {
                  channel < GetNumChannels(); channel++) {
                 _AXVPB* voice =
                     voices[channel];
-                unsigned long base =
+                u32 base =
                     cache_buffers[channel] << 1;
 
                 i_AXVPB_SetVoice_CurrentPosition(voice, base + 2);
@@ -1053,7 +1053,7 @@ int SBPlayable_Stream::iPlayPrepped(void) {
 }
 
 void SBPlayable_Stream::i_ARQCALLBACK_ArqComplete(
-    unsigned long request_address) {
+    u32 request_address) {
     mslARQRequest* request = (mslARQRequest*)request_address;
     SBPlayable_Stream* stream =
         (SBPlayable_Stream*)request->callback_data;
@@ -1063,7 +1063,7 @@ void SBPlayable_Stream::i_ARQCALLBACK_ArqComplete(
 }
 
 void SBPlayable_Stream::i_ARQCALLBACK_ArqComplete_ReturnBuffer(
-    unsigned long request_address) {
+    u32 request_address) {
     mslARQRequest* request = (mslARQRequest*)request_address;
     SBPlayable_Stream* stream =
         (SBPlayable_Stream*)request->callback_data;
@@ -1073,7 +1073,7 @@ void SBPlayable_Stream::i_ARQCALLBACK_ArqComplete_ReturnBuffer(
 }
 
 void SBPlayable_Stream::i_ARQCALLBACK_ArqComplete_LastRead(
-    unsigned long request_address) {
+    u32 request_address) {
     mslARQRequest* request = (mslARQRequest*)request_address;
     SBPlayable_Stream* stream =
         (SBPlayable_Stream*)request->callback_data;
@@ -1099,11 +1099,11 @@ void SBPlayable_Stream::i_ARQCALLBACK_ArqComplete_LastRead(
 }
 
 void SBPlayable_Stream::StreamFileRead_CallBack(
-    void* buffer, unsigned long offset, int size, int error,
+    void* buffer, u32 offset, int size, int error,
     int final_chunk, void* callback_data) {
     SBPlayable_Stream* stream;
-    void (*callback)(unsigned long);
-    void (*last_callback)(unsigned long);
+    ARQCallback callback;
+    ARQCallback last_callback;
     BOOL enabled;
 
     enabled = OSDisableInterrupts();
@@ -1124,12 +1124,12 @@ void SBPlayable_Stream::StreamFileRead_CallBack(
             unsigned char* cursor;
             mslARQRequest* request;
             int remaining;
-            long segment = (long)offset >> stream->segment_shift;
-            long channel;
-            long block;
-            long segment_size = stream->segment_size;
-            long in_segment;
-            long segment_remaining;
+            s32 segment = (s32)offset >> stream->segment_shift;
+            s32 channel;
+            s32 block;
+            s32 segment_size = stream->segment_size;
+            s32 in_segment;
+            s32 segment_remaining;
 
             remaining = size;
             cursor = (unsigned char*)buffer;
@@ -1152,7 +1152,7 @@ void SBPlayable_Stream::StreamFileRead_CallBack(
                     remaining = 0;
                     ((SoundBuffer_Playable*)stream)->Stop();
                 } else {
-                    unsigned long destination;
+                    u32 destination;
 
                     stream->pending_arq_count++;
                     request->callback_data = stream;
@@ -1169,7 +1169,7 @@ void SBPlayable_Stream::StreamFileRead_CallBack(
                         callback = last_callback;
                         if (stream->partial_read != 0) {
                             segment_remaining =
-                                (segment_remaining + 0x1F) & ~0x1FUL;
+                                (segment_remaining + 0x1F) & ~0x1FU;
                         }
                     }
                     if (in_segment == 0) {
@@ -1180,7 +1180,7 @@ void SBPlayable_Stream::StreamFileRead_CallBack(
                         block * segment_size + in_segment;
                     DCFlushRange(cursor, segment_remaining);
                     ARQPostRequest(
-                        &request->request, 0, 0, 1, (unsigned long)cursor,
+                        &request->request, 0, 0, 1, (uptr)cursor,
                         destination, segment_remaining, callback);
                     cursor += segment_remaining;
                     if (remaining != 0) {
@@ -1216,7 +1216,7 @@ __declspec(weak) IRefCntRes::~IRefCntRes() {
 }
 
 void AXVPB_ComputeVoiceRatio(
-    unsigned long frequency, unsigned short& ratio_hi,
+    u32 frequency, unsigned short& ratio_hi,
     unsigned short& ratio_lo) {
     if (frequency < 63) {
         frequency = 63;
@@ -1229,7 +1229,7 @@ void AXVPB_ComputeVoiceRatio(
 
 void i_AXVPB_SetVoiceRatioOnRunningVoice(
     _AXVPB* voice, unsigned short ratio_hi, unsigned short ratio_lo) {
-    unsigned long sync = voice->sync;
+    u32 sync = voice->sync;
 
     voice->pb.src.ratioHi = ratio_hi;
     sync |= 0x80000;
@@ -1237,29 +1237,29 @@ void i_AXVPB_SetVoiceRatioOnRunningVoice(
     voice->sync = sync;
 }
 
-unsigned long i_AXVPB_GetVoice_CurrentPosition(_AXVPB* voice) {
-    unsigned long position = (unsigned long)voice->pb.addr.currentAddressHi << 16;
+u32 i_AXVPB_GetVoice_CurrentPosition(_AXVPB* voice) {
+    u32 position = (u32)voice->pb.addr.currentAddressHi << 16;
 
     position += voice->pb.addr.currentAddressLo;
     return position;
 }
 
-unsigned long i_AXVPB_GetVoice_LoopPosition(_AXVPB* voice) {
-    unsigned long position = (unsigned long)voice->pb.addr.loopAddressHi << 16;
+u32 i_AXVPB_GetVoice_LoopPosition(_AXVPB* voice) {
+    u32 position = (u32)voice->pb.addr.loopAddressHi << 16;
 
     position += voice->pb.addr.loopAddressLo;
     return position;
 }
 
-unsigned long i_AXVPB_GetVoice_EndPosition(_AXVPB* voice) {
-    unsigned long position = (unsigned long)voice->pb.addr.endAddressHi << 16;
+u32 i_AXVPB_GetVoice_EndPosition(_AXVPB* voice) {
+    u32 position = (u32)voice->pb.addr.endAddressHi << 16;
 
     position += voice->pb.addr.endAddressLo;
     return position;
 }
 
 void i_AXVPB_SetVoice_Addr(_AXVPB* voice, AXPBADDR* address) {
-    unsigned long sync = voice->sync;
+    u32 sync = voice->sync;
 
     voice->pb.addr.loopFlag = address->loopFlag;
     voice->pb.addr.format = address->format;
@@ -1272,8 +1272,8 @@ void i_AXVPB_SetVoice_Addr(_AXVPB* voice, AXPBADDR* address) {
     voice->sync = (sync | 0x1000) & 0xFFFE1FFF;
 }
 
-void i_AXVPB_SetVoice_CurrentPosition(_AXVPB* voice, unsigned long position) {
-    unsigned long sync = voice->sync | 0x10000;
+void i_AXVPB_SetVoice_CurrentPosition(_AXVPB* voice, u32 position) {
+    u32 sync = voice->sync | 0x10000;
 
     voice->pb.addr.currentAddressLo = position;
     voice->pb.addr.currentAddressHi = position >> 16;
@@ -1282,8 +1282,8 @@ void i_AXVPB_SetVoice_CurrentPosition(_AXVPB* voice, unsigned long position) {
     }
 }
 
-void i_AXVPB_SetVoice_LoopPosition(_AXVPB* voice, unsigned long position) {
-    unsigned long sync = voice->sync | 0x4000;
+void i_AXVPB_SetVoice_LoopPosition(_AXVPB* voice, u32 position) {
+    u32 sync = voice->sync | 0x4000;
 
     voice->pb.addr.loopAddressLo = position;
     voice->pb.addr.loopAddressHi = position >> 16;
@@ -1292,8 +1292,8 @@ void i_AXVPB_SetVoice_LoopPosition(_AXVPB* voice, unsigned long position) {
     }
 }
 
-void i_AXVPB_SetVoice_EndPosition(_AXVPB* voice, unsigned long position) {
-    unsigned long sync = voice->sync | 0x8000;
+void i_AXVPB_SetVoice_EndPosition(_AXVPB* voice, u32 position) {
+    u32 sync = voice->sync | 0x8000;
 
     voice->pb.addr.endAddressLo = position;
     voice->pb.addr.endAddressHi = position >> 16;
@@ -1302,8 +1302,8 @@ void i_AXVPB_SetVoice_EndPosition(_AXVPB* voice, unsigned long position) {
     }
 }
 
-void i_AXVPB_SetVoice_Looping(_AXVPB* voice, unsigned long looping) {
-    unsigned long sync = voice->sync;
+void i_AXVPB_SetVoice_Looping(_AXVPB* voice, u32 looping) {
+    u32 sync = voice->sync;
 
     sync |= 0x2000;
     voice->pb.addr.loopFlag = looping != 0;
@@ -1312,8 +1312,8 @@ void i_AXVPB_SetVoice_Looping(_AXVPB* voice, unsigned long looping) {
     }
 }
 
-void i_AXVPB_SetVoice_ADPCM_LoopPredScale(_AXVPB* voice, unsigned long pred_scale) {
-    unsigned long sync = voice->sync;
+void i_AXVPB_SetVoice_ADPCM_LoopPredScale(_AXVPB* voice, u32 pred_scale) {
+    u32 sync = voice->sync;
 
     voice->pb.adpcmLoop.loop_pred_scale = pred_scale;
     sync |= 0x100000;
@@ -1322,8 +1322,8 @@ void i_AXVPB_SetVoice_ADPCM_LoopPredScale(_AXVPB* voice, unsigned long pred_scal
     voice->sync = sync;
 }
 
-void i_AXVPB_SetVoice_ADPCM_StartPredScale(_AXVPB* voice, unsigned long pred_scale) {
-    unsigned long sync = voice->sync | 0x20000;
+void i_AXVPB_SetVoice_ADPCM_StartPredScale(_AXVPB* voice, u32 pred_scale) {
+    u32 sync = voice->sync | 0x20000;
 
     voice->pb.adpcm.pred_scale = pred_scale;
     voice->pb.adpcm.yn1 = 0;
@@ -1331,8 +1331,8 @@ void i_AXVPB_SetVoice_ADPCM_StartPredScale(_AXVPB* voice, unsigned long pred_sca
     voice->sync = sync;
 }
 
-void i_AXVPB_SetVoice_Type(_AXVPB* voice, unsigned long type) {
-    unsigned long sync = voice->sync;
+void i_AXVPB_SetVoice_Type(_AXVPB* voice, u32 type) {
+    u32 sync = voice->sync;
 
     voice->pb.type = type;
     sync |= 8;
@@ -1340,9 +1340,9 @@ void i_AXVPB_SetVoice_Type(_AXVPB* voice, unsigned long type) {
 }
 
 void i_AXVPB_SetVoice_LoopPosition_PredScale(
-    _AXVPB* voice, unsigned long position, unsigned long pred_scale,
+    _AXVPB* voice, u32 position, u32 pred_scale,
     bool at_stream_end) {
-    unsigned long sync;
+    u32 sync;
 
     i_AXVPB_SetVoice_LoopPosition(voice, position);
     sync = voice->sync;
@@ -1382,12 +1382,12 @@ int SoundBuffer::GetNumChannels(void) {
     return 0;
 }
 
-int SoundBuffer::GetStatus(unsigned long* status) {
+int SoundBuffer::GetStatus(u32* status) {
     _MSL_GCN_BREAK();
     return -1;
 }
 
-int SoundBuffer::SetFrequency(unsigned long frequency) {
+int SoundBuffer::SetFrequency(u32 frequency) {
     _MSL_GCN_BREAK();
     return -1;
 }
@@ -1397,7 +1397,7 @@ int SoundBuffer::SetRelativeFrequency(float frequency) {
     return -1;
 }
 
-int SoundBuffer::SetVolume(long volume) {
+int SoundBuffer::SetVolume(s32 volume) {
     _MSL_GCN_BREAK();
     return -1;
 }
@@ -1422,7 +1422,7 @@ int SoundBuffer::SetRelativePan(float pan) {
     return -1;
 }
 
-int SoundBuffer::Play(unsigned long flags) {
+int SoundBuffer::Play(u32 flags) {
     _MSL_GCN_BREAK();
     return -1;
 }
@@ -1441,7 +1441,7 @@ int SoundBuffer::UnPause(void) {
     return -1;
 }
 
-int SoundBuffer::SetCurrentPosition(unsigned long position) {
+int SoundBuffer::SetCurrentPosition(u32 position) {
     _MSL_GCN_BREAK();
     return -1;
 }
@@ -1527,10 +1527,10 @@ int SoundBuffer_Playable::IsReadyToPlay(void) {
     return 1;
 }
 
-int SoundBuffer_Playable::GetStatus(unsigned long* status) {
+int SoundBuffer_Playable::GetStatus(u32* status) {
     SoundBuffer_Playable* self = this;
     int result = -1;
-    unsigned long result_status = 0;
+    u32 result_status = 0;
 
     if (self->state == 8) {
         result_status = 8;
@@ -1554,7 +1554,7 @@ int SoundBuffer_Playable::GetStatus(unsigned long* status) {
     return result;
 }
 
-int SoundBuffer_Playable::SetFrequency(unsigned long frequency) {
+int SoundBuffer_Playable::SetFrequency(u32 frequency) {
     SoundBuffer_Playable* self = this;
     BOOL enabled;
     _AXVPB* primary;
@@ -1580,7 +1580,7 @@ int SoundBuffer_Playable::SetFrequency(unsigned long frequency) {
 }
 
 int SoundBuffer_Playable::SetRelativeFrequency(float frequency) {
-    unsigned long scaled_frequency = 0;
+    u32 scaled_frequency = 0;
     SPSoundEntry* sound = GetSoundEntryLeft();
 
     if (sound != 0) {
@@ -1589,7 +1589,7 @@ int SoundBuffer_Playable::SetRelativeFrequency(float frequency) {
     return SetFrequency(scaled_frequency);
 }
 
-int SoundBuffer_Playable::SetVolume(long volume) {
+int SoundBuffer_Playable::SetVolume(s32 volume) {
     SoundBuffer_Playable* self = this;
     self->mix_fader = volume;
     if (self->voices[0] != 0) {
@@ -1602,7 +1602,7 @@ int SoundBuffer_Playable::SetVolume(long volume) {
 }
 
 int SoundBuffer_Playable::SetRelativeVolume(float volume) {
-    long db_volume =
+    s32 db_volume =
         mslWaveGetDbMapEntryRelative(volume);
 
     return this->SetVolume(db_volume);
@@ -1678,7 +1678,7 @@ int SoundBuffer_Playable::SetRelativePan(float pan) {
     return result;
 }
 
-int SoundBuffer_Playable::Play(unsigned long flags) {
+int SoundBuffer_Playable::Play(u32 flags) {
     BOOL enabled = OSDisableInterrupts();
     int result = iPlay(flags, 15, 10);
     OSRestoreInterrupts(enabled);
@@ -1741,7 +1741,7 @@ int SoundBuffer_Playable::UnPause(void) {
 }
 
 int SoundBuffer_Playable::SetCurrentPosition(
-    unsigned long position) {
+    u32 position) {
     SoundBuffer_Playable* self = this;
 
     if (position != 0) {
@@ -1759,7 +1759,7 @@ void SoundBuffer_Playable::InitializeVoice(
     int use_loop_address) {
     AXVoiceSrc source;
     AXPBADDR address;
-    unsigned long frequency = this->frequency;
+    u32 frequency = this->frequency;
 
     if (frequency == 0) {
         frequency = sound->sample_rate;
@@ -1796,8 +1796,8 @@ void SoundBuffer_Playable::InitializeVoice(
 }
 
 int SoundBuffer_Playable::iPlay(
-    unsigned long flags, unsigned long acquire_priority,
-    unsigned long active_priority) {
+    u32 flags, u32 acquire_priority,
+    u32 active_priority) {
     int result = -1;
 
     if ((this->state & 4) != 0) {
@@ -1812,7 +1812,7 @@ int SoundBuffer_Playable::iPlay(
         }
     } else if ((this->state & 8) != 0) {
         this->voices[0] = AXAcquireVoice(
-            acquire_priority, AcquireVoiceCallback, (unsigned long)this);
+            acquire_priority, AcquireVoiceCallback, (uptr)this);
         if (this->voices[0] == 0) {
             return -1;
         }
@@ -1822,7 +1822,7 @@ int SoundBuffer_Playable::iPlay(
 
         if (this->file_entry->has_secondary != 0) {
             this->voices[1] = AXAcquireVoice(
-                acquire_priority, AcquireVoiceCallback, (unsigned long)this);
+                acquire_priority, AcquireVoiceCallback, (uptr)this);
             if (this->voices[1] == 0) {
                 AXFreeVoice(this->voices[0]);
                 this->voices[0] = 0;
@@ -1973,9 +1973,9 @@ SoundBuffer_Playable* SoundBuffer::CreatePlayableStaticBuffer(
         aram_block = MSLGCN_ARamBlock::GetObject();
         if (aram_block != 0) {
             playable->aram_block = aram_block;
-            unsigned long aram_size;
-            unsigned long primary_offset;
-            unsigned long secondary_offset;
+            u32 aram_size;
+            u32 primary_offset;
+            u32 secondary_offset;
             int channel_count;
 
             aram_block->SetParent(bank->resident_aram_block);

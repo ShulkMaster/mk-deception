@@ -12,5 +12,8 @@ typedef unsigned long long u64;
 typedef float f32;
 typedef double f64;
 typedef int BOOL;
+typedef unsigned long size_t;
+typedef unsigned long uptr;
+typedef signed long sptr;
 
 #endif

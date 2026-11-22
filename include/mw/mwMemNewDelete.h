@@ -6,13 +6,13 @@
 #ifdef __cplusplus
 
 void operator delete(void* pointer);
-void* operator new(unsigned long size);
-void* operator new(unsigned long size, _mwMemHeap* heap, mwMemFlags flags,
+void* operator new(size_t size);
+void* operator new(size_t size, _mwMemHeap* heap, mwMemFlags flags,
                    const char* file, const char* function,
                    unsigned int line);
 
 #endif
 
-void* __nw__FUl(unsigned long size);
+void* __nw__FUl(size_t size);
 void __dl__FPv(void* p);
 #endif

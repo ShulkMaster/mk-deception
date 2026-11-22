@@ -1,6 +1,7 @@
 #ifndef MSL_MSLGCN_H
 #define MSL_MSLGCN_H
 
+#include "dolphin/types.h"
 #include "msl/mslgcn_break.h"
 
 #ifdef __cplusplus
@@ -10,12 +11,12 @@ extern "C" {
 void MSL_GCN_AXUserCallback(void);
 #endif
 
-unsigned long mslMainRamUsed(void);
-void MSL_ClearVolatileFlag(unsigned long request_address);
+u32 mslMainRamUsed(void);
+void MSL_ClearVolatileFlag(u32 request_address);
 
 extern volatile int g_bMSL_GCN_BREAK;
-extern volatile unsigned long g_MSL_volatile_flag;
-extern unsigned long mslGCN_AXCallback_Ticks;
+extern volatile u32 g_MSL_volatile_flag;
+extern u32 mslGCN_AXCallback_Ticks;
 extern int debugger_mbo1;
 extern int debugger_at1;
 extern int debugger_snd;

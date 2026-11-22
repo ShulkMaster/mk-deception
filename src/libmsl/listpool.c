@@ -197,14 +197,14 @@ void ListInsert(_ListNode** list, _ListNode* node) {
 }
 
 typedef union ListNodeId {
-    msl_u32 value;
+    u32 value;
     struct {
-        msl_u16 index;
-        msl_u16 generation;
+        u16 index;
+        u16 generation;
     } parts;
 } ListNodeId;
 
-msl_u32 ListNodeID(ListPool* pool, _ListNode* node) {
+u32 ListNodeID(ListPool* pool, _ListNode* node) {
     ListNodeId id;
 
     id.parts.index = node->index;
@@ -212,7 +212,7 @@ msl_u32 ListNodeID(ListPool* pool, _ListNode* node) {
     return id.value;
 }
 
-_ListNode* ListNodeFind(ListPool* pool, msl_u32 value) {
+_ListNode* ListNodeFind(ListPool* pool, u32 value) {
     ListNodeId id;
     _ListNode* node = 0;
 
@@ -312,7 +312,7 @@ static inline void reset_pool(ListPool* pool) {
     _ListNode* node;
     _ListNode* previous = 0;
     char* data;
-    msl_u32 index;
+    u32 index;
 
     if (pool == 0) {
         mslDebugPrintf(LIST_STRING(0x1DE));
@@ -346,8 +346,8 @@ static inline void reset_pool(ListPool* pool) {
 }
 
 int ListPoolAttach(
-    ListPool* pool, void* memory, msl_u32 element_count,
-    msl_u32 element_size) {
+    ListPool* pool, void* memory, u32 element_count,
+    u32 element_size) {
     if (pool == 0) {
         mslDebugPrintf(LIST_STRING(0x54F));
         return 0;

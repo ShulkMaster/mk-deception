@@ -1,3 +1,4 @@
+#include "dolphin/types.h"
 #include "mw/mwFile.h"
 
 class mwFileMountPoint;
@@ -7,7 +8,7 @@ struct mwFileTypeInfo {
 
 class mwFileMultithreadedMemTraits {
 public:
-    static void* allocate(unsigned long, mwTargetMemAlign, const char*);
+    static void* allocate(size_t, mwTargetMemAlign, const char*);
     static void deallocate(void*);
 };
 
@@ -33,7 +34,7 @@ public:
 
     void handleCompletion(mwFileAsyncResult);
 
-    static void* operator new(unsigned long size, mwTargetMemAlign alignment,
+    static void* operator new(size_t size, mwTargetMemAlign alignment,
                               const char* name)
     {
         return mwFileMultithreadedMemTraits::allocate(
@@ -70,7 +71,7 @@ class mwFileMountPoint : public mwFileQueryable {
 public:
     virtual ~mwFileMountPoint();
     virtual int startOpenFileCommand(
-        mwFileCommand*&, const char*, unsigned long,
+        mwFileCommand*&, const char*, u32,
         mwFileCallback, void*) = 0;
 };
 
@@ -80,10 +81,10 @@ public:
     virtual int startCloseFileCommand(
         mwFileCommand*&, mwFileCallback, void*) = 0;
     virtual int startReadFileCommand(
-        mwFileCommand*&, unsigned long long, void*, unsigned long,
+        mwFileCommand*&, unsigned long long, void*, u32,
         int, mwFileCallback, void*) = 0;
     virtual int startWriteFileCommand(
-        mwFileCommand*&, unsigned long long, const void*, unsigned long,
+        mwFileCommand*&, unsigned long long, const void*, u32,
         int, mwFileCallback, void*) = 0;
     virtual int startFlushFileCommand(
         mwFileCommand*&, mwFileCallback, void*) = 0;
@@ -96,13 +97,13 @@ public:
     const char* getDebugName() const;
 
 private:
-    unsigned long field_0x04;
+    u32 field_0x04;
     unsigned long long size;
     unsigned long long position;
     int field_0x18;
     int error;
     mwFileMountPoint* mount_point;
-    unsigned long flags;
+    u32 flags;
 };
 
 class mwFileMountTable {
@@ -126,7 +127,7 @@ mwFileTypeInfo mwFileClassTypeInfo<T>::sTypeInfo;
 
 template class mwFileClassTypeInfo<mwFileCommandProgress>;
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 class mwFileFailCommand : public mwFileCommand {
 public:
     mwFileFailCommand(mwFileCallback completion_callback,
@@ -157,7 +158,7 @@ typedef char mwFileFailCommandSizeCheck[
 extern mwFileServer* mwFileGetGenericCommandServer();
 extern void _mwFileNoOp(...);
 
-static const unsigned long MWF_OPEN_READ = 1;
+static const u32 MWF_OPEN_READ = 1;
 
 static const char stringBase0[] =
     "mwFile: ERROR - calling mwFileGetCommandProgress on a command that can "
@@ -204,12 +205,12 @@ enum {
     OPEN_ERROR_MESSAGE = 0x438
 };
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 inline mwFileFailCommand<ResultValue, ResultError>::~mwFileFailCommand()
 {
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 inline unsigned char mwFileFailCommand<ResultValue, ResultError>::isCompleted(
     mwFileAsyncResult& result) const
 {
@@ -218,14 +219,14 @@ inline unsigned char mwFileFailCommand<ResultValue, ResultError>::isCompleted(
     return completed;
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 inline unsigned char mwFileFailCommand<ResultValue, ResultError>::isAborted()
     const
 {
     return 0;
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 inline mwFileAsyncResult
 mwFileFailCommand<ResultValue, ResultError>::waitForCompletion() const
 {
@@ -236,32 +237,32 @@ mwFileFailCommand<ResultValue, ResultError>::waitForCompletion() const
     return result;
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 inline int mwFileFailCommand<ResultValue, ResultError>::abort()
 {
     return 0;
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 inline int mwFileFailCommand<ResultValue, ResultError>::service()
 {
     return 2;
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 inline void mwFileFailCommand<ResultValue, ResultError>::serviceCallback()
 {
     completed = true;
     handleCompletion(waitForCompletion());
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 inline int mwFileFailCommand<ResultValue, ResultError>::close()
 {
     return 0;
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 inline void mwFileFailCommand<ResultValue, ResultError>::deleteSelf()
 {
     if (!completed || callback_depth != 0) {
@@ -308,7 +309,7 @@ int mwFileAbortCommand(mwFileCommand* command)
 }
 
 mwFileCommand* mwFileWriteAsync(
-    mwFile* file, long long offset, void* buffer, unsigned long length,
+    mwFile* file, long long offset, void* buffer, u32 length,
     int priority, mwFileCallback completion_callback, void* completion_data)
 {
     mwFileCommand* command;
@@ -338,7 +339,7 @@ mwFileCommand* mwFileWriteAsync(
 }
 
 mwFileCommand* mwFileReadAsync(
-    mwFile* file, unsigned long long offset, void* buffer, unsigned long length,
+    mwFile* file, unsigned long long offset, void* buffer, u32 length,
     int priority, mwFileCallback completion_callback, void* completion_data)
 {
     mwFileCommand* command;
@@ -371,7 +372,7 @@ mwFileCommand* mwFileReadAsync(
         }
     } else {
         if (file_size < offset + length) {
-            unsigned long truncated_length =
+            u32 truncated_length =
                 file_size - offset;
             _mwFileNoOp(
                 &stringBase0[READ_TRUNCATE_MESSAGE], file->getDebugName(),
@@ -426,7 +427,7 @@ mwFileCommand* mwFileOpenAsync(
     mwFileMountPoint* mount_point;
     const char* relative_path;
 
-    unsigned long read_mode = flags & 1;
+    u32 read_mode = flags & 1;
     if (read_mode != 0 && (flags & 2) != 0) {
         _mwFileNoOp(&stringBase0[OPEN_READ_WRITE_MESSAGE], path);
     }

@@ -30,7 +30,7 @@ class circular_buffer {
 public:
     circular_buffer(Allocator a) : buffer(a) {}
 
-    void resize(unsigned long size)
+    void resize(size_t size)
     {
         tail = 0;
         head = 0;
@@ -45,9 +45,9 @@ public:
 
 private:
     std::vector<T, Allocator> buffer;
-    unsigned long head;
-    unsigned long tail;
-    unsigned long count;
+    size_t head;
+    size_t tail;
+    size_t count;
 };
 
 template <class T, class Allocator>
@@ -87,7 +87,7 @@ class mwProducerConsumerQueue {
 public:
     mwProducerConsumerQueue() : buffer(mwFileMemAllocator<T, 3>()) {}
 
-    void resize(unsigned long size);
+    void resize(size_t size);
     void produce(T value);
     bool consumeNonBlocking(T& value);
 
@@ -97,7 +97,7 @@ public:
 };
 
 template <class T>
-inline void mwProducerConsumerQueue<T>::resize(unsigned long size)
+inline void mwProducerConsumerQueue<T>::resize(size_t size)
 {
     mwFileMutexLock lock(mutex);
     buffer.resize(size);
@@ -136,7 +136,7 @@ class reserve_priority_queue
 public:
     reserve_priority_queue(const mwFileMemAllocator<T, 3>& a);
 
-    void reserve(unsigned long n) { this->c.reserve(n); }
+    void reserve(size_t n) { this->c.reserve(n); }
 };
 
 /* TODO: [breakthrough needed] 99.95000%; vector/-1 vs retail deleter/0 remains;

@@ -82,7 +82,7 @@ void __dt__17ScreenMatrixStackFv(void* self, short del);
 int is_controller_removed(void);
 
 int ReadHexInt__10ScreenUtilFPc(char* s);
-void* __nw__10ScreenNodeFUl(unsigned long size);
+void* __nw__10ScreenNodeFUl(size_t size);
 void __ct__10ScreenNodeFv(void* node);
 void ProcessSubActions__12ScreenObjectFPC12ScreenActioni(
     void* self, const void* action, int match);
@@ -178,7 +178,7 @@ public:
     mkScreenEngineClient() {}
     virtual void PrintObjectDepth(ScreenRenderInfo*, int, int);
     virtual ~mkScreenEngineClient();
-    virtual void* Malloc(unsigned long, int, char*);
+    virtual void* Malloc(size_t, int, char*);
     virtual void Free(void*);
     virtual ScreenResourceLibrary* CreateResourceLibrary(ScreenResourceLibrary*);
     virtual void DestroyResourceLibrary(ScreenResourceLibrary*);
@@ -411,7 +411,7 @@ void* CreateResourceLibrary__20mkScreenEngineClientFP21ScreenResourceLibrary(
 void Free__20mkScreenEngineClientFPv(mkScreenEngineClient* self, void* mem);
 
 void* Malloc__20mkScreenEngineClientFUliPc(mkScreenEngineClient* self,
-                                            unsigned long size, int tag,
+                                            size_t size, int tag,
                                             char* name);
 
 void RefreshCollection__13ScreenControlFv(void* self);
@@ -880,7 +880,7 @@ enum {
     kSeInstWIFI = 'WIFI'
 };
 
-extern void* __nw__13ScreenControlFUl(unsigned long size);
+extern void* __nw__13ScreenControlFUl(size_t size);
 extern void __ct__13ScreenControlFv(void* self);
 extern void* __vt__8TextItem[20];
 extern void* __vt__6KeyPad[20];
@@ -1902,8 +1902,8 @@ int mkGameVariables::GetTextureCollection(int id, GMTextureInfo_t* out,
     GVTextureCollection* collection;
     GVTexturePair pair;
     unsigned int count = 0;
-    unsigned long allocSize;
-    unsigned long pointerBytes;
+    size_t allocSize;
+    size_t pointerBytes;
 
     switch (id) {
     case 0x48:
@@ -3608,7 +3608,7 @@ void SpreadSheet_image::FinishSetup(ScreenParams* params, int nodeIndex) {
 
     paramCount = params->GetCount();
     count = this->rows * this->cols;
-    this->unk118 = (ScreenPoly**)ScreenUtil::Malloc((unsigned long)(paramCount - nodeIndex) * sizeof(ScreenPoly*),
+    this->unk118 = (ScreenPoly**)ScreenUtil::Malloc((size_t)(paramCount - nodeIndex) * sizeof(ScreenPoly*),
         kMallocTagInit,
         "SS-Spreadsheet");
     for (int i = 0; i < count; i++) {
@@ -3673,7 +3673,7 @@ static inline void screen_text_copy_color(ScreenText* text, unsigned char* color
 void SpreadSheet_text::FinishSetup(ScreenParams* params, int nodeIndex) {
     int paramCount = params->GetCount();
     int count = this->rows * this->cols;
-    this->unk118 = (ScreenText**)ScreenUtil::Malloc((unsigned long)(paramCount - nodeIndex) * sizeof(ScreenText*),
+    this->unk118 = (ScreenText**)ScreenUtil::Malloc((size_t)(paramCount - nodeIndex) * sizeof(ScreenText*),
         kMallocTagInit,
         "SS-Spreadsheet");
     this->cellColors = (unsigned char*)ScreenUtil::Malloc(count << 2, kMallocTagInit,
@@ -4988,7 +4988,7 @@ void ProcessParams__8TextListFP12ScreenParams(TextList* self, ScreenParams* para
         self->linkedNode = params->GetScreenNode(6);
         nodeIndex = 7;
     }
-    self->itemNodes = (ScreenNode**)ScreenUtil::Malloc((unsigned long)self->itemCount * sizeof(*self->itemNodes), kMallocTagInit,
+    self->itemNodes = (ScreenNode**)ScreenUtil::Malloc((size_t)self->itemCount * sizeof(*self->itemNodes), kMallocTagInit,
         "SS-5TextList");
     i = 0;
     while (i < self->itemCount) {
@@ -5360,7 +5360,7 @@ void ImageList::ProcessParams(ScreenParams* params) {
         link = params->GetScreenNode(5);
         nodeIndex = 6;
     }
-    this->itemNodes = (ScreenNode**)ScreenUtil::Malloc((unsigned long)this->itemCount * sizeof(ScreenNode*), kMallocTagInit,
+    this->itemNodes = (ScreenNode**)ScreenUtil::Malloc((size_t)this->itemCount * sizeof(ScreenNode*), kMallocTagInit,
         "SS-Image List");
     for (int i = 0; i < this->itemCount; i++) {
         this->itemNodes[i] =
@@ -7384,7 +7384,7 @@ void Free__20mkScreenEngineClientFPv(mkScreenEngineClient* self, void* mem) {
 }
 
 void* Malloc__20mkScreenEngineClientFUliPc(mkScreenEngineClient* self,
-                                            unsigned long size, int tag,
+                                            size_t size, int tag,
                                             char* name) {
     return _mwMemMalloc(wave_heap, size, 4, 0, 0, 0);
 }

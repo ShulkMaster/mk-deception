@@ -1,5 +1,6 @@
 #ifndef MWSCREENENGINE_SCREENNODE_H
 #define MWSCREENENGINE_SCREENNODE_H
+#include "dolphin/types.h"
 class ScreenMgr; class ScreenAction; class ScreenMatrixStack; class ScreenAnimControl;
 class ScreenRenderInfo;
 class ScreenNode {
@@ -18,7 +19,7 @@ public:
     virtual int GetNumNodes() const;
     virtual int NeedIdleProcessing();
     virtual void Close();
-    void* operator new(unsigned long);
+    void* operator new(size_t);
     void operator delete(void*);
     unsigned int m_flags;
     unsigned int typeTag;

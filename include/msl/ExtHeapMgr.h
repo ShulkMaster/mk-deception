@@ -1,6 +1,7 @@
 #ifndef MSL_EXT_HEAP_MGR_H
 #define MSL_EXT_HEAP_MGR_H
 
+#include "dolphin/types.h"
 #include "msl/RedBlackTree.h"
 
 typedef struct ExternalHeapBlockState {
@@ -23,25 +24,25 @@ typedef struct ExternalHeapBlock {
     RedBlackNode address_node;
     union {
         struct ExternalHeapBlock* next_free;
-        unsigned long address;
+        u32 address;
     } link;
-    unsigned long size;
+    u32 size;
 } ExternalHeapBlock;
 
 typedef char ExternalHeapBlockSize[
     sizeof(ExternalHeapBlock) == 0x28 ? 1 : -1];
 
 typedef struct ExternalHeap {
-    unsigned long base;
-    unsigned long size;
-    unsigned long alignment;
+    u32 base;
+    u32 size;
+    u32 alignment;
     int block_count;
     void* mutex;
-    unsigned long allocation_count;
-    unsigned long free_count;
-    unsigned long free_bytes;
-    unsigned long used_bytes;
-    unsigned long peak_used;
+    u32 allocation_count;
+    u32 free_count;
+    u32 free_bytes;
+    u32 used_bytes;
+    u32 peak_used;
     RedBlackTree address_tree;
     RedBlackTree size_tree;
     ExternalHeapBlock* free_blocks;
@@ -59,14 +60,14 @@ typedef void (*ExternalHeapFreeRoutine)(void* allocation);
 extern "C" {
 #endif
 
-unsigned long ExternalHeap_Alloc(
-    ExternalHeap* heap, unsigned long size);
+u32 ExternalHeap_Alloc(
+    ExternalHeap* heap, u32 size);
 
-void ExternalHeap_Free(ExternalHeap* heap, unsigned long address);
+void ExternalHeap_Free(ExternalHeap* heap, u32 address);
 void ExternalHeap_SetMutex(ExternalHeap* heap, void* mutex);
 ExternalHeap* ExternalHeap_Create(
-    unsigned long base, unsigned long size,
-    unsigned long alignment, int block_count);
+    u32 base, u32 size,
+    u32 alignment, int block_count);
 void ExternalHeap_SetSysMutexRoutines(
     ExternalHeapMutexRoutine enter, ExternalHeapMutexRoutine leave);
 void ExternalHeap_SetSysMemRoutines(

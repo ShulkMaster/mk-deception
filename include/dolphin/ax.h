@@ -80,11 +80,11 @@ typedef struct _AXVPB {
     struct _AXVPB* next;
     struct _AXVPB* prev;
     struct _AXVPB* next1;
-    unsigned long priority;
+    u32 priority;
     void (*callback)(void*);
-    unsigned long user_context;
-    unsigned long index, sync, depop;
-    unsigned long updateMS, updateCounter, updateTotal;
+    u32 user_context;
+    u32 index, sync, depop;
+    u32 updateMS, updateCounter, updateTotal;
     unsigned short* updateWrite;
     unsigned short updateData[128];
     void* itdBuffer;
@@ -114,11 +114,11 @@ typedef AXPBSRC AXVoiceSrc;
 typedef struct _AXPROFILE {
     unsigned long long axFrameStart, auxProcessingStart, auxProcessingEnd;
     unsigned long long userCallbackStart, userCallbackEnd, axFrameEnd;
-    unsigned long axNumVoices;
+    u32 axNumVoices;
 } AXPROFILE;
 
-typedef struct AX_AUX_DATA { signed long* l; signed long* r; signed long* s; } AX_AUX_DATA;
-typedef struct AX_AUX_DATA_DPL2 { signed long* l; signed long* r; signed long* ls; signed long* rs; } AX_AUX_DATA_DPL2;
+typedef struct AX_AUX_DATA { s32* l; s32* r; s32* s; } AX_AUX_DATA;
+typedef struct AX_AUX_DATA_DPL2 { s32* l; s32* r; s32* ls; s32* rs; } AX_AUX_DATA_DPL2;
 typedef char AXPROFILELayoutSize[sizeof(AXPROFILE) == 0x38 ? 1 : -1];
 
 typedef void (*AXVoiceCallback)(void* callback_data);
@@ -159,27 +159,27 @@ typedef void (*AXCallback)(void);
 extern "C" {
 #endif
 
-AXVPB* AXAcquireVoice(unsigned long priority, AXVoiceCallback callback,
-                      unsigned long user_context);
+AXVPB* AXAcquireVoice(u32 priority, AXVoiceCallback callback,
+                      u32 user_context);
 void AXFreeVoice(AXVPB* voice);
-void AXSetVoicePriority(AXVPB* voice, unsigned long priority);
-void AXSetVoiceSrcType(AXVPB* voice, unsigned long type);
+void AXSetVoicePriority(AXVPB* voice, u32 priority);
+void AXSetVoiceSrcType(AXVPB* voice, u32 type);
 void AXSetVoiceSrc(AXVPB* voice, AXPBSRC* source);
 void AXSetVoiceAdpcm(AXVPB* voice, AXPBADPCM* adpcm);
 void AXSetVoiceState(AXVPB* voice, unsigned short state);
 void AXSetVoiceAddr(AXVPB* voice, AXPBADDR* address);
-void AXInitEx(unsigned long output_buffer_mode);
-void AXSetMode(unsigned long mode);
+void AXInitEx(u32 output_buffer_mode);
+void AXSetMode(u32 mode);
 AXCallback AXRegisterCallback(AXCallback callback);
 
 void MIXInit(void);
 int MIXGetSoundMode(void);
 void MIXUpdateSettings(void);
-void MIXInitChannel(AXVPB* voice, unsigned long mode, int input, int aux_a,
+void MIXInitChannel(AXVPB* voice, u32 mode, int input, int aux_a,
                     int aux_b, int pan, int surround_pan, int fader);
 void MIXSetPan(AXVPB* voice, int pan);
 void MIXSetSPan(AXVPB* voice, int pan);
-void MIXSetInput(AXVPB* voice, long volume);
+void MIXSetInput(AXVPB* voice, s32 volume);
 void MIXSetFader(AXVPB* voice, int volume);
 void MIXReleaseChannel(AXVPB* voice);
 

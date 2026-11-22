@@ -1,3 +1,4 @@
+#include "dolphin/types.h"
 #include "fdlibm.h"
 #include "math/gxVect.h"
 #include "math/mk_math.h"
@@ -2789,7 +2790,7 @@ static void pz_fighter_chomper_entering_fatality(
     reset_chomper_motion(2);
 }
 
-static inline void pz_fighter_chomper2_offset_post(long player, float* post_x, float* post_z) {
+static inline void pz_fighter_chomper2_offset_post(s32 player, float* post_x, float* post_z) {
     Vec offset = {0.05f, 0.0f, 0.0f};
 
     if (player == 0) {

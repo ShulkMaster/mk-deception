@@ -621,7 +621,7 @@ static inline int sound_bank_use_count(int bank)
     return count;
 }
 
-static inline void unload_sound_bank(long bank) {
+static inline void unload_sound_bank(s32 bank) {
     char filename[0x98];
 
     if (bank != -1 && bank >= 0 && bank < SOUND_BANK_COUNT) {
@@ -792,7 +792,7 @@ static inline int is_bank_on_list(int bank, int mode) {
 }
 
 static void unload_banks_not_on_list(int mode) {
-    long bank;
+    s32 bank;
 
     for (bank = 0; bank < SOUND_BANK_COUNT; bank++) {
         SoundBankData* bank_data = &sbank_data[bank];

@@ -62,7 +62,7 @@ static void display_image(void);
 static inline int timed_out_10s(OSTime start) {
     OSTime now;
     OSTime diff;
-    unsigned long limit;
+    u32 limit;
 
     now = OSGetTime();
     diff = now - start;
@@ -388,8 +388,8 @@ static void display_dragon_with_text(void* arg) {
     render_text_without_clear(prompt->message, (screen_width - msgW) / 2, 0x15E);
 
     if (prompt->yes_hi != 0) {
-        unsigned long no_index;
-        unsigned long yes_index;
+        size_t no_index;
+        size_t yes_index;
         for (no_index = 0; no_index < strlen(prompt->no_str); no_index++) {
             prompt->no_str[no_index] |= 0x20;
         }
@@ -397,8 +397,8 @@ static void display_dragon_with_text(void* arg) {
             prompt->yes_str[yes_index] &= ~0x20;
         }
     } else {
-        unsigned long yes_index;
-        unsigned long no_index;
+        size_t yes_index;
+        size_t no_index;
         for (yes_index = 0; yes_index < strlen(prompt->yes_str); yes_index++) {
             prompt->yes_str[yes_index] |= 0x20;
         }
@@ -574,7 +574,7 @@ static void gcSetup480P(void) {
     unsigned char* xfb1;
     unsigned char* xfb2;
     float yscale;
-    unsigned long copyHeight;
+    u32 copyHeight;
     int i;
 
     gc_grab_renderpipe();
@@ -600,7 +600,7 @@ static void gcSetup480P(void) {
     raw = _mwMemMalloc(permanent_heap, _RwDlFifoSize + (xfbBytes * 4) + 0x1F, 5, 0,
                        0, 0);
     _RwDl_FIFO_XFB = raw;
-    _RwDlDefaultFifo = (void*)(((unsigned long)raw + 0x1F) & ~0x1Fu);
+    _RwDlDefaultFifo = (void*)(((uptr)raw + 0x1F) & ~(uptr)0x1F);
     gc_native_display.fifo = _RwDlDefaultFifo;
     DCInvalidateRange(_RwDlDefaultFifo, _RwDlFifoSize);
 
@@ -786,7 +786,7 @@ void gc_native_display_init(void) {
     unsigned char* xfb1;
     unsigned char* xfb2;
     float yscale;
-    unsigned long copyHeight;
+    u32 copyHeight;
     int pixFmt;
 
     gc_grab_renderpipe();
@@ -807,7 +807,7 @@ void gc_native_display_init(void) {
     xfbHalf = xfbBytes * 2;
     raw = _mwMemMalloc(permanent_heap, _RwDlFifoSize + (xfbBytes * 4) + 0x1F, 5, 0,
                        0, 0);
-    fifo = (void*)(((unsigned long)raw + 0x1F) & ~0x1Fu);
+    fifo = (void*)(((uptr)raw + 0x1F) & ~(uptr)0x1F);
     _RwDl_FIFO_XFB = raw;
     _RwDlDefaultFifo = fifo;
     gc_native_display.fifo = fifo;

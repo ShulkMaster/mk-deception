@@ -1,8 +1,8 @@
 #include "msl/ExtHeapMgr.h"
 #include "runtime/cstring.h"
 
-static unsigned long ExternalHeap_AlignAlloc(
-    ExternalHeap* heap, unsigned long size,
+static u32 ExternalHeap_AlignAlloc(
+    ExternalHeap* heap, u32 size,
     int alignment);
 
 static void ExternalHeap_MutexNullFunc(void* mutex);
@@ -43,7 +43,7 @@ static inline ExternalHeapBlock* ExternalHeap_PopFreeBlock(
 }
 
 void ExternalHeap_Free(
-    ExternalHeap* heap, unsigned long address) {
+    ExternalHeap* heap, u32 address) {
     RedBlackNode* address_node;
 
     if (heap->mutex != 0) {
@@ -108,9 +108,9 @@ void ExternalHeap_Free(
     }
 }
 
-unsigned long ExternalHeap_Alloc(
-    ExternalHeap* heap, unsigned long size) {
-    unsigned long address = 0;
+u32 ExternalHeap_Alloc(
+    ExternalHeap* heap, u32 size) {
+    u32 address = 0;
 
     if (heap != 0) {
         address = ExternalHeap_AlignAlloc(
@@ -119,27 +119,27 @@ unsigned long ExternalHeap_Alloc(
     return address;
 }
 
-static unsigned long ExternalHeap_AlignAlloc(
-    ExternalHeap* heap, unsigned long size, int alignment) {
+static u32 ExternalHeap_AlignAlloc(
+    ExternalHeap* heap, u32 size, int alignment) {
     ExternalHeapBlock* candidate;
     ExternalHeapBlock* prefix_block;
-    unsigned long mask;
-    unsigned long inverse_mask;
-    unsigned long aligned_size;
+    u32 mask;
+    u32 inverse_mask;
+    u32 aligned_size;
     ExternalHeapBlock* split_block;
     ExternalHeapBlock* suffix;
-    unsigned long aligned_address;
-    unsigned long usable;
+    u32 aligned_address;
+    u32 usable;
     RedBlackNode* previous;
     RedBlackNode* candidate_node;
     RedBlackNode* node;
-    unsigned long used;
-    unsigned long prefix;
-    unsigned long result = 0;
-    unsigned long address;
-    unsigned long block_size;
+    u32 used;
+    u32 prefix;
+    u32 result = 0;
+    u32 address;
+    u32 block_size;
 
-    if ((long)size <= 0) {
+    if ((s32)size <= 0) {
         return 0;
     }
     if (heap->mutex != 0) {
@@ -151,7 +151,7 @@ static unsigned long ExternalHeap_AlignAlloc(
     } else if (alignment > 24) {
         alignment = 24;
     }
-    mask = (1UL << alignment) - 1;
+    mask = (1U << alignment) - 1;
     inverse_mask = ~mask;
     aligned_size = (size + mask) & inverse_mask;
     RBTK_GetPrevNextToKey(
@@ -216,7 +216,7 @@ static unsigned long ExternalHeap_AlignAlloc(
                     heap->allocation_count++;
                     heap->free_bytes -= aligned_size;
                     heap->used_bytes += aligned_size;
-                    if ((long)heap->peak_used < (long)(used = heap->used_bytes)) {
+                    if ((s32)heap->peak_used < (s32)(used = heap->used_bytes)) {
                         heap->peak_used = used;
                     }
                 } else {
@@ -246,7 +246,7 @@ static unsigned long ExternalHeap_AlignAlloc(
                 heap->allocation_count++;
                 heap->free_bytes -= aligned_size;
                 heap->used_bytes += aligned_size;
-                if ((long)heap->peak_used < (long)(used = heap->used_bytes)) {
+                if ((s32)heap->peak_used < (s32)(used = heap->used_bytes)) {
                     heap->peak_used = used;
                 }
             }
@@ -323,8 +323,8 @@ static inline void ExternalHeap_Destroy(ExternalHeap* heap) {
 }
 
 ExternalHeap* ExternalHeap_Create(
-    unsigned long base, unsigned long size,
-    unsigned long alignment, int block_count) {
+    u32 base, u32 size,
+    u32 alignment, int block_count) {
     ExternalHeap* heap =
         ExternalHeap_SystemAlloc(sizeof(ExternalHeap));
 
@@ -369,8 +369,8 @@ void ExternalHeap_SetSysMemRoutines(
 
 static int KeyCompareBlocksByAddress(
     const void* key_value, const RedBlackNode* node) {
-    unsigned long key = (unsigned long)key_value;
-    unsigned long address =
+    u32 key = (uptr)key_value;
+    u32 address =
         CONST_BLOCK_FROM_ADDRESS_NODE(node)->link.address;
 
     if (key < address) {
@@ -384,7 +384,7 @@ static int KeyCompareBlocksByAddress(
 
 static int KeyCompareBlocksBySize(
     const void* key_value, const RedBlackNode* node) {
-    unsigned long key = (unsigned long)key_value;
+    u32 key = (uptr)key_value;
     const ExternalHeapBlock* block =
         CONST_BLOCK_FROM_SIZE_NODE(node);
 
@@ -403,8 +403,8 @@ static int CompareBlocksByAddress(
         CONST_BLOCK_FROM_ADDRESS_NODE(first);
     const ExternalHeapBlock* second_block =
         CONST_BLOCK_FROM_ADDRESS_NODE(second);
-    unsigned long address = first_block->link.address;
-    unsigned long other = second_block->link.address;
+    u32 address = first_block->link.address;
+    u32 other = second_block->link.address;
 
     if (address < other) {
         return -1;
@@ -421,10 +421,10 @@ static int CompareBlocksBySizeThenAddress(
         CONST_BLOCK_FROM_SIZE_NODE(first);
     const ExternalHeapBlock* second_block =
         CONST_BLOCK_FROM_SIZE_NODE(second);
-    unsigned long first_size = first_block->size;
-    unsigned long second_size = second_block->size;
-    unsigned long address;
-    unsigned long other;
+    u32 first_size = first_block->size;
+    u32 second_size = second_block->size;
+    u32 address;
+    u32 other;
 
     if (first_size < second_size) {
         return -1;

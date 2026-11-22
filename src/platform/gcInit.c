@@ -61,6 +61,6 @@ void free(void* memory) {
     _mwMemFree(memory, 0, 0);
 }
 
-void* malloc(unsigned long size) {
+void* malloc(size_t size) {
     return _mwMemMalloc(permanent_heap, size, 3, 0, 0, 0);
 }

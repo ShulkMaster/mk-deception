@@ -2,7 +2,7 @@
 #include "mw/mwMemHeap.h"
 #include "mw/mwMem.h"
 
-extern "C" unsigned long mslMainRamUsed(void) {
+extern "C" u32 mslMainRamUsed(void) {
     MwMemHeapInfo info;
 
     mwMemHeapGetInfo(MWSOUND_HEAP, &info);

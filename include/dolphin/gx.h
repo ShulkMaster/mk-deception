@@ -1,6 +1,7 @@
 #ifndef DOLPHIN_GX_H
 #define DOLPHIN_GX_H
 
+#include "dolphin/types.h"
 #include "dolphin/mtx.h"
 #include "dolphin/gx_fifo.h"
 
@@ -147,7 +148,7 @@ enum { GX_TL_IA8 = 0, GX_TL_RGB565 = 1, GX_TL_RGB5A3 = 2 };
 typedef int GXTexCacheSize;
 typedef int GXTlutSize;
 typedef GXTexRegion* (*GXTexRegionCallback)(const GXTexObj*, GXTexMapID);
-typedef GXTlutRegion* (*GXTlutRegionCallback)(unsigned long);
+typedef GXTlutRegion* (*GXTlutRegionCallback)(u32);
 
 typedef struct GXLightObj {
     unsigned char data[0x40];
@@ -162,7 +163,7 @@ typedef struct GXRenderModeObj {
     unsigned short viYOrigin;
     unsigned short viWidth;
     unsigned short viHeight;
-    unsigned long xFBmode;
+    u32 xFBmode;
     unsigned char field_rendering;
     unsigned char aa;
     unsigned char sample_pattern[12][2];
@@ -179,12 +180,12 @@ void GXSetNumTexGens(unsigned char count);
 void GXSetDrawSync(unsigned short token);
 unsigned short GXReadDrawSync(void);
 void GXSetTexCoordGen2(GXTexCoordID destination, GXTexGenType function,
-                       GXTexGenSrc source, unsigned long matrix,
-                       GXBool normalize, unsigned long post_matrix);
+                       GXTexGenSrc source, u32 matrix,
+                       GXBool normalize, u32 post_matrix);
 static inline void GXSetTexCoordGen(GXTexCoordID destination,
                                     GXTexGenType function,
                                     GXTexGenSrc source,
-                                    unsigned long matrix)
+                                    u32 matrix)
 {
     GXSetTexCoordGen2(destination, function, source, matrix, 0, 125);
 }
@@ -229,25 +230,25 @@ void GXSetCullMode(int mode);
 void GXSetZMode(GXBool compare_enable, int function, GXBool update_enable);
 void GXSetAlphaCompare(int compare0, unsigned char reference0, int operation,
                        int compare1, unsigned char reference1);
-void GXLoadTexMtxImm(const float matrix[][4], unsigned long id, int type);
+void GXLoadTexMtxImm(const float matrix[][4], u32 id, int type);
 void GXClearVtxDesc(void);
 void GXSetVtxDesc(GXAttr attribute, GXAttrType type);
 void GXSetVtxAttrFmt(GXVtxFmt format, GXAttr attribute, GXCompCnt component_count,
                      GXCompType component_type, unsigned char fraction);
 void GXSetVtxAttrFmtv(GXVtxFmt format, const GXVtxAttrFmtList* list);
 void GXSetArray(GXAttr attribute, void* base, unsigned char stride);
-void GXLoadPosMtxImm(const Mtx matrix, unsigned long id);
-void GXLoadNrmMtxImm(const Mtx matrix, unsigned long id);
-void GXSetCurrentMtx(unsigned long id);
+void GXLoadPosMtxImm(const Mtx matrix, u32 id);
+void GXLoadNrmMtxImm(const Mtx matrix, u32 id);
+void GXSetCurrentMtx(u32 id);
 void GXBegin(int primitive, int format, unsigned short vertex_count);
-GXFifoObj* GXInit(void* fifo_base, unsigned long fifo_size);
+GXFifoObj* GXInit(void* fifo_base, u32 fifo_size);
 void GXDrawDone(void);
-void GXSetScissor(unsigned long left, unsigned long top,
-                  unsigned long width, unsigned long height);
+void GXSetScissor(u32 left, u32 top,
+                  u32 width, u32 height);
 void GXSetDispCopySrc(unsigned short left, unsigned short top,
                       unsigned short width, unsigned short height);
 float GXGetYScaleFactor(unsigned short efb_height, unsigned short xfb_height);
-unsigned long GXSetDispCopyYScale(float scale);
+u32 GXSetDispCopyYScale(float scale);
 void GXSetDispCopyDst(unsigned short width, unsigned short height);
 void GXSetCopyFilter(GXBool antialias,
                      const unsigned char sample_pattern[12][2],
@@ -259,13 +260,13 @@ void GXSetFieldMode(GXBool field_mode, GXBool half_aspect_ratio);
 void GXSetTevOp(int stage, int mode);
 void GXInitTlutObj(GXTlutObj* object, void* image, int format,
                    unsigned short entry_count);
-void GXLoadTlut(GXTlutObj* object, unsigned long id);
+void GXLoadTlut(GXTlutObj* object, u32 id);
 void GXInitTexObjCI(GXTexObj* object, void* image, unsigned short width,
                     unsigned short height, int format, int wrap_s, int wrap_t,
-                    GXBool mipmap, unsigned long tlut);
+                    GXBool mipmap, u32 tlut);
 void GXSetCoPlanar(GXBool enable);
 void GXSetClipMode(int mode);
-void GXSetScissorBoxOffset(long x, long y);
+void GXSetScissorBoxOffset(s32 x, s32 y);
 void GXSetFog(int type, float start, float end, float near_plane,
               float far_plane, GXColor color);
 void GXSetFogRangeAdj(GXBool enable, unsigned short center,
@@ -275,21 +276,21 @@ void GXSetAlphaUpdate(GXBool enable);
 void GXSetZCompLoc(GXBool before_texture);
 void GXSetDither(GXBool enable);
 void GXSetDstAlpha(GXBool enable, unsigned char alpha);
-void GXSetCopyClear(GXColor color, unsigned long z);
+void GXSetCopyClear(GXColor color, u32 z);
 void GXSetViewport(float left, float top, float width, float height,
                    float near_plane, float far_plane);
 void GXSetViewportJitter(float left, float top, float width, float height,
                          float near_plane, float far_plane,
-                         unsigned long field);
+                         u32 field);
 void GXCopyDisp(void* destination, GXBool clear);
 void GXSetTexCopySrc(unsigned short left, unsigned short top,
                      unsigned short width, unsigned short height);
 void GXSetTexCopyDst(unsigned short width, unsigned short height, int format,
                      GXBool mipmap);
 void GXCopyTex(void* destination, GXBool clear);
-void GXCallDisplayList(void* list, unsigned long byte_count);
-void GXBeginDisplayList(void* list, unsigned long byte_count);
-unsigned long GXEndDisplayList(void);
+void GXCallDisplayList(void* list, u32 byte_count);
+void GXBeginDisplayList(void* list, u32 byte_count);
+u32 GXEndDisplayList(void);
 void GXResetWriteGatherPipe(void);
 void GXFlush(void);
 void GXInvalidateTexAll(void);
@@ -301,20 +302,20 @@ void GXInitTexObjLOD(GXTexObj* object, int min_filter, int mag_filter,
                      float min_lod, float max_lod, float lod_bias,
                      unsigned char bias_clamp, unsigned char edge_lod,
                      int max_anisotropy);
-unsigned long GXGetTexBufferSize(unsigned short width, unsigned short height,
-                                 unsigned long format, GXBool mipmap,
-                                 unsigned char max_lod);
+u32 GXGetTexBufferSize(unsigned short width, unsigned short height,
+                       u32 format, GXBool mipmap,
+                       unsigned char max_lod);
 GXTexFmt GXGetTexObjFmt(const GXTexObj* object);
 GXBool GXGetTexObjMipMap(const GXTexObj* object);
 float GXGetTexObjLODBias(const GXTexObj* object);
 GXBool GXGetTexObjBiasClamp(const GXTexObj* object);
 GXBool GXGetTexObjEdgeLOD(const GXTexObj* object);
 GXAnisotropy GXGetTexObjMaxAniso(const GXTexObj* object);
-unsigned long GXGetTexObjTlut(const GXTexObj* object);
+u32 GXGetTexObjTlut(const GXTexObj* object);
 void GXInitTexCacheRegion(GXTexRegion* region, GXBool is_32b_mipmap,
-                          unsigned long tmem_even, GXTexCacheSize size_even,
-                          unsigned long tmem_odd, GXTexCacheSize size_odd);
-void GXInitTlutRegion(GXTlutRegion* region, unsigned long tmem_addr,
+                          u32 tmem_even, GXTexCacheSize size_even,
+                          u32 tmem_odd, GXTexCacheSize size_odd);
+void GXInitTlutRegion(GXTlutRegion* region, u32 tmem_addr,
                       GXTlutSize tlut_size);
 GXTexRegionCallback GXSetTexRegionCallback(GXTexRegionCallback callback);
 GXTlutRegionCallback GXSetTlutRegionCallback(GXTlutRegionCallback callback);

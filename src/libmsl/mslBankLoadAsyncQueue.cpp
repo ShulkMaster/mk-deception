@@ -5,7 +5,7 @@
 
 struct asyncRequest {
     _mslSystem* system;
-    unsigned long flags;
+    u32 flags;
     char filename[0x100];
     _mslAsyncResponse* response;
     int state;
@@ -292,7 +292,7 @@ extern "C" int mslBankLoadAsyncCancelNamed(char* filename) {
 }
 
 extern "C" void mslBankLoadAsync(
-    _mslSystem* system, unsigned long flags, char* filename,
+    _mslSystem* system, u32 flags, char* filename,
     _mslAsyncResponse* response) {
     asyncRequest* request;
 

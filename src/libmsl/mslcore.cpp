@@ -214,7 +214,7 @@ static inline void mslRunCallback(
 }
 
 static inline int mslSameCommandName(
-    unsigned long marker_name, unsigned long command_name) {
+    u32 marker_name, u32 command_name) {
     if (marker_name != 0 && command_name != 0) {
         if ((marker_name & 0xF0000000) == 0x20000000 ||
             (command_name & 0xF0000000) == 0x20000000) {

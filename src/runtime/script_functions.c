@@ -1,3 +1,4 @@
+#include "dolphin/types.h"
 #include "runtime/script_functions.h"
 #include "platform/main.h"
 #include "game/game.h"
@@ -1184,7 +1185,7 @@ void nb_npc_slave_plyr_process_collision(unsigned int);
 void nbc_script_debug_point(int arg0, int arg1, float arg2);
 void ncs_set_pebble_pos(PebbleData* data, int index, Vec* position);
 void npc_ani_to_blend_frame(float blend_frames);
-void npc_assign_door_path(long, int);
+void npc_assign_door_path(s32, int);
 void npc_assign_path(void* path, int flags, int travel_mode);
 void npc_assign_path_to_him(KonquestNpcData* data, void* path, int flags, int travel_mode);
 void npc_at_waypoint_set_flags(int flags, int enabled);

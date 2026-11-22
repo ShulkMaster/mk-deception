@@ -1,6 +1,8 @@
 #ifndef MSL_MSLWAVE_INTERNAL_H
 #define MSL_MSLWAVE_INTERNAL_H
 
-long mslWaveGetDbMapEntryRelative(float volume);
+#include "dolphin/types.h"
+
+s32 mslWaveGetDbMapEntryRelative(float volume);
 
 #endif

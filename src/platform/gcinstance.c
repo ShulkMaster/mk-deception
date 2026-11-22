@@ -17,7 +17,7 @@
 #include "dolphin/cache.h"
 
 static unsigned char* AlignPointer4(const void* pointer) {
-    return (unsigned char*)(((unsigned int)pointer + 3) & ~3U);
+    return (unsigned char*)(((uptr)pointer + 3) & ~(uptr)3);
 }
 
 static void* _rpNativeRead(RwStream* stream, void* owner, RwResEntry** entry,

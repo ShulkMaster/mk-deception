@@ -1,19 +1,10 @@
 #ifndef DOLPHIN_CARD_H
 #define DOLPHIN_CARD_H
 
+#include "dolphin/types.h"
 #include "dolphin/os.h"
 #include "dolphin/dvd.h"
 #include "dolphin/dsp.h"
-
-typedef signed char s8;
-typedef unsigned char u8;
-typedef signed short s16;
-typedef unsigned short u16;
-typedef signed long s32;
-typedef unsigned long u32;
-typedef signed long long s64;
-typedef unsigned long long u64;
-typedef int BOOL;
 
 #ifndef FALSE
 #define FALSE 0

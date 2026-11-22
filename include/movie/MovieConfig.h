@@ -10,7 +10,7 @@ extern "C" {
 
 void mwMovLog(const char* message);
 void mwMovFree(void* memory);
-void* mwMovMalloc(unsigned long size);
+void* mwMovMalloc(size_t size);
 
 #ifdef __cplusplus
 }

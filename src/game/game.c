@@ -72,7 +72,7 @@ static unsigned int start_time;
 static int game_time_tick;
 static int last_timer_sec;
 int round_winner;
-unsigned long display_off;
+s32 display_off;
 int g_GameLossesInARow;
 
 extern int pause_player;

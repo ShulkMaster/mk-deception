@@ -1,6 +1,8 @@
 #ifndef MSL_BANK_LOAD_ASYNC_QUEUE_H
 #define MSL_BANK_LOAD_ASYNC_QUEUE_H
 
+#include "dolphin/types.h"
+
 typedef struct _mslSystem _mslSystem;
 
 typedef struct _mslAsyncResponse _mslAsyncResponse;
@@ -26,7 +28,7 @@ extern "C" {
 int mslBankLoadAsyncCancelNamed(char* filename);
 
 void mslBankLoadAsync(
-    _mslSystem* system, unsigned long flags, char* filename,
+    _mslSystem* system, u32 flags, char* filename,
     _mslAsyncResponse* response);
 
 #ifdef __cplusplus

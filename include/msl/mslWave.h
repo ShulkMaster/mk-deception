@@ -33,10 +33,10 @@ mslRuntimeWave* CopyStreamWave(
     const char* name, const mslRuntimeWave* source, int create_playable);
 mslRuntimeWave* LoadStaticWaveFile(
     _mslSystem* system, mslLoadedBank* bank,
-    const char* name, unsigned long create_playable);
+    const char* name, u32 create_playable);
 mslRuntimeWave* LoadStreamWaveFile(
     _mslSystem* system, mslLoadedBank* bank,
-    const char* name, unsigned long flags);
+    const char* name, u32 flags);
 
 int mslWavePlay(
     _mslSystem* system, mslRuntimeSound* sound,
@@ -51,7 +51,7 @@ mslRuntimeWave* mslWaveCopy(
     mslLoadedBank* bank, const char* name, int copy_flags);
 mslRuntimeWave* mslWaveLoad(
     _mslSystem* system, mslLoadedBank* bank,
-    const char* name, unsigned long flags);
+    const char* name, u32 flags);
 int mslWaveSetPitch(mslRuntimeWave* wave, float pitch);
 int mslWaveSetPan(mslRuntimeWave* wave, float pan);
 int mslWaveSetVol(

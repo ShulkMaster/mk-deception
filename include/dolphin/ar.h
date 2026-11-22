@@ -1,16 +1,18 @@
 #ifndef DOLPHIN_AR_H
 #define DOLPHIN_AR_H
 
-typedef void (*ARQCallback)(unsigned long request_address);
+#include "dolphin/types.h"
+
+typedef void (*ARQCallback)(u32 request_address);
 typedef void (*ARDMACallback)(void);
 typedef struct ARQRequest {
     struct ARQRequest* next;
-    unsigned long owner;
-    unsigned long type;
-    unsigned long priority;
-    unsigned long source;
-    unsigned long destination;
-    unsigned long length;
+    u32 owner;
+    u32 type;
+    u32 priority;
+    u32 source;
+    u32 destination;
+    u32 length;
     ARQCallback callback;
 } ARQRequest;
 typedef char ARQRequestSizeCheck[sizeof(ARQRequest) == 0x20 ? 1 : -1];
@@ -19,20 +21,20 @@ typedef char ARQRequestSizeCheck[sizeof(ARQRequest) == 0x20 ? 1 : -1];
 extern "C" {
 #endif
 
-unsigned long ARInit(unsigned long* stack_index, unsigned long entry_count);
-unsigned long ARGetSize(void);
-unsigned long ARGetBaseAddress(void);
-unsigned long ARAlloc(unsigned long length);
-unsigned long ARFree(unsigned long* length);
+u32 ARInit(u32* stack_index, u32 entry_count);
+u32 ARGetSize(void);
+u32 ARGetBaseAddress(void);
+u32 ARAlloc(u32 length);
+u32 ARFree(u32* length);
 int ARCheckInit(void);
 ARDMACallback ARRegisterDMACallback(ARDMACallback callback);
-unsigned long ARGetDMAStatus(void);
-void ARStartDMA(unsigned long type, unsigned long main_memory,
-                unsigned long aram, unsigned long length);
+u32 ARGetDMAStatus(void);
+void ARStartDMA(u32 type, u32 main_memory,
+                u32 aram, u32 length);
 void ARReset(void);
 void ARSetSize(void);
-unsigned long ARGetInternalSize(void);
-void ARClear(unsigned long flag);
+u32 ARGetInternalSize(void);
+void ARClear(u32 flag);
 void __ARClearInterrupt(void);
 unsigned short __ARGetInterruptStatus(void);
 

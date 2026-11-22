@@ -1,6 +1,7 @@
 #ifndef DOLPHIN_DVD_H
 #define DOLPHIN_DVD_H
 
+#include "dolphin/types.h"
 #include "platform/os_types.h"
 
 struct OSContext;
@@ -21,13 +22,13 @@ typedef struct DVDFileInfo DVDFileInfo;
 typedef struct DVDDriveInfo {
     unsigned short revision_level;
     unsigned short device_code;
-    unsigned long release_date;
+    u32 release_date;
     unsigned char padding[24];
 } DVDDriveInfo;
-typedef void (*DVDCBCallback)(long result, DVDCommandBlock* block);
-typedef void (*DVDCallback)(long result, DVDFileInfo* file_info);
-typedef void (*DVDLowCallback)(unsigned long interrupt_type);
-typedef void (*DVDCommandCheckerCallback)(unsigned long result);
+typedef void (*DVDCBCallback)(s32 result, DVDCommandBlock* block);
+typedef void (*DVDCallback)(s32 result, DVDFileInfo* file_info);
+typedef void (*DVDLowCallback)(u32 interrupt_type);
+typedef void (*DVDCommandCheckerCallback)(u32 result);
 typedef void (*DVDCommandChecker)(DVDCommandBlock* block,
                                   DVDCommandCheckerCallback callback);
 
@@ -68,13 +69,13 @@ typedef void (*DVDCommandChecker)(DVDCommandBlock* block,
 struct DVDCommandBlock {
     DVDCommandBlock* next;
     DVDCommandBlock* prev;
-    unsigned long command;
-    long state;
-    unsigned long offset;
-    unsigned long length;
+    u32 command;
+    s32 state;
+    u32 offset;
+    u32 length;
     void* address;
-    unsigned long current_transfer_size;
-    unsigned long transferred_size;
+    u32 current_transfer_size;
+    u32 transferred_size;
     DVDDiskID* id;
     DVDCBCallback callback;
     void* user_data;
@@ -82,8 +83,8 @@ struct DVDCommandBlock {
 
 struct DVDFileInfo {
     DVDCommandBlock cb;
-    unsigned long start_address;
-    unsigned long length;
+    u32 start_address;
+    u32 length;
     DVDCallback callback;
 };
 typedef char DVDDiskIDSizeCheck[sizeof(DVDDiskID) == 0x20 ? 1 : -1];
@@ -91,14 +92,14 @@ typedef char DVDCommandBlockSizeCheck[sizeof(DVDCommandBlock) == 0x30 ? 1 : -1];
 typedef char DVDFileInfoSizeCheck[sizeof(DVDFileInfo) == 0x3C ? 1 : -1];
 
 typedef struct DVDBB2 {
-    unsigned long boot_file_position;
-    unsigned long fst_position;
-    unsigned long fst_length;
-    unsigned long fst_max_length;
+    u32 boot_file_position;
+    u32 fst_position;
+    u32 fst_length;
+    u32 fst_max_length;
     void* fst_address;
-    unsigned long user_position;
-    unsigned long user_length;
-    unsigned long padding0;
+    u32 user_position;
+    u32 user_length;
+    u32 padding0;
 } DVDBB2;
 typedef char DVDBB2SizeCheck[sizeof(DVDBB2) == 0x20 ? 1 : -1];
 typedef char DVDDriveInfoSizeCheck[sizeof(DVDDriveInfo) == 0x20 ? 1 : -1];
@@ -108,14 +109,14 @@ extern "C" {
 #endif
 
 int DVDCheckDisk(void);
-signed long DVDGetDriveStatus(void);
+s32 DVDGetDriveStatus(void);
 void DVDInit(void);
 DVDCommandChecker __DVDSetOptionalCommandChecker(DVDCommandChecker checker);
 int DVDInquiryAsync(DVDCommandBlock* block, DVDDriveInfo* info,
                     DVDCBCallback callback);
 void __DVDPrintFatalMessage(void);
 int DVDCompareDiskID(const DVDDiskID* first, const DVDDiskID* second);
-void __DVDStoreErrorCode(unsigned long error);
+void __DVDStoreErrorCode(u32 error);
 void __DVDClearWaitingQueue(void);
 int __DVDPushWaitingQueue(int priority, DVDCommandBlock* block);
 DVDCommandBlock* __DVDPopWaitingQueue(void);
@@ -123,14 +124,14 @@ int __DVDCheckWaitingQueue(void);
 int __DVDDequeueWaitingQueue(DVDCommandBlock* block);
 int __DVDIsBlockInWaitingQueue(DVDCommandBlock* block);
 int DVDReadAbsAsyncForBS(DVDCommandBlock* block, void* address,
-                         signed long length, signed long offset,
+                         s32 length, s32 offset,
                          DVDCBCallback callback);
 int DVDReadDiskID(DVDCommandBlock* block, DVDDiskID* id,
                   DVDCBCallback callback);
-int DVDReadAbsAsyncPrio(DVDCommandBlock* block, void* address, long length,
-                        long offset, DVDCBCallback callback, long priority);
-signed long DVDCancel(volatile DVDCommandBlock* block);
-long DVDGetCommandBlockStatus(const DVDCommandBlock* block);
+int DVDReadAbsAsyncPrio(DVDCommandBlock* block, void* address, s32 length,
+                        s32 offset, DVDCBCallback callback, s32 priority);
+s32 DVDCancel(volatile DVDCommandBlock* block);
+s32 DVDGetCommandBlockStatus(const DVDCommandBlock* block);
 int DVDSetAutoInvalidation(int enabled);
 void DVDResume(void);
 DVDDiskID* DVDGetCurrentDiskID(void);
@@ -138,36 +139,36 @@ int DVDCancelStreamAsync(DVDCommandBlock* block, DVDCBCallback callback);
 void __DVDPrepareResetAsync(DVDCBCallback callback);
 void __DVDInitWA(void);
 void __DVDInterruptHandler(short interrupt, struct OSContext* context);
-int DVDLowRead(void* address, unsigned long length, unsigned long offset,
+int DVDLowRead(void* address, u32 length, u32 offset,
                DVDLowCallback callback);
-int DVDLowSeek(unsigned long offset, DVDLowCallback callback);
+int DVDLowSeek(u32 offset, DVDLowCallback callback);
 int DVDLowWaitCoverClose(DVDLowCallback callback);
 int DVDLowReadDiskID(DVDDiskID* disk_id, DVDLowCallback callback);
 int DVDLowStopMotor(DVDLowCallback callback);
 int DVDLowRequestError(DVDLowCallback callback);
 int DVDLowInquiry(DVDDriveInfo* info, DVDLowCallback callback);
-int DVDLowAudioStream(unsigned long subcommand, unsigned long length,
-                      unsigned long offset, DVDLowCallback callback);
-int DVDLowRequestAudioStatus(unsigned long subcommand, DVDLowCallback callback);
-int DVDLowAudioBufferConfig(int enable, unsigned long size,
+int DVDLowAudioStream(u32 subcommand, u32 length,
+                      u32 offset, DVDLowCallback callback);
+int DVDLowRequestAudioStatus(u32 subcommand, DVDLowCallback callback);
+int DVDLowAudioBufferConfig(int enable, u32 size,
                             DVDLowCallback callback);
 void DVDLowReset(void);
 int DVDLowBreak(void);
 DVDLowCallback DVDLowClearCallback(void);
-void __DVDLowSetWAType(unsigned long type, signed long seek_location);
+void __DVDLowSetWAType(u32 type, s32 seek_location);
 int __DVDLowTestAlarm(const struct OSAlarm* alarm);
 int __DVDTestAlarm(const struct OSAlarm* alarm);
 void __DVDFSInit(void);
-long DVDConvertPathToEntrynum(const char* path);
-int DVDFastOpen(long entry_number, DVDFileInfo* file_info);
+s32 DVDConvertPathToEntrynum(const char* path);
+int DVDFastOpen(s32 entry_number, DVDFileInfo* file_info);
 int DVDOpen(const char* file_name, DVDFileInfo* file_info);
 int DVDClose(DVDFileInfo* file_info);
-int DVDGetCurrentDir(char* path, unsigned long max_length);
-int DVDReadAsyncPrio(DVDFileInfo* file_info, void* address, long length,
-                     long offset, DVDCallback callback, long priority);
-long DVDReadPrio(DVDFileInfo* file_info, void* address, long length,
-                 long offset, long priority);
-long DVDGetTransferredSize(DVDFileInfo* file_info);
+int DVDGetCurrentDir(char* path, u32 max_length);
+int DVDReadAsyncPrio(DVDFileInfo* file_info, void* address, s32 length,
+                     s32 offset, DVDCallback callback, s32 priority);
+s32 DVDReadPrio(DVDFileInfo* file_info, void* address, s32 length,
+                s32 offset, s32 priority);
+s32 DVDGetTransferredSize(DVDFileInfo* file_info);
 void DVDReset(void);
 void __fstLoad(void);
 extern OSThreadQueue __DVDThreadQueue;

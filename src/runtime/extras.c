@@ -13,7 +13,7 @@ char* strupr(char* string)
     return string;
 }
 
-int strnicmp(const char* left, const char* right, unsigned long count)
+int strnicmp(const char* left, const char* right, size_t count)
 {
     return __msl_strnicmp(left, right, count);
 }
