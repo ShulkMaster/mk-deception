@@ -1,12 +1,3 @@
-/*
- * Retail stream-cache ownership: 32 fixed 0x20000-byte ARAM buffers move
- * between free, LOD-cache, and active-stream intrusive lists.
- *
- * Current reconstruction: 97.99% .text. GetStreamBuffer and ReleaseBuffer
- * are exact, Initialize_A is 91.57%, and both getters plus all data are exact.
- * The remaining differences are initialization register allocation only.
- */
-
 #include "dolphin/os.h"
 #include "dolphin/types.h"
 #include "msl/mslgcn.h"

@@ -792,7 +792,7 @@ void create_y_mirror_effect(int field_28) {
         render_object->scale.x = 1.0f;
         render_object->scale.y = -1.0f;
         render_object->scale.z = 1.0f;
-        render_object->flags_08_bits.scale_active = 1;
+        render_object->flags.scale_active = 1;
         update_mkobj(render_object != 0 ? as_mkhdr(&render_object->hdr) : 0);
     }
 }

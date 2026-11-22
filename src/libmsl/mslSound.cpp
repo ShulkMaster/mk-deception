@@ -1,4 +1,3 @@
-/* BUILD: -str reuse,pool,readonly. */
 /* TODO: [review] 27 stripped-function literal records are reconstruction artifacts;
  * their pointers occupy .sdata; missing function bodies remain unrecovered. */
 #include "msl/mslBank.h"

@@ -250,7 +250,7 @@ void set_active_projectile_upward_attack(Vec* target) {
 }
 
 int get_bid_with_flip(MkObj* object, unsigned int bone_id) {
-    if (object->hide_flag_bits.bit6) {
+    if (object->flags.bit0A_6) {
         MkFlippedBoneMap* flipped = object->flipped_bone_map;
 
         if (bone_id < flipped->count) {
@@ -309,7 +309,7 @@ void set_active_projectile_velocity_to_hit_gnd(float ticks) {
         return;
     }
 
-    object->flags_08_bits.gravity_enabled = 1;
+    object->flags.gravity_enabled = 1;
     speed = gxMathFastSqrt(
         object->pos_vel.x * object->pos_vel.x +
         object->pos_vel.y * object->pos_vel.y +
@@ -377,7 +377,7 @@ void set_active_projectile_velocity(Vec* velocity) {
         object = MK_HDR_LIVE(proj_pdata->object, proj_pdata->object_instance);
 
         if (object != 0) {
-            object->flags_08_bits.gravity_enabled = 1;
+            object->flags.gravity_enabled = 1;
             object->pos_vel.x = velocity->x;
             object->pos_vel.y = velocity->y;
             object->pos_vel.z = velocity->z;
@@ -621,9 +621,9 @@ static MkObj* start_projectile_from_specific_plyr_bone(
         obj_set_all_sobjs_priority(object, 0x13);
     }
 
-    object->hide_flag_bits.hidden = 1;
-    object->flags_08_bits.angular_velocity_enabled = 1;
-    object->flags_08_bits.gravity_enabled = 1;
+    object->flags.hidden = 1;
+    object->flags.angular_velocity_enabled = 1;
+    object->flags.gravity_enabled = 1;
     if (object == 0) {
         return 0;
     }
@@ -676,7 +676,7 @@ static MkObj* start_projectile_from_specific_plyr_bone(
     if (model_name != 0 || existing_object != 0) {
         update_mkobj(object);
     }
-    object->hide_flag_bits.hidden = 0;
+    object->flags.hidden = 0;
 
     ((struct ProjectilePdata*)allocated_data)->source_object = plyr_obj;
     ((struct ProjectilePdata*)allocated_data)->source_object_instance =
@@ -938,8 +938,8 @@ static void projectile_impale(struct ProjectilePdata* pdata, MkObj* victim) {
     }
 
     pdata->max_ticks = 1800.0f;
-    victim->flags_08_bits.angular_velocity_enabled = 0;
-    victim->flags_08_bits.gravity_enabled = 0;
+    victim->flags.angular_velocity_enabled = 0;
+    victim->flags.gravity_enabled = 0;
 }
 
 static float p_projectile_handler(void) {

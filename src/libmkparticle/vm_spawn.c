@@ -4,7 +4,7 @@
 #include "libmkparticle/emitter.h"
 #include "libmkparticle/streams.h"
 #include "math/gxMath.h"
-#include "runtime/__mem.h"
+#include "runtime/cstring.h"
 #include "libmkparticle/particle.h"
 
 int rand(void);
@@ -610,8 +610,6 @@ void _pfxvm_execute_spawn(PfxVm* pfx, int emitter_index)
     __pfxvm_execute_spawn(pfx, emitter);
 }
 
-/* Retail retains the final link-order diagnostic even though this TU has no
- * surviving code reference to it. */
 static char spawn_messages[150] =
     "Invalid data type\0"
     "PFX: Too many spawn instructions\0"

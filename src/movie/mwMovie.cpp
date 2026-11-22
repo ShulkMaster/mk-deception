@@ -1,5 +1,3 @@
-/* BUILD: retail object compiled with -opt nopeephole -schedule off (unscheduled
- * prologues and panic-argument staging), like mwMovieGC.o. */
 #include "cri/adx_mgc.h"
 #include "dolphin/os.h"
 #include "movie/MovieConfig.h"

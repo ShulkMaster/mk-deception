@@ -37,11 +37,6 @@ struct FirstMoveMadeTable {
     struct FirstMoveMadeRow rows[15];
 };
 
-union PuzzleFloatBits {
-    float value;
-    unsigned int bits;
-};
-
 typedef void (*PuzzleObjectArrivalFn)(int x, int y);
 
 struct PuzzleObjectMotion {
@@ -465,7 +460,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
             break;
         }
         g_pz_fighters_engine.fatality_objects[0]->light_flags = 4;
-        g_pz_fighters_engine.fatality_objects[0]->flags_08_bits.airborne = 1;
+        g_pz_fighters_engine.fatality_objects[0]->flags.airborne = 1;
         insert_fgnd_mkobj(g_pz_fighters_engine.fatality_objects[0]);
         hide_obj(g_pz_fighters_engine.fatality_objects[0]);
         effect_context.art_id = 0x70038;
@@ -479,7 +474,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
             break;
         }
         g_pz_fighters_engine.fatality_objects[1]->light_flags = 20;
-        g_pz_fighters_engine.fatality_objects[1]->flags_08_bits.airborne = 1;
+        g_pz_fighters_engine.fatality_objects[1]->flags.airborne = 1;
         insert_fgnd_mkobj(g_pz_fighters_engine.fatality_objects[1]);
         hide_obj(g_pz_fighters_engine.fatality_objects[1]);
         g_pz_fighters_engine.fatality_objects[2] =
@@ -488,7 +483,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
             break;
         }
         g_pz_fighters_engine.fatality_objects[2]->light_flags = 20;
-        g_pz_fighters_engine.fatality_objects[2]->flags_08_bits.airborne = 1;
+        g_pz_fighters_engine.fatality_objects[2]->flags.airborne = 1;
         insert_fgnd_mkobj(g_pz_fighters_engine.fatality_objects[2]);
         hide_obj(g_pz_fighters_engine.fatality_objects[2]);
         g_pz_fighters_engine.fatality_objects[3] =
@@ -497,7 +492,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
             break;
         }
         g_pz_fighters_engine.fatality_objects[3]->light_flags = 20;
-        g_pz_fighters_engine.fatality_objects[3]->flags_08_bits.airborne = 1;
+        g_pz_fighters_engine.fatality_objects[3]->flags.airborne = 1;
         insert_fgnd_mkobj(g_pz_fighters_engine.fatality_objects[3]);
         hide_obj(g_pz_fighters_engine.fatality_objects[3]);
         g_pz_fighters_engine.fatality_objects[4] =
@@ -506,7 +501,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
             break;
         }
         g_pz_fighters_engine.fatality_objects[4]->light_flags = 20;
-        g_pz_fighters_engine.fatality_objects[4]->flags_08_bits.airborne = 1;
+        g_pz_fighters_engine.fatality_objects[4]->flags.airborne = 1;
         insert_fgnd_mkobj(g_pz_fighters_engine.fatality_objects[4]);
         hide_obj(g_pz_fighters_engine.fatality_objects[4]);
         g_pz_fighters_engine.fatality_objects[5] =
@@ -515,7 +510,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
             break;
         }
         g_pz_fighters_engine.fatality_objects[5]->light_flags = 20;
-        g_pz_fighters_engine.fatality_objects[5]->flags_08_bits.airborne = 1;
+        g_pz_fighters_engine.fatality_objects[5]->flags.airborne = 1;
         insert_fgnd_mkobj(g_pz_fighters_engine.fatality_objects[5]);
         hide_obj(g_pz_fighters_engine.fatality_objects[5]);
         g_pz_fighters_engine.fatality_objects[6] =
@@ -524,7 +519,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
             break;
         }
         g_pz_fighters_engine.fatality_objects[6]->light_flags = 20;
-        g_pz_fighters_engine.fatality_objects[6]->flags_08_bits.airborne = 1;
+        g_pz_fighters_engine.fatality_objects[6]->flags.airborne = 1;
         insert_fgnd_mkobj(g_pz_fighters_engine.fatality_objects[6]);
         hide_obj(g_pz_fighters_engine.fatality_objects[6]);
         g_pz_fighters_engine.fatality_objects[7] =
@@ -533,7 +528,7 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
             break;
         }
         g_pz_fighters_engine.fatality_objects[7]->light_flags = 20;
-        g_pz_fighters_engine.fatality_objects[7]->flags_08_bits.airborne = 1;
+        g_pz_fighters_engine.fatality_objects[7]->flags.airborne = 1;
         insert_fgnd_mkobj(g_pz_fighters_engine.fatality_objects[7]);
         hide_obj(g_pz_fighters_engine.fatality_objects[7]);
 
@@ -553,8 +548,8 @@ void pz_fighter_event(PuzzleFighterEvent* event) {
             break;
         }
         g_pz_fighters_engine.present_object->light_flags = 20;
-        g_pz_fighters_engine.present_object->flags_08_bits.airborne = 1;
-        g_pz_fighters_engine.present_object->flags_08_bits.scale_active = 1;
+        g_pz_fighters_engine.present_object->flags.airborne = 1;
+        g_pz_fighters_engine.present_object->flags.scale_active = 1;
         g_pz_fighters_engine.present_object->scale.x = 0.045f;
         g_pz_fighters_engine.present_object->scale.y = 0.045f;
         g_pz_fighters_engine.present_object->scale.z = 0.045f;
@@ -2053,12 +2048,12 @@ void pz_fighter_set_y_constrain(MkObj* fighter, int enabled, float y) {
         player = 1;
     }
     if (enabled == 0) {
-        fighter->flags_09_bits.launched = 1;
+        fighter->flags.launched = 1;
         g_pz_fighters_engine.y_constraint_enabled[player] = 0;
         return;
     }
 
-    fighter->flags_09_bits.launched = 0;
+    fighter->flags.launched = 0;
     g_pz_fighters_engine.y_constraint_enabled[player] = 1;
     g_pz_fighters_engine.y_constraint[player] = y;
 }
@@ -2889,9 +2884,9 @@ void pz_fighter_startup_attack(
         if (desired_distance < 0.65f &&
             g_pz_fighters_engine.force_repel == 0) {
             (g_game_info.plyr0.slot.mirror_a)
-                ->flags_09_bits.bit4 = 0;
+                ->flags.bit09_4 = 0;
             (g_game_info.plyr1.slot.mirror_a)
-                ->flags_09_bits.bit4 = 0;
+                ->flags.bit09_4 = 0;
         }
 
         if (distance > desired_distance - 0.2f &&
@@ -3219,8 +3214,8 @@ float p_plyr_pz_fighter_start(void) {
 
     face_opponent_now();
     if (plyr_pdata->plyr_num == 1 &&
-        plyr_obj->hide_flag_bits.bit6 == 1) {
-        plyr_obj->hide_flag_bits.bit6 = 1 - plyr_obj->hide_flag_bits.bit6;
+        plyr_obj->flags.bit0A_6 == 1) {
+        plyr_obj->flags.bit0A_6 = 1 - plyr_obj->flags.bit0A_6;
     }
     glitch_to_stance(1.0f);
     _mkproc_sleep_ticks = 1.0f;
@@ -3234,7 +3229,7 @@ static inline void release_pz_fighter_y_constraint(MkObj* object) {
     if (object->oid == 0x1002) {
         player = 1;
     }
-    object->flags_09_bits.launched = 1;
+    object->flags.launched = 1;
     g_pz_fighters_engine.y_constraint_enabled[player] = 0;
 }
 
@@ -3265,7 +3260,7 @@ float p_plyr_pz_fighter_entry(void) {
     }
 
     init_ground_move();
-    plyr_obj->flags_09_bits.bit4 = 1;
+    plyr_obj->flags.bit09_4 = 1;
     back_to_normal();
     release_pz_fighter_y_constraint(plyr_obj);
     aproc->vtbl->jump_sleep(p_plyr_pz_fighter_loop, 0.0f);

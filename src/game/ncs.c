@@ -1,5 +1,3 @@
-/* BUILD: -inline noauto,deferred emits definitions in reverse source order;
- * this order also preserves pooled strings and anonymous initializers. */
 #include "game/ncs.h"
 #include "game/projectile.h"
 #include "game/ejb.h"
@@ -388,7 +386,6 @@ void pz_fighter_reaction_xfer_him(int reaction);
 int reaction_xfer_him(int reaction, float rate, int strength);
 void plyr_aux_weapon_release(PlyrPdata* player);
 void obj_for_all_atomics_set_material_alpha(MkObj* object, int alpha);
-MslSoundHandle random_hit(int group);
 MKMATRIX* force_calc_bone_world_mat(MkObj* object, int bone);
 void init_plyr_severed_limb_list(PlyrInfo* player);
 void spawn_decal_emitter(
@@ -708,10 +705,10 @@ static float p_limb_sever_update(void) {
 
                 object->pos.value.y = pdata->ground_height[limb];
                 object->pos_vel.y = 0.0f;
-                object->flags_08_bits.rotation_enabled = 0;
-                object->flags_08_bits.moving = 0;
-                object->flags_09_bits.launched = 1;
-                object->flags_09_bits.bit6 = 1;
+                object->flags.rotation_enabled = 0;
+                object->flags.moving = 0;
+                object->flags.launched = 1;
+                object->flags.bit09_6 = 1;
                 if (((pdata->slide_mask >> limb) & 1) != 0) {
                     if (object->pos_vel.x > 0.0f) {
                         object->pos_vel.x -= pdata->slide_deceleration;
@@ -741,7 +738,7 @@ static float p_limb_sever_update(void) {
                     }
                     pdata->slide_mask &= ~(1U << limb);
                 } else {
-                    object->flags_08_bits.gravity_enabled = 0;
+                    object->flags.gravity_enabled = 0;
                 }
 
                 position.x = object->pos.value.x;
@@ -814,7 +811,7 @@ static float p_limb_sever_attach(void) {
     severed_matrix = severed->field_24;
     YXZ_angles_to_MKMATRIX(&pdata->rotation, &rotation_matrix);
     mat_x_mat(severed_matrix, &rotation_matrix, target_matrix);
-    if (severed->flags_08_bits.scale_active) {
+    if (severed->flags.scale_active) {
         mat_scaled_by_v3(
             severed_matrix, severed_matrix, &severed->scale);
     }
@@ -859,10 +856,10 @@ MkObj* limb_sever_set_motion(
         severed->pos_vel.x = velocity->x;
         severed->pos_vel.y = velocity->y;
         severed->pos_vel.z = velocity->z;
-        severed->flags_08_bits.gravity_enabled = 1;
+        severed->flags.gravity_enabled = 1;
         severed->gravity = gravity;
         if (gravity != 0.0f) {
-            severed->flags_08_bits.moving = 1;
+            severed->flags.moving = 1;
         }
         severed->light_flags = owner->light_flags;
         if (enable_ground != 0) {
@@ -900,7 +897,7 @@ MkProc* plyr_spawn_his_anim_limb(
         } else {
             severed->ground_colls = plyr_obj->ground_colls;
             severed->ground_colls_y = plyr_obj->ground_colls_y;
-            severed->flags_09_bits.launched = 1;
+            severed->flags.launched = 1;
             insert_ground_me_mkobj(severed);
             severed->light_flags = player->slot.mirror_a->light_flags;
             animation->obj = severed;
@@ -910,7 +907,7 @@ MkProc* plyr_spawn_his_anim_limb(
                 severed->hdr.instance;
             severed->ground_colls = player->slot.mirror_a->ground_colls;
             severed->ground_colls_y = player->slot.mirror_a->ground_colls_y;
-            severed->flags_0B_bits.pivot_enabled = 0;
+            severed->flags.pivot_enabled = 0;
             set_root_and_obj_movement_weights(animation, 0.0f, 1.0f);
             set_anim_script(animation, animation_script, transition);
             animation->step = animation_step;
@@ -1223,9 +1220,9 @@ void limb_sever_bone_attach(
     pdata->rotation.x = rotation->x;
     pdata->rotation.y = rotation->y;
     pdata->rotation.z = rotation->z;
-    severed->flags_08_bits.airborne = 1;
-    severed->flags_08_bits.gravity_enabled = 0;
-    severed->flags_08_bits.moving = 0;
+    severed->flags.airborne = 1;
+    severed->flags.gravity_enabled = 0;
+    severed->flags.moving = 0;
     severed->light_flags = owner_player->slot.mirror_a->light_flags;
     pdata->owner = owner_player->slot.mirror_a;
     pdata->owner_instance = owner_player->slot.mirror_a->hdr.instance;
@@ -1430,9 +1427,9 @@ static void trigger_blood_glops(
                 pfx_bind_emitter_num_to_obj(
                     particle, glop, 0, emitter_id_from_handle(effect));
                 insert_particle_mkobj(glop);
-                glop->flags_08_bits.airborne = 1;
-                glop->flags_08_bits.gravity_enabled = 1;
-                glop->flags_08_bits.moving = 1;
+                glop->flags.airborne = 1;
+                glop->flags.gravity_enabled = 1;
+                glop->flags.moving = 1;
                 get_bone_world_pos(source, bone, &glop->pos.value);
                 mkobj_get_matrix_at(source, &bone_at);
                 if (mode_of_play != 6 && player->f_constrained == 0 &&
@@ -1440,7 +1437,7 @@ static void trigger_blood_glops(
                     float offset;
 
                     if (is_plyr_airborn(source, player) != 0 ||
-                        (source->flags_08 & 1) != 0 ||
+                        source->flags.moving != 0 ||
                         (blood_type & 0x80) != 0) {
                         offset = -0.2f;
                         glop->pos.value.x += offset * bone_at.x;
@@ -2539,7 +2536,7 @@ float p_sc_spear_kill(void) {
         pdata_sc_spear->bonematcher = 0;
     }
 
-    sc_spear_obj->flags_08_bits.gravity_enabled = 0;
+    sc_spear_obj->flags.gravity_enabled = 0;
     sc_spear_obj->field_60 = 0;
     if (pdata_sc_spear->owner->character_id == 0) {
         sc_spear_obj->weapon_definition = get_data_table(pdata_sc_spear->owner->cmo, 0x18);
@@ -2742,7 +2739,7 @@ static float p_sc_spear_retract_victory(void) {
     sc_spear_obj->pos_vel.x = 0.035f * sc_spear_obj->pos_vel.x;
     sc_spear_obj->pos_vel.y = 0.035f * sc_spear_obj->pos_vel.y;
     sc_spear_obj->pos_vel.z = 0.035f * sc_spear_obj->pos_vel.z;
-    sc_spear_obj->flags_08_bits.gravity_enabled = 1;
+    sc_spear_obj->flags.gravity_enabled = 1;
     (aproc->vtbl)->jump_sleep(
         p_sc_spear4_victory, 1.0f);
     return 1.0f;
@@ -2784,7 +2781,7 @@ float p_sc_spear_retract(void) {
             sc_spear_obj->pos.value.y = 1.0f;
         }
     }
-    sc_spear_obj->flags_08_bits.gravity_enabled = 1;
+    sc_spear_obj->flags.gravity_enabled = 1;
     (aproc->vtbl)->jump_sleep(p_sc_spear4, 1.0f);
     return 1.0f;
 }
@@ -2816,7 +2813,7 @@ static float p_sc_spear_blocked(void) {
     }
 
     pdata_sc_spear->owner->state &= ~0x1000;
-    sc_spear_obj->flags_08_bits.gravity_enabled = 1;
+    sc_spear_obj->flags.gravity_enabled = 1;
     sc_spear_obj->pos_vel.x *= -2.25f;
     sc_spear_obj->pos_vel.y = 0.0f;
     sc_spear_obj->pos_vel.z *= -2.25f;
@@ -2938,7 +2935,7 @@ static float p_sc_spear2(void) {
         } else {
             snd_req(0x2CD);
         }
-        sc_spear_obj->flags_08_bits.gravity_enabled = 0;
+        sc_spear_obj->flags.gravity_enabled = 0;
         pdata_sc_spear->owner->duck_reaction_active = 0;
         if (pdata_sc_spear->flag_bits.no_hit_reaction) {
             YXZ_angles_to_quat(
@@ -2969,7 +2966,7 @@ static float p_sc_spear2(void) {
         } else {
             snd_req(0x2CE);
         }
-        sc_spear_obj->flags_08_bits.gravity_enabled = 0;
+        sc_spear_obj->flags.gravity_enabled = 0;
         pdata_sc_spear->flag_bits.bit7 = 1;
         pdata_sc_spear->blocked_ticks = 8;
         pdata_sc_spear->owner->duck_reaction_active = 0;
@@ -3005,7 +3002,7 @@ static float p_sc_spear1(void) {
     int art_section;
     RwTexture* texture;
 
-    sc_spear_obj->flags_08_bits.gravity_enabled = 1;
+    sc_spear_obj->flags.gravity_enabled = 1;
     plyr_aux_weapon_release(pdata_sc_spear->owner);
     target = MK_HDR_LIVE(pdata_sc_spear->owner->tracked_obj, pdata_sc_spear->owner->tracked_obj_instance);
     if (target == 0) {
@@ -3017,7 +3014,7 @@ static float p_sc_spear1(void) {
     sc_spear_obj->ang.x = 0.0f;
     sc_spear_obj->ang.y = target->ang.y;
     sc_spear_obj->ang.z = 1.5707964f;
-    sc_spear_obj->flags_08_bits.transform_dirty = 1;
+    sc_spear_obj->flags.transform_dirty = 1;
     if (pdata_sc_spear->flag_bits.getup) {
         sc_spear_obj->ang.x = -0.9f;
     } else if (pdata_sc_spear->flag_bits.victory) {
@@ -3052,7 +3049,7 @@ static float p_sc_spear1(void) {
             effect->bone = 0x19;
         }
     } else {
-        effect->bone = target->hide_flag_bits.bit6 != 0 ? 0x18 : 0x19;
+        effect->bone = target->flags.bit0A_6 != 0 ? 0x18 : 0x19;
     }
 
     art_section = get_shared_art_section_for_player(target);
@@ -3134,7 +3131,7 @@ MkProc* fire_sc_spear(
                 pdata->bound_object_instance = 0;
             }
 
-            weapon->flags_08_bits.gravity_enabled = 0;
+            weapon->flags.gravity_enabled = 0;
             weapon->pos_vel = *velocity;
             proc->pre_destroy = sc_spear_prewake;
             proc->destroy_cb = sc_spear_postsleep;
@@ -3198,7 +3195,7 @@ MkProc* fire_spear_at_camera(PlyrPdata* player, unsigned int ticks) {
                 pdata->bound_object = 0;
                 pdata->bound_object_instance = 0;
 
-                weapon->flags_08_bits.gravity_enabled = 0;
+                weapon->flags.gravity_enabled = 0;
                 target = player->plyr_info->slot.mirror_a;
                 delta.x = target->pos.value.x - camera->pos.x;
                 delta.y = target->pos.value.y - camera->pos.y;

@@ -14,6 +14,7 @@
 #include "platform/io.h"
 #include "platform/gcio.h"
 #include "platform/display_metrics.h"
+#include "platform/display.h"
 #include "game/game.h"
 #include "game/ladder.h"
 #include "platform/main.h"
@@ -86,7 +87,6 @@ struct PauseMenuPdata {
 };
 
 extern const char* number_strings[];
-extern unsigned long display_off;
 extern int pause_player;
 
 void snd_stop(MslSoundHandle handle);

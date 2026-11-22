@@ -75,8 +75,6 @@ extern "C" float mslGetTime(void) {
     return 0.005f * mslGCN_AXCallback_Ticks;
 }
 
-/* Matched: 100% report-exact; GC/2.7 requires its EABI varargs initializer.
- * The shared va_start spelling uses __va_start, unsupported by this compiler. */
 extern "C" void mslDebugPrintf(const char* format, ...) {
     char buffer[256];
     __va_list args;

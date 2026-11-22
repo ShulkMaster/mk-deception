@@ -3326,8 +3326,8 @@ static void load_sky(void) {
     }
 
     g_game_info.sky->light_flags = 8;
-    g_game_info.sky->flags_08_bits.airborne = 1;
-    g_game_info.sky->flags_08_bits.angular_velocity_enabled = 1;
+    g_game_info.sky->flags.airborne = 1;
+    g_game_info.sky->flags.angular_velocity_enabled = 1;
     konquest_pdata->field_174 = 5000.0f;
     obj_create_sobjs(g_game_info.sky);
 
@@ -5811,7 +5811,7 @@ void konquest_setup_pui_particle(
             object = pfx_bind_emitter_num_to_new_obj(
                 effect, 0xA00E, emitter);
         }
-        object->flags_08_bits.airborne = 1;
+        object->flags.airborne = 1;
         object->pos.value.z = 0.0f;
         object->pos.value.x = 0.0f;
         object->pos.value.y = -1000.0f;
@@ -6076,7 +6076,7 @@ static void handle_trigger_preprocess(struct KonquestTriggerStruct* trigger) {
                     pfx_create_clone(pfx_from_handle(pui->effect_60));
                 clone_object = pfx_clone_bind_render_to_new_obj(
                     pui->effect_clone, 0xA00E);
-                clone_object->flags_08_bits.airborne = 1;
+                clone_object->flags.airborne = 1;
                 clone_object->pos.value.x =
                     object->pos.value.x + attachment->pos.x;
                 clone_object->pos.value.y =
@@ -7507,11 +7507,11 @@ void render_konquest_shadows(void) {
     }
 
     if (hero != 0) {
-        if (hero->hide_flag_bits.hidden || ShadowStrength == 0.0f) {
-            pdata_monk.shadowbox->hide_flag_bits.hidden = 1;
+        if (hero->flags.hidden || ShadowStrength == 0.0f) {
+            pdata_monk.shadowbox->flags.hidden = 1;
             return;
         }
-        pdata_monk.shadowbox->hide_flag_bits.hidden = 0;
+        pdata_monk.shadowbox->flags.hidden = 0;
         UpdateShadow(hero, &pdata_monk, hero);
         if (fix_camera_flip == 1) {
             pdata_monk.shadowbox->ang.y -= 3.1415927f;
@@ -7573,15 +7573,15 @@ MkProc* load_hero_model(int animation_script) {
     hero->pos.value.y = 0.0f;
     hero->pos.value.x = 0.0f;
     hero->ang.y = 3.1415927f;
-    (hero->flags_08_bits).gravity_enabled = 1;
-    (hero->flags_08_bits).rotation_enabled = 1;
-    (hero->flags_08_bits).airborne = 1;
-    (hero->flags_08_bits).angular_velocity_enabled = 1;
+    hero->flags.gravity_enabled = 1;
+    hero->flags.rotation_enabled = 1;
+    hero->flags.airborne = 1;
+    hero->flags.angular_velocity_enabled = 1;
     update_mkobj(hero != 0 ? as_mkhdr(&hero->hdr) : 0);
     hero->light_flags = 1;
     build_bones_tbl(hero, konquest_human_bones);
     hero->flipped_bone_map = &flipped_konquest_human_bones;
-    (hero->flags_09_bits).launched = 1;
+    hero->flags.launched = 1;
     hero->ground_colls = monk_ground_colls;
 
     created = create_mkproc_anim(
@@ -7618,7 +7618,7 @@ inline void setup_hero_model(void) {
         }
         konquest_pdata->hero_anim = hero_anim;
         konquest_pdata->hero_state = 0;
-        hero->hide_flag_bits.still_move = 1;
+        hero->flags.still_move = 1;
     }
 }
 
@@ -7706,7 +7706,7 @@ void change_monk_age(int age) {
             }
             konquest_pdata->hero_anim = animation;
             konquest_pdata->hero_state = 0;
-            (hero->hide_flag_bits).still_move = 1;
+            hero->flags.still_move = 1;
         }
 
         grounding = MK_HDR_LIVE(konquest_pdata->hero_grounding, konquest_pdata->grounding_instance);
@@ -7792,7 +7792,7 @@ void set_monk_position(float x, float y, float z, float angle) {
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     if (hero != 0) {
-        (hero->hide_flag_bits).pin_animation = 0;
+        hero->flags.pin_animation = 0;
         hero->pos.value.x = x;
         hero->pos.value.y = y;
         hero->pos.value.z = z;
@@ -7959,7 +7959,7 @@ static float p_monk_move(void) {
         return -1.0f;
     }
 
-    hero->hide_flag_bits.pin_animation = 0;
+    hero->flags.pin_animation = 0;
     konquest_pdata->animation_event_index = 0;
     run_monk_move_frames(initial_state);
 
@@ -7981,7 +7981,7 @@ static float p_monk_meditate(void) {
     hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
 
     konquest_pdata->npc_interaction_state = 0;
-    hero->hide_flag_bits.still_move = 0;
+    hero->flags.still_move = 0;
     state = &monk_state_data[konquest_pdata->hero_state];
     transition_to_anim_script(
         anim_pdata, state->animation, state->transition | 0x20, 0.05f);
@@ -8016,7 +8016,7 @@ static float p_monk_meditate(void) {
                 monitor_pdata = 0;
                 if (meditation_hero != 0) {
                     snd_req(0x15BC);
-                    meditation_hero->flags_0B_bits.force_anim_speed = 1;
+                    meditation_hero->flags.force_anim_speed = 1;
                     if (konquest_pdata->hero_state != 9 &&
                         monk_state_data[9].transition_order >=
                             monk_state_data[konquest_pdata->hero_state]
@@ -8049,9 +8049,9 @@ static float p_monk_meditate(void) {
                     hero->pos_vel.z = 0.0f;
                     hero->pos_vel.y = 0.0f;
                     hero->pos_vel.x = 0.0f;
-                    hero->flags_09_bits.bit6 = 1;
+                    hero->flags.bit09_6 = 1;
                     konquest_pdata->hero_state = 0;
-                    hero->hide_flag_bits.still_move = 1;
+                    hero->flags.still_move = 1;
                     konquest_pdata->hero_anim->weight = 1.0f;
                 }
                 break;
@@ -8166,7 +8166,7 @@ static void exit_meditation(void) {
             _mkproc_sleep_ticks = 1.0f;
             aproc->vtbl->sleep();
         }
-        hero->flags_0B_bits.force_anim_speed = 0;
+        hero->flags.force_anim_speed = 0;
         mode_owner = konquest_pdata;
         mode_index = mode_owner->game_mode_index;
 
@@ -8194,7 +8194,7 @@ static float p_monk_punch(void) {
     }
 
     konquest_pdata->npc_interaction_state = 0;
-    hero->hide_flag_bits.still_move = 0;
+    hero->flags.still_move = 0;
     hero->pos_vel.z = 0.0f;
     hero->pos_vel.y = 0.0f;
     hero->pos_vel.x = 0.0f;
@@ -8312,12 +8312,12 @@ static float p_monk_punch_react(void) {
     _mkproc_sleep_ticks = 1.0f;
     aproc->vtbl->sleep();
 
-    hero->flags_09_bits.bit6 = 0;
+    hero->flags.bit09_6 = 0;
     hero->pos.value.y = konquest_pdata->hero_anim->anim_offset.y;
     konquest_pdata->hero_anim->step = 0.75f;
     random_snd_req(0x78);
     random_snd_req_delay(0x7D, 0x23);
-    hero->flags_09_bits.bit6 = 0;
+    hero->flags.bit09_6 = 0;
     hero->ground_colls = monk_laying_on_ground_colls;
 
     while (konquest_pdata->hero_anim->frame < 20.0f) {
@@ -8327,7 +8327,7 @@ static float p_monk_punch_react(void) {
         aproc->vtbl->sleep();
     }
 
-    hero->flags_09_bits.bit6 = 1;
+    hero->flags.bit09_6 = 1;
     while (konquest_pdata->hero_anim->frame < 50.0f) {
         advance_anim(konquest_pdata->hero_anim);
         pose_anim(konquest_pdata->hero_anim, 1);
@@ -8359,7 +8359,7 @@ static float p_monk_getup(void) {
 
     while (konquest_pdata->hero_anim->frame <
            konquest_pdata->hero_anim->high_frame) {
-        hero->flags_08_bits.moving = 1;
+        hero->flags.moving = 1;
         advance_anim(konquest_pdata->hero_anim);
         pose_anim(konquest_pdata->hero_anim, 1);
         _mkproc_sleep_ticks = 1.0f;
@@ -8367,7 +8367,7 @@ static float p_monk_getup(void) {
     }
 
     hero->ground_colls = monk_ground_colls;
-    hero->flags_09_bits.bit6 = 1;
+    hero->flags.bit09_6 = 1;
     konquest_pdata->hero_state = 0;
     if (konquest_pdata->game_mode_index != 0) {
         konquest_pdata->game_mode_index--;
@@ -8416,7 +8416,7 @@ static float p_monk_unconscious(void) {
     }
     camera_setup_simple_rotation(500, 6.2831855f);
     snd_req(0x15BC);
-    hero->flags_0B_bits.force_anim_speed = 1;
+    hero->flags.force_anim_speed = 1;
 
     if (_create_mkproc_generic_tinystack(
             0x8233, 0x1F, ramp_game_speed, sizeof(*speed_pdata),
@@ -8462,7 +8462,7 @@ static float p_monk_unconscious(void) {
         aproc->vtbl->sleep();
     }
 
-    hero->flags_0B_bits.force_anim_speed = 0;
+    hero->flags.force_anim_speed = 0;
     transition_to_anim_script(
         konquest_pdata->hero_anim, (AniData*)konquest_animations[13], 3,
         0.05f);
@@ -8512,7 +8512,7 @@ static float p_collide_monk(void) {
         }
         if (repel_against_global_collision_list(
                 &old_hero_position, &movement, &collision_position) != 0) {
-            hero->hide_flag_bits.pin_animation = 0;
+            hero->flags.pin_animation = 0;
             hero->pos.value.x = collision_position.x;
             hero->pos.value.y = collision_position.y;
             hero->pos.value.z = collision_position.z;
@@ -8534,9 +8534,9 @@ static float p_collide_monk(void) {
         segment_start.y = 50.0f;
         if (collide_segment_against_global_collision_list_quads(
                 &segment_start, &segment_end, &hit_point) != 0) {
-            hero->flags_08_bits.moving = 1;
+            hero->flags.moving = 1;
             hero->gravity = -0.00125f;
-            hero->hide_flag_bits.pin_animation = 0;
+            hero->flags.pin_animation = 0;
             hero->ground_colls_y = hit_point.y;
         } else {
             hero->ground_colls_y = 0.0f;
@@ -9006,7 +9006,7 @@ inline void create_konquest_light(void) {
     light_object = load_light(
         (LightDef*)&konquest_pdata->directional_light, &bgnd_light_list, 0);
     if (light_object != 0) {
-        light_object->flags_08_bits.angular_velocity_enabled = 1;
+        light_object->flags.angular_velocity_enabled = 1;
     }
     load_light(
         (LightDef*)&konquest_pdata->ambient_light, &bgnd_light_list, 0);
@@ -9091,9 +9091,9 @@ void hero_stop_moving(void) {
         hero->pos_vel.z = 0.0f;
         hero->pos_vel.y = 0.0f;
         hero->pos_vel.x = 0.0f;
-        hero->flags_09_bits.bit6 = 1;
+        hero->flags.bit09_6 = 1;
         konquest_pdata->hero_state = 0;
-        hero->hide_flag_bits.still_move = 1;
+        hero->flags.still_move = 1;
         konquest_pdata->hero_anim->weight = 1.0f;
     }
 
@@ -9266,9 +9266,9 @@ static void handle_monk_input(void) {
                     monk_state_data[2].animation_step = 1.5f * magnitude;
                     konquest_pdata->hero_anim->weight = 1.2f * magnitude;
                 }
-                hero->flags_09_bits.bit6 = 0;
+                hero->flags.bit09_6 = 0;
             }
-            hero->hide_flag_bits.still_move = 0;
+            hero->flags.still_move = 0;
             correct_camera_angle(hero, 0);
             return;
         }
@@ -9276,9 +9276,9 @@ static void handle_monk_input(void) {
             hero->pos_vel.z = 0.0f;
             hero->pos_vel.y = 0.0f;
             hero->pos_vel.x = 0.0f;
-            hero->flags_09_bits.bit6 = 1;
+            hero->flags.bit09_6 = 1;
             konquest_pdata->hero_state = 0;
-            hero->hide_flag_bits.still_move = 1;
+            hero->flags.still_move = 1;
             konquest_pdata->hero_anim->weight = 1.0f;
         }
     } else {
@@ -9291,9 +9291,9 @@ static void handle_monk_input(void) {
             hero->pos_vel.z = 0.0f;
             hero->pos_vel.y = 0.0f;
             hero->pos_vel.x = 0.0f;
-            hero->flags_09_bits.bit6 = 1;
+            hero->flags.bit09_6 = 1;
             konquest_pdata->hero_state = 0;
-            hero->hide_flag_bits.still_move = 1;
+            hero->flags.still_move = 1;
             konquest_pdata->hero_anim->weight = 1.0f;
         }
     }
@@ -10486,7 +10486,7 @@ static float p_konquest_interaction(void) {
         }
         movement.x *= inverse_length;
         movement.z *= inverse_length;
-        hero->hide_flag_bits.pin_animation = 0;
+        hero->flags.pin_animation = 0;
 
         if (interaction_cam_glitched() == 0 && distance > 0.05f) {
             movement.x = -0.05f * movement.x;
@@ -10531,7 +10531,7 @@ static float p_konquest_interaction(void) {
         difference = ang_sub_ang(target_angle, hero->ang.y);
         if (interaction_cam_glitched() == 0 &&
             (difference >= 0.0f ? difference : -difference) > 0.07f) {
-            hero->hide_flag_bits.pin_animation = 0;
+            hero->flags.pin_animation = 0;
             if (difference < 0.0f) {
                 hero->ang.y -= 0.07f;
             } else {
@@ -10550,7 +10550,7 @@ static float p_konquest_interaction(void) {
         if (interaction_cam_glitched() == 0 &&
             (difference >= 0.0f ? difference : -difference) > 0.07f) {
             pdata->npc->fields.animation_state->object
-                ->hide_flag_bits.pin_animation = 0;
+                ->flags.pin_animation = 0;
             if (difference < 0.0f) {
                 pdata->npc->fields.animation_state->object->ang.y -= 0.07f;
             } else {
@@ -10591,9 +10591,9 @@ void konquest_start_npc_interaction(void) {
         hero->pos_vel.z = 0.0f;
         hero->pos_vel.y = 0.0f;
         hero->pos_vel.x = 0.0f;
-        hero->flags_09_bits.bit6 = 1;
+        hero->flags.bit09_6 = 1;
         konquest_pdata->hero_state = 0;
-        hero->hide_flag_bits.still_move = 1;
+        hero->flags.still_move = 1;
         konquest_pdata->hero_anim->weight = 1.0f;
     }
     transition_to_anim_script(
@@ -10623,9 +10623,9 @@ void konquest_start_npc_interaction(void) {
             hero->pos_vel.z = 0.0f;
             hero->pos_vel.y = 0.0f;
             hero->pos_vel.x = 0.0f;
-            hero->flags_09_bits.bit6 = 1;
+            hero->flags.bit09_6 = 1;
             konquest_pdata->hero_state = 0;
-            hero->hide_flag_bits.still_move = 1;
+            hero->flags.still_move = 1;
             konquest_pdata->hero_anim->weight = 1.0f;
         }
         transition_to_anim_script(
@@ -10858,9 +10858,9 @@ void konquest_start_npc_nis(void) {
         hero->pos_vel.z = 0.0f;
         hero->pos_vel.y = 0.0f;
         hero->pos_vel.x = 0.0f;
-        hero->flags_09_bits.bit6 = 1;
+        hero->flags.bit09_6 = 1;
         konquest_pdata->hero_state = 0;
-        hero->hide_flag_bits.still_move = 1;
+        hero->flags.still_move = 1;
         konquest_pdata->hero_anim->weight = 1.0f;
     }
     state = &monk_state_data[konquest_pdata->hero_state];
@@ -11501,10 +11501,10 @@ void konquest_nis_init(int value) {
         konquest_pdata->game_modes[konquest_pdata->game_mode_index] = 3;
     }
 
-    camera_obj->flags.pad3 = 0;
-    camera_obj->flags.bit04 = 0;
-    camera_obj->flags.pad6 = 0;
-    camera_obj->flags.bit20 = 0;
+    camera_obj->flags.angular_velocity_enabled = 0;
+    camera_obj->flags.rotation_enabled = 0;
+    camera_obj->flags.airborne = 0;
+    camera_obj->flags.gravity_enabled = 0;
     _create_mkproc_generic_tinystack(
         0x901C, 0x1F, p_konquest_nis_housekeeping, 0, 0);
 
@@ -11780,7 +11780,7 @@ void load_objective_beam(void) {
 
     beam = load_named_model_from_slot(0x60030, "BEAM", 0x8039, 1);
     if (beam != 0) {
-        beam->flags_08_bits.airborne = 1;
+        beam->flags.airborne = 1;
         obj_create_sobjs(beam);
 
         sobj = obj_find_sobj_by_id(beam, 1);
@@ -13325,16 +13325,16 @@ static void setup_konquest_pui(KonquestPuiRuntime* pui) {
     case 0:
         object = MK_HDR_LIVE(pui->object, pui->object_instance);
         if (object != 0) {
-            object->flags_08_bits.airborne = 1;
-            object->flags_08_bits.angular_velocity_enabled = 1;
+            object->flags.airborne = 1;
+            object->flags.angular_velocity_enabled = 1;
         }
         return;
     case 1:
         object = MK_HDR_LIVE(pui->object, pui->object_instance);
         if (object != 0) {
-            object->flags_08_bits.airborne = 1;
-            object->flags_08_bits.angular_velocity_enabled = 1;
-            object->flags_08_bits.moving = 0;
+            object->flags.airborne = 1;
+            object->flags.angular_velocity_enabled = 1;
+            object->flags.moving = 0;
             object->pos_vel.z = 0.0f;
             object->pos_vel.y = 0.0f;
             object->pos_vel.x = 0.0f;
@@ -13344,10 +13344,10 @@ static void setup_konquest_pui(KonquestPuiRuntime* pui) {
     case 2:
         object = MK_HDR_LIVE(pui->object, pui->object_instance);
         if (object != 0) {
-            object->flags_08_bits.angular_velocity_enabled = 1;
-            object->flags_08_bits.rotation_enabled = 1;
-            object->flags_08_bits.airborne = 1;
-            object->flags_08_bits.moving = 0;
+            object->flags.angular_velocity_enabled = 1;
+            object->flags.rotation_enabled = 1;
+            object->flags.airborne = 1;
+            object->flags.moving = 0;
             object->pos_vel.z = 0.0f;
             object->pos_vel.y = 0.0f;
             object->pos_vel.x = 0.0f;
@@ -13371,8 +13371,8 @@ static void setup_konquest_pui(KonquestPuiRuntime* pui) {
             object->pos_vel.y = 0.15f;
             object->pos_vel.z = z;
             object->gravity = -0.007f;
-            object->flags_08_bits.airborne = 1;
-            object->flags_08_bits.angular_velocity_enabled = 1;
+            object->flags.airborne = 1;
+            object->flags.angular_velocity_enabled = 1;
             owner->interaction->closed = 0;
             pui->drop_timer = 60.0f;
         }
@@ -13380,10 +13380,10 @@ static void setup_konquest_pui(KonquestPuiRuntime* pui) {
     case 4:
         object = MK_HDR_LIVE(pui->object, pui->object_instance);
         if (object != 0) {
-            object->flags_08_bits.angular_velocity_enabled = 1;
-            object->flags_08_bits.rotation_enabled = 1;
-            object->flags_08_bits.airborne = 1;
-            object->flags_08_bits.moving = 0;
+            object->flags.angular_velocity_enabled = 1;
+            object->flags.rotation_enabled = 1;
+            object->flags.airborne = 1;
+            object->flags.moving = 0;
             object->ang_vel.y = 0.05f;
         }
         return;
@@ -13548,9 +13548,9 @@ static void update_dropped_pui(struct KonquestPuiRuntime* pui) {
             settled_object = MK_HDR_LIVE(pui->render_object, pui->render_object_instance);
 
             if (settled_object != 0) {
-                settled_object->flags_08_bits.airborne = 1;
-                settled_object->flags_08_bits.angular_velocity_enabled = 1;
-                settled_object->flags_08_bits.moving = 0;
+                settled_object->flags.airborne = 1;
+                settled_object->flags.angular_velocity_enabled = 1;
+                settled_object->flags.moving = 0;
                 settled_object->pos_vel.z = 0.0f;
                 settled_object->pos_vel.y = 0.0f;
                 settled_object->pos_vel.x = 0.0f;
@@ -15327,7 +15327,7 @@ static float p_hero_teleport(void) {
         grounding->camera_target->alpha = (
             255.0f * (1.0f - konquest_pdata->hero_anim->frame /
                                  konquest_pdata->hero_anim->high_frame));
-        hero->hide_flag_bits.pin_animation = 0;
+        hero->flags.pin_animation = 0;
         obj_for_all_atomics_set_material_alpha(
             hero, grounding->camera_target->alpha);
         _mkproc_sleep_ticks = 1.0f;
@@ -15446,9 +15446,9 @@ void konquest_teleport_hero_to_location(Vec* target) {
             hero->pos_vel.z = 0.0f;
             hero->pos_vel.y = 0.0f;
             hero->pos_vel.x = 0.0f;
-            hero->flags_09_bits.bit6 = 1;
+            hero->flags.bit09_6 = 1;
             konquest_pdata->hero_state = 0;
-            hero->hide_flag_bits.still_move = 1;
+            hero->flags.still_move = 1;
             konquest_pdata->hero_anim->weight = 1.0f;
         }
         transition_to_anim_script(
@@ -15729,9 +15729,9 @@ void konquest_use_portal(
             hero->pos_vel.z = 0.0f;
             hero->pos_vel.y = 0.0f;
             hero->pos_vel.x = 0.0f;
-            hero->flags_09_bits.bit6 = 1;
+            hero->flags.bit09_6 = 1;
             konquest_pdata->hero_state = 0;
-            hero->hide_flag_bits.still_move = 1;
+            hero->flags.still_move = 1;
             konquest_pdata->hero_anim->weight = 1.0f;
         }
         transition_to_anim_script(
@@ -15986,9 +15986,9 @@ void konquest_hero_portal_in(void) {
             hero->pos_vel.z = 0.0f;
             hero->pos_vel.y = 0.0f;
             hero->pos_vel.x = 0.0f;
-            hero->flags_09_bits.bit6 = 1;
+            hero->flags.bit09_6 = 1;
             konquest_pdata->hero_state = 0;
-            hero->hide_flag_bits.still_move = 1;
+            hero->flags.still_move = 1;
             konquest_pdata->hero_anim->weight = 1.0f;
         }
         transition_to_anim_script(

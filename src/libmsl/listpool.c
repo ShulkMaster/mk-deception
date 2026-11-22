@@ -44,8 +44,6 @@ static const char stringBase0[] =
     "ListPoolAttach to what?  elts == 0\n\0"
     "ListPoolAttach: %d elts of size %d at 0x%08x\n";
 
-/* Retail has two alignment bytes and an unresolved four-byte .rodata gap here. */
-
 #define LIST_STRING(offset) (&stringBase0[(offset)])
 
 static inline _ListNode* remove_node(_ListNode** list) {
@@ -198,8 +196,6 @@ void ListInsert(_ListNode** list, _ListNode* node) {
     link_node(list, node);
 }
 
-/* On the retail 32-bit big-endian ABI, index is the high handle halfword
- * and generation is the low halfword. These handles are numeric pool IDs. */
 typedef union ListNodeId {
     msl_u32 value;
     struct {

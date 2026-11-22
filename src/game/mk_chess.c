@@ -51,6 +51,7 @@
 #include "libmkparticle/pfx2d.h"
 #include "game/ladder.h"
 #include "fdlibm.h"
+#include "runtime/cmath.h"
 
 static int mk_chess_input_possibile(void);
 
@@ -425,7 +426,6 @@ typedef struct ChessGroundCollisionEntry {
 extern ChessGroundCollisionEntry mk_chess_piece_ground_colls[3];
 extern int mk_chess_piece_bones[18];
 
-double __fabs(double value);
 static void mk_chess_remove_piece_at_cell_into_deadpool(unsigned char x,
                                                       unsigned char y);
 static void mk_chess_piece_event(ChessPiece* piece, unsigned int event,
@@ -1775,7 +1775,7 @@ static inline void mk_chess_prepare_reset_cursor(ChessCursor* cursor) {
     sobj_set_priority(sobj, 9);
     sobj->flags09_bits.bit6 = 1;
     sobj->flags09_bits.bit7 = 1;
-    object->flags_08_bits.airborne = 1;
+    object->flags.airborne = 1;
     insert_fgnd_mkobj(object);
     hide_obj(object);
 }
@@ -1820,7 +1820,6 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_positi
     unsigned int position_class, unsigned int height_class, Vec* from,
     Vec* middle_1, Vec* middle_2, Vec* to);
 
-MslSoundHandle random_hit(int group);
 
 typedef struct ChessMoveLinePdata {
     MkHdr hdr;
@@ -2038,7 +2037,7 @@ static inline void mk_chess_start_cell_emitter(int emitter, float x, float y, fl
     if (particle == 0) return;
     object = pfx_bind_emitter_num_to_new_obj(particle, 0x8227, emitter_id_from_handle(emitter));
     if (object == 0) return;
-    object->flags_08_bits.airborne = 1;
+    object->flags.airborne = 1;
     object->pos.value.x = x;
     object->pos.value.y = y;
     object->pos.value.z = z;
@@ -2073,7 +2072,7 @@ static inline void mk_chess_load_common_cursor(int cursor_index, unsigned int ar
         subobject->flags09_bits.bit6 = 1;
         subobject->flags09_bits.bit7 = 1;
     }
-    object->flags_08_bits.airborne = 1;
+    object->flags.airborne = 1;
     insert_fgnd_mkobj(object);
 }
 
@@ -2799,7 +2798,7 @@ static inline void mk_chess_launch_life_effect(ChessPiece* piece, int emitter)
         if (particle != 0) {
             object = pfx_bind_emitter_num_to_new_obj(particle, 0x8227, emitter_id_from_handle(emitter));
             if (object != 0) {
-                object->flags_08_bits.airborne = 1;
+                object->flags.airborne = 1;
                 object->pos.value.x = position_x;
                 object->pos.value.y = position_y;
                 object->pos.value.z = position_z;
@@ -2828,13 +2827,13 @@ static inline void initialize_magic_ring(ChessMagicRingsPdata** data_ptr,
     sobj_set_priority(sobj, 9);
     sobj->flags09_bits.bit6 = 1;
     sobj->flags09_bits.bit7 = 1;
-    object->flags_08_bits.airborne = 1;
+    object->flags.airborne = 1;
     insert_fgnd_mkobj(object);
     object->pos.value.x = (*data_ptr)->position.x;
     object->pos.value.y = (*data_ptr)->position.y;
     object->pos.value.z = (*data_ptr)->position.z;
     object->pos.value.y = 0.0001f;
-    object->flags_08_bits.scale_active = 1;
+    object->flags.scale_active = 1;
     object->scale.x = scale->x * initial_scale;
     object->scale.y = scale->y * initial_scale;
     object->scale.z = scale->z * initial_scale;
@@ -3116,7 +3115,7 @@ static inline void mk_chess_activate_created_piece(
     cell->piece = piece;
     piece->cell_x = x;
     piece->cell_y = y;
-    piece->object->hide_flag_bits.pin_animation = 0;
+    piece->object->flags.pin_animation = 0;
     piece->object->pos.value.x =
         cell->position.x + piece->runtime.fields.cell_offset.x;
     piece->object->pos.value.z =
@@ -3232,7 +3231,7 @@ static inline void mk_chess_begin_pre_fight_cursor(void)
     hud->flag_bits.cursor_scaling = 1;
     hud->flag_bits.cursor_moving = 0;
     hud->cursor_scale_step = 0.0f;
-    cursor->flags_08_bits.scale_active = 0;
+    cursor->flags.scale_active = 0;
     (mk_chess_pdata != 0 ? &mk_chess_pdata->camera : 0)->completion = mk_chess_pre_fight_cam_ended;
 }
 
@@ -3665,7 +3664,7 @@ static inline void mk_chess_place_piece_at_cell(ChessPiece* piece,
     cell->piece = piece;
     piece->cell_x = x;
     piece->cell_y = y;
-    piece->object->hide_flag_bits.pin_animation = 0;
+    piece->object->flags.pin_animation = 0;
     piece->object->pos.value.x =
         cell->position.x + piece->runtime.fields.cell_offset.x;
     piece->object->pos.value.z =
@@ -3825,7 +3824,7 @@ static inline void mk_chess_activate_power_cell(ChessCell* cell)
                 object = pfx_bind_emitter_num_to_new_obj(
                     particle, 0x8227, emitter_id_from_handle(emitter));
                 if (object != 0) {
-                    object->flags_08_bits.airborne = 1;
+                    object->flags.airborne = 1;
                     object->pos.value.x = px;
                     object->pos.value.y = py;
                     object->pos.value.z = pz;
@@ -3876,9 +3875,9 @@ static inline void mk_chess_create_special_cell_visual(ChessCell* cell)
     sobj_set_priority(subobject, 9);
     subobject->flags09_bits.bit6 = 1;
     subobject->flags09_bits.bit7 = 1;
-    object->flags_08_bits.airborne = 1;
+    object->flags.airborne = 1;
     insert_fgnd_mkobj(object);
-    cell->object->flags_08_bits.scale_active = 1;
+    cell->object->flags.scale_active = 1;
     cell->object->scale.z = 1.0f;
     cell->object->scale.y = 1.0f;
     cell->object->scale.x = 1.0f;
@@ -3963,7 +3962,7 @@ MkObj* launch_fx_at_pos_with_obj(
     if (object == 0) {
         return 0;
     }
-    object->flags_08_bits.airborne = 1;
+    object->flags.airborne = 1;
     object->pos.value.x = x;
     object->pos.value.y = y;
     object->pos.value.z = z;
@@ -3992,7 +3991,7 @@ MkObj* mk_chess_launch_fx_at_pos_with_obj_emit_based(
     if (object == 0) {
         return 0;
     }
-    object->flags_08_bits.airborne = 1;
+    object->flags.airborne = 1;
     object->pos.value.x = x;
     object->pos.value.y = y;
     object->pos.value.z = z;
@@ -5060,8 +5059,8 @@ static ChessPiece* mk_chess_move_piece_from_deadpool_to(
 
     mk_chess_pdata->sides[side]->live_piece_count++;
     mk_chess_pdata->sides[side]->captured_piece_count = 0;
-    piece->object->flags_08_bits.angular_velocity_enabled = 0;
-    piece->object->flags_08_bits.rotation_enabled = 0;
+    piece->object->flags.angular_velocity_enabled = 0;
+    piece->object->flags.rotation_enabled = 0;
     piece->object->ang.z = 0.0f;
     piece->object->ang.y = 0.0f;
     piece->object->ang.x = 0.0f;
@@ -5074,7 +5073,7 @@ static ChessPiece* mk_chess_move_piece_from_deadpool_to(
     cell->piece = piece;
     piece->cell_x = x;
     piece->cell_y = y;
-    piece->object->hide_flag_bits.pin_animation = 0;
+    piece->object->flags.pin_animation = 0;
     piece->object->pos.value.x = cell->position.x + piece->runtime.fields.cell_offset.x;
     piece->object->pos.value.z = cell->position.z + piece->runtime.fields.cell_offset.z;
     update_obj_pos(piece->object);
@@ -5463,7 +5462,7 @@ void mk_chess_snap_to_my_cell_now(void) {
 
     cell = &mk_chess_pdata->board[g_active_piece->cell_x]
                 .cells[g_active_piece->cell_y];
-    g_active_piece->object->hide_flag_bits.pin_animation = 0;
+    g_active_piece->object->flags.pin_animation = 0;
     g_active_piece->object->pos.value.x = cell->position.x;
     g_active_piece->object->pos.value.z = cell->position.z;
     update_obj_pos(g_active_piece->object);
@@ -5497,7 +5496,7 @@ void mk_chess_put_active_piece_at_cell(float x, float y, int snap) {
     piece->cell_x = x;
     piece->cell_y = y;
     if (snap == 1) {
-        piece->object->hide_flag_bits.pin_animation = 0;
+        piece->object->flags.pin_animation = 0;
         piece->object->pos.value.x = cell->position.x + piece->runtime.fields.cell_offset.x;
         piece->object->pos.value.z = cell->position.z + piece->runtime.fields.cell_offset.z;
         update_obj_pos(piece->object);
@@ -5542,7 +5541,7 @@ static float p_mk_chess_piece_constrain_to_cell(void) {
         dx *= inverse_frames;
         dz *= inverse_frames;
         while (frames-- > 0.0f) {
-            g_active_piece->object->hide_flag_bits.pin_animation = 0;
+            g_active_piece->object->flags.pin_animation = 0;
             g_active_piece->object->pos.value.x -= dx;
             g_active_piece->object->pos.value.z -= dz;
             update_obj_pos(g_active_piece->object);
@@ -5559,7 +5558,7 @@ static float p_mk_chess_piece_proc_entry(void) {
     g_active_piece->state = 0;
     g_active_piece->flags.snap_into_stance = 0;
     g_active_piece->flags.glitch_into_stance = 0;
-    g_active_piece->object->flags_08_bits.gravity_enabled = 0;
+    g_active_piece->object->flags.gravity_enabled = 0;
     g_active_piece->movement->desired_cell_blend = 30.0f;
     if (g_active_piece->flags.dont_constrain) {
         g_active_piece->flags.dont_constrain = 0;
@@ -5723,7 +5722,7 @@ void mk_chess_snap_into_cell_orgin_over_x_frames(float frames) {
         g_active_piece->object->pos.value.z =
             cell->position.z + g_active_piece->runtime.fields.cell_offset.z;
         update_obj_pos(g_active_piece->object);
-        g_active_piece->object->hide_flag_bits.pin_animation = 0;
+        g_active_piece->object->flags.pin_animation = 0;
         animation = g_active_piece->animation;
         advance_anim(animation);
         pose_anim(animation, 1);
@@ -5765,7 +5764,7 @@ void mk_chess_blend_into_cell_orgin_in_x_frames(float frames) {
         g_active_piece->object->pos.value.x -= step.x;
         g_active_piece->object->pos.value.z -= step.z;
         update_obj_pos(g_active_piece->object);
-        g_active_piece->object->hide_flag_bits.pin_animation = 0;
+        g_active_piece->object->flags.pin_animation = 0;
         animation = g_active_piece->animation;
         advance_anim(animation);
         pose_anim(animation, 1);
@@ -5811,7 +5810,7 @@ void mk_chess_blend_to_ani(int animation, int flags, float blend, float speed) {
     AnimPdata* anim = g_active_piece->animation;
 
     set_root_and_obj_movement_weights(g_active_piece->animation, 0.0f, 1.0f);
-    g_active_piece->object->hide_flag_bits.pin_animation = 0;
+    g_active_piece->object->flags.pin_animation = 0;
     anim->step = speed;
     transition_to_anim_script(
         blend, anim, (AniData*)mkc_animations[animation], flags);
@@ -5824,7 +5823,7 @@ void mk_chess_blend_to_ani_frame(int animation, int flags, float blend,
                                  float speed, float frame) {
     AnimPdata* anim = g_active_piece->animation;
 
-    g_active_piece->object->hide_flag_bits.pin_animation = 0;
+    g_active_piece->object->flags.pin_animation = 0;
     anim->step = speed;
     transition_to_anim_script_frame(
         anim, (AniData*)mkc_animations[animation], flags, blend, frame);
@@ -5838,7 +5837,7 @@ void mk_chess_glitch_to_ani_frame(int animation, int flags, float speed,
     AnimPdata* anim = g_active_piece->animation;
 
     g_active_piece->flags.glitch_into_stance = 0;
-    g_active_piece->object->hide_flag_bits.pin_animation = 0;
+    g_active_piece->object->flags.pin_animation = 0;
     anim->step = speed;
     set_anim_script_frame(
         anim, (AniData*)mkc_animations[animation], flags, frame);
@@ -5846,7 +5845,7 @@ void mk_chess_glitch_to_ani_frame(int animation, int flags, float speed,
 
 
 void mk_chess_piece_match_y_ang_to_anim(void) {
-    g_active_piece->object->hide_flag_bits.bit0 = 1;
+    g_active_piece->object->flags.bit0A_0 = 1;
 }
 
 #pragma auto_inline on
@@ -5996,10 +5995,10 @@ void mk_chess_ani_until_reached_destination(
     g_active_piece->object->pos_vel.z = 0.0f;
     g_active_piece->object->pos_vel.y = 0.0f;
     g_active_piece->object->pos_vel.x = 0.0f;
-    g_active_piece->object->flags_08_bits.moving = 0;
-    g_active_piece->object->flags_09_bits.launched = 1;
-    g_active_piece->object->flags_08_bits.gravity_enabled = 1;
-    g_active_piece->object->flags_09_bits.bit6 = 0;
+    g_active_piece->object->flags.moving = 0;
+    g_active_piece->object->flags.launched = 1;
+    g_active_piece->object->flags.gravity_enabled = 1;
+    g_active_piece->object->flags.bit09_6 = 0;
     if (airborne == 1) {
         bob_ticks = 19;
         g_active_piece->object->pos_vel.y = 0.02f;
@@ -6059,25 +6058,25 @@ void mk_chess_ani_until_reached_destination(
             walk_frames -= 1.0f;
         }
     }
-    g_active_piece->object->flags_08_bits.moving = 0;
-    g_active_piece->object->flags_09_bits.launched = 1;
-    g_active_piece->object->flags_08_bits.gravity_enabled = 0;
-    g_active_piece->object->flags_09_bits.bit6 = 1;
+    g_active_piece->object->flags.moving = 0;
+    g_active_piece->object->flags.launched = 1;
+    g_active_piece->object->flags.gravity_enabled = 0;
+    g_active_piece->object->flags.bit09_6 = 1;
 }
 
 
 void mk_chess_air_move(void) {
-    g_active_piece->object->flags_09_bits.bit6 = 0;
+    g_active_piece->object->flags.bit09_6 = 0;
 }
 
 
 void mk_chess_launch_up(float vertical_speed, float gravity) {
     g_active_piece->object->pos_vel.y = vertical_speed;
     g_active_piece->object->gravity = gravity;
-    g_active_piece->object->flags_08_bits.moving = 1;
-    g_active_piece->object->flags_09_bits.launched = 1;
-    g_active_piece->object->flags_08_bits.gravity_enabled = 1;
-    g_active_piece->object->flags_09_bits.bit6 = 0;
+    g_active_piece->object->flags.moving = 1;
+    g_active_piece->object->flags.launched = 1;
+    g_active_piece->object->flags.gravity_enabled = 1;
+    g_active_piece->object->flags.bit09_6 = 0;
 }
 
 
@@ -6096,7 +6095,7 @@ void mk_chess_launch_n_land_ani_with_xz(
     animation->flags |= 0x40;
     current = g_active_piece->animation;
     set_root_and_obj_movement_weights(current, 0.0f, 1.0f);
-    g_active_piece->object->hide_flag_bits.pin_animation = 0;
+    g_active_piece->object->flags.pin_animation = 0;
     current->step = initial_speed;
     transition_to_anim_script(blend, current, (AniData*)mkc_animations[animation_id], 0x43);
     _mkproc_sleep_ticks = 1.0f;
@@ -6120,10 +6119,10 @@ void mk_chess_launch_n_land_ani_with_xz(
     if (sound != 0) mk_chess_snd_request(sound);
     g_active_piece->object->pos_vel.y = vertical_speed;
     g_active_piece->object->gravity = gravity;
-    g_active_piece->object->flags_08_bits.moving = 1;
-    g_active_piece->object->flags_09_bits.launched = 1;
-    g_active_piece->object->flags_08_bits.gravity_enabled = 1;
-    g_active_piece->object->flags_09_bits.bit6 = 0;
+    g_active_piece->object->flags.moving = 1;
+    g_active_piece->object->flags.launched = 1;
+    g_active_piece->object->flags.gravity_enabled = 1;
+    g_active_piece->object->flags.bit09_6 = 0;
     flight_time = mk_chess_compute_flight_time(
         vertical_speed, gravity, g_active_piece->object->pos.value.y);
     if (start_x != target_x || start_y != target_y) {
@@ -6142,22 +6141,22 @@ void mk_chess_launch_n_land_ani_with_xz(
     }
     rotation /= flight_time;
     mk_chess_run_landing_animation(animation, landing_frame, rotation);
-    g_active_piece->object->flags_08_bits.moving = 0;
-    g_active_piece->object->flags_09_bits.launched = 1;
-    g_active_piece->object->flags_08_bits.gravity_enabled = 0;
-    g_active_piece->object->flags_09_bits.bit6 = 1;
+    g_active_piece->object->flags.moving = 0;
+    g_active_piece->object->flags.launched = 1;
+    g_active_piece->object->flags.gravity_enabled = 0;
+    g_active_piece->object->flags.bit09_6 = 1;
 }
 
 #pragma auto_inline on
 
 void mk_chess_stop_me(void) {
-    g_active_piece->object->flags_08_bits.moving = 0;
-    g_active_piece->object->flags_09_bits.launched = 1;
-    g_active_piece->object->flags_08_bits.gravity_enabled = 0;
+    g_active_piece->object->flags.moving = 0;
+    g_active_piece->object->flags.launched = 1;
+    g_active_piece->object->flags.gravity_enabled = 0;
     g_active_piece->object->pos_vel.z = 0.0f;
     g_active_piece->object->pos_vel.y = 0.0f;
     g_active_piece->object->pos_vel.x = 0.0f;
-    g_active_piece->object->flags_09_bits.bit6 = 1;
+    g_active_piece->object->flags.bit09_6 = 1;
 }
 #pragma auto_inline reset
 
@@ -6255,7 +6254,7 @@ void mk_chess_force_away(float speed, int delay, float damping, int frames) {
     if (other == g_active_piece) {
         other = event_piece;
     }
-    g_active_piece->object->flags_08_bits.gravity_enabled = 1;
+    g_active_piece->object->flags.gravity_enabled = 1;
     other_object = other->object;
     object = g_active_piece->object;
     x = object->pos.value.x - other_object->pos.value.x;
@@ -6753,7 +6752,7 @@ static void mk_chess_show_select_trap_hud(void)
         subobject->flags09_bits.bit7 = 1;
         sobj_set_priority(subobject, 19);
         object->light_flags = 13;
-        object->flags_08_bits.airborne = 1;
+        object->flags.airborne = 1;
         insert_fgnd_mkobj(object);
         unhide_obj(object);
         if (side == 0) {
@@ -8827,12 +8826,12 @@ static void mk_chess_handle_guy_falling_from_sky_event(ChessPiece* piece) {
                     piece->object->pos_vel.z = 0.0f;
                     piece->object->pos_vel.y = 0.0f;
                     piece->object->pos_vel.x = 0.0f;
-                    piece->object->flags_08_bits.gravity_enabled = 0;
-                    piece->object->flags_08_bits.rotation_enabled = 0;
+                    piece->object->flags.gravity_enabled = 0;
+                    piece->object->flags.rotation_enabled = 0;
                     update_obj_pos(piece->object);
                     mk_chess_xfer_to_piece_script(piece, 45);
                     g_active_piece = piece;
-                    piece->object->flags_09_bits.bit6 = 0;
+                    piece->object->flags.bit09_6 = 0;
                     g_active_piece = 0;
                     _mkproc_sleep_ticks = 1.0f;
                     aproc->vtbl->sleep();
@@ -8961,7 +8960,7 @@ static void mk_chess_piece_event(ChessPiece* piece, unsigned int event, void* da
                             mk_chess_xfer_to_piece_script(other, 32);
                         } else if ((direction - 4 <= 1 || direction == 3) &&
                                    piece->object->pos_vel.y > 0.1f &&
-                                   piece->object->flags_08_bits.gravity_enabled == 1) {
+                                   piece->object->flags.gravity_enabled == 1) {
                             mk_chess_xfer_to_piece_script(other, 33);
                         }
                     }
@@ -10666,7 +10665,7 @@ static void mk_chess_request_attacker_won(
     cell->piece = attacker;
     attacker->cell_x = x;
     attacker->cell_y = y;
-    attacker->object->hide_flag_bits.pin_animation = 0;
+    attacker->object->flags.pin_animation = 0;
     attacker->object->pos.value.x =
         cell->position.x + attacker->runtime.fields.cell_offset.x;
     attacker->object->pos.value.z =
@@ -11007,17 +11006,17 @@ static void mk_chess_create_piece_obj(
     ChessLibraryEntry* library) {
     piece->object = mk_chess_create_piece_model_from_library(library);
     piece->object->light_flags = 0x200;
-    piece->object->flags_09_bits.launched = 1;
-    piece->object->flags_09_bits.bit6 = 1;
+    piece->object->flags.launched = 1;
+    piece->object->flags.bit09_6 = 1;
     piece->object->ground_colls = mk_chess_piece_ground_colls;
     obj_set_z_offsets(25.0f, piece->object);
     obj_create_sobjs(piece->object);
     bgnd_make_mkobj_transl(piece->object);
-    piece->object->flags_08_bits.scale_active = 1;
+    piece->object->flags.scale_active = 1;
     piece->object->scale.z = 2.2f;
     piece->object->scale.y = 2.2f;
     piece->object->scale.x = 2.2f;
-    piece->object->flags_08_bits.airborne = 1;
+    piece->object->flags.airborne = 1;
     piece->object->ang.y = 3.1415927f * side;
     build_bones_tbl(piece->object, mk_chess_piece_bones);
     insert_fgnd_mkobj(piece->object);
@@ -11090,7 +11089,7 @@ void mk_chess_shifter_switch(int animation_index, int flags, float speed, float 
     g_active_piece->animation->obj_instance = g_active_piece->object->hdr.instance;
     animation = g_active_piece->animation;
     g_active_piece->flags.glitch_into_stance = 0;
-    g_active_piece->object->hide_flag_bits.pin_animation = 0;
+    g_active_piece->object->flags.pin_animation = 0;
     animation->step = speed;
     set_anim_script_frame(
         animation, (AniData*)mkc_animations[animation_index], flags, frame);
@@ -11321,10 +11320,10 @@ static float p_team_monitor(void)
     if (hud->flag_bits.cursor_update == 1) mk_chess_cursor_tracker_update(hud);
     if (hud->flag_bits.cursor_scaling == 1) {
         MkObj* cursor = (MkObj*)mk_chess_cursor_live_header(&mk_chess_pdata->cursor);
-        if (!cursor->flags_08_bits.scale_active) {
+        if (!cursor->flags.scale_active) {
             if (hud->cursor_scale_step > 0.0f) hud->flag_bits.cursor_scaling = 0;
             else {
-                cursor->flags_08_bits.scale_active = 1;
+                cursor->flags.scale_active = 1;
                 cursor->scale.z = 1.0f;
                 cursor->scale.y = 1.0f;
                 cursor->scale.x = 1.0f;
@@ -11339,7 +11338,7 @@ static float p_team_monitor(void)
     if (hud->flag_bits.cursor_moving == 1) {
         MkObj* cursor = (MkObj*)mk_chess_cursor_live_header(&mk_chess_pdata->cursor);
         if (hud->flag_bits.cursor_mode == 0) {
-            cursor->flags_08_bits.scale_active = 1;
+            cursor->flags.scale_active = 1;
             cursor->scale.z = 1.0f;
             cursor->scale.y = 1.0f;
             cursor->scale.x = 1.0f;
@@ -11356,7 +11355,7 @@ static float p_team_monitor(void)
             cursor->scale.x *= hud->cursor_scale_step;
             cursor->scale.z *= hud->cursor_scale_step;
             if (cursor->scale.x < 1.0f) {
-                cursor->flags_08_bits.scale_active = 0;
+                cursor->flags.scale_active = 0;
                 hud->cursor_scale_step = 0.0f;
                 cursor->scale.z = 1.0f;
                 cursor->scale.y = 1.0f;
@@ -11735,7 +11734,7 @@ static void mk_chess_load_team_art(unsigned int side_index) {
     first_sobj->flags09_bits.bit7 = 1;
     sobj_set_priority(first_sobj, 0x13);
     model->light_flags = 0xD;
-    model->flags_08_bits.airborne = 1;
+    model->flags.airborne = 1;
     insert_fgnd_mkobj(model);
     hide_obj(model);
 }
@@ -13880,7 +13879,7 @@ static void start_gnd_blast(ChessPiece* piece, Vec* scale, int spawn_secondary,
         sobj_set_priority(sobj, 9);
         sobj->flags09_bits.bit6 = 1;
         sobj->flags09_bits.bit7 = 1;
-        object->flags_08_bits.airborne = 1;
+        object->flags.airborne = 1;
         insert_fgnd_mkobj(object);
         object->light_flags = 0;
         pdata->piece = piece;
@@ -13903,7 +13902,7 @@ static void start_gnd_blast(ChessPiece* piece, Vec* scale, int spawn_secondary,
         object->pos.value.y = cell->position.y;
         object->pos.value.z = cell->position.z;
         object->pos.value.y = 0.0001f;
-        object->flags_08_bits.scale_active = 1;
+        object->flags.scale_active = 1;
         object->scale.x = scale->x * initial_scale;
         object->scale.y = scale->y * initial_scale;
         object->scale.z = scale->z * initial_scale;
@@ -14067,7 +14066,7 @@ static void start_gnd_light_beam_effect(Vec* position, const char* model_name,
         object->pos.value.x = position->x;
         object->pos.value.y = position->y;
         object->pos.value.z = position->z;
-        object->flags_08_bits.scale_active = 1;
+        object->flags.scale_active = 1;
         object->scale.x = radial_initial;
         object->scale.y = vertical_initial;
         object->scale.z = radial_initial;
@@ -14078,7 +14077,7 @@ static void start_gnd_light_beam_effect(Vec* position, const char* model_name,
             sobj->flags09_bits.bit7 = 1;
             sobj_set_priority(sobj, 0x13);
             object->light_flags = 0xD;
-            object->flags_08_bits.airborne = 1;
+            object->flags.airborne = 1;
             insert_fgnd_mkobj(object);
             sobj_start_uv_scroll(object, sobj, 0.0f, 0.02f, 0.0f, 0.0f);
         } else {
@@ -14088,7 +14087,7 @@ static void start_gnd_light_beam_effect(Vec* position, const char* model_name,
             sobj_set_priority(sobj, 9);
             sobj->flags09_bits.bit6 = 1;
             sobj->flags09_bits.bit7 = 1;
-            object->flags_08_bits.airborne = 1;
+            object->flags.airborne = 1;
             insert_fgnd_mkobj(object);
             sobj_start_uv_scroll(object, sobj, 0.0f, -0.02f, 0.0f, 0.0f);
         }
@@ -14126,8 +14125,8 @@ static void start_protect_effect(ChessPiece* piece, int duration)
         effects[i]->flags.bits.bit6 = 1;
         object = MK_HDR_LIVE(effects[i]->object, effects[i]->object_instance);
         if (object != 0) {
-            object->flags_08_bits.angular_velocity_enabled =
-                object->flags_08_bits.rotation_enabled = 1;
+            object->flags.angular_velocity_enabled =
+                object->flags.rotation_enabled = 1;
             object->ang.z = 0.0f;
             object->ang.y = 0.0f;
             object->ang.x = 0.0f;
@@ -14225,13 +14224,13 @@ static void start_imprison_effect(ChessPiece* piece, unsigned int duration) {
             effect->expiry_clock = duration + (unsigned int)manager->clock;
             effect->flags.word = 0;
             effect->flags.bits.bit6 = 1;
-            object->flags_08_bits.scale_active = 1;
+            object->flags.scale_active = 1;
             object->scale.x = 1.0f;
             object->scale.y = 0.0f;
             object->scale.z = 1.0f;
             effect->sound = 0;
             effect->sound_instance = 0;
-            object->flags_08_bits.airborne = 1;
+            object->flags.airborne = 1;
             object->pos.value.x = cell->position.x;
             object->pos.value.y = cell->position.y;
             object->pos.value.z = cell->position.z;
@@ -14326,15 +14325,15 @@ void mk_chess_launch_special_fx(unsigned int kind, unsigned int mode, unsigned i
         piece->object->pos_vel.z = 0.0f;
         piece->object->pos_vel.y = 0.0f;
         piece->object->pos_vel.x = 0.0f;
-        piece->object->flags_08_bits.moving = 1;
-        piece->object->flags_09_bits.launched = 1;
-        piece->object->flags_08_bits.gravity_enabled = 1;
-        piece->object->flags_09_bits.bit6 = 0;
+        piece->object->flags.moving = 1;
+        piece->object->flags.launched = 1;
+        piece->object->flags.gravity_enabled = 1;
+        piece->object->flags.bit09_6 = 0;
         piece->object->pos_vel.y = -0.01f;
         piece->object->gravity = -0.01f;
         return;
     }
-    case 5: piece->object->flags_08_bits.gravity_enabled = 0; piece->object->flags_08_bits.moving = 0; return;
+    case 5: piece->object->flags.gravity_enabled = 0; piece->object->flags.moving = 0; return;
     case 6:
         fx_pause_emit(fx_by_owner("kill_flames", 4));
         obj_clear_bone_collapse_flag(piece->object, 1); obj_clear_bone_collapse_flag(piece->object, 2);
@@ -16771,12 +16770,12 @@ static void mk_chess_drone_complete_action(ChessDroneState* drone) {
     }
 
     if (--drone->action_delay == 0) {
-        if (drone->cursor->flags_08_bits.gravity_enabled) {
+        if (drone->cursor->flags.gravity_enabled) {
             drone->action_state = 0;
             return;
         }
 
-        drone->cursor->flags_08_bits.airborne = 1;
+        drone->cursor->flags.airborne = 1;
         drone->action_state = 0;
         xfer_proc(drone->proc, x_chess_4);
         return;
