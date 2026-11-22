@@ -3,8 +3,6 @@
 
 #include "mwScreenEngine/TextureCollection.h"
 
-/* MWCC passes a caller-owned copy of this by-value pair indirectly.
- * Both arrays remain outputs; the pair itself is never an output parameter. */
 typedef GVTexturePair PselectTexOut;
 
 #ifdef __cplusplus

@@ -438,19 +438,19 @@ void obj_set_sobj_alpha(MkObj* obj, int sobj_index, int alpha) {
 
 void obj_turn_gravity_off(MkObj* obj) {
     if (obj != 0) {
-        obj->flags_08_bits.moving = 0;
+        obj->flags.moving = 0;
     }
 }
 
 void obj_enable_grounding(MkObj* obj) {
-    obj->flags_09_bits.launched = 1;
+    obj->flags.launched = 1;
     update_bone_hierarchy(obj != 0 ? as_mkhdr(&obj->hdr) : 0);
     ground_me(obj != 0 ? as_mkhdr(&obj->hdr) : 0);
 }
 
 void obj_set_gravity(MkObj* obj, float gravity) {
     if (obj != 0) {
-        obj->flags_08_bits.moving = 1;
+        obj->flags.moving = 1;
         obj->gravity = gravity;
     }
 }
@@ -491,7 +491,7 @@ void obj_set_light_flag(void* obj, int flag) {
 void obj_set_ang_vel(MkObj* obj, void* velocity) {
     Vec* vel = velocity;
 
-    obj->flags_08_bits.rotation_enabled = 1;
+    obj->flags.rotation_enabled = 1;
     obj->ang_vel.x = vel->x;
     obj->ang_vel.y = vel->y;
     obj->ang_vel.z = vel->z;
@@ -506,7 +506,7 @@ void obj_get_pos_vel(MkObj* obj, Vec* out) {
 void obj_set_pos_vel(MkObj* obj, void* velocity) {
     Vec* vel = velocity;
 
-    obj->flags_08_bits.gravity_enabled = 1;
+    obj->flags.gravity_enabled = 1;
     obj->pos_vel.x = vel->x;
     obj->pos_vel.y = vel->y;
     obj->pos_vel.z = vel->z;
@@ -540,7 +540,7 @@ void obj_set_pos(MkObj* obj, Vec* pos) {
     obj->pos.value.x = pos->x;
     obj->pos.value.y = pos->y;
     obj->pos.value.z = pos->z;
-    obj->flags_08_bits.airborne = 1;
+    obj->flags.airborne = 1;
 }
 
 void obj_get_scale(MkObj* obj, Vec* out) {
@@ -555,7 +555,7 @@ void obj_set_scale(MkObj* obj, void* value) {
     Vec* scale = value;
 
     if (obj != 0) {
-        obj->flags_08_bits.scale_active = 1;
+        obj->flags.scale_active = 1;
         obj->scale.x = scale->x;
         obj->scale.y = scale->y;
         obj->scale.z = scale->z;
@@ -757,7 +757,7 @@ MkProc* create_mkproc_headtracking(int pid, MkObj* obj, PlyrPdata* target) {
         proc->destroy_cb = trackhead_postsleep;
         pdata->obj = obj;
         pdata->target = target;
-        obj->flags_09_bits.head_tracking = 1;
+        obj->flags.head_tracking = 1;
         pdata->angle_x = 0.0f;
         pdata->angle_y = 0.0f;
         pdata->blend_weight = 0.0f;
@@ -826,7 +826,7 @@ static float p_plyr_head_tracking(void) {
         if (aproc->pid == 0x6006) {
             special_camera = 1;
         }
-        if (obj->flags_09_bits.head_tracking == 0) {
+        if (obj->flags.head_tracking == 0) {
         fade_out:
             pdata_headtracking->blend_weight -= 0.06f;
             if (special_camera != 0 &&
@@ -1099,7 +1099,7 @@ void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata) {
     latch = &pdata->mirror_slots->weapon[0].mirror;
     linked_obj = MK_HDR_LIVE(latch->obj, latch->instance);
 
-    if (linked_obj != 0 && !linked_obj->hide_flag_bits.hidden) {
+    if (linked_obj != 0 && !linked_obj->flags.hidden) {
         matrix = linked_obj->field_24;
         matrix->pos.y = -matrix->pos.y;
         matrix->at.y = -matrix->at.y;
@@ -1113,7 +1113,7 @@ void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata) {
     latch = &pdata->mirror_slots->weapon[1].mirror;
     linked_obj = MK_HDR_LIVE(latch->obj, latch->instance);
 
-    if (linked_obj != 0 && !linked_obj->hide_flag_bits.hidden) {
+    if (linked_obj != 0 && !linked_obj->flags.hidden) {
         matrix = linked_obj->field_24;
         matrix->pos.y = -matrix->pos.y;
         matrix->at.y = -matrix->at.y;
@@ -1127,7 +1127,7 @@ void mirror_guy(MkObj* source, MkObj* mirror, PlyrPdata* pdata) {
     latch = &pdata->mirror_obj;
     linked_obj = MK_HDR_LIVE(latch->obj, latch->instance);
 
-    if (linked_obj != 0 && !linked_obj->hide_flag_bits.hidden) {
+    if (linked_obj != 0 && !linked_obj->flags.hidden) {
         matrix = linked_obj->field_24;
         matrix->pos.y = -matrix->pos.y;
         matrix->at.y = -matrix->at.y;
@@ -1317,7 +1317,7 @@ void ground_me(void* obj) {
     int i;
 
     mkobj = obj;
-    if (mkobj->flags_09_bits.launched == 0) {
+    if (mkobj->flags.launched == 0) {
         return;
     }
     collision = mkobj->ground_colls;
@@ -1325,7 +1325,7 @@ void ground_me(void* obj) {
         return;
     }
     matrix = mkobj->field_24;
-    if (mkobj->hide_flag_bits.pin_animation != 0) {
+    if (mkobj->flags.pin_animation != 0) {
         if (mode_of_play == 7) {
             set_bone_world_pos_xz(
                 mkobj, mkobj->ground_bone, &mkobj->ground_restore_pos);
@@ -1337,7 +1337,7 @@ void ground_me(void* obj) {
     mkobj->flags_0C_bits.tag_flag_10 = 0;
     if (mkobj->flags_0C_bits.tag_flag_08 != 0) {
         mkobj->flags_0C_bits.tag_flag_08 = 0;
-        mkobj->hide_flag_bits.pin_animation = 0;
+        mkobj->flags.pin_animation = 0;
     }
     min_height = 1000.0f;
 
@@ -1419,7 +1419,7 @@ void ground_me(void* obj) {
             matrix = mkobj->field_24;
             matrix->pos_row.value = mkobj->pos.value;
             matrix->flags &= ~0x20000;
-            if (mkobj->hide_flag_bits.bit4 == 0) {
+            if (mkobj->flags.bit0A_4 == 0) {
                 RwFrameUpdateObjects(mkobj->frame);
                 for (i = 1; i < mkobj->clump_count; i++) {
                     frame = mkobj->clumps[i]->object.parent;
@@ -1436,17 +1436,17 @@ void ground_me(void* obj) {
                     }
                 }
             }
-            if (mkobj->flags_08_bits.gravity_enabled == 0 ||
+            if (mkobj->flags.gravity_enabled == 0 ||
                 !(mkobj->pos_vel.y > 0.0f)) {
                 mkobj->pos_vel.y = 0.0f;
-                mkobj->flags_08_bits.moving = 0;
+                mkobj->flags.moving = 0;
             }
-        } else if (mkobj->flags_09_bits.bit6 != 0) {
+        } else if (mkobj->flags.bit09_6 != 0) {
             mkobj->pos.value.y -= min_height - mkobj->ground_colls_y;
             matrix = mkobj->field_24;
             matrix->pos_row.value = mkobj->pos.value;
             matrix->flags &= ~0x20000;
-            if (mkobj->hide_flag_bits.bit4 == 0) {
+            if (mkobj->flags.bit0A_4 == 0) {
                 RwFrameUpdateObjects(mkobj->frame);
                 for (i = 1; i < mkobj->clump_count; i++) {
                     frame = mkobj->clumps[i]->object.parent;
@@ -1467,7 +1467,7 @@ void ground_me(void* obj) {
         mkobj->flags_0C_bits.tag_flag_40 = 0;
         if (mkobj->flags_0C_bits.tag_flag_20 != 0) {
             mkobj->flags_0C_bits.tag_flag_20 = 0;
-            mkobj->flags_09_bits.bit6 = 0;
+            mkobj->flags.bit09_6 = 0;
         }
     }
 }
@@ -1618,12 +1618,12 @@ static void set_bone_world_pos_xz(
     }
     mkobj->pos.value.x += target->x - current.x;
     mkobj->pos.value.z += target->z - current.z;
-    mkobj->flags_08_bits.bit7 = 1;
+    mkobj->flags.bit08_7 = 1;
 
     matrix = mkobj->field_24;
     matrix->pos = *(RwV3d*)&mkobj->pos.value;
     matrix->flags &= ~0x20000;
-    if (mkobj->hide_flag_bits.bit4 == 0) {
+    if (mkobj->flags.bit0A_4 == 0) {
         RwFrameUpdateObjects(mkobj->frame);
         for (i = 1; i < mkobj->clump_count; i++) {
             frame = mkobj->clumps[i]->object.parent;
@@ -1683,12 +1683,12 @@ void set_bone_world_pos(void* obj, int bone, void* pos) {
     mkobj->pos.value.x += target->x - current.x;
     mkobj->pos.value.y += target->y - current.y;
     mkobj->pos.value.z += target->z - current.z;
-    mkobj->flags_08_bits.bit7 = 1;
+    mkobj->flags.bit08_7 = 1;
 
     matrix = mkobj->field_24;
     matrix->pos = *(RwV3d*)&mkobj->pos.value;
     matrix->flags &= ~0x20000;
-    if (mkobj->hide_flag_bits.bit4 == 0) {
+    if (mkobj->flags.bit0A_4 == 0) {
         RwFrameUpdateObjects(mkobj->frame);
         for (i = 1; i < mkobj->clump_count; i++) {
             frame = mkobj->clumps[i]->object.parent;
@@ -1798,9 +1798,9 @@ void update_bone_hierarchy(void* obj) {
     saved_pos.value.y = 0.0f;
     saved_pos.value.z = 0.0f;
     bone = mkobj->bones[mkobj->fallback_bone_index];
-    if (mkobj->hide_flag_bits.bit0 != 0) {
-        mkobj->hide_flag_bits.bit0 = 0;
-        mkobj->flags_0B_bits.root_transform_pending = 1;
+    if (mkobj->flags.bit0A_0 != 0) {
+        mkobj->flags.bit0A_0 = 0;
+        mkobj->flags.root_transform_pending = 1;
         mkobj->bone_angle_68 = mkobj->bone_angle_64 =
             quat_extract_ang_y(&bone->rotation);
     }
@@ -2069,7 +2069,7 @@ static inline float advance_material_fade(struct FadeMaterialPdata* pdata, MkObj
     }
     color->alpha = value;
     if (color->red == 0 && color->green == 0 && color->blue == 0) {
-        obj->hide_flag_bits.hidden = 1;
+        obj->flags.hidden = 1;
         mkproc_die();
     }
     pdata->frames--;
@@ -2701,7 +2701,7 @@ static void _destroy_mkobj_oid_mask(MkHdr* obj) {
     }
 
     mkobj->hdr.instance = 0;
-    if (mkobj->hide_flag_bits.bit3 != 0) {
+    if (mkobj->flags.bit0A_3 != 0) {
         RwFrameDestroy(mkobj->frame);
     }
     destroy_list(&mkobj->list_88);
@@ -2776,10 +2776,10 @@ void obj_match_pos_ang_to_src_obj(MkObj* dst_obj, MkObj* src_obj) {
     dst_obj->ang_vel = src_obj->ang_vel;
     dst_obj->scale = src_obj->scale;
     dst_obj->flags_word_08 = src_obj->flags_word_08;
-    dst_obj->flags_08_bits.gravity_enabled = 0;
-    dst_obj->flags_08_bits.rotation_enabled = 0;
-    dst_obj->flags_08_bits.bit7 = 1;
-    dst_obj->flags_08_bits.transform_dirty = 1;
+    dst_obj->flags.gravity_enabled = 0;
+    dst_obj->flags.rotation_enabled = 0;
+    dst_obj->flags.bit08_7 = 1;
+    dst_obj->flags.transform_dirty = 1;
     if (dst_obj != 0) {
         hdr = as_mkhdr(&dst_obj->hdr);
     } else {
@@ -2802,7 +2802,7 @@ void update_obj_pos(MkObj* mkobj) {
     matrix = mkobj->field_24;
     matrix->pos = *(RwV3d*)&mkobj->pos.value;
     matrix->flags &= ~0x20000;
-    if (mkobj->hide_flag_bits.bit4 == 0) {
+    if (mkobj->flags.bit0A_4 == 0) {
         RwFrameUpdateObjects(mkobj->frame);
         for (i = 1; i < mkobj->clump_count; i++) {
             frame = mkobj->clumps[i]->object.parent;
@@ -2858,22 +2858,22 @@ void update_mkobj(void* obj) {
     mkobj = obj;
     changed = 0;
     apply_to_mklist(update_mkhdr_sobj, &mkobj->sobj_list);
-    if (mkobj->flags_0B_bits.force_anim_speed != 0) {
+    if (mkobj->flags.force_anim_speed != 0) {
         obj_game_speed = 1.0f;
     } else {
         obj_game_speed = game_speed;
     }
     matrix = mkobj->field_24;
 
-    if (mkobj->flags_08_bits.rotation_enabled != 0) {
+    if (mkobj->flags.rotation_enabled != 0) {
         PSVECScale(&mkobj->ang_vel, &scaled_ang, obj_game_speed);
         PSVECAdd(&mkobj->ang, &scaled_ang, &mkobj->ang);
     }
-    if (mkobj->flags_08_bits.rotation_enabled != 0 ||
-        mkobj->flags_08_bits.angular_velocity_enabled != 0 ||
-        mkobj->flags_08_bits.transform_dirty != 0 ||
-        mkobj->flags_08_bits.scale_active != 0) {
-        mkobj->flags_08_bits.transform_dirty = 0;
+    if (mkobj->flags.rotation_enabled != 0 ||
+        mkobj->flags.angular_velocity_enabled != 0 ||
+        mkobj->flags.transform_dirty != 0 ||
+        mkobj->flags.scale_active != 0) {
+        mkobj->flags.transform_dirty = 0;
         mkobj->ang.x = normalize_obj_angle(mkobj->ang.x);
         mkobj->ang.y = normalize_obj_angle(mkobj->ang.y);
         mkobj->ang.z = normalize_obj_angle(mkobj->ang.z);
@@ -2881,31 +2881,31 @@ void update_mkobj(void* obj) {
             &mkobj->ang, matrix);
         changed = 1;
     }
-    if (mkobj->flags_09_bits.bit0 != 0 && mkobj->clump != 0) {
+    if (mkobj->flags.bit09_0 != 0 && mkobj->clump != 0) {
         RpClumpForAllAtomics(
             mkobj->clump, AtomicFaceCamera, 0);
     }
-    if (mkobj->flags_08_bits.moving != 0) {
-        mkobj->flags_08_bits.gravity_enabled = 1;
+    if (mkobj->flags.moving != 0) {
+        mkobj->flags.gravity_enabled = 1;
         mkobj->pos_vel.y += mkobj->gravity * obj_game_speed;
     }
-    if (mkobj->flags_08_bits.gravity_enabled != 0) {
+    if (mkobj->flags.gravity_enabled != 0) {
         PSVECScale(&mkobj->pos_vel, &scaled_pos, obj_game_speed);
         PSVECAdd(&mkobj->pos.value, &scaled_pos, &mkobj->pos.value);
     }
-    if (mkobj->flags_0B_bits.pivot_enabled != 0) {
+    if (mkobj->flags.pivot_enabled != 0) {
         gxMat33Tx31(
             &pivot, &mkobj->pivot, (Mat33*)matrix);
         PSVECSubtract(&mkobj->pos.value, &pivot, &matrix->pos_row.value);
         changed = 1;
-    } else if (mkobj->flags_08_bits.gravity_enabled != 0 ||
-               mkobj->flags_08_bits.airborne != 0 ||
-               mkobj->flags_08_bits.bit7 != 0) {
+    } else if (mkobj->flags.gravity_enabled != 0 ||
+               mkobj->flags.airborne != 0 ||
+               mkobj->flags.bit08_7 != 0) {
         changed = 1;
-        mkobj->flags_08_bits.bit7 = 0;
+        mkobj->flags.bit08_7 = 0;
         matrix->pos = *(RwV3d*)&mkobj->pos.value;
     }
-    if (mkobj->flags_08_bits.scale_active != 0) {
+    if (mkobj->flags.scale_active != 0) {
         gxMatScaledByV3(
             (Mat33*)matrix, (Mat33*)matrix, &mkobj->scale);
         changed = 1;
@@ -2913,7 +2913,7 @@ void update_mkobj(void* obj) {
 
     if (changed != 0) {
         matrix->flags &= ~0x20000;
-        if (mkobj->hide_flag_bits.bit4 == 0) {
+        if (mkobj->flags.bit0A_4 == 0) {
             RwFrameUpdateObjects(mkobj->frame);
             for (clump_index = 1; clump_index < mkobj->clump_count; clump_index++) {
                 frame = mkobj->clumps[clump_index]->object.parent;
@@ -3070,7 +3070,7 @@ static inline void mkobj_destroy_clumps(MkObj* mkobj) {
 
 void vdestroy_mkobj(MkObj* mkobj) {
     mkobj->hdr.instance = 0;
-    if (mkobj->hide_flag_bits.bit3 != 0) {
+    if (mkobj->flags.bit0A_3 != 0) {
         RwFrameDestroy(mkobj->frame);
     }
     destroy_list(&mkobj->list_88);
@@ -3102,7 +3102,7 @@ void destroy_mkobj(void* obj) {
     mkobj = obj;
 
     mkobj->hdr.instance = 0;
-    if (mkobj->hide_flag_bits.bit3 != 0) {
+    if (mkobj->flags.bit0A_3 != 0) {
         RwFrameDestroy(mkobj->frame);
     }
     destroy_list(&mkobj->list_88);
@@ -3289,11 +3289,11 @@ static float p_scale(void) {
         }
     }
     if ((flags & 0x40000) != 0) {
-        obj->flags_08_bits.scale_active = 1;
+        obj->flags.scale_active = 1;
         interp_v3(&obj->scale, &script->scale, &pdata->prior_scale, t);
         if ((float)((float)(obj->scale.x == obj->scale.y) ==
                     obj->scale.z) == 1.0f) {
-            obj->flags_08_bits.scale_active = 0;
+            obj->flags.scale_active = 0;
         }
     }
     if (pdata->elapsed >= script->duration) {
@@ -3608,8 +3608,8 @@ MkObj* obj_sever_limb(
     severed->parent_hdr = &source->hdr;
     severed->parent_inst = source->hdr.instance;
     severed->flags_0C_bits.parented = 1;
-    severed->hide_flag_bits.hidden = 1;
-    severed->hide_flag_bits.bit6 = source->hide_flag_bits.bit6;
+    severed->flags.hidden = 1;
+    severed->flags.bit0A_6 = source->flags.bit0A_6;
 
     sobj_ref = get_mkptr_not_owns_mkhdr(&sobj->hdr);
     insert_mkptr(sobj_ref, &severed->sobj_list);
@@ -3665,7 +3665,7 @@ MkObj* obj_sever_limb(
 
     if (limb_velocities != 0) {
         source_matrix = severed->field_24;
-        if (severed->flags_0B_bits.pivot_enabled == 0) {
+        if (severed->flags.pivot_enabled == 0) {
             saved_pos = severed->pos;
         } else {
             gxMat33Tx31(
@@ -3678,7 +3678,7 @@ MkObj* obj_sever_limb(
         severed->pivot.x = limb_velocity->x;
         severed->pivot.y = limb_velocity->y;
         severed->pivot.z = limb_velocity->z;
-        severed->flags_0B_bits.pivot_enabled = 1;
+        severed->flags.pivot_enabled = 1;
         gxMat33Tx31(
             &transformed.value, &severed->pivot,
             (Mat33*)source_matrix);
@@ -3690,7 +3690,7 @@ MkObj* obj_sever_limb(
             &severed->pos.value, &transformed.value, &severed->pos.value);
     }
     mk_insert(&severed->hdr, &fgnd_mkobj_list);
-    severed->flags_08_bits.airborne = 1;
+    severed->flags.airborne = 1;
     mk_insert(&severed->hdr, &bone_hierarchy_mkobj_list);
 
     if (player != 0) {
@@ -4016,8 +4016,8 @@ MkObj* get_mkobj_frame(int type, RwFrame* frame) {
                 obj = 0;
                 goto done;
             } else {
-                obj->hide_flag_bits.bit3 = 1;
-                obj->hide_flag_bits.bit4 = 1;
+                obj->flags.bit0A_3 = 1;
+                obj->flags.bit0A_4 = 1;
             }
         }
         mk_insert(&obj->hdr, &master_clean_up_list);
@@ -4036,8 +4036,8 @@ MkObj* get_mkobj_frame(int type, RwFrame* frame) {
         obj->fallback_bone_index = 0;
         obj->matrix_indices = 0;
         obj->matrix_count = 0;
-        obj->flags_08_bits.bit7 = 1;
-        obj->flags_08_bits.transform_dirty = 1;
+        obj->flags.bit08_7 = 1;
+        obj->flags.transform_dirty = 1;
         matrix = obj->field_24;
         obj->pos.value = matrix->pos_row.value;
         obj->pos_vel.z = 0.0f;
@@ -4296,13 +4296,13 @@ void hide_sobj(void* sobj_arg) {
 void unhide_obj(void* obj_arg) {
     MkObj* obj = obj_arg;
 
-    obj->hide_flag_bits.hidden = 0;
+    obj->flags.hidden = 0;
 }
 
 void hide_obj(void* obj_arg) {
     MkObj* obj = obj_arg;
 
-    obj->hide_flag_bits.hidden = 1;
+    obj->flags.hidden = 1;
 }
 
 void mkobj_get_matrix_pos(void* obj, void* out) {

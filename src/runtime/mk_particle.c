@@ -744,12 +744,12 @@ void render_pfx(MkPfx* pfx) {
     if (bound != 0) {
         mkobj = bound->vtbl == MK_VTABLE_ADDRESS(vtbl_mkobj) ? (MkObj*)bound : 0;
         if (mkobj != 0) {
-            if (((mkobj->flags_0C >> 1) & 1) != 0) {
+            if (mkobj->flags_0C_bits.parented != 0) {
                 parent = MK_LIVE(mkobj->parent_hdr, mkobj->parent_inst);
-                if (parent == 0 || ((((MkObj*)parent)->hide_flags >> 5) & 1)) {
+                if (parent == 0 || ((MkObj*)parent)->flags.hidden) {
                     return;
                 }
-            } else if ((mkobj->hide_flags >> 5) & 1) {
+            } else if (mkobj->flags.hidden) {
                 return;
             }
         }

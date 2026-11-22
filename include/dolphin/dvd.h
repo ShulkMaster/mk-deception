@@ -98,7 +98,6 @@ typedef struct DVDBB2 {
     void* fst_address;
     unsigned long user_position;
     unsigned long user_length;
-    /* The retail BB2 record reserves this final word (offset 0x1C). */
     unsigned long padding0;
 } DVDBB2;
 typedef char DVDBB2SizeCheck[sizeof(DVDBB2) == 0x20 ? 1 : -1];

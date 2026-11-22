@@ -419,9 +419,9 @@ int SetupShadow(ShadowObject* shadow) {
     if (owner->shadowbox == NULL) {
         return 0;
     }
-    owner->shadowbox->flags_08_bits.airborne = 1;
-    owner->shadowbox->flags_08_bits.angular_velocity_enabled = 1;
-    owner->shadowbox->flags_08_bits.scale_active = 1;
+    owner->shadowbox->flags.airborne = 1;
+    owner->shadowbox->flags.angular_velocity_enabled = 1;
+    owner->shadowbox->flags.scale_active = 1;
     insert_fgnd_mkobj(owner->shadowbox);
     if (owner->character_id == 0x1D) {
         material = obj_find_material_with_texture(owner->shadowbox, stringBase0);
@@ -565,14 +565,14 @@ void UpdateShadow(MkObj* fighter_object, PlyrPdata* owner, MkObj* object) {
     ShadowCameraUpdate(ShadowCamera, object->clump, 1);
     if (owner->mirror_slots != NULL) {
         validated = MK_HDR_LIVE(owner->mirror_slots->weapon[0].primary.obj, owner->mirror_slots->weapon[0].primary.instance);
-        if (validated != NULL && !validated->hide_flag_bits.hidden) {
+        if (validated != NULL && !validated->flags.hidden) {
             validated = MK_HDR_LIVE(owner->mirror_slots->weapon[0].mirror.obj, owner->mirror_slots->weapon[0].mirror.instance);
             if (validated != NULL) {
                 ShadowCameraUpdate(ShadowCamera, validated->clump, 0);
             }
         }
         validated = MK_HDR_LIVE(owner->mirror_slots->weapon[1].primary.obj, owner->mirror_slots->weapon[1].primary.instance);
-        if (validated != NULL && !validated->hide_flag_bits.hidden) {
+        if (validated != NULL && !validated->flags.hidden) {
             validated = MK_HDR_LIVE(owner->mirror_slots->weapon[1].mirror.obj, owner->mirror_slots->weapon[1].mirror.instance);
             if (validated != NULL) {
                 ShadowCameraUpdate(ShadowCamera, validated->clump, 0);
@@ -580,7 +580,7 @@ void UpdateShadow(MkObj* fighter_object, PlyrPdata* owner, MkObj* object) {
         }
     }
     validated = MK_HDR_LIVE(owner->aux_weapon_latch.obj, owner->aux_weapon_latch.instance);
-    if (validated != NULL && !validated->hide_flag_bits.hidden) {
+    if (validated != NULL && !validated->flags.hidden) {
         validated = MK_HDR_LIVE(owner->mirror_obj.obj, owner->mirror_obj.instance);
         if (validated != NULL) {
             ShadowCameraUpdate(ShadowCamera, validated->clump, 0);

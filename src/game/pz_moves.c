@@ -1,5 +1,3 @@
-/* BUILD: -inline auto,deferred: retail literal numbering runs backwards; definitions are in
-   reverse .text order so pz_fighter_check_to_toggle_obj_and_ani_flips inlines into its callers. */
 #include "game/ground_fx.h"
 #include "runtime/anim_transition.h"
 #include "game/ejb.h"
@@ -288,7 +286,6 @@ void pz_fighter_startup_attack(
     float speed, float force, unsigned int start_flags,
     unsigned int attack_flags, int blend_flags, unsigned int reaction,
     float damping);
-MslSoundHandle random_hit(int group);
 MslSoundHandle random_voice(int group);
 void glitch_to_ani(AniData* animation, int frame);
 void force_forward(
@@ -435,8 +432,8 @@ static inline void pz_fighter_create_projectile(
         MkPfx* effect;
         projectile->object =
             g_pz_fighters_engine.projectile_objects[plyr_pdata->plyr_num];
-        projectile->object->flags_08_bits.airborne = 1;
-        projectile->object->flags_08_bits.gravity_enabled = 1;
+        projectile->object->flags.airborne = 1;
+        projectile->object->flags.gravity_enabled = 1;
         projectile->object->pos_vel.z = 0.0f;
         projectile->object->pos_vel.y = 0.0f;
         projectile->object->pos_vel.x = 0.0f;
@@ -665,7 +662,7 @@ static float p_present_control(void) {
         g_pz_fighters_engine.present_object->pos.value.z = offset.z + bone_a.z;
         update_mkobj(g_pz_fighters_engine.present_object);
         unhide_obj(g_pz_fighters_engine.present_object);
-        g_pz_fighters_engine.present_object->flags_08_bits.airborne = 1;
+        g_pz_fighters_engine.present_object->flags.airborne = 1;
         return 1.0f;
     case 3:
         present->state = 4;
@@ -844,7 +841,7 @@ static float r_pz_fighter_dizzyfall3_with_holdface(void) {
     ani_to_end();
     if (pz_fighter_should_he_breakout() == 0) {
         init_ground_move_no_aniproc();
-        plyr_obj->flags_09_bits.head_tracking = 0;
+        plyr_obj->flags.head_tracking = 0;
         tightrope_restrictions_off();
         plyr_anim_pdata->step = 0.6f;
         plyr_anim_pdata->transition_weight = 0.5f;
@@ -872,12 +869,12 @@ static float r_pz_fighter_dizzyfall3_with_holdface(void) {
 void suspend_in_midair(float ticks) {
     float saved_velocity = plyr_obj->pos_vel.y;
 
-    plyr_obj->flags_08_bits.moving = 0;
+    plyr_obj->flags.moving = 0;
     plyr_obj->pos_vel.y = 0.0f;
     _mkproc_sleep_ticks = ticks;
     aproc->vtbl->sleep();
     plyr_obj->pos_vel.y = saved_velocity;
-    plyr_obj->flags_08_bits.moving = 1;
+    plyr_obj->flags.moving = 1;
 }
 
 float pz_fighter_inline_force_away_with_ani(
@@ -904,8 +901,8 @@ float pz_fighter_inline_force_away_with_ani(
 static float r_pz_fighter_feet3_swept_out(void) {
     face_opponent_now();
     got_hit_fx(2, 7, 0, 0, 0, 0.0f, 0x10);
-    plyr_obj->flags_09_bits.face_opponent = 0;
-    plyr_obj->flags_09_bits.tightrope_restricted = 0;
+    plyr_obj->flags.face_opponent = 0;
+    plyr_obj->flags.tightrope_restricted = 0;
     pz_fighter_set_y_constrain(plyr_obj, 1, 0.3f);
     blend_to_ani_INOUT(
         shared_ani.swept_out, shared_ani.swept_in,
@@ -1202,7 +1199,7 @@ float pz_fighter_superman_move(void) {
 
     init_air_move_no_aniproc();
     head_tracking_off();
-    plyr_obj->flags_09_bits.launched = 0;
+    plyr_obj->flags.launched = 0;
     blend_to_ani(pz_shared_ani.superman, 3, 0.2f);
     set_ani_speed(0.6f);
     ani_to_frame_x(17.0f);
@@ -1221,7 +1218,7 @@ float pz_fighter_superman_move(void) {
         pz_fighter_reaction_xfer_him(0x27);
     }
     ani_to_frame_x(37.0f);
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 1;
     object = plyr_obj != 0 ? as_mkhdr((MkHdr*)plyr_obj) : 0;
     update_bone_hierarchy(object);
     object = plyr_obj != 0 ? as_mkhdr((MkHdr*)plyr_obj) : 0;
@@ -1324,7 +1321,7 @@ float pz_fighter_dizzy(void) {
     rotate_towards_him(0.1f);
     set_my_state(0x4203);
     plyr_pdata->state_flags.bits.dizzy = 1;
-    plyr_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags.head_tracking = 0;
     blend_to_ani(shared_ani.dizzy, flags, 0.1f);
     xfer_proc(plyr_anim_proc, p_animate);
     _mkproc_sleep_ticks = 10.0f;
@@ -1462,8 +1459,8 @@ void pz_fighter_release_other_player(int reaction) {
     int reaction_locked = 0;
 
     release_other_player();
-    his_obj->flags_09_bits.face_opponent = reaction_locked;
-    plyr_obj->flags_09_bits.face_opponent = reaction_locked;
+    his_obj->flags.face_opponent = reaction_locked;
+    plyr_obj->flags.face_opponent = reaction_locked;
     pz_fighter_reaction_xfer_him(reaction);
 }
 
@@ -1734,7 +1731,7 @@ float pz_fighter_big_time_happy(void) {
         flags |= 8;
     }
     xfer_proc(plyr_anim_proc, p_anim_idle);
-    plyr_obj->flags_08_bits.moving = 0;
+    plyr_obj->flags.moving = 0;
     blend_to_ani(pz_shared_ani.happy_start, flags, 0.1f);
     set_ani_speed(0.8f);
     loop = 0;
@@ -1746,7 +1743,7 @@ float pz_fighter_big_time_happy(void) {
     blend_to_ani(pz_shared_ani.happy_end, flags, 0.1f);
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.05f);
-    plyr_obj->flags_08_bits.moving = 1;
+    plyr_obj->flags.moving = 1;
     aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
@@ -1760,7 +1757,7 @@ float pz_fighter_laugh(void) {
         flags |= 8;
     }
     xfer_proc(plyr_anim_proc, p_anim_idle);
-    plyr_obj->flags_08_bits.moving = 0;
+    plyr_obj->flags.moving = 0;
     blend_to_ani(pz_shared_ani.laugh_start, flags, 0.1f);
     set_ani_speed(0.8f);
     for (loop = 0; loop < 2; loop++) {
@@ -1770,7 +1767,7 @@ float pz_fighter_laugh(void) {
     blend_to_ani(pz_shared_ani.laugh_end, flags, 0.1f);
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.05f);
-    plyr_obj->flags_08_bits.moving = 1;
+    plyr_obj->flags.moving = 1;
     aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
@@ -1783,7 +1780,7 @@ float pz_fighter_laugh_small(void) {
         flags |= 8;
     }
     xfer_proc(plyr_anim_proc, p_anim_idle);
-    plyr_obj->flags_08_bits.moving = 0;
+    plyr_obj->flags.moving = 0;
     blend_to_ani(pz_shared_ani.laugh_start, flags, 0.1f);
     set_ani_speed(0.8f);
     blend_to_ani(pz_shared_ani.laugh_loop, flags, 0.1f);
@@ -1791,7 +1788,7 @@ float pz_fighter_laugh_small(void) {
     blend_to_ani(pz_shared_ani.laugh_end, flags, 0.1f);
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.05f);
-    plyr_obj->flags_08_bits.moving = 1;
+    plyr_obj->flags.moving = 1;
     aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
@@ -1805,7 +1802,7 @@ static float pz_fighter_beg(void) {
         flags = flags | 8;
     }
     xfer_proc(plyr_anim_proc, p_anim_idle);
-    plyr_obj->flags_08_bits.moving = 0;
+    plyr_obj->flags.moving = 0;
     blend_to_ani(pz_shared_ani.beg_start, flags, 0.1f);
     set_ani_speed(0.8f);
     for (loop = 0; loop < 2; loop++) {
@@ -1815,7 +1812,7 @@ static float pz_fighter_beg(void) {
     blend_to_ani(pz_shared_ani.beg_end, flags, 0.1f);
     ani_to_blend_frame(10.0f);
     blend_to_stance(0.05f);
-    plyr_obj->flags_08_bits.moving = 1;
+    plyr_obj->flags.moving = 1;
     aproc->vtbl->jump_sleep(p_plyr_pz_fighter_entry, 0.0f);
     return 0.0f;
 }
@@ -2058,12 +2055,12 @@ float pz_fighter_one_arm_victory(void) {
     }
     set_my_state(0x4201);
     xfer_proc(plyr_anim_proc, p_anim_idle);
-    plyr_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags.head_tracking = 0;
     blend_to_ani(pz_shared_ani.one_arm_victory_start, flags, 0.2f);
     set_ani_speed(0.75f);
     ani_to_frame_x(91.0f);
     flags = 0;
-    plyr_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags.head_tracking = 0;
     if (plyr_pdata->plyr_num == 1) {
         flags |= 8;
     }
@@ -2082,12 +2079,12 @@ float pz_fighter_one_arm_victory2(void) {
     }
     set_my_state(0x4201);
     xfer_proc(plyr_anim_proc, p_anim_idle);
-    plyr_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags.head_tracking = 0;
     blend_to_ani(pz_shared_ani.one_arm_victory_start, flags, 0.1f);
     set_ani_speed(0.5f);
     ani_to_frame_x(91.0f);
     flags = 0;
-    plyr_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags.head_tracking = 0;
     if (plyr_pdata->plyr_num == 1) {
         flags |= 8;
     }
@@ -2108,7 +2105,7 @@ float pz_fighter_disgusted_with_grinding(void) {
     xfer_proc(plyr_anim_proc, p_anim_idle);
     blend_to_ani(pz_shared_ani.disgusted_with_grinding, flags, 0.1f);
     set_ani_speed(0.75f);
-    plyr_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags.head_tracking = 0;
     ani_to_frame_x(163.0f);
     aproc->vtbl->jump_sleep(pz_fighter_one_arm_victory2, 0.0f);
     return 0.0f;
@@ -2160,7 +2157,7 @@ float pz_fighter_wipe_blood_off(void) {
     }
 
     xfer_proc(plyr_anim_proc, p_anim_idle);
-    plyr_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags.head_tracking = 0;
     blend_to_ani(pz_shared_ani.wipe_blood, flags, 0.1f);
     set_ani_speed(0.75f);
     ani_to_frame_x(22.0f);
@@ -2186,7 +2183,7 @@ float pz_fighter_won2(void) {
     xfer_proc(plyr_anim_proc, p_anim_idle);
     blend_to_ani(pz_shared_ani.won2, flags, 0.1f);
     set_ani_speed(0.65f);
-    plyr_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags.head_tracking = 0;
     ani_to_frame_x(131.0f);
     aproc->vtbl->jump_sleep(pz_fighter_one_arm_victory, 0.0f);
     return 0.0f;

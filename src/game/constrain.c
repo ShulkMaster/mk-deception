@@ -90,11 +90,11 @@ static inline float tightrope_projection(const MkObj* object) {
 }
 
 static inline int object_can_be_repelled(const MkObj* object) {
-    return object->flags_09_bits.bit4 != 0;
+    return object->flags.bit09_4 != 0;
 }
 
 static inline int object_ignores_wall_limits(const MkObj* object) {
-    return object->flags_0B_bits.bit6 != 0;
+    return object->flags.bit0B_6 != 0;
 }
 
 static inline int player_ignores_obstacles(const PlyrPdata* player) {
@@ -486,11 +486,11 @@ static float p_constrain_players(void) {
     tightrope_set_this_tick = 0;
 
     if (CONSTRAIN_P1_OBJECT != 0 &&
-        CONSTRAIN_P1_OBJECT->flags_09_bits.launched) {
+        CONSTRAIN_P1_OBJECT->flags.launched) {
         ground_me(CONSTRAIN_P1_OBJECT);
     }
     if (CONSTRAIN_P2_OBJECT != 0 &&
-        CONSTRAIN_P2_OBJECT->flags_09_bits.launched) {
+        CONSTRAIN_P2_OBJECT->flags.launched) {
         ground_me(CONSTRAIN_P2_OBJECT);
     }
 
@@ -499,7 +499,7 @@ static float p_constrain_players(void) {
         if (pdata->sidekick_available != 0) {
             sidekick = MK_HDR_LIVE(pdata->sidekick_obj, pdata->sidekick_instance);
 
-            if (sidekick->flags_09_bits.launched) {
+            if (sidekick->flags.launched) {
                 ground_me(sidekick);
             }
         }
@@ -510,7 +510,7 @@ static float p_constrain_players(void) {
         if (pdata->sidekick_available != 0) {
             sidekick = MK_HDR_LIVE(pdata->sidekick_obj, pdata->sidekick_instance);
 
-            if (sidekick->flags_09_bits.launched) {
+            if (sidekick->flags.launched) {
                 ground_me(sidekick);
             }
         }
@@ -521,11 +521,11 @@ static float p_constrain_players(void) {
             CONSTRAIN_P2_OBJECT->pos.value.x - CONSTRAIN_P1_OBJECT->pos.value.x;
         delta_z =
             CONSTRAIN_P2_OBJECT->pos.value.z - CONSTRAIN_P1_OBJECT->pos.value.z;
-        if (CONSTRAIN_P1_OBJECT->flags_09_bits.face_opponent) {
+        if (CONSTRAIN_P1_OBJECT->flags.face_opponent) {
             CONSTRAIN_P1_OBJECT->ang.y =
                 gxMathArcTanYX(delta_x, delta_z);
         }
-        if (CONSTRAIN_P2_OBJECT->flags_09_bits.face_opponent) {
+        if (CONSTRAIN_P2_OBJECT->flags.face_opponent) {
             CONSTRAIN_P2_OBJECT->ang.y =
                 gxMathArcTanYX(-delta_x, -delta_z);
         }
@@ -809,8 +809,8 @@ static void keep_players_on_tightrope(void) {
         return;
     }
 
-    if (!player_1->flags_09_bits.tightrope_restricted ||
-        !player_2->flags_09_bits.tightrope_restricted ||
+    if (!player_1->flags.tightrope_restricted ||
+        !player_2->flags.tightrope_restricted ||
         !tightrope_set || update_tr_due_to_arena_edge) {
         update_tightrope_plane(player_1, player_2);
         update_tr_due_to_arena_edge = 0;

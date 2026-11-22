@@ -1,7 +1,5 @@
 /* TODO: [review] stripped-data records: TextList setter allocation labels have
  * no surviving bodies; retain their retail pool positions pending review. */
-/* BUILD: -RTTI on: retail's __vt__15mkGameVariables word 0 points at a real
- * __RTTI__15mkGameVariables record (mwScreenEngine's own TUs are RTTI off). */
 
 #include "game/pselect_textures.h"
 #include "game/pfxscript_api.h"
@@ -570,9 +568,6 @@ extern char* profile_test_matrix_b[];
 extern char* view_profile_stats[];
 extern char* multi_profile_names_p1[];
 extern char* multi_profile_names_p2[];
-#pragma section sdata_type ".sdata" ".sbss" data_mode=sda_rel
-__declspec(section ".sdata") extern char* create_profile_storage_location_name_list[];
-#pragma section sdata_type
 extern char* game_settings_rounds_to_win_numbers[];
 extern char* number_strings[];
 extern int ui_sound_table[];
@@ -5423,10 +5418,10 @@ void Render__11ScreenModelFP16ScreenRenderInfo(ScreenModel* self,
     current_render_state = 0;
 
     if (mkobj != 0) {
-        mkobj->flag_bytes.hide_flag_bits.hidden = 0;
+        mkobj->flags.hidden = 0;
         render_mkobj(mkobj);
         render_transl_atomics();
-        mkobj->flag_bytes.hide_flag_bits.hidden = 1;
+        mkobj->flags.hidden = 1;
     }
 }
 
@@ -6797,7 +6792,7 @@ ScreenModel* CreateModelNode__20mkScreenEngineClientFP6ScreenP13SECharacter_t(
     model->model = mkobj;
     model->modelInstance = mkobj->hdr.instance;
     mkobj->light_flags = 1;
-    mkobj->flag_bytes.hide_flag_bits.hidden = 1;
+    mkobj->flags.hidden = 1;
     obj_create_sobjs(mkobj);
     if (strcmp(modelName, "CLOUDS") == 0) {
         sobj_set_priority(obj_find_sobj_by_id(mkobj, 1), 2);

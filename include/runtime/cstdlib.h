@@ -13,7 +13,6 @@ void free(void* allocation);
 void qsort(void* base, unsigned long count, unsigned long size,
            int (*compare)(const void*, const void*));
 
-/* Platform hooks used by the MSL allocator implementation. */
 void* __sys_alloc(unsigned long size);
 void __sys_free(void* allocation);
 

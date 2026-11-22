@@ -16,6 +16,7 @@ MslSoundHandle snd_req(int sound_id);
 MslSoundHandle snd_req_vol(int sound_id, float volume);
 MslSoundHandle random_snd_req(int group);
 MslSoundHandle pan_vol_pitch_random_snd_req(int group, float pan, float volume, float pitch);
+MslSoundHandle random_hit(int group);
 void set_snd_vol(MslSoundHandle handle, int sound_id, float volume);
 int init_sounds(void);
 void setup_sound_banks(int load_mode);

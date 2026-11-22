@@ -7,6 +7,7 @@
 #include "math/gxQuat.h"
 #include "runtime/limb.h"
 #include "runtime/mk_obj_bone.h"
+#include "runtime/mk_obj_flags.h"
 #include "runtime/mk_struct.h"
 #include "runtime/mk_obj_lists.h"
 #include "game/weapon_types.h"
@@ -246,59 +247,15 @@ typedef struct MksobjPluginData {
 } MksobjPluginData;
 
 typedef struct MkObjFlags0C {
-    unsigned char pad_bit7 : 1;
-    unsigned char tag_flag_40 : 1; /* bit6 */
-    unsigned char tag_flag_20 : 1; /* bit5 */
-    unsigned char tag_flag_10 : 1; /* bit4 */
-    unsigned char tag_flag_08 : 1; /* bit3 */
-    unsigned char cloth_update : 1; /* bit2 */
-    unsigned char parented : 1; /* bit1 */
-    unsigned char bit0 : 1;
+    unsigned char bit0C_7 : 1;
+    unsigned char tag_flag_40 : 1;
+    unsigned char tag_flag_20 : 1;
+    unsigned char tag_flag_10 : 1;
+    unsigned char tag_flag_08 : 1;
+    unsigned char cloth_update : 1;
+    unsigned char parented : 1;
+    unsigned char bit0C_0 : 1;
 } MkObjFlags0C;
-
-typedef struct MkObjFlags09 {
-    unsigned char launched : 1; /* bit7 */
-    unsigned char bit6 : 1;
-    unsigned char tightrope_restricted : 1; /* bit5 */
-    unsigned char bit4 : 1;
-    unsigned char face_opponent : 1;        /* bit3 */
-    unsigned char wall_restricted : 1;      /* bit2 */
-    unsigned char head_tracking : 1;        /* bit1 */
-    unsigned char bit0 : 1;
-} MkObjFlags09;
-
-typedef struct MkObjFlags08 {
-    unsigned char bit7 : 1;
-    unsigned char airborne : 1; /* bit6 */
-    unsigned char gravity_enabled : 1; /* bit5 */
-    unsigned char transform_dirty : 1; /* bit4 */
-    unsigned char angular_velocity_enabled : 1; /* bit3 */
-    unsigned char rotation_enabled : 1; /* bit2 */
-    unsigned char scale_active : 1; /* bit1 */
-    unsigned char moving : 1;          /* bit0 */
-} MkObjFlags08;
-
-typedef struct MkObjFlags0B {
-    unsigned char root_transform_pending : 1; /* bit7 */
-    unsigned char bit6 : 1;
-    unsigned char force_anim_speed : 1; /* bit5 */
-    unsigned char bit4 : 1;
-    unsigned char bit3 : 1;
-    unsigned char pivot_enabled : 1; /* bit2 */
-    unsigned char special_texture : 1; /* bit1 */
-    unsigned char pad_low : 1;
-} MkObjFlags0B;
-
-typedef struct MkObjHideFlags {
-    unsigned char still_move : 1; /* bit7 */
-    unsigned char bit6 : 1;
-    unsigned char hidden : 1;     /* bit5 */
-    unsigned char bit4 : 1;
-    unsigned char bit3 : 1;
-    unsigned char weapon_effect : 1; /* bit2 - weapon/cloth auxiliary */
-    unsigned char pin_animation : 1; /* bit1 */
-    unsigned char bit0 : 1;
-} MkObjHideFlags;
 
 /*
  * MkObj (partial) -- fields used by mk_obj + particle binds.
@@ -308,38 +265,17 @@ typedef struct MkObj {
     MkHdr hdr;                /* +0x00 - instance @ +0x04 */
     union {
         unsigned int flags_word_08;
+        MkObjFlags flags;
         struct {
-            union {
-                unsigned char flags_08;
-                MkObjFlags08 flags_08_bits;
-            }; /* +0x08 */
-            union {
-                unsigned char flags_09;
-                MkObjFlags09 flags_09_bits;
-            }; /* +0x09 */
-            union {
-                unsigned char hide_flags;
-                MkObjHideFlags hide_flag_bits;
-            }; /* +0x0A */
-            union {
-                unsigned char flags_0B;
-                MkObjFlags0B flags_0B_bits;
-            }; /* +0x0B */
-        }
-#ifdef __cplusplus
-        flag_bytes
-#endif
-        ;
+            unsigned char flags_08;
+            char pad09;
+            unsigned char hide_flags;
+            char pad0B;
+        };
     };
     union {
         unsigned int flags_word_0C;
-        struct {
-            union {
-                unsigned char flags_0C;
-                MkObjFlags0C flags_0C_bits;
-            }; /* +0x0C */
-            char pad0D[3];
-        };
+        MkObjFlags0C flags_0C_bits;
     };
     int oid;                /* +0x10 - object id / destroy mask */
     int clump_count;        /* +0x14 - populated inline clump slots */

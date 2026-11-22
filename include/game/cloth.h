@@ -6,7 +6,6 @@
 
 typedef struct ClothInitEntry ClothInitEntry;
 
-/* MKO cloth initialization rows: one integer and nine float words. */
 struct ClothInitEntry {
     int bone_tag;
     float stiffness;
@@ -17,7 +16,7 @@ struct ClothInitEntry {
     float initial_x;
     float initial_z;
     float table_scale;
-    float field_24; /* +0x24 - MKO float tag; not consumed here */
+    float field_24;
 };
 typedef char ClothInitEntrySizeCheck[sizeof(ClothInitEntry) == 0x28 ? 1 : -1];
 
@@ -30,45 +29,38 @@ void cloth_bones_init_by_tbl(
 
 typedef struct ClothCollisionPlane {
     MkHdr hdr;
-    unsigned int bone_count; /* +0x08 */
-    ClothBone* bones[12];    /* +0x0C */
+    unsigned int bone_count;
+    ClothBone* bones[12];
     char pad3C[0x30];
     union {
-        unsigned int flags_storage; /* +0x6C; constructor clears the whole word */
+        unsigned int flags_storage;
         struct {
-            union {
-                unsigned char flags_6C;
-                struct {
-                    unsigned char flags_80 : 1;
-                    unsigned char flags_40 : 1;
-                    unsigned char flags_rest : 6;
-                } flags_6C_bits;
-            };
-            char pad6D[3];
-        };
+            unsigned char flags_80 : 1;
+            unsigned char flags_40 : 1;
+            unsigned char flags_rest : 6;
+        } flags_6C_bits;
     };
-    float weights[4];       /* +0x70 */
+    float weights[4];
     union {
-        MkBone* reference_bone; /* +0x80 */
-        MkBone* reference_bones[4]; /* +0x80..+0x8C */
+        MkBone* reference_bone;
+        MkBone* reference_bones[4];
     };
-    Vec normal;             /* +0x90 */
+    Vec normal;
     char pad9C[4];
-    float distance;         /* +0xA0 */
+    float distance;
     char padA4[0x0C];
-} ClothCollisionPlane; /* 0xB0 */
+} ClothCollisionPlane;
 
 typedef struct ClothCollisionVolume {
     MkHdr hdr;
-    MkBone* reference_bone; /* +0x08 */
-    float radius; /* +0x0C */
-    float cylinder_bottom; /* +0x10 */
-    float cylinder_top;    /* +0x14 */
-    void (*collision_fn)(void); /* +0x18 */
-    unsigned int bone_count; /* +0x1C */
-    ClothBone* bones[12];    /* +0x20 */
-    unsigned int bone_settings[13]; /* +0x50; slot zero is reserved */
-    /* Both retail constructors allocate 0x140; trailing storage is unresolved. */
+    MkBone* reference_bone;
+    float radius;
+    float cylinder_bottom;
+    float cylinder_top;
+    void (*collision_fn)(void);
+    unsigned int bone_count;
+    ClothBone* bones[12];
+    unsigned int bone_settings[13];
     unsigned char reserved_84[0xBC];
 } ClothCollisionVolume;
 typedef char ClothCollisionVolumeSizeCheck[sizeof(ClothCollisionVolume) == 0x140 ? 1 : -1];

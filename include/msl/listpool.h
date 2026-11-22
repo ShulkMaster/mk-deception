@@ -9,23 +9,23 @@ typedef struct _ListNode _ListNode;
 typedef struct ListPool ListPool;
 
 struct _ListNode {
-    void* data;                   /* +0x00 */
-    _ListNode* next;              /* +0x04 */
-    _ListNode** previous_link;    /* +0x08 */
-    msl_u16 state : 2;            /* +0x0C, high two bits */
-    msl_u16 index : 14;           /* +0x0C, low fourteen bits */
-    msl_u16 generation;           /* +0x0E */
-}; /* 0x10 */
+    void* data;
+    _ListNode* next;
+    _ListNode** previous_link;
+    msl_u16 state : 2;
+    msl_u16 index : 14;
+    msl_u16 generation;
+};
 
 struct ListPool {
-    msl_u32 element_size;         /* +0x00 */
-    msl_u32 element_count;        /* +0x04 */
-    char* elements;               /* +0x08 */
-    _ListNode* nodes;             /* +0x0C */
-    _ListNode* free_list;         /* +0x10 */
-    msl_u32 allocated_count;      /* +0x14 */
-    msl_u32 peak_allocated;       /* +0x18 */
-}; /* 0x1C */
+    msl_u32 element_size;
+    msl_u32 element_count;
+    char* elements;
+    _ListNode* nodes;
+    _ListNode* free_list;
+    msl_u32 allocated_count;
+    msl_u32 peak_allocated;
+};
 
 typedef char ListNodeSizeCheck[sizeof(_ListNode) == 0x10 ? 1 : -1];
 typedef char ListPoolSizeCheck[sizeof(ListPool) == 0x1C ? 1 : -1];

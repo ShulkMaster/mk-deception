@@ -1,4 +1,3 @@
-/* BUILD: -str reuse,pool,readonly. */
 #include "game/pselect.h"
 #include "game/plyrprofile.h"
 #include "game/game.h"

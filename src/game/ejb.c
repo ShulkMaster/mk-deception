@@ -93,7 +93,6 @@ void set_plyr_attack_region(
 static float p_wall_monitor(void);
 static int check_button_and_pad(
     unsigned int button, unsigned int direction, int pad);
-MslSoundHandle random_hit(int group);
 
 int is_weapon_style(PlyrFighterDefinition* style);
 int reaction_xfer_him(int reaction, float rate, int strength);
@@ -293,7 +292,7 @@ static inline int blend_to_stance_inline(float blend_rate) {
             0x20, blend_rate);
     }
     xfer_proc(plyr_anim_proc, p_animate);
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 1;
     object_hdr =
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
     update_bone_hierarchy(object_hdr);
@@ -595,7 +594,7 @@ int is_my_chest_to_screen(void) {
 
     if (cross < 0.0f) {
         flipped = 0;
-        if (plyr_obj->hide_flag_bits.bit6 == 1) {
+        if (plyr_obj->flags.bit0A_6 == 1) {
             flipped ^= 1;
         }
         if (plyr_anim_pdata->flags & 8) {
@@ -608,7 +607,7 @@ int is_my_chest_to_screen(void) {
     }
 
     flipped = 0;
-    if (plyr_obj->hide_flag_bits.bit6 == 1) {
+    if (plyr_obj->flags.bit0A_6 == 1) {
         flipped ^= 1;
     }
     if (plyr_anim_pdata->flags & 8) {
@@ -653,7 +652,7 @@ int is_he_flipped(void) {
 
     swap_active_plyr_proc();
     flipped = 0;
-    if (plyr_obj->hide_flag_bits.bit6 == 1) {
+    if (plyr_obj->flags.bit0A_6 == 1) {
         flipped ^= 1;
     }
     if (plyr_anim_pdata->flags & 8) {
@@ -688,7 +687,7 @@ int am_i_flipped_or_turned(void) {
     int flipped;
 
     flipped = 0;
-    if (plyr_obj->hide_flag_bits.bit6 == 1) {
+    if (plyr_obj->flags.bit0A_6 == 1) {
         flipped ^= 1;
     }
     if (plyr_anim_pdata->flags & 8) {
@@ -716,7 +715,7 @@ int am_i_flipped(void) {
     int flipped;
 
     flipped = 0;
-    if (plyr_obj->hide_flag_bits.bit6 == 1) {
+    if (plyr_obj->flags.bit0A_6 == 1) {
         flipped ^= 1;
     }
     if (plyr_anim_pdata->flags & 8) {
@@ -766,7 +765,7 @@ float j_getup_front_4(void) {
         return 0.0f;
     }
 
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
+    plyr_obj->flags.tightrope_restricted = 1;
     if ((plyr_anim_pdata->flags & 8) != 0) {
         transition_to_anim_script(
             plyr_anim_pdata, shared_ani.front_getup_10_alt,
@@ -790,7 +789,7 @@ float j_getup_sit_12(void) {
         return 0.0f;
     }
 
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
+    plyr_obj->flags.tightrope_restricted = 1;
     transition_to_anim_script(
         plyr_anim_pdata, shared_ani.sit_getup_12, 3, 0.1f);
     ejb_sleep_ticks(1.0f);
@@ -806,7 +805,7 @@ float j_getup_sit_6(void) {
         return 0.0f;
     }
 
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
+    plyr_obj->flags.tightrope_restricted = 1;
     transition_to_anim_script(
         plyr_anim_pdata, shared_ani.sit_getup_6, 3, 0.1f);
     ejb_sleep_ticks(1.0f);
@@ -823,7 +822,7 @@ float j_getup_front_6(void) {
     }
 
     liukang_in_fight_random_snd_check();
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
+    plyr_obj->flags.tightrope_restricted = 1;
     transition_to_anim_script(
         plyr_anim_pdata, shared_ani.front_getup_6, 3, 0.1f);
     ejb_sleep_ticks(1.0f);
@@ -839,7 +838,7 @@ float j_getup_front_10(void) {
         return 0.0f;
     }
 
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
+    plyr_obj->flags.tightrope_restricted = 1;
     transition_to_anim_script(
         plyr_anim_pdata, shared_ani.front_getup_10_alt, 3, 0.1f);
     ejb_sleep_ticks(1.0f);
@@ -856,7 +855,7 @@ float j_getup_front_12(void) {
     }
 
     liukang_in_fight_random_snd_check();
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
+    plyr_obj->flags.tightrope_restricted = 1;
     transition_to_anim_script(
         plyr_anim_pdata, shared_ani.front_getup_12, 3, 0.1f);
     ejb_sleep_ticks(1.0f);
@@ -872,7 +871,7 @@ float j_getup_back_3(void) {
         return 0.0f;
     }
 
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
+    plyr_obj->flags.tightrope_restricted = 1;
     if ((plyr_anim_pdata->flags & 8) != 0) {
         transition_to_anim_script(
             plyr_anim_pdata, shared_ani.back_getup_9, 3, 0.1f);
@@ -895,7 +894,7 @@ float j_getup_back_12(void) {
     }
 
     liukang_in_fight_random_snd_check();
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
+    plyr_obj->flags.tightrope_restricted = 1;
     transition_to_anim_script(
         plyr_anim_pdata, shared_ani.back_getup_12, 3, 0.1f);
     ejb_sleep_ticks(1.0f);
@@ -912,7 +911,7 @@ float j_getup_back_6(void) {
     }
 
     liukang_in_fight_random_snd_check();
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
+    plyr_obj->flags.tightrope_restricted = 1;
     transition_to_anim_script(
         plyr_anim_pdata, shared_ani.back_getup_6, 3, 0.1f);
     ejb_sleep_ticks(1.0f);
@@ -935,7 +934,7 @@ float j_getup_back_9(void) {
         return 0.0f;
     }
 
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
+    plyr_obj->flags.tightrope_restricted = 1;
     transition_to_anim_script(
         plyr_anim_pdata, shared_ani.back_getup_9, 3, 0.1f);
     ejb_sleep_ticks(1.0f);
@@ -1027,7 +1026,7 @@ void land_chores(
     MkProc* process;
 
     wall_eligible_off();
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
+    plyr_obj->flags.tightrope_restricted = 1;
     object = plyr_obj;
     process = MK_LIVE(plyr_pdata->transient_proc, (int)plyr_pdata->transient_proc_instance);
 
@@ -1038,8 +1037,8 @@ void land_chores(
     object->pos_vel.y = 0.0f;
     object->pos_vel.z = 0.0f;
     object->gravity = 0.0f;
-    plyr_obj->flags_09_bits.bit6 = 1;
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.bit09_6 = 1;
+    plyr_obj->flags.launched = 1;
     if (land_sound != 0) {
         snd_req(land_sound);
     }
@@ -1076,8 +1075,8 @@ void launch_n_land_ani(
     }
     plyr_obj->pos_vel.y = velocity_y;
     plyr_obj->gravity = gravity;
-    plyr_obj->flags_08_bits.moving = 1;
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.moving = 1;
+    plyr_obj->flags.launched = 1;
     discriminant = velocity_y * velocity_y;
     discriminant -= (float)(2.0f * gravity *
         ((plyr_obj->pos.value.y - 0.19f) - plyr_obj->ground_colls_y));
@@ -1107,8 +1106,8 @@ void launch_n_land_ani(
 void launch_me_up(float vertical_velocity, float gravity) {
     plyr_obj->pos_vel.y = vertical_velocity;
     plyr_obj->gravity = gravity;
-    plyr_obj->flags_08_bits.moving = 1;
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.moving = 1;
+    plyr_obj->flags.launched = 1;
 }
 
 void setup_to_match_land_frame(
@@ -1198,7 +1197,7 @@ void rotate_towards_position(Vec* target, float max_step) {
                 0x20, 0.1f);
         }
         xfer_proc(plyr_anim_proc, p_animate);
-        plyr_obj->flags_09_bits.launched = 1;
+        plyr_obj->flags.launched = 1;
         update_bone_hierarchy(
             plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
         ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
@@ -1213,11 +1212,11 @@ void rotate_towards_position(Vec* target, float max_step) {
         }
         set_my_state_impl(0);
         if (is_blind(plyr_pdata) != 0) {
-            plyr_obj->flags_09_bits.head_tracking = 0;
+            plyr_obj->flags.head_tracking = 0;
         } else if (plyr_pdata->fighter_definition->fighter_id == 0x33) {
-            plyr_obj->flags_09_bits.head_tracking = 0;
+            plyr_obj->flags.head_tracking = 0;
         } else {
-            plyr_obj->flags_09_bits.head_tracking = 1;
+            plyr_obj->flags.head_tracking = 1;
         }
     } else {
         while ((difference >= 0.0f ? difference : -difference) > max_step) {
@@ -1247,7 +1246,7 @@ void rotate_towards_him(float max_step) {
         g_game_info.plyr1.slot.mirror_a == 0) {
         return;
     }
-    if (plyr_obj->flags_0B_bits.bit3 != 1) {
+    if (plyr_obj->flags.bit0B_3 != 1) {
         delta_x = his_obj->pos.value.x - plyr_obj->pos.value.x;
         delta_z = his_obj->pos.value.z - plyr_obj->pos.value.z;
         desired = gxMathArcTanYX(delta_x, delta_z);
@@ -1304,7 +1303,7 @@ static float ani_with_new_angle_y(
     float old_x;
     float old_z;
 
-    plyr_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags.head_tracking = 0;
     transition_to_anim_script(
         plyr_anim_pdata, animation, transition, blend);
     ejb_sleep_ticks(1.0f);
@@ -1372,11 +1371,11 @@ void face_point(float x, float y, float z) {
 }
 
 void tightrope_restrictions_off(void) {
-    plyr_obj->flags_09_bits.tightrope_restricted = 0;
+    plyr_obj->flags.tightrope_restricted = 0;
 }
 
 void tightrope_restrictions_on(void) {
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
+    plyr_obj->flags.tightrope_restricted = 1;
 }
 
 void init_3d_move_no_aniproc(void) {
@@ -1385,29 +1384,29 @@ void init_3d_move_no_aniproc(void) {
 }
 
 void set_both_face_opponent_flags(void) {
-    plyr_obj->flags_09_bits.face_opponent = 1;
-    his_obj->flags_09_bits.face_opponent = 1;
+    plyr_obj->flags.face_opponent = 1;
+    his_obj->flags.face_opponent = 1;
 }
 
 void clear_both_face_opponent_flags(void) {
-    plyr_obj->flags_09_bits.face_opponent = 0;
-    his_obj->flags_09_bits.face_opponent = 0;
+    plyr_obj->flags.face_opponent = 0;
+    his_obj->flags.face_opponent = 0;
 }
 
 void clear_my_face_opponent_flag(void) {
-    plyr_obj->flags_09_bits.face_opponent = 0;
+    plyr_obj->flags.face_opponent = 0;
 }
 
 void init_3d_move_no_face(void) {
     init_ground_move();
-    plyr_obj->flags_09_bits.tightrope_restricted = 0;
-    plyr_obj->flags_09_bits.face_opponent = 0;
+    plyr_obj->flags.tightrope_restricted = 0;
+    plyr_obj->flags.face_opponent = 0;
 }
 
 void init_3d_move(void) {
     init_ground_move();
-    plyr_obj->flags_09_bits.tightrope_restricted = 0;
-    plyr_obj->flags_09_bits.face_opponent = 1;
+    plyr_obj->flags.tightrope_restricted = 0;
+    plyr_obj->flags.face_opponent = 1;
 }
 
 void end_air_move(void) {
@@ -1424,8 +1423,8 @@ void end_air_move(void) {
     object->pos_vel.z = 0.0f;
     object->gravity = 0.0f;
     plyr_obj->gravity = 0.0f;
-    plyr_obj->flags_08_bits.moving = 0;
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.moving = 0;
+    plyr_obj->flags.launched = 1;
     update_bone_hierarchy(
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
     ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
@@ -1434,7 +1433,7 @@ void end_air_move(void) {
 static inline void init_move_impl(void) {
     float weight;
 
-    plyr_obj->hide_flag_bits.still_move = 0;
+    plyr_obj->flags.still_move = 0;
     plyr_anim_pdata->weight_velocity = 0.0f;
     if (mode_of_play == 6) {
         weight = 0.25f;
@@ -1452,10 +1451,10 @@ void init_air_move_no_aniproc(void) {
 
     init_move_impl();
     plyr_anim_pdata->step = step;
-    plyr_obj->flags_09_bits.launched = 0;
-    plyr_obj->flags_08_bits.moving = 1;
-    plyr_obj->flags_09_bits.bit6 = 0;
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 0;
+    plyr_obj->flags.moving = 1;
+    plyr_obj->flags.bit09_6 = 0;
+    plyr_obj->flags.launched = 1;
     xfer_proc(plyr_anim_proc, p_anim_idle);
 }
 
@@ -1464,15 +1463,15 @@ void init_air_move(void) {
 
     init_move_impl();
     plyr_anim_pdata->step = step;
-    plyr_obj->flags_09_bits.launched = 0;
-    plyr_obj->flags_08_bits.moving = 1;
-    plyr_obj->flags_09_bits.bit6 = 0;
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 0;
+    plyr_obj->flags.moving = 1;
+    plyr_obj->flags.bit09_6 = 0;
+    plyr_obj->flags.launched = 1;
 }
 
 void init_still_move(void) {
     init_ground_move();
-    plyr_obj->hide_flag_bits.still_move = 1;
+    plyr_obj->flags.still_move = 1;
 }
 
 void init_ground_move_no_aniproc(void) {
@@ -1485,7 +1484,7 @@ void init_ground_move(void) {
     MkProc* process;
     float weight;
 
-    plyr_obj->hide_flag_bits.still_move = 0;
+    plyr_obj->flags.still_move = 0;
     plyr_anim_pdata->weight_velocity = 0.0f;
     if (mode_of_play == 6) {
         weight = 0.25f;
@@ -1506,9 +1505,9 @@ void init_ground_move(void) {
     object->pos_vel.y = 0.0f;
     object->pos_vel.z = 0.0f;
     object->gravity = 0.0f;
-    plyr_obj->flags_08_bits.moving = 0;
-    plyr_obj->flags_09_bits.bit6 = 1;
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.moving = 0;
+    plyr_obj->flags.bit09_6 = 1;
+    plyr_obj->flags.launched = 1;
 }
 
 void init_move(void) {
@@ -1590,13 +1589,13 @@ void ani_to_blend_frame(float blend_frames) {
 
 void if_collision_autoface_him(void) {
     if (plyr_pdata->collision_result != 0) {
-        his_obj->flags_09_bits.face_opponent = 1;
+        his_obj->flags.face_opponent = 1;
     }
 }
 
 void if_collision_autoface_me(void) {
     if (plyr_pdata->collision_result != 0) {
-        plyr_obj->flags_09_bits.face_opponent = 1;
+        plyr_obj->flags.face_opponent = 1;
     }
 }
 
@@ -1670,7 +1669,7 @@ void ani_to_frame_x_aniproc(float frame) {
 void ani_to_fall_to_frame(
     float landing_frame, int sound_id, float target_frame) {
     ejb_anim_advance_to_frame(plyr_anim_pdata, landing_frame);
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 1;
     update_bone_hierarchy(
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
     ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
@@ -1794,7 +1793,7 @@ static inline int visual_flip_state(void) {
     int flipped;
 
     flipped = 0;
-    if (plyr_obj->hide_flag_bits.bit6 == 1) {
+    if (plyr_obj->flags.bit0A_6 == 1) {
         flipped ^= 1;
     }
     if ((plyr_anim_pdata->flags & 8) != 0) {
@@ -1843,7 +1842,7 @@ float fpick_a_float(float normal, float flipped_value) {
     int flipped;
 
     flipped = 0;
-    if (plyr_obj->hide_flag_bits.bit6 == 1) {
+    if (plyr_obj->flags.bit0A_6 == 1) {
         flipped ^= 1;
     }
     if (plyr_anim_pdata->flags & 8) {
@@ -2012,7 +2011,7 @@ static inline void exit_reaction_common(void) {
                 0x20, blend_rate);
         }
         xfer_proc(plyr_anim_proc, p_animate);
-        plyr_obj->flags_09_bits.launched = 1;
+        plyr_obj->flags.launched = 1;
         object_hdr =
             plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
         update_bone_hierarchy(object_hdr);
@@ -2118,7 +2117,7 @@ float j_exit_6(void) {
                 0x20, blend_rate);
         }
         xfer_proc(plyr_anim_proc, p_animate);
-        plyr_obj->flags_09_bits.launched = 1;
+        plyr_obj->flags.launched = 1;
         object_hdr =
             plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
         update_bone_hierarchy(object_hdr);
@@ -2205,7 +2204,7 @@ float j_blend_to_stance_in_x(void) {
             0x20, blend_rate);
     }
     xfer_proc(plyr_anim_proc, p_animate);
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 1;
     object_hdr = plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
     update_bone_hierarchy(object_hdr);
     object_hdr = plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
@@ -2235,7 +2234,7 @@ static inline void glitch_to_stance_impl(float blend_rate) {
             0x20);
     }
     xfer_proc(plyr_anim_proc, p_animate);
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 1;
     object_hdr = plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
     update_bone_hierarchy(object_hdr);
     object_hdr = plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
@@ -2279,8 +2278,8 @@ void turn_me_pi(void) {
 
 void ejb_release_other_player(int reaction) {
     release_other_player();
-    his_obj->flags_09_bits.face_opponent = 0;
-    plyr_obj->flags_09_bits.face_opponent = 0;
+    his_obj->flags.face_opponent = 0;
+    plyr_obj->flags.face_opponent = 0;
     reaction_xfer_him(reaction, 0.0f, 2);
 }
 
@@ -2346,7 +2345,7 @@ static inline BoneMatcherState* prepare_two_player_animation(
         matcher = (BoneMatcherState*)plyr_grab_other_flip_states(
             self_flip_mode, 1);
     }
-    plyr_obj->hide_flag_bits.still_move = 0;
+    plyr_obj->flags.still_move = 0;
 
     if (MK_HDR_LIVE(plyr_pdata->his_plyr_pdata->held_by_object_latch.obj,
                     plyr_pdata->his_plyr_pdata->held_by_object_latch.instance) == 0) {
@@ -2404,12 +2403,12 @@ float two_player_animation_match_attacker(
         tracked_object->pos_vel.z = 0.0f;
         tracked_object->gravity = 0.0f;
     }
-    if (plyr_obj->hide_flag_bits.bit6 != 0) {
+    if (plyr_obj->flags.bit0A_6 != 0) {
         plyr_grab_other_flip_states(0, 2);
     } else {
         plyr_grab_other_flip_states(0, 1);
     }
-    plyr_obj->hide_flag_bits.still_move = 0;
+    plyr_obj->flags.still_move = 0;
     if (MK_HDR_LIVE(plyr_pdata->his_plyr_pdata->held_by_object_latch.obj,
                     plyr_pdata->his_plyr_pdata->held_by_object_latch.instance) == 0) {
         plyr_pdata->his_plyr_pdata->held_by_object_latch.obj = plyr_obj;
@@ -2928,7 +2927,7 @@ static inline void ejb_stop_air_motion(MkObj* object) {
 void air_collision_pause(
     int pause_ticks, float target_frame, float gravity) {
     if (plyr_pdata->collision_result != -1) {
-        plyr_obj->flags_09_bits.launched = 0;
+        plyr_obj->flags.launched = 0;
         ejb_stop_air_motion(plyr_obj);
         if (pause_ticks != 0 &&
             target_frame > plyr_anim_pdata->frame) {
@@ -2945,7 +2944,7 @@ void air_collision_pause(
             aproc->vtbl->sleep();
         }
     }
-    plyr_obj->flags_08_bits.moving = 1;
+    plyr_obj->flags.moving = 1;
     plyr_obj->gravity = gravity;
 }
 
@@ -2970,8 +2969,8 @@ void wait_to_land(void) {
     MkProc* process;
     MkObj* object;
 
-    plyr_obj->flags_09_bits.launched = 1;
-    while ((object = plyr_obj)->flags_08_bits.moving &&
+    plyr_obj->flags.launched = 1;
+    while ((object = plyr_obj)->flags.moving &&
            object->gravity != 0.0f) {
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
@@ -2985,7 +2984,7 @@ void wait_to_land(void) {
     object->pos_vel.y = 0.0f;
     object->pos_vel.z = 0.0f;
     object->gravity = 0.0f;
-    plyr_obj->flags_09_bits.bit6 = 1;
+    plyr_obj->flags.bit09_6 = 1;
 }
 
 void set_collision_made_flag(void) {
@@ -3192,7 +3191,7 @@ void danger_zone_eligible_on(void) {
 void wall_eligible_off(void) {
     int state;
 
-    plyr_obj->flags_09_bits.wall_restricted = 0;
+    plyr_obj->flags.wall_restricted = 0;
     state = plyr_pdata->state;
     if (state == 0x602) {
         plyr_pdata->previous_state = state;
@@ -3201,7 +3200,7 @@ void wall_eligible_off(void) {
 }
 
 void wall_eligible_on(void) {
-    plyr_obj->flags_09_bits.wall_restricted = 0;
+    plyr_obj->flags.wall_restricted = 0;
     plyr_pdata->previous_state = plyr_pdata->state;
     plyr_pdata->state = 0x602;
 }
@@ -3215,13 +3214,13 @@ static float p_wall_monitor(void) {
     if (g_game_info.plyr0.slot.mirror_a != 0 &&
         g_game_info.plyr1.slot.mirror_a != 0) {
         if (g_game_info.plyr0.slot.mirror_a
-                ->flags_09_bits.wall_restricted &&
+                ->flags.wall_restricted &&
             g_game_info.plyr0.slot.pdata->state == 0x602) {
             xfer_player_proc(
                 g_game_info.plyr0.idle_proc, r_hit_wall);
         }
         if (g_game_info.plyr1.slot.mirror_a
-                ->flags_09_bits.wall_restricted &&
+                ->flags.wall_restricted &&
             g_game_info.plyr1.slot.pdata->state == 0x602) {
             xfer_player_proc(
                 g_game_info.plyr1.idle_proc, r_hit_wall);
@@ -3353,7 +3352,7 @@ void myvel_my_angle_y(
     plyr_pdata->transient_proc_instance = 0;
     swap_active_plyr_proc();
     flipped = 0;
-    if (plyr_obj->hide_flag_bits.bit6 == 1) {
+    if (plyr_obj->flags.bit0A_6 == 1) {
         flipped ^= 1;
     }
     if (plyr_anim_pdata->flags & 8) {
@@ -3413,7 +3412,7 @@ void myvel_his_angle_y(
 
     swap_active_plyr_proc();
     flipped = 0;
-    if (plyr_obj->hide_flag_bits.bit6 == 1) {
+    if (plyr_obj->flags.bit0A_6 == 1) {
         flipped ^= 1;
     }
     if (plyr_anim_pdata->flags & 8) {
@@ -3589,7 +3588,7 @@ static int check_button_and_pad(
 }
 
 void glitch_to_fstance(float blend_rate) {
-    plyr_obj->hide_flag_bits.bit6 ^= 1;
+    plyr_obj->flags.bit0A_6 ^= 1;
     plyr_anim_pdata->flags ^= 8;
     plyr_match_weapon_flip_to_obj_flip(plyr_pdata);
     if (plyr_anim_pdata->last_exec_tick == (unsigned int)exec_tick_ctr) {
@@ -3606,7 +3605,7 @@ void glitch_to_fstance(float blend_rate) {
             plyr_anim_pdata, plyr_pdata->fighter_definition->standing_animation_script, 0x20);
     }
     xfer_proc(plyr_anim_proc, p_animate);
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 1;
     update_bone_hierarchy(
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
     ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
@@ -3622,7 +3621,7 @@ int blend_to_fstance(float blend_rate) {
     MkHdr* object_hdr;
     int crouching;
 
-    object->hide_flag_bits.bit6 ^= 1;
+    object->flags.bit0A_6 ^= 1;
     plyr_anim_pdata->flags ^= 8;
     plyr_match_weapon_flip_to_obj_flip(plyr_pdata);
     crouching = 0;
@@ -3644,7 +3643,7 @@ int blend_to_fstance(float blend_rate) {
             0x20, blend_rate);
     }
     xfer_proc(plyr_anim_proc, p_animate);
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 1;
     object_hdr =
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
     update_bone_hierarchy(object_hdr);
@@ -3668,8 +3667,8 @@ void ani_no_pos(void) {
 }
 
 void disable_both_repel_flags(void) {
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.bit4 = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.bit4 = 0;
+    g_game_info.plyr0.slot.mirror_a->flags.bit09_4 = 0;
+    g_game_info.plyr1.slot.mirror_a->flags.bit09_4 = 0;
 }
 
 void disable_my_attacks(int ticks) {
@@ -3681,7 +3680,7 @@ void disable_my_attacks(int ticks) {
 void setup_for_flip_ani(void) {
     MkObj* object = plyr_obj;
 
-    object->hide_flag_bits.bit6 ^= 1;
+    object->flags.bit0A_6 ^= 1;
     plyr_anim_pdata->flags ^= 8;
     plyr_match_weapon_flip_to_obj_flip(plyr_pdata);
 }
@@ -3724,7 +3723,7 @@ float p_chamber_to_stance(void) {
             0x20, 0.1f);
     }
     xfer_proc(plyr_anim_proc, p_animate);
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 1;
     object_hdr =
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
     update_bone_hierarchy(object_hdr);
@@ -3776,7 +3775,7 @@ float j_exit_blend_stance(void) {
             0x20, 0.1f);
     }
     xfer_proc(plyr_anim_proc, p_animate);
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 1;
     object_hdr =
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
     update_bone_hierarchy(object_hdr);
@@ -3872,8 +3871,8 @@ float j_stay_down_dead(void) {
         ? g_game_info.plyr0.field_0C
         : g_game_info.plyr1.field_0C;
     if (life == 0.0f && (g_game_info.flags & 1) != 0) {
-        plyr_obj->flags_09_bits.head_tracking = 0;
-        plyr_obj->flags_09_bits.tightrope_restricted = 0;
+        plyr_obj->flags.head_tracking = 0;
+        plyr_obj->flags.tightrope_restricted = 0;
         if (getup_should_stay_down() == 0) {
             end_of_round_check();
         }
@@ -3910,7 +3909,7 @@ float j_stay_down_dead(void) {
                     0x20, 0.05f);
             }
             xfer_proc(plyr_anim_proc, p_animate);
-            plyr_obj->flags_09_bits.launched = 1;
+            plyr_obj->flags.launched = 1;
             object_hdr = plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
             update_bone_hierarchy(object_hdr);
             object_hdr = plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
@@ -3937,8 +3936,8 @@ float j_stay_down_dead(void) {
             ejb_sleep_ticks(1.0f);
         }
     }
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
-    plyr_obj->flags_0B_bits.bit6 = 0;
+    plyr_obj->flags.tightrope_restricted = 1;
+    plyr_obj->flags.bit0B_6 = 0;
     if (plyr_anim_pdata->last_exec_tick ==
         (unsigned int)exec_tick_ctr) {
         ejb_sleep_ticks(1.0f);
@@ -3956,7 +3955,7 @@ float j_stay_down_dead(void) {
             0x20, 0.1f);
     }
     xfer_proc(plyr_anim_proc, p_animate);
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 1;
     object_hdr = plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
     update_bone_hierarchy(object_hdr);
     object_hdr = plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
@@ -4084,10 +4083,10 @@ static void wait_for_backland(void) {
     MkObj* object;
     MkProc* process;
 
-    plyr_obj->flags_08_bits.moving = 1;
+    plyr_obj->flags.moving = 1;
     plyr_obj->gravity = -0.01f;
     plyr_obj->pos_vel.y = -0.1f;
-    while ((object = plyr_obj)->flags_08_bits.moving) {
+    while ((object = plyr_obj)->flags.moving) {
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
     }
@@ -4392,7 +4391,7 @@ void player_initialize_chores(void) {
     plyr_pdata->state_flags.bits.dizzy = 0;
     init_ground_move();
     back_to_normal();
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 1;
     update_bone_hierarchy(
         plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
     ground_me(plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
@@ -4727,7 +4726,7 @@ float end_of_round_check(void) {
                         0x20, 0.1f);
                 }
                 xfer_proc(plyr_anim_proc, p_animate);
-                plyr_obj->flags_09_bits.launched = 1;
+                plyr_obj->flags.launched = 1;
                 object_hdr = plyr_obj != 0
                     ? as_mkhdr(&plyr_obj->hdr) : 0;
                 update_bone_hierarchy(object_hdr);
@@ -4802,19 +4801,19 @@ void back_to_normal(void) {
                 0x20, 0.1f);
         }
         xfer_proc(plyr_anim_proc, p_animate);
-        plyr_obj->flags_09_bits.launched = 1;
+        plyr_obj->flags.launched = 1;
         object_hdr = plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
         update_bone_hierarchy(object_hdr);
         object_hdr = plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0;
         ground_me(object_hdr);
         plyr_anim_pdata->step = 1.0f;
     }
-    plyr_obj->flags_09_bits.face_opponent = 0;
-    plyr_obj->flags_09_bits.tightrope_restricted = 1;
-    plyr_obj->flags_0B_bits.bit3 = 0;
-    plyr_obj->hide_flag_bits.still_move = 1;
-    plyr_obj->flags_09_bits.bit6 = 1;
-    plyr_obj->flags_09_bits.bit4 = 1;
+    plyr_obj->flags.face_opponent = 0;
+    plyr_obj->flags.tightrope_restricted = 1;
+    plyr_obj->flags.bit0B_3 = 0;
+    plyr_obj->flags.still_move = 1;
+    plyr_obj->flags.bit09_6 = 1;
+    plyr_obj->flags.bit09_4 = 1;
     plyr_obj->gravity = 0.0f;
     plyr_anim_pdata->weight_velocity = 0.0f;
     plyr_anim_pdata->weight =
@@ -4864,11 +4863,11 @@ void back_to_normal(void) {
     plyr_pdata->state = 0;
     plyr_weapon_trail_hide(plyr_pdata->mirror_slots);
     if (is_blind(plyr_pdata) != 0) {
-        plyr_obj->flags_09_bits.head_tracking = 0;
+        plyr_obj->flags.head_tracking = 0;
     } else if (plyr_pdata->fighter_definition->fighter_id == 0x33) {
-        plyr_obj->flags_09_bits.head_tracking = 0;
+        plyr_obj->flags.head_tracking = 0;
     } else {
-        plyr_obj->flags_09_bits.head_tracking = 1;
+        plyr_obj->flags.head_tracking = 1;
     }
     plyr_pdata->mirror_slots =
         &plyr_pdata->fighter_definition->mirror_slots;
@@ -4962,23 +4961,23 @@ void disable_this_move_exec(unsigned int move, int ticks) {
 }
 
 void head_tracking_off(void) {
-    plyr_obj->flags_09_bits.head_tracking = 0;
+    plyr_obj->flags.head_tracking = 0;
 }
 
 void head_tracking_on(void) {
     GlobalMoveset* fighter;
 
     if (is_blind(plyr_pdata) != 0) {
-        plyr_obj->flags_09_bits.head_tracking = 0;
+        plyr_obj->flags.head_tracking = 0;
         return;
     }
 
     fighter = plyr_pdata->fighter_definition;
     if (fighter->fighter_id == 0x33) {
-        plyr_obj->flags_09_bits.head_tracking = 0;
+        plyr_obj->flags.head_tracking = 0;
         return;
     }
-    plyr_obj->flags_09_bits.head_tracking = 1;
+    plyr_obj->flags.head_tracking = 1;
 }
 
 void gut_bleed_me(int size) {
@@ -5060,8 +5059,8 @@ float step_throw_into_check(void) {
         aproc->vtbl->jump_sleep(step_throw_outof_retract, 0.0f);
         return 0.0f;
     }
-    plyr_obj->flags_09_bits.face_opponent = 1;
-    his_obj->flags_09_bits.face_opponent = 1;
+    plyr_obj->flags.face_opponent = 1;
+    his_obj->flags.face_opponent = 1;
     return 0.0f;
 }
 

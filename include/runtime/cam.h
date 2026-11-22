@@ -5,6 +5,7 @@
 #include "rw/rtquat.h"
 #include "runtime/mk_proc.h"
 #include "runtime/mk_struct.h"
+#include "runtime/mk_obj_flags.h"
 #include "runtime/anim_types.h"
 
 typedef struct MkSobj MkSobj;
@@ -35,43 +36,28 @@ typedef struct VictoryCameraConfig {
 
 typedef Vec CamVec3;
 
-typedef struct CameraObjFlags {
-    unsigned char pad7 : 1;
-    unsigned char pad6 : 1;
-    unsigned char bit20 : 1;
-    unsigned char pad4 : 1;
-    unsigned char pad3 : 1;
-    unsigned char bit04 : 1;
-    unsigned char pad1 : 1;
-    unsigned char pad0 : 1;
-    unsigned char flags_09;
-    unsigned char hide_flags;
-    unsigned char flags_0B;
-} CameraObjFlags;
-
 typedef struct CameraObj {
     MkHdr hdr;
-    CameraObjFlags flags; /* +0x08 */
+    MkObjFlags flags;
     char pad0C[0x14];
-    RwFrame* frame; /* +0x20 */
-    RwMatrix* field_24; /* +0x24 - active camera transform */
-    MkPtr* child_list; /* +0x28 */
+    RwFrame* frame;
+    RwMatrix* field_24;
+    MkPtr* child_list;
     char pad2C[0x44];
-    float ground_plane; /* +0x70 */
+    float ground_plane;
     char pad74[0x2C];
-    CamVec3 pos; /* +0xA0 */
+    CamVec3 pos;
     char padAC[4];
-    Vec velocity; /* +0xB0 */
+    Vec velocity;
     char padBC[0x14];
-    Vec ang; /* +0xD0 */
+    Vec ang;
     char padDC[4];
-    Vec ang_velocity; /* +0xE0 */
+    Vec ang_velocity;
 } CameraObj;
 
-/* Validated camera_item latch: node live iff node && node->instance == instance. */
 typedef struct CameraItem {
-    CameraObj* node;         /* +0x00 */
-    unsigned int instance;   /* +0x04 */
+    CameraObj* node;
+    unsigned int instance;
 } CameraItem;
 
 typedef struct CameraPdataFlags {
@@ -83,22 +69,18 @@ typedef struct CameraPdataFlags {
     unsigned char pad1_0 : 2;
 } CameraPdataFlags;
 
-/*
- * camera_info.pdata: targets @ 0x0C/0x18, speed @ 0x50, flags @ 0x6C,
- * pause @ 0x70, parent/mirror mats @ 0x80/0xC0.
- */
 typedef struct CameraPdata {
     MkHdr hdr;
-    RwCamera* camera; /* +0x08 */
-    Vec target_pos; /* +0x0C */
-    Vec target_ang; /* +0x18 */
+    RwCamera* camera;
+    Vec target_pos;
+    Vec target_ang;
     char pad24[0x18];
-    MkObj* movement_focus; /* +0x3C */
-    MkObj* attacker; /* +0x40 */
-    MkObj* victim;   /* +0x44 */
+    MkObj* movement_focus;
+    MkObj* attacker;
+    MkObj* victim;
     char pad48[4];
-    VictoryCameraConfig* victory_camera_config; /* +0x4C */
-    float speed; /* +0x50 */
+    VictoryCameraConfig* victory_camera_config;
+    float speed;
     AnimPdata* anim_pdata;
     unsigned int anim_instance;
     MkObj* bone_obj;
@@ -106,16 +88,16 @@ typedef struct CameraPdata {
     AniData* anim_path;
     struct CameraAnimEvent* aux_data;
     union {
-        unsigned char flags; /* +0x6C */
+        unsigned char flags;
         CameraPdataFlags flags_bits;
     };
     char pad_6d[3];
-    float pause_ticks; /* +0x70 */
-    void* intro_path; /* +0x74 */
+    float pause_ticks;
+    void* intro_path;
     char pad_78[8];
-    RwMatrix mat_parent; /* +0x80 */
-    RwMatrix mat_mirror; /* +0xC0 */
-    RwMatrix mat_offset; /* +0x100 - per-frame camera offsets */
+    RwMatrix mat_parent;
+    RwMatrix mat_mirror;
+    RwMatrix mat_offset;
 } CameraPdata;
 
 typedef struct CameraInfo {
@@ -123,7 +105,6 @@ typedef struct CameraInfo {
     CameraPdata* pdata;
 } CameraInfo;
 
-/* Krypt / setup camera path */
 float p_krypt_camera_loop(void);
 float p_krypt_camera_proc(void);
 float p_konquest_camera_proc(void);
@@ -176,7 +157,6 @@ float camera_wait_for_pos_move_done(void);
 MkProc* get_camera_proc(void);
 CameraPdata* get_pdata_of_camera(void);
 
-/* Intro / background anim path used by p_setup_krypt */
 void cam_set_intro_cam_speed(float speed);
 void cam_set_intro_cam_pause_ticks(float ticks);
 void camera_init_animation(AniData* anim_path, MkProcEntryFn override_entry);

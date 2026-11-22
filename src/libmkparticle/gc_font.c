@@ -1,7 +1,3 @@
-/* BUILD: No -use_lmw_stmw: retail uses _savegpr_29 in nativefont_string_render. -schedule off:
- * Y-then-X fctiwz / UV load order closer to retail. Retail nativefont_instance_unlock requires
- * peephole optimization off. */
-
 /* TODO: [review] layout stubs: get_num_newlines, render_string and nativefont_instance_geometry
  * reproduce linker-stripped retail functions only to recreate their pool layout; the bodies are
  * NOT recovered source. Replace with genuine bodies if a source turns up. */
@@ -14,7 +10,6 @@
 
 #include "platform/display_metrics.h"
 
-/* WGPIPE at 0xCC008000 -- s16 POS (1 frac bit) + f32 TEX0. */
 #define WGPIPE_S16 (*(volatile short*)GXFIFO_ADDR)
 #define WGPIPE_F32 (*(volatile float*)GXFIFO_ADDR)
 
@@ -27,7 +22,6 @@ int nativefont_system_init(void) {
 int nativefont_estimate_geometry_size(int glyph_count) {
     int size;
 
-    /* Retail: mulli 0x30 + mulli 3 + 0x80 (not combined 0x33). */
     size = glyph_count * 0x30;
     size += glyph_count * 3;
     return size + 0x80;
@@ -66,7 +60,6 @@ void nativefont_string_render(NativeFontString* ctx, float x, float y) {
         GXSetChanMatColor(4, mat);
 
         src = ctx->transform;
-        /* Copy 3x3 (skip pad columns); translation from +0x30/+0x34. */
         pos[0][0] = src->rx;
         pos[0][1] = src->ry;
         pos[0][2] = src->rz;
@@ -76,7 +69,6 @@ void nativefont_string_render(NativeFontString* ctx, float x, float y) {
         pos[2][0] = src->ax;
         pos[2][1] = src->ay;
         pos[2][2] = src->az;
-        /* Snap to pixel centers; Y flipped into screen space. */
         pos[0][3] = (int)(0.5f + (src->tx + x));
         pos[1][3] = (int)(0.5f + (src->ty + ((float)screen_height - y)));
         pos[2][3] = 0.0f;
@@ -89,7 +81,6 @@ void nativefont_string_render(NativeFontString* ctx, float x, float y) {
 
 static void set_vertex_format(void) {
     GXClearVtxDesc();
-    /* POS XY s16 frac=1; TEX0 ST f32 */
     GXSetVtxAttrFmt(0, 9, 0, 3, 1);
     GXSetVtxAttrFmt(0, 0xD, 1, 4, 0);
     GXSetVtxDesc(9, 1);
@@ -105,10 +96,8 @@ void nativefont_instance_lock(NativeFontInstance* inst) {
     }
 
     inst->locked = 1;
-    /* Align DL start 0x20 past verts base; capacity from verts_bytes. */
     inst->dl = (void*)(((unsigned long)inst->verts + 0x20u) &
                        ~(unsigned long)0x1Fu);
-    /* Each step writes inst->size so MWCC cannot fold -0x60+0x1F. */
     inst->size = (unsigned int)inst->verts_bytes - 0x60u;
     inst->size = inst->size + 0x1Fu;
     inst->size = inst->size & alignment_mask;
@@ -130,10 +119,6 @@ void nativefont_instance_unlock(NativeFontInstance* inst) {
     DCFlushRange(inst->dl, inst->size);
 }
 
-/*
- * POS is s16 with one fractional bit (*2); each vertex samples Y before X and
- * V before U, then writes X, Y, U, V.
- */
 void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* inst,
                                   NativeFontQuad* quad) {
     short y;
@@ -143,9 +128,8 @@ void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* ins
         return;
     }
 
-    GXBegin(0x80, 0, 4); /* GX_QUADS */
+    GXBegin(0x80, 0, 4);
 
-    /* (x0, y1) (u0, v1) */
     y = (short)quad->y1 << 1;
     WGPIPE_S16 = (short)quad->x0 << 1;
     WGPIPE_S16 = y;
@@ -153,7 +137,6 @@ void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* ins
     WGPIPE_F32 = quad->u0;
     WGPIPE_F32 = v;
 
-    /* (x0, y0) (u0, v0) */
     y = (short)quad->y0 << 1;
     WGPIPE_S16 = (short)quad->x0 << 1;
     WGPIPE_S16 = y;
@@ -161,7 +144,6 @@ void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* ins
     WGPIPE_F32 = quad->u0;
     WGPIPE_F32 = v;
 
-    /* (x1, y0) (u1, v0) */
     y = (short)quad->y0 << 1;
     WGPIPE_S16 = (short)quad->x1 << 1;
     WGPIPE_S16 = y;
@@ -169,7 +151,6 @@ void nativefont_instance_addglyph(NativeFontString* ctx, NativeFontInstance* ins
     WGPIPE_F32 = quad->u1;
     WGPIPE_F32 = v;
 
-    /* (x1, y1) (u1, v1) */
     y = (short)quad->y1 << 1;
     WGPIPE_S16 = (short)quad->x1 << 1;
     WGPIPE_S16 = y;
@@ -185,7 +166,6 @@ void nativefont_end_render(void) {
 void nativefont_begin_render(void) {
     set_vertex_format();
     disable_vertex_lights();
-    /* COLOR0A0: disabled, amb=vtx, mat=reg */
     GXSetChanCtrl(4, 0, 1, 0, 0, 0, 2);
     GXSetNumChans(1);
     apply_single_texture();

@@ -2,7 +2,6 @@
 #define MW_MWFILE_H
 
 #ifdef __cplusplus
-/* C++ sees the implementation classes; C sees opaque handles. */
 class mwFile;
 class mwFileCommand;
 typedef mwFile _mwFile;
@@ -14,17 +13,17 @@ typedef struct mwFileCommand mwFileCommand;
 #include "mw/mwTargetMemAlign.h"
 
 typedef struct _mwFileInitParam {
-    unsigned long file_handle_tracking_size; /* +0x00 */
-    unsigned short max_open_files;           /* +0x04 */
+    unsigned long file_handle_tracking_size;
+    unsigned short max_open_files;
     unsigned short field_0x06;
-    unsigned short max_commands;             /* +0x08 */
+    unsigned short max_commands;
     unsigned short field_0x0A;
-    unsigned long flags;                     /* +0x0C */
-    unsigned short command_retries;          /* +0x10 */
+    unsigned long flags;
+    unsigned short command_retries;
     unsigned short field_0x12;
-    void* allocator_context;                 /* +0x14 */
+    void* allocator_context;
     unsigned long field_0x18;
-} mwFileInitParam; /* 0x1C; the tag matches retail's `_mwFileInitParam` mangling */
+} mwFileInitParam;
 
 typedef void (*mwFileErrorCallback)(int operation, int error, const char* path,
                                     mwFileCommand* command, void* context);

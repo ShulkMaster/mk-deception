@@ -56,8 +56,8 @@ typedef struct PfxTransform {
             char pad3C[4];
         };
     };
-    int live;                         /* +0x40 */
-    int particle_field_stride; /* +0x44 */
+    int live;
+    int particle_field_stride;
 } PfxTransform;
 
 typedef struct PfxRuntimeBuffer {
@@ -137,8 +137,8 @@ typedef union PfxSpawnArguments {
 typedef struct PfxEmitterInstruction {
     int opcode;
     int field_description;
-    int storage_type;                  /* +0x08 - compiled field storage */
-    int field_offset;                  /* +0x0C - compiled byte offset */
+    int storage_type;
+    int field_offset;
     char pad10[0x24];
     union {
         PfxSpawnArguments spawn;
@@ -156,28 +156,28 @@ typedef struct PfxEmitterInstruction {
 } PfxEmitterInstruction;
 
 typedef struct PfxVmEmitter {
-    PfxVec3 position;                   /* +0x000 */
-    float birth_rate;                   /* +0x00C */
-    float partial_birth;                /* +0x010 */
-    float age;                          /* +0x014 */
-    float lifetime;                     /* +0x018 */
-    PfxEmitterFlags flags;              /* +0x01C */
+    PfxVec3 position;
+    float birth_rate;
+    float partial_birth;
+    float age;
+    float lifetime;
+    PfxEmitterFlags flags;
     char pad01D[3];
-    float cycle_length;                 /* +0x020 */
-    float cycle_length_variation;       /* +0x024 */
-    int birth_limit;                    /* +0x028 */
-    int cycle_limit;                    /* +0x02C */
-    float current_cycle_length;         /* +0x030 */
-    float cycle_position;               /* +0x034 */
-    int birth_count;                    /* +0x038 */
-    int cycle_index;                    /* +0x03C */
-    int field_40;                       /* +0x040 */
-    PfxEmitterInstruction instructions[8]; /* +0x044 */
-    int instruction_count;              /* +0x2E4 */
+    float cycle_length;
+    float cycle_length_variation;
+    int birth_limit;
+    int cycle_limit;
+    float current_cycle_length;
+    float cycle_position;
+    int birth_count;
+    int cycle_index;
+    int field_40;
+    PfxEmitterInstruction instructions[8];
+    int instruction_count;
     union {
-        void* user_data;                /* +0x2E8 - memory-placement phase */
-        void* transform;                /* +0x2E8 - external matrix view */
-        PfxMatrix* pfx_transform;        /* +0x2E8 - particle matrix view */
+        void* user_data;
+        void* transform;
+        PfxMatrix* pfx_transform;
     };
 } PfxVmEmitter;
 
@@ -193,113 +193,96 @@ typedef void (*PfxSpawnCallback)(PfxVm* pfx, int first_particle,
 
 struct PfxVm {
     union {
-        PfxMatrix matrix;             /* +0x000, complete effect transform */
+        PfxMatrix matrix;
         struct {
-            PfxVec3 basis0;            /* +0x000 */
+            PfxVec3 basis0;
             char pad00C[4];
-            PfxVec3 basis1;            /* +0x010 */
+            PfxVec3 basis1;
             char pad01C[0x24];
         };
     };
-    union {
-        unsigned char frame_flags;
-        struct {
-            unsigned char disabled : 1;
-            unsigned char cull_enabled : 1;
-            unsigned char visible : 1;
-            unsigned char bit4 : 1;
-            unsigned char frame_end_pending : 1;
-            unsigned char low_bits : 3;
-        } frame_flag_bits;
-    };
+    struct {
+        unsigned char disabled : 1;
+        unsigned char cull_enabled : 1;
+        unsigned char visible : 1;
+        unsigned char bit4 : 1;
+        unsigned char frame_end_pending : 1;
+        unsigned char low_bits : 3;
+    } frame_flag_bits;
     char pad041[3];
     union {
-        void* runtime_buffer_a; /* +0x044 -- memory-placement view */
+        void* runtime_buffer_a;
         PfxRuntimeBuffer* typed_runtime_buffer_a;
     };
     union {
-        void* runtime_buffer_b; /* +0x048 -- memory-placement view */
+        void* runtime_buffer_b;
         PfxRuntimeBuffer* typed_runtime_buffer_b;
     };
-    float elapsed_time;                /* +0x04C */
-    int particle_capacity;             /* +0x050 */
-    int particle_cursor;               /* +0x054 */
-    int active_transform;              /* +0x058 */
-    int previous_transform;            /* +0x05C */
-    int flags_0x60;           /* +0x060 */
-    int particle_user_data_size;       /* +0x064 */
-    void* particle_data;               /* +0x068 */
-    int particle_vector_stride;        /* +0x06C */
-    PfxTransform transforms[3];        /* +0x070 */
+    float elapsed_time;
+    int particle_capacity;
+    int particle_cursor;
+    int active_transform;
+    int previous_transform;
+    int flags_0x60;
+    int particle_user_data_size;
+    void* particle_data;
+    int particle_vector_stride;
+    PfxTransform transforms[3];
     union {
-        PfxParametricState* parametric; /* +0x148 -- parametric runtime view */
-        void* name_obj;                 /* +0x148 -- memory-placement view */
+        PfxParametricState* parametric;
+        void* name_obj;
     };
     char pad14C[4];
-    union {
-        unsigned char flags150;
-        struct {
-            unsigned char flag150_80 : 1;
-            unsigned char flag150_40 : 1;
-            unsigned char flag150_20 : 1;
-            unsigned char flag150_10 : 1;
-            unsigned char flag150_08 : 1;
-            unsigned char flag150_04 : 1;
-            unsigned char flag150_02 : 1;
-            unsigned char flag150_01 : 1;
-        };
-    };
-    union {
-        unsigned char flags151;
-        struct {
-            unsigned char flag151_80 : 1;
-            unsigned char flag151_40 : 1;
-            unsigned char flag151_20 : 1;
-            unsigned char flag151_10 : 1;
-            unsigned char : 2;
-            unsigned char flag151_02 : 1;
-            unsigned char : 1;
-        };
-    };
+    unsigned char flag150_80 : 1;
+    unsigned char flag150_40 : 1;
+    unsigned char flag150_20 : 1;
+    unsigned char flag150_10 : 1;
+    unsigned char flag150_08 : 1;
+    unsigned char flag150_04 : 1;
+    unsigned char flag150_02 : 1;
+    unsigned char flag150_01 : 1;
+    unsigned char flag151_80 : 1;
+    unsigned char flag151_40 : 1;
+    unsigned char flag151_20 : 1;
+    unsigned char flag151_10 : 1;
+    unsigned char : 2;
+    unsigned char flag151_02 : 1;
+    unsigned char : 1;
     char pad152[2];
-    /* setup_lights passes these as GXInitLightAttn distance coefficients. */
-    float light_attenuation_k0;                    /* +0x154 */
-    float light_attenuation_k1;                    /* +0x158 */
-    float light_attenuation_k2;                    /* +0x15C */
-    PfxColor light_color;                 /* +0x160 */
-    PfxVec3 light_position;            /* +0x164 */
+    float light_attenuation_k0;
+    float light_attenuation_k1;
+    float light_attenuation_k2;
+    PfxColor light_color;
+    PfxVec3 light_position;
+    float z_bias;
+    struct RwTexture* render_texture;
+    struct RwTexture* alpha_texture;
+    int render_blend_mode;
+    short texture_frame_count;
+    short texture_mode;
+    float texture_frame_time;
+    float texture_u_step;
+    float texture_v_step;
+    PfxTextureFrame* texture_frames;
+    PfxVec3 geometry_axis0;
+    PfxVec3 geometry_axis1;
+    float geometry_scale0;
+    float geometry_scale1;
+    PfxColor color1B4;
+    float billboard_size;
+    float cull_radius;
+    int emitter_count;
+    PfxVmEmitter* emitters;
+    PfxEmitterTransfer* emitter_transfers;
+    int behavior_count;
     union {
-        char pad170[4];
-        float z_bias;                     /* +0x170 */
+        void** behaviors;
+        PfxBehavior** behavior_list;
     };
-    struct RwTexture* render_texture;  /* +0x174 */
-    struct RwTexture* alpha_texture;   /* +0x178 */
-    int render_blend_mode;             /* +0x17C */
-    short texture_frame_count;         /* +0x180 */
-    short texture_mode;         /* +0x182 */
-    float texture_frame_time;          /* +0x184 */
-    float texture_u_step;              /* +0x188 */
-    float texture_v_step;              /* +0x18C */
-    PfxTextureFrame* texture_frames;   /* +0x190 */
-    PfxVec3 geometry_axis0;            /* +0x194 */
-    PfxVec3 geometry_axis1;            /* +0x1A0 */
-    float geometry_scale0;             /* +0x1AC */
-    float geometry_scale1;             /* +0x1B0 */
-    PfxColor color1B4;                 /* +0x1B4 */
-    float billboard_size;              /* +0x1B8 */
-    float cull_radius;                 /* +0x1BC */
-    int emitter_count;                 /* +0x1C0 */
-    PfxVmEmitter* emitters;            /* +0x1C4 */
-    PfxEmitterTransfer* emitter_transfers; /* +0x1C8 */
-    int behavior_count;                /* +0x1CC */
+    int flags_0x1D4;
+    int field_count;
     union {
-        void** behaviors;              /* +0x1D0 -- memory-placement view */
-        PfxBehavior** behavior_list;   /* +0x1D0 -- behavior-runtime view */
-    };
-    int flags_0x1D4;                   /* +0x1D4 */
-    int field_count;                   /* +0x1D8 */
-    union {
-        void* field_descriptions; /* +0x1DC -- memory-placement view */
+        void* field_descriptions;
         struct PfxFieldDescription* typed_field_descriptions;
     };
     int field_0x1E0;
@@ -311,21 +294,21 @@ struct PfxVm {
             float field1EC;
         };
     };
-    PfxVec3 world_position;            /* +0x1F0 */
+    PfxVec3 world_position;
     PfxVec3 field_0x1FC;
     float field_0x208;
-    void* tables[2];                   /* +0x20C */
-    void (*transform_callback)(void); /* +0x214 -- MkPfx transform callback */
-    PfxSpawnCallback spawn_callback;   /* +0x218 */
-    char* name;                        /* +0x21C */
-    int effect_id;                     /* +0x220 */
-    PfxMetrics* metrics;               /* +0x224 */
-    float effect_scale;                /* +0x228 -- MkPfx scale at +0x268 */
+    void* tables[2];
+    void (*transform_callback)(void);
+    PfxSpawnCallback spawn_callback;
+    char* name;
+    int effect_id;
+    PfxMetrics* metrics;
+    float effect_scale;
     int field_0x22C;
-    void* emitter_user_data;           /* +0x230 */
-    void* effect_allocations;          /* +0x234 -- linked raw allocations */
+    void* emitter_user_data;
+    void* effect_allocations;
     float field238;
-    int total_birth_count;              /* +0x23C */
+    int total_birth_count;
 };
 
 typedef char PfxEmitterInstructionSizeCheck[

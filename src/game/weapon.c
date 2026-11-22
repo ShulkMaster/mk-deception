@@ -142,8 +142,8 @@ static inline MkObj* load_goro_weapon_inline(
     obj_force_culling_off(weapon);
     start_cloth_bones(weapon);
     weapon->light_flags = 0x100C;
-    weapon->hide_flag_bits.hidden = 1;
-    weapon->hide_flag_bits.weapon_effect = 1;
+    weapon->flags.hidden = 1;
+    weapon->flags.weapon_effect = 1;
     weapon->weapon_definition = definition;
     insert_fgnd_mkobj(weapon);
     start_weapon_trail(weapon, trail_model);
@@ -179,7 +179,7 @@ static inline MkObj* load_goro_reflection_inline(
     }
     pull_bone_hierarchy_mkobj(reflection);
     reflection->light_flags = 4;
-    reflection->hide_flag_bits.hidden = 1;
+    reflection->flags.hidden = 1;
     insert_fgnd_mkobj(reflection);
     obj_create_sobjs(reflection);
     sobj_set_priority(obj_first_sobj(reflection), 6);
@@ -249,7 +249,7 @@ void unimpale_victim(PlyrPdata* victim) {
         victim, &victim->impaled_item_a,
         &victim->impaled_item_a_secondary);
     if (item != 0) {
-        item->hide_flag_bits.hidden = 1;
+        item->flags.hidden = 1;
         mkobj_zero_bone_rots(item);
         attacker = victim->his_plyr_pdata;
         slots = attacker->mirror_slots;
@@ -267,7 +267,7 @@ void unimpale_victim(PlyrPdata* victim) {
         victim, &victim->impaled_item_b,
         &victim->impaled_item_b_secondary);
     if (item != 0) {
-        item->hide_flag_bits.hidden = 1;
+        item->flags.hidden = 1;
         mkobj_zero_bone_rots(item);
         attacker = victim->his_plyr_pdata;
         slots = attacker->mirror_slots;
@@ -370,13 +370,13 @@ void player_impale(MkObj* weapon, MkObj* second_weapon) {
     }
 
     advance_my_moveset();
-    weapon->hide_flag_bits.hidden = 0;
-    weapon->flags_08_bits.gravity_enabled = 0;
-    weapon->flags_08_bits.rotation_enabled = 0;
+    weapon->flags.hidden = 0;
+    weapon->flags.gravity_enabled = 0;
+    weapon->flags.rotation_enabled = 0;
     if (second_weapon != 0) {
-        second_weapon->hide_flag_bits.hidden = 0;
-        second_weapon->flags_08_bits.gravity_enabled = 0;
-        second_weapon->flags_08_bits.rotation_enabled = 0;
+        second_weapon->flags.hidden = 0;
+        second_weapon->flags.gravity_enabled = 0;
+        second_weapon->flags.rotation_enabled = 0;
     }
 }
 
@@ -417,7 +417,7 @@ static inline void weapon_trail_show(PlyrMirrorObjLatch* latch) {
                 } else {
                     MkProc* fade_proc;
 
-                    if (!trail->hide_flag_bits.hidden) {
+                    if (!trail->flags.hidden) {
                         destroy_mkprocs_pid_from_list(0x5010,
                                                       &trail->child_list);
                     }
@@ -425,7 +425,7 @@ static inline void weapon_trail_show(PlyrMirrorObjLatch* latch) {
                     if (fade_proc != 0) {
                         mk_insert(&fade_proc->hdr, &trail->child_list);
                     }
-                    trail->hide_flag_bits.hidden = 0;
+                    trail->flags.hidden = 0;
                     RwFrameUpdateObjects(trail->frame);
                 }
             }
@@ -453,7 +453,7 @@ static inline void weapon_trail_hide(PlyrMirrorObjLatch* latch) {
         if (trail_hdr != 0) {
             MkObj* trail = (MkObj*)trail_hdr;
 
-            if (trail != 0 && !trail->hide_flag_bits.hidden) {
+            if (trail != 0 && !trail->flags.hidden) {
                 MkProc* fade_proc;
 
                 destroy_mkprocs_pid_from_list(0x5010, &trail->child_list);
@@ -774,19 +774,19 @@ void plyr_weapon_show(PlyrPdata* player, int show_aux,
 
     RESOLVE_WEAPON_LATCH(object, &slots->weapon[0].primary);
     if (object != 0) {
-        object->hide_flag_bits.hidden = 0;
+        object->flags.hidden = 0;
     }
     RESOLVE_WEAPON_LATCH(object, &slots->weapon[1].primary);
     if (object != 0) {
-        object->hide_flag_bits.hidden = 0;
+        object->flags.hidden = 0;
     }
     RESOLVE_WEAPON_LATCH(object, &slots->weapon[2].primary);
     if (object != 0) {
-        object->hide_flag_bits.hidden = 0;
+        object->flags.hidden = 0;
     }
     RESOLVE_WEAPON_LATCH(object, &slots->weapon[3].primary);
     if (object != 0) {
-        object->hide_flag_bits.hidden = 0;
+        object->flags.hidden = 0;
     }
 
     if (player->character_id == 0x12) {
@@ -806,11 +806,11 @@ void plyr_weapon_show(PlyrPdata* player, int show_aux,
     if (show_aux) {
         RESOLVE_WEAPON_LATCH(object, &player->aux_weapon_latch);
         if (object != 0) {
-            object->hide_flag_bits.hidden = 0;
+            object->flags.hidden = 0;
         }
         RESOLVE_WEAPON_LATCH(object, &player->mirror_obj);
         if (object != 0) {
-            object->hide_flag_bits.hidden = 0;
+            object->flags.hidden = 0;
         }
     }
 
@@ -818,11 +818,11 @@ void plyr_weapon_show(PlyrPdata* player, int show_aux,
         (g_game_info.section->flags70 & 8) != 0) {
         RESOLVE_WEAPON_LATCH(object, &slots->weapon[0].mirror);
         if (object != 0) {
-            object->hide_flag_bits.hidden = 0;
+            object->flags.hidden = 0;
         }
         RESOLVE_WEAPON_LATCH(object, &slots->weapon[1].mirror);
         if (object != 0) {
-            object->hide_flag_bits.hidden = 0;
+            object->flags.hidden = 0;
         }
     }
 }
@@ -837,22 +837,22 @@ void plyr_weapon_hide(PlyrPdata* player, int show_aux,
 
     RESOLVE_WEAPON_LATCH(object, &slots->weapon[0].primary);
     if (object != 0) {
-        object->hide_flag_bits.hidden = 1;
+        object->flags.hidden = 1;
         plyr_weapon_trail_hide(slots);
     }
     RESOLVE_WEAPON_LATCH(object, &slots->weapon[1].primary);
     if (object != 0) {
-        object->hide_flag_bits.hidden = 1;
+        object->flags.hidden = 1;
         plyr_weapon_trail_hide(slots);
     }
     RESOLVE_WEAPON_LATCH(object, &slots->weapon[2].primary);
     if (object != 0) {
-        object->hide_flag_bits.hidden = 1;
+        object->flags.hidden = 1;
         plyr_weapon_trail_hide(slots);
     }
     RESOLVE_WEAPON_LATCH(object, &slots->weapon[3].primary);
     if (object != 0) {
-        object->hide_flag_bits.hidden = 1;
+        object->flags.hidden = 1;
         plyr_weapon_trail_hide(slots);
     }
 
@@ -873,21 +873,21 @@ void plyr_weapon_hide(PlyrPdata* player, int show_aux,
     if (show_aux) {
         RESOLVE_WEAPON_LATCH(object, &player->aux_weapon_latch);
         if (object != 0) {
-            object->hide_flag_bits.hidden = 0;
+            object->flags.hidden = 0;
         }
         RESOLVE_WEAPON_LATCH(object, &player->mirror_obj);
         if (object != 0) {
-            object->hide_flag_bits.hidden = 0;
+            object->flags.hidden = 0;
         }
     }
 
     RESOLVE_WEAPON_LATCH(object, &slots->weapon[0].mirror);
     if (object != 0) {
-        object->hide_flag_bits.hidden = 1;
+        object->flags.hidden = 1;
     }
     RESOLVE_WEAPON_LATCH(object, &slots->weapon[1].mirror);
     if (object != 0) {
-        object->hide_flag_bits.hidden = 1;
+        object->flags.hidden = 1;
     }
 }
 
@@ -906,26 +906,26 @@ void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     slots = player->mirror_slots;
     RESOLVE_WEAPON_LATCH(weapon_object, &slots->weapon[0].primary);
     if (weapon_object != 0) {
-        weapon_object->hide_flag_bits.bit6 =
-            player_object->hide_flag_bits.bit6;
+        weapon_object->flags.bit0A_6 =
+            player_object->flags.bit0A_6;
     }
     slots = player->mirror_slots;
     RESOLVE_WEAPON_LATCH(weapon_object, &slots->weapon[1].primary);
     if (weapon_object != 0) {
-        weapon_object->hide_flag_bits.bit6 =
-            player_object->hide_flag_bits.bit6;
+        weapon_object->flags.bit0A_6 =
+            player_object->flags.bit0A_6;
     }
     slots = player->mirror_slots;
     RESOLVE_WEAPON_LATCH(weapon_object, &slots->weapon[2].primary);
     if (weapon_object != 0) {
-        weapon_object->hide_flag_bits.bit6 =
-            player_object->hide_flag_bits.bit6;
+        weapon_object->flags.bit0A_6 =
+            player_object->flags.bit0A_6;
     }
     slots = player->mirror_slots;
     RESOLVE_WEAPON_LATCH(weapon_object, &slots->weapon[3].primary);
     if (weapon_object != 0) {
-        weapon_object->hide_flag_bits.bit6 =
-            player_object->hide_flag_bits.bit6;
+        weapon_object->flags.bit0A_6 =
+            player_object->flags.bit0A_6;
     }
 }
 
@@ -1089,7 +1089,7 @@ static void start_weapon_trail(MkObj* weapon, MkObj* trail_model) {
     mk_insert(&trail_model->hdr, &weapon->child_list);
     trail_model->weapon_definition = weapon->weapon_definition;
     trail_model->light_flags = 0x10;
-    trail_model->hide_flag_bits.hidden = 1;
+    trail_model->flags.hidden = 1;
     insert_fgnd_mkobj(trail_model);
 
     for (bone_index = 0; bone_index < trail_model->bone_count; bone_index++) {
@@ -1173,8 +1173,8 @@ MkObj* load_weapon(
     obj_force_culling_off(weapon);
     start_cloth_bones(weapon);
     weapon->light_flags = 0x100C;
-    weapon->hide_flag_bits.hidden = 1;
-    weapon->hide_flag_bits.weapon_effect = 1;
+    weapon->flags.hidden = 1;
+    weapon->flags.weapon_effect = 1;
     weapon->weapon_definition = definition;
     insert_fgnd_mkobj(weapon);
     start_weapon_trail(weapon, trail_model);
@@ -1210,7 +1210,7 @@ MkObj* load_weapon_reflection(
     }
     pull_bone_hierarchy_mkobj(reflection);
     reflection->light_flags = 4;
-    reflection->hide_flag_bits.hidden = 1;
+    reflection->flags.hidden = 1;
     insert_fgnd_mkobj(reflection);
     obj_create_sobjs(reflection);
     sobj_set_priority(obj_first_sobj(reflection), 6);
@@ -1238,7 +1238,7 @@ static inline MkObj* prepare_bgnd_weapon_reflection(
         } else {
             pull_bone_hierarchy_mkobj(reflection);
             reflection->light_flags = 4;
-            reflection->hide_flag_bits.hidden = 1;
+            reflection->flags.hidden = 1;
             insert_fgnd_mkobj(reflection);
             obj_create_sobjs(reflection);
             sobj_set_priority(obj_first_sobj(reflection), 6);
@@ -1265,7 +1265,7 @@ MkObj* load_bgnd_weapon_reflection(WeaponDefinition* definition) {
     reflection = prepare_bgnd_weapon_reflection(reflection, definition);
     if (reflection != 0 &&
         (g_game_info.section->flags70 & 8) != 0) {
-        reflection->hide_flag_bits.hidden = 0;
+        reflection->flags.hidden = 0;
         return reflection;
     }
     return 0;
@@ -1298,8 +1298,8 @@ MkObj* load_weapon_from_slot(WeaponDefinition* definition, int slot) {
     obj_force_culling_off(weapon);
     start_cloth_bones(weapon);
     weapon->light_flags = 0x100C;
-    weapon->hide_flag_bits.hidden = 1;
-    weapon->hide_flag_bits.weapon_effect = 1;
+    weapon->flags.hidden = 1;
+    weapon->flags.weapon_effect = 1;
     weapon->weapon_definition = definition;
     insert_fgnd_mkobj(weapon);
     start_weapon_trail(weapon, trail_model);

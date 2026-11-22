@@ -4,16 +4,16 @@
 typedef struct mslBankSoundEntry mslBankSoundEntry;
 
 typedef struct mslQueueEntry {
-    mslBankSoundEntry* sound;     /* +0x00 */
-    unsigned long reserved;       /* +0x04 */
-} mslQueueEntry; /* 0x08 */
+    mslBankSoundEntry* sound;
+    unsigned long reserved;
+} mslQueueEntry;
 
 typedef struct mslQueue {
-    mslQueueEntry* entries;       /* +0x00 */
-    int capacity;                 /* +0x04 */
-    int write_index;              /* +0x08 */
-    int read_index;               /* +0x0C */
-} mslQueue; /* 0x10 */
+    mslQueueEntry* entries;
+    int capacity;
+    int write_index;
+    int read_index;
+} mslQueue;
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,5 +1,3 @@
-/* BUILD: -inline noauto,deferred emits definitions in reverse source order;
- * this order also preserves pooled strings and anonymous initializers. */
 #include "runtime/anim_pdata.h"
 #include "runtime/bone_matcher.h"
 #include "platform/display.h"
@@ -172,7 +170,6 @@ typedef struct KonquestNpc {
                     unsigned char timed_event_pad_low : 4;
                 };
             };
-            unsigned char flags_1F;
         };
     };
     union {
@@ -180,12 +177,7 @@ typedef struct KonquestNpc {
         struct {
             union {
                 unsigned int saved_object_flags;
-                struct {
-                    unsigned char saved_object_flags_08;
-                    unsigned char saved_object_flags_09;
-                    MkObjHideFlags saved_object_hide_flags;
-                    unsigned char saved_object_flags_0B;
-                };
+                MkObjFlags saved_object_flag_bits;
             };
             Vec saved_position;
             char pad30[8];
@@ -960,12 +952,12 @@ static inline void initialize_object_for_npc_use(MkObj* object) {
             sobj->atomic->geometry,
             (RpMaterialCallBack)material_store_texture_pointer, 0);
     }
-    object->flags_08_bits.airborne = 1;
-    object->flags_08_bits.angular_velocity_enabled = 1;
+    object->flags.airborne = 1;
+    object->flags.angular_velocity_enabled = 1;
     build_bones_tbl(object, konquest_human_bones);
     object->flipped_bone_map = &flipped_konquest_human_bones;
-    object->flags_09_bits.launched = 1;
-    object->flags_09_bits.bit6 = 1;
+    object->flags.launched = 1;
+    object->flags.bit09_6 = 1;
     object->ground_colls = npc_ground_colls;
     object->light_flags = 1;
 }
@@ -1828,7 +1820,7 @@ void npc_make_invisible(KonquestNpc* npc) {
             npc->data->position.z = position->z;
             npc->tile_index = get_tile_from_position(position);
             if (npc_event_has_active_animation(npc) != 0) {
-                npc->animation->object->hide_flag_bits.pin_animation = 0;
+                npc->animation->object->flags.pin_animation = 0;
                 npc->animation->object->pos.value.x = position->x;
                 npc->animation->object->pos.value.y = position->y;
                 npc->animation->object->pos.value.z = position->z;
@@ -1930,7 +1922,7 @@ static void load_model_for_npc(KonquestNpc* npc) {
             return;
         }
 
-        npc->animation->object->hide_flag_bits.pin_animation = 0;
+        npc->animation->object->flags.pin_animation = 0;
         npc->animation->object->flags_word_0C = 0;
         npc->saved_object_flags = npc->animation->object->flags_word_08;
         npc->animation->object->ang.y = npc->data->angle_y;
@@ -2020,7 +2012,7 @@ static inline void npc_place_at_waypoint(
     npc->data->position.z = current->position.z;
     npc->tile_index = get_tile_from_position(&current->position);
     if (npc_event_has_active_animation(npc) != 0) {
-        npc->animation->object->hide_flag_bits.pin_animation = 0;
+        npc->animation->object->flags.pin_animation = 0;
         npc->animation->object->pos.value.x = current->position.x;
         npc->animation->object->pos.value.y = current->position.y;
         npc->animation->object->pos.value.z = current->position.z;
@@ -2136,7 +2128,7 @@ static void npc_set_path(
         npc->data->position.z = npc->initial_position.z;
         npc->tile_index = get_tile_from_position(&npc->initial_position);
         if (npc_event_has_active_animation(npc) != 0) {
-            npc->animation->object->hide_flag_bits.pin_animation = 0;
+            npc->animation->object->flags.pin_animation = 0;
             npc->animation->object->pos.value.x = npc->initial_position.x;
             npc->animation->object->pos.value.y = npc->initial_position.y;
             npc->animation->object->pos.value.z = npc->initial_position.z;
@@ -2213,7 +2205,7 @@ void npc_shadow_init(void) {
         }
 
         obj_create_sobjs(npc_shadows.objects[index]);
-        npc_shadows.objects[index]->hide_flag_bits.hidden = 1;
+        npc_shadows.objects[index]->flags.hidden = 1;
         sobj = obj_first_sobj(npc_shadows.objects[index]);
         sobj->flags_08_bits.bit0 = 0;
         sobj->flags09_bits.bit4 = 1;
@@ -2419,7 +2411,7 @@ void npc_shadow_update(void) {
         MkObj* shadow = npc_shadows.objects[index];
         KonquestNpc* npc = npc_manager_pdata->visible_npcs[index];
 
-        shadow->hide_flag_bits.hidden = 1;
+        shadow->flags.hidden = 1;
         if (npc != 0) {
             KonquestNpc* monk = MK_HDR_LIVE(konquest_pdata->monk_npc, konquest_pdata->monk_npc_instance);
 
@@ -2515,11 +2507,11 @@ void npc_shadow_update(void) {
                                 continue;
                             }
                             current_npc_count++;
-                            shadow->hide_flag_bits.hidden = 0;
+                            shadow->flags.hidden = 0;
                             shadow->pos.value.x = object->pos.value.x;
                             shadow->pos.value.y = object->pos.value.y;
                             shadow->pos.value.z = object->pos.value.z;
-                            shadow->flags_08_bits.bit7 = 1;
+                            shadow->flags.bit08_7 = 1;
                             if (shadow_scale > 3.0f) {
                                 shadow_scale = 3.0f;
                             }
@@ -3009,7 +3001,7 @@ static void npc_invisible_update(KonquestNpc* npc) {
                                 npc->animation->proc);
 
                         npc->saved_animation_step = animation->step;
-                        npc->animation->object->hide_flag_bits.pin_animation = 0;
+                        npc->animation->object->flags.pin_animation = 0;
                         npc->saved_object_flags =
                             npc->animation->object->flags_word_08;
                         npc->saved_gravity = npc->animation->object->gravity;
@@ -3149,7 +3141,7 @@ static void npc_punched_setup(KonquestNpc* npc) {
         AnimPdata* animation =
             (AnimPdata*)pdata_of_proc(state->proc);
 
-        npc->animation->object->flags_09_bits.bit6 = 0;
+        npc->animation->object->flags.bit09_6 = 0;
         npc->ignore_events = 1;
         animation->step = 1.0f;
     }
@@ -3666,7 +3658,7 @@ float p_npc_proc(void) {
                 (AnimPdata*)pdata_of_proc(npc->animation->proc);
 
             npc->saved_animation_step = animation->step;
-            npc->animation->object->hide_flag_bits.pin_animation = 0;
+            npc->animation->object->flags.pin_animation = 0;
             npc->saved_object_flags =
                 npc->animation->object->flags_word_08;
             npc->saved_gravity = npc->animation->object->gravity;
@@ -3762,7 +3754,7 @@ static void npc_post_sleep(void) {
                     animation->editor_object, &collision_position);
             }
             if (((g_active_npc->flags_1C >> 7) & 1) != 0) {
-                animation->object->hide_flag_bits.pin_animation = 0;
+                animation->object->flags.pin_animation = 0;
             }
             if (((g_active_npc->flags_1D >> 2) & 1) != 0) {
                 KonquestNpcData* active_data = g_active_npc->data;
@@ -3776,7 +3768,7 @@ static void npc_post_sleep(void) {
                         0x10000) != 0) {
                     animation->object->pos.value.x = collision_position.x;
                     animation->object->pos.value.z = collision_position.z;
-                    animation->object->hide_flag_bits.pin_animation = 0;
+                    animation->object->flags.pin_animation = 0;
                 }
             }
 
@@ -3794,24 +3786,24 @@ static void npc_post_sleep(void) {
                     if (collide_segment_against_global_collision_list_quads(
                             &segment_start, &segment_end,
                             &hit_point) != 0) {
-                        animation->object->flags_08_bits.moving = 1;
+                        animation->object->flags.moving = 1;
                         animation->object->gravity = -0.00325f;
-                        animation->object->hide_flag_bits.pin_animation = 0;
+                        animation->object->flags.pin_animation = 0;
                         animation->object->ground_colls_y = hit_point.y;
                     } else {
                         if (animation->object->ground_colls_y != 0.0f) {
                             animation->object->pos.value.y = 0.0f;
                         }
-                        animation->object->flags_08_bits.moving = 0;
+                        animation->object->flags.moving = 0;
                         animation->object->ground_colls_y = 0.0f;
                     }
                 }
             }
         }
         if (((animation->owner_npc->flags_1D >> 1) & 1) != 0) {
-            animation->object->flags_09_bits.launched = 0;
+            animation->object->flags.launched = 0;
         } else {
-            animation->object->flags_09_bits.launched = 1;
+            animation->object->flags.launched = 1;
         }
         data->position.x = animation->object->pos.value.x;
         data->position.y = animation->object->pos.value.y;
@@ -4078,7 +4070,7 @@ void npc_run_punch_animation(
 
                 while (animation_pdata->frame < final_frame) {
                     if (gravity != 0.0f) {
-                        reaction->object->flags_08_bits.moving = 1;
+                        reaction->object->flags.moving = 1;
                     }
                     npc_ani_1_frame();
                     _mkproc_sleep_ticks = 1.0f;
@@ -4198,10 +4190,8 @@ void npc_turn_and_face_player(int turn_player) {
                 pdata->target_kind = 0xA002;
                 pdata->target.npc = g_active_npc;
                 pdata->saved_pin_animation =
-                    g_active_npc->animation->object->hide_flag_bits
-                        .pin_animation;
-                g_active_npc->animation->object->hide_flag_bits
-                    .pin_animation = 0;
+                    g_active_npc->animation->object->flags.pin_animation;
+                g_active_npc->animation->object->flags.pin_animation = 0;
                 pdata->use_angle = 0;
                 pdata->position.x = monk->pos.value.x;
                 pdata->position.y = monk->pos.value.y;
@@ -4218,8 +4208,8 @@ void npc_turn_and_face_player(int turn_player) {
             if (turn_proc != 0) {
                 pdata->target.object = monk;
                 pdata->saved_pin_animation =
-                    monk->hide_flag_bits.pin_animation;
-                monk->hide_flag_bits.pin_animation = 0;
+                    monk->flags.pin_animation;
+                monk->flags.pin_animation = 0;
                 pdata->target_kind = 0x9003;
                 pdata->use_angle = 0;
                 pdata->position.x =
@@ -4265,7 +4255,7 @@ void npc_turn_and_face_angle(KonquestNpc* npc, float angle) {
         if (turn_proc != 0) {
             pdata->angle = angle;
             pdata->saved_pin_animation =
-                npc->animation->object->hide_flag_bits.pin_animation;
+                npc->animation->object->flags.pin_animation;
             pdata->target_kind = 0xA002;
             pdata->target.npc = npc;
             pdata->use_angle = 1;
@@ -4288,7 +4278,7 @@ static float p_hero_turn_and_face(void) {
     float difference = ang_sub_ang(target_angle, object->ang.y);
     float magnitude;
 
-    object->hide_flag_bits.pin_animation = 0;
+    object->flags.pin_animation = 0;
     if (difference >= 0.0f) {
         magnitude = difference;
     } else {
@@ -4336,7 +4326,7 @@ void npc_set_pinanim_flag(int enabled) {
     if (has_active_animation != 0) {
         MkObj* object = state->object;
 
-        object->hide_flag_bits.pin_animation = enabled;
+        object->flags.pin_animation = enabled;
     }
 }
 
@@ -4456,7 +4446,7 @@ static float p_turn_and_face(void) {
 
     difference = ang_sub_ang(target_angle, target_object->ang.y);
 
-    target_object->hide_flag_bits.pin_animation = 0;
+    target_object->flags.pin_animation = 0;
     if (difference >= 0.0f) {
         magnitude = difference;
     } else {
@@ -4874,7 +4864,7 @@ void npc_set_snap_to_ground(int enabled) {
 
     has_active_animation = npc_animation_is_active(state);
     if (has_active_animation != 0) {
-        state->object->flags_09_bits.bit6 = enabled;
+        state->object->flags.bit09_6 = enabled;
     }
 }
 
@@ -5071,7 +5061,7 @@ void npc_travel_path(
     if (npc_event_has_active_animation(g_active_npc) == 0) {
         return;
     }
-    g_active_npc->animation->object->flags_09_bits.bit6 = 0;
+    g_active_npc->animation->object->flags.bit09_6 = 0;
     while (is_npc_at_destination(
                g_active_npc, destination_type, destination) == 0) {
         Vec target;
@@ -5168,7 +5158,7 @@ void npc_travel_path(
     g_active_npc->animation->object->pos_vel.z = 0.0f;
     g_active_npc->animation->object->pos_vel.y = 0.0f;
     g_active_npc->animation->object->pos_vel.x = 0.0f;
-    g_active_npc->animation->object->flags_09_bits.bit6 = 1;
+    g_active_npc->animation->object->flags.bit09_6 = 1;
 }
 
 static void npc_update_current_direction(
@@ -5427,7 +5417,7 @@ void npc_set_my_pos(float x, float y, float z) {
     if (has_active_animation != 0) {
         MkObj* object = state->object;
 
-        object->hide_flag_bits.pin_animation = 0;
+        object->flags.pin_animation = 0;
         npc->animation->object->pos.value.x = position.x;
         npc->animation->object->pos.value.y = position.y;
         npc->animation->object->pos.value.z = position.z;
@@ -5451,7 +5441,7 @@ void npc_set_my_world_pos(float x, float y, float z) {
     state = npc->animation;
     has_active_animation = npc_animation_is_active(state);
     if (has_active_animation != 0) {
-        state->object->hide_flag_bits.pin_animation = 0;
+        state->object->flags.pin_animation = 0;
         npc->animation->object->pos.value.x = position.x;
         npc->animation->object->pos.value.y = position.y;
         npc->animation->object->pos.value.z = position.z;
@@ -5475,7 +5465,7 @@ void npc_set_his_world_pos(
     state = npc->animation;
     has_active_animation = npc_animation_is_active(state);
     if (has_active_animation != 0) {
-        state->object->hide_flag_bits.pin_animation = 0;
+        state->object->flags.pin_animation = 0;
         npc->animation->object->pos.value.x = position.x;
         npc->animation->object->pos.value.y = position.y;
         npc->animation->object->pos.value.z = position.z;
@@ -5492,7 +5482,7 @@ void npc_set_my_ang_y(float angle) {
     if (has_active_animation != 0) {
         MkObj* object = state->object;
 
-        object->hide_flag_bits.pin_animation = 0;
+        object->flags.pin_animation = 0;
         g_active_npc->animation->object->ang.y = angle;
     }
 }
@@ -5506,7 +5496,7 @@ void npc_set_his_ang_y(KonquestNpcData* data, float angle) {
     state = npc->animation;
     has_active_animation = npc_animation_is_active(state);
     if (has_active_animation != 0) {
-        state->object->hide_flag_bits.pin_animation = 0;
+        state->object->flags.pin_animation = 0;
         npc->animation->object->ang.y = angle;
     }
 }
@@ -5583,7 +5573,7 @@ void npc_start_goro_bone_match(KonquestNpcData* data) {
     KonquestNpc* npc;
     BoneMatcherState* matcher;
 
-    pdata->object->flags_09_bits.bit6 = 0;
+    pdata->object->flags.bit09_6 = 0;
     npc = npc_find_by_data_inline(data);
     matcher = start_bone_matcher(
         npc->animation->object,
@@ -6343,7 +6333,7 @@ KonquestNpc* konquest_make_monk_an_npc(void) {
     npc->data->position.z = position.z;
     npc->tile_index = get_tile_from_position(&position);
     if (npc_event_has_active_animation(npc) != 0) {
-        npc->animation->object->hide_flag_bits.pin_animation = 0;
+        npc->animation->object->flags.pin_animation = 0;
         npc->animation->object->pos.value.x = position.x;
         npc->animation->object->pos.value.y = position.y;
         npc->animation->object->pos.value.z = position.z;
@@ -6354,7 +6344,7 @@ KonquestNpc* konquest_make_monk_an_npc(void) {
     npc->reaction_active = 1;
     npc->wait_for_animation = 1;
     npc->saved_object_flags = monk->flags_word_08;
-    npc->saved_object_hide_flags.pin_animation = 0;
+    npc->saved_object_flag_bits.pin_animation = 0;
     npc->saved_gravity = monk->gravity;
 
     if (npc->animation == 0) {
@@ -6698,7 +6688,7 @@ static float p_blood_fall_control(void) {
                     if (splat == 0) {
                         splat = pfx_bind_emitter_num_to_new_obj(
                             particle, 0x6015, 0);
-                        splat->flags_08_bits.airborne = 1;
+                        splat->flags.airborne = 1;
                     }
                     y_angle_to_MKMATRIX(
                         &splat->frame->modelling,
@@ -6789,8 +6779,8 @@ void npc_start_blood_fall(void) {
         pfx_bind_emitter_num_to_obj(
             particle, object, 0, emitter_id_from_handle(effect));
         insert_particle_mkobj(object);
-        object->flags_08_bits.airborne = 1;
-        object->flags_08_bits.gravity_enabled = 1;
+        object->flags.airborne = 1;
+        object->flags.gravity_enabled = 1;
         get_bone_world_pos(
             g_active_npc->animation->object, 10, &object->pos.value);
         object->pos_vel.x =
@@ -7012,7 +7002,7 @@ void make_damashi_npc(MkObj* object) {
         npc->data->position.z = object->pos.value.z;
         npc->tile_index = get_tile_from_position(&object->pos.value);
         if (npc_event_has_active_animation(npc) != 0) {
-            npc->animation->object->hide_flag_bits.pin_animation = 0;
+            npc->animation->object->flags.pin_animation = 0;
             npc->animation->object->pos.value.x = object->pos.value.x;
             npc->animation->object->pos.value.y = object->pos.value.y;
             npc->animation->object->pos.value.z = object->pos.value.z;

@@ -1,5 +1,3 @@
-/* BUILD: -inline auto,deferred keeps later base destructors visible;
- * member definitions follow reverse retail emission order. */
 #include "msl/mslBank.h"
 #include "msl/mslPlayable.h"
 #include "dolphin/ax.h"

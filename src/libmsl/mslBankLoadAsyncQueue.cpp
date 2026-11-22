@@ -4,20 +4,20 @@
 #include "runtime/cstring.h"
 
 struct asyncRequest {
-    _mslSystem* system;                   /* +0x000 */
-    unsigned long flags;                  /* +0x004 */
-    char filename[0x100];                 /* +0x008 */
-    _mslAsyncResponse* response;          /* +0x108 */
-    int state;                            /* +0x10C */
-    void (*internal_callback)(_mslAsyncResponse*); /* +0x110 */
-    void (*user_callback)(_mslAsyncResponse*);     /* +0x114 */
-}; /* 0x118 */
+    _mslSystem* system;
+    unsigned long flags;
+    char filename[0x100];
+    _mslAsyncResponse* response;
+    int state;
+    void (*internal_callback)(_mslAsyncResponse*);
+    void (*user_callback)(_mslAsyncResponse*);
+};
 
 struct qNode {
     asyncRequest* request;
     qNode* next;
     qNode* previous;
-}; /* 0x0C */
+};
 
 static unsigned char requestInUse[20] = {0};
 static unsigned char qNodeInUse[20] = {0};

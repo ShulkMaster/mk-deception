@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+double __fabs(double value);
 double floor(double value);
 double fmod(double numerator, double denominator);
 double log10(double value);

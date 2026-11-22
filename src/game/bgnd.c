@@ -527,7 +527,6 @@ extern void sh_start_grinder_meat_spew(Vec* position, PlyrPdata* player);
 extern void sh_start_grinder_chunk_spew(Vec* position, PlyrPdata* player);
 extern void set_ani_speed(float speed);
 extern int random_voice(int group);
-extern void random_hit(int group);
 extern unsigned char shared_ani[];
 extern void transition_to_anim_script(
     AnimPdata* animation, AnimScript* script, int flags,
@@ -862,10 +861,10 @@ static inline void sh_launch_fatality_model(MkHdrLatch* latch,
         object->pos.value.x = source->pos.value.x;
         object->pos.value.y = source->pos.value.y;
         object->pos.value.z = source->pos.value.z;
-        object->flags_08_bits.airborne = 0;
-        object->flags_08_bits.gravity_enabled = 0;
-        object->flags_08_bits.angular_velocity_enabled = 0;
-        object->flags_08_bits.rotation_enabled = 0;
+        object->flags.airborne = 0;
+        object->flags.gravity_enabled = 0;
+        object->flags.angular_velocity_enabled = 0;
+        object->flags.rotation_enabled = 0;
         object->pos_vel.x = sfrand(0.4f);
         object->pos_vel.y = 0.25f + sfrand(0.4f);
         object->pos_vel.z = 1.0f + frand(0.5f);
@@ -884,7 +883,7 @@ static inline void sh_launch_fatality_model(MkHdrLatch* latch,
         object->ang_vel.x = sfrand(0.05f);
         object->ang_vel.y = sfrand(0.05f);
         object->ang_vel.z = sfrand(0.05f);
-        object->flags_08_bits.moving = 1;
+        object->flags.moving = 1;
         object->gravity = -0.003f;
         unhide_obj(object);
     }
@@ -915,7 +914,7 @@ static inline void sh_load_blood_fall_model(int index, unsigned int art_oid,
             data->lower_level_pebbles[index].hdr = &object->hdr;
             data->lower_level_pebbles[index].instance = object->hdr.instance;
             object->light_flags = 4;
-            object->flags_08_bits.airborne = 1;
+            object->flags.airborne = 1;
             obj_create_sobjs(object);
             insert_fgnd_mkobj(object);
             hide_obj(object);
@@ -1062,7 +1061,7 @@ static inline void beetle_lair_emit_glass_smoke(const Vec* smoke_position) {
                     pfx_bind_to_new_obj(effect, 0x8227);
             }
             if (g_latest_obj_pfx != 0) {
-                g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                g_latest_obj_pfx->flags.airborne = 1;
                 g_latest_obj_pfx->pos.value.x = -1.0f;
                 g_latest_obj_pfx->pos.value.y = 0.2f;
                 g_latest_obj_pfx->pos.value.z = 1.9f;
@@ -1146,7 +1145,7 @@ static inline void bl_front_wall_effect_at(
                     pfx_bind_to_new_obj(effect, 0x8227);
             }
             if (g_latest_obj_pfx != 0) {
-                g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                g_latest_obj_pfx->flags.airborne = 1;
                 g_latest_obj_pfx->pos.value.x = x;
                 g_latest_obj_pfx->pos.value.y = y;
                 g_latest_obj_pfx->pos.value.z = z;
@@ -1173,7 +1172,6 @@ extern void glitch_to_ani(AniData* animation, int flags);
 extern void ani_loop_more_frames(float frames);
 extern MslSoundHandle plyr_snd_req(int sound_offset);
 extern void ani_1_frame(void);
-extern void random_hit(int group);
 extern void damage_me(float amount);
 extern int random_voice(int group);
 extern void head_tracking_off(void);
@@ -1335,7 +1333,7 @@ static inline void bl_launch_final_column_fx(const char* name, MkSobj* piece) {
                     pfx_bind_to_new_obj(effect, 0x8227);
             }
             if (g_latest_obj_pfx != 0) {
-                g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                g_latest_obj_pfx->flags.airborne = 1;
                 g_latest_obj_pfx->pos.value.x = x;
                 g_latest_obj_pfx->pos.value.y = y;
                 g_latest_obj_pfx->pos.value.z = z;
@@ -1367,7 +1365,7 @@ static inline void bl_launch_column_misc_fx(MkSobj* piece) {
                 emitter_object = pfx_bind_emitter_num_to_new_obj(
                     effect, 0x6015, emitter_id_from_handle(handle));
                 if (emitter_object != 0) {
-                    emitter_object->flags_08_bits.airborne = 1;
+                    emitter_object->flags.airborne = 1;
                     emitter_object->pos.value.x = x;
                     emitter_object->pos.value.y = y;
                     emitter_object->pos.value.z = z;
@@ -1400,7 +1398,7 @@ static inline void bl_launch_column_dust(const char* name, MkSobj* piece) {
                     pfx_bind_to_new_obj(effect, 0x8227);
             }
             if (g_latest_obj_pfx != 0) {
-                g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                g_latest_obj_pfx->flags.airborne = 1;
                 g_latest_obj_pfx->pos.value.x = x;
                 g_latest_obj_pfx->pos.value.y = y;
                 g_latest_obj_pfx->pos.value.z = z;
@@ -2317,8 +2315,8 @@ int bgnd_get_int(int value_id) {
     }
 }
 void bgnd_clear_face_opponent_flags(void) {
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.face_opponent = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.face_opponent = 0;
+    g_game_info.plyr0.slot.mirror_a->flags.face_opponent = 0;
+    g_game_info.plyr1.slot.mirror_a->flags.face_opponent = 0;
 }
 unsigned int bgnd_get_u32(int value_id) {
     switch (value_id) {
@@ -2666,7 +2664,7 @@ void bgnd_clean_up_floor(void) {
 void bgnd_set_plyr_gravity(void* script, float gravity) {
     (void)script;
     plyr_obj->gravity = gravity;
-    plyr_obj->flags_08_bits.moving = 1;
+    plyr_obj->flags.moving = 1;
 }
 void bgnd_allow_dirty_floor(void) {
     g_game_info.floor_flags.clean_floor = 0;
@@ -2677,8 +2675,8 @@ void bgnd_launch_plyr_up_and_forward(
     float ground_y, float gravity, float vertical_velocity,
     float forward_velocity, int duration, float damping, int animation) {
     plyr_obj->ground_colls_y = ground_y;
-    plyr_obj->flags_08_bits.gravity_enabled = 1;
-    plyr_obj->flags_08_bits.moving = 1;
+    plyr_obj->flags.gravity_enabled = 1;
+    plyr_obj->flags.moving = 1;
     plyr_obj->gravity = gravity;
     plyr_obj->pos_vel.y = vertical_velocity;
     if (duration != 0 && forward_velocity != 0.0f) {
@@ -2690,7 +2688,7 @@ int bgnd_launch_plyr_up_and_forward_running(void) {
     int moving;
 
     process = MK_LIVE(g_game_info.collision_player_pdata->his_plyr_pdata->transient_proc, g_game_info.collision_player_pdata->his_plyr_pdata->transient_proc_instance);
-    moving = g_game_info.player_objects[0]->flags_08_bits.moving;
+    moving = g_game_info.player_objects[0]->flags.moving;
     if (process != 0 || moving) {
         return 1;
     }
@@ -2713,8 +2711,8 @@ void bgnd_force_plyr_ground_plane(
 }
 void bgnd_restore_player(void) {
     back_to_normal();
-    plyr_obj->flags_09_bits.tightrope_restricted = 0;
-    plyr_obj->flags_0B_bits.bit6 = 0;
+    plyr_obj->flags.tightrope_restricted = 0;
+    plyr_obj->flags.bit0B_6 = 0;
     plyr_pdata->state_flags.bits.bit3 = 0;
 }
 
@@ -4010,16 +4008,16 @@ float bgnd_process_active_sobj_info(
 }
 void bgnd_takeover_plyr(PlyrInfo* player) {
     player->slot.pdata->state_flags.bits.bit3 = 1;
-    player->slot.mirror_a->flags_09_bits.launched = 0;
-    player->slot.mirror_a->flags_09_bits.bit6 = 0;
-    player->slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
-    player->slot.mirror_a->flags_09_bits.head_tracking = 0;
-    player->slot.mirror_a->flags_0B_bits.bit6 = 1;
-    player->slot.mirror_a->flags_0B_bits.bit3 = 1;
-    player->slot.mirror_a->flags_09_bits.face_opponent = 0;
+    player->slot.mirror_a->flags.launched = 0;
+    player->slot.mirror_a->flags.bit09_6 = 0;
+    player->slot.mirror_a->flags.tightrope_restricted = 0;
+    player->slot.mirror_a->flags.head_tracking = 0;
+    player->slot.mirror_a->flags.bit0B_6 = 1;
+    player->slot.mirror_a->flags.bit0B_3 = 1;
+    player->slot.mirror_a->flags.face_opponent = 0;
 }
 void dont_fence_plyr_in(int disabled) {
-    plyr_obj->flags_0B_bits.bit6 = disabled;
+    plyr_obj->flags.bit0B_6 = disabled;
 }
 void mks_xfer_plyr_to_STYLE_r_make_attacker_prone_in_stance(
     PlyrPdata* player) {
@@ -4124,13 +4122,13 @@ float bgnd_process_collision_info(
         PlyrInfo* info = player->plyr_info;
 
         info->slot.pdata->state_flags.bits.bit3 = 1;
-        info->slot.mirror_a->flags_09_bits.launched = 0;
-        info->slot.mirror_a->flags_09_bits.bit6 = 0;
-        info->slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
-        info->slot.mirror_a->flags_09_bits.head_tracking = 0;
-        info->slot.mirror_a->flags_0B_bits.bit6 = 1;
-        info->slot.mirror_a->flags_0B_bits.bit3 = 1;
-        info->slot.mirror_a->flags_09_bits.face_opponent = 0;
+        info->slot.mirror_a->flags.launched = 0;
+        info->slot.mirror_a->flags.bit09_6 = 0;
+        info->slot.mirror_a->flags.tightrope_restricted = 0;
+        info->slot.mirror_a->flags.head_tracking = 0;
+        info->slot.mirror_a->flags.bit0B_6 = 1;
+        info->slot.mirror_a->flags.bit0B_3 = 1;
+        info->slot.mirror_a->flags.face_opponent = 0;
         result = g_game_info.collision_player_pdata->plyr_num;
         break;
     }
@@ -4139,13 +4137,13 @@ float bgnd_process_collision_info(
         PlyrInfo* info = player->plyr_info;
 
         info->slot.pdata->state_flags.bits.bit3 = 1;
-        info->slot.mirror_a->flags_09_bits.launched = 0;
-        info->slot.mirror_a->flags_09_bits.bit6 = 0;
-        info->slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
-        info->slot.mirror_a->flags_09_bits.head_tracking = 0;
-        info->slot.mirror_a->flags_0B_bits.bit6 = 1;
-        info->slot.mirror_a->flags_0B_bits.bit3 = 1;
-        info->slot.mirror_a->flags_09_bits.face_opponent = 0;
+        info->slot.mirror_a->flags.launched = 0;
+        info->slot.mirror_a->flags.bit09_6 = 0;
+        info->slot.mirror_a->flags.tightrope_restricted = 0;
+        info->slot.mirror_a->flags.head_tracking = 0;
+        info->slot.mirror_a->flags.bit0B_6 = 1;
+        info->slot.mirror_a->flags.bit0B_3 = 1;
+        info->slot.mirror_a->flags.face_opponent = 0;
         result = g_game_info.collision_player_pdata->his_plyr_pdata->
             plyr_num;
         break;
@@ -4703,7 +4701,7 @@ void bgnd_place_weapon_at_position(
             item->object_id = primary_object_id;
             item->display_sobj = obj_find_sobj_by_id(
                 g_game_info.bgnd_obj, primary_sobj_id);
-            item->primary_object->flags_08_bits.airborne = 1;
+            item->primary_object->flags.airborne = 1;
             item->display_sobj->flags_08_bits.bit6 = 1;
             item->primary_object->pos.value.x = primary_x;
             item->primary_object->pos.value.y = primary_y;
@@ -4714,7 +4712,7 @@ void bgnd_place_weapon_at_position(
             item->display_sobj->pos.x = primary_x;
             item->display_sobj->pos.y = primary_y;
             item->display_sobj->pos.z = primary_z;
-            item->primary_object->flags_08_bits.angular_velocity_enabled = 1;
+            item->primary_object->flags.angular_velocity_enabled = 1;
             item->display_sobj->flags_08_bits.bit3 = 1;
             item->primary_object->ang.x = primary_angle_x;
             item->primary_object->ang.y = primary_angle_y;
@@ -4740,7 +4738,7 @@ void bgnd_place_weapon_at_position(
                 g_game_info.bgnd_obj, primary_sobj_id);
             item->secondary_sobj = obj_find_sobj_by_id(
                 g_game_info.bgnd_obj, secondary_sobj_id);
-            item->primary_object->flags_08_bits.airborne = 1;
+            item->primary_object->flags.airborne = 1;
             item->display_sobj->flags_08_bits.bit6 = 1;
             item->primary_object->pos.value.x = primary_x;
             item->primary_object->pos.value.y = primary_y;
@@ -4751,7 +4749,7 @@ void bgnd_place_weapon_at_position(
             item->display_sobj->pos.x = primary_x;
             item->display_sobj->pos.y = primary_y;
             item->display_sobj->pos.z = primary_z;
-            item->primary_object->flags_08_bits.angular_velocity_enabled = 1;
+            item->primary_object->flags.angular_velocity_enabled = 1;
             item->display_sobj->flags_08_bits.bit3 = 1;
             item->primary_object->ang.x = primary_angle_x;
             item->primary_object->ang.y = primary_angle_y;
@@ -4762,7 +4760,7 @@ void bgnd_place_weapon_at_position(
             item->display_sobj->ang.x = primary_angle_x;
             item->display_sobj->ang.y = primary_angle_y;
             item->display_sobj->ang.z = primary_angle_z;
-            item->secondary_object->flags_08_bits.airborne = 1;
+            item->secondary_object->flags.airborne = 1;
             item->secondary_sobj->flags_08_bits.bit6 = 1;
             item->secondary_object->pos.value.x = secondary_x;
             item->secondary_object->pos.value.y = secondary_y;
@@ -4773,7 +4771,7 @@ void bgnd_place_weapon_at_position(
             item->secondary_sobj->pos.x = secondary_x;
             item->secondary_sobj->pos.y = secondary_y;
             item->secondary_sobj->pos.z = secondary_z;
-            item->secondary_object->flags_08_bits.angular_velocity_enabled = 1;
+            item->secondary_object->flags.angular_velocity_enabled = 1;
             item->secondary_sobj->flags_08_bits.bit3 = 1;
             item->secondary_object->ang.x = secondary_angle_x;
             item->secondary_object->ang.y = secondary_angle_y;
@@ -5255,10 +5253,10 @@ float bgnd_move_plyrs_to_initial_pos(void) {
 
     g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 1;
     g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 1;
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
-    g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit6 = 1;
-    g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit6 = 1;
+    g_game_info.plyr0.slot.mirror_a->flags.tightrope_restricted = 0;
+    g_game_info.plyr1.slot.mirror_a->flags.tightrope_restricted = 0;
+    g_game_info.plyr0.slot.mirror_a->flags.bit0B_6 = 1;
+    g_game_info.plyr1.slot.mirror_a->flags.bit0B_6 = 1;
     if (g_game_info.plyr0.slot.mirror_a != 0) {
         Vec* player0_start = &g_game_info.misc->player0_start;
         Vec player0_angles = {0.0f, 1.5707964f, 0.0f};
@@ -5733,9 +5731,9 @@ MkObj* bgnd_preload_named_model(const char* model_name, unsigned int model_index
 
 void bgnd_enable_obj_pos_and_ang_setting(
     MkObj* object, Vec* position, Vec* angles) {
-    object->flags_08_bits.airborne = 1;
-    object->flags_08_bits.angular_velocity_enabled = 1;
-    object->flags_08_bits.scale_active = 1;
+    object->flags.airborne = 1;
+    object->flags.angular_velocity_enabled = 1;
+    object->flags.scale_active = 1;
     gxVectCopy(&object->pos.value, position);
     gxVectCopy(&object->ang, angles);
     object->scale.x = object->scale.y = object->scale.z = 1.0f;
@@ -5756,9 +5754,9 @@ MkObj* ncs_bgnd_preload_named_model(
             0x2001E, model_name, object_type, transl);
         if (object != 0) {
             object->light_flags = 4;
-            object->flags_08_bits.scale_active = 1;
-            object->flags_08_bits.airborne = 1;
-            object->flags_08_bits.angular_velocity_enabled = 1;
+            object->flags.scale_active = 1;
+            object->flags.airborne = 1;
+            object->flags.angular_velocity_enabled = 1;
             gxVectCopy(&object->pos.value, position);
             gxVectCopy(&object->ang, angles);
             gxVectCopy(&object->scale, scale);
@@ -5777,7 +5775,7 @@ void bgnd_launch_fx_at_plyr_pos_and_y(const char* name, float y) {
         g_latest_obj_pfx =
             pfx_bind_to_new_obj(effect, 0x8227);
         if (g_latest_obj_pfx != 0) {
-            g_latest_obj_pfx->flags_08_bits.airborne = 1;
+            g_latest_obj_pfx->flags.airborne = 1;
             g_latest_obj_pfx->pos.value.x = plyr_obj->pos.value.x;
             g_latest_obj_pfx->pos.value.y = plyr_obj->pos.value.y;
             g_latest_obj_pfx->pos.value.z = plyr_obj->pos.value.z;
@@ -5816,7 +5814,7 @@ void bgnd_launch_fx_at_sobj_pos(
                         pfx_bind_to_new_obj(effect, 0x8227);
                 }
                 if (g_latest_obj_pfx != 0) {
-                    g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                    g_latest_obj_pfx->flags.airborne = 1;
                     g_latest_obj_pfx->pos.value.x = x;
                     g_latest_obj_pfx->pos.value.y = y;
                     g_latest_obj_pfx->pos.value.z = z;
@@ -5915,7 +5913,7 @@ void bgnd_launch_fx_at_position(const char* name, float x, float y, float z) {
                     pfx_bind_to_new_obj(effect, 0x8227);
             }
             if (g_latest_obj_pfx != 0) {
-                g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                g_latest_obj_pfx->flags.airborne = 1;
                 g_latest_obj_pfx->pos.value.x = x;
                 g_latest_obj_pfx->pos.value.y = y;
                 g_latest_obj_pfx->pos.value.z = z;
@@ -5966,7 +5964,7 @@ unsigned int pfxhandle_bgnd_spawn_at_position(
     if (object == 0) {
         return 0;
     }
-    object->flags_08_bits.airborne = 1;
+    object->flags.airborne = 1;
     object->pos.value.x = x;
     object->pos.value.y = y;
     object->pos.value.z = z;
@@ -5986,7 +5984,7 @@ void bgnd_launch_fx_at_active_sobj_pos_with_offset(
                 pfx_bind_to_new_obj(effect, 0x8227);
         }
         if (g_latest_obj_pfx != 0) {
-            g_latest_obj_pfx->flags_08_bits.airborne = 1;
+            g_latest_obj_pfx->flags.airborne = 1;
             g_latest_obj_pfx->pos.value.x = g_active_sobj->pos.x + x_offset;
             g_latest_obj_pfx->pos.value.y = g_active_sobj->pos.y + y_offset;
             g_latest_obj_pfx->pos.value.z = g_active_sobj->pos.z + z_offset;
@@ -6003,7 +6001,7 @@ void bgnd_set_fx_ang_dir_to_i_vector(void) {
 }
 void bgnd_set_fx_ang_y(float angle) {
     if (g_latest_obj_pfx != 0) {
-        g_latest_obj_pfx->flags_08_bits.angular_velocity_enabled = 1;
+        g_latest_obj_pfx->flags.angular_velocity_enabled = 1;
         g_latest_obj_pfx->ang.y = angle;
     }
 }
@@ -7897,10 +7895,10 @@ void bgnd_create_named_npc_in_slot(
     }
 
     object = g_bgnd_preloaded_models[npc_id];
-    object->flags_08_bits.gravity_enabled = 0;
-    object->flags_08_bits.rotation_enabled = 0;
-    object->flags_08_bits.airborne = 1;
-    object->flags_08_bits.angular_velocity_enabled = 1;
+    object->flags.gravity_enabled = 0;
+    object->flags.rotation_enabled = 0;
+    object->flags.airborne = 1;
+    object->flags.angular_velocity_enabled = 1;
     if (bone_table == 0) {
         build_bones_tbl(object, nb_slave_bones);
         object->flipped_bone_map = &flipped_nb_slave_bones;
@@ -7980,7 +7978,7 @@ void bgnd_npc_set_y_ang(unsigned int npc_id, float angle) {
     BgndNpc* npc;
 
     npc = bgnd_find_npc(npc_id);
-    npc->object->flags_08_bits.angular_velocity_enabled = 1;
+    npc->object->flags.angular_velocity_enabled = 1;
     npc->object->ang.y = angle;
     npc->object->ang.y = norm_angle_inline(npc->object->ang.y);
 }
@@ -7990,7 +7988,7 @@ void bgnd_npc_adjust_y_ang(unsigned int npc_id, float angle) {
     int fixed_angle;
 
     npc = bgnd_find_npc(npc_id);
-    npc->object->flags_08_bits.angular_velocity_enabled = 1;
+    npc->object->flags.angular_velocity_enabled = 1;
     npc->object->ang.y += angle;
     fixed_angle = 166886.1f * npc->object->ang.y;
     fixed_angle &= 0xFFFFF;
@@ -8006,7 +8004,7 @@ void bgnd_npc_set_scale(
     BgndNpc* npc;
 
     npc = bgnd_find_npc(npc_id);
-    npc->object->flags_08_bits.scale_active = 1;
+    npc->object->flags.scale_active = 1;
     npc->object->scale.x = x;
     npc->object->scale.y = y;
     npc->object->scale.z = z;
@@ -8019,7 +8017,7 @@ void bgnd_npc_set_pos_vel_heading(unsigned int npc_id, float speed) {
     int fixed_angle;
 
     npc = bgnd_find_npc(npc_id);
-    npc->object->flags_08_bits.gravity_enabled = 1;
+    npc->object->flags.gravity_enabled = 1;
     heading = npc->object->ang.y;
     fixed_angle = 166886.1f * heading;
     fixed_angle &= 0xFFFFF;
@@ -8036,7 +8034,7 @@ void bgnd_npc_set_pos_vel(
     BgndNpc* npc;
 
     npc = bgnd_find_npc(npc_id);
-    npc->object->flags_08_bits.gravity_enabled = 1;
+    npc->object->flags.gravity_enabled = 1;
     npc->object->pos_vel.x = x;
     npc->object->pos_vel.y = y;
     npc->object->pos_vel.z = z;
@@ -8046,8 +8044,8 @@ void bgnd_npc_like_plyr(unsigned int npc_id) {
 
     npc = bgnd_find_npc(npc_id);
     npc->object->light_flags = 4;
-    npc->object->flags_09_bits.launched = 1;
-    npc->object->flags_09_bits.bit6 = 1;
+    npc->object->flags.launched = 1;
+    npc->object->flags.bit09_6 = 1;
     insert_ground_me_mkobj(npc->object);
 }
 
@@ -8258,9 +8256,9 @@ void bgnd_delete_proc_by_id(int pid) {
 static float plyr_is_prone(void) {
     stop_me();
     plyr_obj->pos.value.y = 100.0f;
-    plyr_obj->flags_08_bits.moving = 0;
-    plyr_obj->flags_09_bits.bit6 = 0;
-    plyr_obj->flags_09_bits.launched = 0;
+    plyr_obj->flags.moving = 0;
+    plyr_obj->flags.bit09_6 = 0;
+    plyr_obj->flags.launched = 0;
     update_mkobj(plyr_obj);
     return 1.0f;
 }
@@ -8595,7 +8593,7 @@ static float p_bl_flip_column_piece(void) {
                     pfx_bind_to_new_obj(effect, 0x8227);
             }
             if (g_latest_obj_pfx != 0) {
-                g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                g_latest_obj_pfx->flags.airborne = 1;
                 g_latest_obj_pfx->pos.value.x = flip_x;
                 g_latest_obj_pfx->pos.value.y = flip_y;
                 g_latest_obj_pfx->pos.value.z = flip_z;
@@ -8620,7 +8618,7 @@ static float p_bl_flip_column_piece(void) {
                     pfx_bind_to_new_obj(effect, 0x8227);
             }
             if (g_latest_obj_pfx != 0) {
-                g_latest_obj_pfx->flags_08_bits.airborne = 1;
+                g_latest_obj_pfx->flags.airborne = 1;
                 g_latest_obj_pfx->pos.value.x = dust_x;
                 g_latest_obj_pfx->pos.value.y = dust_y;
                 g_latest_obj_pfx->pos.value.z = dust_z;
@@ -9083,15 +9081,15 @@ static float victim_fall_down_a_level(void) {
         "debris_follower_fx", follower_position.x, follower_position.y,
         follower_position.z);
     plyr_bleed_mouth(plyr_pdata);
-    plyr_obj->flags_08_bits.moving = 0;
-    plyr_obj->flags_09_bits.launched = 0;
+    plyr_obj->flags.moving = 0;
+    plyr_obj->flags.launched = 0;
     glitch_to_ani(*(AniData**)&shared_ani[0x198], 0);
     set_ani_speed(1.3f);
     ani_loop_more_frames(3.0f);
     plyr_snd_req(0x45);
     ani_loop_more_frames(22.0f);
 
-    plyr_obj->flags_08_bits.moving = 1;
+    plyr_obj->flags.moving = 1;
     plyr_obj->gravity = -0.009f;
     ground_margin = 0.1f;
     while (plyr_obj->pos.value.y > plyr_obj->ground_colls_y + ground_margin) {
@@ -9105,9 +9103,9 @@ static float victim_fall_down_a_level(void) {
     g_bgnd_preloaded_models[8]->pos.value.x = bone_position.x;
     g_bgnd_preloaded_models[8]->pos.value.y = bone_position.y;
     g_bgnd_preloaded_models[8]->pos.value.z = bone_position.z;
-    g_bgnd_preloaded_models[8]->flags_08_bits.airborne = 1;
-    g_bgnd_preloaded_models[8]->flags_08_bits.scale_active = 1;
-    g_bgnd_preloaded_models[8]->flags_08_bits.angular_velocity_enabled = 1;
+    g_bgnd_preloaded_models[8]->flags.airborne = 1;
+    g_bgnd_preloaded_models[8]->flags.scale_active = 1;
+    g_bgnd_preloaded_models[8]->flags.angular_velocity_enabled = 1;
     g_bgnd_preloaded_models[8]->ang.x = 1.5707964f;
     g_bgnd_preloaded_models[8]->ang.y = 0.0f;
     g_bgnd_preloaded_models[8]->ang.z = 0.0f;
@@ -9116,7 +9114,7 @@ static float victim_fall_down_a_level(void) {
     g_bgnd_preloaded_models[8]->scale.z = 1.25f;
     debris_piece = obj_first_sobj(g_bgnd_preloaded_models[8]);
     update_mkobj(g_bgnd_preloaded_models[8]);
-    g_bgnd_preloaded_models[8]->flags_08_bits.scale_active = 1;
+    g_bgnd_preloaded_models[8]->flags.scale_active = 1;
     g_bgnd_preloaded_models[8]->scale.x = 2.0f;
     g_bgnd_preloaded_models[8]->scale.y = 2.0f;
     g_bgnd_preloaded_models[8]->scale.z = 2.0f;
@@ -9156,7 +9154,7 @@ static float victim_fall_down_a_level(void) {
     } else {
         plyr_pdata->death_type = 1;
         back_to_normal();
-        plyr_obj->flags_09_bits.head_tracking = 0;
+        plyr_obj->flags.head_tracking = 0;
         tightrope_restrictions_off();
         init_ground_move_no_aniproc();
         plyr_anim_pdata->step = 0.6f;
@@ -9166,7 +9164,7 @@ static float victim_fall_down_a_level(void) {
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
         ani_to_frame_x(2.0f);
-        plyr_obj->flags_09_bits.launched = 0;
+        plyr_obj->flags.launched = 0;
         plyr_anim_pdata->step = 0.7f;
         ani_to_frame_x(30.0f);
         ani_to_blend_frame(10.0f);
@@ -9219,9 +9217,9 @@ static float winner_watching_him_fall(void) {
     g_bgnd_preloaded_models[5]->pos.value.x = bone_position.x;
     g_bgnd_preloaded_models[5]->pos.value.y = bone_position.y;
     g_bgnd_preloaded_models[5]->pos.value.z = bone_position.z;
-    g_bgnd_preloaded_models[5]->flags_08_bits.airborne = 1;
-    g_bgnd_preloaded_models[5]->flags_08_bits.scale_active = 1;
-    g_bgnd_preloaded_models[5]->flags_08_bits.angular_velocity_enabled = 1;
+    g_bgnd_preloaded_models[5]->flags.airborne = 1;
+    g_bgnd_preloaded_models[5]->flags.scale_active = 1;
+    g_bgnd_preloaded_models[5]->flags.angular_velocity_enabled = 1;
     g_bgnd_preloaded_models[5]->ang.x = 1.5707964f;
     g_bgnd_preloaded_models[5]->ang.y = 0.0f;
     g_bgnd_preloaded_models[5]->ang.z = 0.0f;
@@ -9237,9 +9235,9 @@ static float winner_watching_him_fall(void) {
     g_bgnd_preloaded_models[7]->pos.value.x = bone_position.x;
     g_bgnd_preloaded_models[7]->pos.value.y = bone_position.y;
     g_bgnd_preloaded_models[7]->pos.value.z = bone_position.z;
-    g_bgnd_preloaded_models[7]->flags_08_bits.airborne = 1;
-    g_bgnd_preloaded_models[7]->flags_08_bits.scale_active = 1;
-    g_bgnd_preloaded_models[7]->flags_08_bits.angular_velocity_enabled = 1;
+    g_bgnd_preloaded_models[7]->flags.airborne = 1;
+    g_bgnd_preloaded_models[7]->flags.scale_active = 1;
+    g_bgnd_preloaded_models[7]->flags.angular_velocity_enabled = 1;
     g_bgnd_preloaded_models[7]->ang.x = 1.5707964f;
     g_bgnd_preloaded_models[7]->ang.y = 0.0f;
     g_bgnd_preloaded_models[7]->ang.z = 0.0f;
@@ -9285,28 +9283,28 @@ static float p_beetle_lair_watch_remaining_fall_scene(void) {
     }
 
     g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 0;
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.launched = 1;
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.bit6 = 1;
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 1;
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.head_tracking = 1;
-    g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit6 = 0;
-    g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit3 = 0;
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.face_opponent = 1;
+    g_game_info.plyr0.slot.mirror_a->flags.launched = 1;
+    g_game_info.plyr0.slot.mirror_a->flags.bit09_6 = 1;
+    g_game_info.plyr0.slot.mirror_a->flags.tightrope_restricted = 1;
+    g_game_info.plyr0.slot.mirror_a->flags.head_tracking = 1;
+    g_game_info.plyr0.slot.mirror_a->flags.bit0B_6 = 0;
+    g_game_info.plyr0.slot.mirror_a->flags.bit0B_3 = 0;
+    g_game_info.plyr0.slot.mirror_a->flags.face_opponent = 1;
 
     g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.launched = 1;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.bit6 = 1;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 1;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.head_tracking = 1;
-    g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit6 = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit3 = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.face_opponent = 1;
+    g_game_info.plyr1.slot.mirror_a->flags.launched = 1;
+    g_game_info.plyr1.slot.mirror_a->flags.bit09_6 = 1;
+    g_game_info.plyr1.slot.mirror_a->flags.tightrope_restricted = 1;
+    g_game_info.plyr1.slot.mirror_a->flags.head_tracking = 1;
+    g_game_info.plyr1.slot.mirror_a->flags.bit0B_6 = 0;
+    g_game_info.plyr1.slot.mirror_a->flags.bit0B_3 = 0;
+    g_game_info.plyr1.slot.mirror_a->flags.face_opponent = 1;
 
-    g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit6 = 0;
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 1;
+    g_game_info.plyr0.slot.mirror_a->flags.bit0B_6 = 0;
+    g_game_info.plyr0.slot.mirror_a->flags.tightrope_restricted = 1;
     g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 1;
-    g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit6 = 0;
+    g_game_info.plyr1.slot.mirror_a->flags.tightrope_restricted = 1;
+    g_game_info.plyr1.slot.mirror_a->flags.bit0B_6 = 0;
     g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 0;
     turn_controllers_on();
     g_game_info.flag_bits.level_transition_active = 0;
@@ -9362,21 +9360,21 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     }
 
     g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 1;
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.launched = 0;
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.bit6 = 0;
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.head_tracking = 0;
-    g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit6 = 1;
-    g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit3 = 1;
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.face_opponent = 0;
+    g_game_info.plyr0.slot.mirror_a->flags.launched = 0;
+    g_game_info.plyr0.slot.mirror_a->flags.bit09_6 = 0;
+    g_game_info.plyr0.slot.mirror_a->flags.tightrope_restricted = 0;
+    g_game_info.plyr0.slot.mirror_a->flags.head_tracking = 0;
+    g_game_info.plyr0.slot.mirror_a->flags.bit0B_6 = 1;
+    g_game_info.plyr0.slot.mirror_a->flags.bit0B_3 = 1;
+    g_game_info.plyr0.slot.mirror_a->flags.face_opponent = 0;
     g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 1;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.launched = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.bit6 = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.head_tracking = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit6 = 1;
-    g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit3 = 1;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.face_opponent = 0;
+    g_game_info.plyr1.slot.mirror_a->flags.launched = 0;
+    g_game_info.plyr1.slot.mirror_a->flags.bit09_6 = 0;
+    g_game_info.plyr1.slot.mirror_a->flags.tightrope_restricted = 0;
+    g_game_info.plyr1.slot.mirror_a->flags.head_tracking = 0;
+    g_game_info.plyr1.slot.mirror_a->flags.bit0B_6 = 1;
+    g_game_info.plyr1.slot.mirror_a->flags.bit0B_3 = 1;
+    g_game_info.plyr1.slot.mirror_a->flags.face_opponent = 0;
 
     player = data->player;
     process = _create_mkproc_generic_tinystack(
@@ -9617,7 +9615,7 @@ float r_beetle_lair_transition(void) {
     }
     obj_set_pos_vel(g_game_info.player_objects[0], &velocity);
     tightrope_restrictions_off();
-    plyr_obj->flags_0B_bits.bit6 = 1;
+    plyr_obj->flags.bit0B_6 = 1;
     special_move_cam_setup(0.35f, 4.0f, 2.0f, -2.67f, 0.2f, 1, 0xC8, 0);
     launch_me_up(0.025f, 0.0f);
     blend_to_ani(*(AniData**)&shared_ani[0x194], 0, 0.1f);
@@ -11047,7 +11045,7 @@ static void sh_load_objs(void) {
         g_slaughterhouse_pdata->lower_level_pebbles[3].instance =
             object->hdr.instance;
         object->light_flags = 4;
-        object->flags_08_bits.airborne = 1;
+        object->flags.airborne = 1;
         insert_fgnd_mkobj(object);
         hide_obj(object);
     }
@@ -11060,7 +11058,7 @@ static void sh_load_objs(void) {
         g_slaughterhouse_pdata->lower_level_pebbles[4].instance =
             object->hdr.instance;
         object->light_flags = 4;
-        object->flags_08_bits.airborne = 1;
+        object->flags.airborne = 1;
         insert_fgnd_mkobj(object);
         hide_obj(object);
     }
@@ -11488,12 +11486,12 @@ float p_sh_throw_plyr_in_grinder(void) {
     aproc->vtbl->sleep();
     sh_set_grinder_speed(0.15f);
     plyr_pdata->state_flags.bits.bit3 = 1;
-    plyr_obj->flags_09_bits.launched = 0;
-    plyr_obj->flags_09_bits.bit6 = 0;
-    plyr_obj->flags_09_bits.tightrope_restricted = 0;
-    plyr_obj->flags_09_bits.head_tracking = 0;
-    plyr_obj->flags_0B_bits.bit6 = 1;
-    plyr_obj->flags_0B_bits.bit3 = 1;
+    plyr_obj->flags.launched = 0;
+    plyr_obj->flags.bit09_6 = 0;
+    plyr_obj->flags.tightrope_restricted = 0;
+    plyr_obj->flags.head_tracking = 0;
+    plyr_obj->flags.bit0B_6 = 1;
+    plyr_obj->flags.bit0B_3 = 1;
 
     first = obj_find_sobj_by_id(g_game_info.bgnd_obj, 1);
     target.x = first->pos.x;
@@ -11520,7 +11518,7 @@ float p_sh_throw_plyr_in_grinder(void) {
     plyr_obj->pos_vel.z *= scale;
     distance = dist_xz_to_xz(&plyr_obj->pos.value, &target);
     plyr_obj->pos_vel.y = 0.2f * (1.0f / distance);
-    plyr_obj->flags_08_bits.moving = 0;
+    plyr_obj->flags.moving = 0;
     xfer_proc(plyr_anim_proc, p_animate);
     blend_to_ani(*(AniData**)&shared_ani[0x44], 0, 1.0f);
     run_camera_script(g_game_info.cmdscript, 0x1F, 0);
@@ -11696,12 +11694,12 @@ static void sh_start_fatality_body_parts(PlyrPdata* player) {
     process_data->player = plyr_pdata;
 }
 static void sh_update_fatality_body_part(MkObj* object) {
-    object->flags_08_bits.airborne = 1;
-    object->flags_08_bits.gravity_enabled = 1;
-    object->flags_08_bits.angular_velocity_enabled = 1;
-    object->flags_08_bits.rotation_enabled = 1;
+    object->flags.airborne = 1;
+    object->flags.gravity_enabled = 1;
+    object->flags.angular_velocity_enabled = 1;
+    object->flags.rotation_enabled = 1;
 
-    if (object->flags_08_bits.moving) {
+    if (object->flags.moving) {
         if (object->pos.value.z > 21.65f) {
             object->pos.value.z = 21.65f;
             object->pos_vel.x *= 0.3f;
@@ -11711,7 +11709,7 @@ static void sh_update_fatality_body_part(MkObj* object) {
             object->ang_vel.z = 0.5f * object->ang_vel.z;
         }
         if (object->pos.value.y <= -15.6f) {
-            object->flags_08_bits.moving = 0;
+            object->flags.moving = 0;
             object->ang_vel.z = 0.0f;
             object->ang_vel.y = 0.0f;
             object->ang_vel.x = 0.0f;
@@ -11989,14 +11987,14 @@ void bgnd_sobj_start_morph(MkObj* object, int sobj_id, int script_id,
         break;
     }
     obj_start_morph(object, sobj_id, script, flags);
-    object->hide_flag_bits.hidden = 0;
+    object->flags.hidden = 0;
 }
 void set_obj_pos(MkObj* object, float x, float y, float z) {
     if (object != 0) {
         object->pos.value.x = x;
         object->pos.value.y = y;
         object->pos.value.z = z;
-        object->flags_08_bits.bit7 = 1;
+        object->flags.bit08_7 = 1;
     }
 }
 void set_obj_ang(MkObj* object, float x, float y, float z) {
@@ -12004,7 +12002,7 @@ void set_obj_ang(MkObj* object, float x, float y, float z) {
         object->ang.x = x;
         object->ang.y = y;
         object->ang.z = z;
-        object->flags_08_bits.transform_dirty = 1;
+        object->flags.transform_dirty = 1;
     }
 }
 void set_obj_light_flags(MkObj* object, int flags) {
@@ -12151,11 +12149,11 @@ void bgnd_level_transition_start(void) {
     g_game_info.plyr1.slot.pdata->collision_disabled = 1;
 }
 void bgnd_level_transition_end(void) {
-    g_game_info.plyr0.slot.mirror_a->flags_0B_bits.bit6 = 0;
-    g_game_info.plyr0.slot.mirror_a->flags_09_bits.tightrope_restricted = 1;
+    g_game_info.plyr0.slot.mirror_a->flags.bit0B_6 = 0;
+    g_game_info.plyr0.slot.mirror_a->flags.tightrope_restricted = 1;
     g_game_info.plyr0.slot.pdata->state_flags.bits.bit3 = 0;
-    g_game_info.plyr1.slot.mirror_a->flags_09_bits.tightrope_restricted = 1;
-    g_game_info.plyr1.slot.mirror_a->flags_0B_bits.bit6 = 0;
+    g_game_info.plyr1.slot.mirror_a->flags.tightrope_restricted = 1;
+    g_game_info.plyr1.slot.mirror_a->flags.bit0B_6 = 0;
     g_game_info.plyr1.slot.pdata->state_flags.bits.bit3 = 0;
     turn_controllers_on();
     g_game_info.flag_bits.level_transition_active = 0;

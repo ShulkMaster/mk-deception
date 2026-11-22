@@ -1,5 +1,3 @@
-/* BUILD: -inline off: keep bl GetDirection/Process/GetMaxTime. */
-
 #include "mwScreenEngine/Screen.h"
 #include "mwScreenEngine/ScreenAnimScene.h"
 #include "mwScreenEngine/ScreenAnimEffect.h"
@@ -33,7 +31,6 @@ int ScreenAnimScene::CalculateMaxTime() {
         effects = track->effects;
         effectCount = effects->count;
         while (effectIdx < effectCount) {
-            /* The effects table and time offset are re-read every iteration. */
             effects = track->effects;
             timeOffset = track->timeOffset;
             effect = SEAnimEffectAtOffset(effects, effectOffset);
@@ -55,7 +52,6 @@ int ScreenAnimScene::CalculateMaxTime() {
 void ScreenAnimScene::PlayUntilTime(int time) {
     m_flags |= ANIM_SCENE_PLAYING;
     m_untilTime = time;
-    /* Retail: fcmpo until vs (float)m_time; ble -> clear 0x20, else set. */
     if (m_untilTime > (float)m_time) {
         m_flags |= ANIM_SCENE_FORWARD;
     } else {

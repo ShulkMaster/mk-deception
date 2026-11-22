@@ -22,23 +22,22 @@ class SoundBuffer_Playable;
 typedef SoundBuffer_Playable mslPlayable;
 
 struct mslInitParam {
-    unsigned long size;           /* +0x00 */
-    unsigned long flags;          /* +0x04 */
-    unsigned long track_count;    /* +0x08 */
-}; /* 0x0C */
+    unsigned long size;
+    unsigned long flags;
+    unsigned long track_count;
+};
 
 struct mslSysInitParam {
-    unsigned long size;           /* +0x00 */
-    unsigned long flags;          /* +0x04 */
-    unsigned short first_voice;   /* +0x08 */
-    unsigned short voice_count;   /* +0x0A */
-    unsigned long aram_base;      /* +0x0C */
-    unsigned long aram_size;      /* +0x10 */
-}; /* 0x14 */
+    unsigned long size;
+    unsigned long flags;
+    unsigned short first_voice;
+    unsigned short voice_count;
+    unsigned long aram_base;
+    unsigned long aram_size;
+};
 
 template <class T>
 union mslRelocPtr {
-    /* Serialized offsets/tokens are rewritten in place to runtime pointers. */
     unsigned long offset;
     long token;
     T* pointer;
@@ -55,27 +54,27 @@ enum _mslError_e {
 };
 
 struct _mslSystem {
-    MslCriticalSection critical_section; /* +0x000 */
-    unsigned long track_count;    /* +0x0CC */
-    struct mslTrack* tracks;      /* +0x0D0 */
-    unsigned long reservedD4;     /* +0x0D4 */
-    _ListNode* active_sounds;     /* +0x0D8 */
-    _ListNode* active_adjustments;/* +0x0DC */
+    MslCriticalSection critical_section;
+    unsigned long track_count;
+    struct mslTrack* tracks;
+    unsigned long reservedD4;
+    _ListNode* active_sounds;
+    _ListNode* active_adjustments;
     unsigned char padE0[8];
-    _ListNode* reservedE8;         /* +0x0E8 */
-    struct mslCallback* callbacks;/* +0x0EC */
-    int pending_bank_loads;       /* +0x0F0 */
-    float volume;                 /* +0x0F4 */
-    float pan;                    /* +0x0F8 */
-    float pitch;                  /* +0x0FC */
-    float duck_volume;            /* +0x100 */
-    float duck_pan;               /* +0x104 */
-    float duck_pitch;             /* +0x108 */
-    int sound_mode;               /* +0x10C */
-    int sound_list_guard;         /* +0x110 */
-    char bank_path[0x100];         /* +0x114 */
-    unsigned long flags;          /* +0x214 */
-}; /* 0x218 */
+    _ListNode* reservedE8;
+    struct mslCallback* callbacks;
+    int pending_bank_loads;
+    float volume;
+    float pan;
+    float pitch;
+    float duck_volume;
+    float duck_pan;
+    float duck_pitch;
+    int sound_mode;
+    int sound_list_guard;
+    char bank_path[0x100];
+    unsigned long flags;
+};
 
 typedef char MslSystemSize[
     sizeof(_mslSystem) == 0x218 ? 1 : -1];
@@ -95,108 +94,103 @@ void mslTickCallBack_Queue(
 #endif
 
 struct mslTrack {
-    _mslSound* sound;             /* +0x00 */
-    mslQueue* queue;              /* +0x04 */
-}; /* 0x08 */
+    _mslSound* sound;
+    mslQueue* queue;
+};
 
 struct mslAsyncBank {
-    char filename[0x100];         /* +0x000 */
-    _mwFile* sounds_file;         /* +0x100 */
-    _mwFile* waves_file;          /* +0x104 */
-    unsigned long sounds_size;    /* +0x108 */
-    mslLoadedBank* bank_data;     /* +0x10C */
-    _mslAsyncResponse* response;  /* +0x110 */
-    _mslSystem* system;           /* +0x114 */
-    unsigned long asset_version;  /* +0x118 */
-    long entry_count;             /* +0x11C; retail loop bounds are signed */
-    unsigned long asset_info_size;/* +0x120 */
-    unsigned long string_offset;  /* +0x124 */
-    unsigned long wave_offset;    /* +0x128 */
-    unsigned long wave_size;      /* +0x12C */
-    unsigned long read_state;     /* +0x130 */
-}; /* 0x134 */
+    char filename[0x100];
+    _mwFile* sounds_file;
+    _mwFile* waves_file;
+    unsigned long sounds_size;
+    mslLoadedBank* bank_data;
+    _mslAsyncResponse* response;
+    _mslSystem* system;
+    unsigned long asset_version;
+    long entry_count;
+    unsigned long asset_info_size;
+    unsigned long string_offset;
+    unsigned long wave_offset;
+    unsigned long wave_size;
+    unsigned long read_state;
+};
 
 struct mslBankSoundEntry {
-    mslBankSoundDefinition* definition; /* +0x00 */
-    _mslSound* sound;             /* +0x04 */
-    mslLoadedBank* owner_bank;    /* +0x08 */
-    unsigned long flags;          /* +0x0C */
-}; /* 0x10 */
+    mslBankSoundDefinition* definition;
+    _mslSound* sound;
+    mslLoadedBank* owner_bank;
+    unsigned long flags;
+};
 
 struct _mslSound {
     unsigned char pad00[0x30];
-    mslLoadedBank* owner_bank;    /* +0x30 */
+    mslLoadedBank* owner_bank;
 };
 
-/*
- * Full overlay used by the bank play path. Keep the smaller _mslSound view
- * for ownership-only loops: MWCC 2.7 crashes while optimizing that partial
- * TU when the larger layout is substituted directly.
- */
 struct mslRuntimeSound {
-    mslBankSoundDefinition* definition; /* +0x00 */
-    mslCmdItem* current_command;  /* +0x04 */
-    float end_time;               /* +0x08 */
-    int track;                    /* +0x0C */
-    int priority;                 /* +0x10 */
-    float volume;                 /* +0x14 */
-    float pan;                    /* +0x18 */
-    float pitch;                  /* +0x1C */
-    float volume_scale;           /* +0x20 */
-    float pan_offset;             /* +0x24 */
-    float pitch_scale;            /* +0x28 */
-    mslRuntimeWave* waves;        /* +0x2C */
-    mslLoadedBank* owner_bank;    /* +0x30 */
-    mslBankSoundEntry* bank_sound_entry; /* +0x34 */
-    _ListNode* adjustments;       /* +0x38 */
-    _mslSystem* system;           /* +0x3C */
-    float update_time;            /* +0x40 */
-    unsigned long flags;          /* +0x44 */
-    int bank_ref_count;           /* +0x48 */
+    mslBankSoundDefinition* definition;
+    mslCmdItem* current_command;
+    float end_time;
+    int track;
+    int priority;
+    float volume;
+    float pan;
+    float pitch;
+    float volume_scale;
+    float pan_offset;
+    float pitch_scale;
+    mslRuntimeWave* waves;
+    mslLoadedBank* owner_bank;
+    mslBankSoundEntry* bank_sound_entry;
+    _ListNode* adjustments;
+    _mslSystem* system;
+    float update_time;
+    unsigned long flags;
+    int bank_ref_count;
     unsigned char pad4C[4];
-    int callback_data;            /* +0x50 */
+    int callback_data;
 };
 
 struct mslWave {
-    unsigned long flags;          /* +0x00 */
+    unsigned long flags;
 };
 
 struct mslRuntimeWave {
-    unsigned long flags;          /* +0x00 */
-    mslPlayable* playable;        /* +0x04 */
-    mslAssetWave* file_entry;     /* +0x08 */
-    int use_count;                /* +0x0C */
-    unsigned long unknown10;      /* +0x10 */
-    float volume;                 /* +0x14 */
-    float pan;                    /* +0x18 */
-    float pitch;                  /* +0x1C */
-    mslRuntimeSound* sound;        /* +0x20 */
-    mslRuntimeWave** previous_link;/* +0x24 */
-    mslRuntimeWave* next;          /* +0x28 */
-    int command_value;            /* +0x2C */
-    int play_state;               /* +0x30 */
-    unsigned long unknown34;      /* +0x34 */
+    unsigned long flags;
+    mslPlayable* playable;
+    mslAssetWave* file_entry;
+    int use_count;
+    unsigned long unknown10;
+    float volume;
+    float pan;
+    float pitch;
+    mslRuntimeSound* sound;
+    mslRuntimeWave** previous_link;
+    mslRuntimeWave* next;
+    int command_value;
+    int play_state;
+    unsigned long unknown34;
 };
 
 struct mslAssetWave {
-    mslRelocPtr<char> name;       /* +0x00 */
-    unsigned long primary_aram_offset; /* +0x04 */
-    unsigned long aram_size;      /* +0x08 */
-    mslRelocPtr<SPSoundTable> sound_table; /* +0x0C */
+    mslRelocPtr<char> name;
+    unsigned long primary_aram_offset;
+    unsigned long aram_size;
+    mslRelocPtr<SPSoundTable> sound_table;
     unsigned char pad10[4];
-    int resident;                 /* +0x14 */
-    int has_secondary;            /* +0x18 */
-    mslRelocPtr<char> secondary_name; /* +0x1C */
-    unsigned long secondary_aram_offset; /* +0x20 */
+    int resident;
+    int has_secondary;
+    mslRelocPtr<char> secondary_name;
+    unsigned long secondary_aram_offset;
     unsigned char pad24[4];
-    mslRelocPtr<SPSoundTable> secondary_sound_table; /* +0x28 */
+    mslRelocPtr<SPSoundTable> secondary_sound_table;
     unsigned char pad2C[4];
-}; /* 0x30 */
+};
 
 struct mslAssetInfo {
     unsigned char pad00[0x18];
-    void* temporary_names;        /* +0x18 */
-    mslAssetWave waves[1];        /* +0x1C */
+    void* temporary_names;
+    mslAssetWave waves[1];
 
     char* At(unsigned long offset) {
         return (char*)this + offset;
@@ -204,79 +198,79 @@ struct mslAssetInfo {
 };
 
 struct mslBankWaveEntry {
-    mslRuntimeWave* wave;         /* +0x00 */
-    mslLoadedBank* owner_bank;    /* +0x04 */
-    mslRelocPtr<char> name;       /* +0x08 */
+    mslRuntimeWave* wave;
+    mslLoadedBank* owner_bank;
+    mslRelocPtr<char> name;
     unsigned char pad0C[0x14];
-    unsigned long flags;          /* +0x20 */
+    unsigned long flags;
     unsigned char pad24[0x24];
-}; /* 0x48 */
+};
 
 struct mslCmdItem {
-    mslRelocPtr<void> source;     /* +0x00 */
-    mslRelocPtr<void> target;     /* +0x04 */
-    signed char type;             /* +0x08 */
+    mslRelocPtr<void> source;
+    mslRelocPtr<void> target;
+    signed char type;
     unsigned char pad09;
-    short wave_value;             /* +0x0A */
-    int unknown0C;                /* +0x0C */
-    int command_state;            /* +0x10 */
-    mslRuntimeWave* attached_wave;/* +0x14 */
-    float value;                  /* +0x18 */
-    float unknown1C;              /* +0x1C */
-    float unknown20;              /* +0x20 */
-    float unknown24;              /* +0x24 */
-    float unknown28;              /* +0x28 */
-    unsigned long unknown2C;      /* +0x2C */
-}; /* 0x30 */
+    short wave_value;
+    int unknown0C;
+    int command_state;
+    mslRuntimeWave* attached_wave;
+    float value;
+    float unknown1C;
+    float unknown20;
+    float unknown24;
+    float unknown28;
+    unsigned long unknown2C;
+};
 
 struct mslCallback {
-    const char* name;             /* +0x00 */
-    void (*function)(const char*);/* +0x04 */
+    const char* name;
+    void (*function)(const char*);
     unsigned char pad08[4];
-    mslCallback* next;            /* +0x0C */
+    mslCallback* next;
 };
 
 struct mslAdjustment {
-    float start_time;             /* +0x00 */
-    float start_volume;           /* +0x04 */
-    float start_pan;              /* +0x08 */
-    float start_pitch;            /* +0x0C */
-    float end_time;               /* +0x10 */
-    float end_volume;             /* +0x14 */
-    float end_pan;                /* +0x18 */
-    float end_pitch;              /* +0x1C */
-    unsigned long flags;          /* +0x20 */
-    mslRuntimeWave* wave;         /* +0x24 */
-    mslRuntimeSound* sound;       /* +0x28 */
-}; /* 0x2C */
+    float start_time;
+    float start_volume;
+    float start_pan;
+    float start_pitch;
+    float end_time;
+    float end_volume;
+    float end_pan;
+    float end_pitch;
+    unsigned long flags;
+    mslRuntimeWave* wave;
+    mslRuntimeSound* sound;
+};
 
 struct mslBankSoundDefinition {
     unsigned char pad00[8];
-    int command_count;            /* +0x08 */
-    mslCmdItem* commands;         /* +0x0C */
-}; /* 0x10 */
+    int command_count;
+    mslCmdItem* commands;
+};
 
 struct mslLoadedBank {
-    int version;                  /* +0x00 -- retail requires 11 */
-    unsigned int flags;           /* +0x04 -- format feature flags */
-    short wave_count;             /* +0x08 */
-    short sound_count;            /* +0x0A */
-    short sound_id_count;          /* +0x0C */
+    int version;
+    unsigned int flags;
+    short wave_count;
+    short sound_count;
+    short sound_id_count;
     unsigned char pad0E[2];
-    mslRelocPtr<mslBankWaveEntry> waves; /* +0x10 */
-    mslRelocPtr<mslBankSoundEntry> sounds; /* +0x14 */
-    mslRelocPtr<mslBankSoundDefinition> definitions; /* +0x18 */
-    mslRelocPtr<mslCmdItem> command_items; /* +0x1C */
-    mslRelocPtr<short> sound_ids; /* +0x20 -- external ID -> sound index + 1 */
-    mslRelocPtr<void> unknown24;  /* +0x24 */
-    mslRelocPtr<char> string_table; /* +0x28 */
+    mslRelocPtr<mslBankWaveEntry> waves;
+    mslRelocPtr<mslBankSoundEntry> sounds;
+    mslRelocPtr<mslBankSoundDefinition> definitions;
+    mslRelocPtr<mslCmdItem> command_items;
+    mslRelocPtr<short> sound_ids;
+    mslRelocPtr<void> unknown24;
+    mslRelocPtr<char> string_table;
     unsigned char pad2C[4];
-    _mslSystem* system;           /* +0x30 */
-    mslLoadedBank* next;          /* +0x34 */
-    mslLoadedBank* previous;      /* +0x38 */
-    _mwFile* waves_file;          /* +0x3C */
-    mslAssetInfo* asset_info;     /* +0x40 */
-    MSLGCN_ARamBlock* resident_aram_block; /* +0x44 */
+    _mslSystem* system;
+    mslLoadedBank* next;
+    mslLoadedBank* previous;
+    _mwFile* waves_file;
+    mslAssetInfo* asset_info;
+    MSLGCN_ARamBlock* resident_aram_block;
 
     char* At(unsigned long offset) {
         return (char*)this + offset;

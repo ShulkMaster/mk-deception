@@ -2,7 +2,6 @@
 
 #define HAS_ZERO_BYTE(word) (((word) + 0xFEFEFEFFU) & 0x80808080U)
 
-/* MSL retains its strerror literal pool beside strtok's empty sentinel. */
 #define ERROR_STRINGS                                                          \
     "Argument list too long\0Permission denied\0"                            \
     "Resource temporarily unavailable\0Bad file descriptor\0Device busy\0"  \

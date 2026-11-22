@@ -73,22 +73,10 @@ struct AniTextureControl {
     int frame;
     union {
         unsigned int flags_word;
-        struct {
-            union {
-                unsigned char flags_byte;
-                AtcFlagBits flag_bits;
-                AtcAlphaFlag alpha_flag_bits;
-            };
-            unsigned char flags_byte_0D;
-            unsigned short flags_hi;
-        };
-        struct {
-            union {
-                unsigned short flags;
-                AtcMaterialIdBits material_id_bits;
-            };
-            unsigned short flags_hi_word;
-        };
+        AtcFlagBits flag_bits;
+        AtcAlphaFlag alpha_flag_bits;
+        unsigned short flags;
+        AtcMaterialIdBits material_id_bits;
     };
     float frame_f;
     int numframes;

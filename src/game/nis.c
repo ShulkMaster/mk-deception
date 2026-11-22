@@ -127,7 +127,7 @@ void release_kamidogu(MkObj* owner, void* bonematcher) {
     if (owner == 0) {
         return;
     }
-    owner->flags_08_bits.airborne = 1;
+    owner->flags.airborne = 1;
     if (_create_mkproc_generic_nostack(0x902E, 0x1F, p_drop_kamidogu, sizeof(struct KamidoguDropPdata), (MkHdr**)&pdata) == 0) {
         return;
     }

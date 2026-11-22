@@ -7,12 +7,6 @@
 #include "game/blood_asset.h"
 #include "runtime/plyr_info.h"
 
-/*
- * Fight player pdata (mkpdata_plyr).
- * Pool: _mkpdata_plyrs .bss size 0xE98 = 2 * 0x74C (init_mkpdata_plyrs).
- * Offsets from plyr_pdata_get_* (Ghidra) + get_mkpdata_plyr zeroing.
- */
-
 typedef struct MkObj MkObj;
 typedef struct ScriptSlot ScriptSlot;
 typedef struct SwitchData SwitchData;
@@ -31,7 +25,7 @@ typedef struct AiFightstyleAttack {
 
 typedef struct AiFightstyleAttackTable {
     PlyrMoveBlendData move_data;
-    AiFightstyleAttack attacks[25]; /* +0xF0 */
+    AiFightstyleAttack attacks[25];
 } AiFightstyleAttackTable;
 
 typedef char PlyrStyleDefinitionSizeCheck[sizeof(PlyrStyleDefinition) == 0xF0 ? 1 : -1];
@@ -40,7 +34,7 @@ typedef char AiFightstyleAttackTableSizeCheck[sizeof(AiFightstyleAttackTable) ==
 
 typedef struct PlyrWeaponImpactData {
     char pad00[0x20];
-    int attack_region; /* +0x20 */
+    int attack_region;
 } PlyrWeaponImpactData;
 
 typedef PlyrStyleDefinition PlyrMoveDisplayData;
@@ -57,13 +51,13 @@ typedef struct PlyrMirrorBoneMap {
 
 typedef struct PlyrStateFlagBits {
     unsigned char pad_bit7 : 1;
-    unsigned char frozen : 1; /* bit6 - freeze-light lifetime */
+    unsigned char frozen : 1;
     unsigned char pad_bit5 : 1;
-    unsigned char dizzy : 1; /* bit4 - held in the puzzle dizzy state */
+    unsigned char dizzy : 1;
     unsigned char bit3 : 1;
     unsigned char pad_bit2 : 1;
-    unsigned char projectile_invulnerable : 1; /* bit1 */
-    unsigned char projectile_request : 1; /* bit0 - sidekick projectile request */
+    unsigned char projectile_invulnerable : 1;
+    unsigned char projectile_request : 1;
 } PlyrStateFlagBits;
 
 typedef union PlyrStateFlags {
@@ -78,20 +72,20 @@ typedef struct PlyrDisabledMove {
 } PlyrDisabledMove;
 
 typedef struct FatalityDefinition {
-    const char* primary_section; /* +0x00 */
-    unsigned int primary_script; /* +0x04 */
-    unsigned int primary_victim_script; /* +0x08 */
+    const char* primary_section;
+    unsigned int primary_script;
+    unsigned int primary_victim_script;
     float primary_min;
     float primary_max;
     char pad14[4];
-    const char* secondary_section; /* +0x18 */
-    unsigned int secondary_script; /* +0x1C */
-    unsigned int secondary_victim_script; /* +0x20 */
+    const char* secondary_section;
+    unsigned int secondary_script;
+    unsigned int secondary_victim_script;
     float secondary_min;
     float secondary_max;
     char pad2C[8];
-    unsigned int suicide_script; /* +0x34 */
-    unsigned int suicide_sidekick_script; /* +0x38 */
+    unsigned int suicide_script;
+    unsigned int suicide_sidekick_script;
 } FatalityDefinition;
 
 typedef struct FatalityRadiusCheck {
@@ -112,323 +106,311 @@ typedef struct PlyrProcLatch {
 } PlyrProcLatch;
 
 typedef struct PlyrPdata {
-    void* vtbl; /* +0x00 - vtbl_mkpdata_plyr; free-list next when idle */
-    unsigned int instance; /* +0x04 */
+    void* vtbl;
+    unsigned int instance;
     union {
         struct {
             union {
                 struct MkProc* player_proc;
                 struct MkProc* opponent_proc;
-            }; /* +0x08 */
+            };
             union {
                 unsigned int player_proc_instance;
                 unsigned int opponent_proc_instance;
-            }; /* +0x0C */
+            };
         };
         PlyrProcLatch player_proc_latch;
     };
-    struct PlyrPdata* his_plyr_pdata; /* +0x10 */
-    MkObj* his_obj;                   /* +0x14 */
-    PlyrInfo* plyr_info;              /* +0x18 - GameInfo plyr0/plyr1 */
-    PlyrStateFlags state_flags; /* +0x1C */
-    struct MkProc* own_player_proc; /* +0x20 */
-    unsigned int own_player_proc_instance; /* +0x24 */
-    struct MkProc* aux_player_proc; /* +0x28 */
-    unsigned int aux_player_proc_instance; /* +0x2C */
+    struct PlyrPdata* his_plyr_pdata;
+    MkObj* his_obj;
+    PlyrInfo* plyr_info;
+    PlyrStateFlags state_flags;
+    struct MkProc* own_player_proc;
+    unsigned int own_player_proc_instance;
+    struct MkProc* aux_player_proc;
+    unsigned int aux_player_proc_instance;
     union {
         struct {
-            MkObj* tracked_obj; /* +0x30 */
-            unsigned int tracked_obj_instance; /* +0x34 */
+            MkObj* tracked_obj;
+            unsigned int tracked_obj_instance;
         };
         PlyrMirrorObjLatch tracked_obj_latch;
     };
-    PlyrMirrorObjLatch held_opponent_latch; /* +0x38 */
-    PlyrMirrorObjLatch aux_weapon_latch; /* +0x40 */
-    PlyrMirrorObjLatch mirror_obj; /* +0x48 */
+    PlyrMirrorObjLatch held_opponent_latch;
+    PlyrMirrorObjLatch aux_weapon_latch;
+    PlyrMirrorObjLatch mirror_obj;
     union {
         struct {
             struct MkProc* hold_proc;
             unsigned int hold_proc_instance;
         };
-        PlyrProcLatch hold_proc_latch;
         MkHdrLatch hold_hdr_latch;
-    }; /* +0x50 */
-    MkPtr* item_links; /* +0x58 - item attachment/link records */
-    struct MkProc* anim_proc; /* +0x5C */
-    unsigned int anim_proc_instance; /* +0x60 */
+    };
+    MkPtr* item_links;
+    struct MkProc* anim_proc;
+    unsigned int anim_proc_instance;
     union {
         struct {
             struct MkProc* left_hand_anim_proc;
             unsigned int left_hand_anim_instance;
         };
         PlyrProcLatch left_hand_anim_latch;
-    }; /* +0x64 */
+    };
     union {
         struct {
             struct MkProc* right_hand_anim_proc;
             unsigned int right_hand_anim_instance;
         };
         PlyrProcLatch right_hand_anim_latch;
-    }; /* +0x6C */
+    };
     union {
         struct {
             struct MkProc* face_anim_proc;
             unsigned int face_anim_proc_instance;
         };
         PlyrProcLatch face_anim_latch;
-    }; /* +0x74 */
+    };
     PlyrProcLatch field_7C;
     PlyrProcLatch field_84;
     PlyrProcLatch field_8C;
     PlyrProcLatch goro_hand_anim[4];
-    struct MkProc* transient_proc; /* +0xB4 */
-    unsigned int transient_proc_instance; /* +0xB8 */
+    struct MkProc* transient_proc;
+    unsigned int transient_proc_instance;
     unsigned int reserved_BC[8];
-    PlyrMirrorObjLatch impaled_item_a;           /* +0xDC */
-    PlyrMirrorObjLatch impaled_item_b;           /* +0xE4 */
-    PlyrMirrorObjLatch impaled_item_a_secondary; /* +0xEC */
-    PlyrMirrorObjLatch impaled_item_b_secondary; /* +0xF4 */
+    PlyrMirrorObjLatch impaled_item_a;
+    PlyrMirrorObjLatch impaled_item_b;
+    PlyrMirrorObjLatch impaled_item_a_secondary;
+    PlyrMirrorObjLatch impaled_item_b_secondary;
     unsigned int reserved_FC;
-    struct MkProc* spear_proc; /* +0x100 */
-    unsigned int spear_proc_instance; /* +0x104 */
+    struct MkProc* spear_proc;
+    unsigned int spear_proc_instance;
     unsigned int reserved_108;
-    struct ScalePdata* scale_pdata; /* +0x10C */
-    unsigned int scale_pdata_instance; /* +0x110 */
-    AniTextureControlItem facial_texture; /* +0x114 */
-    struct MkProc* foot_print_proc; /* +0x11C */
-    unsigned int foot_print_proc_instance; /* +0x120 */
+    struct ScalePdata* scale_pdata;
+    unsigned int scale_pdata_instance;
+    AniTextureControlItem facial_texture;
+    struct MkProc* foot_print_proc;
+    unsigned int foot_print_proc_instance;
     unsigned int reserved_124[4];
-    MkPtr* active_weapon_links; /* +0x134 */
+    MkPtr* active_weapon_links;
     unsigned int reserved_138[3];
-    PlyrMirrorObjLatch reserved_obj_latches[15]; /* +0x144 */
+    PlyrMirrorObjLatch reserved_obj_latches[15];
     union {
         PlyrMirrorObjLatch held_by_object_latch;
         struct {
             int held_by_player;
             int hold_state;
         };
-    }; /* +0x1BC */
-    int (*aux_update_callback)(void); /* +0x1C4 */
-    PlyrWeaponImpactData* weapon_impact; /* +0x1C8 */
+    };
+    int (*aux_update_callback)(void);
+    PlyrWeaponImpactData* weapon_impact;
     union {
         void* pchr;
         int character_id;
-    }; /* +0x1CC */
-    int plyr_num;   /* +0x1D0 */
-    PlyrMirrorBoneMap* mirror_bone_map; /* +0x1D4 */
+    };
+    int plyr_num;
+    PlyrMirrorBoneMap* mirror_bone_map;
     char pad1D8[4];
-    int collision_result;        /* +0x1DC */
-    int hit_flash_enabled;         /* +0x1E0 */
-    int blocking_disabled;       /* +0x1E4 */
-    int blocking_disabled_2;     /* +0x1E8 */
-    unsigned int blocking_disable_tick_1; /* +0x1EC */
-    unsigned int blocking_disable_tick_2; /* +0x1F0 */
+    int collision_result;
+    int hit_flash_enabled;
+    int blocking_disabled;
+    int blocking_disabled_2;
+    unsigned int blocking_disable_tick_1;
+    unsigned int blocking_disable_tick_2;
     union {
         int input_unlock_tick;
         unsigned int action_lock_a;
-    }; /* +0x1F4 */
+    };
     union {
         int attacks_disabled_until;
         unsigned int action_lock_b;
-    }; /* +0x1F8 */
-    int attack_disable_tick_p1; /* +0x1FC */
-    int attack_disable_tick_p2; /* +0x200 */
-    int dodge_sound_played; /* +0x204 */
+    };
+    int attack_disable_tick_p1;
+    int attack_disable_tick_p2;
+    int dodge_sound_played;
     char pad208[4];
-    PlyrDisabledMove disabled_moves[4]; /* +0x20C */
-    int special_move_disabled; /* +0x22C */
-    int f_constrained; /* +0x230 */
+    PlyrDisabledMove disabled_moves[4];
+    int special_move_disabled;
+    int f_constrained;
     int field_234;
-    int breaker_strength; /* +0x238 - MK Chess fight setup */
-    int throw_restriction; /* +0x23C */
-    int secondary_state; /* +0x240 */
-    int state;          /* +0x244 */
-    int previous_state; /* +0x248 */
+    int breaker_strength;
+    int throw_restriction;
+    int secondary_state;
+    int state;
+    int previous_state;
     union {
         SwitchData* switch_data;
         int controller_port;
-    }; /* +0x24C */
-    int hit_count; /* +0x250 */
-    int reaction_hit_count; /* +0x254 */
-    int hit_streak; /* +0x258 */
-    int combo_hit_count; /* +0x25C */
-    int combo_flags; /* +0x260 */
-    int attack_counter; /* +0x264 */
-    int shared_attack_until; /* +0x268 */
+    };
+    int hit_count;
+    int reaction_hit_count;
+    int hit_streak;
+    int combo_hit_count;
+    int combo_flags;
+    int attack_counter;
+    int shared_attack_until;
     int field_26C;
     char pad270[4];
-    unsigned int last_collision_tick; /* +0x274 */
-    int last_back_dash_tick; /* +0x278 - switch double-tap timing */
+    unsigned int last_collision_tick;
+    int last_back_dash_tick;
     char pad27C[4];
-    unsigned int charge_up_disabled_until; /* +0x280 */
-    unsigned int damage_boost_until; /* +0x284 */
-    float damage_boost; /* +0x288 */
-    float taunt_life_scale; /* +0x28C */
-    float postround_value; /* +0x290 */
-    float combo_damage; /* +0x294 */
-    float damage_multiplier; /* +0x298 */
-    int his_attack_counter; /* +0x29C */
-    int script_exit_value_int; /* +0x2A0 */
-    int script_exit_args[2]; /* +0x2A4 */
+    unsigned int charge_up_disabled_until;
+    unsigned int damage_boost_until;
+    float damage_boost;
+    float taunt_life_scale;
+    float postround_value;
+    float combo_damage;
+    float damage_multiplier;
+    int his_attack_counter;
+    int script_exit_value_int;
+    int script_exit_args[2];
     union {
         int script_exit_arg_2;
         int duck_loop_counter;
-    }; /* +0x2AC */
-    int fatality_advance; /* +0x2B0 */
-    int facial_damage_complete; /* +0x2B4 */
-    float summon_position_x; /* +0x2B8 */
-    float summon_position_z; /* +0x2BC */
-    float summon_position_y; /* +0x2C0 */
-    int drone_request; /* +0x2C4 */
-    int drone_handoff_pending; /* +0x2C8 */
-    int collision_disabled; /* +0x2CC */
-    int duck_wait_ticks; /* +0x2D0 */
+    };
+    int fatality_advance;
+    int facial_damage_complete;
+    float summon_position_x;
+    float summon_position_z;
+    float summon_position_y;
+    int drone_request;
+    int drone_handoff_pending;
+    int collision_disabled;
+    int duck_wait_ticks;
     char pad2D4[8];
-    unsigned int block_start_tick; /* +0x2DC */
-    int opponent_attack_counter; /* +0x2E0 */
+    unsigned int block_start_tick;
+    int opponent_attack_counter;
     int field_2E4;
-    int push_blocked; /* +0x2E8 */
+    int push_blocked;
     int field_2EC;
     union {
         int reaction_counter;
         int opponent_attack_counter_copy;
-    }; /* +0x2F0 */
+    };
     union {
         int block_requirement;
         int pending_hit_strength;
-    }; /* +0x2F4 */
-    int pending_reaction; /* +0x2F8 */
-    PlyrWeaponStyle* weapon_styles[3]; /* +0x2FC */
-    int player_slot; /* +0x308 */
+    };
+    int pending_reaction;
+    PlyrWeaponStyle* weapon_styles[3];
+    int player_slot;
     union {
         PlyrFighterDefinition* fighter_definition;
         GlobalMoveset* global_moveset;
         struct FatalityWeaponReflectionSet* weapon_reflections;
-    }; /* +0x30C */
-    PlyrMirrorSlots* mirror_slots; /* +0x310 */
+    };
+    PlyrMirrorSlots* mirror_slots;
     union {
         PlyrMoveDisplayData* active_move_display;
-        unsigned int fighter_definition_instance;
         MovesetDefinition* global_moveset_definition;
-    }; /* +0x314 */
+    };
     union {
         struct {
             AniData* base_animations[8];
-            AniData* dizzy_animation; /* +0x338 */
+            AniData* dizzy_animation;
             char pad33C[4];
-            AniData* big_boss_taunt_animation; /* +0x340 */
+            AniData* big_boss_taunt_animation;
             AniData* common_exit_animation;
-            AniData* turn_to_screen_animation; /* +0x348 */
+            AniData* turn_to_screen_animation;
             AniData* smoke_land_animation;
             char pad350[0x0C];
             AniData* noob_entrance_animation;
             char pad360[8];
-            AniData* reaction_animation; /* +0x368 */
-            void* reaction_animation_a; /* +0x36C */
-            void* reaction_animation_b; /* +0x370 */
-            void* reaction_animation_c; /* +0x374 */
-            void* esp1_reaction_animation; /* +0x378 */
+            AniData* reaction_animation;
+            void* reaction_animation_a;
+            void* reaction_animation_b;
+            void* reaction_animation_c;
+            void* esp1_reaction_animation;
             union {
                 AniData* screen_taunt_animation;
                 void* scorpion_spear_hit;
-            }; /* +0x37C - per-character reaction slot */
-            void* scorpion_spear_pull; /* +0x380 */
+            };
+            void* scorpion_spear_pull;
             union {
-                AniData* goro_fold_animation; /* fatality arm-fold script */
+                AniData* goro_fold_animation;
                 void* scorpion_spear_recover;
-            }; /* +0x384 - per-character reaction slot */
+            };
             char pad388[4];
-            AniData* ice_reaction_animation; /* +0x38C */
+            AniData* ice_reaction_animation;
             char pad390[0x14];
             union {
                 AniData* fatality_animation;
                 int fatality_palette;
-            }; /* +0x3A4 */
-            union {
-                struct {
-                    union {
-                        AniData* mileena_veil_animation;
-                        unsigned int suicide_camera_main_ntsc;
-                    }; /* +0x3A8 */
-                    char pad3AC[4];
-                    unsigned int suicide_camera_sidekick_ntsc; /* +0x3B0 */
-                    unsigned int suicide_camera_main_pal; /* +0x3B4 */
-                    unsigned int suicide_camera_sidekick_pal; /* +0x3B8 */
-                    char pad3BC[0x18];
-                    unsigned int fatality_camera_ntsc; /* +0x3D4 */
-                    unsigned int fatality_camera_pal;  /* +0x3D8 */
-                };
-                unsigned int fatality_camera_scripts[13];
             };
+            AniData* mileena_veil_animation;
+            char pad3AC[4];
+            unsigned int suicide_camera_sidekick_ntsc;
+            unsigned int suicide_camera_main_pal;
+            unsigned int suicide_camera_sidekick_pal;
+            char pad3BC[0x18];
+            unsigned int fatality_camera_ntsc;
+            unsigned int fatality_camera_pal;
         };
         int animation_data[49];
     };
-    AnimScript* face_animations[26]; /* +0x3DC..+0x440 */
-    /* init_shadow stores the atomic sphere at +0x444 and publishes the
-     * transformed ground sphere and owned raster/texture through +0x46C. */
-    RwSphere shadow_sphere; /* +0x444..+0x450 */
-    Vec shadow_ground_point; /* +0x454 */
-    float shadow_ground_radius; /* +0x460 */
-    struct RwRaster* shadow_raster; /* +0x464 */
-    struct RwRaster* shadow_blur_raster; /* +0x468 */
-    struct RwTexture* shadow_texture; /* +0x46C */
-    MkObj* shadowbox; /* +0x470 */
-    struct MkProc* shadow_proc; /* +0x474 */
-    ScriptSlot* cmo; /* +0x478 */
-    BloodModelData blood_model; /* +0x47C..+0x5A8; owns surface.records */
-    unsigned int next_large_bleed_tick; /* +0x5A8 */
-    unsigned int next_blood_glop_tick;  /* +0x5AC */
-    int duck_reaction_active; /* +0x5B0 */
-    float saved_position_x; /* +0x5B4 */
-    float saved_position_y; /* +0x5B8 */
-    float saved_position_z; /* +0x5BC */
+    AnimScript* face_animations[26];
+    RwSphere shadow_sphere;
+    Vec shadow_ground_point;
+    float shadow_ground_radius;
+    struct RwRaster* shadow_raster;
+    struct RwRaster* shadow_blur_raster;
+    struct RwTexture* shadow_texture;
+    MkObj* shadowbox;
+    struct MkProc* shadow_proc;
+    ScriptSlot* cmo;
+    BloodModelData blood_model;
+    unsigned int next_large_bleed_tick;
+    unsigned int next_blood_glop_tick;
+    int duck_reaction_active;
+    float saved_position_x;
+    float saved_position_y;
+    float saved_position_z;
     char pad5C0[0x2C];
-    unsigned int saved_anim_script_word; /* +0x5EC */
-    unsigned int saved_anim_flags;       /* +0x5F0 */
+    unsigned int saved_anim_script_word;
+    unsigned int saved_anim_flags;
     char pad5F4[8];
-    float saved_anim_low_frame;          /* +0x5FC */
-    float saved_anim_high_frame;         /* +0x600 */
+    float saved_anim_low_frame;
+    float saved_anim_high_frame;
     char pad604[0xC0];
-    float facial_damage; /* +0x6C4 */
-    int attack_region; /* +0x6C8 */
-    int attack_type; /* +0x6CC */
-    unsigned int round_attack_count; /* +0x6D0 - AI round pressure */
-    int round_attack_stage; /* +0x6D4 */
-    int combo_depth; /* +0x6D8 */
+    float facial_damage;
+    int attack_region;
+    int attack_type;
+    unsigned int round_attack_count;
+    int round_attack_stage;
+    int combo_depth;
     int field_6DC;
-    int strafe_direction; /* +0x6E0 */
-    int block_hit_count; /* +0x6E4 */
-    MslSoundHandle scream_sound_handle; /* +0x6E8 */
-    int repeated_action_count; /* +0x6EC */
-    unsigned int previous_action; /* +0x6F0 */
-    int death_type; /* +0x6F4 */
+    int strafe_direction;
+    int block_hit_count;
+    MslSoundHandle scream_sound_handle;
+    int repeated_action_count;
+    unsigned int previous_action;
+    int death_type;
     union {
         unsigned int* status_flags;
         PlyrStatusData* status_data;
         FighterRuntimeData* runtime_data;
         FighterAiTableContainer* ai_tables;
-    }; /* +0x6F8 */
-    int fatality_shove_active; /* +0x6FC */
-    struct MkProc* jaw_monitor;           /* +0x700 */
-    unsigned int jaw_monitor_instance;    /* +0x704 */
-    struct MkProc* baraka_blades_monitor; /* +0x708 */
-    unsigned int baraka_blades_monitor_instance; /* +0x70C */
+    };
+    int fatality_shove_active;
+    struct MkProc* jaw_monitor;
+    unsigned int jaw_monitor_instance;
+    struct MkProc* baraka_blades_monitor;
+    unsigned int baraka_blades_monitor_instance;
     unsigned int reserved_710[2];
     int (*baraka_moveset_callback)(
-        struct PlyrPdata*, PlyrMirrorSlots*); /* +0x718 */
-    void* active_pickup; /* +0x71C */
-    int danger_zone_callback;            /* +0x720 - -1 when unavailable */
-    int impaled_projectile_state;       /* +0x724 */
+        struct PlyrPdata*, PlyrMirrorSlots*);
+    void* active_pickup;
+    int danger_zone_callback;
+    int impaled_projectile_state;
     int field_728;
-    MkObj* sidekick_obj;              /* +0x72C */
-    unsigned int sidekick_instance;   /* +0x730 */
-    struct MkProc* sidekick_anim_proc; /* +0x734 */
-    unsigned int sidekick_anim_instance; /* +0x738 */
-    int sidekick_active;              /* +0x73C */
-    int sidekick_available;           /* +0x740 */
-    int angle_jump_pending; /* +0x744 */
-    int taunts_performed;             /* +0x748 */
-} PlyrPdata; /* 0x74C */
+    MkObj* sidekick_obj;
+    unsigned int sidekick_instance;
+    struct MkProc* sidekick_anim_proc;
+    unsigned int sidekick_anim_instance;
+    int sidekick_active;
+    int sidekick_available;
+    int angle_jump_pending;
+    int taunts_performed;
+} PlyrPdata;
 
 #define PLYR_PDATA_SIZE 0x74C
 #define PLYR_PDATA_POOL_COUNT 2

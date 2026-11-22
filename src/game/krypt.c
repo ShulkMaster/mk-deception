@@ -1,6 +1,3 @@
-/* BUILD: -inline auto,deferred: retail emits functions in reverse source order and
- * auto-inlines plain static helpers (MAP UNUSED scan_for_next_available_key_coffin,
- * move_coffin_to_position, start_closing_coffin_effects). */
 #include "game/krypt.h"
 #include "runtime/anim_transition.h"
 #include "runtime/anim_api_ext.h"
@@ -820,7 +817,7 @@ static float p_setup_krypt(void) {
     krypt_pdata->footstep_frame_index = 0;
     light = load_light((LightDef*)&camera_point_light, &point_light_list, 0);
     if (light != 0) {
-        light->flags_08_bits.airborne = 1;
+        light->flags.airborne = 1;
     }
 
     bgnd_anim_camera_setup();
@@ -2757,13 +2754,13 @@ static inline MkObj* load_krypt_character_model(char* character_name) {
             sobj->flags09_bits.bit4 = 0;
             sobj->flags09_bits.bit2 = 0;
         }
-        object->flags_08_bits.airborne = 1;
-        object->flags_08_bits.angular_velocity_enabled = 1;
-        object->flags_08_bits.scale_active = 1;
+        object->flags.airborne = 1;
+        object->flags.angular_velocity_enabled = 1;
+        object->flags.scale_active = 1;
         build_bones_tbl(object, konquest_human_bones);
         object->flipped_bone_map = &flipped_konquest_human_bones;
-        object->flags_09_bits.launched = 1;
-        object->flags_09_bits.bit6 = 1;
+        object->flags.launched = 1;
+        object->flags.bit09_6 = 1;
         object->ground_colls = monk_ground_colls;
         object->light_flags = 4;
         hide_obj(object);
@@ -2835,7 +2832,7 @@ void set_krypt_character_pos(Vec* position) {
     if (pdata != 0) {
         obj = (MkObj*)MK_LIVE(pdata->obj, pdata->obj_instance);
         if (obj != 0) {
-            obj->hide_flag_bits.pin_animation = 0;
+            obj->flags.pin_animation = 0;
             obj->pos.value.x = position->x;
             obj->pos.value.y = position->y;
             obj->pos.value.z = position->z;
@@ -2851,7 +2848,7 @@ void set_krypt_character_angle(void* script_args, float angle) {
     if (pdata != 0) {
         obj = (MkObj*)MK_LIVE(pdata->obj, pdata->obj_instance);
         if (obj != 0) {
-            obj->hide_flag_bits.pin_animation = 0;
+            obj->flags.pin_animation = 0;
             obj->ang.y = angle;
             update_mkobj(obj);
         }

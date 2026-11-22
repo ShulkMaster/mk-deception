@@ -890,7 +890,7 @@ static void place_interior_room_objects(KonquestRoomObject* rec) {
             }
         }
     }
-    interior_object->flags_08_bits.bit7 = 1;
+    interior_object->flags.bit08_7 = 1;
 }
 
 void add_standard_ir_triggers(void) {

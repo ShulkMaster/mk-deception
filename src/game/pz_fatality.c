@@ -1,5 +1,3 @@
-/* BUILD: -inline noauto,deferred requires reverse retail function order;
- * -O4,s, -use_lmw_stmw on and pooled readonly strings retain the retail codegen. */
 #include "fdlibm.h"
 #include "math/gxVect.h"
 #include "math/mk_math.h"
@@ -369,7 +367,6 @@ MslSoundHandle pan_vol_snd_req(int sound_id, float pan, float volume);
 MslSoundHandle plyr_snd_req(int sound_offset);
 void snd_major_hit_voice(void);
 void snd_death_voice(void);
-MslSoundHandle random_hit(int group);
 void plyr_bleed_mouth(PlyrPdata* player_data);
 void face_bleed_me(int amount);
 void mkproc_die(void);

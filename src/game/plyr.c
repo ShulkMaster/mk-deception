@@ -659,14 +659,14 @@ static inline void baraka_retract_blades(PlyrPdata* pdata) {
     first = MK_HDR_LIVE(slots->weapon[0].secondary.obj, slots->weapon[0].secondary.instance);
     second = MK_HDR_LIVE(slots->weapon[1].secondary.obj, slots->weapon[1].secondary.instance);
     if (first != 0 && second != 0) {
-        first->flags_09_bits.tightrope_restricted = 1;
-        first->flags_09_bits.bit6 = 0;
-        first->flags_09_bits.launched = 1;
-        first->flags_08_bits.moving = 0;
-        second->flags_09_bits.tightrope_restricted = 1;
-        second->flags_09_bits.bit6 = 0;
-        second->flags_09_bits.launched = 1;
-        second->flags_08_bits.moving = 0;
+        first->flags.tightrope_restricted = 1;
+        first->flags.bit09_6 = 0;
+        first->flags.launched = 1;
+        first->flags.moving = 0;
+        second->flags.tightrope_restricted = 1;
+        second->flags.bit09_6 = 0;
+        second->flags.launched = 1;
+        second->flags.moving = 0;
         blades->command = 0;
     }
 }
@@ -696,11 +696,11 @@ static int baraka_advance_active_moveset(
 
     object = MK_HDR_LIVE(context->weapon[0].primary.obj, context->weapon[0].primary.instance);
     if (object != 0) {
-        object->hide_flag_bits.hidden = 1;
+        object->flags.hidden = 1;
     }
     object = MK_HDR_LIVE(context->weapon[1].primary.obj, context->weapon[1].primary.instance);
     if (object != 0) {
-        object->hide_flag_bits.hidden = 1;
+        object->flags.hidden = 1;
     }
 
     if (context == &pdata->weapon_styles[2]->mirror_slots) {
@@ -2076,16 +2076,16 @@ void create_player(int player_index, PlyrInfo* player) {
         player->slot.mirror_a->hdr.instance;
     create_player_attach_face_texture(player);
 
-    player->slot.mirror_a->flags_08_bits.gravity_enabled = 1;
-    player->slot.mirror_a->flags_08_bits.rotation_enabled = 1;
+    player->slot.mirror_a->flags.gravity_enabled = 1;
+    player->slot.mirror_a->flags.rotation_enabled = 1;
     player->slot.pdata->tracked_obj = player->slot.mirror_a;
     player->slot.pdata->tracked_obj_instance =
         player->slot.mirror_a->hdr.instance;
-    player->slot.mirror_a->flags_09_bits.bit4 = 1;
-    player->slot.mirror_a->flags_09_bits.launched = 1;
-    player->slot.mirror_a->flags_09_bits.tightrope_restricted = 1;
-    player->slot.mirror_a->flags_09_bits.face_opponent = 0;
-    player->slot.mirror_a->hide_flag_bits.weapon_effect = 1;
+    player->slot.mirror_a->flags.bit09_4 = 1;
+    player->slot.mirror_a->flags.launched = 1;
+    player->slot.mirror_a->flags.tightrope_restricted = 1;
+    player->slot.mirror_a->flags.face_opponent = 0;
+    player->slot.mirror_a->flags.weapon_effect = 1;
     player->slot.mirror_a->flipped_bone_map = &flipped_human_bones;
     player->field_0C = 1.0f;
 
@@ -2117,14 +2117,14 @@ void create_player(int player_index, PlyrInfo* player) {
     player->slot.mirror_a->pos.value.x = -1.0f;
     player->slot.mirror_a->pos.value.y = 1.05f;
     player->slot.mirror_a->pos.value.z = 0.0f;
-    player->slot.mirror_a->flags_09_bits.launched = 1;
+    player->slot.mirror_a->flags.launched = 1;
     ground_me(&player->slot.mirror_a->hdr);
-    player->slot.mirror_a->flags_09_bits.launched = 0;
+    player->slot.mirror_a->flags.launched = 0;
     player->slot.mirror_a->ang.y = 1.5707964f;
     init_player_collision(player);
     update_mkobj(player->slot.mirror_a);
     if (player_index == 1) {
-        player->slot.mirror_a->hide_flag_bits.bit6 = 1;
+        player->slot.mirror_a->flags.bit0A_6 = 1;
     }
 
     player->idle_proc->pre_destroy = pw_plyr;
@@ -2251,13 +2251,13 @@ static void create_sidekick(int player_index, PlyrInfo* player) {
         }
     }
 
-    object->flags_08_bits.gravity_enabled = 1;
-    object->flags_08_bits.rotation_enabled = 1;
-    object->flags_09_bits.bit4 = 1;
-    object->flags_09_bits.launched = 1;
-    object->flags_09_bits.tightrope_restricted = 1;
-    object->flags_09_bits.face_opponent = 0;
-    object->hide_flag_bits.weapon_effect = 1;
+    object->flags.gravity_enabled = 1;
+    object->flags.rotation_enabled = 1;
+    object->flags.bit09_4 = 1;
+    object->flags.launched = 1;
+    object->flags.tightrope_restricted = 1;
+    object->flags.face_opponent = 0;
+    object->flags.weapon_effect = 1;
     object->flipped_bone_map = &flipped_human_bones;
     object->light_flags = 0x100C;
     obj_create_sobjs(object);
@@ -2278,9 +2278,9 @@ static void create_sidekick(int player_index, PlyrInfo* player) {
     if (player_index == 1) {
         object->pos.value.x = 1.0f;
     }
-    object->flags_09_bits.launched = 1;
+    object->flags.launched = 1;
     ground_me(&object->hdr);
-    object->flags_09_bits.launched = 0;
+    object->flags.launched = 0;
     object->ang.y = 1.5707964f;
     update_mkobj(object);
 
@@ -2303,8 +2303,8 @@ static void create_sidekick(int player_index, PlyrInfo* player) {
             animation, pdata->fighter_definition->duck_exit_animation,
             0, 0.1f);
         xfer_proc(animation_proc, p_animate);
-        object->flags_09_bits.bit6 = 1;
-        object->flags_09_bits.launched = 1;
+        object->flags.bit09_6 = 1;
+        object->flags.launched = 1;
         update_bone_hierarchy(
             object != 0 ? as_mkhdr(&object->hdr) : 0);
         ground_me(object != 0 ? as_mkhdr(&object->hdr) : 0);
@@ -2486,8 +2486,8 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
         player->slot.mirror_a != 0
             ? as_mkhdr(&player->slot.mirror_a->hdr) : 0);
     sidekick->ground_colls_y = player->slot.mirror_a->ground_colls_y;
-    sidekick->hide_flag_bits.bit6 =
-        player->slot.mirror_a->hide_flag_bits.bit6;
+    sidekick->flags.bit0A_6 =
+        player->slot.mirror_a->flags.bit0A_6;
 
     if ((player_animation->flags & 8) != 0) {
         set_anim_script_frame(
@@ -2499,8 +2499,8 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
             3, player_animation->frame);
     }
     sidekick_animation->step = player_animation->step;
-    sidekick->flags_09_bits.bit6 = 0;
-    sidekick->flags_09_bits.launched = 0;
+    sidekick->flags.bit09_6 = 0;
+    sidekick->flags.launched = 0;
     if (pdata->plyr_num == 0) {
         process = _create_mkproc_generic_tinystack(
             0xC028, 8, p_plyr_sidekick, sizeof(*process_data),
@@ -2516,7 +2516,7 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
         process_data->player = plyr_pdata;
     }
 
-    player->slot.mirror_a->hide_flag_bits.bit6 = saved_hide_bit;
+    player->slot.mirror_a->flags.bit0A_6 = saved_hide_bit;
     if ((saved_animation_flags & 8) != 0) {
         set_anim_script_frame(
             player_animation, saved_animation, 8, saved_frame);
@@ -2525,8 +2525,8 @@ float active_sidekick_swap(PlyrPdata* pdata, int mode) {
             player_animation, saved_animation, 0, saved_frame);
     }
     player_animation->step = saved_step;
-    player->slot.mirror_a->flags_09_bits.bit6 = 1;
-    player->slot.mirror_a->flags_09_bits.launched = 1;
+    player->slot.mirror_a->flags.bit09_6 = 1;
+    player->slot.mirror_a->flags.launched = 1;
     update_bone_hierarchy(
         player->slot.mirror_a != 0
             ? as_mkhdr(&player->slot.mirror_a->hdr) : 0);
@@ -2567,37 +2567,37 @@ float sidekick_cool_vanish(PlyrPdata* pdata) {
         transition_to_anim_script(
             animation, pdata->base_animations[0], 3, 0.25f);
         animation->step = 1.2f;
-        sidekick->flags_09_bits.bit6 = 1;
+        sidekick->flags.bit09_6 = 1;
         while (animation->frame < 5.0f) {
             plyr_sleep(1.0f);
         }
-        sidekick->flags_09_bits.bit6 = 0;
-        sidekick->flags_09_bits.launched = 0;
+        sidekick->flags.bit09_6 = 0;
+        sidekick->flags.launched = 0;
         while (animation->frame < 26.0f) {
             plyr_sleep(1.0f);
         }
         snd_req(0x32C);
         obj_set_gravity(sidekick, -0.01f);
-        if (sidekick->hide_flag_bits.hidden == 0) {
+        if (sidekick->flags.hidden == 0) {
             function = get_script_function_by_name(
                 pdata->cmo, "sidekick_swap_pfx");
             plyr_start_script_in_slot(pdata, 0xC025, function);
         }
         plyr_sleep(30.0f);
         obj_set_gravity(sidekick, 0.0f);
-        sidekick->flags_08_bits.moving = 0;
+        sidekick->flags.moving = 0;
     } else {
         transition_to_anim_script(
             animation, pdata->common_exit_animation, 3, 0.1f);
         animation->step = 2.0f;
-        sidekick->flags_09_bits.bit6 = 1;
+        sidekick->flags.bit09_6 = 1;
         while (animation->frame < 5.0f) {
             plyr_sleep(1.0f);
         }
-        sidekick->flags_09_bits.bit6 = 0;
-        sidekick->flags_09_bits.launched = 0;
+        sidekick->flags.bit09_6 = 0;
+        sidekick->flags.launched = 0;
         snd_req_delay(0x33B, 0x10);
-        if (sidekick->hide_flag_bits.hidden == 0) {
+        if (sidekick->flags.hidden == 0) {
             function = get_script_function_by_name(
                 pdata->cmo, "sidekick_swap_pfx");
             plyr_start_script_in_slot(pdata, 0xC025, function);
@@ -2623,16 +2623,16 @@ static float p_plyr_sidekick(void) {
         return -1.0f;
     }
     animpdata_ani_to_frame_x(animation, 12.0f);
-    sidekick->flags_09_bits.bit6 = 0;
-    sidekick->flags_09_bits.launched = 0;
+    sidekick->flags.bit09_6 = 0;
+    sidekick->flags.launched = 0;
     animpdata_ani_to_frame_x(animation, 17.0f);
     random_foot(1);
-    sidekick->flags_09_bits.bit6 = 1;
-    sidekick->flags_09_bits.launched = 1;
+    sidekick->flags.bit09_6 = 1;
+    sidekick->flags.launched = 1;
     update_bone_hierarchy(
         sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
     ground_me(sidekick != 0 ? as_mkhdr(&sidekick->hdr) : 0);
-    sidekick->hide_flag_bits.bit6 ^= 1;
+    sidekick->flags.bit0A_6 ^= 1;
     animation->flags ^= 8;
     transition_to_anim_script(
         animation,
@@ -2947,7 +2947,7 @@ void load_aux_weapon(WeaponDefinition* definition) {
 
     if (weapon != 0) {
         plyr_aux_weapon_grab(plyr_pdata, weapon);
-        weapon->hide_flag_bits.hidden = 0;
+        weapon->flags.hidden = 0;
     }
 }
 
@@ -2986,16 +2986,16 @@ static inline void release_other_player_inline(void) {
     MkProc* animation_proc;
     AnimPdata* animation;
 
-    plyr_obj->flags_09_bits.bit4 = 1;
-    plyr_obj->flags_09_bits.face_opponent = 1;
+    plyr_obj->flags.bit09_4 = 1;
+    plyr_obj->flags.face_opponent = 1;
 
     held = MK_HDR_LIVE(plyr_pdata->held_opponent_latch.obj, plyr_pdata->held_opponent_latch.instance);
     if (held != 0) {
-        held->flags_09_bits.launched = 1;
-        held->flags_09_bits.bit4 = 1;
-        held->flags_09_bits.head_tracking = 1;
-        held->flags_09_bits.tightrope_restricted = 1;
-        held->flags_09_bits.face_opponent = 1;
+        held->flags.launched = 1;
+        held->flags.bit09_4 = 1;
+        held->flags.head_tracking = 1;
+        held->flags.tightrope_restricted = 1;
+        held->flags.face_opponent = 1;
     }
     plyr_pdata->held_opponent_latch.obj = 0;
     plyr_pdata->held_opponent_latch.instance = 0;
@@ -3039,14 +3039,14 @@ static inline void set_object_flip(
     MkObj* object, AnimPdata* animation, int flip_state) {
     switch (flip_state) {
     case 1:
-        if (object->hide_flag_bits.bit6 != 0) {
-            object->hide_flag_bits.bit6 = 0;
+        if (object->flags.bit0A_6 != 0) {
+            object->flags.bit0A_6 = 0;
             animation->flags ^= 8;
         }
         break;
     case 2:
-        if (object->hide_flag_bits.bit6 == 0) {
-            object->hide_flag_bits.bit6 = 1;
+        if (object->flags.bit0A_6 == 0) {
+            object->flags.bit0A_6 = 1;
             animation->flags ^= 8;
         }
         break;
@@ -3064,14 +3064,14 @@ MkHdr* plyr_grab_other_flip_states(
 
     switch (player_flip) {
     case 1:
-        if (plyr_obj->hide_flag_bits.bit6 != 0) {
-            plyr_obj->hide_flag_bits.bit6 = 0;
+        if (plyr_obj->flags.bit0A_6 != 0) {
+            plyr_obj->flags.bit0A_6 = 0;
             plyr_anim_pdata->flags ^= 8;
         }
         break;
     case 2:
-        if (plyr_obj->hide_flag_bits.bit6 == 0) {
-            plyr_obj->hide_flag_bits.bit6 = 1;
+        if (plyr_obj->flags.bit0A_6 == 0) {
+            plyr_obj->flags.bit0A_6 = 1;
             plyr_anim_pdata->flags ^= 8;
         }
         break;
@@ -3099,13 +3099,13 @@ MkHdr* plyr_grab_other_flip_states(
     if (opponent_animation != 0) {
         set_object_flip(opponent, opponent_animation, opponent_flip);
     }
-    opponent->flags_09_bits.launched = 0;
-    opponent->flags_09_bits.bit4 = 0;
-    opponent->flags_09_bits.head_tracking = 0;
-    opponent->flags_09_bits.tightrope_restricted = 0;
-    opponent->flags_09_bits.face_opponent = 0;
-    plyr_obj->flags_09_bits.bit4 = 0;
-    plyr_obj->flags_09_bits.face_opponent = 0;
+    opponent->flags.launched = 0;
+    opponent->flags.bit09_4 = 0;
+    opponent->flags.head_tracking = 0;
+    opponent->flags.tightrope_restricted = 0;
+    opponent->flags.face_opponent = 0;
+    plyr_obj->flags.bit09_4 = 0;
+    plyr_obj->flags.face_opponent = 0;
     plyr_pdata->held_opponent_latch.obj = opponent;
     plyr_pdata->held_opponent_latch.instance =
         opponent->hdr.instance;

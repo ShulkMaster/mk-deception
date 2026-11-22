@@ -912,7 +912,7 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
         }
     }
 
-    object->hide_flag_bits.bit6 = ladder_small_pos_tbl[position].mirrored;
+    object->flags.bit0A_6 = ladder_small_pos_tbl[position].mirrored;
     object->ground_colls_y = ladder_small_pos_tbl[position].position.y;
     obj_change_to_skinned_obj_light_list(
         object, (LightDef*)&ladder_skinned_obj_light_def);
@@ -931,8 +931,8 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
     }
 
     sobj_set_priority(first_sobj, 0x12);
-    object->flags_09_bits.launched = 1;
-    object->flags_09_bits.bit6 = 1;
+    object->flags.launched = 1;
+    object->flags.bit09_6 = 1;
     insert_ground_me_mkobj(object);
     unhide_obj(object);
     insert_fgnd_mkobj(object);
@@ -1206,9 +1206,9 @@ float p_ladder_select(void) {
             opponent->slot.mirror_a->pos.value.y = placement->position.y;
             opponent->slot.mirror_a->pos.value.z = placement->position.z;
             opponent->slot.mirror_a->ang.y = placement->angle_y;
-            opponent->slot.mirror_a->hide_flag_bits.bit6 = placement->mirrored;
-            opponent->slot.mirror_a->flags_09_bits.launched = 1;
-            opponent->slot.mirror_a->flags_09_bits.bit6 = 1;
+            opponent->slot.mirror_a->flags.bit0A_6 = placement->mirrored;
+            opponent->slot.mirror_a->flags.launched = 1;
+            opponent->slot.mirror_a->flags.bit09_6 = 1;
             opponent->slot.mirror_a->ground_colls = char_piece_ground_colls;
             g_game_info.field_34 = placement->position.y - 10.0f;
             opponent->slot.mirror_a->ground_colls_y = placement->position.y;

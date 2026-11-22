@@ -54,7 +54,7 @@ MkPfx* start_pfx_glass_shards(
         emitter_object->pos.value.x = position->x;
         emitter_object->pos.value.y = position->y;
         emitter_object->pos.value.z = position->z;
-        emitter_object->flags_08_bits.airborne = 1;
+        emitter_object->flags.airborne = 1;
         update_mkobj(emitter_object != 0 ? as_mkhdr(&emitter_object->hdr) : 0);
 
         glass->depth_bias = -50.0f;

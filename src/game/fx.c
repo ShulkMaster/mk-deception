@@ -21,6 +21,7 @@
 #include "runtime/section.h"
 #include "runtime/sound.h"
 #include "math/mk_math.h"
+#include "runtime/cmath.h"
 #include "platform/main.h"
 #include "platform/io.h"
 #include "platform/display_metrics.h"
@@ -138,7 +139,6 @@ static int f_p2_showing_fatatality;
 static int f_p1_show_fatality_off;
 static int f_p2_show_fatality_off;
 extern void kill_fstyle_signs_for_plyr(PlyrInfo* player);
-double __fabs(double value);
 static RpMaterial* material_set_specular(RpMaterial* material,
                                          void* data);
 int FSTYLE_LFT_START_X;
@@ -1072,7 +1072,7 @@ void unfreeze_player(void) {
         return;
     }
 
-    player_object->flags_0B_bits.special_texture = 0;
+    player_object->flags.special_texture = 0;
     RpClumpForAllAtomics(
         player_object->clump,
         restore_specular_texture_atomic_callback, 0);
@@ -1082,7 +1082,7 @@ void unfreeze_player(void) {
     object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
-        object->flags_0B_bits.special_texture = 0;
+        object->flags.special_texture = 0;
         RpClumpForAllAtomics(
             object->clump, restore_specular_texture_atomic_callback, 0);
     }
@@ -1091,7 +1091,7 @@ void unfreeze_player(void) {
     object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
-        object->flags_0B_bits.special_texture = 0;
+        object->flags.special_texture = 0;
         RpClumpForAllAtomics(
             object->clump, restore_specular_texture_atomic_callback, 0);
     }
@@ -1100,7 +1100,7 @@ void unfreeze_player(void) {
     object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
-        object->flags_0B_bits.special_texture = 0;
+        object->flags.special_texture = 0;
         RpClumpForAllAtomics(
             object->clump, restore_specular_texture_atomic_callback, 0);
     }
@@ -1173,7 +1173,7 @@ static void apply_special_fx_to_player(void* texture) {
         return;
     }
 
-    player_object->flags_0B_bits.special_texture = 1;
+    player_object->flags.special_texture = 1;
     RpClumpForAllAtomics(
         player_object->clump,
         swap_specular_texture_atomic_callback, texture);
@@ -1183,7 +1183,7 @@ static void apply_special_fx_to_player(void* texture) {
     object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
-        object->flags_0B_bits.special_texture = 1;
+        object->flags.special_texture = 1;
         RpClumpForAllAtomics(
             object->clump, swap_specular_texture_atomic_callback, texture);
     }
@@ -1192,7 +1192,7 @@ static void apply_special_fx_to_player(void* texture) {
     object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
-        object->flags_0B_bits.special_texture = 1;
+        object->flags.special_texture = 1;
         RpClumpForAllAtomics(
             object->clump, swap_specular_texture_atomic_callback, texture);
     }
@@ -1201,7 +1201,7 @@ static void apply_special_fx_to_player(void* texture) {
     object = MK_HDR_LIVE(object_latch->obj, object_latch->instance);
 
     if (object != 0) {
-        object->flags_0B_bits.special_texture = 1;
+        object->flags.special_texture = 1;
         RpClumpForAllAtomics(
             object->clump, swap_specular_texture_atomic_callback, texture);
     }

@@ -11,7 +11,7 @@
 #include "game/nbc.h"
 #include "platform/gcmcardmsg.h"
 #include "runtime/utils.h"
-#include "runtime/__mem.h"
+#include "runtime/cstring.h"
 #include "game/plyrprofile.h"
 
 typedef struct KonquestProfileSave {
@@ -173,7 +173,6 @@ extern KonquestProfileSave* p2_profile_konquest;
 extern KonquestPdata* konquest_pdata;
 extern StorageDevice storage_status[STORAGE_MAX_DEVICES];
 int f_writing_konquest_profile;
-/* Decl: include/game/plyrprofile.h */
 KonquestTrigger* find_trigger_by_id(unsigned int id);
 int spawn_dynamic_pui_at_pos(
     PuiItem* item, int source_type, const Vec* position, void* source,
