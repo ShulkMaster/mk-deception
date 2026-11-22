@@ -379,11 +379,6 @@ extern struct CameraScriptMonitorItem camera_script_monitor_item;
 extern struct ActiveNpcCameraView* g_active_npc;
 extern struct KonquestCameraPdataView* konquest_pdata;
 
-union CameraVecBits {
-    float values[3];
-    unsigned int words[3];
-};
-
 static Vec unit_z;
 
 typedef struct CameraAnimEvent {
@@ -451,7 +446,7 @@ static void mkproc_sleep(void);
 
 static inline void xfer_camera_impl(MkProcEntryFn entry, int reset_projection) {
     float tan_half_fov;
-    CameraObjFlags* flags;
+    MkObjFlags* flags;
 
     if (camera_info.proc == 0) {
         return;
@@ -467,9 +462,9 @@ static inline void xfer_camera_impl(MkProcEntryFn entry, int reset_projection) {
     }
     if (camera_obj != 0) {
         flags = &camera_obj->flags;
-        flags->bit04 = 1;
+        flags->rotation_enabled = 1;
         flags = &camera_obj->flags;
-        flags->bit20 = 1;
+        flags->gravity_enabled = 1;
     }
 }
 
@@ -829,8 +824,8 @@ int init_camera(void) {
     }
 
     if (camera_obj != 0) {
-        camera_obj->flags.bit04 = 1;
-        camera_obj->flags.bit20 = 1;
+        camera_obj->flags.rotation_enabled = 1;
+        camera_obj->flags.gravity_enabled = 1;
     }
     camera_obj =
         (CameraObj*)get_mkobj_frame(0x1003, rwCameraParentFrame(Camera));
@@ -839,8 +834,8 @@ int init_camera(void) {
         camera_item.instance = camera_obj->hdr.instance;
         camera_mat = camera_obj->field_24;
         insert_fgnd_mkobj(camera_obj);
-        camera_obj->flags.bit04 = 1;
-        camera_obj->flags.bit20 = 1;
+        camera_obj->flags.rotation_enabled = 1;
+        camera_obj->flags.gravity_enabled = 1;
         update_mkobj(camera_obj);
     }
 
@@ -1512,7 +1507,7 @@ void set_camera_velocity(CamVec3* velocity) {
     CameraObj* camera;
 
     RESOLVE_CAMERA_OBJ(camera);
-    camera->flags.bit20 = 1;
+    camera->flags.gravity_enabled = 1;
     camera->velocity.x = velocity->x;
     camera->velocity.y = velocity->y;
     camera->velocity.z = velocity->z;
@@ -3326,8 +3321,8 @@ static float p_run_camera_script(void) {
             RwCameraSetProjection(Camera, 1);
         }
         if (camera_obj != 0) {
-            camera_obj->flags.bit04 = 1;
-            camera_obj->flags.bit20 = 1;
+            camera_obj->flags.rotation_enabled = 1;
+            camera_obj->flags.gravity_enabled = 1;
         }
     }
     camera_script_monitor_item.node = 0;
@@ -3372,8 +3367,8 @@ void run_camera_script(int script, int argument, int flags) {
                 RwCameraSetProjection(Camera, 1);
             }
             if (camera_obj != 0) {
-                camera_obj->flags.bit04 = 1;
-                camera_obj->flags.bit20 = 1;
+                camera_obj->flags.rotation_enabled = 1;
+                camera_obj->flags.gravity_enabled = 1;
             }
         }
     }
@@ -3397,8 +3392,8 @@ void camera_exit_script(void) {
             RwCameraSetProjection(Camera, 1);
         }
         if (camera_obj != 0) {
-            camera_obj->flags.bit04 = 1;
-            camera_obj->flags.bit20 = 1;
+            camera_obj->flags.rotation_enabled = 1;
+            camera_obj->flags.gravity_enabled = 1;
         }
     }
     destroy_mkprocs_pid(0x9006);
@@ -4323,7 +4318,7 @@ float konquest_camera_loop(void) {
         if (focus == 0) {
             return -1.0f;
         }
-        if (!focus->hide_flag_bits.still_move ||
+        if (!focus->flags.still_move ||
             !camera_info.pdata->flags_bits.pos_done) {
             focus_position.x = focus->pos.value.x;
             focus_position.y = focus->pos.value.y;
@@ -4471,13 +4466,10 @@ float p_krypt_camera_proc(void) {
 }
 
 float p_krypt_camera_loop(void) {
-    static const union CameraVecBits kDefaultPos = {{-28.5f, 4.4f, 55.0f}};
-    static const union CameraVecBits kDefaultAng =
-        {{0.42f, 3.1415927410125732f, 0.0f}};
-    CameraPdata* pdata;
+    CameraPdata* pdata = camera_pdata();
     int pos_done;
-    union CameraVecBits default_pos;
-    union CameraVecBits default_ang;
+    Vec default_pos = {-28.5f, 4.4f, 55.0f};
+    Vec default_ang = {0.42f, 3.1415927f, 0.0f};
     float speed_scale;
     float dx;
     float dy;
@@ -4492,34 +4484,27 @@ float p_krypt_camera_loop(void) {
     float ang_err_sq;
     CameraObj* cam;
 
-    pdata = camera_pdata();
-    default_pos.words[0] = kDefaultPos.words[0];
-    default_pos.words[1] = kDefaultPos.words[1];
-    default_pos.words[2] = kDefaultPos.words[2];
-    default_ang.words[0] = kDefaultAng.words[0];
-    default_ang.words[1] = kDefaultAng.words[1];
-    default_ang.words[2] = kDefaultAng.words[2];
 
     if (pdata == 0) {
         return -1.0f;
     }
 
     RESOLVE_CAMERA_OBJ(cam);
-    cam->pos.x = default_pos.values[0];
-    cam->pos.y = default_pos.values[1];
-    cam->pos.z = default_pos.values[2];
+    cam->pos.x = default_pos.x;
+    cam->pos.y = default_pos.y;
+    cam->pos.z = default_pos.z;
 
     RESOLVE_CAMERA_OBJ(cam);
-    cam->ang.x = default_ang.values[0];
-    cam->ang.y = default_ang.values[1];
-    cam->ang.z = default_ang.values[2];
+    cam->ang.x = default_ang.x;
+    cam->ang.y = default_ang.y;
+    cam->ang.z = default_ang.z;
 
-    pdata->target_pos.x = default_pos.values[0];
-    pdata->target_pos.y = default_pos.values[1];
-    pdata->target_pos.z = default_pos.values[2];
-    pdata->target_ang.x = default_ang.values[0];
-    pdata->target_ang.y = default_ang.values[1];
-    pdata->target_ang.z = default_ang.values[2];
+    pdata->target_pos.x = default_pos.x;
+    pdata->target_pos.y = default_pos.y;
+    pdata->target_pos.z = default_pos.z;
+    pdata->target_ang.x = default_ang.x;
+    pdata->target_ang.y = default_ang.y;
+    pdata->target_ang.z = default_ang.z;
 
     for (;;) {
         speed_scale = 0.1f * pdata->speed;
@@ -4952,7 +4937,7 @@ int setup_animated_camera(void) {
         camera_info.pdata->bone_obj = bone;
         camera_info.pdata->bone_instance = bone->hdr.instance;
         build_bones_tbl(bone, camera_bones);
-        bone->flags_0B_bits.force_anim_speed = 1;
+        bone->flags.force_anim_speed = 1;
     }
     anim = MK_HDR_LIVE(camera_info.pdata->anim_pdata, camera_info.pdata->anim_instance);
     if (anim == 0) {
@@ -4977,7 +4962,7 @@ static float p_animate_camera_move(void) {
     MKMATRIX bone_matrix;
     Vec transformed_vector;
     Vec world_offset;
-    CameraObjFlags saved_flags;
+    MkObjFlags saved_flags;
     float pause_ticks;
     float event_frame;
     int pose_frame;
@@ -5006,10 +4991,10 @@ static float p_animate_camera_move(void) {
     bone->ang = camera_obj->ang;
     animation->frame = 0.0f;
     saved_flags = camera_obj->flags;
-    camera_obj->flags.pad3 = 0;
-    camera_obj->flags.bit04 = 0;
-    camera_obj->flags.pad6 = 0;
-    camera_obj->flags.bit20 = 0;
+    camera_obj->flags.angular_velocity_enabled = 0;
+    camera_obj->flags.rotation_enabled = 0;
+    camera_obj->flags.airborne = 0;
+    camera_obj->flags.gravity_enabled = 0;
     pause_ticks = camera_info.pdata->pause_ticks;
     camera_info.pdata->pause_ticks = 0.0f;
 

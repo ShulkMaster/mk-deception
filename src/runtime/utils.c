@@ -258,8 +258,6 @@ struct DebugDamagePdata {
     int delay;
 };
 
-double __fabs(double value);
-
 static float p_debug_damage_txt(void) {
     struct DebugDamagePdata* pdata;
     StringObj* object;

@@ -303,14 +303,14 @@ float p_joy_loop(void) {
 
     if (check_switch(plyr_pdata->controller_port, 0xC) != 0) {
         if (which_way_is_towards() > 0.0f) {
-            if (!plyr_obj->hide_flag_bits.bit6) {
+            if (!plyr_obj->flags.bit0A_6) {
                 jump_to(step_right);
                 return 0.0f;
             }
             jump_to(step_left);
             return 0.0f;
         }
-        if (plyr_obj->hide_flag_bits.bit6 == 1) {
+        if (plyr_obj->flags.bit0A_6 == 1) {
             jump_to(step_right);
             return 0.0f;
         }

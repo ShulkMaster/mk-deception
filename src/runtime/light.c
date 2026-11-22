@@ -162,8 +162,8 @@ RpLight* create_spot_light(MkObj* parent, LightDef* def) {
 
     if (frame != 0) {
         _rwObjectHasFrameSetFrame(light, frame);
-        mkobj->flags_08_bits.transform_dirty = 1;
-        mkobj->flags_08_bits.bit7 = 1;
+        mkobj->flags.transform_dirty = 1;
+        mkobj->flags.bit08_7 = 1;
         mkobj->light_flags = def->flags;
         mkobj->pos.value.x = def->field1C;
         mkobj->pos.value.y = def->field20;
@@ -458,8 +458,8 @@ static inline RpLight* create_type5_spot(MkObj* parent, LightDef* def) {
     }
 
     _rwObjectHasFrameSetFrame(light, frame);
-    mkobj->flags_08_bits.transform_dirty = 1;
-    mkobj->flags_08_bits.bit7 = 1;
+    mkobj->flags.transform_dirty = 1;
+    mkobj->flags.bit08_7 = 1;
     mkobj->light_flags = def->flags;
     mkobj->pos.value.x = def->field1C;
     mkobj->pos.value.y = def->field20;
@@ -547,7 +547,7 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
         RpLightSetRadius(light, def->field1C);
         RpWorldAddLight(World, light);
         mkobj->light_flags = def->flags;
-        mkobj->flags_08_bits.airborne = 1;
+        mkobj->flags.airborne = 1;
         if (parent == 0) {
             mkobj->pos.value.x = def->field20;
             mkobj->pos.value.y = def->field24;
@@ -592,8 +592,8 @@ MkObj* load_light(LightDef* def, MkPtr** list, MkObj* parent) {
         RpLightSetColor(light, &def->color);
         RpWorldAddLight(World, light);
         mkobj->light_flags = def->flags;
-        mkobj->flags_08_bits.airborne = 1;
-        mkobj->flags_08_bits.angular_velocity_enabled = 1;
+        mkobj->flags.airborne = 1;
+        mkobj->flags.angular_velocity_enabled = 1;
         if (parent == 0) {
             mkobj->ang_row.value.x = def->field1C;
             mkobj->ang_row.value.y = def->field20;

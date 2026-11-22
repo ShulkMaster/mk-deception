@@ -383,7 +383,7 @@ void render_mkobj(MkObj* object) {
     float depth;
     RwMatrix* camera_matrix;
     RwMatrix* atomic_ltm;
-    if (object->hide_flag_bits.hidden && (int)f_render_all_atomics == 0) {
+    if (object->flags.hidden && (int)f_render_all_atomics == 0) {
         return;
     }
     for (clump_index = 0; clump_index < object->clump_count; clump_index++) {

@@ -1,5 +1,3 @@
-/* BUILD: -inline off: keep recursive _RefreshData as bl (else MWCC inlines). */
-
 #include "mwScreenEngine/ScreenControl.h"
 #include "mwScreenEngine/GameVariables.h"
 #include "mwScreenEngine/Screen.h"
@@ -8,12 +6,11 @@
 #include "mwScreenEngine/ScreenUtil.h"
 
 enum {
-    kMallocTagInit = 0x494E4954 /* 'INIT' */
+    kMallocTagInit = 0x494E4954
 };
 
 static const char s_ctrlDataName[] = "SS-CtrlData";
 
-/* Retail: sbss _staticDispatcher; sdata m_pGameVariables = &_staticDispatcher. */
 static GameVariableDispatcher s_staticDispatcher;
 GameVariableDispatcher* ScreenControl::m_pGameVariables = &s_staticDispatcher;
 
@@ -38,7 +35,7 @@ void ScreenControl::Render(ScreenRenderInfo* info) {
     ScreenObject::Render(info);
 }
 
-void ScreenControl::RegisterGameVariables(unsigned int /*unused*/,
+void ScreenControl::RegisterGameVariables(unsigned int,
                                           GameVariables* vars) {
     m_pGameVariables->Register(vars);
 }
@@ -50,7 +47,6 @@ int ScreenControl::HandleAction(ScreenMgr* mgr, const ScreenAction* action) {
     int handled;
     int value;
 
-    /* Retail always constructs a scratch ScreenAction, then gates on params. */
     params = action->m_params;
     handled = 1;
     if (params == 0) {
@@ -92,7 +88,6 @@ int ScreenControl::HandleAction(ScreenMgr* mgr, const ScreenAction* action) {
         }
         break;
 
-    /* Retail .text: SetId90 body before SetId98 (source order, not arg order). */
     case kScreenArgCtrlSetId90:
         m_collectionId = params->GetInt(0);
         RefreshCollection();
@@ -129,8 +124,6 @@ void ScreenControl::operator delete(void* p) {
 
 void ScreenControl::Update() {}
 
-/* Walk GROP/OBJ children; vcall Refresh* on nested 'SCtl' nodes.
- * Retail local: _RefreshData__FP12ScreenObjecti */
 static void _RefreshData(ScreenObject* obj, int refreshOptions) {
     ScreenObject* child;
     ScreenChildList* children;
@@ -146,7 +139,6 @@ static void _RefreshData(ScreenObject* obj, int refreshOptions) {
         if (tag == kScreenTagGROP || tag == kScreenTagOBJ) {
             child = SeEntryObject(entry);
             if (child->m_objTag == kScreenTagSCTL) {
-                /* Retail: beq to RefreshCollection when refreshOptions==0. */
                 if (refreshOptions != 0) {
                     static_cast<ScreenControl*>(child)->RefreshOption();
                 } else {

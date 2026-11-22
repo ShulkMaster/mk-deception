@@ -195,7 +195,7 @@ static inline void select_flip_map(
     MkObj* obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
     int flipped;
 
-    flipped = obj != 0 && obj->hide_flag_bits.bit6 != 0;
+    flipped = obj != 0 && obj->flags.bit0A_6 != 0;
 
     if ((*flags & 8) != 0) {
         flipped = 1 - flipped;
@@ -748,12 +748,12 @@ static float p_bone_matcher(void) {
     }
 
     if (matcher->flags_09.bits.copy_child_flip != 0) {
-        child_obj->hide_flag_bits.bit6 = parent_obj->hide_flag_bits.bit6;
+        child_obj->flags.bit0A_6 = parent_obj->flags.bit0A_6;
     }
 
     child_offset = matcher->child_offset;
     child_bid = matcher->fake_child_bid;
-    if (child_obj->hide_flag_bits.bit6 != 0) {
+    if (child_obj->flags.bit0A_6 != 0) {
         child_offset.x *= -1.0f;
         bone_map = child_obj->flipped_bone_map;
         if (bone_map != 0 && child_bid < bone_map->count) {
@@ -764,7 +764,7 @@ static float p_bone_matcher(void) {
     parent_offset = matcher->parent_offset;
     parent_bid = matcher->parent_bid;
     if (matcher->flags_09.bits.use_unmirrored_parent == 0 &&
-        parent_obj->hide_flag_bits.bit6 != 0) {
+        parent_obj->flags.bit0A_6 != 0) {
         parent_offset.x *= -1.0f;
         bone_map = parent_obj->flipped_bone_map;
         if (bone_map != 0 && parent_bid < bone_map->count) {
@@ -813,7 +813,7 @@ static float p_bone_matcher(void) {
         child_obj->ang.x = parent_obj->ang.x;
         child_obj->ang.y = parent_obj->ang.y;
         child_obj->ang.z = parent_obj->ang.z;
-        child_obj->flags_08_bits.transform_dirty = 1;
+        child_obj->flags.transform_dirty = 1;
         update_mkobj(
             child_obj != 0 ? as_mkhdr(&child_obj->hdr) : 0);
     }
@@ -822,7 +822,7 @@ static float p_bone_matcher(void) {
         child_obj->ang.y = parent_obj->ang.y;
         child_obj->ang.z = parent_obj->ang.z;
         child_obj->ang.y += 3.1415927f;
-        child_obj->flags_08_bits.transform_dirty = 1;
+        child_obj->flags.transform_dirty = 1;
         update_mkobj(
             child_obj != 0 ? as_mkhdr(&child_obj->hdr) : 0);
     }
@@ -840,7 +840,7 @@ static float p_bone_matcher(void) {
 
     if (matcher->flags_08.bits.blend_child_transform != 0 &&
         child_bone->update_tick != (unsigned int)exec_tick_ctr) {
-        if (child_obj->hide_flag_bits.bit6 != 0) {
+        if (child_obj->flags.bit0A_6 != 0) {
             target_rotation = &matcher->mirrored_parent_rotation;
             target_translation = &matcher->mirrored_parent_translation;
         } else {
@@ -869,7 +869,7 @@ static float p_bone_matcher(void) {
 
     if (matcher->flags_09.bits.snap_child_transform != 0 &&
         child_bone->update_tick != (unsigned int)exec_tick_ctr) {
-        if (child_obj->hide_flag_bits.bit6 != 0) {
+        if (child_obj->flags.bit0A_6 != 0) {
             target_rotation = &matcher->mirrored_parent_rotation;
             target_translation = &matcher->mirrored_parent_translation;
         } else {
@@ -896,7 +896,7 @@ static float p_bone_matcher(void) {
             child_obj != 0 ? as_mkhdr(&child_obj->hdr) : 0);
     }
 
-    if (child_obj->flags_08_bits.scale_active != 0) {
+    if (child_obj->flags.scale_active != 0) {
         mat_scaled_by_v3(
             child_obj->field_24,
             child_obj->field_24,
@@ -1046,7 +1046,7 @@ static inline int advance_anim_state(AnimPdata* anim) {
     obj = anim->obj;
     speed = game_speed;
     obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
-    if (obj != 0 && obj->flags_0B_bits.force_anim_speed) {
+    if (obj != 0 && obj->flags.force_anim_speed) {
         speed = 1.0f;
     }
 
@@ -1432,7 +1432,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                     active_group = group;
                     should_flip = 0;
                     if (active_channel_obj != 0 &&
-                        active_channel_obj->hide_flag_bits.bit6 != 0) {
+                        active_channel_obj->flags.bit0A_6 != 0) {
                         should_flip = 1;
                     }
                     if (flip_flag != 0) {
@@ -2100,11 +2100,11 @@ int pose_anim(AnimPdata* anim, int update_object) {
                         channel_weight >= 0.0f) {
                         active_channel_obj->ground_bone = sample[1];
                         if (active_channel_obj->ground_bone == 0xFFFFu) {
-                            active_channel_obj->hide_flag_bits.pin_animation = 0;
+                            active_channel_obj->flags.pin_animation = 0;
                         } else {
-                            active_channel_obj->hide_flag_bits.pin_animation = 1;
+                            active_channel_obj->flags.pin_animation = 1;
                         }
-                        if (active_channel_obj->hide_flag_bits.pin_animation) {
+                        if (active_channel_obj->flags.pin_animation) {
                             if (flipped_bones != 0 &&
                                 (unsigned int)active_channel_obj->ground_bone <
                                     flipped_bones->count) {
@@ -2244,20 +2244,20 @@ static void apply_tag_frame(AnimPdata* anim, MkObj* obj) {
             if (obj->flags_0C_bits.tag_flag_40) {
                 obj->flags_0C_bits.tag_flag_20 = 1;
             } else {
-                obj->flags_09_bits.bit6 = 0;
+                obj->flags.bit09_6 = 0;
             }
         }
         break;
     case 0x501:
         if ((anim->flags & 0x10000) == 0) {
             obj->flags_0C_bits.tag_flag_40 = 1;
-            obj->flags_09_bits.bit6 = 1;
+            obj->flags.bit09_6 = 1;
         }
         break;
     case 0x502:
         if ((anim->flags & 0x10000) == 0) {
             obj->flags_0C_bits.tag_flag_40 = 1;
-            obj->flags_09_bits.bit6 = 1;
+            obj->flags.bit09_6 = 1;
         }
         break;
     case 0x503:
@@ -2274,10 +2274,10 @@ static void apply_tag_frame(AnimPdata* anim, MkObj* obj) {
         }
         if ((unsigned int)obj->ground_bone != bone_index) {
             obj->ground_bone = bone_index;
-        } else if (obj->hide_flag_bits.pin_animation) {
+        } else if (obj->flags.pin_animation) {
             break;
         }
-        obj->hide_flag_bits.pin_animation = 1;
+        obj->flags.pin_animation = 1;
         obj->flags_0C_bits.tag_flag_10 = 1;
         get_bone_world_pos(obj, obj->ground_bone, &obj->ground_restore_pos);
         break;
@@ -2286,7 +2286,7 @@ static void apply_tag_frame(AnimPdata* anim, MkObj* obj) {
             if (obj->flags_0C_bits.tag_flag_40) {
                 obj->flags_0C_bits.tag_flag_08 = 1;
             } else {
-                obj->hide_flag_bits.pin_animation = 0;
+                obj->flags.pin_animation = 0;
             }
         }
         break;
@@ -2705,13 +2705,13 @@ int transition_to_anim_script_frame(
         obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
         if (obj != 0) {
             if ((flags & 0x200) != 0) {
-                obj->hide_flag_bits.bit0 = 1;
+                obj->flags.bit0A_0 = 1;
             }
             if ((flags & 0x100) != 0 ||
-                obj->flags_0B_bits.root_transform_pending != 0 ||
+                obj->flags.root_transform_pending != 0 ||
                 (anim->transition_weight < 1.0f &&
                  anim->transition_weight > 0.0f)) {
-            if (obj->flags_0B_bits.root_transform_pending != 0) {
+            if (obj->flags.root_transform_pending != 0) {
                 MkBone* root = obj->bones[obj->fallback_bone_index];
 
                 if (root != 0 && root->parent_matrix != 0) {
@@ -2745,7 +2745,7 @@ int transition_to_anim_script_frame(
                         gxQuatNorm(root_rotation);
                     }
                 }
-                obj->flags_0B_bits.root_transform_pending = 0;
+                obj->flags.root_transform_pending = 0;
             }
             for (i = 0; i < obj->bone_count; i++) {
                 MkBone* bone = obj->bones[i];
@@ -2795,7 +2795,7 @@ int transition_to_anim_script_frame(
 
     speed = game_speed;
     obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
-    if (obj != 0 && obj->flags_0B_bits.force_anim_speed) {
+    if (obj != 0 && obj->flags.force_anim_speed) {
         speed = 1.0f;
     }
     anim->hand_transition += anim->hand_transition_step * speed;
@@ -2844,12 +2844,12 @@ int transition_to_anim_script_frame(
     anim->step = saved_step;
     anim->frame = frame;
     obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
-    if (obj != 0 && obj->hide_flag_bits.pin_animation != 0) {
+    if (obj != 0 && obj->flags.pin_animation != 0) {
         float ground_restore_x;
         float ground_restore_y;
         float ground_restore_z;
 
-        obj->hide_flag_bits.pin_animation = 0;
+        obj->flags.pin_animation = 0;
         ground_restore_x = obj->ground_restore_pos.x;
         ground_restore_y = obj->ground_restore_pos.y;
         ground_restore_z = obj->ground_restore_pos.z;
@@ -2966,25 +2966,25 @@ int set_anim_script_frame(
 
         if (obj != 0) {
             if ((flags & 0x200) != 0) {
-                obj->hide_flag_bits.bit0 = 1;
+                obj->flags.bit0A_0 = 1;
             }
-            if (obj->flags_0B_bits.root_transform_pending != 0) {
+            if (obj->flags.root_transform_pending != 0) {
                 MKMATRIX yaw_matrix;
 
                 anim_apply_pending_root_transform(obj, &yaw_matrix);
-                obj->flags_0B_bits.root_transform_pending = 0;
+                obj->flags.root_transform_pending = 0;
             }
         }
     }
 
     obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
 
-    if (obj != 0 && obj->hide_flag_bits.pin_animation != 0) {
+    if (obj != 0 && obj->flags.pin_animation != 0) {
         float ground_restore_x;
         float ground_restore_y;
         float ground_restore_z;
 
-        obj->hide_flag_bits.pin_animation = 0;
+        obj->flags.pin_animation = 0;
         ground_restore_x = obj->ground_restore_pos.x;
         ground_restore_y = obj->ground_restore_pos.y;
         ground_restore_z = obj->ground_restore_pos.z;
@@ -3009,7 +3009,7 @@ void set_anim_script(
 void toggle_obj_and_ani_flips(AnimPdata* anim) {
     MkObj* obj = MK_HDR_LIVE(anim->obj, anim->obj_instance);
 
-    obj->hide_flag_bits.bit6 = 1 - obj->hide_flag_bits.bit6;
+    obj->flags.bit0A_6 = 1 - obj->flags.bit0A_6;
     anim->flags ^= 8;
     anim->old_flags ^= 8;
 }

@@ -1,5 +1,3 @@
-/* BUILD: -O4,s -use_lmw_stmw on object-wide: replaces per-wrapper optimize_for_size/use_lmw_stmw
- * pragmas; every exact wrapper stays exact and three flag getters improve. */
 #include "runtime/script_functions.h"
 #include "platform/main.h"
 #include "game/game.h"
@@ -1271,7 +1269,6 @@ int npc_punch_reaction_check_data(void);
 MslSoundHandle plyr_snd_req(int sound_offset);
 int pz_finish_him_request(void);
 MslSoundHandle random_foot(int group);
-MslSoundHandle random_hit(int group);
 MslSoundHandle random_voice(int group);
 int restart_effect(void);
 float sfrand(float max);
@@ -2212,7 +2209,7 @@ static void _miss_branch(void) {
 }
 
 static void _disable_grounding(void) {
-    plyr_obj->flags_09_bits.launched = 0;
+    plyr_obj->flags.launched = 0;
 }
 
 static void _set_player_hiframe(void) {
@@ -2324,7 +2321,7 @@ static void _enable_grounding(void) {
     MkObj* player;
     MkHdr* object;
 
-    plyr_obj->flags_09_bits.launched = 1;
+    plyr_obj->flags.launched = 1;
     player = plyr_obj;
     object = player != 0 ? as_mkhdr(&player->hdr) : 0;
     update_bone_hierarchy(object);
