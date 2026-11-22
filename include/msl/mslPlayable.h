@@ -8,13 +8,12 @@ struct SPSoundEntry;
 class MSLGCN_ARamBlock;
 class SoundBuffer_Playable;
 
-/* Canonical retail buffer hierarchy shared by producers and consumers. */
 class IRefCntRes {
 public:
     virtual ~IRefCntRes();
     virtual void FreeObject(void) = 0;
     virtual void FreeResources(void);
-    int reference_count; /* +0x04, after the virtual-table pointer */
+    int reference_count;
 };
 
 class SoundBuffer : public IRefCntRes {
@@ -46,9 +45,9 @@ public:
 
 class SoundBuffer_Data : public SoundBuffer {
 public:
-    MSLGCN_ARamBlock* aram_block; /* +0x08 */
-    _mslBank* bank;               /* +0x0C */
-    _GameCubeFileEntry* file_entry; /* +0x10 */
+    MSLGCN_ARamBlock* aram_block;
+    _mslBank* bank;
+    _GameCubeFileEntry* file_entry;
     virtual ~SoundBuffer_Data();
     virtual void FreeObject(void);
     virtual void FreeResources(void);
@@ -86,15 +85,15 @@ public:
     void InitializeVoice(_AXVPB* voice, SPSoundEntry* sound,
                          int stream_loop, int use_loop_address);
 
-    SoundBuffer_Playable* next;     /* +0x14 */
-    SoundBuffer_Playable* previous; /* +0x18 */
-    unsigned long current_position; /* +0x1C */
-    unsigned long mix_fader;        /* +0x20 */
-    unsigned char pan;              /* +0x24 */
-    unsigned char volume;           /* +0x25 */
-    unsigned long frequency;        /* +0x28 */
-    long state;                    /* +0x2C */
-    _AXVPB* voices[2];              /* +0x30 */
+    SoundBuffer_Playable* next;
+    SoundBuffer_Playable* previous;
+    unsigned long current_position;
+    unsigned long mix_fader;
+    unsigned char pan;
+    unsigned char volume;
+    unsigned long frequency;
+    long state;
+    _AXVPB* voices[2];
 };
 
 typedef SoundBuffer_Playable mslPlayable;

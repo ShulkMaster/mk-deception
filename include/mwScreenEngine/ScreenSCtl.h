@@ -9,39 +9,27 @@ typedef struct ScreenNode ScreenNode;
 typedef struct ScreenPoly ScreenPoly;
 typedef struct ScreenText ScreenText;
 
-/*
- * C views of ScreenControl ('SCtl') subclasses created by
- * mkScreenEngineClient::CreateInstance. Retail offsets from CreateInstance
- * stores + ProcessParams / Update* field use. ScreenControl ends at 0xA4;
- * subclass sizes match __nw__ sizes in CreateInstance.
- *
- * SpreadSheet types use the recovered C++ hierarchy.
- */
-
-/* ScreenObject base fields after the vtable (+0x04 .. +0x8F). */
 typedef struct ScreenObjectHead {
-    unsigned char node[0x18];  /* +0x04 .. +0x1B -- ScreenNode, m_extraTranslation */
-    struct SEObject_t* ext;    /* +0x1C -- m_ext */
-    struct ScreenView* screen; /* +0x20 -- m_screen */
-    void* parent;              /* +0x24 -- m_parent */
-    unsigned char pad28[0x68]; /* +0x28 .. +0x8F */
+    unsigned char node[0x18];
+    struct SEObject_t* ext;
+    struct ScreenView* screen;
+    void* parent;
+    unsigned char pad28[0x68];
 } ScreenObjectHead;
 
-/* Shared ScreenControl head (ScreenObject 0x90 + control ids). */
 typedef struct ScreenControlView {
-    void* vtbl; /* +0x00 */
-    ScreenObjectHead head; /* +0x04 .. +0x8F */
-    int collectionId; /* +0x90 -- m_collectionId */
-    int gvContext; /* +0x94 -- Dispatcher unused arg */
-    int optionId; /* +0x98 -- m_optionId */
-    int pad9C; /* +0x9C */
-    int field_0xA0; /* +0xA0 -- purpose not confirmed */
-} ScreenControlView; /* 0xA4 -- KeyEntry alloc size */
+    void* vtbl;
+    ScreenObjectHead head;
+    int collectionId;
+    int gvContext;
+    int optionId;
+    int pad9C;
+    int field_0xA0;
+} ScreenControlView;
 
-/* 'KENT' -- bare ScreenControl with KeyEntry vtbl. */
 typedef struct KeyEntry {
     ScreenControlView ctrl;
-} KeyEntry; /* 0xA4 */
+} KeyEntry;
 
 class TextItem : public ScreenControl {
 public:
@@ -89,11 +77,6 @@ public:
     int active;
 };
 
-/*
- * 'SPSH' / 'SPSI' SpreadSheet base fields (CreateInstance shared block).
- * ProcessParams: dims at +0xE0..+0xEC, collection/option ids, bind flags
- * +0xF4/+0xF8/+0xFC, optional color @ +0xA4, nodes at +0xB0/+0xB4.
- */
 class SpreadSheet : public ScreenControl {
 public:
     virtual ~SpreadSheet();
@@ -109,31 +92,30 @@ public:
     virtual void FinishSetup(ScreenParams* params, int nodeIndex) = 0;
     virtual void ClearContents() = 0;
 
-    unsigned char color[4]; /* +0xA4 -- GetColor when useColor */
-    unsigned char* cellColors; /* +0xA8 -- text cell RGBA table */
-    int padAC; /* +0xAC */
-    ScreenNode* nodeB0; /* +0xB0 -- GetScreenNode when bindNodeB0 */
-    ScreenNode* nodeB4; /* +0xB4 -- GetScreenNode when bindNodeB4 */
-    float layout0[3]; /* +0xB8 -- FinishSetup from poly verts */
-    float layout1[3]; /* +0xC4 */
-    int scrollX; /* +0xD0 -- window origin X (axis with rows / unkE8) */
-    int unkD4; /* +0xD4 -- window origin Y (axis with cols / unkEC) */
-    int scrollY; /* +0xD8 -- focus X (ScrollLeft/Right; GetIntArray[2]) */
-    int unkDC; /* +0xDC -- focus Y (ScrollUp/Down; GetIntArray[3]) */
-    int rows; /* +0xE0 -- GetInt(0); visible width on X */
-    int cols; /* +0xE4 -- GetInt(1); visible height on Y */
-    int unkE8; /* +0xE8 -- GetInt(2); X count; flag104 = (unkE8 != 0) */
-    int unkEC; /* +0xEC -- GetInt(3); Y count; flag108 = (unkEC != 0) */
-    int flagF0; /* +0xF0 -- GetBoolean(8) */
-    int bindNodeB0; /* +0xF4 -- bit0 of GetInt(7) */
-    int bindNodeB4; /* +0xF8 -- bit1 of GetInt(7) */
-    int useColor; /* +0xFC -- GetBoolean(6) */
-    int cellArray; /* +0x100 -- init 0; set 1 when GameVariables present */
-    int flag104; /* +0x104 -- (unkE8 != 0) via neg/andc/srwi */
-    int flag108; /* +0x108 -- (unkEC != 0) */
+    unsigned char color[4];
+    unsigned char* cellColors;
+    int padAC;
+    ScreenNode* nodeB0;
+    ScreenNode* nodeB4;
+    float layout0[3];
+    float layout1[3];
+    int scrollX;
+    int unkD4;
+    int scrollY;
+    int unkDC;
+    int rows;
+    int cols;
+    int unkE8;
+    int unkEC;
+    int flagF0;
+    int bindNodeB0;
+    int bindNodeB4;
+    int useColor;
+    int cellArray;
+    int flag104;
+    int flag108;
 };
 
-/* 'SPSH' SpreadSheet_text -- sizeof 0x120. */
 class SpreadSheet_text : public SpreadSheet {
 public:
     virtual ~SpreadSheet_text();
@@ -142,14 +124,13 @@ public:
     virtual void AllocateCollection();
     virtual void FinishSetup(ScreenParams* params, int nodeIndex);
     virtual void ClearContents();
-    int hasExtraRes; /* +0x10C -- GetBoolean(9) */
-    int extraResId; /* +0x110 -- GetResourceID when hasExtraRes */
-    int pad114; /* +0x114 */
-    ScreenText** unk118; /* +0x118 -- cell nodes */
+    int hasExtraRes;
+    int extraResId;
+    int pad114;
+    ScreenText** unk118;
     char** strings;
 };
 
-/* 'SPSI' SpreadSheet_image -- sizeof 0x124. */
 class SpreadSheet_image : public SpreadSheet {
 public:
     virtual ~SpreadSheet_image();
@@ -158,19 +139,13 @@ public:
     virtual void AllocateCollection();
     virtual void FinishSetup(ScreenParams* params, int nodeIndex);
     virtual void ClearContents();
-    int hasExtraRes; /* +0x10C -- GetBoolean(9) */
-    int extraResId; /* +0x110 -- GetResourceID when hasExtraRes */
-    int pad114; /* +0x114 */
-    ScreenPoly** unk118; /* +0x118 -- cell nodes */
+    int hasExtraRes;
+    int extraResId;
+    int pad114;
+    ScreenPoly** unk118;
     GMTextureInfo_t textures;
 };
 
-/*
- * 'IMLI' ImageList -- image option strip.
- * ProcessParams: +0x108 count, +0x10C wrap, +0x110 hasLinkNode,
- * +0xAC itemNodes[] (Malloc), +0xB0 link node, +0xF4..FC layout floats.
- * +0xA4 is the two-word GMTextureInfo_t state for Get/FreeTextureCollection.
- */
 typedef GVTextureCollection ImageListTexCollection;
 
 class ImageList : public ScreenControl {
@@ -225,34 +200,25 @@ typedef char check_ImageList_layout[
      (unsigned long)&((ImageList*)0)->wrap == 0x10C &&
      (unsigned long)&((ImageList*)0)->hasLinkNode == 0x110) ? 1 : -1];
 
-/* 'WIFI' WifImage -- WiFi status image control.
- * ProcessParams: imageCount@+0xF4 (max 0x10), float@+0xF8, statusNode@+0xAC,
- * then loads TGA names into images[0..count) @ +0xB4.
- */
 typedef struct WifImage {
     void Close();
 
-    void* vtbl; /* +0x00 */
-    ScreenObjectHead head; /* +0x04 .. +0x8F */
-    int collectionId; /* +0x90 */
-    int gvContext; /* +0x94 */
-    int optionId; /* +0x98 */
-    int pad9C; /* +0x9C */
-    int unkA0; /* +0xA0 */
-    AniTextureControl* curTexture; /* +0xA4 -- while live */
-    int curTextureInstance; /* +0xA8 -- atc->instance latch */
-    ScreenPoly* statusNode; /* +0xAC -- GetScreenNode(2) */
-    int started; /* +0xB0 -- HandleEvent 0x405 latch; Close clears */
-    void* images[16]; /* +0xB4 -- TGA* / RwTexture* slots */
-    int imageCount; /* +0xF4 -- GetInt(0); clamped <= 0x10 */
-    float unkF8; /* +0xF8 -- GetFloat(1); ani framerate */
-} WifImage; /* 0xFC */
+    void* vtbl;
+    ScreenObjectHead head;
+    int collectionId;
+    int gvContext;
+    int optionId;
+    int pad9C;
+    int unkA0;
+    AniTextureControl* curTexture;
+    int curTextureInstance;
+    ScreenPoly* statusNode;
+    int started;
+    void* images[16];
+    int imageCount;
+    float unkF8;
+} WifImage;
 
-/*
- * 'LIST' TextList -- mode-select option list.
- * ProcessParams: itemCount, collection/option ids, wrap, hasLink/hasParam
- * flags, optional linkedNode + paramB0, itemNodes[] Malloc, color from text.
- */
 class TextList : public ScreenControl {
 public:
     virtual ~TextList();

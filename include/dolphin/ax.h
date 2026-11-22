@@ -73,7 +73,6 @@ typedef struct AXPB {
     AXPBSRC src;
     AXPBADPCMLOOP adpcmLoop;
     AXPBLPF lpf;
-    /* Reserved DSP parameter-block words, confirmed by the retail 0xF4 size. */
     unsigned short pad[25];
 } AXPB;
 

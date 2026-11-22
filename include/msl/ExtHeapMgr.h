@@ -4,13 +4,13 @@
 #include "msl/RedBlackTree.h"
 
 typedef struct ExternalHeapBlockState {
-    RedBlackNode* parent;         /* +0x00 */
-    RedBlackNode* left;           /* +0x04 */
-    RedBlackNode* right;          /* +0x08 */
-    unsigned char black;          /* +0x0C */
-    unsigned char is_free;        /* +0x0D */
+    RedBlackNode* parent;
+    RedBlackNode* left;
+    RedBlackNode* right;
+    unsigned char black;
+    unsigned char is_free;
     unsigned char pad0E[2];
-} ExternalHeapBlockState; /* 0x10 */
+} ExternalHeapBlockState;
 
 typedef char ExternalHeapBlockStateSize[
     sizeof(ExternalHeapBlockState) == 0x10 ? 1 : -1];
@@ -19,34 +19,34 @@ typedef struct ExternalHeapBlock {
     union {
         RedBlackNode size_node;
         ExternalHeapBlockState state;
-    };                            /* +0x00 */
-    RedBlackNode address_node;    /* +0x10 */
+    };
+    RedBlackNode address_node;
     union {
         struct ExternalHeapBlock* next_free;
         unsigned long address;
-    } link;                       /* +0x20 */
-    unsigned long size;           /* +0x24 */
-} ExternalHeapBlock; /* 0x28 */
+    } link;
+    unsigned long size;
+} ExternalHeapBlock;
 
 typedef char ExternalHeapBlockSize[
     sizeof(ExternalHeapBlock) == 0x28 ? 1 : -1];
 
 typedef struct ExternalHeap {
-    unsigned long base;           /* +0x00 */
-    unsigned long size;           /* +0x04 */
-    unsigned long alignment;      /* +0x08 */
-    int block_count;              /* +0x0C */
-    void* mutex;                  /* +0x10 */
-    unsigned long allocation_count; /* +0x14 */
-    unsigned long free_count;     /* +0x18 */
-    unsigned long free_bytes;     /* +0x1C */
-    unsigned long used_bytes;     /* +0x20 */
-    unsigned long peak_used;      /* +0x24 */
-    RedBlackTree address_tree;    /* +0x28 */
-    RedBlackTree size_tree;       /* +0x34 */
-    ExternalHeapBlock* free_blocks; /* +0x40 */
-    ExternalHeapBlock* blocks;    /* +0x44 */
-} ExternalHeap; /* 0x48 */
+    unsigned long base;
+    unsigned long size;
+    unsigned long alignment;
+    int block_count;
+    void* mutex;
+    unsigned long allocation_count;
+    unsigned long free_count;
+    unsigned long free_bytes;
+    unsigned long used_bytes;
+    unsigned long peak_used;
+    RedBlackTree address_tree;
+    RedBlackTree size_tree;
+    ExternalHeapBlock* free_blocks;
+    ExternalHeapBlock* blocks;
+} ExternalHeap;
 
 typedef char ExternalHeapSize[
     sizeof(ExternalHeap) == 0x48 ? 1 : -1];

@@ -10,112 +10,111 @@ typedef struct MkProc MkProc;
 
 typedef struct PuzzleAttackPolicyFlags {
     unsigned char bit7 : 1;
-    unsigned char special_move_4 : 1; /* bit6 */
-    unsigned char special_move_5 : 1; /* bit5 */
+    unsigned char special_move_4 : 1;
+    unsigned char special_move_5 : 1;
     unsigned char bit4 : 1;
-    unsigned char continuation_allowed : 1; /* bit3 */
-    unsigned char continuation_pending : 1; /* bit2 */
-    unsigned char easy_continuation : 1; /* bit1 */
+    unsigned char continuation_allowed : 1;
+    unsigned char continuation_pending : 1;
+    unsigned char easy_continuation : 1;
     unsigned char bit0 : 1;
 } PuzzleAttackPolicyFlags;
 
 typedef struct PuzzleAttackRuntimeFlags {
-    unsigned char enabled : 1; /* bit7 */
+    unsigned char enabled : 1;
     unsigned char low_bits : 7;
 } PuzzleAttackRuntimeFlags;
 
 typedef struct PuzzleFighterMove {
-    int event_type; /* +0x00 */
-    float block_count; /* +0x04 */
-    float chain_count; /* +0x08 */
+    int event_type;
+    float block_count;
+    float chain_count;
     char pad0C[4];
-    unsigned int mode; /* +0x10 */
-    unsigned int script_move; /* +0x14 */
-    unsigned int player; /* +0x18 */
-    int distance_class; /* +0x1C */
-    unsigned int active_flags; /* +0x20 */
-    unsigned int has_followup; /* +0x24 */
+    unsigned int mode;
+    unsigned int script_move;
+    unsigned int player;
+    int distance_class;
+    unsigned int active_flags;
+    unsigned int has_followup;
     union {
-        unsigned int policy_word; /* +0x28 */
+        unsigned int policy_word;
         struct {
             union {
                 unsigned char policy_flags;
                 PuzzleAttackPolicyFlags policy_bits;
-            }; /* +0x28 */
+            };
             union {
                 unsigned char runtime_flags;
                 PuzzleAttackRuntimeFlags runtime_bits;
-            }; /* +0x29 */
-            unsigned char policy_pad[2];
+            };
         };
     };
-    unsigned int continuation_move; /* +0x2C */
-    unsigned int continuation_priority; /* +0x30 */
-} PuzzleFighterMove; /* 0x34 */
+    unsigned int continuation_move;
+    unsigned int continuation_priority;
+} PuzzleFighterMove;
 
 typedef struct PuzzleFighterStartFlags {
-    signed char enabled : 1; /* bit7 */
-    signed char player0_started : 1; /* bit6 */
-    signed char player1_started : 1; /* bit5 */
-    signed char player0_scored : 1; /* bit4 */
-    signed char player1_scored : 1; /* bit3 */
+    signed char enabled : 1;
+    signed char player0_started : 1;
+    signed char player1_started : 1;
+    signed char player0_scored : 1;
+    signed char player1_scored : 1;
     unsigned char unused : 3;
 } PuzzleFighterStartFlags;
 
 typedef struct PuzzleFightersEngine {
-    float balance; /* +0x00 */
-    Vec arena_axis; /* +0x04 */
-    Vec constraint_axis; /* +0x10 */
-    Vec center; /* +0x1C */
-    Vec player1_idle; /* +0x28 */
-    Vec player2_idle; /* +0x34 */
-    Vec fighter_posts[2]; /* +0x40 - home/grinder posts */
-    int round_running; /* +0x58 */
-    int super_move_active; /* +0x5C */
-    int random_fatality_active; /* +0x60 */
-    PuzzleFighterMove fighter_move; /* +0x64 */
-    unsigned int pending_move_count; /* +0x98 */
-    PuzzleFighterMove pending_moves[2]; /* +0x9C */
-    int fighters_positioned; /* +0x104 */
-    MkProc* master_proc; /* +0x108 */
-    int positioning_active; /* +0x10C */
-    int fighter_state[2]; /* +0x110 */
-    int force_repel; /* +0x118 */
-    int fatality_abort; /* +0x11C */
-    int fatality_active; /* +0x120 */
-    int fatality_ready; /* +0x124 */
-    int fatality_victim; /* +0x128 */
-    int fatality_attacker; /* +0x12C */
-    MkObj* fatality_objects[8]; /* +0x130 */
-    MkObj* present_object; /* +0x150 */
-    MkObj* projectile_objects[2]; /* +0x154 */
-    int fatality_index; /* +0x15C */
-    unsigned int random_event_cooldown; /* +0x160 */
-    int breakout; /* +0x164 */
-    int y_constraint_enabled[2]; /* +0x168 */
-    float y_constraint[2]; /* +0x170 */
-    unsigned int fatality_timer; /* +0x178 */
-    float fatality_motion; /* +0x17C */
-    ScreenObj* screen_objects[2]; /* +0x180 */
-    AniTextureControl* texture_controls[2]; /* +0x188 */
-    unsigned int balance_update_timer; /* +0x190 */
-    float pending_balance; /* +0x194 */
-    PuzzleFighterStartFlags start_flag_bits; /* +0x198 */
+    float balance;
+    Vec arena_axis;
+    Vec constraint_axis;
+    Vec center;
+    Vec player1_idle;
+    Vec player2_idle;
+    Vec fighter_posts[2];
+    int round_running;
+    int super_move_active;
+    int random_fatality_active;
+    PuzzleFighterMove fighter_move;
+    unsigned int pending_move_count;
+    PuzzleFighterMove pending_moves[2];
+    int fighters_positioned;
+    MkProc* master_proc;
+    int positioning_active;
+    int fighter_state[2];
+    int force_repel;
+    int fatality_abort;
+    int fatality_active;
+    int fatality_ready;
+    int fatality_victim;
+    int fatality_attacker;
+    MkObj* fatality_objects[8];
+    MkObj* present_object;
+    MkObj* projectile_objects[2];
+    int fatality_index;
+    unsigned int random_event_cooldown;
+    int breakout;
+    int y_constraint_enabled[2];
+    float y_constraint[2];
+    unsigned int fatality_timer;
+    float fatality_motion;
+    ScreenObj* screen_objects[2];
+    AniTextureControl* texture_controls[2];
+    unsigned int balance_update_timer;
+    float pending_balance;
+    PuzzleFighterStartFlags start_flag_bits;
     char pad199[3];
-    unsigned int immediate_request_player; /* +0x19C */
-    unsigned int immediate_request_type; /* +0x1A0 */
-    int immediate_request_timer; /* +0x1A4 */
-    int immediate_request_active; /* +0x1A8 */
-    unsigned int event_block_count; /* +0x1AC */
+    unsigned int immediate_request_player;
+    unsigned int immediate_request_type;
+    int immediate_request_timer;
+    int immediate_request_active;
+    unsigned int event_block_count;
     char pad1B0[4];
     int field_1B4;
-    int balance_out_of_range; /* +0x1B8 */
-    PuzzlePresentState* present; /* +0x1BC */
-    int reaction_slots[6]; /* +0x1C0 */
+    int balance_out_of_range;
+    PuzzlePresentState* present;
+    int reaction_slots[6];
     int field_1D8;
-    int super_move_request_pending; /* +0x1DC */
-    int constraint_timer; /* +0x1E0 */
-    int reactions_disabled; /* +0x1E4 */
+    int super_move_request_pending;
+    int constraint_timer;
+    int reactions_disabled;
 } PuzzleFightersEngine;
 
 float pz_fighter_check_breakout(void);
