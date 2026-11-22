@@ -40,6 +40,7 @@
 #include "rw/rwcamera_internal.h"
 #include "rw/rwframe.h"
 #include "fdlibm.h"
+#include "runtime/cmath.h"
 #include "game/game.h"
 #include "game/plyr_globals.h"
 #include "runtime/anims.h"
@@ -455,6 +456,7 @@ void high_flash_check(void);
 void ani_loop_more_frames(float frames);
 void damage_me(float amount);
 void damage_player(PlyrPdata* player, float amount);
+void cloth_change_ground_plane_for(float ground_plane);
 static int bgnd_collision_to_script_interface(BgndObstacleEventData* event);
 static float p_bgnd_launch_sobj_monitor(void);
 static float p_bgnd_launch_chunk_monitor(void);
@@ -1221,6 +1223,7 @@ static inline void bl_enable_column_piece_motion(MkSobj* piece) {
 }
 
 static inline float bl_column_vector_length(const Vec* vector) {
+#ifdef VERSION_GQNE5D
     union {
         float f;
         unsigned int u;
@@ -1239,6 +1242,11 @@ static inline float bl_column_vector_length(const Vec* vector) {
         (((input.u & 0x7F800000U) + 0x3F800000U) >> 1) & 0x7F800000U;
     return 0.5f *
         (estimate.f * (3.0f - (estimate.f * estimate.f) / squared));
+#endif
+#ifdef VERSION_SLUS_208_81
+    return gxMathFastSqrt(vector->x * vector->x + vector->y * vector->y +
+        vector->z * vector->z);
+#endif
 }
 
 
@@ -8659,7 +8667,7 @@ static float p_launch_column_piece(void) {
     float damping;
 
     ticks = 200;
-    damping = pow(0.992f, game_speed);
+    damping = powf(0.992f, game_speed);
     data = (BlFinalColumnPieceData*)apdata;
     if (data == 0) {
         return -1.0f;
@@ -8705,7 +8713,7 @@ static float p_launch_final_column_piece(void) {
     float damping;
 
     ticks = 200;
-    damping = pow(0.992f, game_speed);
+    damping = powf(0.992f, game_speed);
     data = (BlFinalColumnPieceData*)apdata;
     if (data == 0) {
         return -1.0f;
@@ -9590,6 +9598,7 @@ float r_beetle_lair_transition(void) {
         g_game_info.player_objects[1]->pos.value.x;
     z = g_game_info.player_objects[0]->pos.value.z -
         g_game_info.player_objects[1]->pos.value.z;
+#ifdef VERSION_GQNE5D
     scale = x * x + z * z;
     if (scale <= 0.0f) {
         scale = 0.0f;
@@ -9605,6 +9614,10 @@ float r_beetle_lair_transition(void) {
         scale = 0.0625f * estimate * correction *
             -(correction * (product * correction) - 12.0f);
     }
+#endif
+#ifdef VERSION_SLUS_208_81
+    scale = gxMathFastInvSqrt(x * x + z * z);
+#endif
     x *= scale;
     velocity.z = 0.23f;
     velocity.x = 0.23f * x;

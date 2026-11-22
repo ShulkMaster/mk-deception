@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: [GQNE5D]
+        version: [GQNE5D, SLUS_208.81]
 
     steps:
     - name: Checkout
@@ -54,6 +54,10 @@ jobs:
         # can report unrelated changes as regressions.
         base_sha="$(git merge-base HEAD "origin/${BASE_REF}")"
         echo "Comparing PR progress against ${base_sha} (${BASE_REF} merge base)"
+        if ! git show "${base_sha}:configure.py" | grep -qF '"${{ matrix.version }}"'; then
+          echo "::notice::${{ matrix.version }} is not configured at ${base_sha}; no baseline."
+          exit 0
+        fi
         baseline_dir="${RUNNER_TEMP}/mkd-base-${{ matrix.version }}"
         git worktree add --detach "${baseline_dir}" "${base_sha}"
         cp -a /orig "${baseline_dir}/"
@@ -86,6 +90,7 @@ jobs:
         ninja all_source progress build/${{ matrix.version }}/report.json
 
     - name: Upload maps
+      if: ${{ !startsWith(matrix.version, 'SLUS_') }}
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.version }}_maps
@@ -100,6 +105,18 @@ jobs:
     - name: Compare PR against branch baseline
       if: github.event_name == 'pull_request'
       run: |
+        if [ ! -f build/${{ matrix.version }}/baseline.json ]; then
+          mkdir -p build/${{ matrix.version }}/github_comments
+          {
+            echo "## Objdiff report · ${{ matrix.version }}"
+            echo
+            echo "No baseline: the merge base does not configure ${{ matrix.version }}."
+          } > build/${{ matrix.version }}/github_report.md
+          cp build/${{ matrix.version }}/github_report.md \
+              build/${{ matrix.version }}/github_comments/comment-1.md
+          cat build/${{ matrix.version }}/github_report.md >> "${GITHUB_STEP_SUMMARY}"
+          exit 0
+        fi
         /tools/objdiff-cli report changes \
             --format json-pretty \
             build/${{ matrix.version }}/baseline.json \

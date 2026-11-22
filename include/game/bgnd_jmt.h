@@ -34,6 +34,6 @@ int can_fallingcliff_fall(void);
 void mks_set_sin_update_by_group(int group_id, int blend_ticks, int update_flags, float start_value, float end_value, float start_speed, float speed_param, float sin_rate, float sin_phase, int extra_flags);
 struct BgndDamageState* get_cliff_data(void);
 void mks_gravity_update_by_group(int group_id, int blend_ticks, float velocity_x, float velocity_y, float velocity_z, float gravity);
-int check_damage_valid_fc();
+int check_damage_valid_fc(int player, float amount);
 void mks_away_vel_update_by_group(int group_id, int blend_ticks, float speed, float speed_param, float random_range);
 #endif

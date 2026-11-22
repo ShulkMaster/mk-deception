@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        version: [GQNE5D]
+        version: [GQNE5D, SLUS_208.81]
 
     steps:
     # Only the base repository's trusted script is checked out; the fork's

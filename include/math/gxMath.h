@@ -11,6 +11,7 @@ float gxMathArcTanYX(float y, float x);
 float gxMathArcTan(float x);
 float gxMathArcCos(float x);
 
+#ifdef VERSION_GQNE5D
 static inline float gxMathFastInvSqrt(float value) {
     union {
         float f;
@@ -47,5 +48,19 @@ static inline float gxMathFastSqrt(float value) {
     correction = 3.0f - (guess * guess) / value;
     return 0.5f * (guess * correction);
 }
+#endif
+
+#ifdef VERSION_SLUS_208_81
+float sqrtf(float x);
+float __rsqrt(float numerator, float value);
+
+static inline float gxMathFastInvSqrt(float value) {
+    return __rsqrt(1.0f, value);
+}
+
+static inline float gxMathFastSqrt(float value) {
+    return sqrtf(value);
+}
+#endif
 
 #endif

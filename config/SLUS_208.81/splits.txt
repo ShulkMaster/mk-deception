@@ -1,0 +1,44 @@
+Sections:
+	.text       type:code align:16
+	.data       type:data align:16
+	.rodata     type:rodata align:16
+	.sdata      type:data align:8
+	.sbss       type:bss align:8
+	.bss        type:bss align:16
+
+mwMem.o:
+	.text       start:0x003B9CF0 end:0x003BB9E0
+	.data       start:0x00569AA0 end:0x00569AAC
+	.rodata     start:0x005C69E0 end:0x005C6A20
+	.sbss       start:0x005D7148 end:0x005D7168
+	.bss        start:0x00738440 end:0x00738540
+
+fx.o:
+	.text       start:0x0018DDA0 end:0x00190B9C
+
+jdn.o:
+	.text       start:0x0025BBB0 end:0x0025CFC8
+
+ncs.o:
+	.text       start:0x0025D5C0 end:0x00264ED0
+
+acb.o:
+	.text       start:0x00264EE0 end:0x00265800
+
+fatality.o:
+	.text       start:0x00267200 end:0x0026E7B8
+
+mcardmsg.o:
+	.text       start:0x00275340 end:0x002757D8
+
+pfxscript.o:
+	.text       start:0x00366520 end:0x0036C420
+
+konquest_missions.o:
+	.text       start:0x003A3BD0 end:0x003ACCC8
+
+bgnd_mab.o:
+	.text       start:0x003C0430 end:0x003C3C0C
+
+nis.o:
+	.text       start:0x003C6C90 end:0x003C7744
