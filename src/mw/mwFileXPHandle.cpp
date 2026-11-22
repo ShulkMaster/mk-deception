@@ -3,13 +3,13 @@
 
 class mwFileMultithreadedMemTraits {
 public:
-    static void* allocate(unsigned long size, mwTargetMemAlign alignment,
+    static void* allocate(size_t size, mwTargetMemAlign alignment,
                           const char* name);
     static void deallocate(void* memory);
 };
 
 template <class T>
-bool mwFileMemAlloc(T*& memory, unsigned long size,
+bool mwFileMemAlloc(T*& memory, size_t size,
                     mwTargetMemAlign alignment, const char* name);
 
 class mwFileBuffer {
@@ -17,16 +17,16 @@ public:
     mwFileBuffer();
     ~mwFileBuffer();
 
-    unsigned long readInRange(unsigned char*& destination,
-                              unsigned long& length,
+    u32 readInRange(unsigned char*& destination,
+                              u32& length,
                               unsigned long long& position);
-    void reset(unsigned long long position, unsigned long length);
+    void reset(unsigned long long position, u32 length);
     void shutdown();
-    int initialize(unsigned long size, mwTargetMemAlign alignment);
+    int initialize(u32 size, mwTargetMemAlign alignment);
 
 private:
     unsigned long long file_position;
-    unsigned long capacity;
+    u32 capacity;
     unsigned char* buffer;
     unsigned char* buffer_end;
     bool dirty;
@@ -40,25 +40,25 @@ static const char stringBase0[] =
     "mwFile: WARNING - destroying unflushed file buffer\n\0"
     "File buffer";
 
-unsigned long mwFileBuffer::readInRange(unsigned char*& destination,
-                                        unsigned long& length,
+u32 mwFileBuffer::readInRange(unsigned char*& destination,
+                                        u32& length,
                                         unsigned long long& position)
 {
-    unsigned long bytes_read = 0;
+    u32 bytes_read = 0;
 
     if (buffer != buffer_end) {
         unsigned long long buffered_end =
-            file_position + (unsigned long)(buffer_end - buffer);
+            file_position + (u32)(buffer_end - buffer);
 
         if (position >= file_position && position < buffered_end) {
-            unsigned long buffered_length =
+            u32 buffered_length =
                 buffered_end - position;
             if (buffered_length > length) {
                 buffered_length = length;
             }
 
             memcpy(destination,
-                   buffer + (unsigned long)(position - file_position),
+                   buffer + (u32)(position - file_position),
                    buffered_length);
             position += buffered_length;
             length -= buffered_length;
@@ -68,7 +68,7 @@ unsigned long mwFileBuffer::readInRange(unsigned char*& destination,
 
         if (length != 0 && position + length >= file_position &&
             position + length < buffered_end) {
-            unsigned long buffered_length =
+            u32 buffered_length =
                 position + length - file_position;
             memcpy(destination + (length - buffered_length), buffer,
                    buffered_length);
@@ -80,7 +80,7 @@ unsigned long mwFileBuffer::readInRange(unsigned char*& destination,
     return bytes_read;
 }
 
-void mwFileBuffer::reset(unsigned long long position, unsigned long length)
+void mwFileBuffer::reset(unsigned long long position, u32 length)
 {
     buffer_end = buffer + length;
     dirty = false;
@@ -103,7 +103,7 @@ void mwFileBuffer::shutdown()
     }
 }
 
-int mwFileBuffer::initialize(unsigned long size, mwTargetMemAlign alignment)
+int mwFileBuffer::initialize(u32 size, mwTargetMemAlign alignment)
 {
     if (buffer != 0) {
         return 0;
@@ -136,7 +136,7 @@ mwFileBuffer::mwFileBuffer()
 }
 
 template <class T>
-bool mwFileMemAlloc(T*& memory, unsigned long size,
+bool mwFileMemAlloc(T*& memory, size_t size,
                     mwTargetMemAlign alignment, const char* name)
 {
     memory = static_cast<T*>(

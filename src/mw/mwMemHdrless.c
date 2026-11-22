@@ -22,11 +22,11 @@ void hdrlessHeapFreeBlock(_mwMemHeap* heap, void* block) {
     if (free_head == 0) {
         heap->freeList = (MwMemFreeHeader*)header;
         header->next = 0;
-        header->previous = (MwMemUsedHeader*)~(u32)header->next;
+        header->previous = (MwMemUsedHeader*)~(uptr)header->next;
     } else {
         header->next = (MwMemUsedHeader*)free_head;
         heap->freeList = (MwMemFreeHeader*)header;
-        header->previous = (MwMemUsedHeader*)~(u32)header->next;
+        header->previous = (MwMemUsedHeader*)~(uptr)header->next;
     }
 }
 

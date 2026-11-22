@@ -1,6 +1,8 @@
 #ifndef DOLPHIN_GX_FIFO_H
 #define DOLPHIN_GX_FIFO_H
 
+#include "dolphin/types.h"
+
 #define GXFIFO_ADDR 0xCC008000
 
 typedef struct GXFifoObj {
@@ -11,10 +13,10 @@ typedef void (*GXBreakPtCallback)(void);
 typedef void (*GXDrawSyncCallback)(unsigned short token);
 typedef void (*GXDrawDoneCallback)(void);
 
-void GXInitFifoBase(GXFifoObj* fifo, void* base, unsigned long size);
+void GXInitFifoBase(GXFifoObj* fifo, void* base, u32 size);
 void GXInitFifoPtrs(GXFifoObj* fifo, void* readPointer, void* writePointer);
-void GXInitFifoLimits(GXFifoObj* fifo, unsigned long highWatermark,
-                      unsigned long lowWatermark);
+void GXInitFifoLimits(GXFifoObj* fifo, u32 highWatermark,
+                      u32 lowWatermark);
 void GXSetCPUFifo(GXFifoObj* fifo);
 void GXSetGPFifo(GXFifoObj* fifo);
 void GXSaveCPUFifo(GXFifoObj* fifo);

@@ -31,7 +31,7 @@ __declspec(weak) void __sys_free(void* pointer)
     OSFreeToHeap(__OSCurrHeap, pointer);
 }
 
-__declspec(weak) void* __sys_alloc(unsigned long size)
+__declspec(weak) void* __sys_alloc(size_t size)
 {
     if (__OSCurrHeap == -1) {
         InitDefaultHeap();

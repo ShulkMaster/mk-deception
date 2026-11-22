@@ -1,6 +1,8 @@
 #ifndef MSLCPP_ITERATOR_H
 #define MSLCPP_ITERATOR_H
 
+#include "dolphin/types.h"
+
 namespace std {
 
 struct input_iterator_tag {};
@@ -13,7 +15,7 @@ struct iterator_traits;
 
 template <class T>
 struct iterator_traits<T*> {
-    typedef long difference_type;
+    typedef sptr difference_type;
     typedef T value_type;
 };
 

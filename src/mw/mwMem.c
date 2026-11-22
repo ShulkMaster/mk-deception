@@ -822,7 +822,7 @@ static int privInitSystemHeap(u32 arenaSize, u8* buffer, u32 strategyType,
     _mwMemHeap* heap;
     MwMemHeapParams defaultParams;
 
-    heap = (_mwMemHeap*)(((unsigned long)buffer + 0xF) & ~0xFUL);
+    heap = (_mwMemHeap*)(((uptr)buffer + 0xF) & ~(uptr)0xF);
     heap->sizeThreshold = 0;
     heap->blockSize = 0;
     heap->flags = 0;

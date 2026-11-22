@@ -20,7 +20,7 @@ ScreenClient* ScreenUtil::GetScreenClient() {
     return m_pClient;
 }
 
-void* ScreenUtil::Malloc(unsigned long size, int tag, char* name) {
+void* ScreenUtil::Malloc(size_t size, int tag, char* name) {
     return m_pClient->Malloc(size, tag, name);
 }
 

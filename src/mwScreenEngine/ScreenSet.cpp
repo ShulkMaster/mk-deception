@@ -175,7 +175,7 @@ void ScreenSet::BroadcastEvent(ScreenMgr* mgr, int event, int arg) {
     }
 }
 
-void* ScreenSet::operator new(unsigned long size) {
+void* ScreenSet::operator new(size_t size) {
     return ScreenUtil::Malloc(size, SCREEN_SET_ALLOC_TAG, "SS-Set");
 }
 

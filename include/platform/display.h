@@ -1,5 +1,6 @@
 #ifndef PLATFORM_DISPLAY_H
 #define PLATFORM_DISPLAY_H
+#include "dolphin/types.h"
 #include "rw/rplight.h"
 #include "math/mk_math_types.h"
 #include "rw/rwcamera_internal.h"
@@ -8,7 +9,7 @@ typedef struct RwTexture RwTexture;
 typedef struct ScreenObj ScreenObj;
 typedef struct RwRaster RwRaster;
 typedef struct FadingScreen {
-    unsigned long field_00; unsigned long field_04; RwTexture* snapshotTex;
+    u32 field_00; u32 field_04; RwTexture* snapshotTex;
     int fade_active; float alpha; ScreenObj* fade_obj;
 } FadingScreen;
 typedef struct RpWorld RpWorld; typedef struct RpClump RpClump;
@@ -23,7 +24,7 @@ extern const unsigned int rgba_cyan;
 extern const unsigned int rgba_yellow;
 extern RwCamera* Camera; extern RpWorld* World;
 extern MKMATRIX camera_facing_matrix_ay;
-extern unsigned long f_render_all_atomics, display_off, renderware_initialized;
+extern s32 f_render_all_atomics, display_off, renderware_initialized;
 int init_display(void); void Render(void); void display_shutdown(void);
 void turn_display_on(void); void turn_display_off(void);
 void set_background_color(int red, int green, int blue, int alpha);

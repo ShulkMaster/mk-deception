@@ -21,7 +21,7 @@ enum mwFileSeekOrigin {
 union mwFileAsyncValue {
     void* pointer;
     mwFile* file;
-    unsigned long bytes;
+    u32 bytes;
 };
 
 struct mwFileAsyncResult {
@@ -34,16 +34,16 @@ typedef void (*mwFileCallback)(
 typedef void (*mwFileTickCallback)(int);
 
 struct _mwFileInitParam {
-    unsigned long file_handle_tracking_size;
+    u32 file_handle_tracking_size;
     unsigned short max_open_files;
     unsigned short field_0x06;
     unsigned short max_commands;
     unsigned short field_0x0A;
-    unsigned long flags;
+    u32 flags;
     unsigned short command_retries;
     unsigned short field_0x12;
     void* allocator_context;
-    unsigned long field_0x18;
+    u32 field_0x18;
 };
 
 typedef _mwFileInitParam mwFileInitParam;
@@ -77,13 +77,13 @@ public:
     }
 
 private:
-    unsigned long field_0x04;
+    u32 field_0x04;
     unsigned long long size;
     unsigned long long position;
     int field_0x18;
     int error;
     void* mount_point;
-    unsigned long flags;
+    u32 flags;
 };
 
 class mwFileCommand {
@@ -93,7 +93,7 @@ public:
 
 class mwFileDevice {
 public:
-    static void initializeCallbacks(unsigned long);
+    static void initializeCallbacks(u32);
 };
 
 class mwFileServer {
@@ -108,7 +108,7 @@ public:
 class mwFileServerManagerMultiThreaded : public mwFileServerManagerBase {
 public:
     mwFileServerManagerMultiThreaded();
-    void initialize(unsigned long);
+    void initialize(u32);
     void service();
     void serviceThread();
 };
@@ -120,17 +120,17 @@ public:
     int initialize(unsigned short);
 
 private:
-    unsigned long field_0x00;
+    u32 field_0x00;
     unsigned char field_0x04[0x64];
 };
 
 union mwFileServerManagerStorage {
-    unsigned long alignment;
+    u32 alignment;
     unsigned char bytes[0x8C];
 };
 
 union mwFileMutexStorage {
-    unsigned long alignment;
+    u32 alignment;
     unsigned char bytes[0x18];
 };
 
@@ -138,7 +138,7 @@ class mwFileMultithreadedMemTraits {
 public:
     static void deallocate(void*);
     static void* allocate(
-        unsigned long, mwTargetMemAlign, const char*);
+        size_t, mwTargetMemAlign, const char*);
     static mwFileMutex* getMutex();
 
 private:
@@ -146,13 +146,13 @@ private:
     static mwFileMutex* spMemMutex;
 };
 
-inline void* operator new(unsigned long, void* storage)
+inline void* operator new(size_t, void* storage)
 {
     return storage;
 }
 
 extern void _mwFileNoOp(...);
-static inline unsigned long _mwFileInitHandleTracking(mwFileInitParam* parameters)
+static inline u32 _mwFileInitHandleTracking(mwFileInitParam* parameters)
 {
     return parameters->file_handle_tracking_size;
 }
@@ -192,7 +192,7 @@ enum {
     MWF_OPEN_APPEND_MODE = 0x16
 };
 
-static const unsigned long MWF_OPEN_READ = 1;
+static const u32 MWF_OPEN_READ = 1;
 
 static mwFileServerManagerStorage sServerMemory;
 static mwFileServerNotQueued sGenericServer;
@@ -394,7 +394,7 @@ void mwFileMultithreadedMemTraits::deallocate(void* object)
 }
 
 void* mwFileMultithreadedMemTraits::allocate(
-    unsigned long size, mwTargetMemAlign alignment, const char* name)
+    size_t size, mwTargetMemAlign alignment, const char* name)
 {
     mwFileMutexLock lock(*getMutex());
     return mwFileMemTraits::allocate(size, alignment, name);

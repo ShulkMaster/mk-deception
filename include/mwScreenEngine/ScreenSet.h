@@ -33,7 +33,7 @@ public:
     int GetScreenIndex(char* name);
     void BroadcastEvent(ScreenMgr* mgr, int event, int arg);
 
-    void* operator new(unsigned long size);
+    void* operator new(size_t size);
     void operator delete(void* p);
 
      int m_unloadId;

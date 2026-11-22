@@ -3,8 +3,6 @@
 
 #include "dolphin/types.h"
 
-typedef unsigned long size_t;
-
 typedef u32 file_handle;
 typedef u32 file_position;
 

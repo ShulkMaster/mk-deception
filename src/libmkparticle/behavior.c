@@ -6,7 +6,7 @@
 #include "libmkparticle/update.h"
 #include "runtime/cstring.h"
 
-void* memmove(void* destination, const void* source, unsigned long size);
+void* memmove(void* destination, const void* source, size_t size);
 
 int pfx_num_behaviors(PfxVm* pfx)
 {

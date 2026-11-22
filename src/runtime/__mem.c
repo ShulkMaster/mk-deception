@@ -7,7 +7,7 @@ void* memset(void* destination, int value, unsigned int size)
     return destination;
 }
 
-void __fill_mem(void* destination, int value, unsigned long size)
+void __fill_mem(void* destination, int value, size_t size)
 {
     u8* byte_destination;
     u32* word_destination;
@@ -56,7 +56,7 @@ void __fill_mem(void* destination, int value, unsigned long size)
     }
 }
 
-void* memcpy(void* destination, const void* source, unsigned long size)
+void* memcpy(void* destination, const void* source, size_t size)
 {
     const u8* source_byte;
     u8* destination_byte;

@@ -114,8 +114,7 @@ void pfxfont_string_init(PfxFontString* ctx) {
     memset(ctx, 0, sizeof(*ctx));
     pfx_native_set_rgba(&ctx->instance0.native_color, s_255, s_255, s_255, s_255);
 
-    ctx->transform = (PfxFontTransform*)(((unsigned long)ctx + 0x13) &
-                                         ~(unsigned long)0xFul);
+    ctx->transform = (PfxFontTransform*)(((uptr)ctx + 0x13) & ~(uptr)0xF);
     one = s_one;
     ctx->transform->rx = one;
     ctx->transform->uy = one;
@@ -299,10 +298,8 @@ void pfxfont_string_set(PfxFontString* ctx, PfxFontSlot* font, const char* text,
                             cur->verts = 0;
                             return;
                         }
-                        cur->verts = (void*)((unsigned long)cur->verts_raw +
-                                             (unsigned long)cfg->align_add);
-                        cur->verts = (void*)((unsigned long)cur->verts &
-                                             ~(unsigned long)cfg->align_mask);
+                        cur->verts = (void*)((uptr)cur->verts_raw + (uptr)cfg->align_add);
+                        cur->verts = (void*)((uptr)cur->verts & ~(uptr)cfg->align_mask);
                         cur->verts_bytes = alloc_size;
                     }
                     cur->char_count = run_len;

@@ -1,6 +1,5 @@
 #include "runtime/cstring.h"
 
-typedef unsigned long size_t;
 typedef unsigned short wchar_t;
 static int is_utf8_complete(const char* s, size_t n);
 

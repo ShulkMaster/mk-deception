@@ -1,11 +1,13 @@
 #ifndef MSL_QUEUE_H
 #define MSL_QUEUE_H
 
+#include "dolphin/types.h"
+
 typedef struct mslBankSoundEntry mslBankSoundEntry;
 
 typedef struct mslQueueEntry {
     mslBankSoundEntry* sound;
-    unsigned long reserved;
+    u32 reserved;
 } mslQueueEntry;
 
 typedef struct mslQueue {

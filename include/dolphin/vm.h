@@ -7,10 +7,10 @@
 extern "C" {
 #endif
 
-void VMInit(unsigned long virtual_memory_size, unsigned long aram_base,
-            unsigned long aram_size);
+void VMInit(u32 virtual_memory_size, u32 aram_base,
+            u32 aram_size);
 void VMQuit(void);
-int VMAlloc(void* virtual_address, unsigned long size);
+int VMAlloc(void* virtual_address, u32 size);
 
 void VMBASEInit(void (*swap_page_callback)(u32));
 void VMBASEQuit(void);

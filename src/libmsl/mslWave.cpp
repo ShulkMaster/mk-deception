@@ -146,7 +146,7 @@ extern "C" mslRuntimeWave* mslWaveCopy(
 
 extern "C" mslRuntimeWave* mslWaveLoad(
     _mslSystem* system, mslLoadedBank* bank,
-    const char* name, unsigned long flags) {
+    const char* name, u32 flags) {
     mslRuntimeWave* wave;
 
     if ((flags & 2) != 0) {
@@ -214,8 +214,8 @@ extern "C" int mslWaveSetVol(
 }
 
 extern "C" int mslWaveUpdateStatus(mslRuntimeWave* wave) {
-    unsigned long status;
-    unsigned long status_flags = 0;
+    u32 status;
+    u32 status_flags = 0;
     mslPlayable* playable;
     int result;
 
@@ -263,7 +263,7 @@ extern "C" void mslCreateLogTable(void) {
     }
 }
 
-long mslWaveGetDbMapEntryRelative(float volume) {
+s32 mslWaveGetDbMapEntryRelative(float volume) {
     int index = (int)(volume * 100.0f);
 
     if (index < 0) {

@@ -54,9 +54,9 @@ extern "C" int mslStreamCache_GetNumBuffers(void) {
     return s_StreamCache_NumBuffers;
 }
 
-extern "C" unsigned long mslStreamCache_GetStreamBuffer(void) {
+extern "C" u32 mslStreamCache_GetStreamBuffer(void) {
     u32 result = 0;
-    unsigned long enabled = OSDisableInterrupts();
+    u32 enabled = OSDisableInterrupts();
     StreamCacheBuffer* first = SCB_List_Free.first;
     StreamCacheBuffer* buffer = first;
     if (buffer != 0) {
@@ -112,7 +112,7 @@ extern "C" void mslStreamCache_ReleaseBuffer(int address) {
         s_StreamCache_pBuffers +
         (address - s_StreamCache_BaseAddress) /
             s_StreamCache_SizeBuffers;
-    unsigned long enabled = OSDisableInterrupts();
+    u32 enabled = OSDisableInterrupts();
 
     switch (buffer->state) {
     case 1:

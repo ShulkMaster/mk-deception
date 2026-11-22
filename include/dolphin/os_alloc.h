@@ -15,7 +15,7 @@ void* OSGetArenaLo(void);
 void* OSInitAlloc(void* arena_start, void* arena_end, int max_heaps);
 void OSSetArenaHi(void* arena_high);
 void OSSetArenaLo(void* arena_low);
-void* OSAllocFromArenaLo(unsigned long size, unsigned long alignment);
+void* OSAllocFromArenaLo(u32 size, u32 alignment);
 OSHeapHandle OSCreateHeap(void* heap_start, void* heap_end);
 OSHeapHandle OSSetCurrentHeap(OSHeapHandle heap);
 int OSCheckHeap(OSHeapHandle heap);

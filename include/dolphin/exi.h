@@ -1,6 +1,8 @@
 #ifndef DOLPHIN_EXI_H
 #define DOLPHIN_EXI_H
 
+#include "dolphin/types.h"
+
 typedef struct OSContext OSContext;
 
 #define EXI_READ 0
@@ -30,47 +32,47 @@ typedef struct OSContext OSContext;
 #define EXI_ETHER_VIEWER 0x04220001
 #define EXI_IS_VIEWER 0x05070000
 
-typedef void (*EXICallback)(signed long chan, OSContext* context);
+typedef void (*EXICallback)(s32 chan, OSContext* context);
 
 typedef struct EXIControl {
     EXICallback exiCallback;
     EXICallback tcCallback;
     EXICallback extCallback;
-    volatile unsigned long state;
+    volatile u32 state;
     int immLen;
     unsigned char* immBuf;
-    unsigned long dev;
-    unsigned long id;
-    signed long idTime;
+    u32 dev;
+    u32 id;
+    s32 idTime;
     int items;
     struct {
-        unsigned long dev;
+        u32 dev;
         EXICallback callback;
     } queue[3];
 } EXIControl;
 typedef char EXIControlSizeCheck[sizeof(EXIControl) == 0x40 ? 1 : -1];
 
-EXICallback EXISetExiCallback(signed long chan, EXICallback callback);
+EXICallback EXISetExiCallback(s32 chan, EXICallback callback);
 void EXIInit(void);
-unsigned long EXIClearInterrupts(signed long chan, int exi, int tc, int ext);
-int EXILock(signed long chan, unsigned long device, EXICallback callback);
-int EXIUnlock(signed long chan);
-int EXISelect(signed long chan, unsigned long device, unsigned long frequency);
-int EXIDeselect(signed long chan);
-int EXIImm(signed long chan, void* buffer, signed long length,
-           unsigned long type, EXICallback callback);
-int EXIImmEx(signed long chan, void* buffer, signed long length,
-             unsigned long type);
-int EXIDma(signed long chan, void* buffer, signed long length,
-           unsigned long type, EXICallback callback);
-int EXISync(signed long chan);
-int EXIProbe(signed long chan);
-signed long EXIProbeEx(signed long chan);
-int EXIAttach(signed long chan, EXICallback callback);
-int EXIDetach(signed long chan);
-unsigned long EXIGetState(signed long chan);
-signed long EXIGetID(signed long chan, unsigned long device,
-                     unsigned long* id);
-void __OSEnableBarnacle(signed long channel, unsigned long device);
+u32 EXIClearInterrupts(s32 chan, int exi, int tc, int ext);
+int EXILock(s32 chan, u32 device, EXICallback callback);
+int EXIUnlock(s32 chan);
+int EXISelect(s32 chan, u32 device, u32 frequency);
+int EXIDeselect(s32 chan);
+int EXIImm(s32 chan, void* buffer, s32 length,
+           u32 type, EXICallback callback);
+int EXIImmEx(s32 chan, void* buffer, s32 length,
+             u32 type);
+int EXIDma(s32 chan, void* buffer, s32 length,
+           u32 type, EXICallback callback);
+int EXISync(s32 chan);
+int EXIProbe(s32 chan);
+s32 EXIProbeEx(s32 chan);
+int EXIAttach(s32 chan, EXICallback callback);
+int EXIDetach(s32 chan);
+u32 EXIGetState(s32 chan);
+s32 EXIGetID(s32 chan, u32 device,
+             u32* id);
+void __OSEnableBarnacle(s32 channel, u32 device);
 
 #endif

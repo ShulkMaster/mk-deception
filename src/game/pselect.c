@@ -1,3 +1,4 @@
+#include "dolphin/types.h"
 #include "game/pselect.h"
 #include "game/plyrprofile.h"
 #include "game/game.h"
@@ -310,7 +311,7 @@ static inline struct PselectCharEntry* pselect_char_at(int slot) {
     return &pselect_char_tbl[slot];
 }
 
-static inline long get_char_from_tbl(long slot) {
+static inline s32 get_char_from_tbl(u32 slot) {
     if (pselect_mode == 2) {
         return pselect_pz_char_tbl[slot].char_id;
     }

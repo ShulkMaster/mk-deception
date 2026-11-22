@@ -163,8 +163,8 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
         cursor += estimate->particle_user_data_size * pfx->particle_capacity;
     }
 
-    if (((long)cursor & 0xF) != 0) {
-        cursor = (unsigned char*)(((unsigned long)cursor + 0x10) & ~0xFUL);
+    if (((sptr)cursor & 0xF) != 0) {
+        cursor = (unsigned char*)(((uptr)cursor + 0x10) & ~(uptr)0xF);
     }
     for (index = 0; index < 3; index++) {
         pfx->transforms[index].particle_field_stride =
@@ -199,8 +199,8 @@ void pfx_set_memory(PfxVm* pfx, void* memory, PfxEstimate* estimate)
         unsigned char* aligned;
 
         aligned = cursor;
-        if (((long)cursor & 0xF) != 0) {
-            aligned += 0x10 - ((unsigned long)cursor & 0xF);
+        if (((sptr)cursor & 0xF) != 0) {
+            aligned += 0x10 - ((uptr)cursor & 0xF);
         }
         pfx->emitter_user_data = aligned;
         cursor += estimate->emitter_user_data_block_size;
@@ -281,10 +281,10 @@ void* pfx_effect_memory_alloc(PfxVm* vm, int size, int align)
 
     allocation = get_mem(size + align);
     if (allocation != 0) {
-        long align_mask = -(long)align;
+        sptr align_mask = -(sptr)align;
         aligned = allocation + align;
         aligned = (unsigned char*)
-            (align_mask & (unsigned long)(aligned + sizeof(void*) - 1));
+            (align_mask & (uptr)(aligned + sizeof(void*) - 1));
         *(void**)allocation = vm->effect_allocations;
         vm->effect_allocations = allocation;
         if (aligned != allocation + sizeof(void*)) {

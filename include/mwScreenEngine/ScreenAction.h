@@ -1,5 +1,6 @@
 #ifndef MWSCREENENGINE_SCREENACTION_H
 #define MWSCREENENGINE_SCREENACTION_H
+#include "dolphin/types.h"
 
 class ScreenObject;
 class ScreenEvent;
@@ -18,7 +19,7 @@ public:
 
     void Clear();
 
-    void* operator new(unsigned long size);
+    void* operator new(size_t size);
     void operator delete(void* p);
 
     unsigned int m_alive;
@@ -38,5 +39,5 @@ public:
 };
 
 void __ct__12ScreenActionFv(void* action);
-void* __nw__12ScreenActionFUl(unsigned long size);
+void* __nw__12ScreenActionFUl(size_t size);
 #endif

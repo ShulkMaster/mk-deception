@@ -1,6 +1,7 @@
 #ifndef DOLPHIN_OS_H
 #define DOLPHIN_OS_H
 
+#include "dolphin/types.h"
 #include "platform/os_types.h"
 #include "dolphin/dvd.h"
 
@@ -9,12 +10,12 @@ extern "C" {
 #endif
 
 typedef signed long long OSTime;
-typedef unsigned long OSTick;
+typedef u32 OSTick;
 typedef struct OSResetFunctionInfo OSResetFunctionInfo;
 typedef struct OSExecParams {
     int valid;
-    unsigned long restart_code;
-    unsigned long boot_dol;
+    u32 restart_code;
+    u32 boot_dol;
     void* region_start;
     void* region_end;
     int args_use_default;
@@ -34,26 +35,26 @@ typedef struct OSFontHeader {
     unsigned short leading;
     unsigned short cellWidth;
     unsigned short cellHeight;
-    unsigned long sheetSize;
+    u32 sheetSize;
     unsigned short sheetFormat;
     unsigned short sheetColumn;
     unsigned short sheetRow;
     unsigned short sheetWidth;
     unsigned short sheetHeight;
     unsigned short widthTable;
-    unsigned long sheetImage;
-    unsigned long sheetFullSize;
+    u32 sheetImage;
+    u32 sheetFullSize;
     unsigned char c0, c1, c2, c3;
 } OSFontHeader;
 typedef char OSExecParamsSizeCheck[sizeof(OSExecParams) == 0x1C ? 1 : -1];
 typedef unsigned char __OSException;
 typedef unsigned short OSError;
-typedef unsigned long OSInterruptMask;
+typedef u32 OSInterruptMask;
 typedef void (*OSAlarmHandler)(OSAlarm* alarm, OSContext* context);
 typedef void (*OSSwitchThreadCallback)(OSThread* from, OSThread* to);
 typedef struct OSSramEx {
     unsigned char flashID[2][12];
-    unsigned long wirelessKeyboardID;
+    u32 wirelessKeyboardID;
     unsigned short wirelessPadID[4];
     unsigned char dvdErrorCode;
     unsigned char padding0;
@@ -64,9 +65,9 @@ typedef struct OSSramEx {
 typedef struct OSSram {
     unsigned short checkSum;
     unsigned short checkSumInv;
-    unsigned long ead0;
-    unsigned long ead1;
-    unsigned long counterBias;
+    u32 ead0;
+    u32 ead1;
+    u32 counterBias;
     signed char displayOffsetH;
     unsigned char ntd;
     unsigned char language;
@@ -77,9 +78,9 @@ typedef struct OSMessageQueue {
     OSThreadQueue queueSend;
     OSThreadQueue queueReceive;
     OSMessage* msgArray;
-    signed long msgCount;
-    signed long firstIndex;
-    signed long usedCount;
+    s32 msgCount;
+    s32 firstIndex;
+    s32 usedCount;
 } OSMessageQueue;
 typedef char OSMessageQueueSizeCheck[sizeof(OSMessageQueue) == 0x20 ? 1 : -1];
 typedef signed short __OSInterrupt;
@@ -89,24 +90,24 @@ typedef void (*OSErrorHandler)(OSError error, OSContext* context, ...);
 typedef int (*OSResetFunction)(int final);
 struct OSResetFunctionInfo {
     OSResetFunction func;
-    unsigned long priority;
+    u32 priority;
     OSResetFunctionInfo* next;
     OSResetFunctionInfo* prev;
 };
 
 typedef struct OSBootInfo {
     DVDDiskID disk_id;
-    unsigned long magic;
-    unsigned long version;
-    unsigned long memory_size;
-    unsigned long console_type;
+    u32 magic;
+    u32 version;
+    u32 memory_size;
+    u32 console_type;
     void* arena_lo;
     void* arena_hi;
     void* fst_location;
-    unsigned long fst_max_length;
+    u32 fst_max_length;
 } OSBootInfo;
 
-extern unsigned long __OSBusClock : 0x800000F8;
+extern u32 __OSBusClock : 0x800000F8;
 #define OS_TIMER_CLOCK (__OSBusClock / 4)
 #define OSTicksToSeconds(ticks) ((ticks) / OS_TIMER_CLOCK)
 #define OSTicksToMilliseconds(ticks) ((ticks) / (OS_TIMER_CLOCK / 1000))
@@ -129,7 +130,7 @@ void OSInit(void);
 #define OS_CONSOLE_ARTHUR      0x10000002
 #define OS_CONSOLE_MINNOW      0x10000003
 
-unsigned long OSGetConsoleType(void);
+u32 OSGetConsoleType(void);
 void __OSInitSystemCall(void);
 void __OSInitMemoryProtection(void);
 void __OSModuleInit(void);
@@ -144,11 +145,11 @@ void __OSInitSram(void);
 void __OSThreadInit(void);
 void __OSInitAudioSystem(void);
 void __OSStopAudioSystem(void);
-unsigned long __OSGetDIConfig(void);
-void __OSReboot(unsigned long reset_code, unsigned long boot_dol);
+u32 __OSGetDIConfig(void);
+void __OSReboot(u32 reset_code, u32 boot_dol);
 void OSGetSaveRegion(void** start, void** end);
-void __OSBootDol(unsigned long boot_dol, unsigned long reset_code, char** argv);
-void __OSBootDolSimple(unsigned long boot_dol, unsigned long reset_code,
+void __OSBootDol(u32 boot_dol, u32 reset_code, char** argv);
+void __OSBootDolSimple(u32 boot_dol, u32 reset_code,
                        void* region_start, void* region_end,
                        int args_use_default, int argc, char** argv);
 void __OSGetExecParams(OSExecParams* params);
@@ -174,19 +175,19 @@ void OSClearContext(OSContext* context);
 void OSDumpContext(OSContext* context);
 void OSSetCurrentContext(OSContext* context);
 OSContext* OSGetCurrentContext(void);
-unsigned long OSSaveContext(OSContext* context);
+u32 OSSaveContext(OSContext* context);
 void OSSaveFPUContext(OSContext* context);
 void OSLoadContext(OSContext* context);
 void* OSGetStackPointer(void);
-void OSInitContext(OSContext* context, unsigned long program_counter,
-                   unsigned long stack_pointer);
+void OSInitContext(OSContext* context, u32 program_counter,
+                   u32 stack_pointer);
 void OSInitThreadQueue(OSThreadQueue* queue);
 void OSWakeupThread(OSThreadQueue* queue);
 void OSSleepThread(OSThreadQueue* queue);
-void OSInitMessageQueue(OSMessageQueue* queue, OSMessage* messages, signed long count);
-int OSSendMessage(OSMessageQueue* queue, OSMessage message, signed long flags);
-int OSReceiveMessage(OSMessageQueue* queue, OSMessage* message, signed long flags);
-int OSJamMessage(OSMessageQueue* queue, OSMessage message, signed long flags);
+void OSInitMessageQueue(OSMessageQueue* queue, OSMessage* messages, s32 count);
+int OSSendMessage(OSMessageQueue* queue, OSMessage message, s32 flags);
+int OSReceiveMessage(OSMessageQueue* queue, OSMessage* message, s32 flags);
+int OSJamMessage(OSMessageQueue* queue, OSMessage message, s32 flags);
 OSThread* OSGetCurrentThread(void);
 int OSSuspendThread(OSThread* thread);
 int OSResumeThread(OSThread* thread);
@@ -195,16 +196,16 @@ int OSEnableScheduler(void);
 void __OSReschedule(void);
 void OSYieldThread(void);
 int OSCreateThread(OSThread* thread, void* (*entry)(void*), void* parameter,
-                   void* stack, unsigned long stack_size,
-                   signed long priority, unsigned short attributes);
+                   void* stack, u32 stack_size,
+                   s32 priority, unsigned short attributes);
 void OSExitThread(void* value);
 void OSCancelThread(OSThread* thread);
 int OSJoinThread(OSThread* thread, void** value);
-int OSSetThreadPriority(OSThread* thread, signed long priority);
-signed long OSGetThreadPriority(OSThread* thread);
+int OSSetThreadPriority(OSThread* thread, s32 priority);
+s32 OSGetThreadPriority(OSThread* thread);
 void OSClearStack(unsigned char value);
-void __OSPromoteThread(OSThread* thread, signed long priority);
-signed long __OSGetEffectivePriority(OSThread* thread);
+void __OSPromoteThread(OSThread* thread, s32 priority);
+s32 __OSGetEffectivePriority(OSThread* thread);
 void OSInitMutex(OSMutex* mutex);
 void OSLockMutex(OSMutex* mutex);
 void OSUnlockMutex(OSMutex* mutex);
@@ -223,19 +224,19 @@ OSInterruptMask __OSMaskInterrupts(OSInterruptMask mask);
 OSInterruptMask __OSUnmaskInterrupts(OSInterruptMask mask);
 OSErrorHandler OSSetErrorHandler(OSError error, OSErrorHandler handler);
 void __OSUnhandledException(__OSException exception, OSContext* context,
-                            unsigned long cause, unsigned long address);
+                            u32 cause, u32 address);
 extern OSErrorHandler __OSErrorTable[17];
 extern unsigned short __OSDeviceCode : 0x800030E6;
 unsigned int OSGetResetCode(void);
 unsigned int OSGetProgressiveMode(void);
 void OSSetProgressiveMode(unsigned int mode);
 unsigned char OSGetLanguage(void);
-unsigned short OSGetWirelessID(signed long channel);
-void OSSetWirelessID(signed long channel, unsigned short id);
+unsigned short OSGetWirelessID(s32 channel);
+void OSSetWirelessID(s32 channel, unsigned short id);
 unsigned short OSGetGbsMode(void);
 void OSSetGbsMode(unsigned short mode);
 int __OSSyncSram(void);
-int __OSReadROM(void* buffer, signed long length, signed long offset);
+int __OSReadROM(void* buffer, s32 length, s32 offset);
 void OSCreateAlarm(OSAlarm* alarm);
 void OSCancelAlarm(OSAlarm* alarm);
 void OSInitAlarm(void);
@@ -244,9 +245,9 @@ void OSSetPeriodicAlarm(OSAlarm* alarm, OSTime start, OSTime period,
                         OSAlarmHandler handler);
 int OSGetResetButtonState(void);
 void __OSResetSWInterruptHandler(__OSInterrupt interrupt, OSContext* context);
-void OSResetSystem(int reset, unsigned long reset_code, int force_menu);
+void OSResetSystem(int reset, u32 reset_code, int force_menu);
 int __OSCallResetFunctions(int final);
-void __OSDoHotReset(unsigned long reset_code);
+void __OSDoHotReset(u32 reset_code);
 OSSramEx* __OSLockSramEx(void);
 int __OSUnlockSramEx(int commit);
 OSSram* __OSLockSram(void);

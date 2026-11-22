@@ -114,7 +114,7 @@ int ScreenControl::HandleAction(ScreenMgr* mgr, const ScreenAction* action) {
     return handled;
 }
 
-void* ScreenControl::operator new(unsigned long size) {
+void* ScreenControl::operator new(size_t size) {
     return ScreenUtil::Malloc(size, kMallocTagInit, (char*)s_ctrlDataName);
 }
 

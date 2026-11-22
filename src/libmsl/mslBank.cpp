@@ -12,7 +12,7 @@
 #include "msl/mslgcn_break.h"
 
 void mslBankLoadResidentWaveChunkDone(
-    void* buffer, unsigned long offset, int size, int error,
+    void* buffer, u32 offset, int size, int error,
     int final_chunk, void* callback_data);
 extern _mslSystem* gMsi;
 
@@ -40,10 +40,10 @@ extern "C" int mslBankFindSoundID(mslLoadedBank* bank, const char* name)
 extern "C" mslAssetWave* mslBankFileEntryFind(
     mslLoadedBank* bank, const char* name) {
     mslAssetWave* wave;
-    unsigned long name_length;
+    u32 name_length;
     int i;
 
-    if (((unsigned long)name & 0xf0000000) == 0x20000000) {
+    if (((uptr)name & 0xf0000000) == 0x20000000) {
         name_length = 0;
     } else {
         name_length = strlen(name);
@@ -52,7 +52,7 @@ extern "C" mslAssetWave* mslBankFileEntryFind(
     wave = bank->asset_info->waves + 1;
     for (i = 1; i <= bank->wave_count; wave++, i++) {
         if ((wave->name.offset & 0xf0000000) == 0x20000000) {
-            if ((long)name == wave->name.token) {
+            if ((sptr)name == wave->name.token) {
                 return wave;
             }
         } else if (strnicmp(wave->name.pointer, name, name_length) == 0) {
@@ -84,7 +84,7 @@ extern "C" mslBankWaveEntry* mslBankWavesFind(
             if (stricmp(wave->name.pointer, name) == 0) {
                 return wave;
             }
-        } else if (wave->name.token == (long)name) {
+        } else if (wave->name.token == (sptr)name) {
             return wave;
         }
     }
@@ -96,7 +96,7 @@ static inline void mslBankStopAndUnloadSounds(mslLoadedBank* bank)
     _mslSound* sound;
     _ListNode* node;
     int i;
-    msl_u32 sound_id;
+    u32 sound_id;
     mslBankSoundEntry* sound_entry;
     int saved_guard;
 
@@ -222,7 +222,7 @@ extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
         definition = sound_entry->definition;
         command_item = definition->commands;
         for (j = 0; j < definition->command_count; j++, command_item++) {
-            unsigned long source_offset;
+            u32 source_offset;
             if (command_item->value == 32767000.0f) {
                 command_item->value = -1.0f;
             }
@@ -281,14 +281,14 @@ static void mslBankLoadResidentARamUploadComplete(void* callback_data) {
 }
 
 static void i_ARQCALLBACK_BankLoadResidentARamUpload_Complete(
-    unsigned long request_address);
+    u32 request_address);
 
 static inline void mslBankCompleteResidentRead(
-    void* buffer, unsigned long offset, int size, int final_chunk,
+    void* buffer, u32 offset, int size, int final_chunk,
     mslAsyncBank* async_bank) {
-    unsigned long destination;
+    u32 destination;
     mslARQRequest* request;
-    void (*callback)(unsigned long);
+    ARQCallback callback;
 
     request = mslGetArqRequest();
     if (request == 0) {
@@ -310,13 +310,13 @@ static inline void mslBankCompleteResidentRead(
 
         DCFlushRange(buffer, size);
         ARQPostRequest(
-            &request->request, 0, 0, 0, (unsigned long)buffer, destination, size,
+            &request->request, 0, 0, 0, (uptr)buffer, destination, size,
             callback);
     }
 }
 
 void mslBankLoadResidentWaveChunkDone(
-    void* buffer, unsigned long offset, int size, int error,
+    void* buffer, u32 offset, int size, int error,
     int final_chunk, void* callback_data) {
     mslAsyncBank* async_bank = (mslAsyncBank*)callback_data;
 
@@ -332,7 +332,7 @@ void mslBankLoadResidentWaveChunkDone(
 }
 
 static void i_ARQCALLBACK_BankLoadResidentARamUpload_Complete(
-    unsigned long request_address) {
+    u32 request_address) {
     mslARQRequest* request = (mslARQRequest*)request_address;
     void* callback_data = request->callback_data;
 
@@ -349,7 +349,7 @@ static void mslBankReadAssetHeaderComplete(
     mslAssetWave* wave;
     mslAssetWave* secondary_wave;
     char* next_name;
-    unsigned long resident_base;
+    u32 resident_base;
     int resident_index;
     int secondary_index;
     int i;
@@ -411,9 +411,9 @@ static void mslBankReadAssetHeaderComplete(
     for (resident_index = 1; resident_index < async_bank->entry_count;
          wave++, resident_index++) {
         if (wave->resident != 0) {
-            unsigned long primary_aram_offset;
+            u32 primary_aram_offset;
 
-            wave->sound_table.offset += (unsigned long)asset_info;
+            wave->sound_table.offset += (uptr)asset_info;
             primary_aram_offset = resident_base + wave->primary_aram_offset;
             wave->primary_aram_offset = primary_aram_offset;
             SPInitSoundTable(
@@ -421,9 +421,9 @@ static void mslBankReadAssetHeaderComplete(
                 g_MSL_GCN_ARAM_ZeroBase);
 
             if (wave->has_secondary != 0) {
-                unsigned long secondary_aram_offset;
+                u32 secondary_aram_offset;
 
-                wave->secondary_sound_table.offset += (unsigned long)asset_info;
+                wave->secondary_sound_table.offset += (uptr)asset_info;
                 secondary_aram_offset =
                     resident_base + wave->secondary_aram_offset;
                 wave->secondary_aram_offset = secondary_aram_offset;
@@ -433,12 +433,12 @@ static void mslBankReadAssetHeaderComplete(
                     g_MSL_GCN_ARAM_ZeroBase);
             }
         } else {
-            wave->sound_table.offset += (unsigned long)asset_info;
+            wave->sound_table.offset += (uptr)asset_info;
             SPInitSoundTable(
                 wave->sound_table.pointer, 0, g_MSL_GCN_ARAM_ZeroBase);
 
             if (wave->has_secondary != 0) {
-                wave->secondary_sound_table.offset += (unsigned long)asset_info;
+                wave->secondary_sound_table.offset += (uptr)asset_info;
                 SPInitSoundTable(
                     wave->secondary_sound_table.pointer, 0,
                     g_MSL_GCN_ARAM_ZeroBase);
@@ -632,7 +632,7 @@ void mslBankOpenSoundsComplete(
 }
 
 void mslBankLoadAsyncInternal(
-    _mslSystem* system, unsigned long flags, char* filename,
+    _mslSystem* system, u32 flags, char* filename,
     _mslAsyncResponse* response) {
     char path[0x100];
     mslAsyncBank* bank = &g_BP_Load_Async;
@@ -842,7 +842,7 @@ static inline void mslBankFinishPlayInline(
     _ListNode* node = (_ListNode*)data;
     mslRuntimeSound* copy =
         (mslRuntimeSound*)ListNodeData(0, node);
-    unsigned long error_id =
+    u32 error_id =
         ListNodeID(&g_listPoolSound, node);
 
     if (loaded) {
@@ -877,7 +877,7 @@ static inline void mslBankFinishPlayInline(
     }
 }
 
-extern "C" unsigned long mslBankPlayQ(mslLoadedBank* bank, int sound_id, int track)
+extern "C" u32 mslBankPlayQ(mslLoadedBank* bank, int sound_id, int track)
 {
     if (bank == 0) {
         mslDebugPrintf("mslBankPlayQ: NULL bank pointer.\n");
@@ -893,7 +893,7 @@ extern "C" unsigned long mslBankPlayQ(mslLoadedBank* bank, int sound_id, int tra
     return 0;
 }
 
-extern "C" unsigned long mslBankPlayPrep(mslLoadedBank* bank, int sound_id)
+extern "C" u32 mslBankPlayPrep(mslLoadedBank* bank, int sound_id)
 {
     mslBankSoundEntry* bank_sound;
     _ListNode* node;
@@ -919,9 +919,9 @@ extern "C" unsigned long mslBankPlayPrep(mslLoadedBank* bank, int sound_id)
     return 0;
 }
 
-extern "C" unsigned long mslBankPlayVol(
-    mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
-    unsigned long play_arg1, float volume, unsigned long play_flags) {
+extern "C" u32 mslBankPlayVol(
+    mslLoadedBank* bank, int sound_id, u32 play_arg0,
+    u32 play_arg1, float volume, u32 play_flags) {
     mslBankSoundEntry* bank_sound;
     _ListNode* node;
 
@@ -938,7 +938,7 @@ extern "C" unsigned long mslBankPlayVol(
             mslRuntimeSound* copy =
                 (mslRuntimeSound*)ListNodeData(0, node);
 
-            unsigned long handle = ListNodeID(&g_listPoolSound, node);
+            u32 handle = ListNodeID(&g_listPoolSound, node);
             copy->flags |= play_flags;
             copy->priority = play_arg1;
             copy->track = play_arg0;
@@ -969,12 +969,12 @@ extern "C" unsigned long mslBankPlayVol(
     return 0;
 }
 
-extern "C" unsigned long mslBankPlayVolPanPitch(
-    mslLoadedBank* bank, int sound_id, unsigned long play_arg0,
-    unsigned long play_arg1, float volume, float pan, float pitch,
-    unsigned long play_flags) {
+extern "C" u32 mslBankPlayVolPanPitch(
+    mslLoadedBank* bank, int sound_id, u32 play_arg0,
+    u32 play_arg1, float volume, float pan, float pitch,
+    u32 play_flags) {
     mslBankSoundEntry* bank_sound;
-    unsigned long handle;
+    u32 handle;
 
     if (bank == 0) {
         mslDebugPrintf("mslBankPlayVol: NULL bank pointer.\n");
@@ -1023,7 +1023,7 @@ extern "C" unsigned long mslBankPlayVolPanPitch(
     return 0;
 }
 
-extern "C" unsigned long mslBankPlay(mslLoadedBank* bank, int sound_id)
+extern "C" u32 mslBankPlay(mslLoadedBank* bank, int sound_id)
 {
     if (bank == 0) {
         mslDebugPrintf("mslBankPlay: NULL bank pointer.\n");
@@ -1226,7 +1226,7 @@ void callbackPlay(
     _ListNode* node = (_ListNode*)data;
     mslRuntimeSound* copy =
         (mslRuntimeSound*)ListNodeData(0, node);
-    unsigned long error_id =
+    u32 error_id =
         ListNodeID(&g_listPoolSound, node);
 
     if (loaded) {

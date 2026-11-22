@@ -60,7 +60,7 @@ int ScreenAction::Update(ScreenMgr* mgr, ScreenActionStack& stack,
     return 1;
 }
 
-void* ScreenAction::operator new(unsigned long size) {
+void* ScreenAction::operator new(size_t size) {
     char* name;
     int tag;
 

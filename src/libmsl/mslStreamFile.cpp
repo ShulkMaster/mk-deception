@@ -19,12 +19,12 @@ static inline unsigned int mslDSB_HandleIndex(
 
 static inline unsigned int mslDSB_HandleFromOpaque(
     void* opaque_handle) {
-    return (unsigned long)opaque_handle;
+    return (uptr)opaque_handle;
 }
 
 static inline void* mslDSB_HandleToOpaque(
     unsigned int handle) {
-    return (void*)(unsigned long)handle;
+    return (void*)(uptr)handle;
 }
 
 
@@ -168,12 +168,12 @@ static inline int mslDSB_ReturnBufferAndService(void* buffer) {
     mslDSB_PendingAsyncRead* queued;
     int result;
     int service;
-    unsigned long enabled;
+    u32 enabled;
 
     if (buffer == 0) {
         result = 0;
     } else {
-        unsigned long inner;
+        u32 inner;
 
         service = 0;
         enabled = OSDisableInterrupts();
@@ -212,16 +212,16 @@ extern "C" int mslStreamFile_ReturnBuffer(void* buffer) {
 /* TODO: [near miss] 99.80769%; tail/null codegen owners remain reversed;
  * guarded free-head captures are neutral; recover the original append boundary. */
 extern "C" mslStreamFileRequest* mslStreamFile_QueueRequest(
-    _mwFile* file, unsigned long offset, unsigned long size, int priority,
+    _mwFile* file, u32 offset, u32 size, int priority,
     mslStreamFileCallback callback, void* callback_data) {
     mslDSB_PendingAsyncRead* request;
 
     if (size == 0) {
         request = 0;
     } else {
-        unsigned long enabled;
+        u32 enabled;
 
-        unsigned long first_enabled = OSDisableInterrupts();
+        u32 first_enabled = OSDisableInterrupts();
         request = DSB_PAR_FreeList;
 
         if (request != 0) {
@@ -239,7 +239,7 @@ extern "C" mslStreamFileRequest* mslStreamFile_QueueRequest(
         }
         while (request == 0) {
             mslDebugPrintf("MSL ERROR: Out of DSB Pending Reads - Increase MSL_STREAM_MAXPENDINGREADS\n");
-            unsigned long retry_enabled = OSDisableInterrupts();
+            u32 retry_enabled = OSDisableInterrupts();
             request = DSB_PAR_FreeList;
 
             if (request != 0) {
@@ -311,7 +311,7 @@ static inline void mslDSB_UnlinkFileRead(
 
 static inline void mslDSB_FreePending(mslDSB_PendingAsyncRead* request) {
     unsigned int handle;
-    unsigned long enabled = OSDisableInterrupts();
+    u32 enabled = OSDisableInterrupts();
 
     request->in_use = 0;
     handle = request->handle.value;
@@ -325,7 +325,7 @@ static inline void mslDSB_FreePending(mslDSB_PendingAsyncRead* request) {
 static void mslDSB_CancelRead(
     mslDSB_PendingAsyncRead* request, int invoke_callback) {
     if (request != 0) {
-        unsigned long enabled = OSDisableInterrupts();
+        u32 enabled = OSDisableInterrupts();
 
         if (request->in_use) {
             mslDSB_FileRead* read;
@@ -364,7 +364,7 @@ static void mslDSB_CancelRead(
             }
 
             if (request->queued) {
-                unsigned long queue_enabled;
+                u32 queue_enabled;
                 mslDSB_PendingAsyncRead** link;
                 mslDSB_PendingAsyncRead* queued;
                 mslDebugPrintf("     - in queue!\n");
@@ -452,9 +452,9 @@ void mslDSB_ServiceNextRead(void) {
     mslDSB_FileRead* read = 0;
     void* buffer = 0;
     int started = 0;
-    unsigned long enabled = OSDisableInterrupts();
+    u32 enabled = OSDisableInterrupts();
 
-    unsigned long queue_enabled = OSDisableInterrupts();
+    u32 queue_enabled = OSDisableInterrupts();
     request = DSB_PAR_Queue.first;
     OSRestoreInterrupts(queue_enabled);
     if (request != 0) {
@@ -474,7 +474,7 @@ void mslDSB_ServiceNextRead(void) {
         while (read != 0) {
             unsigned int offset;
             unsigned int size;
-            unsigned long inner = OSDisableInterrupts();
+            u32 inner = OSDisableInterrupts();
 
             size = request->remaining;
             if (size > sizeof(g_DSB_Buffers[0])) {
@@ -507,7 +507,7 @@ void mslDSB_ServiceNextRead(void) {
                 request->priority, mslDSB_FileReadCompletionCallback, read);
             read = 0;
             if (request->remaining != 0 && request->active_reads < 3) {
-                unsigned long more_enabled = OSDisableInterrupts();
+                u32 more_enabled = OSDisableInterrupts();
                 buffer = mslDSB_AllocBuffer();
                 if (buffer != 0) {
                     read = mslDSB_AllocFileRead();

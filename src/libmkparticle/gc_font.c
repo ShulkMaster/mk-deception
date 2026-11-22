@@ -4,6 +4,7 @@
 #include "libmkparticle/gc_font.h"
 #include "libmkparticle/gc_state.h"
 #include "libmkparticle/texture_bridge.h"
+#include "dolphin/types.h"
 #include "dolphin/gx.h"
 #include "dolphin/cache.h"
 #include "math/gxQuat.h"
@@ -96,8 +97,7 @@ void nativefont_instance_lock(NativeFontInstance* inst) {
     }
 
     inst->locked = 1;
-    inst->dl = (void*)(((unsigned long)inst->verts + 0x20u) &
-                       ~(unsigned long)0x1Fu);
+    inst->dl = (void*)(((uptr)inst->verts + 0x20) & ~(uptr)0x1F);
     inst->size = (unsigned int)inst->verts_bytes - 0x60u;
     inst->size = inst->size + 0x1Fu;
     inst->size = inst->size & alignment_mask;

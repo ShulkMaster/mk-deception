@@ -1,6 +1,7 @@
 #ifndef DOLPHIN_SI_H
 #define DOLPHIN_SI_H
 
+#include "dolphin/types.h"
 #include "dolphin/os.h"
 
 #ifdef __cplusplus
@@ -57,23 +58,23 @@ extern "C" {
 #define SI_GC_KEYBOARD (SI_TYPE_GC | 0x00200000UL)
 #define SI_GC_STEERING SI_TYPE_GC
 
-typedef void (*SICallback)(signed long channel, unsigned long status, OSContext* context);
-typedef void (*SITypeCallback)(signed long channel, unsigned long type);
+typedef void (*SICallback)(s32 channel, u32 status, OSContext* context);
+typedef void (*SITypeCallback)(s32 channel, u32 type);
 
 typedef struct SIControl {
-    signed long chan;
-    unsigned long poll;
-    unsigned long inputBytes;
+    s32 chan;
+    u32 poll;
+    u32 inputBytes;
     void* input;
     SICallback callback;
 } SIControl;
 
 typedef struct SIPacket {
-    signed long chan;
+    s32 chan;
     void* output;
-    unsigned long outputBytes;
+    u32 outputBytes;
     void* input;
-    unsigned long inputBytes;
+    u32 inputBytes;
     SICallback callback;
     OSTime fire;
 } SIPacket;
@@ -81,27 +82,27 @@ typedef char SIControlSizeCheck[sizeof(SIControl) == 0x14 ? 1 : -1];
 typedef char SIPacketSizeCheck[sizeof(SIPacket) == 0x20 ? 1 : -1];
 
 int SIBusy(void);
-int SIIsChanBusy(signed long channel);
+int SIIsChanBusy(s32 channel);
 int SIRegisterPollingHandler(__OSInterruptHandler handler);
 int SIUnregisterPollingHandler(__OSInterruptHandler handler);
 void SIInit(void);
-unsigned long SIGetStatus(signed long channel);
-void SISetCommand(signed long channel, unsigned long command);
+u32 SIGetStatus(s32 channel);
+void SISetCommand(s32 channel, u32 command);
 void SITransferCommands(void);
-unsigned long SISetXY(unsigned long x, unsigned long y);
-unsigned long SIEnablePolling(unsigned long poll);
-unsigned long SIDisablePolling(unsigned long poll);
-int SIGetResponse(signed long channel, void* data);
-int SITransfer(signed long channel, void* output, unsigned long outputBytes,
-               void* input, unsigned long inputBytes, SICallback callback,
+u32 SISetXY(u32 x, u32 y);
+u32 SIEnablePolling(u32 poll);
+u32 SIDisablePolling(u32 poll);
+int SIGetResponse(s32 channel, void* data);
+int SITransfer(s32 channel, void* output, u32 outputBytes,
+               void* input, u32 inputBytes, SICallback callback,
                OSTime delay);
-unsigned long SIGetType(signed long channel);
-unsigned long SIGetTypeAsync(signed long channel, SITypeCallback callback);
-unsigned long SIDecodeType(unsigned long type);
-unsigned long SIProbe(signed long channel);
-extern unsigned long __PADFixBits;
+u32 SIGetType(s32 channel);
+u32 SIGetTypeAsync(s32 channel, SITypeCallback callback);
+u32 SIDecodeType(u32 type);
+u32 SIProbe(s32 channel);
+extern u32 __PADFixBits;
 
-void SISetSamplingRate(unsigned long rate);
+void SISetSamplingRate(u32 rate);
 void SIRefreshSamplingRate(void);
 
 #ifdef __cplusplus

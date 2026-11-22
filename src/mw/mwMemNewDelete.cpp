@@ -7,12 +7,12 @@ void operator delete(void* ptr) {
     }
 }
 
-void* operator new(unsigned long size, _mwMemHeap* heap, mwMemFlags flags,
+void* operator new(size_t size, _mwMemHeap* heap, mwMemFlags flags,
                    const char* file, const char* function, unsigned int line) {
     return _mwMemMalloc(heap, size, flags, file, function, line);
 }
 
-void* operator new(unsigned long size) {
+void* operator new(size_t size) {
     if (mwMemSystemIsCreated() == 0) {
         mwMemUserConfigInitMemSystem();
     }

@@ -85,7 +85,7 @@ void mwFileMemTraits::deallocate(void* ptr) {
     _mwMemFree(ptr, 0, 0);
 }
 
-void* mwFileMemTraits::allocate(unsigned long size,
+void* mwFileMemTraits::allocate(size_t size,
                                 mwTargetMemAlign align,
                                 const char* name) {
     return _mwMemMalloc(mwfile_heap, size, align, 0, 0, 0);

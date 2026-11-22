@@ -6,7 +6,7 @@
 typedef struct mslStreamFileRequest mslStreamFileRequest;
 
 typedef void (*mslStreamFileCallback)(
-    void* buffer, unsigned long offset, int size, int error,
+    void* buffer, u32 offset, int size, int error,
     int final_chunk, void* callback_data);
 
 #ifdef __cplusplus
@@ -18,7 +18,7 @@ void mslStreamFile_Initialize(void);
 void mslStreamFile_ReturnBuffer_FromInterrupt(void* buffer);
 int mslStreamFile_ReturnBuffer(void* buffer);
 mslStreamFileRequest* mslStreamFile_QueueRequest(
-    _mwFile* file, unsigned long offset, unsigned long size, int priority,
+    _mwFile* file, u32 offset, u32 size, int priority,
     mslStreamFileCallback callback, void* callback_data);
 
 #ifdef __cplusplus

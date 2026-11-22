@@ -124,12 +124,12 @@ class mwFileGCHandle;
 
 class mwFileMultithreadedMemTraits {
 public:
-    static void* allocate(unsigned long size, mwTargetMemAlign alignment, const char* name);
+    static void* allocate(size_t size, mwTargetMemAlign alignment, const char* name);
     static void deallocate(void* memory);
 };
 
 template <class T>
-bool mwFileMemAlloc(T*& memory, unsigned long size, mwTargetMemAlign alignment, const char* name);
+bool mwFileMemAlloc(T*& memory, size_t size, mwTargetMemAlign alignment, const char* name);
 
 extern void _mwFileNoOp(...);
 extern int _mwFilePlatformInterlockedIncrement(volatile int& value);
@@ -160,7 +160,7 @@ mwFileTypeInfo mwFileClassTypeInfo<T>::sTypeInfo;
 class mwFileCommandProgress {
 public:
     virtual ~mwFileCommandProgress() {}
-    virtual int getProgressBytes(unsigned long&) = 0;
+    virtual int getProgressBytes(u32&) = 0;
 };
 
 class mwFileGCErrorState {
@@ -173,21 +173,21 @@ public:
     mwFileBuffer();
     ~mwFileBuffer();
 
-    unsigned long readInRange(unsigned char*& destination, unsigned long& length,
+    u32 readInRange(unsigned char*& destination, u32& length,
                               unsigned long long& position);
-    void reset(unsigned long long position, unsigned long length);
+    void reset(unsigned long long position, u32 length);
     void shutdown();
-    int initialize(unsigned long size, mwTargetMemAlign alignment);
+    int initialize(u32 size, mwTargetMemAlign alignment);
 
     unsigned long long getPosition() const { return file_position; }
     unsigned char* getData() const { return buffer; }
-    unsigned long getLength() const { return buffer_end - buffer; }
-    unsigned long getCapacity() const { return capacity; }
+    u32 getLength() const { return buffer_end - buffer; }
+    u32 getCapacity() const { return capacity; }
     bool isDirty() const { return dirty; }
 
 private:
     unsigned long long file_position;
-    unsigned long capacity;
+    u32 capacity;
     unsigned char* buffer;
     unsigned char* buffer_end;
     bool dirty;
@@ -214,7 +214,7 @@ public:
 
     mwFile* getFile() const { return file; }
 
-    static void* operator new(unsigned long size, mwTargetMemAlign alignment,
+    static void* operator new(size_t size, mwTargetMemAlign alignment,
                               const char* name)
     {
         return mwFileMultithreadedMemTraits::allocate(size, alignment, name);
@@ -260,7 +260,7 @@ protected:
     volatile int signal_state;
 };
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 class mwFileFailCommand : public mwFileCommand {
 public:
     mwFileFailCommand(mwFileCallback completion_callback,
@@ -372,10 +372,10 @@ class mwFileMountPoint : public mwFileQueryable {
 public:
     mwFileMountPoint(const char* mount_name);
     virtual ~mwFileMountPoint();
-    virtual int startOpenFileCommand(mwFileCommand*&, const char*, unsigned long,
+    virtual int startOpenFileCommand(mwFileCommand*&, const char*, u32,
                                      mwFileCallback, void*) = 0;
-    virtual int convertToPlatformPath(char*, const char*, unsigned long,
-                                      unsigned long&) = 0;
+    virtual int convertToPlatformPath(char*, const char*, u32,
+                                      u32&) = 0;
     virtual const char* getInternalPath() const = 0;
     virtual mwFileServer& getServer() = 0;
 
@@ -384,7 +384,7 @@ public:
     void lock() { _mwFilePlatformInterlockedIncrement(mount_count); }
     void unlock() { _mwFilePlatformInterlockedDecrement(mount_count); }
 
-    static void* operator new(unsigned long size, mwTargetMemAlign alignment,
+    static void* operator new(size_t size, mwTargetMemAlign alignment,
                               const char* name)
     {
         return mwFileMultithreadedMemTraits::allocate(size, alignment, name);
@@ -441,14 +441,14 @@ protected:
 
 class mwFile : public mwFileQueryable {
 public:
-    mwFile(mwFileMountPoint&, unsigned long);
+    mwFile(mwFileMountPoint&, u32);
     virtual ~mwFile();
     virtual int startCloseFileCommand(mwFileCommand*&, mwFileCallback, void*) = 0;
     virtual int startReadFileCommand(mwFileCommand*&, unsigned long long, void*,
-                                     unsigned long, unsigned char, mwFileCallback,
+                                     u32, unsigned char, mwFileCallback,
                                      void*) = 0;
     virtual int startWriteFileCommand(mwFileCommand*&, unsigned long long, const void*,
-                                      unsigned long, unsigned char, mwFileCallback,
+                                      u32, unsigned char, mwFileCallback,
                                       void*) = 0;
     virtual int startFlushFileCommand(mwFileCommand*&, mwFileCallback, void*) = 0;
 
@@ -459,10 +459,10 @@ public:
     const char* getDebugName() const;
 
     unsigned long long getSize() const { return size; }
-    unsigned long getFlags() const { return flags; }
+    u32 getFlags() const { return flags; }
     void setSize(unsigned long long value) { size = value; }
 
-    static void* operator new(unsigned long size, mwTargetMemAlign alignment,
+    static void* operator new(size_t size, mwTargetMemAlign alignment,
                               const char* name)
     {
         return mwFileMultithreadedMemTraits::allocate(size, alignment, name);
@@ -476,13 +476,13 @@ public:
     }
 
 protected:
-    unsigned long field_0x04;
+    u32 field_0x04;
     unsigned long long size;
     unsigned long long position;
     int field_0x18;
     int error;
     mwFileMountPoint* mount_point;
-    unsigned long flags;
+    u32 flags;
 };
 
 typedef char mwFileSizeCheck[sizeof(mwFile) == 0x28 ? 1 : -1];
@@ -491,7 +491,7 @@ namespace std {
 template <class T>
 struct char_traits {
     static void assign(T& c1, const T& c2) { c1 = c2; }
-    static unsigned long length(const T* s) { return strlen(s); }
+    static size_t length(const T* s) { return strlen(s); }
 };
 
 template <class Base, class Member>
@@ -512,7 +512,7 @@ _EmptyMemberOpt<Base, Member>::_EmptyMemberOpt(const _EmptyMemberOpt& other)
 template <class T, int Alignment>
 class mwFileMemAllocator : public std::allocator<T> {
 public:
-    typedef unsigned long size_type;
+    typedef size_t size_type;
     typedef T* pointer;
 
     mwFileMemAllocator();
@@ -533,7 +533,7 @@ namespace std {
 template <class T, class Traits, class Allocator>
 class basic_string {
 public:
-    typedef unsigned long size_type;
+    typedef size_t size_type;
     typedef T* iterator;
 
     explicit basic_string(const Allocator& a = Allocator());
@@ -580,8 +580,8 @@ template <class T, class Traits, class Allocator>
 basic_string<T, Traits, Allocator>::basic_string(const T* s, const Allocator& a)
     : alloc_(a)
 {
-    unsigned long length = strlen(s);
-    if (length > (unsigned long)-2) {
+    size_t length = strlen(s);
+    if (length > (size_t)-2) {
         __msl_error(&stringBase0[STRING_CONSTRUCTOR_MESSAGE]);
     }
     init(s, s + length, a, random_access_iterator_tag());
@@ -621,13 +621,13 @@ typedef std::basic_string<char, std::char_traits<char>, mwFileMemAllocator<char,
 template <class H>
 class mwFileXPHandle : public mwFile {
 public:
-    mwFileXPHandle(mwFileMountPoint&, unsigned long);
+    mwFileXPHandle(mwFileMountPoint&, u32);
     virtual ~mwFileXPHandle();
-    virtual unsigned long getReadAlign() = 0;
-    virtual unsigned long getFileAlign() = 0;
+    virtual u32 getReadAlign() = 0;
+    virtual u32 getFileAlign() = 0;
 
-    static void setBufferSize(unsigned long size);
-    static unsigned long getBufferSize();
+    static void setBufferSize(u32 size);
+    static u32 getBufferSize();
     bool lockBuffer(mwFileBuffer*& locked_buffer);
     void unlockBuffer();
     int close();
@@ -638,17 +638,17 @@ protected:
     bool buffer_locked;
 
 private:
-    static unsigned long sBufferSize;
+    static u32 sBufferSize;
 };
 
 template <class H>
-unsigned long mwFileXPHandle<H>::sBufferSize = 0x8000;
+u32 mwFileXPHandle<H>::sBufferSize = 0x8000;
 
 template <class H>
 class mwFileXPOpenCommand : public mwFileXPCommand<mwFileXPOpenCommand<H>, H> {
 public:
     mwFileXPOpenCommand(mwFileCallback completion_callback, void* completion_data,
-                        const mwFileString& path, unsigned long flags,
+                        const mwFileString& path, u32 flags,
                         mwFileMountPoint& mount_point);
     virtual ~mwFileXPOpenCommand();
     virtual mwFileAsyncResult getResult() const;
@@ -702,7 +702,7 @@ public:
     mwFileXPReadUnbufferedCommand(mwFileCallback completion_callback,
                                   void* completion_data, mwFile* owning_file,
                                   unsigned long long offset, void* buffer,
-                                  unsigned long length, unsigned char priority);
+                                  u32 length, unsigned char priority);
     virtual ~mwFileXPReadUnbufferedCommand();
     virtual unsigned char isA(mwFileTypeInfo* type, const void*& object) const
     {
@@ -715,7 +715,7 @@ public:
     }
     virtual int abort();
     virtual mwFileAsyncResult getResult() const;
-    virtual int getProgressBytes(unsigned long&);
+    virtual int getProgressBytes(u32&);
 
     int handleSignalState();
     int handleReadingState();
@@ -738,8 +738,8 @@ protected:
     void* buffer;
     unsigned long long offset;
     unsigned long long end_offset;
-    unsigned long length;
-    unsigned long bytes_read;
+    u32 length;
+    u32 bytes_read;
     unsigned char priority;
 };
 
@@ -750,7 +750,7 @@ public:
     mwFileXPReadBufferedCommand(mwFileCallback completion_callback,
                                 void* completion_data, mwFile* owning_file,
                                 unsigned long long offset, void* buffer,
-                                unsigned long length, unsigned char priority);
+                                u32 length, unsigned char priority);
     virtual ~mwFileXPReadBufferedCommand();
     virtual unsigned char isA(mwFileTypeInfo* type, const void*& object) const
     {
@@ -763,7 +763,7 @@ public:
     }
     virtual int abort();
     virtual mwFileAsyncResult getResult() const;
-    virtual int getProgressBytes(unsigned long&);
+    virtual int getProgressBytes(u32&);
 
     int handleSignalState();
     int handleReadingState();
@@ -790,9 +790,9 @@ protected:
     unsigned char* start_buffer;
     unsigned long long current_offset;
     unsigned long long start_offset;
-    unsigned long start_length;
-    unsigned long current_length;
-    unsigned long bytes_read;
+    u32 start_length;
+    u32 current_length;
+    u32 bytes_read;
     mwFileBuffer* read_buffer;
     unsigned char priority;
 };
@@ -804,46 +804,46 @@ public:
     virtual void queryErrorState();
 
     int nativeAbort();
-    unsigned long nativeProgress() const;
-    int nativeReadAsync(void* destination, unsigned long length,
+    u32 nativeProgress() const;
+    int nativeReadAsync(void* destination, u32 length,
                         unsigned long long position, unsigned char priority);
     bool nativeContinueRead(mwFileError& result);
-    int nativeWriteAsync(const void* source, unsigned long length,
+    int nativeWriteAsync(const void* source, u32 length,
                          unsigned long long position, unsigned char priority);
     bool nativeContinueWrite(mwFileError& result);
-    static void gcCallbackThunk(long result, DVDFileInfo* info);
+    static void gcCallbackThunk(s32 result, DVDFileInfo* info);
 
 private:
     unsigned char* buffer;
     unsigned long long position;
-    unsigned long remaining;
-    unsigned long chunk;
-    unsigned long progress;
+    u32 remaining;
+    u32 chunk;
+    u32 progress;
     unsigned char priority;
     DVDFileInfo* file_info;
     int* open_count;
     volatile mwFileError error;
-    long callback_result;
+    s32 callback_result;
     bool busy;
     bool error_reported;
 };
 
 class mwFileGCHandle : public mwFileXPHandle<mwFileGCHandle> {
 public:
-    mwFileGCHandle(mwFileMountPoint&, unsigned long);
+    mwFileGCHandle(mwFileMountPoint&, u32);
     virtual ~mwFileGCHandle();
     virtual int startCloseFileCommand(mwFileCommand*&, mwFileCallback, void*);
     virtual int startReadFileCommand(mwFileCommand*&, unsigned long long, void*,
-                                     unsigned long, unsigned char, mwFileCallback,
+                                     u32, unsigned char, mwFileCallback,
                                      void*);
     virtual int startWriteFileCommand(mwFileCommand*&, unsigned long long, const void*,
-                                      unsigned long, unsigned char, mwFileCallback,
+                                      u32, unsigned char, mwFileCallback,
                                       void*);
     virtual int startFlushFileCommand(mwFileCommand*&, mwFileCallback, void*);
-    virtual unsigned long getReadAlign();
-    virtual unsigned long getFileAlign();
+    virtual u32 getReadAlign();
+    virtual u32 getFileAlign();
 
-    int nativeOpen(const char* path, unsigned long open_flags);
+    int nativeOpen(const char* path, u32 open_flags);
     DVDFileInfo* handle(unsigned char priority, int** open_count);
 
     bool openFileHandle(unsigned char index);
@@ -851,10 +851,10 @@ public:
     bool isOpen(unsigned char index) const { return open_counts[index] != 0; }
 
 private:
-    long entry_number;
-    unsigned long field_0x4c;
+    s32 entry_number;
+    u32 field_0x4c;
     DVDFileInfo file_info[3];
-    unsigned long field_0x104;
+    u32 field_0x104;
     int open_counts[3];
 };
 
@@ -889,7 +889,7 @@ class mwFileGCReadUnbufferedCommand
 public:
     mwFileGCReadUnbufferedCommand(mwFileCallback completion_callback, void* completion_data,
                                   mwFile* owning_file, unsigned long long offset,
-                                  void* buffer, unsigned long length, unsigned char priority);
+                                  void* buffer, u32 length, unsigned char priority);
 
     virtual ~mwFileGCReadUnbufferedCommand() {}
     virtual unsigned char isA(mwFileTypeInfo* type, const void*& object) const
@@ -913,7 +913,7 @@ class mwFileGCReadBufferedCommand
 public:
     mwFileGCReadBufferedCommand(mwFileCallback completion_callback, void* completion_data,
                                 mwFile* owning_file, unsigned long long offset,
-                                void* buffer, unsigned long length, unsigned char priority);
+                                void* buffer, u32 length, unsigned char priority);
 
     virtual ~mwFileGCReadBufferedCommand() {}
     virtual unsigned char isA(mwFileTypeInfo* type, const void*& object) const
@@ -969,9 +969,9 @@ class mwFileMountPointPlugin : public mwFileMountPoint {
 public:
     mwFileMountPointPlugin(const char* mount_name, mwFileServer& server_ref);
     virtual ~mwFileMountPointPlugin();
-    virtual int startOpenFileCommand(mwFileCommand*&, const char*, unsigned long,
+    virtual int startOpenFileCommand(mwFileCommand*&, const char*, u32,
                                      mwFileCallback, void*);
-    virtual int convertToPlatformPath(char*, const char*, unsigned long, unsigned long&);
+    virtual int convertToPlatformPath(char*, const char*, u32, u32&);
     virtual const char* getInternalPath() const;
     virtual mwFileServer& getServer();
 
@@ -995,14 +995,14 @@ public:
 template <class Traits>
 class mwFileHandlePlugin : public mwFile {
 public:
-    mwFileHandlePlugin(mwFileMountPoint&, unsigned long);
+    mwFileHandlePlugin(mwFileMountPoint&, u32);
     virtual ~mwFileHandlePlugin();
     virtual int startCloseFileCommand(mwFileCommand*&, mwFileCallback, void*);
     virtual int startReadFileCommand(mwFileCommand*&, unsigned long long, void*,
-                                     unsigned long, unsigned char, mwFileCallback,
+                                     u32, unsigned char, mwFileCallback,
                                      void*);
     virtual int startWriteFileCommand(mwFileCommand*&, unsigned long long, const void*,
-                                      unsigned long, unsigned char, mwFileCallback,
+                                      u32, unsigned char, mwFileCallback,
                                       void*);
     virtual int startFlushFileCommand(mwFileCommand*&, mwFileCallback, void*);
 };
@@ -1039,7 +1039,7 @@ struct gcnHostFileTraits {
 class gcnHostFileHandle : public mwFileHandlePlugin<gcnHostFileTraits> {
 public:
     gcnHostFileHandle(gcnHostMountPoint& mount_point, const mwFileString& path,
-                      unsigned long open_flags);
+                      u32 open_flags);
     virtual ~gcnHostFileHandle();
     int open(const char* path);
     int close();
@@ -1072,7 +1072,7 @@ class gcnHostWriteCommand : public mwFileCommandPlugin<gcnHostWriteCommand> {
 public:
     gcnHostWriteCommand(mwFileCallback completion_callback, void* completion_data,
                         mwFile* owning_file, unsigned long long offset_value,
-                        const void* source_buffer, unsigned long write_length,
+                        const void* source_buffer, u32 write_length,
                         unsigned char write_priority);
 
     virtual mwFileAsyncResult getResult() const;
@@ -1082,15 +1082,15 @@ public:
 private:
     const void* source;
     unsigned long long offset;
-    unsigned long length;
-    unsigned long bytes_written;
+    u32 length;
+    u32 bytes_written;
     unsigned char priority;
 };
 
 class gcnHostOpenCommand : public mwFileCommandPlugin<gcnHostOpenCommand> {
 public:
     gcnHostOpenCommand(mwFileCallback completion_callback, void* completion_data,
-                       const mwFileString& path, unsigned long open_flags,
+                       const mwFileString& path, u32 open_flags,
                        gcnHostMountPoint& mount_point);
     virtual ~gcnHostOpenCommand();
     virtual mwFileAsyncResult getResult() const;
@@ -1127,7 +1127,7 @@ T mwRoundUp(T value, unsigned int alignment)
     return (value + alignment - 1) & ~static_cast<T>(alignment - 1);
 }
 
-static inline mwFileError gcnConvertDVDStatus(long status)
+static inline mwFileError gcnConvertDVDStatus(s32 status)
 {
     switch (status) {
     case DVD_STATE_END:
@@ -1347,7 +1347,7 @@ void mwFileCondition::wait(mwFileMutex& mutex)
 
 mwFileGCReadUnbufferedCommand::mwFileGCReadUnbufferedCommand(
     mwFileCallback completion_callback, void* completion_data, mwFile* owning_file,
-    unsigned long long offset, void* buffer, unsigned long length, unsigned char priority)
+    unsigned long long offset, void* buffer, u32 length, unsigned char priority)
     : mwFileXPReadUnbufferedCommand<mwFileGCReadUnbufferedCommand, mwFileGCHandle>(
           completion_callback, completion_data, owning_file, offset, buffer, length, priority)
 {
@@ -1355,13 +1355,13 @@ mwFileGCReadUnbufferedCommand::mwFileGCReadUnbufferedCommand(
 
 mwFileGCReadBufferedCommand::mwFileGCReadBufferedCommand(
     mwFileCallback completion_callback, void* completion_data, mwFile* owning_file,
-    unsigned long long offset, void* buffer, unsigned long length, unsigned char priority)
+    unsigned long long offset, void* buffer, u32 length, unsigned char priority)
     : mwFileXPReadBufferedCommand<mwFileGCReadBufferedCommand, mwFileGCHandle>(
           completion_callback, completion_data, owning_file, offset, buffer, length, priority)
 {
 }
 
-mwFileGCHandle::mwFileGCHandle(mwFileMountPoint& mount_point, unsigned long open_flags)
+mwFileGCHandle::mwFileGCHandle(mwFileMountPoint& mount_point, u32 open_flags)
     : mwFileXPHandle<mwFileGCHandle>(mount_point, open_flags), entry_number(-1)
 {
     memset(file_info, 0, sizeof(file_info));
@@ -1373,17 +1373,17 @@ mwFileGCHandle::~mwFileGCHandle()
     OSGetCurrentThread();
 }
 
-unsigned long mwFileGCHandle::getReadAlign()
+u32 mwFileGCHandle::getReadAlign()
 {
     return 32;
 }
 
-unsigned long mwFileGCHandle::getFileAlign()
+u32 mwFileGCHandle::getFileAlign()
 {
     return 4;
 }
 
-int mwFileGCHandle::nativeOpen(const char* path, unsigned long open_flags)
+int mwFileGCHandle::nativeOpen(const char* path, u32 open_flags)
 {
     if ((open_flags & 2) != 0) {
         _mwFileNoOp(&stringBase0[DVD_WRITE_MESSAGE], path);
@@ -1448,7 +1448,7 @@ int mwFileGCHandle::startCloseFileCommand(mwFileCommand*& command,
 }
 
 int mwFileGCHandle::startReadFileCommand(mwFileCommand*& command, unsigned long long offset,
-                                         void* buffer, unsigned long length,
+                                         void* buffer, u32 length,
                                          unsigned char priority,
                                          mwFileCallback completion_callback,
                                          void* completion_data)
@@ -1456,11 +1456,11 @@ int mwFileGCHandle::startReadFileCommand(mwFileCommand*& command, unsigned long 
     bool aligned = false;
 
     if (offset == mwRoundUp(offset, 4) && length == mwRoundUp(length, 32) &&
-        (unsigned long)buffer == mwRoundUp((unsigned long)buffer, 32)) {
+        (uptr)buffer == mwRoundUp((uptr)buffer, 32)) {
         aligned = true;
     }
     bool unbuffered = aligned;
-    if (aligned && (unsigned long)buffer >= 0x7E000000 && (unsigned long)buffer < 0x80000000) {
+    if (aligned && (uptr)buffer >= 0x7E000000 && (uptr)buffer < 0x80000000) {
         unbuffered = false;
     }
 
@@ -1478,7 +1478,7 @@ int mwFileGCHandle::startReadFileCommand(mwFileCommand*& command, unsigned long 
 }
 
 int mwFileGCHandle::startWriteFileCommand(mwFileCommand*& command, unsigned long long offset,
-                                          const void* buffer, unsigned long length,
+                                          const void* buffer, u32 length,
                                           unsigned char priority,
                                           mwFileCallback completion_callback,
                                           void* completion_data)
@@ -1657,7 +1657,7 @@ bool gcnDriver::isInServiceThread() const
 namespace {
 gcnHostOpenCommand::gcnHostOpenCommand(mwFileCallback completion_callback,
                                        void* completion_data, const mwFileString& path,
-                                       unsigned long open_flags,
+                                       u32 open_flags,
                                        gcnHostMountPoint& mount_point)
     : mwFileCommandPlugin<gcnHostOpenCommand>(completion_callback, completion_data, 0),
       name(path)
@@ -1699,7 +1699,7 @@ mwFileAsyncResult gcnHostOpenCommand::getResult() const
 gcnHostWriteCommand::gcnHostWriteCommand(mwFileCallback completion_callback,
                                          void* completion_data, mwFile* owning_file,
                                          unsigned long long offset_value,
-                                         const void* source_buffer, unsigned long write_length,
+                                         const void* source_buffer, u32 write_length,
                                          unsigned char write_priority)
     : mwFileCommandPlugin<gcnHostWriteCommand>(completion_callback, completion_data, owning_file),
       source(source_buffer),
@@ -1712,10 +1712,10 @@ gcnHostWriteCommand::gcnHostWriteCommand(mwFileCallback completion_callback,
 int gcnHostWriteCommand::handleNotStartedState()
 {
     gcnHostFileHandle* handle = static_cast<gcnHostFileHandle*>(file);
-    if (offset != (unsigned long)ftell(handle->host_file)) {
-        unsigned long seek_result = fseek(handle->host_file,
-                                          (long)(offset & 0x7FFFFFFF), 0);
-        if (seek_result != (unsigned long)(offset & 0x7FFFFFFF)) {
+    if (offset != (u32)ftell(handle->host_file)) {
+        u32 seek_result = fseek(handle->host_file,
+                                          (u32)(offset & 0x7FFFFFFF), 0);
+        if (seek_result != (u32)(offset & 0x7FFFFFFF)) {
             error = -9;
             return 2;
         }
@@ -1785,7 +1785,7 @@ mwFileAsyncResult gcnHostCloseCommand::getResult() const
 }
 
 gcnHostFileHandle::gcnHostFileHandle(gcnHostMountPoint& mount_point, const mwFileString& path,
-                                     unsigned long open_flags)
+                                     u32 open_flags)
     : mwFileHandlePlugin<gcnHostFileTraits>(mount_point, open_flags), host_file(0)
 {
     setDebugName(path.data());
@@ -1797,7 +1797,7 @@ gcnHostFileHandle::~gcnHostFileHandle()
 
 int gcnHostFileHandle::open(const char* path)
 {
-    unsigned long open_flags = getFlags();
+    u32 open_flags = getFlags();
     char type;
     char plus = 0;
 
@@ -1936,7 +1936,7 @@ mwFileMountPointPlugin<T, OpenCommand>::mwFileMountPointPlugin(const char* mount
 
 template <class T, class OpenCommand>
 int mwFileMountPointPlugin<T, OpenCommand>::startOpenFileCommand(
-    mwFileCommand*& command, const char* path, unsigned long open_flags,
+    mwFileCommand*& command, const char* path, u32 open_flags,
     mwFileCallback completion_callback, void* completion_data)
 {
     {
@@ -1963,7 +1963,7 @@ int mwFileMountPointPlugin<T, OpenCommand>::startOpenFileCommand(
 
 template <class T, class OpenCommand>
 int mwFileMountPointPlugin<T, OpenCommand>::convertToPlatformPath(
-    char* buffer, const char* path, unsigned long size, unsigned long& required)
+    char* buffer, const char* path, u32 size, u32& required)
 {
     mwFileMutexLock lock(mutex);
     const char* converted = static_cast<T*>(this)->convertPath(path);
@@ -2063,7 +2063,7 @@ void mwFileDevicePlugin<T, OpenCommand>::revokeError(mwFileCommand* command)
 
 template <class Traits>
 mwFileHandlePlugin<Traits>::mwFileHandlePlugin(mwFileMountPoint& mount_point,
-                                               unsigned long open_flags)
+                                               u32 open_flags)
     : mwFile(mount_point, open_flags)
 {
 }
@@ -2082,7 +2082,7 @@ int mwFileHandlePlugin<Traits>::startCloseFileCommand(mwFileCommand*& command,
 template <class Traits>
 int mwFileHandlePlugin<Traits>::startWriteFileCommand(mwFileCommand*& command,
                                                       unsigned long long offset,
-                                                      const void* buffer, unsigned long length,
+                                                      const void* buffer, u32 length,
                                                       unsigned char priority,
                                                       mwFileCallback completion_callback,
                                                       void* completion_data)
@@ -2108,7 +2108,7 @@ int mwFileHandlePlugin<Traits>::startFlushFileCommand(mwFileCommand*& command,
 template <class Traits>
 int mwFileHandlePlugin<Traits>::startReadFileCommand(mwFileCommand*& command,
                                                      unsigned long long offset, void* buffer,
-                                                     unsigned long length,
+                                                     u32 length,
                                                      unsigned char priority,
                                                      mwFileCallback completion_callback,
                                                      void* completion_data)
@@ -2120,7 +2120,7 @@ int mwFileHandlePlugin<Traits>::startReadFileCommand(mwFileCommand*& command,
 }
 
 template <class H>
-mwFileXPHandle<H>::mwFileXPHandle(mwFileMountPoint& mount_point, unsigned long open_flags)
+mwFileXPHandle<H>::mwFileXPHandle(mwFileMountPoint& mount_point, u32 open_flags)
     : mwFile(mount_point, open_flags), buffer_locked(false)
 {
     buffer.initialize(getBufferSize(), MW_TARGET_MEM_ALIGN_BUFFER);
@@ -2133,13 +2133,13 @@ mwFileXPHandle<H>::~mwFileXPHandle()
 }
 
 template <class H>
-void mwFileXPHandle<H>::setBufferSize(unsigned long size)
+void mwFileXPHandle<H>::setBufferSize(u32 size)
 {
     sBufferSize = size;
 }
 
 template <class H>
-unsigned long mwFileXPHandle<H>::getBufferSize()
+u32 mwFileXPHandle<H>::getBufferSize()
 {
     return sBufferSize;
 }
@@ -2189,7 +2189,7 @@ int mwFileXPHandle<H>::open(const char* path)
 template <class H>
 mwFileXPOpenCommand<H>::mwFileXPOpenCommand(mwFileCallback completion_callback,
                                             void* completion_data, const mwFileString& path_value,
-                                            unsigned long open_flags,
+                                            u32 open_flags,
                                             mwFileMountPoint& mount_point)
     : mwFileXPCommand<mwFileXPOpenCommand<H>, H>(completion_callback, completion_data, 0),
       path(path_value)
@@ -2281,9 +2281,9 @@ int mwFileXPCloseCommand<T, H>::handleNotStartedState()
                 return 2;
             }
             if (buffer->getLength() != 0 && buffer->isDirty()) {
-                unsigned long read_mask = static_cast<H*>(this->file)->getReadAlign() - 1;
-                unsigned long used = buffer->getLength();
-                unsigned long padded = (used + read_mask) & ~read_mask;
+                u32 read_mask = static_cast<H*>(this->file)->getReadAlign() - 1;
+                u32 used = buffer->getLength();
+                u32 padded = (used + read_mask) & ~read_mask;
                 if (padded != used) {
                     memset(buffer->getData() + used, 0, padded - used);
                 }
@@ -2326,7 +2326,7 @@ int mwFileXPCloseCommand<T, H>::handleFlushingState()
 template <class T, class H>
 mwFileXPReadUnbufferedCommand<T, H>::mwFileXPReadUnbufferedCommand(
     mwFileCallback completion_callback, void* completion_data, mwFile* owning_file,
-    unsigned long long offset_value, void* destination, unsigned long read_length,
+    unsigned long long offset_value, void* destination, u32 read_length,
     unsigned char read_priority)
     : mwFileXPCommand<T, H>(completion_callback, completion_data, owning_file),
       buffer(destination),
@@ -2363,7 +2363,7 @@ mwFileAsyncResult mwFileXPReadUnbufferedCommand<T, H>::getResult() const
 }
 
 template <class T, class H>
-int mwFileXPReadUnbufferedCommand<T, H>::getProgressBytes(unsigned long& bytes)
+int mwFileXPReadUnbufferedCommand<T, H>::getProgressBytes(u32& bytes)
 {
     if (this->signal_state != 0) {
         bytes = static_cast<T*>(this)->nativeProgress();
@@ -2421,7 +2421,7 @@ int mwFileXPReadUnbufferedCommand<T, H>::handleNotStartedState()
 template <class T, class H>
 mwFileXPReadBufferedCommand<T, H>::mwFileXPReadBufferedCommand(
     mwFileCallback completion_callback, void* completion_data, mwFile* owning_file,
-    unsigned long long offset_value, void* destination, unsigned long read_length,
+    unsigned long long offset_value, void* destination, u32 read_length,
     unsigned char read_priority)
     : mwFileXPCommand<T, H>(completion_callback, completion_data, owning_file),
       current_buffer(static_cast<unsigned char*>(destination)),
@@ -2461,7 +2461,7 @@ mwFileAsyncResult mwFileXPReadBufferedCommand<T, H>::getResult() const
 }
 
 template <class T, class H>
-int mwFileXPReadBufferedCommand<T, H>::getProgressBytes(unsigned long& bytes)
+int mwFileXPReadBufferedCommand<T, H>::getProgressBytes(u32& bytes)
 {
     if (this->signal_state != 0) {
         bytes = bytes_read;
@@ -2509,7 +2509,7 @@ int mwFileXPReadBufferedCommand<T, H>::handleReadingState()
     unsigned long long aligned_offset;
     if ((current_offset & (static_cast<H*>(this->file)->getFileAlign() - 1)) != 0) {
         H* handle = static_cast<H*>(this->file);
-        unsigned long file_align = handle->getFileAlign();
+        u32 file_align = handle->getFileAlign();
         aligned_offset =
             (current_offset + file_align - 1) & ~(unsigned long long)(file_align - 1);
         aligned_offset -= handle->getFileAlign();
@@ -2517,13 +2517,13 @@ int mwFileXPReadBufferedCommand<T, H>::handleReadingState()
         aligned_offset = current_offset;
     }
 
-    unsigned long fill_length = read_buffer->getCapacity();
+    u32 fill_length = read_buffer->getCapacity();
     if (aligned_offset + fill_length > static_cast<H*>(this->file)->getSize()) {
         fill_length = static_cast<H*>(this->file)->getSize() - aligned_offset;
     }
     read_buffer->reset(aligned_offset, fill_length);
 
-    unsigned long read_mask = static_cast<H*>(this->file)->getReadAlign() - 1;
+    u32 read_mask = static_cast<H*>(this->file)->getReadAlign() - 1;
     this->error = static_cast<T*>(this)->nativeReadAsync(
         read_buffer->getData(), (fill_length + read_mask) & ~read_mask, aligned_offset,
         priority);
@@ -2619,16 +2619,16 @@ int mwFileGCIOMixIn<Command>::nativeAbort()
 }
 
 template <class Command>
-unsigned long mwFileGCIOMixIn<Command>::nativeProgress() const
+u32 mwFileGCIOMixIn<Command>::nativeProgress() const
 {
     int enabled = OSDisableInterrupts();
-    unsigned long result = progress;
+    u32 result = progress;
     OSRestoreInterrupts(enabled);
     return result;
 }
 
 template <class Command>
-int mwFileGCIOMixIn<Command>::nativeReadAsync(void* destination, unsigned long length,
+int mwFileGCIOMixIn<Command>::nativeReadAsync(void* destination, u32 length,
                                               unsigned long long offset,
                                               unsigned char read_priority)
 {
@@ -2690,7 +2690,7 @@ bool mwFileGCIOMixIn<Command>::nativeContinueRead(mwFileError& result)
     }
 
     busy = true;
-    unsigned long length = remaining;
+    u32 length = remaining;
     if (length > 0x20000) {
         length = 0x20000;
     }
@@ -2698,7 +2698,7 @@ bool mwFileGCIOMixIn<Command>::nativeContinueRead(mwFileError& result)
     chunk = length;
     ++*open_count;
     DVDGetCommandBlockStatus(&file_info->cb);
-    if (!DVDReadAsyncPrio(file_info, buffer, length, (long)(position & 0x7FFFFFFF),
+    if (!DVDReadAsyncPrio(file_info, buffer, length, (s32)(position & 0x7FFFFFFF),
                           gcCallbackThunk, (priority & 3) + 1)) {
         if (error_reported) {
             queryErrorState();
@@ -2712,7 +2712,7 @@ bool mwFileGCIOMixIn<Command>::nativeContinueRead(mwFileError& result)
 }
 
 template <class Command>
-int mwFileGCIOMixIn<Command>::nativeWriteAsync(const void*, unsigned long,
+int mwFileGCIOMixIn<Command>::nativeWriteAsync(const void*, u32,
                                                unsigned long long, unsigned char)
 {
     return -24;
@@ -2725,7 +2725,7 @@ bool mwFileGCIOMixIn<Command>::nativeContinueWrite(mwFileError&)
 }
 
 template <class Command>
-void mwFileGCIOMixIn<Command>::gcCallbackThunk(long result, DVDFileInfo* info)
+void mwFileGCIOMixIn<Command>::gcCallbackThunk(s32 result, DVDFileInfo* info)
 {
     mwFileGCIOMixIn* io = static_cast<mwFileGCIOMixIn*>(info->cb.user_data);
 
@@ -2733,7 +2733,7 @@ void mwFileGCIOMixIn<Command>::gcCallbackThunk(long result, DVDFileInfo* info)
         io->error = MWFILE_ERROR_ABORTED;
         io->callback_result = 0;
     } else {
-        long status = DVDGetCommandBlockStatus(&info->cb);
+        s32 status = DVDGetCommandBlockStatus(&info->cb);
         if (status == 0) {
             DCInvalidateRange(io->buffer, io->chunk);
             io->callback_result = result;
@@ -2753,12 +2753,12 @@ void mwFileGCIOMixIn<Command>::gcCallbackThunk(long result, DVDFileInfo* info)
     gcnGetDriver().wakeupCommand(command);
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 mwFileFailCommand<ResultValue, ResultError>::~mwFileFailCommand()
 {
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 unsigned char mwFileFailCommand<ResultValue, ResultError>::isCompleted(
     mwFileAsyncResult& result) const
 {
@@ -2767,14 +2767,14 @@ unsigned char mwFileFailCommand<ResultValue, ResultError>::isCompleted(
     return completed;
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 unsigned char mwFileFailCommand<ResultValue, ResultError>::isAborted()
     const
 {
     return 0;
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 mwFileAsyncResult
 mwFileFailCommand<ResultValue, ResultError>::waitForCompletion() const
 {
@@ -2785,32 +2785,32 @@ mwFileFailCommand<ResultValue, ResultError>::waitForCompletion() const
     return result;
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 int mwFileFailCommand<ResultValue, ResultError>::abort()
 {
     return 0;
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 int mwFileFailCommand<ResultValue, ResultError>::service()
 {
     return 2;
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 void mwFileFailCommand<ResultValue, ResultError>::serviceCallback()
 {
     completed = true;
     handleCompletion(waitForCompletion());
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 int mwFileFailCommand<ResultValue, ResultError>::close()
 {
     return 0;
 }
 
-template <unsigned long ResultValue, int ResultError>
+template <u32 ResultValue, int ResultError>
 void mwFileFailCommand<ResultValue, ResultError>::deleteSelf()
 {
     if (!completed || callback_depth != 0) {

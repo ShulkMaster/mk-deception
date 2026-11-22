@@ -18,7 +18,7 @@ static const char* s_mslSoundGetResourceError =
 static const char* s_mslSoundGetNameMissingCommands =
     "mslSoundGetName %x has no cmd list!\n";
 
-extern "C" int mslSoundIsValid(unsigned long handle) {
+extern "C" int mslSoundIsValid(u32 handle) {
     _ListNode* node = ListNodeFind(&g_listPoolSound, handle);
 
     if (node == 0) {
@@ -50,7 +50,7 @@ static inline int mslSoundIsPlaying(mslRuntimeSound* sound) {
 }
 
 extern "C" void mslUpdateTracks(_mslSystem* system) {
-    unsigned long track_index;
+    u32 track_index;
     int saved_guard;
     int priority;
 
@@ -292,7 +292,7 @@ static const char* s_mslSoundKickInvalid =
 static const char* s_mslSoundKickTrackRange =
     "Kick'd on invalid track %d\n";
 
-static inline int select_sound_track(mslRuntimeSound* sound, unsigned long play_flags) {
+static inline int select_sound_track(mslRuntimeSound* sound, u32 play_flags) {
     if (sound->track == -1) {
         int track;
 
@@ -307,7 +307,7 @@ static inline int select_sound_track(mslRuntimeSound* sound, unsigned long play_
             return -1;
         }
     } else {
-        if (sound->system->track_count <= (unsigned long)sound->track) {
+        if (sound->system->track_count <= (u32)sound->track) {
             mslDebugPrintf("sound->track larger than number of tracks in mslInit: %d > %d\n",
                 sound->track, sound->system->track_count);
             return -1;
@@ -705,7 +705,7 @@ extern "C" _ListNode* mslSoundNew(_mslSystem* system, int unused) {
 
 extern "C" int mslCmdsLoad(
     _mslSystem* system, mslLoadedBank* bank,
-    mslBankSoundDefinition* definition, unsigned long flags) {
+    mslBankSoundDefinition* definition, u32 flags) {
     int lod_flags = flags & 2;
     int i;
     mslCmdItem* command = definition->commands;
@@ -726,7 +726,7 @@ extern "C" int mslCmdsLoad(
             }
 
             if (bank_wave->wave == 0) {
-                unsigned long wave_flags = 0;
+                u32 wave_flags = 0;
 
                 if ((bank_wave->flags & 1) != 0) {
                     wave_flags |= 2;
@@ -782,7 +782,7 @@ extern "C" int mslCmdsLoad(
 
 extern "C" _mslSound* mslSoundLoad(
     _mslSystem* system, mslLoadedBank* bank,
-    mslBankSoundDefinition* definition, unsigned long flags) {
+    mslBankSoundDefinition* definition, u32 flags) {
     mslRuntimeSound* result = 0;
 
     if (mslCmdsLoad(system, bank, definition, flags) == 0) {
@@ -813,7 +813,7 @@ static const char* s_mslSoundSetDuckVolName =
 static const char* s_mslSoundSetPitchName =
     "mslSoundSetPitch";
 
-extern "C" void mslSoundSetPan(unsigned long handle, float pan) {
+extern "C" void mslSoundSetPan(u32 handle, float pan) {
     _ListNode* node = ListNodeFind(&g_listPoolSound, handle);
 
     if (node == 0) {
@@ -825,7 +825,7 @@ extern "C" void mslSoundSetPan(unsigned long handle, float pan) {
     }
 }
 
-extern "C" void mslSoundSetVol(unsigned long handle, float volume) {
+extern "C" void mslSoundSetVol(u32 handle, float volume) {
     _ListNode* node = ListNodeFind(&g_listPoolSound, handle);
 
     if (node == 0) {
@@ -856,7 +856,7 @@ static const char* s_mslSoundUnPauseName =
 static const char* s_mslSoundPauseName =
     "mslSoundPause";
 
-extern "C" void mslSoundStop(unsigned long handle) {
+extern "C" void mslSoundStop(u32 handle) {
     _ListNode* node = ListNodeFind(&g_listPoolSound, handle);
 
     if (node == 0) {

@@ -1,5 +1,6 @@
 #ifndef MWSCREENENGINE_SCREENUTIL_H
 #define MWSCREENENGINE_SCREENUTIL_H
+#include "dolphin/types.h"
 class ScreenClient; class ScreenMgr; class Screen; class ScreenSet; class ScreenObject;
 class ScreenAction; class ScreenMatrixStack; class ScreenResourceLibrary;
 class ScreenUtil {
@@ -7,7 +8,7 @@ public:
     static void ReportError(char*, char*, int);
     static void SetScreenClient(ScreenClient*);
     static ScreenClient* GetScreenClient();
-    static void* Malloc(unsigned long, int, char*);
+    static void* Malloc(size_t, int, char*);
     static void Free(void*);
     static ScreenMatrixStack* CreateMatrixStack();
     static void DestroyMatrixStack(ScreenMatrixStack*);

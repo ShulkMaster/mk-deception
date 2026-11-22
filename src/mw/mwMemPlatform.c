@@ -24,15 +24,15 @@ int privConsoleMemSystemInit(void) {
     return 1;
 }
 
-unsigned long mwMemSystemGetAvailSize(void) {
+u32 mwMemSystemGetAvailSize(void) {
     char* arena_high;
 
     OSInit();
     arena_high = OSGetArenaHi();
-    return (unsigned long)(arena_high - (char*)OSGetArenaLo()) - 0x140;
+    return (u32)(arena_high - (char*)OSGetArenaLo()) - 0x140;
 }
 
-unsigned char* privGetOSMemory(unsigned long size) {
+unsigned char* privGetOSMemory(u32 size) {
     return OSAllocFromHeap(GameCubeSystemHeap, size);
 }
 

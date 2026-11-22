@@ -333,7 +333,7 @@ static int alloc_pfx_memory(MkPfx* pfx, PfxBuildInfo* build)
     }
     pfx->mem = mem;
     memset(mem, 0, 0x10 + pad_raw + pad_extra + est_size);
-    aligned = (void*)(((unsigned long)mem + 0xFUL) & ~0xFUL);
+    aligned = (void*)(((uptr)mem + 0xF) & ~(uptr)0xF);
     if (build->emitter_count != 0) {
         pfx->slot_table = aligned;
         aligned = (char*)aligned + pad_raw + pad_extra;

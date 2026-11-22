@@ -115,7 +115,7 @@ char* strchr(const char* string, int character)
     return wanted != 0 ? 0 : (char*)current;
 }
 
-int strncmp(const char* lhs, const char* rhs, unsigned long count)
+int strncmp(const char* lhs, const char* rhs, size_t count)
 {
     const unsigned char* left = (const unsigned char*)lhs - 1;
     const unsigned char* right = (const unsigned char*)rhs - 1;
@@ -192,7 +192,7 @@ compare_current_bytes:
     return 0;
 }
 
-char* strncat(char* destination, const char* source, unsigned long count)
+char* strncat(char* destination, const char* source, size_t count)
 {
     const unsigned char* from = (const unsigned char*)source - 1;
     unsigned char* to = (unsigned char*)destination - 1;
@@ -224,7 +224,7 @@ char* strcat(char* destination, const char* source)
     return destination;
 }
 
-char* strncpy(char* destination, const char* source, unsigned long count)
+char* strncpy(char* destination, const char* source, size_t count)
 {
     const unsigned char* from = (const unsigned char*)source - 1;
     unsigned char* to = (unsigned char*)destination - 1;
@@ -281,7 +281,7 @@ char* strcpy(char* destination, const char* source)
     return destination;
 }
 
-unsigned long strlen(const char* string)
+size_t strlen(const char* string)
 {
     unsigned long length = (unsigned long)-1;
     const unsigned char* current = (const unsigned char*)string - 1;

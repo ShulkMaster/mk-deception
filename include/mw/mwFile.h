@@ -10,19 +10,20 @@ typedef struct _mwFile _mwFile;
 typedef struct mwFileCommand mwFileCommand;
 #endif
 
+#include "dolphin/types.h"
 #include "mw/mwTargetMemAlign.h"
 
 typedef struct _mwFileInitParam {
-    unsigned long file_handle_tracking_size;
+    u32 file_handle_tracking_size;
     unsigned short max_open_files;
     unsigned short field_0x06;
     unsigned short max_commands;
     unsigned short field_0x0A;
-    unsigned long flags;
+    u32 flags;
     unsigned short command_retries;
     unsigned short field_0x12;
     void* allocator_context;
-    unsigned long field_0x18;
+    u32 field_0x18;
 } mwFileInitParam;
 
 typedef void (*mwFileErrorCallback)(int operation, int error, const char* path,
@@ -31,7 +32,7 @@ typedef void (*mwFileErrorCallback)(int operation, int error, const char* path,
 typedef union mwFileAsyncValue {
     void* pointer;
     _mwFile* file;
-    unsigned long bytes;
+    u32 bytes;
 } mwFileAsyncValue;
 
 typedef struct _mwFileAsyncResult {
@@ -61,10 +62,10 @@ mwFileCommand* mwFileOpenAsync(const char* path, int flags,
 mwFileCommand* mwFileCloseAsync(_mwFile* file, mwFileCallback callback,
                                 void* arg);
 mwFileCommand* mwFileReadAsync(_mwFile* file, unsigned long long offset, void* buffer,
-                               unsigned long length, int priority,
+                               u32 length, int priority,
                                mwFileCallback callback, void* arg);
 mwFileCommand* mwFileWriteAsync(_mwFile* file, long long offset, void* buffer,
-                                unsigned long length, int priority,
+                                u32 length, int priority,
                                 mwFileCallback callback, void* arg);
 unsigned char mwFileIsCommandCompleted(mwFileCommand* command,
                                        mwFileAsyncResult* result);

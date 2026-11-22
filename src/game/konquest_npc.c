@@ -1,3 +1,4 @@
+#include "dolphin/types.h"
 #include "runtime/anim_pdata.h"
 #include "runtime/bone_matcher.h"
 #include "platform/display.h"
@@ -1226,7 +1227,7 @@ void npc_shadow_set_alpha(int alpha);
 void npc_shadow_set_light_angle(Vec* angles);
 void npc_shadow_teardown(void);
 void npc_shadow_init(void);
-void npc_assign_door_path(long door_id, int travel_mode);
+void npc_assign_door_path(s32 door_id, int travel_mode);
 void npc_assign_path_to_him( KonquestNpcData* data, void* path, int flags, int travel_mode);
 void npc_assign_path(void* path, int flags, int travel_mode);
 
@@ -2173,7 +2174,7 @@ void npc_assign_path_to_him(
     }
 }
 
-void npc_assign_door_path(long door_id, int travel_mode) {
+void npc_assign_door_path(s32 door_id, int travel_mode) {
     KonquestWaypoint* path;
 
     path = get_door_path(door_id);

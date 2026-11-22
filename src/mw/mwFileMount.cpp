@@ -30,13 +30,13 @@ public:
     mwFileMountPoint(const char* first, const char* last);
     virtual ~mwFileMountPoint();
     virtual int startOpenFileCommand(mwFileCommand*&, const char*,
-                                     unsigned long, mwFileCallback, void*) = 0;
-    virtual int convertToPlatformPath(char*, const char*, unsigned long,
-                                      unsigned long&) = 0;
+                                     u32, mwFileCallback, void*) = 0;
+    virtual int convertToPlatformPath(char*, const char*, u32,
+                                      u32&) = 0;
     virtual const char* getInternalPath() const = 0;
     virtual mwFileServer* getServer() = 0;
 
-    static void* operator new(unsigned long size, mwTargetMemAlign alignment,
+    static void* operator new(size_t size, mwTargetMemAlign alignment,
                               const char* name)
     {
         return mwFileMultithreadedMemTraits::allocate(size, alignment, name);
@@ -70,7 +70,7 @@ public:
     static mwFileMountTable& get();
     static int initialize();
 
-    static void* operator new(unsigned long size, mwTargetMemAlign alignment,
+    static void* operator new(size_t size, mwTargetMemAlign alignment,
                               const char* name)
     {
         return mwFileMultithreadedMemTraits::allocate(size, alignment, name);
@@ -104,9 +104,9 @@ public:
     mwFileDirectoryMountPoint(const char* mount_name);
     virtual ~mwFileDirectoryMountPoint();
     virtual int startOpenFileCommand(mwFileCommand*&, const char*,
-                                     unsigned long, mwFileCallback, void*);
-    virtual int convertToPlatformPath(char*, const char*, unsigned long,
-                                      unsigned long&);
+                                     u32, mwFileCallback, void*);
+    virtual int convertToPlatformPath(char*, const char*, u32,
+                                      u32&);
     virtual const char* getInternalPath() const;
     virtual mwFileServer* getServer();
     int initialize(const char* path);
@@ -123,7 +123,7 @@ static inline void append_mount_path(
     std::basic_string<char, std::char_traits<char>, mwFileMemAllocator<char, 3> >& full_path,
     const char* path)
 {
-    unsigned long length = strlen(path);
+    size_t length = strlen(path);
     full_path.append(path, length);
 }
 
@@ -131,9 +131,9 @@ class mwFileDummyMountPoint : public mwFileMountPoint {
 public:
     mwFileDummyMountPoint(const char* first, const char* last);
     virtual int startOpenFileCommand(mwFileCommand*&, const char*,
-                                     unsigned long, mwFileCallback, void*);
-    virtual int convertToPlatformPath(char*, const char*, unsigned long,
-                                      unsigned long&);
+                                     u32, mwFileCallback, void*);
+    virtual int convertToPlatformPath(char*, const char*, u32,
+                                      u32&);
     virtual const char* getInternalPath() const;
     virtual mwFileServer* getServer();
 };
@@ -147,10 +147,10 @@ public:
     struct Callback {
         Callback() {}
 
-        void (*function)(unsigned long, unsigned long, unsigned long,
-                         unsigned long, void*);
+        void (*function)(u32, u32, u32,
+                         u32, void*);
         void* callback_data;
-        unsigned long arguments[4];
+        u32 arguments[4];
 
         Callback& operator=(const Callback& other)
         {
@@ -166,7 +166,7 @@ public:
 
     static void serviceCallbacks();
     static void queueErrorCallback(const Callback& callback);
-    static void initializeCallbacks(unsigned long size);
+    static void initializeCallbacks(u32 size);
 
 private:
     static mwProducerConsumerQueue<Callback> sQueue;
@@ -206,7 +206,7 @@ mwFileMountPoint::mwFileMountPoint(const char* mount_name)
 mwFileMountPoint::mwFileMountPoint(const char* first, const char* last)
     : mount_count(0)
 {
-    unsigned long length = last - first;
+    size_t length = last - first;
     memcpy(name, first, length);
     name[length] = '\0';
 }
@@ -303,7 +303,7 @@ int mwFileMountTable::getMountPointFromPath(mwFileMountPoint*& mount_point,
         end = path + strlen(path + 1);
         end++;
     }
-    unsigned long length = end - (path + 1);
+    size_t length = end - (path + 1);
     if (length > 32) {
         return -15;
     }
@@ -402,7 +402,7 @@ mwFileDevice::~mwFileDevice()
 {
 }
 
-void mwFileDevice::initializeCallbacks(unsigned long size)
+void mwFileDevice::initializeCallbacks(u32 size)
 {
     sQueue.resize(size);
 }
@@ -441,13 +441,13 @@ mwFileDummyMountPoint::mwFileDummyMountPoint(const char* first,
 }
 
 int mwFileDummyMountPoint::startOpenFileCommand(
-    mwFileCommand*&, const char*, unsigned long, mwFileCallback, void*)
+    mwFileCommand*&, const char*, u32, mwFileCallback, void*)
 {
     return -13;
 }
 
 int mwFileDummyMountPoint::convertToPlatformPath(
-    char*, const char*, unsigned long, unsigned long&)
+    char*, const char*, u32, u32&)
 {
     return -13;
 }
@@ -495,7 +495,7 @@ const char* mwFileDirectoryMountPoint::getInternalPath() const
 }
 
 int mwFileDirectoryMountPoint::startOpenFileCommand(
-    mwFileCommand*& command, const char* path, unsigned long flags,
+    mwFileCommand*& command, const char* path, u32 flags,
     mwFileCallback callback, void* callback_data)
 {
     std::basic_string<char, std::char_traits<char>, mwFileMemAllocator<char, 3> > full_path;
@@ -514,8 +514,8 @@ int mwFileDirectoryMountPoint::startOpenFileCommand(
 }
 
 int mwFileDirectoryMountPoint::convertToPlatformPath(
-    char* buffer, const char* path, unsigned long size,
-    unsigned long& required)
+    char* buffer, const char* path, u32 size,
+    u32& required)
 {
     std::basic_string<char, std::char_traits<char>, mwFileMemAllocator<char, 3> > full_path;
     full_path.reserve(directory.length() + strlen(path));

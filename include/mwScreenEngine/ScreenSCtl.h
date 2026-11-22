@@ -182,23 +182,23 @@ public:
 typedef char check_ImageList_layout[
     (sizeof(ScreenControl) == 0xA4 && __alignof__(ImageList) == 4 &&
      sizeof(ImageList) == 0x114 &&
-     (unsigned long)&((ImageList*)0)->m_collectionId == 0x90 &&
-     (unsigned long)&((ImageList*)0)->m_gvContext == 0x94 &&
-     (unsigned long)&((ImageList*)0)->m_optionId == 0x98 &&
-     (unsigned long)&((ImageList*)0)->m_pad9C == 0x9C &&
-     (unsigned long)&((ImageList*)0)->field_0xA0 == 0xA0 &&
-     (unsigned long)&((ImageList*)0)->textureInfo == 0xA4 &&
-     (unsigned long)&((ImageList*)0)->itemNodes == 0xAC &&
-     (unsigned long)&((ImageList*)0)->linkNode == 0xB0 &&
-     (unsigned long)&((ImageList*)0)->padB4 == 0xB4 &&
-     (unsigned long)&((ImageList*)0)->layoutX == 0xF4 &&
-     (unsigned long)&((ImageList*)0)->layoutY == 0xF8 &&
-     (unsigned long)&((ImageList*)0)->layoutZ == 0xFC &&
-     (unsigned long)&((ImageList*)0)->scrollBase == 0x100 &&
-     (unsigned long)&((ImageList*)0)->focusIndex == 0x104 &&
-     (unsigned long)&((ImageList*)0)->itemCount == 0x108 &&
-     (unsigned long)&((ImageList*)0)->wrap == 0x10C &&
-     (unsigned long)&((ImageList*)0)->hasLinkNode == 0x110) ? 1 : -1];
+     (uptr)&((ImageList*)0)->m_collectionId == 0x90 &&
+     (uptr)&((ImageList*)0)->m_gvContext == 0x94 &&
+     (uptr)&((ImageList*)0)->m_optionId == 0x98 &&
+     (uptr)&((ImageList*)0)->m_pad9C == 0x9C &&
+     (uptr)&((ImageList*)0)->field_0xA0 == 0xA0 &&
+     (uptr)&((ImageList*)0)->textureInfo == 0xA4 &&
+     (uptr)&((ImageList*)0)->itemNodes == 0xAC &&
+     (uptr)&((ImageList*)0)->linkNode == 0xB0 &&
+     (uptr)&((ImageList*)0)->padB4 == 0xB4 &&
+     (uptr)&((ImageList*)0)->layoutX == 0xF4 &&
+     (uptr)&((ImageList*)0)->layoutY == 0xF8 &&
+     (uptr)&((ImageList*)0)->layoutZ == 0xFC &&
+     (uptr)&((ImageList*)0)->scrollBase == 0x100 &&
+     (uptr)&((ImageList*)0)->focusIndex == 0x104 &&
+     (uptr)&((ImageList*)0)->itemCount == 0x108 &&
+     (uptr)&((ImageList*)0)->wrap == 0x10C &&
+     (uptr)&((ImageList*)0)->hasLinkNode == 0x110) ? 1 : -1];
 
 typedef struct WifImage {
     void Close();
@@ -251,23 +251,23 @@ public:
 typedef char check_TextList_layout[
     (sizeof(ScreenControl) == 0xA4 && __alignof__(TextList) == 4 &&
      sizeof(TextList) == 0xD8 &&
-     (unsigned long)&((TextList*)0)->m_collectionId == 0x90 &&
-     (unsigned long)&((TextList*)0)->m_gvContext == 0x94 &&
-     (unsigned long)&((TextList*)0)->m_optionId == 0x98 &&
-     (unsigned long)&((TextList*)0)->m_pad9C == 0x9C &&
-     (unsigned long)&((TextList*)0)->field_0xA0 == 0xA0 &&
-     (unsigned long)&((TextList*)0)->itemNodes == 0xA4 &&
-     (unsigned long)&((TextList*)0)->linkedNode == 0xA8 &&
-     (unsigned long)&((TextList*)0)->strings == 0xAC &&
-     (unsigned long)&((TextList*)0)->paramB0 == 0xB0 &&
-     (unsigned long)&((TextList*)0)->color == 0xB4 &&
-     (unsigned long)&((TextList*)0)->focusIndex == 0xB8 &&
-     (unsigned long)&((TextList*)0)->focusMax == 0xBC &&
-     (unsigned long)&((TextList*)0)->stringCount == 0xC0 &&
-     (unsigned long)&((TextList*)0)->itemCount == 0xC4 &&
-     (unsigned long)&((TextList*)0)->wrap == 0xC8 &&
-     (unsigned long)&((TextList*)0)->hasLinkedNode == 0xCC &&
-     (unsigned long)&((TextList*)0)->hasParamB0 == 0xD0 &&
-     (unsigned long)&((TextList*)0)->unkD4 == 0xD4) ? 1 : -1];
+     (uptr)&((TextList*)0)->m_collectionId == 0x90 &&
+     (uptr)&((TextList*)0)->m_gvContext == 0x94 &&
+     (uptr)&((TextList*)0)->m_optionId == 0x98 &&
+     (uptr)&((TextList*)0)->m_pad9C == 0x9C &&
+     (uptr)&((TextList*)0)->field_0xA0 == 0xA0 &&
+     (uptr)&((TextList*)0)->itemNodes == 0xA4 &&
+     (uptr)&((TextList*)0)->linkedNode == 0xA8 &&
+     (uptr)&((TextList*)0)->strings == 0xAC &&
+     (uptr)&((TextList*)0)->paramB0 == 0xB0 &&
+     (uptr)&((TextList*)0)->color == 0xB4 &&
+     (uptr)&((TextList*)0)->focusIndex == 0xB8 &&
+     (uptr)&((TextList*)0)->focusMax == 0xBC &&
+     (uptr)&((TextList*)0)->stringCount == 0xC0 &&
+     (uptr)&((TextList*)0)->itemCount == 0xC4 &&
+     (uptr)&((TextList*)0)->wrap == 0xC8 &&
+     (uptr)&((TextList*)0)->hasLinkedNode == 0xCC &&
+     (uptr)&((TextList*)0)->hasParamB0 == 0xD0 &&
+     (uptr)&((TextList*)0)->unkD4 == 0xD4) ? 1 : -1];
 
 #endif
