@@ -322,7 +322,7 @@ static float p_watch_cliffs(void) {
     return 1.0f;
 }
 
-int check_damage_valid_fc(void) {
+int check_damage_valid_fc(int player, float amount) {
     struct BgndDamagePdata* pdata;
     struct BgndDamageState* damage;
     MkProc* proc;

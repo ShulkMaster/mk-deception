@@ -10,6 +10,7 @@ union RandomFloatBits {
 };
 
 static inline float rnd_inverse_sqrt(float value) {
+#ifdef VERSION_GQNE5D
     union RandomFloatBits estimate;
     float product;
     float correction;
@@ -23,6 +24,10 @@ static inline float rnd_inverse_sqrt(float value) {
     correction = 3.0f - product;
     return 0.0625f * estimate.f * correction *
         (12.0f - correction * (product * correction));
+#endif
+#ifdef VERSION_SLUS_208_81
+    return gxMathFastInvSqrt(value);
+#endif
 }
 
 static inline void rnd_cross(PfxVec3* const output, const PfxVec3* const left,
@@ -33,6 +38,7 @@ static inline void rnd_cross(PfxVec3* const output, const PfxVec3* const left,
 }
 
 static inline float rnd_sqrt_table(float value) {
+#ifdef VERSION_GQNE5D
     union RandomFloatBits input;
     union RandomFloatBits estimate;
     unsigned int bits;
@@ -50,6 +56,10 @@ static inline float rnd_sqrt_table(float value) {
             (3.0f - (estimate.f * estimate.f) / value));
     }
     return result;
+#endif
+#ifdef VERSION_SLUS_208_81
+    return gxMathFastSqrt(value);
+#endif
 }
 
 static inline void rnd_normalize(PfxVec3* const output, const PfxVec3* const input) {

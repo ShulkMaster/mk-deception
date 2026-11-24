@@ -1,0 +1,5 @@
+# Python packages for the PS2 (SLUS_208.81) split step, tools/ps2_split.py.
+spimdisasm==1.42.4
+rabbitizer==1.16.2
+# tools/ps2_cross.py (locating units in the PS2 ELF) also needs numpy.
+numpy>=1.26

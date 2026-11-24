@@ -147,11 +147,14 @@ share one computed element, a typed element pointer is likely.
 Byte flags and packed state words are common:
 
 ```c
-object->hide_flag_bits.hidden = 1;
-object->flags_09_bits.face_opponent = 0;
+object->flags.hidden = 1;
+object->flags.face_opponent = 0;
 if ((pdata->state & STATE_AIRBORNE) != 0) { ... }
 ```
 
+Container type sets the PS2 access width; mwcceppc accesses any 1-bit field with
+lbz/stb at its byte. So MkObj's +0x08 flags are one `unsigned int` bitfield
+struct (`MkObjFlags flags`): GC keeps byte RMW, PS2 gets retail's word RMW.
 Use a bitfield overlay when the byte RMW and bit position are proven. Use masks
 when retail operates on the full word. Do not globalize one representation merely
 because it matched one accessor.

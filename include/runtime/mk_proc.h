@@ -82,6 +82,7 @@ struct MkProc {
     };
     int pid;
     float sleep_ticks;
+#ifdef VERSION_GQNE5D
     float saved_f14;
     float saved_f15;
     float saved_f16;
@@ -120,6 +121,30 @@ struct MkProc {
     int saved_r31;
     int saved_cr;
     int return_sp;
+#endif
+#ifdef VERSION_SLUS_208_81
+    unsigned int saved_s8[4];
+    unsigned int saved_s0[4];
+    unsigned int saved_s1[4];
+    unsigned int saved_s2[4];
+    unsigned int saved_s3[4];
+    unsigned int saved_s4[4];
+    unsigned int saved_s5[4];
+    unsigned int saved_s6[4];
+    unsigned int saved_s7[4];
+    float saved_f20;
+    float saved_f21;
+    float saved_f22;
+    float saved_f23;
+    float saved_f24;
+    float saved_f25;
+    float saved_f26;
+    float saved_f27;
+    float saved_f28;
+    float saved_f29;
+    float saved_f30;
+    float saved_f31;
+#endif
     union {
         int flags;
         struct {

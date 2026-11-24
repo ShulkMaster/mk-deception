@@ -780,9 +780,9 @@ static void freeCallback(void*, void* memory)
 
 void MOVPRINT(const char* format, ...)
 {
-    MkVaListState arguments;
+    __va_list arguments;
 
-    __builtin_va_info(&arguments);
-    vsprintf(PrintBuff, format, &arguments);
+    va_start(arguments, format);
+    vsprintf(PrintBuff, format, arguments);
     mwMovLog(PrintBuff);
 }

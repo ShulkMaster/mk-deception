@@ -109,7 +109,7 @@ float pad_start_proc(void) {
             state = get_game_state();
             switch (state) {
             case 0x12:
-                if ((int)display_off != 0) {
+                if (display_off != 0) {
                     break;
                 }
             case 7:

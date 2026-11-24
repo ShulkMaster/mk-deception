@@ -179,7 +179,10 @@ void ScreenAnimScene::ResetTime() {
 }
 
 AnimDirectionE ScreenAnimScene::GetDirection() {
-    return (AnimDirectionE)__rlwnm(1U, __cntlzw(m_flags & ANIM_SCENE_FORWARD), 31, 31);
+    if ((m_flags & ANIM_SCENE_FORWARD) > 0) {
+        return kAnimDirectionForward;
+    }
+    return kAnimDirectionReverse;
 }
 
 void ScreenAnimScene::SetDirection(AnimDirectionE direction) {

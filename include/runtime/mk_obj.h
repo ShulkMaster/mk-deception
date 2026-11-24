@@ -13,12 +13,12 @@
 #include "game/weapon_types.h"
 
 typedef struct  {
-    unsigned char collision_disabled : 1; /* bit7 */
-    unsigned char collision_deferred : 1; /* bit6 */
-    unsigned char scale_controlled : 1; /* bit5 - blade/controller scale */
+    unsigned char collision_disabled : 1;
+    unsigned char collision_deferred : 1;
+    unsigned char scale_controlled : 1;
     unsigned char pad_bit4 : 1;
     unsigned char pad_bit3 : 1;
-    unsigned char reparent_toggle : 1; /* bit2 */
+    unsigned char reparent_toggle : 1;
     unsigned char preserve_rotation : 1;
     unsigned char pad_bit0 : 1;
 } MkBoneFlags55;
@@ -29,62 +29,62 @@ typedef struct MkFlippedBoneMap {
 } MkFlippedBoneMap;
 
 typedef struct MkBoneFlags54 {
-    unsigned char transform_parented : 1; /* bit7 */
-    unsigned char tag_1000 : 1; /* bit6 - copied from bone tag */
-    unsigned char cloth_candidate : 1; /* bit5 */
-    unsigned char calculation_locked : 1; /* bit4 */
+    unsigned char transform_parented : 1;
+    unsigned char tag_1000 : 1;
+    unsigned char cloth_candidate : 1;
+    unsigned char calculation_locked : 1;
     unsigned char field_bit3 : 1;
-    unsigned char hierarchy_driven : 1; /* bit2 */
-    unsigned char pose_matrix_applied : 1; /* bit1 */
-    unsigned char has_children : 1; /* bit0 */
+    unsigned char hierarchy_driven : 1;
+    unsigned char pose_matrix_applied : 1;
+    unsigned char has_children : 1;
 } MkBoneFlags54;
 
 typedef struct MkBone {
-    struct RwMatrix matrix; /* +0x00 - calculated bone matrix */
-    struct RwMatrix* parent_matrix; /* +0x40 */
-    struct RwMatrix* original_parent_matrix; /* +0x44 */
-    int tag; /* +0x48 */
-    int limb_id; /* +0x4C - limb transfer lookup id */
-    int bone_index; /* +0x50 - index used by limb transfer */
+    struct RwMatrix matrix;
+    struct RwMatrix* parent_matrix;
+    struct RwMatrix* original_parent_matrix;
+    int tag;
+    int limb_id;
+    int bone_index;
     union {
         struct {
-            MkBoneFlags54 flags_54_bits; /* +0x54 */
-            MkBoneFlags55 flags_55_bits; /* +0x55 */
+            MkBoneFlags54 flags_54_bits;
+            MkBoneFlags55 flags_55_bits;
             char pad56[2];
         };
         unsigned int flags_word_54;
     };
-    struct ClothBone* cloth_link; /* +0x58 - optional cloth state */
-    float inverse_length; /* +0x5C - 1 / |translation|, 0 for the root */
+    struct ClothBone* cloth_link;
+    float inverse_length;
     float field_60;
     float field_64;
-    unsigned int update_tick; /* +0x68 - last hierarchy update tick */
-    struct MkBone* transform_parent;  /* +0x6C */
-    struct MkBone* tree_next;      /* +0x70 */
-    struct MkBone* tree_child;     /* +0x74 */
-    struct MkBone* root_next;      /* +0x78 */
-    struct MkBone* clone_source;   /* +0x7C */
-    MkPtr* list_80;                /* +0x80 - owned auxiliary bone list */
+    unsigned int update_tick;
+    struct MkBone* transform_parent;
+    struct MkBone* tree_next;
+    struct MkBone* tree_child;
+    struct MkBone* root_next;
+    struct MkBone* clone_source;
+    MkPtr* list_80;
     char pad84[0x0C];
-    Quat rotation_90; /* +0x90 */
-    RwMatrixPosition translation; /* +0xA0 */
-    Vec scale; /* +0xB0 */
+    Quat rotation_90;
+    RwMatrixPosition translation;
+    Vec scale;
     char padBC[4];
-    RwMatrixPosition delta; /* +0xC0 */
+    RwMatrixPosition delta;
     union {
         struct {
             union {
                 struct {
-                    Quat rotation; /* +0xD0 - x, y, z, w */
-                    Quat rotation_e0; /* +0xE0 */
+                    Quat rotation;
+                    Quat rotation_e0;
                 };
                 Quat rotations[2];
             };
-            RwMatrixPosition velocity; /* +0xF0 */
-            Vec bind_offset; /* +0x100 - negated skin-to-bone translation */
+            RwMatrixPosition velocity;
+            Vec bind_offset;
             char pad10C[4];
         };
-        RwMatrix trail_matrix; /* +0xD0 */
+        RwMatrix trail_matrix;
     };
 } MkBone;
 
@@ -93,84 +93,84 @@ typedef char MkBoneTrailMatrixSizeCheck[
     sizeof(((MkBone*)0)->trail_matrix) == 0x40 ? 1 : -1];
 
 typedef struct ClothBoneFlags30 {
-    unsigned char use_ground_y : 1; /* bit7 */
+    unsigned char use_ground_y : 1;
     unsigned char pad : 7;
 } ClothBoneFlags30;
 
 typedef struct ClothCollisionPoint {
-    Vec position; /* +0x00 */
+    Vec position;
     char pad_0C[4];
-} ClothCollisionPoint; /* 0x10 */
+} ClothCollisionPoint;
 
 typedef struct ClothBone {
-    int collision_point_count; /* +0x00; signed loop bound in all retail cylinder tests */
-    float table_scale; /* +0x04 */
-    float stiffness_squared; /* +0x08 */
-    float segment_length; /* +0x0C */
-    float damping_factor; /* +0x10 */
-    float initial_x; /* +0x14 */
-    float initial_z; /* +0x18 */
-    float table_weight; /* +0x1C */
-    float force_step; /* +0x20 */
-    float stretch_weight; /* +0x24 */
-    float ground_y; /* +0x28 */
-    int active; /* +0x2C */
+    int collision_point_count;
+    float table_scale;
+    float stiffness_squared;
+    float segment_length;
+    float damping_factor;
+    float initial_x;
+    float initial_z;
+    float table_weight;
+    float force_step;
+    float stretch_weight;
+    float ground_y;
+    int active;
     union {
         unsigned int flags_30;
         ClothBoneFlags30 flags_30_bits;
-    }; /* +0x30 */
-    struct ClothBone* target_bone; /* +0x34 */
-    MkBone* bone; /* +0x38 */
-    float rest_length; /* +0x3C */
-    float collision_amount; /* +0x40 */
-    float current_length; /* +0x44 */
+    };
+    struct ClothBone* target_bone;
+    MkBone* bone;
+    float rest_length;
+    float collision_amount;
+    float current_length;
     char pad_48[8];
-    Vec wind_normal; /* +0x50 */
+    Vec wind_normal;
     char pad_5C[4];
-    Vec collision_offset; /* +0x60 */
+    Vec collision_offset;
     char pad_6C[4];
     union {
-        ClothCollisionPoint collision_points[3]; /* +0x70, stride 0x10 */
+        ClothCollisionPoint collision_points[3];
         struct {
             char pad_local_70[0x20];
-            Vec local_cloth_position; /* +0x90 */
+            Vec local_cloth_position;
             char pad_local_9C[4];
         };
     };
-    Vec target_vector; /* +0xA0 */
+    Vec target_vector;
     char pad_AC[4];
-    Vec world_target; /* +0xB0 */
+    Vec world_target;
     char pad_BC[4];
     union {
         struct {
-            Vec force_position; /* +0xC0 */
+            Vec force_position;
             char pad_CC[4];
         };
-        RwMatrixPosition force_position_row; /* retail copies all four words */
+        RwMatrixPosition force_position_row;
     };
-    Vec velocity; /* +0xD0 */
+    Vec velocity;
     char pad_DC[4];
-    Quat collision_rotation; /* +0xE0 */
+    Quat collision_rotation;
     union {
         struct {
-            Vec collision_local_position; /* +0xF0 */
+            Vec collision_local_position;
             char pad_FC[4];
         };
-        RwMatrixPosition collision_local_position_row; /* retail copies all four words */
+        RwMatrixPosition collision_local_position_row;
     };
     union {
         struct {
-            Vec previous_collision_local_position; /* +0x100 */
+            Vec previous_collision_local_position;
             char pad_10C[4];
         };
         RwMatrixPosition previous_collision_local_position_row;
     };
     char pad_110[0x20];
-} ClothBone; /* 0x130 */
+} ClothBone;
 
 typedef struct MkxMem {
-    MkHdr hdr; /* +0x00 */
-    void* allocation; /* +0x08 */
+    MkHdr hdr;
+    void* allocation;
 } MkxMem;
 
 typedef struct MkSobjFlags09 {
@@ -190,79 +190,69 @@ typedef struct MkSobjFlags08 {
     unsigned char bit5 : 1;
     unsigned char bit4 : 1;
     unsigned char bit3 : 1;
-    unsigned char angular_velocity_enabled : 1; /* bit2 */
-    unsigned char scale_dirty : 1; /* bit1 */
+    unsigned char angular_velocity_enabled : 1;
+    unsigned char scale_dirty : 1;
     unsigned char bit0 : 1;
 } MkSobjFlags08;
 
-/*
- * Midway mksobj (partial) -- pebble/render/hide agree on atomic @ +0x14.
- * id in low 12 bits of id_flags; bit 0x80000000 used with priority 0x12.
- * frame @ +0x18 used by particle binds (RwFrameGetLTM).
- */
 typedef struct MkSobj {
-    MkHdr hdr;             /* +0x00 */
+    MkHdr hdr;
     union {
         unsigned int flags_word_08;
         struct {
             union {
-                unsigned char flags_08; /* +0x08 - transform update flags */
+                unsigned char flags_08;
                 MkSobjFlags08 flags_08_bits;
             };
             union {
-                unsigned char flags09; /* +0x09 - render flags */
+                unsigned char flags09;
                 MkSobjFlags09 flags09_bits;
             };
             char pad0A[2];
         };
     };
-    unsigned int id_flags; /* +0x0C */
-    int priority;          /* +0x10 */
-    RpAtomic* atomic;      /* +0x14 */
-    RwFrame* frame;        /* +0x18 */
-    struct MkObj* owner;   /* +0x1C */
-    MkHdr* bound_hdr;      /* +0x20 */
-    unsigned int bound_instance; /* +0x24 */
-    float z_offset;        /* +0x28 */
-    unsigned int render_flags; /* +0x2C */
-    Vec pos;               /* +0x30 */
+    unsigned int id_flags;
+    int priority;
+    RpAtomic* atomic;
+    RwFrame* frame;
+    struct MkObj* owner;
+    MkHdr* bound_hdr;
+    unsigned int bound_instance;
+    float z_offset;
+    unsigned int render_flags;
+    Vec pos;
     char pad3C[4];
-    Vec pos_vel;           /* +0x40 */
+    Vec pos_vel;
     char pad4C[4];
-    Vec ang;               /* +0x50 */
+    Vec ang;
     char pad5C[4];
-    Vec ang_vel;           /* +0x60 */
+    Vec ang_vel;
     char pad6C[4];
-    Vec scale;             /* +0x70 */
+    Vec scale;
     char pad7C[4];
-    struct RwMatrix* matrices; /* +0x80 - mapped transform palette */
+    struct RwMatrix* matrices;
 } MkSobj;
 
-/* Atomic plugin userdata (id 0x895302) -- same layout as mk_plugins MksobjPluginData. */
 typedef struct MksobjPluginData {
-    unsigned int flags; /* +0x00 -- bit 0x80000000 = transl/priority */
-    float field_04;     /* +0x04 */
-    MkSobj* sobj;       /* +0x08 -- runtime link; not streamed */
-    int field_0C;          /* +0x0C -- pipeline/material type */
+    unsigned int flags;
+    float field_04;
+    MkSobj* sobj;
+    int field_0C;
 } MksobjPluginData;
 
 typedef struct MkObjFlags0C {
-    unsigned char bit0C_7 : 1;
-    unsigned char tag_flag_40 : 1;
-    unsigned char tag_flag_20 : 1;
-    unsigned char tag_flag_10 : 1;
-    unsigned char tag_flag_08 : 1;
-    unsigned char cloth_update : 1;
-    unsigned char parented : 1;
-    unsigned char bit0C_0 : 1;
+    unsigned int bit0C_7 : 1;
+    unsigned int tag_flag_40 : 1;
+    unsigned int tag_flag_20 : 1;
+    unsigned int tag_flag_10 : 1;
+    unsigned int tag_flag_08 : 1;
+    unsigned int cloth_update : 1;
+    unsigned int parented : 1;
+    unsigned int bit0C_0 : 1;
 } MkObjFlags0C;
 
-/*
- * MkObj (partial) -- fields used by mk_obj + particle binds.
- * hide_flags bit5 = hidden; flags_0C bit1 = inherit hide from parent.
- */
 typedef struct MkObj {
-    MkHdr hdr;                /* +0x00 - instance @ +0x04 */
+    MkHdr hdr;
     union {
         unsigned int flags_word_08;
         MkObjFlags flags;
@@ -277,64 +267,64 @@ typedef struct MkObj {
         unsigned int flags_word_0C;
         MkObjFlags0C flags_0C_bits;
     };
-    int oid;                /* +0x10 - object id / destroy mask */
-    int clump_count;        /* +0x14 - populated inline clump slots */
+    int oid;
+    int clump_count;
     union {
-        RpClump* clump;      /* +0x18 - first clump */
+        RpClump* clump;
         RpClump* clumps[2];
     };
-    RwFrame* frame;         /* +0x20 */
-    struct RwMatrix* field_24; /* +0x24 - matrix / fallback bone LTM */
-    MkPtr* child_list;        /* +0x28 - mk_insert list head (sky / children) */
-    unsigned int light_flags; /* +0x2C - bgnd load 0 / 0x1000 / 0x1009 */
-    float gravity;             /* +0x30 */
-    float field_34;            /* +0x34 - initialized as a float */
-    int ground_bone;           /* +0x38 */
-    MkHdr* parent_hdr;        /* +0x3C */
-    unsigned int parent_inst; /* +0x40 */
-    MkPtr* list_44;           /* +0x44 - owned list */
-    MkBone** bones; /* +0x48 */
-    unsigned int bone_count; /* +0x4C */
-    int fallback_bone_index; /* +0x50 */
-    int* matrix_indices;     /* +0x54 - owned mapped-matrix indices */
-    unsigned int matrix_count; /* +0x58 */
+    RwFrame* frame;
+    struct RwMatrix* field_24;
+    MkPtr* child_list;
+    unsigned int light_flags;
+    float gravity;
+    float field_34;
+    int ground_bone;
+    MkHdr* parent_hdr;
+    unsigned int parent_inst;
+    MkPtr* list_44;
+    MkBone** bones;
+    unsigned int bone_count;
+    int fallback_bone_index;
+    int* matrix_indices;
+    unsigned int matrix_count;
     union {
         void* field_5C;
         MkObjItemAttachData* item_attach_data;
         struct WeaponDefinition* weapon_definition;
-    }; /* +0x5C - cleared during destruction / item attachment data */
+    };
     int field_60;
     float bone_angle_64;
     float bone_angle_68;
-    void* ground_colls;     /* +0x6C */
-    float ground_colls_y;   /* +0x70 */
-    ClothBone* cloth_bones; /* +0x74 - owned cloth-bone allocation */
-    unsigned int cloth_bone_count; /* +0x78 */
-    MkPtr* list_7C;         /* +0x7C - owned list */
-    MkPtr* list_80;         /* +0x80 - owned list */
-    MkPtr* sobj_list; /* +0x84 */
-    MkPtr* list_88;   /* +0x88 - owned list */
-    MkFlippedBoneMap* flipped_bone_map; /* +0x8C */
-    Vec ground_restore_pos; /* +0x90 */
+    void* ground_colls;
+    float ground_colls_y;
+    ClothBone* cloth_bones;
+    unsigned int cloth_bone_count;
+    MkPtr* list_7C;
+    MkPtr* list_80;
+    MkPtr* sobj_list;
+    MkPtr* list_88;
+    MkFlippedBoneMap* flipped_bone_map;
+    Vec ground_restore_pos;
     char pad9C[4];
-    RwMatrixPosition pos; /* +0xA0 */
+    RwMatrixPosition pos;
     union {
         struct {
-            Vec pos_vel; /* +0xB0 */
+            Vec pos_vel;
             unsigned int pos_vel_pad;
         };
         RwMatrixPosition pos_vel_row;
     };
-    Vec pivot; /* +0xC0 - alternate-position matrix offset */
+    Vec pivot;
     char padCC[4];
     union {
         struct {
             union {
                 struct {
                     union {
-                        Vec ang; /* +0xD0 */
+                        Vec ang;
                         struct {
-                            float dir_x; /* light direction */
+                            float dir_x;
                             float dir_y;
                             float dir_z;
                         };
@@ -345,29 +335,27 @@ typedef struct MkObj {
             };
             union {
                 struct {
-                    Vec ang_vel; /* +0xE0 */
+                    Vec ang_vel;
                     unsigned int ang_vel_pad;
                 };
                 RwMatrixPosition ang_vel_row;
             };
             union {
                 struct {
-                    Vec scale;   /* +0xF0 */
+                    Vec scale;
                     unsigned int scale_pad;
                 };
                 RwMatrixPosition scale_row;
             };
         };
         struct {
-            Quat orientation_quat; /* +0xD0 */
+            Quat orientation_quat;
             char padE0_quat[0x0C];
-            Quat secondary_quat; /* +0xEC */
+            Quat secondary_quat;
         };
     };
 } MkObj;
 
-/* MWCC C++ does not treat sizeof on these C anonymous aggregates as a
- * constant expression; their C consumers enforce the shared ABI checks. */
 #ifndef __cplusplus
 typedef char MkFlippedBoneMapSizeCheck[
     sizeof(MkFlippedBoneMap) == 0x08 ? 1 : -1];
@@ -388,7 +376,6 @@ typedef char MkObjSizeCheck[sizeof(MkObj) == 0x100 ? 1 : -1];
 extern "C" {
 #endif
 
-/* Critical krypt APIs */
 MkSobj* obj_find_sobj_by_id(MkObj* obj, unsigned int id);
 RpMaterial* sobj_find_material_by_id(MkSobj* sobj,
                                      unsigned int material_id);
@@ -398,7 +385,6 @@ void unhide_sobj(void* sobj);
 void hide_sobj_and_children(MkSobj* sobj);
 void unhide_sobj_and_children(MkSobj* sobj);
 
-/* Frequently called siblings */
 MkSobj* obj_create_sobjs_by_id(MkObj* obj, int id);
 MkSobj* obj_find_child_sobj_by_id(MkObj* obj, unsigned int id, int depth);
 int sobj_does_atomic_have_children(MkSobj* sobj);
@@ -462,7 +448,6 @@ extern MkPtr* weapon_trail_light_list;
 }
 #endif
 
-/* Scale process data shared by its runtime owner and charge-up callers. */
 void start_obj_proc(void);
 void start_bone_hierarchy_proc(void);
 

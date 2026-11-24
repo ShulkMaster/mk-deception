@@ -26,12 +26,15 @@ from tools.project import (
     generate_build,
     is_windows,
 )
+from tools import ps2_project
 
 # Game versions
 DEFAULT_VERSION = 0
 VERSIONS = [
     "GQNE5D",  # 0 -- USA (DOL-GQNE-USA)
+    "SLUS_208.81",  # 1 -- PS2 USA (SLUS-20881)
 ]
+PS2_VERSIONS = ["SLUS_208.81"]
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -383,15 +386,7 @@ cflags_rel = [
 
 config.linker_version = "GC/2.7"
 
-# Game code compiler: GC/2.7 (mwcceppc 2.4.7 build 108). Evidence summary:
-# - Matching TUs .text-match retail under GC/2.7; GC/3.0a3 ruled out by codegen.
-# - GC/2.0-2.7 emit identical .text on tested TUs; only GC/2.7 writes .comment v=0x0B
-#   (config mw_comment_version: 11). MAP .dtors$10 => original linker was GC 2.7+.
-# Re-probe: python3 tools/mw_version_probe.py [--bakeoff]
-# SDK / RW libs use per-lib mw_version overrides (GCN_Nightly_Build / BFBB-style).
 game_mw_version = "GC/2.7"
-# SoftDec exposes source-level symbols and carries the same retail v=0x0B
-# CodeWarrior marker as game objects, so use the game compiler explicitly.
 softdec_mw_version = game_mw_version
 
 
@@ -408,8 +403,6 @@ def DolphinLib(
     }
 
 
-# RenderWare Graphics (Criterion) -- BFBB uses GC/1.3.2 + these flags for rwsdk.
-# Linker stays GC/2.7. Portable TUs only first; GC driver (*Gcn*, _rwDl*) later.
 cflags_renderware = [
     *cflags_base,
     "-lang=c",
@@ -1215,7 +1208,7 @@ config.libs = [
                                  "-inline noauto,deferred",
                                  "-str reuse,pool,readonly"]),
             Object(Matching, "settings.o", source="game/settings.c", extra_cflags=["-use_lmw_stmw on"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "nis.o", source="game/nis.c", extra_cflags=["-use_lmw_stmw on", "-O3,p"]),
+            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "nis.o", source="game/nis.c", extra_cflags=["-use_lmw_stmw on", "-O3,p", "-str reuse,pool,readonly"]),
             Object((Matching if config.version == "GQNE5D" else (NonMatching)), "attract.o", source="game/attract.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(Matching, "menu.o", source="game/menu.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
@@ -2412,7 +2405,6 @@ config.libs = [
             ),
         ],
     },
-    # Midway mwScreenEngine, distinct from Criterion RenderWare.
     {
         "lib": "mwScreenEngine",
         "mw_version": game_mw_version,
@@ -2573,7 +2565,6 @@ config.libs = [
             ),
         ],
     },
-    # Midway libmkparticle, distinct from Criterion RenderWare.
     {
         "lib": "libmkparticle",
         "mw_version": game_mw_version,
@@ -3270,7 +3261,82 @@ config.progress_report_args = [
     # "--config functionRelocDiffs=data_value",
 ]
 
-if args.mode == "configure":
+cflags_ps2_game = [
+    "-i build/GQNE5D/include",
+    "-i extern/gameware/rw3.6.0.3/include",
+    "-enum int",
+    "-Cpp_exceptions off",
+    "-O4,p",
+    "-inline auto",
+    '-pragma "cats off"',
+    '-pragma "warn_notinlined off"',
+    "-RTTI off",
+    "-str reuse",
+    "-DBUILD_VERSION=0",
+    "-lang=c",
+]
+ps2_game_units = [
+    ("fx.o", "game/fx.c", []),
+    ("jdn.o", "game/jdn.c", []),
+    ("ncs.o", "game/ncs.c", ["-str reuse,pool,readonly", "-inline noauto,deferred"]),
+    ("acb.o", "game/acb.c", []),
+    ("fatality.o", "game/fatality.c", ["-str reuse,pool,readonly"]),
+    ("mcardmsg.o", "game/mcardmsg.c", ["-str reuse,pool,readonly"]),
+    ("pfxscript.o", "game/pfxscript.c", ["-inline noauto"]),
+    ("konquest_missions.o", "game/konquest_missions.c", ["-str reuse,pool,readonly"]),
+    ("bgnd_mab.o", "game/bgnd_mab.c", ["-str reuse,pool,readonly"]),
+    ("nis.o", "game/nis.c", ["-O3,p"]),
+]
+ps2_config = ps2_project.Ps2ProjectConfig(
+    version=config.version,
+    build_dir=args.build_dir,
+    elf_sha1="7657eff03bbfd816c541693812ab6bea076f0cf9",
+    compiler="mwcps2-3.0.1b87-031208",
+    cflags=[
+        "-nodefaults",
+        "-nosyspath",
+        "-O4,p",
+        f"-i config/{config.version}/include",
+        "-i include",
+        "-DNDEBUG=1",
+        "-DVERSION_SLUS_208_81",
+    ],
+    asflags=["-EL", "-march=r5900", "-mabi=eabi", "-G0", "-no-pad-sections"],
+    objects=[
+        ps2_project.Ps2Object(
+            "mwMem.o",
+            "mw/mwMem.c",
+            extra_cflags=["-inline on", "-str reuse,pool,readonly"],
+            progress_category="game",
+        ),
+        *(
+            ps2_project.Ps2Object(
+                name,
+                source,
+                extra_cflags=[*cflags_ps2_game, *flags],
+                progress_category="game",
+            )
+            for name, source, flags in ps2_game_units
+        ),
+    ],
+    progress_categories=config.progress_categories,
+    binutils_path=args.binutils,
+    binutils_tag="v0.10",
+    compilers_path=args.compilers,
+    objdiff_path=args.objdiff,
+    objdiff_tag=config.objdiff_tag,
+    wrapper=getattr(args, "wrapper", None),
+    wibo_tag=config.wibo_tag,
+)
+
+if config.version in PS2_VERSIONS:
+    if args.mode == "configure":
+        ps2_project.generate_build(ps2_config)
+    elif args.mode == "progress":
+        ps2_project.calculate_progress(ps2_config)
+    else:
+        sys.exit("Unknown mode: " + args.mode)
+elif args.mode == "configure":
     # Write build.ninja and objdiff.json
     generate_build(config)
 elif args.mode == "progress":

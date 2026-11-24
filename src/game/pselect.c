@@ -1490,6 +1490,7 @@ void get_bg_pselect_team_textures(PselectTexOut out, int team) {
     pselect_update_team_preview(team);
 }
 
+#ifdef VERSION_GQNE5D
 void get_pselect_head_textures(PselectTexOut out) {
     int n;
     int i;
@@ -1521,6 +1522,32 @@ void get_pselect_head_textures(PselectTexOut out) {
         }
     }
 }
+#endif
+#ifdef VERSION_SLUS_208_81
+void get_pselect_head_textures(RwTexture** out) {
+    int n;
+    int i;
+    struct PselectCharEntry* tbl;
+
+    if (pselect_mode == 2) {
+        n = 0xC;
+        tbl = pselect_pz_char_tbl;
+    } else {
+        n = 0x18;
+        tbl = pselect_char_tbl;
+    }
+
+    for (i = 0; i < n; i++) {
+        if (is_char_locked(get_char_from_tbl(i), 0)) {
+            out[i] = load_named_tga_from_slot(PSELECT_SEC_SLOT, tbl[i].head_lock);
+        } else if (tbl[i].head_name != 0) {
+            out[i] = load_named_tga_from_slot(PSELECT_SEC_SLOT, tbl[i].head_name);
+        } else {
+            out[i] = 0;
+        }
+    }
+}
+#endif
 
 char* pselect_get_style_name(int player, int style_idx) {
     int pos;

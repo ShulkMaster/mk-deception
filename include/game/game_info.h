@@ -1,23 +1,6 @@
 #ifndef MKD_GAME_INFO_H
 #define MKD_GAME_INFO_H
 
-/*
- * g_game_info - retail .bss size 0x21C @ 0x803AE64C (symbols.txt).
- * Partial layout shared across display / gcio / attract / nis / acb / bgnd /
- * pselect / menu / game.
- *
- * Layout check (plyr1 ends 0x17C -> pads @ 0x17C -> +0x54 -> 0x1D0 -> +0x28 ->
- * field_1F8 @ 0x1F8 -> ... -> 0x21C). Do NOT insert padding between plyr1 and pads.
- *
- * Anchor evidence (ASM immediates / Ghidra VA = base+off):
- *   plyr0 +0xA4 / plyr1 +0x110 -- mk_system_init / pselect_init / attract
- *   pads[0] +0x17C stride 0x1C -- gcio scan_switches; pads[2] +0x1B4 -- pselect
- *   pselect +0x1D0...+0x1F0 -- pselect_init / init_bet_info_struct @ 0x80028884
- *   field_1F8 / field_210 -- attract.s; field_1FC -- pselect.s
- *   field_208 / field_20C -- mk_struct.s mk_system_init
- *   field_200 / field_204 / field_214 / field_218 -- game.s / menu.s / glue
- */
-
 #include "game/bgnd_types.h"
 typedef struct SwitchMapEntry SwitchMapEntry;
 #include "math/gxVect.h"
@@ -31,33 +14,32 @@ typedef struct ScriptSlot ScriptSlot;
 
 typedef struct SkyMkobj {
     char pad00[0x18];
-    void* clump; /* +0x18 */
+    void* clump;
 } SkyMkobj;
 
 typedef struct GcPadFlags {
-    unsigned char disabled : 1;      /* bit7 */
-    unsigned char connected : 1;     /* bit6 */
-    unsigned char stick_dispatch : 1; /* bit5 */
+    unsigned char disabled : 1;
+    unsigned char connected : 1;
+    unsigned char stick_dispatch : 1;
     unsigned char pad : 5;
 } GcPadFlags;
 
-/* Per-port pad state @ +0x17C, stride 0x1C (gcio scan_switches). */
 typedef struct GcPadSlot {
     union {
-        unsigned int flags_word; /* initialization clears all four bytes */
+        unsigned int flags_word;
         GcPadFlags flag_bits;
         struct {
             unsigned char flags;
             unsigned char pad_01[3];
         };
-    }; /* +0x00 */
-    SwitchMapEntry* switch_map; /* +0x04 - logical switch rows */
-    PlyrInfo* player;          /* +0x08 - abs +0x184 for port 0 */
-    unsigned int prev_buttons; /* +0x0C - abs +0x188 */
-    unsigned int buttons;      /* +0x10 - abs +0x18C */
-    unsigned int edge;         /* +0x14 - abs +0x190 */
+    };
+    SwitchMapEntry* switch_map;
+    PlyrInfo* player;
+    unsigned int prev_buttons;
+    unsigned int buttons;
+    unsigned int edge;
     union {
-        unsigned int stick_pack; /* +0x18 - abs +0x194 */
+        unsigned int stick_pack;
         struct {
             unsigned char stick_axis_0;
             unsigned char stick_axis_1;
@@ -65,32 +47,32 @@ typedef struct GcPadSlot {
             unsigned char stick_axis_3;
         };
     };
-} GcPadSlot; /* 0x1C */
+} GcPadSlot;
 
 typedef struct GamePauseFlags {
-    unsigned char fatality_window : 1; /* bit7 */
+    unsigned char fatality_window : 1;
     unsigned char pad_bit6 : 1;
-    unsigned char ladder_complete : 1; /* bit5 */
-    unsigned char rumble_stopped_for_pause : 1; /* bit4 */
+    unsigned char ladder_complete : 1;
+    unsigned char rumble_stopped_for_pause : 1;
     unsigned char shared_hand_anims_loaded : 1;
-    unsigned char controller_disable_guard : 1; /* bit2 */
-    unsigned char controllers_disabled : 1;     /* bit1 */
-    unsigned char paused : 1;                   /* bit0 */
+    unsigned char controller_disable_guard : 1;
+    unsigned char controllers_disabled : 1;
+    unsigned char paused : 1;
 } GamePauseFlags;
 
 typedef struct GameSwitchInputFlags {
-    unsigned char hide_obstacles : 1; /* bit7 */
-    unsigned char hide_konquest_collision : 1; /* bit6 */
+    unsigned char hide_obstacles : 1;
+    unsigned char hide_konquest_collision : 1;
     unsigned char field_bit5 : 1;
-    unsigned char view_danger_zones : 1; /* bit4 */
-    unsigned char eat_switches : 1; /* bit3 - pause/online input suppression */
+    unsigned char view_danger_zones : 1;
+    unsigned char eat_switches : 1;
     unsigned char pad_2_0 : 3;
 } GameSwitchInputFlags;
 
 typedef struct GameFeatureFlagBits {
-    unsigned char online_game : 1; /* bit7 */
+    unsigned char online_game : 1;
     unsigned char field_bit6 : 1;
-    unsigned char powerbars_locked : 1; /* bit5 */
+    unsigned char powerbars_locked : 1;
     unsigned char pad_4_0 : 5;
 } GameFeatureFlagBits;
 
@@ -102,14 +84,14 @@ typedef union GameFeatureFlags {
 typedef struct BgndWallHiderRuntime BgndWallHiderRuntime;
 
 typedef struct GameInfoFlags {
-    unsigned char high_res_path : 1; /* bit7 */
-    unsigned char field_bit6 : 1;
-    unsigned char lens_flare_enabled : 1; /* bit5 */
-    unsigned char level_transition_active : 1; /* bit4 */
-    unsigned char level_fatality_active : 1;   /* bit3 */
-    unsigned char level_fatality_done : 1; /* bit2 */
-    unsigned char load_complete : 1;
-    unsigned char field_bit0 : 1;
+    unsigned int high_res_path : 1;
+    unsigned int field_bit6 : 1;
+    unsigned int lens_flare_enabled : 1;
+    unsigned int level_transition_active : 1;
+    unsigned int level_fatality_active : 1;
+    unsigned int level_fatality_done : 1;
+    unsigned int load_complete : 1;
+    unsigned int field_bit0 : 1;
 } GameInfoFlags;
 
 #define GC_PAD_FLAG_DISABLED 0x80
@@ -117,134 +99,135 @@ typedef struct GameInfoFlags {
 #define GC_PAD_FLAG_STICK_DISPATCH 0x20
 #define GC_PAD_SLOT_STRIDE 0x1C
 #define GC_PAD_SLOTS_OFF 0x17C
-/* player @ slot+8 -> abs +0x184; edge @ slot+0x14 -> abs +0x190 */
 
-/*
- * Bet / pselect / round tail @ +0x1D0 (size 0x28 -> field_1F8).
- * init_bet_info_struct @ 0x80028884 and pselect_init @ 0x8008A688.
- */
 typedef struct GameInfoPselectTail {
-    unsigned int field_1d0; /* +0x1D0 - wager-active flag */
-    int field_1d4; /* +0x1D4 */
-    int field_1d8; /* +0x1D8 - wager amount (>0 on cancel refund path) */
-    int field_1dc; /* +0x1DC */
-    int field_1e0; /* +0x1E0 - set 1 in pselect_init / init_bet_info_struct */
-    int field_1e4; /* +0x1E4 - init_bet_info_struct stores 6 */
-    int field_1e8; /* +0x1E8 - init_bet_info_struct / ladder / minigames */
-    int field_1ec; /* +0x1EC - init_bet_info_struct / do_win_effect */
-    int field_1f0; /* +0x1F0 - set 1 in pselect_init */
-    int field_1f4; /* +0x1F4 - round index (do_fight_effect lwz) */
-} GameInfoPselectTail; /* 0x28 */
+    unsigned int field_1d0;
+    int field_1d4;
+    int field_1d8;
+    int field_1dc;
+    int field_1e0;
+    int field_1e4;
+    int field_1e8;
+    int field_1ec;
+    int field_1f0;
+    int field_1f4;
+} GameInfoPselectTail;
 
 typedef struct BgndWallHiderData {
-    MkHdr hdr; /* +0x00 */
-    MkPtr* walls; /* +0x08 */
-    float hide_distance; /* +0x0C */
+    MkHdr hdr;
+    MkPtr* walls;
+    float hide_distance;
     union {
-        unsigned int flags; /* +0x10 */
+        unsigned int flags;
         struct {
             union {
                 unsigned char flags_byte;
                 struct {
-                    unsigned char disabled : 1; /* bit7 */
-                    unsigned char kill_process : 1; /* bit6 */
+                    unsigned char disabled : 1;
+                    unsigned char kill_process : 1;
                     unsigned char pad_low : 6;
                 } flag_bits;
             };
             char pad11[3];
         };
     };
-    BgndWallHiderRuntime* runtime; /* +0x14 */
+    BgndWallHiderRuntime* runtime;
 } BgndWallHiderData;
 
 typedef struct GameInfo {
     union {
-        unsigned char flags;
         GameInfoFlags flag_bits;
-    };                         /* +0x00 - bit7 hi-res path; bit2 level fatality */
-    union {
-        unsigned char pause_flags;
-        GamePauseFlags pause_flag_bits;
-    }; /* +0x01 */
-    GameSwitchInputFlags switch_input_flags; /* +0x02 */
-    char pad03;
+        struct {
+            unsigned char flags;
+            union {
+                unsigned char pause_flags;
+                GamePauseFlags pause_flag_bits;
+            };
+            GameSwitchInputFlags switch_input_flags;
+            char pad03;
+        }
+#ifdef __cplusplus
+        flag_bytes
+#endif
+        ;
+    };
     union {
         unsigned int feature_flags_word;
         GameFeatureFlags feature_flags;
     };
-    int field_08;           /* +0x08 */
-    BgndDataTable* section; /* +0x0C - get_data_table / art section */
-    BgndMisc* misc;         /* +0x10 */
-    void* mode_table; /* +0x14 - mode-specific table (chess table in MK Chess) */
-    int bgnd_id; /* +0x18 */
-    int active_level; /* +0x1C - current multi-level arena index */
-    ScriptSlot* cmdscript; /* +0x20 - loaded MKO body from cmdscript_loadfile_* */
-    int bgnd_cycle_index; /* +0x24 */
+    int field_08;
+    BgndDataTable* section;
+    BgndMisc* misc;
+    void* mode_table;
+    int bgnd_id;
+    int active_level;
+    ScriptSlot* cmdscript;
+    int bgnd_cycle_index;
     char pad28[4];
-    MkObj* bgnd_obj; /* +0x2C */
-    MkObj* sky;      /* +0x30 */
-    float field_34;  /* +0x34 - fade / particle / mab */
-    Vec impact_vector; /* +0x38 - normalized/scaled death-trap impact */
-    PlyrInfo* active_player; /* +0x44 - current fight player */
-    PlyrInfo* collision_player_info; /* +0x48 */
-    MkObj* player_objects[2]; /* +0x4C */
-    int collision_player_side; /* +0x54 */
-    PlyrPdata* collision_player_pdata; /* +0x58 */
-    unsigned int collision_event_id; /* +0x5C */
-    MkPtr* displayed_items; /* +0x60 - BgndDisplayedItem list */
-    MkPtr* field_64; /* +0x64 - owned background list */
-    BgndWallHiderData* wall_hider; /* +0x68 */
-    MkProc* camera_proc; /* +0x6C */
-    unsigned int camera_proc_instance; /* +0x70 */
+    MkObj* bgnd_obj;
+    MkObj* sky;
+    float field_34;
+    Vec impact_vector;
+    PlyrInfo* active_player;
+    PlyrInfo* collision_player_info;
+    MkObj* player_objects[2];
+    int collision_player_side;
+    PlyrPdata* collision_player_pdata;
+    unsigned int collision_event_id;
+    MkPtr* displayed_items;
+    MkPtr* field_64;
+    BgndWallHiderData* wall_hider;
+    MkProc* camera_proc;
+    unsigned int camera_proc_instance;
     union {
         int field_74;
         struct {
-            unsigned char clean_floor : 1; /* bit7 */
+            unsigned char clean_floor : 1;
             unsigned char field_74_bit6 : 1;
             unsigned char field_74_pad_bits : 6;
             unsigned char field_75_77[3];
         } floor_flags;
         struct {
             unsigned char blood_pad_high : 2;
-            unsigned char blood_enabled : 1; /* bit5 */
+            unsigned char blood_enabled : 1;
             unsigned char blood_pad_low : 5;
             unsigned char blood_pad_75_77[3];
         } blood_flags;
-    }; /* +0x74 */
-    int field_78; /* +0x78 */
-    unsigned int bgnd_timer_ticks[3]; /* +0x7C */
-    unsigned int bgnd_timer_limits[3]; /* +0x88 */
-    MkPtr* npc_list; /* +0x94 - background NPC records */
-    float crack_count; /* +0x98 - reset with crack pool, increments on placement */
+    };
+    int field_78;
+    unsigned int bgnd_timer_ticks[3];
+    unsigned int bgnd_timer_limits[3];
+    MkPtr* npc_list;
+    float crack_count;
     char pad9C[8];
     union {
         struct {
-            PlyrInfo plyr0; /* +0xA4 */
-            PlyrInfo plyr1; /* +0x110 -- ends 0x17C */
+            PlyrInfo plyr0;
+            PlyrInfo plyr1;
         };
-        PlyrInfo players[2]; /* +0xA4, retail stride 0x6C */
+        PlyrInfo players[2];
     };
     union {
-        GcPadSlot pads[4]; /* +0x17C -- four physical GameCube ports */
+        GcPadSlot pads[4];
         struct {
             GcPadSlot first_three_pads[3];
             GameInfoPselectTail pselect;
         } pad_overlay;
         struct {
             GcPadSlot first_three_pads[3];
-            GameInfoPselectTail pselect; /* +0x1D0 -- gameplay overlay */
+            GameInfoPselectTail pselect;
         };
-    }; /* +0x17C..+0x1F8 */
-    int field_1F8; /* +0x1F8 - attract page/state latch (attract.s stw) */
-    int field_1FC; /* +0x1FC - ladder side latch (pselect.s stw) */
-    int field_200; /* +0x200 - fatality / round_init latch (game.s / Ghidra VA 803AE84C) */
-    int field_204; /* +0x204 - game timer word (reset_game_timer / update_game_timer) */
-    int field_208; /* +0x208 - cleared in mk_system_init (stw 0x208) */
-    int field_20C; /* +0x20C - cleared in mk_system_init (stw 0x20c) */
-    int field_210; /* +0x210 - attract loop counter (attract.s lwz/stw 0x210) */
-    int field_214; /* +0x214 - menu sets 0x1E; mwScreenEngineGlue sprintf (stw/lwz 0x214) */
-    int field_218; /* +0x218 - reset_game_timer write (game.s stw 0x218) */
-} GameInfo; /* 0x21C */
+    };
+    int field_1F8;
+    int field_1FC;
+    int field_200;
+    int field_204;
+    int field_208;
+    int field_20C;
+    int field_210;
+    int field_214;
+    int field_218;
+} GameInfo;
 
 typedef char GameInfoSizeCheck[sizeof(GameInfo) == 0x21C ? 1 : -1];
 

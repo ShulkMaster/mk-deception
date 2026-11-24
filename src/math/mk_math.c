@@ -32,6 +32,7 @@ static const float kHugeNeg = -1.0e21f;
 static const float kHugePos = 1.0e21f;
 
 static float mk_inv_sqrt(float x) {
+#ifdef VERSION_GQNE5D
     union {
         float f;
         unsigned int u;
@@ -50,6 +51,10 @@ static float mk_inv_sqrt(float x) {
     correction = kThree - scaled_input;
     guess = kInvSqrtScale * guess;
     return guess * correction * (kNewton12 - (scaled_input * correction * correction));
+#endif
+#ifdef VERSION_SLUS_208_81
+    return gxMathFastInvSqrt(x);
+#endif
 }
 
 int intersect_xz_lines(const Vec* p, const Vec* dir, Vec* out, float a, float b) {

@@ -18,7 +18,8 @@ This repository does **not** contain any game assets or assembly. An existing co
 
 Supported versions:
 
-- `GQNE5D`: USA
+- `GQNE5D`: GameCube USA (default)
+- `SLUS_208.81`: PS2 USA
 
 ## Local setup
 

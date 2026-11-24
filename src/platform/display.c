@@ -443,7 +443,7 @@ void Render(void) {
             __mini_game_display_ctrl != 0) {
             render_minigame_list();
         }
-    } else if ((int)display_off != 0) {
+    } else if (display_off != 0) {
         pfxsystem_frame_begin();
         if (Camera != 0) {
             RwCameraClear(Camera, &load_meter_bgnd_color, 7);
