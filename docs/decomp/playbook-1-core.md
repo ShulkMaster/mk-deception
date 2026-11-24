@@ -180,7 +180,7 @@ Tools:
 | Retail-only `b` to a case body between switch dispatch and first arm | N14 |
 | Differing instruction absent from pre-RA `initial` pcode | H29, N14 (not coloring) |
 | Same ops, regs swapped | H15, H21, H22, then tier 4 stops |
-| Same ops, only volatile temps (r0/r3-r12, f0-f13) rotated | H27 statement/operand order, H15; inline arg temp propagated past helper's first statement -> H07 param type identity; constant operand and variable operand trade r0 -> H26 in-place derivation in the result's local |
+| Same ops, only volatile temps (r0/r3-r12, f0-f13) rotated | H27 statement/operand order, H15; inline arg temp propagated past helper's first statement -> H07 param type identity; constant operand and variable operand trade r0 -> H26 in-place derivation in the result's local; load temp beats a helper local to r3 through a folded `&p->member` local -> H21 named owner local |
 | Lone web wants r3/f1 (return/arg reg), no order fixes it | H01 return type/arg, H15 |
 | Add/or operands commuted in one row | H15, H22 |
 | Call result move order | H16 |
@@ -204,6 +204,7 @@ Tools:
 | Asm-sequence ICE | N12 |
 | Several honest byte-neutral edits, no single fix | N13 |
 | Saved homes swap, phantomsearch says no twin, decl/spelling sweeps neutral | H32 sweep lever |
+| why.py "every pop order moves a PARAMETER", object param revalidated in a loop, PS2 copies it after the null test | H21 latch aggregate, then `?:` result local type |
 | Only coloring left, permuter | tier 4 |
 
 ## H index

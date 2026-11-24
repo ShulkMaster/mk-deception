@@ -3182,6 +3182,39 @@ straight in (`mps_dec`).
   IRO hoists it as a loop-invariant temp, so it no longer sits in a late
   simplify sweep. Then fix the remaining named order by declaration
   (`pselect_update_selbox_pos`). Removing only one of them can lose fuzzy.
+- Object param must pop first (why.py: "every working pop order moves a
+  PARAMETER"; retail numbers it above every named local) and the loop
+  revalidates it: REQUIRE PS2 retail copies the param to a saved register
+  only after the null test (`beqz a0; ...; move s6,a0`). TRY a local latch
+  aggregate: `MkHdrLatch latch; latch.hdr =
+  (MkHdr*)p; latch.instance = latch.hdr->instance;`, loop reads
+  `MK_HDR_LIVE(latch.hdr, latch.instance)`. IRO_ScalarizeClassDataMembers
+  makes both members FE temps above every named local (pop first). The
+  macro's `(MkHdr*)` cast makes IRO CSE `&hdr->instance`; GC BE add
+  propagation folds that load back onto the param, so the param stays live
+  across the loop (entry `mr r31,r3`, test on r31). `MK_LIVE` on the latch:
+  no fold, param coalesces into r3. Same cast tree at the init puts the
+  address CSE before the loop guard (PS2 `addiu v1,a0,4`). Exemplar
+  `display_numerical_change` (27 -> 0 rows with the `?:` result bullet next).
+  No struct + any spelling: 30 rows.
+- Named local fed by a `?:` macro (`live = MK_HDR_LIVE(...)`) pops above
+  params/locals retail colours after it (why.py: "make live a temp-kind
+  web"): REQUIRE the assignment converts (`StringObj* live =
+  (StringObj*)MK_HDR_LIVE(latch.hdr, ...)`). TRY typing the local as the
+  `?:` result type (`MkHdr* live`) and casting only at the use
+  (`update_string_obj((StringObj*)live, ...)`): with no conversion IRO
+  forwards the parser's `?:` temp (FE band, scanned late in sweep 1 at
+  degree < K, pops last) and the named local vanishes; the cast keeps the
+  arms writing the named local (named band, sweep 2). `if ((live = ...) ==
+  0)`, inline `latch_live()` helper, `StringObj`-typed latch: neutral or worse.
+- Volatile pair swapped: a load temp takes r3 before a helper local, retail
+  reverse; fields read through a member-address local (`RwRGBA* color =
+  &pdata->material->color; color->red`). BE add propagation folds the +4
+  into every access, so the surviving web is the codegen load temp (highest
+  vreg, pops first). TRY a named local holding the loaded owner (`RpMaterial*
+  material = pdata->material; material->color.red`) placed at the retail
+  rank: inline locals number forward, so declared before `amount` it pops
+  after it (`p_fade_material` 18 -> 0; after `amount`: 18).
 - Caller result of a value-returning inline helper is coloured as the
   helper's local (`distance = helper(dx, dy)` -> web `inl:helper.distance`,
   inline band, pops early) while retail colours it as a caller named local:
@@ -5175,6 +5208,11 @@ top-level expansion. Lift a nested call to top level for the reverse.
   IRO CSE temps < `?:` temps < nested-inline objects < top-level inline
   objects (reverse call-site; params reversed, locals forward) < pool base <
   codegen temps. Definition order and static-vs-inline do not change it.
+  No `@` object for a helper param never assigned or address-taken in the
+  helper and bound to a constant or plain unaddressed local
+  (`setup_inline_locals_and_arguments` substitutes it): moving a loop into a
+  helper cannot renumber the caller's param (`bgnd_make_displayed_item_...`
+  walk helper: item_id stays v32).
 - Handle typing: an int handle passed to an unsigned API makes IRO CSE the
   int->unsigned conversion into a CSE temp (changes web kind); match the
   handle type to the API (`unsigned int dust; int fountain;`, H21).
