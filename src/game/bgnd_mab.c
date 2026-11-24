@@ -458,8 +458,6 @@ void debug_create_axis_indicator(PlyrInfo* player, Vec* position) {
     }
 }
 
-/* TODO: [breakthrough needed] 98.00%; IRO append-preheader is chained away (no loop
- * invariant hoisted into it); need the original invariant expression. */
 static float p_fish_attack_bloodsplat(void) {
     Vec effect_origin = {0.0f, 1.6f, 0.0f};
     struct MkObjRef splat;
@@ -483,8 +481,8 @@ static float p_fish_attack_bloodsplat(void) {
         object->scale.z = 0.5f;
         uv_v3_to_v3(&direction, &effect_origin, &object->pos.value);
         v3_to_xy_ang(&object->ang, &direction);
-        splat.instance = object->hdr.instance;
         splat.object = object;
+        splat.instance = object->hdr.instance;
     }
 
     while (scale < 0.75f) {

@@ -1785,8 +1785,19 @@ Loops. REQUIRE zero-trip behavior + test/update order.
   which blocks IRO jump chaining; backend LICM then strands N (`p_fade_fog`).
   REQUIRE iro_preheader_probe "append" and iro_stages_probe showing no new
   `@tmp` after FindLoops in ours. TRY recovering the original loop-invariant
-  global-field expression; var+offset under INDIRECT is not subable on GC2.7
-  (`p_fish_attack_bloodsplat` open). Never add a dummy invariant.
+  global-field expression; plain var+offset under INDIRECT
+  (`p->hdr.instance`) is not subable on GC2.7. Never add a dummy invariant.
+  The invariant can be invisible on GC: PPC folds a hoisted `p + 4` back into
+  the `lwz` displacement, so the dead `b` pair is the only GC trace. REQUIRE
+  PS2 retail keeping it as a register (`addiu s0,s1,4` before the loop,
+  `lw v0,0(s0)` inside) where the PS2 compile of ours reads `lw v0,4(s1)`.
+  TRY the member read through a pointer cast of the invariant base:
+  `((MkHdr*)(p))->instance`, not `(p)->hdr.instance` (the cast node keeps the
+  address add hoistable; pass not traced). `MK_HDR_LIVE` now spells it so;
+  43 consumer units byte-identical, `p_fish_attack_bloodsplat` closed, PS2
+  sibling `p_skytemple_bodysplat` agrees. Open-coded `->hdr.instance`
+  compares elsewhere: cast form measured neutral (bgnd, cam, konquest, krypt,
+  mk_chess, mk_obj), so apply only with the PS2 or dead-`b` signature.
 - Same tail (dead `b P`, or live `lis/addi; b P` after the final return) but
   iro_preheader_probe says `reuse` of a `L: goto test` block after an `if`:
   the two outside preds come from front-end COpt branch chaining
@@ -3974,6 +3985,25 @@ Helper locals and web kind.
   the IRO CSE temps, flipping the pop order (not traced). TRY the select spelling PS2
   shows (`fatality_boraicho_get_torch`: `mirror_camera != 0 ? 0x19 : 0x18`,
   sibling `fatality_ashrah_get_doll` already `?:`).
+- General PS2 discriminator: GC rows equal (or home swap only) for two
+  spellings, GC hill climb stuck or pointing the wrong way: REQUIRE the
+  function placed in the PS2 ELF (PS2-split unit, or `tools/ps2_cross.py`
+  placement). TRY compiling each spelling with mwccps2 and keep the one PS2
+  retail agrees with, even if its GC score drops first; then finish on GC.
+  Compare shapes, not offsets (PS2 layouts, bitfield containers, slot counts
+  differ). PS2 separates: `?:` vs `K + cond`; `?:` latch vs statement
+  `if/else` latch macro (PS2 keeps both zero arms in line in source order
+  only for `?:`; the statement form moves them after the body); if-arm
+  order; member-store order (saved homes follow first assignment);
+  hoisted address temps (H09 dead-`b` rule).
+- Latch diamond exact, slot-owner/object volatile regs swapped in the first
+  of several repeated latches (`lwz r6,owner; lwz r7,0(r6)` vs r7/r6):
+  REQUIRE PS2 retail zero arms in line (`beqz; bne; b; move zero; b; move
+  zero`). TRY `MK_HDR_LIVE` on the full member chain re-spelled in both
+  operands (`player->mirror_slots->weapon[i].primary.obj`, `.instance`), no
+  named owner local and no statement latch macro: `?:` alone with the owner
+  local scores worse on GC (10 -> 40 rows) and reads as a dead end without
+  PS2 (`plyr_match_weapon_flip_to_obj_flip`).
 - Generation-validation latch swaps owner/object regs: REQUIRE read-only
   canonical latch members, no call/store between. TRY existing latch macro on
   direct owner-member expressions, not staged aliases

@@ -165,6 +165,9 @@ Tools:
 | Prologue order differs, loop body exact | H09, H27 |
 | Entry copies `r4` param before `r3`, literal base in own reg, one load feeds two arg regs (`lwz r4; mr r5,r4`) | H01 enum member + enum/int params (two loads reach backend) |
 | GC ops exact with a home swap, PS2 score of same source far lower (`movz` vs `sltu`) | H21 select spelling from PS2 |
+| GC cannot rank two spellings (rows equal, or hill climb stuck on a home/volatile swap) and unit is PS2-placed | H21 general PS2 discriminator: compile both for PS2, keep the one PS2 retail agrees with |
+| Repeated latches, first one swaps owner/object volatile regs; PS2 retail zero arms in line | H21 `MK_HDR_LIVE` on full member chain, no owner local |
+| Dead `b epilogue; b preheader` after final return, PS2 retail hoists `addiu sX,sY,off` before the loop | H09 member read through pointer cast of the invariant base |
 | Switch, jump table, compare tree | H10 |
 | Return/cleanup join, materialized Boolean | H11, H19, M04, M08 |
 | POD copy loop; copy load/store order | H12 |
