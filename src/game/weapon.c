@@ -891,38 +891,40 @@ void plyr_weapon_hide(PlyrPdata* player, int show_aux,
     }
 }
 
-/* TODO: [near miss] 99.36047%; first latch r6/r7 swap remains;
- * named slots versus split candidate needs genuine ownership evidence. */
 void plyr_match_weapon_flip_to_obj_flip(PlyrPdata* player) {
     MkObj* player_object;
     MkObj* weapon_object;
-    PlyrMirrorSlots* slots;
 
-    RESOLVE_WEAPON_LATCH(player_object, &player->tracked_obj_latch);
+    player_object = MK_HDR_LIVE(
+        player->tracked_obj_latch.obj, player->tracked_obj_latch.instance);
     if (player_object == 0) {
         return;
     }
 
-    slots = player->mirror_slots;
-    RESOLVE_WEAPON_LATCH(weapon_object, &slots->weapon[0].primary);
+    weapon_object = MK_HDR_LIVE(
+        player->mirror_slots->weapon[0].primary.obj,
+        player->mirror_slots->weapon[0].primary.instance);
     if (weapon_object != 0) {
         weapon_object->flags.bit0A_6 =
             player_object->flags.bit0A_6;
     }
-    slots = player->mirror_slots;
-    RESOLVE_WEAPON_LATCH(weapon_object, &slots->weapon[1].primary);
+    weapon_object = MK_HDR_LIVE(
+        player->mirror_slots->weapon[1].primary.obj,
+        player->mirror_slots->weapon[1].primary.instance);
     if (weapon_object != 0) {
         weapon_object->flags.bit0A_6 =
             player_object->flags.bit0A_6;
     }
-    slots = player->mirror_slots;
-    RESOLVE_WEAPON_LATCH(weapon_object, &slots->weapon[2].primary);
+    weapon_object = MK_HDR_LIVE(
+        player->mirror_slots->weapon[2].primary.obj,
+        player->mirror_slots->weapon[2].primary.instance);
     if (weapon_object != 0) {
         weapon_object->flags.bit0A_6 =
             player_object->flags.bit0A_6;
     }
-    slots = player->mirror_slots;
-    RESOLVE_WEAPON_LATCH(weapon_object, &slots->weapon[3].primary);
+    weapon_object = MK_HDR_LIVE(
+        player->mirror_slots->weapon[3].primary.obj,
+        player->mirror_slots->weapon[3].primary.instance);
     if (weapon_object != 0) {
         weapon_object->flags.bit0A_6 =
             player_object->flags.bit0A_6;
