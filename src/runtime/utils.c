@@ -871,24 +871,23 @@ void service_game_timers(void) {
     g_game_info.field_20C += 1;
 }
 
-/* TODO: [near miss] 97.94872%; string parameter and seven loop owners differ;
- * verified PS2 keeps the same inline ownership; recover original GC producer. */
 void display_numerical_change(
     StringObj* string, int font, int start, int change,
     int ticks, int acceleration_interval) {
     int current = start;
-    char text[40];
-    unsigned int instance;
     int target = current + change;
     int step = change < 0 ? -1 : 1;
-    int acceleration_count = 0;
     int tick_count = 0;
+    int acceleration_count = 0;
+    MkHdrLatch latch;
+    char text[40];
 
     if (string != 0) {
-        instance = string->instance;
+        latch.hdr = (MkHdr*)string;
+        latch.instance = latch.hdr->instance;
 
-        while (target != current) {
-            StringObj* live;
+        while (current != target) {
+            MkHdr* live;
 
             _mkproc_sleep_ticks = 1.0f;
             aproc->vtbl->sleep();
@@ -896,22 +895,21 @@ void display_numerical_change(
             if (tick_count >= ticks) {
                 int distance;
                 int step_magnitude;
-                int next;
 
                 tick_count = 0;
-                live = MK_LIVE(string, instance);
+                live = MK_HDR_LIVE(latch.hdr, latch.instance);
                 if (live == 0) {
                     return;
                 }
                 distance = target - current >= 0 ? target - current : -(target - current);
-                step_magnitude = step < 0 ? -step : step;
-                next = current + step;
+                step_magnitude = step >= 0 ? step : -step;
                 if (distance <= step_magnitude) {
-                    next = target;
+                    current = target;
+                } else {
+                    current += step;
                 }
-                current = next;
                 format_value_to_display(text, current);
-                update_string_obj(live, font, text);
+                update_string_obj((StringObj*)live, font, text);
             }
             acceleration_count++;
             if (acceleration_count >= acceleration_interval) {

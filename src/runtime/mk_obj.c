@@ -2028,47 +2028,47 @@ MkProc* fade_material(float delta, MkObj* obj, unsigned int sobj_id,
 
 static inline float advance_material_fade(struct FadeMaterialPdata* pdata, MkObj* obj) {
     float accumulated;
+    RpMaterial* material;
     int amount;
-    RwRGBA* color;
     int value;
 
     accumulated = pdata->accumulator + pdata->delta;
     amount = accumulated;
     pdata->accumulator = accumulated - (float)amount;
-    color = &pdata->material->color;
-    value = amount + color->red;
+    material = pdata->material;
+    value = amount + material->color.red;
     if (value < 0) {
         value = 0;
     }
     if (value > 255) {
         value = 255;
     }
-    color->red = value;
-    value = amount + color->green;
+    material->color.red = value;
+    value = amount + material->color.green;
     if (value < 0) {
         value = 0;
     }
     if (value > 255) {
         value = 255;
     }
-    color->green = value;
-    value = amount + color->blue;
+    material->color.green = value;
+    value = amount + material->color.blue;
     if (value < 0) {
         value = 0;
     }
     if (value > 255) {
         value = 255;
     }
-    color->blue = value;
-    value = amount + color->alpha;
+    material->color.blue = value;
+    value = amount + material->color.alpha;
     if (value < 0) {
         value = 0;
     }
     if (value > 255) {
         value = 255;
     }
-    color->alpha = value;
-    if (color->red == 0 && color->green == 0 && color->blue == 0) {
+    material->color.alpha = value;
+    if (material->color.red == 0 && material->color.green == 0 && material->color.blue == 0) {
         obj->flags.hidden = 1;
         mkproc_die();
     }
@@ -2079,8 +2079,6 @@ static inline float advance_material_fade(struct FadeMaterialPdata* pdata, MkObj
     return 1.0f;
 }
 
-/* TODO: [near miss] 99.10891%; amount/material homes swap at the late load;
- * amount capture is neutral; recover owners without moving material acquisition. */
 static float p_fade_material(void) {
     MkObj* obj;
     struct FadeMaterialPdata* pdata;
