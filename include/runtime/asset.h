@@ -1,6 +1,7 @@
 #ifndef RUNTIME_ASSET_H
 #define RUNTIME_ASSET_H
 
+#include "runtime/plyr_num.h"
 #include "runtime/section_types.h"
 
 #ifdef __cplusplus
@@ -14,7 +15,7 @@ typedef struct MkObj MkObj;
 void annihilate_art_section_data(SecSlotFileEntry* entry);
 void process_anim_section_data(SecSlotFileEntry* entry);
 void process_art_section_data(SecSlotFileEntry* entry);
-MkObj* load_named_model_for_player(const char* name, int player,
+MkObj* load_named_model_for_player(const char* name, PLYR_NUM player,
                                    int object_type, int transl);
 MkObj* load_named_model_for_bgnd(const char* name, int object_type, int transl);
 MkObj* load_named_model_from_slot(int slot, const char* name, int object_type,

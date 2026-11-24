@@ -181,7 +181,7 @@ static inline const char* section_model_member_name(const SecArtMember* members,
     return members[member_index].name_or_data;
 }
 
-MkObj* load_named_model_for_player(const char* name, int player,
+MkObj* load_named_model_for_player(const char* name, PLYR_NUM player,
                                    int object_type, int flags) {
     unsigned int* slots;
     unsigned int slot_index;

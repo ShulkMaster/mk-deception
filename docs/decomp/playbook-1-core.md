@@ -163,6 +163,8 @@ Tools:
 | Pointer+instance latch diamond | H08, H25 |
 | Loop entry/latch, CTR; preheader after final return | H09 |
 | Prologue order differs, loop body exact | H09, H27 |
+| Entry copies `r4` param before `r3`, literal base in own reg, one load feeds two arg regs (`lwz r4; mr r5,r4`) | H01 enum member + enum/int params (two loads reach backend) |
+| GC ops exact with a home swap, PS2 score of same source far lower (`movz` vs `sltu`) | H21 select spelling from PS2 |
 | Switch, jump table, compare tree | H10 |
 | Return/cleanup join, materialized Boolean | H11, H19, M04, M08 |
 | POD copy loop; copy load/store order | H12 |

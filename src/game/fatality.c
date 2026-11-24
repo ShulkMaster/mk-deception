@@ -1847,12 +1847,11 @@ unsigned int fatality_boraicho_light_fart_torch(MkObj* torch) {
     return emitter;
 }
 
-/* TODO: [near miss] 95.89041%; torch/state owner kinds and prologue player/string
- * interference differ; recover producer lifetimes beyond complete phase helpers. */
 MkObj* fatality_boraicho_get_torch(
     const Vec* parent_offset, const Vec* rotation) {
-    int player = fatality_state.player->plyr_num;
-    MkObj* torch = load_named_model_for_player("TORCH", player, player, 0);
+    MkObj* torch = load_named_model_for_player(
+        "TORCH", fatality_state.player->plyr_num,
+        fatality_state.player->plyr_num, 0);
     int torch_bone_tag[1] = {1};
     RpMaterial* material;
     FatalityFakeBoneMatcher* matcher;
@@ -1867,7 +1866,7 @@ MkObj* fatality_boraicho_get_torch(
         torch->light_flags =
             fatality_state.attacker_object->light_flags;
         destination_bone =
-            0x18 + (fatality_state.mirror_camera != 0);
+            fatality_state.mirror_camera != 0 ? 0x19 : 0x18;
         matcher = ft_fake_bone_matcher(
             torch, fatality_state.attacker_object, destination_bone,
             parent_offset, 0, rotation, 1, 0.0f);
@@ -1883,18 +1882,16 @@ MkObj* fatality_boraicho_get_torch(
     return torch;
 }
 
-/* TODO: [breakthrough needed] 91.73077%; literal/player call producers differ;
- * binding-const controls are neutral; recover original argument ownership. */
 MkObj* fatality_ashrah_get_doll(
     const Vec* parent_offset, const Vec* child_offset,
     const Vec* rotation) {
     MkObj* doll;
     FatalityFakeBoneMatcher* matcher;
-    int player;
     int destination_bone;
 
-    player = fatality_state.player->plyr_num;
-    doll = load_named_model_for_player("DOLL", player, player, 0);
+    doll = load_named_model_for_player(
+        "DOLL", fatality_state.player->plyr_num,
+        fatality_state.player->plyr_num, 0);
     if (doll != 0) {
         insert_fgnd_mkobj(doll);
         mk_insert(

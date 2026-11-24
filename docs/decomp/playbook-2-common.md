@@ -136,6 +136,32 @@ ABI: wrong arg/return regs. REQUIRE all callers + callee ABI.
   via `r12` with no extra `mr`; function-pointer local adds moves. REQUIRE
   both targets real symbols. TRY `(cond ? a : b)(args)`; keep retail branch
   sense (`beq`/`bne` picks first arm) (`_rwForAllEdges`).
+- One loaded value passed in two argument registers (`lwz r4,N(rP); mr
+  r5,r4`), and in the entry block retail copies the incoming `r4` parameter
+  before the `r3` one, keeps a literal/pool base in its own register (`addi
+  rB,rB,sym@l` early, `addi r3,rB,off` after the copies) and loads the owner
+  pointer into `r4`; ours copies `r3` first, forms the literal in `r3` and
+  parks the pointer in a higher volatile. REQUIRE `sched.py --trace SYM
+  --block 1 --phase pre`: ours has `LWZ vN; MR r4,vN; MR r5,vN` (IRO CSE temp
+  or local), the entry copy `MR vP,r4` at height 1 loses the tie to `MR
+  vP,r3`; a one-sided same-type pointer cast `((T*)p)->f` in ONE argument
+  (lab lead only, never landed) gives `LWZ r4,...; MR r5,r4` and retail rows.
+  Cause: the two reads reached the backend as two loads. The first is
+  evaluated straight into physical `r4` (latency 2), backend value numbering
+  turns the second into `mr r5,r4`; the first definition of physical `r4`
+  now has height 3, so the scheduler issues the `r4` entry copy first, the
+  literal `ADDI` wins the next slot while `r3`/`r4` are still live, and the
+  pointer load follows the `r4` copy. IRO CSE (`IRO_TypesEqual`) merges every
+  equal-typed spelling: locals, repeated expressions, inline accessors,
+  `int`/`unsigned`/`long` parameter types. TRY the honest type split: member
+  is an enum, one parameter has that enum type, the other is `int`; the
+  front end folds enum->int into the load's type (int->enum, int->unsigned,
+  int->long keep a conversion node above one shared load), so the two loads
+  differ in type and IRO keeps both. Change member, prototype and definition
+  together and judge every includer (`fatality_boraicho_get_torch`,
+  `fatality_ashrah_get_doll`: `PlyrPdata.plyr_num` + `PLYR_NUM player`
+  parameter, type name from retail mangling `__F8PLYR_NUM`; no other function in 81 including units moved). Related lever
+  for a global read twice: H32 type-split bullet.
 
 ## H02
 
@@ -3939,6 +3965,15 @@ Helper locals and web kind.
   (coalesced copies), open-coded two-def select, direct array indexing, a
   pointer local with a 2nd web, loop variable ownership per first web
   (`pz_ai_decide_match`). Numbering model + threshold: tier 4 Hard stops.
+- Two saved homes swap (call result vs a later address base) and GC ops are
+  exact, but the PS2 build of the same source scores well below its GC score
+  or below a same-shape sibling: REQUIRE PS2 retail `li a,K1; li t,K2; movz
+  a,t,cond` where ours has `sltu; addiu` (or the reverse). GC lowers `K + (x
+  != 0)` and `x != 0 ? K+1 : K` to the same `addic/subfe/addi`, so GC rows
+  cannot tell them apart; the `?:` form likely owns a temp numbered above
+  the IRO CSE temps, flipping the pop order (not traced). TRY the select spelling PS2
+  shows (`fatality_boraicho_get_torch`: `mirror_camera != 0 ? 0x19 : 0x18`,
+  sibling `fatality_ashrah_get_doll` already `?:`).
 - Generation-validation latch swaps owner/object regs: REQUIRE read-only
   canonical latch members, no call/store between. TRY existing latch macro on
   direct owner-member expressions, not staged aliases
@@ -5330,4 +5365,6 @@ at that moment; its whole long-lived cluster follows (velocity x6 + ticks in
   CRI `Sint32` (long) global tested by a single-case switch and compared
   again inside it is not CSE'd (`mwsfcre_MallocRfb`: `switch
   (mwsfdcre_bufnum) { default: ...; case 0: ... }`, `default` first keeps
-  the block order). Widening an `int` read (`(long)x`) keeps the CSE.
+  the block order). Widening an `int` read (`(long)x`) keeps the CSE. An
+  enum-typed member passed to an `int` parameter is retyped the same way
+  (H01 two-argument bullet).
