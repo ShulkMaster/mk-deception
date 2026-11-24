@@ -63,17 +63,16 @@ int privGetAlignFromMwMemFlags(u32 flags) {
     }
 }
 
-/* TODO: [near miss] 96.25%; final address owner is recovered;
- * exponent must emit before constant one; named/getter staging folds away. */
 void* privGetBlockFromUsedHdr(MwMemUsedHeader* header) {
     u8* block;
-    u32 alignment_mask;
+    u32 alignment;
     MwMemBlockFlags flags;
 
     block = (u8*)(header + 1);
     flags.value = header->flags;
-    alignment_mask = (1 << flags.bits.alignment) - 1;
-    block = (u8*)(((u32)block + alignment_mask) & ~alignment_mask);
+    alignment = flags.bits.alignment;
+    alignment = (1 << alignment) - 1;
+    block = (u8*)(((u32)block + alignment) & ~alignment);
     return block;
 }
 

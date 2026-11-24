@@ -4324,6 +4324,13 @@ reuses another var's zero on failure path.
   Same cure when a single-use offset is spliced after later statements: write
   it into the consumer and derive in place (`separation.x = own.x - wall.x;
   separation.x = opp.x - separation.x;`, `beetle_lair_collision_cb`).
+  Integer twin, constant left operand (`li rK,1; slw rM,rK,rE`): retail
+  gives the constant r0 and the variable operand the next free volatile, ours
+  the reverse (constant cg-temp created before the operand's). The operand
+  must be a named-local web: TRY it in the result's own local, `m = bits;
+  m = (1 << m) - 1;` (`privGetBlockFromUsedHdr`). A fresh single-use staging
+  local of any integer type folds back; an `int` local changes `andc` to
+  `not`+`and`.
   Fused dot test `dz*c + (dx*s + dy*0) < 0`: propagated single-use operands
   emit pre-order down the fmadds tree (outer multiplicand first); retail dx
   fsubs before the dz loads = dx not propagated. TRY `dx = a; dx -= b;` for
