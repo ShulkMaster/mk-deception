@@ -163,6 +163,11 @@ Tools:
 | Pointer+instance latch diamond | H08, H25 |
 | Loop entry/latch, CTR; preheader after final return | H09 |
 | Prologue order differs, loop body exact | H09, H27 |
+| Entry copies `r4` param before `r3`, literal base in own reg, one load feeds two arg regs (`lwz r4; mr r5,r4`) | H01 enum member + enum/int params (two loads reach backend) |
+| GC ops exact with a home swap, PS2 score of same source far lower (`movz` vs `sltu`) | H21 select spelling from PS2 |
+| GC cannot rank two spellings (rows equal, or hill climb stuck on a home/volatile swap) and unit is PS2-placed | H21 general PS2 discriminator: compile both for PS2, keep the one PS2 retail agrees with |
+| Repeated latches, first one swaps owner/object volatile regs; PS2 retail zero arms in line | H21 `MK_HDR_LIVE` on full member chain, no owner local |
+| Dead `b epilogue; b preheader` after final return, PS2 retail hoists `addiu sX,sY,off` before the loop | H09 member read through pointer cast of the invariant base |
 | Switch, jump table, compare tree | H10 |
 | Return/cleanup join, materialized Boolean | H11, H19, M04, M08 |
 | POD copy loop; copy load/store order | H12 |
@@ -175,7 +180,7 @@ Tools:
 | Retail-only `b` to a case body between switch dispatch and first arm | N14 |
 | Differing instruction absent from pre-RA `initial` pcode | H29, N14 (not coloring) |
 | Same ops, regs swapped | H15, H21, H22, then tier 4 stops |
-| Same ops, only volatile temps (r0/r3-r12, f0-f13) rotated | H27 statement/operand order, H15; inline arg temp propagated past helper's first statement -> H07 param type identity |
+| Same ops, only volatile temps (r0/r3-r12, f0-f13) rotated | H27 statement/operand order, H15; inline arg temp propagated past helper's first statement -> H07 param type identity; constant operand and variable operand trade r0 -> H26 in-place derivation in the result's local; load temp beats a helper local to r3 through a folded `&p->member` local -> H21 named owner local |
 | Lone web wants r3/f1 (return/arg reg), no order fixes it | H01 return type/arg, H15 |
 | Add/or operands commuted in one row | H15, H22 |
 | Call result move order | H16 |
@@ -199,6 +204,7 @@ Tools:
 | Asm-sequence ICE | N12 |
 | Several honest byte-neutral edits, no single fix | N13 |
 | Saved homes swap, phantomsearch says no twin, decl/spelling sweeps neutral | H32 sweep lever |
+| why.py "every pop order moves a PARAMETER", object param revalidated in a loop, PS2 copies it after the null test | H21 latch aggregate, then `?:` result local type |
 | Only coloring left, permuter | tier 4 |
 
 ## H index

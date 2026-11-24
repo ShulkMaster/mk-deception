@@ -1063,7 +1063,7 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   owns literal-pool slots. Restore it at its MAP position
   (`check_range_for_npc_interaction` fixed konquest `.sdata2` 0xf4-0x12b).
   Plain `deferred` after `-inline auto` wipes static helpers. Land only on measured whole-unit gain (konquest,
-  minigames gained; fatality, cam didn't). Unconverted signs: `.bss` in
+  minigames, fatality gained; cam didn't). Unconverted signs: `.bss` in
   exact reverse decl order, late per-function float labels (`@4226` vs reused
   `@305`), named string stand-in where retail has `@stringBase0` (add `-str
   reuse,pool,readonly`, real literals).
@@ -1087,6 +1087,35 @@ addends, use. Use `-c functionRelocDiffs=data_value`.
   user; extern-only file-scope const tables -> define with retail bytes at
   the parse slot between the owners of the neighbouring `@N` records
   (`mk_chess` `.rodata` 72.6->99.0, fight_cam pool-offset rows gone).
+  Nested aggregate helpers: retail consecutive `@N` (outer helper's
+  array, then inner's) -> define outer before inner, inner forward-
+  declared (`subzero_adjust/set_iceman_material_depth` @2077/@2078).
+  Initialized `.data`/`.sdata` under deferred = parse (definition) order;
+  initialized function static `name$N` sits at its function's parse
+  position. IF retail `.sdata` puts `name$N` between file-scope objects or
+  MAP owns `name$N` where ours has a file-scope stand-in | REQUIRE retail
+  offsets + MAP owner | TRY define each initialized object right before
+  its first parse-order user, restore the stand-in as a function static
+  (`fatality`: raiden speed/sleep + `SD_SONIC_*` below
+  `p_raiden_summon_lightning_bolt` (`y_offset$1531`), `scale_proj` into
+  `p_sd_sonic_waves`; `.sdata`/`.data`/`.rodata` exact, link-exact).
+  `auto` vs `noauto` tie (one callee each): MAP-UNUSED auto-inlined
+  statics pick `auto`; retail-called callee <= 30 statements with a
+  same-body PS2 call -> `dont_inline` region at that callee
+  (`sindel_load_projectile_obj_for_sonic_waves` 26; noauto would need a
+  pin per inlined callee: `fade_fatality_screen`).
+  Detect by hand when `tools/deferred_scan.py` skips or misreads a unit
+  (fewer than 4 named points, or codegen-time `.data` jump tables skew tau):
+  every parse-time `@N` (`.rodata` aggregate inits) below the lowest
+  `.sdata2` `@N` and numbering backwards through `.text` = deferred
+  (`bgnd_mab` @511..@856 vs floats @1051+; PS2 `.text` order equal to GC).
+  IF a shared `.sdata2` constant's `@N` sits well before its first
+  surviving user, with no-float functions between | REQUIRE retail `@N`
+  gap, MAP UNUSED slot there, its body inlined verbatim in callers | TRY
+  restore it as a plain function at that slot, calibrated to the MAP size
+  by its standalone size (`bgnd_mab` `reflection_vector` 0x5c, `Vec bounce`
+  + `v->x = v->x - bounce.x`; `-=` gives 0x58; creates 2.0f before
+  `yinyang_make_fish_jump`'s 29.0f; link-exact).
   `-str reuse,pool` literals under deferred pool in EMISSION order (reverse
   source), not parse order: MAP-UNUSED string owners must exist
   (`mwFileGCPlatform` 22 non-template strings exact in reverse-MAP order).

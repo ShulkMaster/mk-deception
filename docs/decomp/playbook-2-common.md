@@ -136,6 +136,32 @@ ABI: wrong arg/return regs. REQUIRE all callers + callee ABI.
   via `r12` with no extra `mr`; function-pointer local adds moves. REQUIRE
   both targets real symbols. TRY `(cond ? a : b)(args)`; keep retail branch
   sense (`beq`/`bne` picks first arm) (`_rwForAllEdges`).
+- One loaded value passed in two argument registers (`lwz r4,N(rP); mr
+  r5,r4`), and in the entry block retail copies the incoming `r4` parameter
+  before the `r3` one, keeps a literal/pool base in its own register (`addi
+  rB,rB,sym@l` early, `addi r3,rB,off` after the copies) and loads the owner
+  pointer into `r4`; ours copies `r3` first, forms the literal in `r3` and
+  parks the pointer in a higher volatile. REQUIRE `sched.py --trace SYM
+  --block 1 --phase pre`: ours has `LWZ vN; MR r4,vN; MR r5,vN` (IRO CSE temp
+  or local), the entry copy `MR vP,r4` at height 1 loses the tie to `MR
+  vP,r3`; a one-sided same-type pointer cast `((T*)p)->f` in ONE argument
+  (lab lead only, never landed) gives `LWZ r4,...; MR r5,r4` and retail rows.
+  Cause: the two reads reached the backend as two loads. The first is
+  evaluated straight into physical `r4` (latency 2), backend value numbering
+  turns the second into `mr r5,r4`; the first definition of physical `r4`
+  now has height 3, so the scheduler issues the `r4` entry copy first, the
+  literal `ADDI` wins the next slot while `r3`/`r4` are still live, and the
+  pointer load follows the `r4` copy. IRO CSE (`IRO_TypesEqual`) merges every
+  equal-typed spelling: locals, repeated expressions, inline accessors,
+  `int`/`unsigned`/`long` parameter types. TRY the honest type split: member
+  is an enum, one parameter has that enum type, the other is `int`; the
+  front end folds enum->int into the load's type (int->enum, int->unsigned,
+  int->long keep a conversion node above one shared load), so the two loads
+  differ in type and IRO keeps both. Change member, prototype and definition
+  together and judge every includer (`fatality_boraicho_get_torch`,
+  `fatality_ashrah_get_doll`: `PlyrPdata.plyr_num` + `PLYR_NUM player`
+  parameter, type name from retail mangling `__F8PLYR_NUM`; no other function in 81 including units moved). Related lever
+  for a global read twice: H32 type-split bullet.
 
 ## H02
 
@@ -1759,8 +1785,19 @@ Loops. REQUIRE zero-trip behavior + test/update order.
   which blocks IRO jump chaining; backend LICM then strands N (`p_fade_fog`).
   REQUIRE iro_preheader_probe "append" and iro_stages_probe showing no new
   `@tmp` after FindLoops in ours. TRY recovering the original loop-invariant
-  global-field expression; var+offset under INDIRECT is not subable on GC2.7
-  (`p_fish_attack_bloodsplat` open). Never add a dummy invariant.
+  global-field expression; plain var+offset under INDIRECT
+  (`p->hdr.instance`) is not subable on GC2.7. Never add a dummy invariant.
+  The invariant can be invisible on GC: PPC folds a hoisted `p + 4` back into
+  the `lwz` displacement, so the dead `b` pair is the only GC trace. REQUIRE
+  PS2 retail keeping it as a register (`addiu s0,s1,4` before the loop,
+  `lw v0,0(s0)` inside) where the PS2 compile of ours reads `lw v0,4(s1)`.
+  TRY the member read through a pointer cast of the invariant base:
+  `((MkHdr*)(p))->instance`, not `(p)->hdr.instance` (the cast node keeps the
+  address add hoistable; pass not traced). `MK_HDR_LIVE` now spells it so;
+  43 consumer units byte-identical, `p_fish_attack_bloodsplat` closed, PS2
+  sibling `p_skytemple_bodysplat` agrees. Open-coded `->hdr.instance`
+  compares elsewhere: cast form measured neutral (bgnd, cam, konquest, krypt,
+  mk_chess, mk_obj), so apply only with the PS2 or dead-`b` signature.
 - Same tail (dead `b P`, or live `lis/addi; b P` after the final return) but
   iro_preheader_probe says `reuse` of a `L: goto test` block after an `if`:
   the two outside preds come from front-end COpt branch chaining
@@ -3145,6 +3182,39 @@ straight in (`mps_dec`).
   IRO hoists it as a loop-invariant temp, so it no longer sits in a late
   simplify sweep. Then fix the remaining named order by declaration
   (`pselect_update_selbox_pos`). Removing only one of them can lose fuzzy.
+- Object param must pop first (why.py: "every working pop order moves a
+  PARAMETER"; retail numbers it above every named local) and the loop
+  revalidates it: REQUIRE PS2 retail copies the param to a saved register
+  only after the null test (`beqz a0; ...; move s6,a0`). TRY a local latch
+  aggregate: `MkHdrLatch latch; latch.hdr =
+  (MkHdr*)p; latch.instance = latch.hdr->instance;`, loop reads
+  `MK_HDR_LIVE(latch.hdr, latch.instance)`. IRO_ScalarizeClassDataMembers
+  makes both members FE temps above every named local (pop first). The
+  macro's `(MkHdr*)` cast makes IRO CSE `&hdr->instance`; GC BE add
+  propagation folds that load back onto the param, so the param stays live
+  across the loop (entry `mr r31,r3`, test on r31). `MK_LIVE` on the latch:
+  no fold, param coalesces into r3. Same cast tree at the init puts the
+  address CSE before the loop guard (PS2 `addiu v1,a0,4`). Exemplar
+  `display_numerical_change` (27 -> 0 rows with the `?:` result bullet next).
+  No struct + any spelling: 30 rows.
+- Named local fed by a `?:` macro (`live = MK_HDR_LIVE(...)`) pops above
+  params/locals retail colours after it (why.py: "make live a temp-kind
+  web"): REQUIRE the assignment converts (`StringObj* live =
+  (StringObj*)MK_HDR_LIVE(latch.hdr, ...)`). TRY typing the local as the
+  `?:` result type (`MkHdr* live`) and casting only at the use
+  (`update_string_obj((StringObj*)live, ...)`): with no conversion IRO
+  forwards the parser's `?:` temp (FE band, scanned late in sweep 1 at
+  degree < K, pops last) and the named local vanishes; the cast keeps the
+  arms writing the named local (named band, sweep 2). `if ((live = ...) ==
+  0)`, inline `latch_live()` helper, `StringObj`-typed latch: neutral or worse.
+- Volatile pair swapped: a load temp takes r3 before a helper local, retail
+  reverse; fields read through a member-address local (`RwRGBA* color =
+  &pdata->material->color; color->red`). BE add propagation folds the +4
+  into every access, so the surviving web is the codegen load temp (highest
+  vreg, pops first). TRY a named local holding the loaded owner (`RpMaterial*
+  material = pdata->material; material->color.red`) placed at the retail
+  rank: inline locals number forward, so declared before `amount` it pops
+  after it (`p_fade_material` 18 -> 0; after `amount`: 18).
 - Caller result of a value-returning inline helper is coloured as the
   helper's local (`distance = helper(dx, dy)` -> web `inl:helper.distance`,
   inline band, pops early) while retail colours it as a caller named local:
@@ -3939,6 +4009,34 @@ Helper locals and web kind.
   (coalesced copies), open-coded two-def select, direct array indexing, a
   pointer local with a 2nd web, loop variable ownership per first web
   (`pz_ai_decide_match`). Numbering model + threshold: tier 4 Hard stops.
+- Two saved homes swap (call result vs a later address base) and GC ops are
+  exact, but the PS2 build of the same source scores well below its GC score
+  or below a same-shape sibling: REQUIRE PS2 retail `li a,K1; li t,K2; movz
+  a,t,cond` where ours has `sltu; addiu` (or the reverse). GC lowers `K + (x
+  != 0)` and `x != 0 ? K+1 : K` to the same `addic/subfe/addi`, so GC rows
+  cannot tell them apart; the `?:` form likely owns a temp numbered above
+  the IRO CSE temps, flipping the pop order (not traced). TRY the select spelling PS2
+  shows (`fatality_boraicho_get_torch`: `mirror_camera != 0 ? 0x19 : 0x18`,
+  sibling `fatality_ashrah_get_doll` already `?:`).
+- General PS2 discriminator: GC rows equal (or home swap only) for two
+  spellings, GC hill climb stuck or pointing the wrong way: REQUIRE the
+  function placed in the PS2 ELF (PS2-split unit, or `tools/ps2_cross.py`
+  placement). TRY compiling each spelling with mwccps2 and keep the one PS2
+  retail agrees with, even if its GC score drops first; then finish on GC.
+  Compare shapes, not offsets (PS2 layouts, bitfield containers, slot counts
+  differ). PS2 separates: `?:` vs `K + cond`; `?:` latch vs statement
+  `if/else` latch macro (PS2 keeps both zero arms in line in source order
+  only for `?:`; the statement form moves them after the body); if-arm
+  order; member-store order (saved homes follow first assignment);
+  hoisted address temps (H09 dead-`b` rule).
+- Latch diamond exact, slot-owner/object volatile regs swapped in the first
+  of several repeated latches (`lwz r6,owner; lwz r7,0(r6)` vs r7/r6):
+  REQUIRE PS2 retail zero arms in line (`beqz; bne; b; move zero; b; move
+  zero`). TRY `MK_HDR_LIVE` on the full member chain re-spelled in both
+  operands (`player->mirror_slots->weapon[i].primary.obj`, `.instance`), no
+  named owner local and no statement latch macro: `?:` alone with the owner
+  local scores worse on GC (10 -> 40 rows) and reads as a dead end without
+  PS2 (`plyr_match_weapon_flip_to_obj_flip`).
 - Generation-validation latch swaps owner/object regs: REQUIRE read-only
   canonical latch members, no call/store between. TRY existing latch macro on
   direct owner-member expressions, not staged aliases
@@ -4324,6 +4422,13 @@ reuses another var's zero on failure path.
   Same cure when a single-use offset is spliced after later statements: write
   it into the consumer and derive in place (`separation.x = own.x - wall.x;
   separation.x = opp.x - separation.x;`, `beetle_lair_collision_cb`).
+  Integer twin, constant left operand (`li rK,1; slw rM,rK,rE`): retail
+  gives the constant r0 and the variable operand the next free volatile, ours
+  the reverse (constant cg-temp created before the operand's). The operand
+  must be a named-local web: TRY it in the result's own local, `m = bits;
+  m = (1 << m) - 1;` (`privGetBlockFromUsedHdr`). A fresh single-use staging
+  local of any integer type folds back; an `int` local changes `andc` to
+  `not`+`and`.
   Fused dot test `dz*c + (dx*s + dy*0) < 0`: propagated single-use operands
   emit pre-order down the fmadds tree (outer multiplicand first); retail dx
   fsubs before the dz loads = dx not propagated. TRY `dx = a; dx -= b;` for
@@ -5103,6 +5208,11 @@ top-level expansion. Lift a nested call to top level for the reverse.
   IRO CSE temps < `?:` temps < nested-inline objects < top-level inline
   objects (reverse call-site; params reversed, locals forward) < pool base <
   codegen temps. Definition order and static-vs-inline do not change it.
+  No `@` object for a helper param never assigned or address-taken in the
+  helper and bound to a constant or plain unaddressed local
+  (`setup_inline_locals_and_arguments` substitutes it): moving a loop into a
+  helper cannot renumber the caller's param (`bgnd_make_displayed_item_...`
+  walk helper: item_id stays v32).
 - Handle typing: an int handle passed to an unsigned API makes IRO CSE the
   int->unsigned conversion into a CSE temp (changes web kind); match the
   handle type to the API (`unsigned int dust; int fountain;`, H21).
@@ -5323,4 +5433,6 @@ at that moment; its whole long-lived cluster follows (velocity x6 + ticks in
   CRI `Sint32` (long) global tested by a single-case switch and compared
   again inside it is not CSE'd (`mwsfcre_MallocRfb`: `switch
   (mwsfdcre_bufnum) { default: ...; case 0: ... }`, `default` first keeps
-  the block order). Widening an `int` read (`(long)x`) keeps the CSE.
+  the block order). Widening an `int` read (`(long)x`) keeps the CSE. An
+  enum-typed member passed to an `int` parameter is retyped the same way
+  (H01 two-argument bullet).

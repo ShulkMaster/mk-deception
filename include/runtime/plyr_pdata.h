@@ -6,6 +6,7 @@
 #include "game/moveset.h"
 #include "game/blood_asset.h"
 #include "runtime/plyr_info.h"
+#include "runtime/plyr_num.h"
 
 typedef struct MkObj MkObj;
 typedef struct ScriptSlot ScriptSlot;
@@ -207,7 +208,7 @@ typedef struct PlyrPdata {
         void* pchr;
         int character_id;
     };
-    int plyr_num;
+    PLYR_NUM plyr_num;
     PlyrMirrorBoneMap* mirror_bone_map;
     char pad1D8[4];
     int collision_result;
