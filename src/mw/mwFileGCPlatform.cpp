@@ -2491,11 +2491,16 @@ int mwFileXPReadBufferedCommand<T, H>::handleSignalState()
     return mwFileCommandPluginBase::handleSignalState();
 }
 
-/* TODO: [near miss] 97.98561%; +f4 receiver copy order and offset/fill word homes
- * differ; needs original cached-receiver and read-phase ownership. */
+/* TODO: [near miss] 99.7482%; size words r6/r5 and sum high r4 (retail r5/r4, r6); the 64-bit
+ * aligned_offset + capacity temp must be numbered between capacity and file size. */
 template <class T, class H>
 int mwFileXPReadBufferedCommand<T, H>::handleReadingState()
 {
+    u32 read_mask;
+    unsigned long long rounded;
+    H* handle;
+    u32 fill_length;
+    unsigned long long aligned_offset;
     if (this->isAborted()) {
         bytes_read = 0;
         this->error = -16;
@@ -2513,24 +2518,23 @@ int mwFileXPReadBufferedCommand<T, H>::handleReadingState()
         return 2;
     }
 
-    unsigned long long aligned_offset;
     if ((current_offset & (static_cast<H*>(this->file)->getFileAlign() - 1)) != 0) {
-        H* handle = static_cast<H*>(this->file);
-        u32 file_align = handle->getFileAlign();
-        aligned_offset =
-            (current_offset + file_align - 1) & ~(unsigned long long)(file_align - 1);
-        aligned_offset -= handle->getFileAlign();
+        handle = static_cast<H*>(this->file);
+        u32 file_align = static_cast<H*>(this->file)->getFileAlign();
+        rounded = (current_offset + file_align - 1) & ~(unsigned long long)(file_align - 1);
+        aligned_offset = rounded - handle->getFileAlign();
     } else {
         aligned_offset = current_offset;
     }
 
-    u32 fill_length = read_buffer->getCapacity();
-    if (aligned_offset + fill_length > static_cast<H*>(this->file)->getSize()) {
-        fill_length = static_cast<H*>(this->file)->getSize() - aligned_offset;
+    unsigned long long file_size = static_cast<H*>(this->file)->getSize();
+    fill_length = read_buffer->getCapacity();
+    if (aligned_offset + fill_length > file_size) {
+        fill_length = file_size - aligned_offset;
     }
     read_buffer->reset(aligned_offset, fill_length);
 
-    u32 read_mask = static_cast<H*>(this->file)->getReadAlign() - 1;
+    read_mask = static_cast<H*>(this->file)->getReadAlign() - 1;
     this->error = static_cast<T*>(this)->nativeReadAsync(
         read_buffer->getData(), (fill_length + read_mask) & ~read_mask, aligned_offset,
         priority);
