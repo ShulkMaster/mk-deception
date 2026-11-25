@@ -2256,7 +2256,7 @@ config.libs = [
         "lib": "mwMovie",
         "mw_version": game_mw_version,
         "cflags": cflags_base,
-        "progress_category": "sdk",
+        "progress_category": "midway",
         "objects": [
             Object(
                 Matching,
@@ -2276,7 +2276,7 @@ config.libs = [
         "lib": "libmwfile",
         "mw_version": game_mw_version,
         "cflags": cflags_base,
-        "progress_category": "sdk",
+        "progress_category": "midway",
         "objects": [
             Object(
                 NonMatching,
@@ -2338,7 +2338,7 @@ config.libs = [
         "lib": "libmsl",
         "mw_version": game_mw_version,
         "cflags": cflags_base,
-        "progress_category": "msl",
+        "progress_category": "midway",
         "objects": [
             Object(
                 Matching("GQNE5D"),
@@ -2460,7 +2460,7 @@ config.libs = [
         "lib": "mwScreenEngine",
         "mw_version": game_mw_version,
         "cflags": cflags_base,
-        "progress_category": "game",
+        "progress_category": "midway",
         "objects": [
             Object(
                 Matching,
@@ -3299,10 +3299,10 @@ def link_order_callback(module_id: int, objects: List[str]) -> List[str]:
 # Adjust as desired for your project
 config.progress_categories = [
     ProgressCategory("game", "Game Code"),
-    ProgressCategory("sdk", "SDK Code"),
+    ProgressCategory("sdk", "Dolphin SDK"),
+    ProgressCategory("midway", "Midway Libraries"),
+    ProgressCategory("sofdec", "CRIWARE"),
     ProgressCategory("renderware", "RenderWare"),
-    ProgressCategory("sofdec", "Sofdec"),
-    ProgressCategory("msl", "Midway Sound Library"),
 ]
 config.progress_each_module = args.verbose
 # Optional extra arguments to `objdiff-cli report generate`
