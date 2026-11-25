@@ -469,7 +469,7 @@ public:
     void setDebugName(const char*);
     const char* getDebugName() const;
 
-    unsigned long long getSize() const { return size; }
+    const unsigned long long& getSize() const { return size; }
     u32 getFlags() const { return flags; }
     void setSize(unsigned long long value) { size = value; }
 
@@ -2491,23 +2491,19 @@ int mwFileXPReadBufferedCommand<T, H>::handleSignalState()
     return mwFileCommandPluginBase::handleSignalState();
 }
 
-/* TODO: [near miss] 99.7482%; size words r6/r5 and sum high r4 (retail r5/r4, r6); the 64-bit
- * aligned_offset + capacity temp must be numbered between capacity and file size. */
 template <class T, class H>
 int mwFileXPReadBufferedCommand<T, H>::handleReadingState()
 {
-    u32 read_mask;
-    unsigned long long rounded;
-    H* handle;
     u32 fill_length;
     unsigned long long aligned_offset;
+
     if (this->isAborted()) {
         bytes_read = 0;
         this->error = -16;
         return 2;
     }
 
-    if (!(current_offset < static_cast<H*>(this->file)->getSize())) {
+    if (!(current_offset < this->getFile()->getSize())) {
         this->error = -9;
         return 2;
     }
@@ -2518,25 +2514,23 @@ int mwFileXPReadBufferedCommand<T, H>::handleReadingState()
         return 2;
     }
 
-    if ((current_offset & (static_cast<H*>(this->file)->getFileAlign() - 1)) != 0) {
-        handle = static_cast<H*>(this->file);
-        u32 file_align = static_cast<H*>(this->file)->getFileAlign();
-        rounded = (current_offset + file_align - 1) & ~(unsigned long long)(file_align - 1);
-        aligned_offset = rounded - handle->getFileAlign();
+    if ((current_offset & (static_cast<H*>(this->getFile())->getFileAlign() - 1)) != 0) {
+        aligned_offset =
+            mwRoundUp(current_offset, static_cast<H*>(this->getFile())->getFileAlign()) -
+            static_cast<H*>(this->getFile())->getFileAlign();
     } else {
         aligned_offset = current_offset;
     }
 
-    unsigned long long file_size = static_cast<H*>(this->file)->getSize();
     fill_length = read_buffer->getCapacity();
-    if (aligned_offset + fill_length > file_size) {
-        fill_length = file_size - aligned_offset;
+    if (aligned_offset + fill_length > this->getFile()->getSize()) {
+        fill_length = this->getFile()->getSize() - aligned_offset;
     }
     read_buffer->reset(aligned_offset, fill_length);
 
-    read_mask = static_cast<H*>(this->file)->getReadAlign() - 1;
     this->error = static_cast<T*>(this)->nativeReadAsync(
-        read_buffer->getData(), (fill_length + read_mask) & ~read_mask, aligned_offset,
+        read_buffer->getData(),
+        mwRoundUp(fill_length, static_cast<H*>(this->getFile())->getReadAlign()), aligned_offset,
         priority);
     if (this->error != 0) {
         return 2;
