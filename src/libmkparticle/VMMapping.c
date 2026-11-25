@@ -84,14 +84,15 @@ BOOL __VMIsARAMPageDirty(u32 virtual_address)
     return g_baseVMtoARAM[(virtual_address >> 12) & 0x1FFF] >> 31;
 }
 
-/* TODO: [near miss] 96.07143%; arena-result copy is removed before publication;
- * recover an actual source-definition boundary across argument setup. */
 void __VMAllocVirtualToARAMLUT(void)
 {
     u32 byte_offset;
+    u32* table;
+    u32* arena_lo;
 
-    g_baseVMtoARAM = OSGetArenaLo();
-    OSSetArenaLo(g_baseVMtoARAM + 0x2000);
+    arena_lo = table = OSGetArenaLo();
+    g_baseVMtoARAM = table;
+    OSSetArenaLo(arena_lo + 0x2000);
     for (byte_offset = 0;
          byte_offset != 0x2000 * sizeof(*g_baseVMtoARAM);
          byte_offset += sizeof(*g_baseVMtoARAM)) {

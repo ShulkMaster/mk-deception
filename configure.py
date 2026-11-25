@@ -3062,7 +3062,7 @@ config.libs = [
                 source="libmkparticle/VMPageReplacement.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "vm.a/VMMapping.o",
                 source="libmkparticle/VMMapping.c",
             ),
