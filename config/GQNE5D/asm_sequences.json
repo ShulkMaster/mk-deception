@@ -113,7 +113,6 @@
     { "name": "__VMBASEInvalidateEntireTLB", "assembly": "vmbase.a/VMBase.s", "address": "0x802E993C", "size": "0x58" },
     { "name": "__VMBASESetupVMRegisters", "assembly": "vmbase.a/VMBase.s", "address": "0x802E9994", "size": "0x54" },
     { "name": "__VMBASESetupSDR1", "assembly": "vmbase.a/VMBase.s", "address": "0x802E99E8", "size": "0x48", "entries": ["__VMBASESetupVMRegisters_SetSDR1", "__VMBASESetupVMRegisters_End"] },
-    { "name": "__VMBASESetupExceptionHandlers", "assembly": "vmbase.a/VMBase.s", "address": "0x802E9A30", "size": "0x17C" },
     { "name": "__VMBASEDSIExceptionHandler", "assembly": "vmbase.a/VMBase.s", "address": "0x802E9BAC", "size": "0xF4", "entries": ["__VMBASEDSIExceptionHandler_SetOriginalInstruction", "__VMBASEDSIExceptionHandler_SetBranchBack"] },
     { "name": "__VMBASEDSIServiceExceptionPrep", "assembly": "vmbase.a/VMBase.s", "address": "0x802E9CA0", "size": "0x50" },
     { "name": "__VMBASEISIExceptionHandler", "assembly": "vmbase.a/VMBase.s", "address": "0x802E9D54", "size": "0xF4", "entries": ["__VMBASEISIExceptionHandler_SetOriginalInstruction", "__VMBASEISIExceptionHandler_SetBranchBack"] },
@@ -208,6 +207,12 @@
     {"name": "MPV_Init_MfHid2", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_lib.s", "function": "MPV_Init", "address": "0x80291448", "size": "0x4", "text": true},
     {"name": "MPV_Init_StHid2", "assembly": "libmwsfdg.a/crimw/dev/sofdec/src/sfdcore/mpv/mpv_lib.s", "function": "MPV_Init", "address": "0x80291450", "size": "0x4", "text": true, "stack": {"name": "hid2", "offset": "0x8", "size": "0x4", "scalar": true}},
     {"name": "__VMBASERestoreExceptionHandlers_IcbiDsi", "assembly": "vmbase.a/VMBase.s", "function": "__VMBASERestoreExceptionHandlers", "address": "0x802E9F34", "size": "0x4", "operands": {"addr": "r3", "zero": "r0"}},
-    {"name": "__VMBASERestoreExceptionHandlers_IcbiIsi", "assembly": "vmbase.a/VMBase.s", "function": "__VMBASERestoreExceptionHandlers", "address": "0x802E9F68", "size": "0x4", "operands": {"addr": "r3", "zero": "r0"}}
+    {"name": "__VMBASERestoreExceptionHandlers_IcbiIsi", "assembly": "vmbase.a/VMBase.s", "function": "__VMBASERestoreExceptionHandlers", "address": "0x802E9F68", "size": "0x4", "operands": {"addr": "r3", "zero": "r0"}},
+    {"name": "__VMBASESetupExceptionHandlers_IcbiDsiVector", "assembly": "vmbase.a/VMBase.s", "function": "__VMBASESetupExceptionHandlers", "address": "0x802E9A84", "size": "0x4", "operands": {"addr": "r3", "zero": "r0"}},
+    {"name": "__VMBASESetupExceptionHandlers_IcbiDsiOriginal", "assembly": "vmbase.a/VMBase.s", "function": "__VMBASESetupExceptionHandlers", "address": "0x802E9AAC", "size": "0x4", "operands": {"addr": "r31", "zero": "r0"}},
+    {"name": "__VMBASESetupExceptionHandlers_IcbiDsiBranchBack", "assembly": "vmbase.a/VMBase.s", "function": "__VMBASESetupExceptionHandlers", "address": "0x802E9AE8", "size": "0x4", "operands": {"addr": "r31", "zero": "r0"}},
+    {"name": "__VMBASESetupExceptionHandlers_IcbiIsiVector", "assembly": "vmbase.a/VMBase.s", "function": "__VMBASESetupExceptionHandlers", "address": "0x802E9B2C", "size": "0x4", "operands": {"addr": "r3", "zero": "r0"}},
+    {"name": "__VMBASESetupExceptionHandlers_IcbiIsiOriginal", "assembly": "vmbase.a/VMBase.s", "function": "__VMBASESetupExceptionHandlers", "address": "0x802E9B54", "size": "0x4", "operands": {"addr": "r31", "zero": "r0"}},
+    {"name": "__VMBASESetupExceptionHandlers_IcbiIsiBranchBack", "assembly": "vmbase.a/VMBase.s", "function": "__VMBASESetupExceptionHandlers", "address": "0x802E9B90", "size": "0x4", "operands": {"addr": "r31", "zero": "r0"}}
   ]
 }
