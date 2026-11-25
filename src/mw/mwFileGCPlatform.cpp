@@ -185,6 +185,17 @@ public:
     u32 getCapacity() const { return capacity; }
     bool isDirty() const { return dirty; }
 
+    u32 padToAlignment(u32 alignment)
+    {
+        u32 mask = alignment - 1;
+        u32 length = getLength();
+        u32 padded = (length + mask) & ~mask;
+        if (padded != length) {
+            memset(buffer + length, 0, padded - length);
+        }
+        return padded;
+    }
+
 private:
     unsigned long long file_position;
     u32 capacity;
@@ -560,6 +571,10 @@ public:
     }
 
 private:
+    void init(const T* begin, const T* end, const Allocator& a)
+    {
+        init(begin, end, a, random_access_iterator_tag());
+    }
     void init(const T* begin, const T* end, const Allocator& a, random_access_iterator_tag);
 
     size_type size_;
@@ -567,13 +582,11 @@ private:
     T* data_;
 };
 
-/* TODO: [near miss] 99.14815%; five tag-carrier/argument rows remain;
- * original size() boundary is neutral; recover temporary transport ownership. */
 template <class T, class Traits, class Allocator>
 basic_string<T, Traits, Allocator>::basic_string(const basic_string& str)
     : alloc_(str.alloc_)
 {
-    init(str.data_, str.data_ + str.size_, get_allocator(), random_access_iterator_tag());
+    init(str.data_, str.data_ + str.size_, get_allocator());
 }
 
 template <class T, class Traits, class Allocator>
@@ -772,17 +785,19 @@ public:
 
     int serviceState(int state)
     {
+        T* self = static_cast<T*>(this);
+
         switch (state) {
         case 7:
-            return handleReadingState();
+            return self->handleReadingState();
         case 8:
-            return handleFillingState();
+            return self->handleFillingState();
         case 0:
-            return handleNotStartedState();
+            return self->handleNotStartedState();
         case 2:
-            return handleSignalState();
+            return self->handleSignalState();
         }
-        return mwFileCommandPlugin<T>::serviceState(state);
+        return self->mwFileCommandPlugin<T>::serviceState(state);
     }
 
 protected:
@@ -1897,8 +1912,6 @@ void mwFileGCServer::queryErrorState()
     }
 }
 
-/* TODO: [near miss] 99.16667% for mwFileGCReadBufferedCommand; this/previous
- * saved homes swap; loop-local snapshot scope is neutral. */
 template <class T>
 int mwFileCommandPlugin<T>::service()
 {
@@ -2266,8 +2279,6 @@ mwFileAsyncResult mwFileXPCloseCommand<T, H>::getResult() const
     return result;
 }
 
-/* TODO: [near miss] 99.62963%; six mask/data home rows remain;
- * recover padding ownership; canonical round-up stays out of line. */
 template <class T, class H>
 int mwFileXPCloseCommand<T, H>::handleNotStartedState()
 {
@@ -2281,12 +2292,8 @@ int mwFileXPCloseCommand<T, H>::handleNotStartedState()
                 return 2;
             }
             if (buffer->getLength() != 0 && buffer->isDirty()) {
-                u32 read_mask = static_cast<H*>(this->file)->getReadAlign() - 1;
-                u32 used = buffer->getLength();
-                u32 padded = (used + read_mask) & ~read_mask;
-                if (padded != used) {
-                    memset(buffer->getData() + used, 0, padded - used);
-                }
+                u32 padded =
+                    buffer->padToAlignment(static_cast<H*>(this->file)->getReadAlign());
                 this->error = static_cast<T*>(this)->nativeWriteAsync(buffer->getData(), padded,
                                                                        buffer->getPosition(), 1);
                 if (this->error != 0) {
