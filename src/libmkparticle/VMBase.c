@@ -10,13 +10,13 @@ struct VMPageTableEntry {
     u32 physical_page;
 };
 
-static struct VMPageTableEntry* g_vmBasePageTable;
-static u32* g_vmBaseVMReversePageTable;
-static u32 g_vmBaseLockedPageTable;
-static void (*cbVMSwapPageIn)(u32);
-static BOOL g_baseInitialized;
-static u32 g_originalSR7;
 static u32 g_originalSDR1;
+static u32 g_originalSR7;
+static BOOL g_baseInitialized;
+static void (*cbVMSwapPageIn)(u32);
+static u32 g_vmBaseLockedPageTable;
+static u32* g_vmBaseVMReversePageTable;
+static struct VMPageTableEntry* g_vmBasePageTable;
 
 void __VMBASEClearPageFromTLB(u32 virtual_address);
 void __VMBASESetVirtualAddressForPageInMRAM(u32 physical_page,

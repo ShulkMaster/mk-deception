@@ -3073,7 +3073,7 @@ config.libs = [
         "vmbase",
         [
             Object(
-                NonMatching,
+                Matching,
                 "vmbase.a/VMBase.o",
                 source="libmkparticle/VMBase.c",
             ),
