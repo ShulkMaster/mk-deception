@@ -279,17 +279,6 @@ def emit_gcmcardmsg(elf: Elf32) -> dict[str, str]:
     return {"platform/gcmcardmsg_text_literals.inc": "\n".join(literal_lines) + "\n"}
 
 
-def emit_pselect(elf: Elf32) -> dict[str, str]:
-    pool = elf.symbol("@stringBase0")
-    if pool.section_index != elf.section(".rodata").index:
-        raise ValueError("pselect.o: @stringBase0 is not in .rodata")
-    text = ["/* Generated from retail pselect.o @stringBase0. */"]
-    text.append("static const char stringBase0[] = {")
-    text.append(byte_initializer(elf.symbol_data("@stringBase0")))
-    text.append("};")
-    return {"game/pselect_stringBase0.inc": "\n".join(text) + "\n"}
-
-
 def emit_sqrt(elf: Elf32) -> dict[str, str]:
     symbol = elf.symbol("GXMathSqrtTable")
     if symbol.size != 0x4000 or symbol.section_index != elf.section(".data").index:
@@ -627,7 +616,6 @@ def generate(object_root: Path) -> dict[str, str]:
         ("ai.o", emit_ai),
         ("nbc.o", emit_nbc),
         ("gcmcardmsg.o", emit_gcmcardmsg),
-        ("pselect.o", emit_pselect),
         ("fonts.o", emit_fonts),
         ("gxMath.o", emit_sqrt),
         ("moves.o", emit_moves),
@@ -642,8 +630,8 @@ def generate(object_root: Path) -> dict[str, str]:
             if relative in outputs:
                 raise ValueError(f"duplicate generated path: {relative}")
             outputs[relative] = contents
-    if len(outputs) != 12:
-        raise AssertionError(f"expected 12 generated includes, got {len(outputs)}")
+    if len(outputs) != 11:
+        raise AssertionError(f"expected 11 generated includes, got {len(outputs)}")
     return outputs
 
 

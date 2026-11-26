@@ -212,7 +212,6 @@ retail_include_dir = Path("build") / config.version / "include"
 retail_include_outputs = [
     retail_include_dir / "platform" / "gcmcardmsg_text_literals.inc",
     retail_include_dir / "game" / "nbc_general_text.inc",
-    retail_include_dir / "game" / "pselect_stringBase0.inc",
     retail_include_dir / "runtime" / "fonts_data.inc",
     retail_include_dir / "src" / "game" / "ai_big_boss_reaction_table.inc",
     retail_include_dir / "src" / "game" / "ai_pchr_state_weights.inc",
@@ -3332,7 +3331,7 @@ ps2_game_units = [
     ("fx.o", "game/fx.c", []),
     ("jdn.o", "game/jdn.c", []),
     ("ncs.o", "game/ncs.c", ["-str reuse,pool,readonly", "-inline noauto,deferred"]),
-    ("acb.o", "game/acb.c", []),
+    ("acb.o", "game/acb.c", ["-str reuse,pool,readonly"]),
     ("fatality.o", "game/fatality.c", ["-str reuse,pool,readonly"]),
     ("mcardmsg.o", "game/mcardmsg.c", ["-str reuse,pool,readonly"]),
     ("pfxscript.o", "game/pfxscript.c", ["-inline noauto"]),
