@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from tools.project import (
-    Object,
+    Object as ProjectObject,
     ProgressCategory,
     ProjectConfig,
     calculate_progress,
@@ -27,6 +27,13 @@ from tools.project import (
     is_windows,
 )
 from tools import ps2_project
+from extern.sdk import sdk_configure
+
+
+class Object(ProjectObject):
+    # Accepts `Matching` or `Matching(...)` as the status; tools.project stores a bool.
+    def __init__(self, completed: Any, name: str, **options: Any) -> None:
+        super().__init__(bool(completed), name, **options)
 
 # Game versions
 DEFAULT_VERSION = 0
@@ -390,6 +397,41 @@ game_mw_version = "GC/2.7"
 softdec_mw_version = game_mw_version
 
 
+# PrimeDecomp SDK (extern/sdk). An SdkObject keeps the MKD unit name and is built
+# from the PrimeDecomp source, compiler, flags and headers for SDK_VERSION.
+# Its include path holds only the SDK headers.
+SDK_DIR = "extern/sdk"
+SDK_VERSION = sdk_configure.sdk_versions(SDK_DIR)["DOLPHIN_2004_04"]
+cflags_sdk_base = [
+    *(
+        flag
+        for flag in cflags_base
+        if not flag.startswith(("-i ", "-DVERSION_", "-DBUILD_VERSION"))
+    ),
+    f"-i {SDK_DIR}/include",
+    f"-i {SDK_DIR}/libc",
+    f"-DSDK_VERSION={SDK_VERSION}",
+]
+sdk_objects = {
+    obj.name: (lib, obj)
+    for lib in sdk_configure.modules_for(SDK_VERSION, cflags_sdk_base, sdk_dir=SDK_DIR)
+    for obj in lib["objects"]
+}
+
+
+def SdkObject(completed: bool, name: str, source: str) -> Object:
+    lib, obj = sdk_objects[source]
+    return Object(
+        completed,
+        name,
+        source=source,
+        src_dir=obj.options["src_dir"] or lib["src_dir"],
+        mw_version=obj.options["mw_version"] or lib["mw_version"],
+        cflags=obj.options["cflags"] or lib["cflags"],
+        extra_cflags=obj.options["extra_cflags"],
+    )
+
+
 # Helper function for Dolphin libraries
 def DolphinLib(
     lib_name: str, objects: List[Object], mw_version: str = "GC/1.2.5n"
@@ -437,14 +479,23 @@ def Rel(lib_name: str, objects: List[Object]) -> Dict[str, Any]:
     }
 
 
-Matching = True                   # Object matches and should be linked
+class MatchingStatus:
+    """`Matching` links the object for every version.
+    `Matching("GQNE5D", ...)` links it only for the versions listed."""
+
+    def __bool__(self) -> bool:
+        return True
+
+    def __call__(self, *versions: str) -> bool:
+        for version in versions:
+            if version not in VERSIONS:
+                raise ValueError(f"Unknown version in Matching: {version}")
+        return config.version in versions
+
+
+Matching = MatchingStatus()       # Object matches and should be linked
 NonMatching = False               # Object does not match and should not be linked
 Equivalent = config.non_matching  # Object should be linked when configured with --non-matching
-
-
-# Object is only matching for specific versions
-def MatchingFor(*versions):
-    return config.version in versions
 
 
 config.warn_missing_config = False
@@ -855,7 +906,7 @@ config.libs = [
                 source="runtime/string.c",
             ),
             Object(
-                (Matching if config.version == "GQNE5D" else (NonMatching)),
+                Matching("GQNE5D"),
                 "MSL_C.PPCEABI.bare.H.a/MSL/MSL_C/MSL_Common/Src/alloc.o",
                 source="runtime/alloc.c",
                 extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly"],
@@ -953,9 +1004,9 @@ config.libs = [
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-str reuse,pool,readonly"]),
             Object(Matching, "script_functions.o", source="runtime/script_functions.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "mk_hwfile.o", source="runtime/mk_hwfile.c",
+            Object(Matching("GQNE5D"), "mk_hwfile.o", source="runtime/mk_hwfile.c",
                    extra_cflags=["-inline on,noauto,deferred", "-use_lmw_stmw on", "-O4,s"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "mk_fileinfo.o", source="runtime/mk_fileinfo.c",
+            Object(Matching("GQNE5D"), "mk_fileinfo.o", source="runtime/mk_fileinfo.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-str reuse,pool,readonly"]),
             Object(Matching, "pakfile.o", source="runtime/pakfile.c"),
             Object(Matching, "mk_vtbl.o", source="runtime/mk_vtbl.c"),
@@ -965,7 +1016,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on", "-O4,s"],
             ),
             Object(Matching, "gxVect.o", source="math/gxVect.c"),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "gxQuat.o", source="math/gxQuat.c", extra_cflags=["-use_lmw_stmw on", "-O4,s", "-opt nocse"]),
+            Object(Matching("GQNE5D"), "gxQuat.o", source="math/gxQuat.c", extra_cflags=["-use_lmw_stmw on", "-O4,s", "-opt nocse"]),
             Object(
                 Matching,
                 "gxMat.o",
@@ -990,7 +1041,7 @@ config.libs = [
             Object(Matching, "MovieManager.o", source="movie/MovieManager.cpp",
                    extra_cflags=["-use_lmw_stmw on", "-inline noauto,deferred", "-O4,s"]),
             Object(Matching, "MovieManagerGC_Disp.o", source="movie/MovieManagerGC_Disp.cpp", extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline auto,deferred,level=2", "-str reuse,pool,readonly"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "MkMovies.o", source="movie/MkMovies.cpp",
+            Object(Matching("GQNE5D"), "MkMovies.o", source="movie/MkMovies.cpp",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "gprofile_gcn.o", source="platform/gprofile_gcn.c"),
             Object(Matching, "mwMemNewDelete.o", source="mw/mwMemNewDelete.cpp"),
@@ -1014,18 +1065,18 @@ config.libs = [
                                  "-str reuse,pool,readonly"]),
             Object(NonMatching, "pfxscript.o", source="game/pfxscript.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline noauto"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "reactions.o", source="game/reactions.c",
+            Object(Matching("GQNE5D"), "reactions.o", source="game/reactions.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly", "-inline noauto"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "fatality.o", source="game/fatality.c",
+            Object(Matching("GQNE5D"), "fatality.o", source="game/fatality.c",
                    extra_cflags=(["-use_lmw_stmw on", "-O4,s", "-str reuse,pool,readonly", "-inline auto,deferred"] if config.version == "GQNE5D" else (["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly"]))),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "ncs.o", source="game/ncs.c",
+            Object(Matching("GQNE5D"), "ncs.o", source="game/ncs.c",
                    extra_cflags=(["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly", "-inline noauto,deferred"] if config.version == "GQNE5D" else (["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]))),
             Object(NonMatching, "collision.o", source="game/collision.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline noauto,deferred"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "ejb.o", source="game/ejb.c",
+            Object(Matching("GQNE5D"), "ejb.o", source="game/ejb.c",
                    extra_cflags=["-inline noauto", "-use_lmw_stmw on", "-O4,s"]),
             Object(NonMatching, "moves.o", source="game/moves.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
@@ -1036,7 +1087,7 @@ config.libs = [
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(Matching, "mwMemPriv.o", source="mw/mwMemPriv.c",
                    extra_cflags=["-opt", "off", "-O4,s"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "mwMemHdrless.o", source="mw/mwMemHdrless.c",
+            Object(Matching("GQNE5D"), "mwMemHdrless.o", source="mw/mwMemHdrless.c",
                    extra_cflags=["-opt", "off", "-O4,s", "-use_lmw_stmw on", "-inline noauto"]),
             Object(Matching, "mwMemDebug.o", source="mw/mwMemDebug.c"),
             Object(NonMatching, "mwMemFixed.o", source="mw/mwMemFixed.c",
@@ -1052,10 +1103,10 @@ config.libs = [
             Object(Matching, "anims.o", source="runtime/anims.c"),
             Object(NonMatching, "mk_anim.o", source="runtime/mk_anim.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
-            Object((Matching if config.version == "GQNE5D" else NonMatching), "controller.o", source="game/controller.c",
+            Object(Matching("GQNE5D"), "controller.o", source="game/controller.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline deferred",
                                  "-str reuse,pool,readonly"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "switch.o", source="game/switch.c", extra_cflags=(["-O4,s"] if config.version == "GQNE5D" else ([]))),
+            Object(Matching("GQNE5D"), "switch.o", source="game/switch.c", extra_cflags=(["-O4,s"] if config.version == "GQNE5D" else ([]))),
             Object(NonMatching, "game.o", source="game/game.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
@@ -1064,17 +1115,17 @@ config.libs = [
                                  "-str reuse,pool,readonly", "-inline noauto"]),
             Object(NonMatching, "io.o", source="platform/io.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline auto,deferred"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "shadow.o", source="runtime/shadow.c", extra_cflags=["-use_lmw_stmw on", "-O4,s", "-opt noloop", "-inline auto,deferred"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "hashtable.o", source="runtime/hashtable.c",
+            Object(Matching("GQNE5D"), "shadow.o", source="runtime/shadow.c", extra_cflags=["-use_lmw_stmw on", "-O4,s", "-opt noloop", "-inline auto,deferred"]),
+            Object(Matching("GQNE5D"), "hashtable.o", source="runtime/hashtable.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "section_config.o", source="runtime/section_config.c"),
             Object(Matching, "section_slot_file.o", source="runtime/section_slot_file.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s", "-inline noauto"]),
             Object(Matching, "section.o", source="runtime/section.c", extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "asset.o", source="runtime/asset.c",
+            Object(Matching("GQNE5D"), "asset.o", source="runtime/asset.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "bgnd_nbc.o", source="game/bgnd_nbc.c"),
             Object(Matching, "specular.o", source="game/specular.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "minigames.o", source="game/minigames.c",
+            Object(Matching("GQNE5D"), "minigames.o", source="game/minigames.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly",
                                  "-inline noauto,deferred"]),
@@ -1099,9 +1150,9 @@ config.libs = [
                                  "-inline auto,deferred"]),
             Object(Matching, "mcardmsg.o", source="game/mcardmsg.c",
                    extra_cflags=["-str reuse,pool,readonly"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "memcard.o", source="game/memcard.c",
+            Object(Matching("GQNE5D"), "memcard.o", source="game/memcard.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "sound.o", source="game/sound.c",
+            Object(Matching("GQNE5D"), "sound.o", source="game/sound.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-str reuse,pool,readonly"]),
             Object(Matching, "nbc.o", source="game/nbc.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
@@ -1114,7 +1165,7 @@ config.libs = [
             Object(NonMatching, "tga.o", source="runtime/tga.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-str", "reuse,pool,readonly"]),
             Object(Matching, "instance.o", source="runtime/instance.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "light.o", source="runtime/light.c",
+            Object(Matching("GQNE5D"), "light.o", source="runtime/light.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-pragma \"opt_propagation off\""]),
             Object(Matching, "gcInit.o", source="platform/gcInit.c"),
             Object(Matching, "gcdisplay.o", source="platform/gcdisplay.c",
@@ -1126,17 +1177,17 @@ config.libs = [
             Object(Matching, "gcARam.o", source="platform/gcARam.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-opt", "nocse",
                                  "-str reuse,pool,readonly"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "mtRand2.o", source="runtime/mtRand2.c", extra_cflags=["-O4,s"]),
+            Object(Matching("GQNE5D"), "mtRand2.o", source="runtime/mtRand2.c", extra_cflags=["-O4,s"]),
             Object(NonMatching, "utils.o", source="runtime/utils.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "mk_mem.o", source="runtime/mk_mem.c",
                    extra_cflags=["-opt", "off", "-O4,s", "-use_lmw_stmw on"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "mk_struct.o", source="runtime/mk_struct.c",
+            Object(Matching("GQNE5D"), "mk_struct.o", source="runtime/mk_struct.c",
                    extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-O4,s",
                                  "-inline on,noauto"]),
             Object(Matching, "mk_pdata.o", source="runtime/mk_pdata.c",
                    extra_cflags=["-use_lmw_stmw on", "-opt", "off", "-O4,s"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "mk_proc.o", source="runtime/mk_proc.c",
+            Object(Matching("GQNE5D"), "mk_proc.o", source="runtime/mk_proc.c",
                    extra_cflags=["-opt", "off", "-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "mk_pebble.o", source="runtime/mk_pebble.c",
                    extra_cflags=[
@@ -1149,7 +1200,7 @@ config.libs = [
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-inline auto,deferred"]),
             Object(NonMatching, "bgnd.o", source="game/bgnd.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s", "-str", "reuse,pool,readonly", "-inline noauto,deferred"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "bgnd_mab.o", source="game/bgnd_mab.c",
+            Object(Matching("GQNE5D"), "bgnd_mab.o", source="game/bgnd_mab.c",
                    extra_cflags=(["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly", "-inline auto,deferred"] if config.version == "GQNE5D" else (["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]))),
             Object(NonMatching, "constrain.o", source="game/constrain.c",
@@ -1175,7 +1226,7 @@ config.libs = [
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly",
                                  "-inline noauto,deferred"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "konquest_interior.o",
+            Object(Matching("GQNE5D"), "konquest_interior.o",
                    source="game/konquest_interior.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly", "-inline noauto,deferred"]),
             Object(NonMatching, "konquest_time.o",
@@ -1196,7 +1247,7 @@ config.libs = [
             Object(NonMatching, "gcmcard.o", source="platform/gcmcard.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "gcmcardmsg.o", source="platform/gcmcardmsg.c",
+            Object(Matching("GQNE5D"), "gcmcardmsg.o", source="platform/gcmcardmsg.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-opt nocse",
                                  "-inline noauto,deferred", "-str reuse,pool,readonly"]),
             Object(Matching, "gcio.o", source="platform/gcio.c",
@@ -1208,13 +1259,13 @@ config.libs = [
                                  "-inline noauto,deferred",
                                  "-str reuse,pool,readonly"]),
             Object(Matching, "settings.o", source="game/settings.c", extra_cflags=["-use_lmw_stmw on"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "nis.o", source="game/nis.c", extra_cflags=["-use_lmw_stmw on", "-O3,p", "-str reuse,pool,readonly"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "attract.o", source="game/attract.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
+            Object(Matching("GQNE5D"), "nis.o", source="game/nis.c", extra_cflags=["-use_lmw_stmw on", "-O3,p", "-str reuse,pool,readonly"]),
+            Object(Matching("GQNE5D"), "attract.o", source="game/attract.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(Matching, "menu.o", source="game/menu.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "pselect.o", source="game/pselect.c",
                    extra_cflags=(["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly"] if config.version == "GQNE5D" else (["-O4,s", "-use_lmw_stmw on"]))),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "cloth.o", source="game/cloth.c",
+            Object(Matching("GQNE5D"), "cloth.o", source="game/cloth.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline noauto,deferred"]),
             Object(NonMatching, "weapon.o", source="game/weapon.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
@@ -1236,10 +1287,10 @@ config.libs = [
                                  "-str", "reuse,pool,readonly"]),
             Object(NonMatching, "konquest_nav.o", source="game/konquest_nav.c", extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(Matching, "display.o", source="platform/display.c", extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "jdn.o", source="game/jdn.c", extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
+            Object(Matching("GQNE5D"), "jdn.o", source="game/jdn.c", extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
             Object(Matching, "mk_render.o", source="runtime/mk_render.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
-            Object((Matching if config.version == "GQNE5D" else (NonMatching)), "konquest_save.o", source="game/konquest_save.c",
+            Object(Matching("GQNE5D"), "konquest_save.o", source="game/konquest_save.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s"]),
         ],
     },
@@ -1305,7 +1356,7 @@ config.libs = [
                 extra_cflags=["-O2,p", "-sdata", "0"],
             ),
             Object(
-                (Matching if config.version == "GQNE5D" else (NonMatching)),
+                Matching("GQNE5D"),
                 "libadxgca.a//crimw/dev/adx/src/adxt/srcgc/adx_mgc.o",
                 source="libadxgca/crimw/dev/adx/src/adxt/srcgc/adx_mgc.c",
                 extra_cflags=[
@@ -1332,7 +1383,7 @@ config.libs = [
                 ],
             ),
             Object(
-                (Matching if config.version == "GQNE5D" else (NonMatching)),
+                Matching("GQNE5D"),
                 "libadxgca.a//crimw/dev/adx/src/adxt/adx_bsc.o",
                 source="libadxgca/crimw/dev/adx/src/adxt/adx_bsc.c",
                 extra_cflags=[
@@ -1367,7 +1418,7 @@ config.libs = [
                 ],
             ),
             Object(
-                (Matching if config.version == "GQNE5D" else (NonMatching)),
+                Matching("GQNE5D"),
                 "libadxgca.a//crimw/dev/adx/src/adxt/adx_tlk.o",
                 source="libadxgca/crimw/dev/adx/src/adxt/adx_tlk.c",
                 extra_cflags=(["-O4,p", "-sdata", "0", "-sdata2", "0", "-str", "reuse,readonly", "-use_lmw_stmw", "on", "-lang=c++"] if config.version == "GQNE5D" else ([
@@ -2189,7 +2240,7 @@ config.libs = [
                 extra_cflags=["-O1"],
             ),
             Object(
-                (Matching if config.version == "GQNE5D" else (NonMatching)),
+                Matching("GQNE5D"),
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/uty/uty_tmr.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/uty/uty_tmr.c",
                 extra_cflags=["-sdata", "0"],
@@ -2205,7 +2256,7 @@ config.libs = [
         "lib": "mwMovie",
         "mw_version": game_mw_version,
         "cflags": cflags_base,
-        "progress_category": "sdk",
+        "progress_category": "midway",
         "objects": [
             Object(
                 Matching,
@@ -2225,7 +2276,7 @@ config.libs = [
         "lib": "libmwfile",
         "mw_version": game_mw_version,
         "cflags": cflags_base,
-        "progress_category": "sdk",
+        "progress_category": "midway",
         "objects": [
             Object(
                 NonMatching,
@@ -2287,10 +2338,10 @@ config.libs = [
         "lib": "libmsl",
         "mw_version": game_mw_version,
         "cflags": cflags_base,
-        "progress_category": "msl",
+        "progress_category": "midway",
         "objects": [
             Object(
-                (Matching if config.version == "GQNE5D" else (NonMatching)),
+                Matching("GQNE5D"),
                 "libmsl.a/listpool.o",
                 source="libmsl/listpool.c",
             ),
@@ -2337,7 +2388,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                (Matching if config.version == "GQNE5D" else (NonMatching)),
+                Matching("GQNE5D"),
                 "libmsl.a/mslSound.o",
                 source="libmsl/mslSound.cpp",
                 extra_cflags=(["-use_lmw_stmw on", "-str reuse,pool,readonly"] if config.version == "GQNE5D" else (["-use_lmw_stmw on"])),
@@ -2409,7 +2460,7 @@ config.libs = [
         "lib": "mwScreenEngine",
         "mw_version": game_mw_version,
         "cflags": cflags_base,
-        "progress_category": "game",
+        "progress_category": "midway",
         "objects": [
             Object(
                 Matching,
@@ -2424,7 +2475,7 @@ config.libs = [
                 extra_cflags=["-O4,s"],
             ),
             Object(
-                (Matching if config.version == "GQNE5D" else (NonMatching)),
+                Matching("GQNE5D"),
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenAnimControl.o",
                 source="mwScreenEngine/ScreenAnimControl.cpp",
                 extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline on,noauto"],
@@ -2631,7 +2682,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-inline off", "-schedule off", "-opt nopeephole"],
             ),
             Object(
-                (Matching if config.version == "GQNE5D" else (NonMatching)),
+                Matching("GQNE5D"),
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/vm_spawn.o",
                 source="libmkparticle/vm_spawn.c",
                 extra_cflags=[
@@ -2661,7 +2712,7 @@ config.libs = [
                 extra_cflags=["-O4,s", "-schedule off", "-fp_contract off", "-opt nopeephole"],
             ),
             Object(
-                (Matching if config.version == "GQNE5D" else (NonMatching)),
+                Matching("GQNE5D"),
                 "libmkparticle_release.a/mk6/particles/build/gc/mkparticle_gc_Data/release/random.o",
                 source="libmkparticle/random.c",
                 extra_cflags=["-O4,s", "-schedule off", "-fp_contract off", "-inline noauto", "-opt nopeephole"],
@@ -3011,7 +3062,7 @@ config.libs = [
                 source="libmkparticle/VMPageReplacement.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "vm.a/VMMapping.o",
                 source="libmkparticle/VMMapping.c",
             ),
@@ -3022,7 +3073,7 @@ config.libs = [
         "vmbase",
         [
             Object(
-                NonMatching,
+                Matching,
                 "vmbase.a/VMBase.o",
                 source="libmkparticle/VMBase.c",
             ),
@@ -3035,7 +3086,7 @@ config.libs = [
         "cflags": [*cflags_base, "-i src/dolphin/card"],
         "progress_category": "sdk",
         "objects": [
-            Object(Matching, "card.a/CARDBios.o", source="dolphin/card/CARDBios.c"),
+            SdkObject(Matching, "card.a/CARDBios.o", "dolphin/card/CARDBios.c"),
             Object(Matching, "card.a/CARDUnlock.o", source="dolphin/card/CARDUnlock.c"),
             Object(Matching, "card.a/CARDBlock.o", source="dolphin/card/CARDBlock.c"),
             Object(Matching, "card.a/CARDRdwr.o", source="dolphin/card/CARDRdwr.c"),
@@ -3044,14 +3095,14 @@ config.libs = [
             Object(Matching, "card.a/CARDFormat.o", source="dolphin/card/CARDFormat.c"),
             Object(Matching, "card.a/CARDMount.o", source="dolphin/card/CARDMount.c"),
             Object(Matching, "card.a/CARDRead.o", source="dolphin/card/CARDRead.c"),
-            Object(Matching, "card.a/CARDWrite.o", source="dolphin/card/CARDWrite.c"),
+            SdkObject(Matching, "card.a/CARDWrite.o", "dolphin/card/CARDWrite.c"),
             Object(Matching, "card.a/CARDCreate.o", source="dolphin/card/CARDCreate.c"),
             Object(Matching, "card.a/CARDOpen.o", source="dolphin/card/CARDOpen.c",
                    extra_cflags=["-char signed"]),
             Object(Matching, "card.a/CARDDelete.o", source="dolphin/card/CARDDelete.c"),
             Object(Matching, "card.a/CARDStatEx.o", source="dolphin/card/CARDStatEx.c"),
             Object(Matching, "card.a/CARDStat.o", source="dolphin/card/CARDStat.c"),
-            Object(Matching, "card.a/CARDNet.o", source="dolphin/card/CARDNet.c"),
+            SdkObject(Matching, "card.a/CARDNet.o", "dolphin/card/CARDNet.c"),
         ],
     },
     {
@@ -3248,10 +3299,10 @@ def link_order_callback(module_id: int, objects: List[str]) -> List[str]:
 # Adjust as desired for your project
 config.progress_categories = [
     ProgressCategory("game", "Game Code"),
-    ProgressCategory("sdk", "SDK Code"),
+    ProgressCategory("sdk", "Dolphin SDK"),
+    ProgressCategory("midway", "Midway Libraries"),
+    ProgressCategory("sofdec", "CRIWARE"),
     ProgressCategory("renderware", "RenderWare"),
-    ProgressCategory("sofdec", "Sofdec"),
-    ProgressCategory("msl", "Midway Sound Library"),
 ]
 config.progress_each_module = args.verbose
 # Optional extra arguments to `objdiff-cli report generate`

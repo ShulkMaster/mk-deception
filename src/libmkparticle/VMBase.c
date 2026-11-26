@@ -10,13 +10,13 @@ struct VMPageTableEntry {
     u32 physical_page;
 };
 
-static struct VMPageTableEntry* g_vmBasePageTable;
-static u32* g_vmBaseVMReversePageTable;
-static u32 g_vmBaseLockedPageTable;
-static void (*cbVMSwapPageIn)(u32);
-static BOOL g_baseInitialized;
-static u32 g_originalSR7;
 static u32 g_originalSDR1;
+static u32 g_originalSR7;
+static BOOL g_baseInitialized;
+static void (*cbVMSwapPageIn)(u32);
+static u32 g_vmBaseLockedPageTable;
+static u32* g_vmBaseVMReversePageTable;
+static struct VMPageTableEntry* g_vmBasePageTable;
 
 void __VMBASEClearPageFromTLB(u32 virtual_address);
 void __VMBASESetVirtualAddressForPageInMRAM(u32 physical_page,
@@ -96,7 +96,6 @@ void VMBASEQuit(void)
     OSRestoreInterrupts(interrupts);
 }
 
-
 void VMBASESetPageTableEntry(u32 virtual_address, void* physical_address,
                              u32 physical_page)
 {
@@ -161,12 +160,10 @@ void VMBASESetPageReferenced(u32 virtual_address, BOOL referenced)
     OSRestoreInterrupts(interrupts);
 }
 
-#pragma push
 asm void __VMBASEClearPageFromTLB(u32 virtual_address)
 {
     SEQ___VMBASEClearPageFromTLB();
 }
-#pragma pop
 
 u32 VMBASEGetVirtualAddrFromPageInMRAM(u32 physical_page)
 {
@@ -216,7 +213,6 @@ void __VMBASEInitLockedPageTable(void)
     OSSetArenaLo(arena_lo + 0x1000);
     __VMBASEInvalidateLockedPageTable();
 }
-
 
 static inline void vm_base_clear_page_table_entry(u32 byte_offset)
 {
@@ -271,7 +267,6 @@ struct VMPageTableEntry* __VMBASEVirtualAddrToPageTableAddr(u32 virtual_address)
         ((u32)g_vmBasePageTable | ((virtual_address >> 6) & 0xFFC0)));
 }
 
-#pragma push
 asm void __VMBASEInvalidateEntireTLB(void)
 {
     SEQ___VMBASEInvalidateEntireTLB();
@@ -287,9 +282,67 @@ static asm void __VMBASESetupSDR1(u32 msr, u32 sdr1)
     SEQ___VMBASESetupSDR1();
 }
 
-asm void __VMBASESetupExceptionHandlers(void)
+void __VMBASESetupExceptionHandlers(void)
 {
-    SEQ___VMBASESetupExceptionHandlers();
+    register void* vector;
+    register u32 zero;
+    u32 original;
+    u32* patch;
+    u32 offset;
+    u32 back;
+
+    original = *(u32*)0x80000300;
+    offset = (u32)__VMBASEDSIExceptionHandler - 0x80000300;
+    *(u32*)0x80000300 = offset | 0x48000000;
+    DCFlushRangeNoSync((void*)0x80000300, 4);
+    __sync();
+    vector = (void*)0x80000300;
+    zero = 0;
+    __isync();
+    asm { SEQ___VMBASESetupExceptionHandlers_IcbiDsiVector(vector, zero) }
+    patch = (u32*)__VMBASEDSIExceptionHandler_SetOriginalInstruction;
+    *patch = original;
+    DCFlushRangeNoSync(patch, 4);
+    __sync();
+    vector = patch;
+    zero = 0;
+    __isync();
+    asm { SEQ___VMBASESetupExceptionHandlers_IcbiDsiOriginal(vector, zero) }
+    patch = (u32*)__VMBASEDSIExceptionHandler_SetBranchBack;
+    back = (u32)patch - 0x80000304;
+    *patch = (-back & 0x03FFFFFF) | 0x48000000;
+    DCFlushRangeNoSync(patch, 4);
+    __sync();
+    vector = patch;
+    zero = 0;
+    __isync();
+    asm { SEQ___VMBASESetupExceptionHandlers_IcbiDsiBranchBack(vector, zero) }
+    original = *(u32*)0x80000400;
+    offset = (u32)__VMBASEISIExceptionHandler - 0x80000400;
+    *(u32*)0x80000400 = offset | 0x48000000;
+    DCFlushRangeNoSync((void*)0x80000400, 4);
+    __sync();
+    vector = (void*)0x80000400;
+    zero = 0;
+    __isync();
+    asm { SEQ___VMBASESetupExceptionHandlers_IcbiIsiVector(vector, zero) }
+    patch = (u32*)__VMBASEISIExceptionHandler_SetOriginalInstruction;
+    *patch = original;
+    DCFlushRangeNoSync(patch, 4);
+    __sync();
+    vector = patch;
+    zero = 0;
+    __isync();
+    asm { SEQ___VMBASESetupExceptionHandlers_IcbiIsiOriginal(vector, zero) }
+    patch = (u32*)__VMBASEISIExceptionHandler_SetBranchBack;
+    back = (u32)patch - 0x80000404;
+    *patch = (-back & 0x03FFFFFF) | 0x48000000;
+    DCFlushRangeNoSync(patch, 4);
+    __sync();
+    vector = patch;
+    zero = 0;
+    __isync();
+    asm { SEQ___VMBASESetupExceptionHandlers_IcbiIsiBranchBack(vector, zero) }
 }
 
 static asm void __VMBASEDSIExceptionHandler(void)
@@ -301,7 +354,6 @@ asm void __VMBASEDSIServiceExceptionPrep(void)
 {
     SEQ___VMBASEDSIServiceExceptionPrep();
 }
-#pragma pop
 
 void __VMBASEDSIServiceException(OSContext* context, u32 virtual_address)
 {
@@ -314,7 +366,6 @@ void __VMBASEDSIServiceException(OSContext* context, u32 virtual_address)
     OSLoadContext(context);
 }
 
-#pragma push
 static asm void __VMBASEISIExceptionHandler(void)
 {
     SEQ___VMBASEISIExceptionHandler();
@@ -324,7 +375,6 @@ asm void __VMBASEISIServiceExceptionPrep(void)
 {
     SEQ___VMBASEISIServiceExceptionPrep();
 }
-#pragma pop
 
 void __VMBASEISIServiceException(OSContext* context)
 {
@@ -337,14 +387,12 @@ void __VMBASEISIServiceException(OSContext* context)
     OSLoadContext(context);
 }
 
-/* TODO: [near miss] 96.67%; icbi blocks exact; first flush args li r4/addi r3
- * swapped (pre-RA LI opcode-rank tie kept post-RA); spelling sweeps neutral. */
 void __VMBASERestoreExceptionHandlers(void)
 {
-    register void* vector;
-    register u32 zero;
-
     if (g_baseInitialized == 1) {
+        register void* vector;
+        register u32 zero = 0;
+
         *(u32*)0x80000300 = *(u32*)__VMBASEDSIExceptionHandler_SetOriginalInstruction;
         DCFlushRangeNoSync((void*)0x80000300, 4);
         __sync();
@@ -362,9 +410,7 @@ void __VMBASERestoreExceptionHandlers(void)
     }
 }
 
-#pragma push
 asm void __VMBASERestoreVMRegisters(void)
 {
     SEQ___VMBASERestoreVMRegisters();
 }
-#pragma pop

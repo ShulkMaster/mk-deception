@@ -2,3 +2,7 @@
 	path = extern/gameware
 	url = https://github.com/ShulkMaster/gameware.git
 	branch = main
+[submodule "extern/sdk"]
+	path = extern/sdk
+	url = https://github.com/PrimeDecomp/sdk.git
+	branch = main

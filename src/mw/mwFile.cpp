@@ -61,7 +61,7 @@ class mwFile : public mwFileQueryable {
 public:
     int seek(long long, mwFileSeekOrigin);
 
-    unsigned long long getSize() const
+    const unsigned long long& getSize() const
     {
         return size;
     }

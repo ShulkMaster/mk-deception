@@ -89,7 +89,7 @@ public:
     virtual int startFlushFileCommand(
         mwFileCommand*&, mwFileCallback, void*) = 0;
 
-    unsigned long long getSize() const
+    const unsigned long long& getSize() const
     {
         return size;
     }

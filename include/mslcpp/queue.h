@@ -11,10 +11,7 @@ class priority_queue {
 public:
     typedef typename Container::value_type value_type;
 
-    priority_queue(const Compare& x, const Container& y) : c(y), comp(x)
-    {
-        make_heap(c.begin(), c.end(), comp);
-    }
+    priority_queue(const Compare& x, const Container& y);
 
     bool empty() const { return c.empty(); }
     const value_type& top() const { return c.front(); }
@@ -26,6 +23,13 @@ protected:
     Container c;
     Compare comp;
 };
+
+template <class T, class Container, class Compare>
+priority_queue<T, Container, Compare>::priority_queue(const Compare& x, const Container& y)
+    : c(y), comp(x)
+{
+    make_heap(c.begin(), c.end(), comp);
+}
 
 template <class T, class Container, class Compare>
 void priority_queue<T, Container, Compare>::push(const value_type& x)
