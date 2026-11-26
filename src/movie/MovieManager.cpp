@@ -211,6 +211,8 @@ void MovieDelete(MoviePlayer* movie) {
     movie_delete_inline(movie);
 }
 
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0xD4); rebuilt from siblings, size exact,
+ * loop parameter inferred. */
 void MoviePlay(MoviePlayer* movie, const char* path, int loop) {
     switch (movie->state) {
     case 1:

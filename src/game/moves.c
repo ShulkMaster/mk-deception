@@ -4897,6 +4897,10 @@ static void do_pickup(struct MovesPickup* pickup, Vec* offset, int take) {
     }
 }
 
+static float fn_stub1(void) {
+    return 0.35f;
+}
+
 static float x_pickup(void) {
     MkObj* object;
     struct MovesPickup* nearby_pickup;
@@ -5394,6 +5398,114 @@ float throw_spear(void) {
     }
     blend_to_fstance(0.1f);
     moves_jump(j_exit);
+    return 0.0f;
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x140); MK:DA body ported, compiles to 0x150. */
+float throw_iceball(void) {
+    float attack_ticks;
+
+    trial_register_attack(plyr_pdata->plyr_num, 3, 0x33);
+    play_sound_1(0xA1);
+    plyr_anim_pdata->flags |= 0x40;
+    blend_to_ani(plyr_pdata->base_animations[5], 3, 0.1f);
+    plyr_anim_pdata->step = 2.0f;
+    ani_to_end();
+    attack_ticks = 7.1666665f;
+    plyr_pdata->shared_attack_until = exec_tick_ctr + (int)attack_ticks;
+    plyr_pdata->attack_counter++;
+    set_my_state(0x1200);
+    set_my_secondary_state(0x101);
+    blend_to_ani(plyr_pdata->base_animations[7], 3, 0.1f);
+    plyr_anim_pdata->step = 1.5f;
+    ani_to_frame_x(18.0f);
+    snd_req(0xA1);
+    ani_to_end();
+    blend_to_ani(plyr_pdata->dizzy_animation, 0, 0.1f);
+    ani_loop_more_frames(20.0f);
+    blend_to_ani(*(AniData**)plyr_pdata->pad33C, 3, 0.1f);
+    ani_to_blend_frame(15.0f);
+    blend_to_stance(0.15f);
+    disable_this_move_exec(0x1205, 100);
+    moves_jump(j_exit);
+    return 0.0f;
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x1C4); MK:DA body ported, compiles to 0x1CC. */
+float super_slide(void) {
+    if ((randu0(100) & 0xFFFF) < 50) {
+        trial_increment_state_value(plyr_pdata->plyr_num, 6, 0);
+        plyr_pdata->block_requirement = 0;
+    } else {
+        trial_increment_state_value(plyr_pdata->plyr_num, 7, 0);
+        plyr_pdata->block_requirement = 1;
+    }
+    snd_req(0xD3);
+    trial_register_attack(plyr_pdata->plyr_num, 3, 0x33);
+    ejb_call(3);
+    init_ground_move();
+    plyr_obj->flags.face_opponent = 0;
+    attack_to_frame_x(plyr_pdata->base_animations[0], 10.0f, 0.1f, 0.8f, 1.0f,
+                      0x10000, 0x80008, 3);
+    ani_col_abort(16.0f, 8, 1.0f, 0.2f, 0x88, 0.08f, 4);
+    if (plyr_pdata->collision_result == 2) {
+        set_my_state(0x4206);
+        stop_me();
+        plyr_anim_pdata->field_60 = 0.0f;
+        blend_to_stance(0.05f);
+        moves_sleep(30.0f);
+        disable_this_move_exec(0x1212, 40);
+        moves_jump(j_exit);
+        return 0.0f;
+    }
+    plyr_obj->flags.face_opponent = 0;
+    ani_to_end();
+    rotate_towards_him(0.2f);
+    disable_this_move_exec(0x1212, 40);
+    moves_jump(j_exit_blend_stance);
+    return 0.0f;
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x1B0); MK:DA body ported, compiles to 0x1CC. */
+float the_whip_switch(void) {
+    float velocity;
+    int i;
+
+    trial_register_attack(plyr_pdata->plyr_num, 3, 0x36);
+    init_3d_move();
+    plyr_obj->flags.face_opponent = 1;
+    plyr_obj->flags.still_move = 0;
+    blend_to_ani(plyr_pdata->base_animations[7], 3, 0.1f);
+    xfer_proc(plyr_anim_proc, p_animate);
+    plyr_pdata->summon_position_x = 2.0f;
+    if (am_i_flipped()) {
+        ejb_call(6);
+    } else {
+        ejb_call(7);
+    }
+    snd_req(0x101);
+    moves_sleep(7.0f);
+    snd_req(0x103);
+    if (which_way_is_towards() > 0.0f) {
+        velocity = 1.4f;
+    } else {
+        velocity = -1.4f;
+    }
+    for (i = 0; i < 20; i++) {
+        myvel_my_angle_y(velocity, 0.2f, 0.2f);
+        moves_sleep(1.0f);
+    }
+    stop_me();
+    if (am_i_flipped()) {
+        ejb_call(8);
+    } else {
+        ejb_call(9);
+    }
+    plyr_pdata->summon_position_x = 15.0f;
+    plyr_pdata->script_exit_value_int = 0;
+    set_my_state(0);
+    disable_this_move_exec(0x420E, 100);
+    moves_jump(j_blend_to_stance_in_x);
     return 0.0f;
 }
 
