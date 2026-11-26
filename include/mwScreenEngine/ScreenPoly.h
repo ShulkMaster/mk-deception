@@ -1,22 +1,13 @@
 #ifndef MWSCREENENGINE_SCREEN_POLY_H
 #define MWSCREENENGINE_SCREEN_POLY_H
 
-/*
- * ScreenPoly -- retail runtime node (sizeof 0x7C) from CreatePoly.
- *
- * Disc blob = SEPolyElement_t (ScreenObject.h); do not widen SeRef in-place.
- * Layout matches GC Matching + Glue Render.
- *
- * Present (retail Glue): ScreenPoly::Render -> load_2d_pfxobj_with_texture
- *   oid 0x900B -> pfx2d_begin/render (gc_2d FIFO).
- * CreatePoly verts: Y = 480 - pos.y; V = 1 - uv.v; offsets init 0.
- */
+#include "mwScreenEngine/ScreenNode.h"
 
 typedef struct RwTexture RwTexture;
 typedef struct RwFrame RwFrame;
 typedef struct ScreenObj ScreenObj;
 typedef struct ScreenMatrixStackC ScreenMatrixStackC;
-typedef struct ScreenPoly ScreenPoly;
+class ScreenPoly;
 
 /* C views shared by the Glue implementations of ScreenPoly/Text/Particle. */
 typedef struct ScreenRenderInfoC {
@@ -68,10 +59,16 @@ typedef struct ScreenPolyFilterBits {
     unsigned char pad : 6;
 } ScreenPolyFilterBits;
 
-struct ScreenPoly {
-    void* vtbl; /* +0x00 ScreenNode */
-    unsigned int flags; /* +0x04 */
-    unsigned char pad08[8]; /* +0x08 */
+class ScreenPoly : public ScreenNode {
+public:
+    ScreenPoly();
+    virtual ~ScreenPoly();
+    virtual void Render(ScreenRenderInfo* info);
+    virtual void SetComponent(ScreenAnimControl* ctrl, float* values, int unused);
+    virtual void SetVisible(unsigned int visible);
+    virtual unsigned int IsVisible();
+    virtual void Close();
+
     ScreenObj* screenObj; /* +0x10 -- live pfx chrome */
     int screenObjInstance; /* +0x14 */
     ScreenPolyVert verts[4]; /* +0x18 -- stride 0x14 */
@@ -87,8 +84,6 @@ struct ScreenPoly {
 }; /* 0x7C */
 
 /* Retail vert index remap used by CreatePoly. */
-struct ScreenPolyVTable;
-extern struct ScreenPolyVTable __vt__10ScreenPoly;
 
 
 #endif

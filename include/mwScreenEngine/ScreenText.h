@@ -1,6 +1,8 @@
 #ifndef MWSCREENENGINE_SCREEN_TEXT_H
 #define MWSCREENENGINE_SCREEN_TEXT_H
 
+#include "mwScreenEngine/ScreenNode.h"
+
 /*
  * ScreenText -- retail mode-select labels (sizeof 0x24).
  *
@@ -25,7 +27,7 @@
 typedef struct PfxFontSlot PfxFontSlot;
 
 typedef struct StringObj StringObj;
-typedef struct ScreenText ScreenText;
+class ScreenText;
 
 #ifdef __cplusplus
 class ScreenAnimControl;
@@ -49,18 +51,22 @@ typedef struct SEText {
     unsigned char valign; /* +0x31 */
 } SEText;
 
-struct ScreenText {
-    void* vtbl; /* +0x00 */
-    unsigned int flags; /* +0x04 */
-    unsigned char pad08[8]; /* +0x08 */
+class ScreenText : public ScreenNode {
+public:
+    ScreenText(SEText* se);
+    virtual ~ScreenText();
+    virtual void Render(ScreenRenderInfo* info);
+    virtual void SetVisible(unsigned int visible);
+    virtual unsigned int IsVisible();
+    virtual void ProcessEngineEvent(ScreenMgr* mgr, int event);
+    virtual void Close();
+
     SEText* seData; /* +0x10 */
     StringObj* stringObj; /* +0x14 */
     int stringObjInstance; /* +0x18 */
     PfxFontSlot* font; /* +0x1C */
     char* string; /* +0x20 */
-#ifdef __cplusplus
-    void SetComponent(ScreenAnimControl* ctrl, float* values, int);
-#endif
+    virtual void SetComponent(ScreenAnimControl* ctrl, float* values, int);
 }; /* 0x24 */
 
 enum {

@@ -39,8 +39,8 @@ public:
     static void operator delete(void* p);
     virtual void ProcessParams(ScreenParams* params) = 0;
     virtual void Update();
-    virtual void RefreshCollection();
-    virtual void RefreshOption();
+    virtual void RefreshCollection() {}
+    virtual void RefreshOption() {}
 
     static void RefreshAllCollections(Screen* screen);
     static void RefreshAllOptions(Screen* screen);

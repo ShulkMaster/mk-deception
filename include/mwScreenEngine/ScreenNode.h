@@ -13,12 +13,12 @@ public:
     virtual void SetComponent(ScreenAnimControl*, float*, int);
     virtual void SetVisible(unsigned int) = 0;
     virtual unsigned int IsVisible() = 0;
-    virtual void ProcessEngineEvent(ScreenMgr*, int);
-    virtual int HandleAction(ScreenMgr*, const ScreenAction*);
-    virtual void SetMatrixStack(ScreenMatrixStack*);
-    virtual int GetNumNodes() const;
-    virtual int NeedIdleProcessing();
-    virtual void Close();
+    virtual void ProcessEngineEvent(ScreenMgr*, int) {}
+    virtual int HandleAction(ScreenMgr*, const ScreenAction*) { return 0; }
+    virtual void SetMatrixStack(ScreenMatrixStack*) {}
+    virtual int GetNumNodes() const { return 0; }
+    virtual int NeedIdleProcessing() { return 0; }
+    virtual void Close() {}
     void* operator new(size_t);
     void operator delete(void*);
     unsigned int m_flags;

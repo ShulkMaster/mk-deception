@@ -5,9 +5,8 @@
 #include "mwScreenEngine/ScreenControl.h"
 
 typedef struct AniTextureControl AniTextureControl;
-typedef struct ScreenNode ScreenNode;
-typedef struct ScreenPoly ScreenPoly;
-typedef struct ScreenText ScreenText;
+class ScreenPoly;
+class ScreenText;
 
 typedef struct ScreenObjectHead {
     unsigned char node[0x18];
@@ -27,12 +26,19 @@ typedef struct ScreenControlView {
     int field_0xA0;
 } ScreenControlView;
 
-typedef struct KeyEntry {
-    ScreenControlView ctrl;
-} KeyEntry;
+class KeyEntry : public ScreenControl {
+public:
+    KeyEntry();
+    virtual ~KeyEntry();
+    virtual void Init();
+    virtual void Dispose();
+    virtual int HandleAction(ScreenMgr* mgr, const ScreenAction* action);
+    virtual void ProcessParams(ScreenParams* params);
+};
 
 class TextItem : public ScreenControl {
 public:
+    TextItem();
     virtual ~TextItem();
     virtual void Init();
     virtual void Dispose();
@@ -57,6 +63,7 @@ public:
 
 class KeyPad : public ScreenControl {
 public:
+    KeyPad();
     virtual ~KeyPad();
     virtual void Init();
     virtual void Dispose();
@@ -79,6 +86,7 @@ public:
 
 class SpreadSheet : public ScreenControl {
 public:
+    SpreadSheet();
     virtual ~SpreadSheet();
     virtual void Init();
     virtual void Dispose() = 0;
@@ -118,6 +126,7 @@ public:
 
 class SpreadSheet_text : public SpreadSheet {
 public:
+    SpreadSheet_text();
     virtual ~SpreadSheet_text();
     virtual void Dispose();
     virtual void Update();
@@ -133,6 +142,7 @@ public:
 
 class SpreadSheet_image : public SpreadSheet {
 public:
+    SpreadSheet_image();
     virtual ~SpreadSheet_image();
     virtual void Dispose();
     virtual void Update();
@@ -150,6 +160,7 @@ typedef GVTextureCollection ImageListTexCollection;
 
 class ImageList : public ScreenControl {
 public:
+    ImageList();
     virtual ~ImageList();
     virtual void Init();
     virtual void Dispose();
@@ -200,16 +211,16 @@ typedef char check_ImageList_layout[
      (uptr)&((ImageList*)0)->wrap == 0x10C &&
      (uptr)&((ImageList*)0)->hasLinkNode == 0x110) ? 1 : -1];
 
-typedef struct WifImage {
-    void Close();
+class WifImage : public ScreenControl {
+public:
+    WifImage();
+    virtual ~WifImage();
+    virtual void Init();
+    virtual void Dispose();
+    virtual void Close();
+    virtual void HandleEvent(ScreenMgr* mgr, int event, int arg);
+    virtual void ProcessParams(ScreenParams* params);
 
-    void* vtbl;
-    ScreenObjectHead head;
-    int collectionId;
-    int gvContext;
-    int optionId;
-    int pad9C;
-    int unkA0;
     AniTextureControl* curTexture;
     int curTextureInstance;
     ScreenPoly* statusNode;
@@ -217,10 +228,11 @@ typedef struct WifImage {
     void* images[16];
     int imageCount;
     float unkF8;
-} WifImage;
+};
 
 class TextList : public ScreenControl {
 public:
+    TextList();
     virtual ~TextList();
     virtual void Init();
     virtual void Dispose();
