@@ -224,9 +224,10 @@ s32 CARDDelete(s32 chan, const char* fileName);
 s32 CARDReadAsync(CARDFileInfo* fileInfo, void* buffer, s32 length, s32 offset,
                   CARDCallback callback);
 s32 CARDRead(CARDFileInfo* fileInfo, void* buffer, s32 length, s32 offset);
-s32 CARDWriteAsync(CARDFileInfo* fileInfo, void* buffer, s32 length, s32 offset,
-                   CARDCallback callback);
-s32 CARDWrite(CARDFileInfo* fileInfo, void* buffer, s32 length, s32 offset);
+s32 CARDWriteAsync(CARDFileInfo* fileInfo, const void* buffer, s32 length,
+                   s32 offset, CARDCallback callback);
+s32 CARDWrite(CARDFileInfo* fileInfo, const void* buffer, s32 length,
+              s32 offset);
 s32 CARDGetSerialNo(s32 chan, u64* serialNo);
 s32 CARDSetAttributesAsync(s32 chan, s32 fileNo, u8 attributes,
                            CARDCallback callback);
