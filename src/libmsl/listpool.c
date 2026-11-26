@@ -1,55 +1,10 @@
 #include "msl/listpool.h"
 #include "msl/mslsupport.h"
 
-static const char stringBase0[] =
-    "ListInsert: was in another list, performing REMOVE first\n\0"
-    "ListRemove: NULL node, ignored\n\0"
-    "next->pprv != prev\n\0"
-    "*prev != next\n\0"
-    "*l != next\n\0"
-    "ListInsert FIXME: node to insert was already tail of list\n\0"
-    "ListInsert FIXME: node to insert was already head of list\n\0"
-    "node->next != oldhead\n\0"
-    "node->pprv != l\n\0"
-    "oldhead->pprv != &node->next\n\0"
-    "*l != node\n\0"
-    "ListNodeFind NULL pool\n\0"
-    "ListNodeFind pool was never Attached\n\0"
-    "ListNodeFind: id %08x index %d exceeds pool size (%x)\n\0"
-    "ListNodeData NULL node\n\0"
-    "ListPoolReset NULL pool\n\0"
-    "ListPoolReset pool was never Attached\n\0"
-    "ListNodeFree NULL node\n\0"
-    "ListNodeFree invalid Node 0x%08x\n\0"
-    "ListNodeAllocIDrange NULL pool\n\0"
-    "ListNodeAllocIDrange pool was never Attached\n\0"
-    "ListNodeAllocIDrange: id 0 Invalid\n\0"
-    "ListNodeAllocIDrange: max (%d) is < min (%d)\n\0"
-    "ListNodeAllocIDrange: max 0x%x exceeds pool size (%x)\n\0"
-    "ListNodeAllocIDrange: id %08x exceeds pool size (%x)\n\0"
-    "ListNodeAllocIDrange: id %08x exceeds max (0x%x)\n\0"
-    "ListNodeAllocIDrange (%08x): node not in free list???\n\0"
-    "ListNodeAllocID NULL pool\n\0"
-    "ListNodeAllocID pool was never Attached\n\0"
-    "ListNodeAllocID: id 0 Invalid\n\0"
-    "ListNodeAllocID: id %08x exceeds pool size (%x)\n\0"
-    "ListNodeAllocID: ID %08x is already in use\n\0"
-    "ListNodeAllocID (%08x): node not in free list???\n\0"
-    "ListNodeAlloc NULL pool\n\0"
-    "ListNodeAlloc pool was never Attached\n\0"
-    "ListNodeAlloc no more nodes\n\0"
-    "ListPoolDetach discarding %d un-deleted elements\n\0"
-    "ListPoolAttach NULL == pool\n\0"
-    "ListPoolAttach NULL == mem\n\0"
-    "ListPoolAttach to what?  elts == 0\n\0"
-    "ListPoolAttach: %d elts of size %d at 0x%08x\n";
-
-#define LIST_STRING(offset) (&stringBase0[(offset)])
-
 static inline _ListNode* remove_node(_ListNode** list) {
     _ListNode* node = *list;
     if (node == 0) {
-        mslDebugPrintf(LIST_STRING(0x3A));
+        mslDebugPrintf("ListRemove: NULL node, ignored\n");
         return 0;
     } else {
         _ListNode* next = node->next;
@@ -66,13 +21,13 @@ static inline _ListNode* remove_node(_ListNode** list) {
         *list = next;
 
         if (next != 0 && next->previous_link != previous_link) {
-            mslDebugPrintf(LIST_STRING(0x5A));
+            mslDebugPrintf("next->pprv != prev\n");
         }
         if (previous_link != 0 && *previous_link != next) {
-            mslDebugPrintf(LIST_STRING(0x6E));
+            mslDebugPrintf("*prev != next\n");
         }
         if (*list != next) {
-            mslDebugPrintf(LIST_STRING(0x7D));
+            mslDebugPrintf("*l != next\n");
         }
     }
     return node;
@@ -89,27 +44,27 @@ static inline void link_node(_ListNode** list, _ListNode* node) {
     *list = node;
 
     if (node->next != old_head) {
-        mslDebugPrintf(LIST_STRING(0xFF));
+        mslDebugPrintf("node->next != oldhead\n");
     }
     if (node->previous_link != list) {
-        mslDebugPrintf(LIST_STRING(0x116));
+        mslDebugPrintf("node->pprv != l\n");
     }
     if (old_head != 0 && old_head->previous_link != &node->next) {
-        mslDebugPrintf(LIST_STRING(0x127));
+        mslDebugPrintf("oldhead->pprv != &node->next\n");
     }
     if (*list != node) {
-        mslDebugPrintf(LIST_STRING(0x145));
+        mslDebugPrintf("*l != node\n");
     }
 }
 
 static inline void insert_node(_ListNode** list, _ListNode* node) {
     if (*list == node) {
-        mslDebugPrintf(LIST_STRING(0xC4));
+        mslDebugPrintf("ListInsert FIXME: node to insert was already head of list\n");
         return;
     }
 
     if (node->previous_link != 0) {
-        mslDebugPrintf(LIST_STRING(0));
+        mslDebugPrintf("ListInsert: was in another list, performing REMOVE first\n");
         node = remove_node(&node);
     }
 
@@ -120,7 +75,7 @@ void ListInsertAtTail(_ListNode** list, _ListNode* node) {
     _ListNode* tail;
 
     if (node->previous_link != 0) {
-        mslDebugPrintf(LIST_STRING(0));
+        mslDebugPrintf("ListInsert: was in another list, performing REMOVE first\n");
         node = remove_node(&node);
     }
 
@@ -136,7 +91,7 @@ void ListInsertAtTail(_ListNode** list, _ListNode* node) {
     }
 
     if (tail == node) {
-        mslDebugPrintf(LIST_STRING(0x89));
+        mslDebugPrintf("ListInsert FIXME: node to insert was already tail of list\n");
     } else if (tail != 0) {
         tail->next = node;
         node->next = 0;
@@ -156,7 +111,7 @@ _ListNode* ListRemove(_ListNode** list) {
     _ListNode** previous_link;
 
     if (node == 0) {
-        mslDebugPrintf(LIST_STRING(0x3A));
+        mslDebugPrintf("ListRemove: NULL node, ignored\n");
         return 0;
     }
 
@@ -173,24 +128,24 @@ _ListNode* ListRemove(_ListNode** list) {
     *list = next;
 
     if (next != 0 && next->previous_link != previous_link) {
-        mslDebugPrintf(LIST_STRING(0x5A));
+        mslDebugPrintf("next->pprv != prev\n");
     }
     if (previous_link != 0 && *previous_link != next) {
-        mslDebugPrintf(LIST_STRING(0x6E));
+        mslDebugPrintf("*prev != next\n");
     }
     if (*list != next) {
-        mslDebugPrintf(LIST_STRING(0x7D));
+        mslDebugPrintf("*l != next\n");
     }
     return node;
 }
 
 void ListInsert(_ListNode** list, _ListNode* node) {
     if (*list == node) {
-        mslDebugPrintf(LIST_STRING(0xC4));
+        mslDebugPrintf("ListInsert FIXME: node to insert was already head of list\n");
         return;
     }
     if (node->previous_link != 0) {
-        mslDebugPrintf(LIST_STRING(0));
+        mslDebugPrintf("ListInsert: was in another list, performing REMOVE first\n");
         node = remove_node(&node);
     }
     link_node(list, node);
@@ -218,16 +173,16 @@ _ListNode* ListNodeFind(ListPool* pool, u32 value) {
 
     id.value = value;
     if (pool == 0) {
-        mslDebugPrintf(LIST_STRING(0x151));
+        mslDebugPrintf("ListNodeFind NULL pool\n");
         return 0;
     }
     if (pool->element_count == 0) {
-        mslDebugPrintf(LIST_STRING(0x169));
+        mslDebugPrintf("ListNodeFind pool was never Attached\n");
         return 0;
     }
     if (id.parts.index >= pool->element_count) {
         mslDebugPrintf(
-            LIST_STRING(0x18F), value, id.parts.index,
+            "ListNodeFind: id %08x index %d exceeds pool size (%x)\n", value, id.parts.index,
             pool->element_count);
     } else {
         node = &pool->nodes[id.parts.index & 0xFFFF];
@@ -241,7 +196,7 @@ _ListNode* ListNodeFind(ListPool* pool, u32 value) {
 
 void* ListNodeData(ListPool* pool, _ListNode* node) {
     if (node == 0) {
-        mslDebugPrintf(LIST_STRING(0x1C6));
+        mslDebugPrintf("ListNodeData NULL node\n");
         return 0;
     }
     return node->data;
@@ -249,14 +204,14 @@ void* ListNodeData(ListPool* pool, _ListNode* node) {
 
 void ListNodeFree(ListPool* pool, _ListNode* node) {
     if (pool == 0) {
-        mslDebugPrintf(LIST_STRING(0x1DE));
+        mslDebugPrintf("ListPoolReset NULL pool\n");
     } else if (pool->element_count == 0) {
-        mslDebugPrintf(LIST_STRING(0x1F7));
+        mslDebugPrintf("ListPoolReset pool was never Attached\n");
     } else if (node == 0) {
-        mslDebugPrintf(LIST_STRING(0x21E));
+        mslDebugPrintf("ListNodeFree NULL node\n");
     } else if (node < pool->nodes ||
                node >= pool->nodes + pool->element_count) {
-        mslDebugPrintf(LIST_STRING(0x236), node);
+        mslDebugPrintf("ListNodeFree invalid Node 0x%08x\n", node);
     } else if (node->state != 0) {
         node->state = 0;
         node->generation++;
@@ -271,16 +226,36 @@ void ListNodeFree(ListPool* pool, _ListNode* node) {
     }
 }
 
+static void fn_stub1(void) {
+    mslDebugPrintf("ListNodeAllocIDrange NULL pool\n");
+    mslDebugPrintf("ListNodeAllocIDrange pool was never Attached\n");
+    mslDebugPrintf("ListNodeAllocIDrange: id 0 Invalid\n");
+    mslDebugPrintf("ListNodeAllocIDrange: max (%d) is < min (%d)\n");
+    mslDebugPrintf("ListNodeAllocIDrange: max 0x%x exceeds pool size (%x)\n");
+    mslDebugPrintf("ListNodeAllocIDrange: id %08x exceeds pool size (%x)\n");
+    mslDebugPrintf("ListNodeAllocIDrange: id %08x exceeds max (0x%x)\n");
+    mslDebugPrintf("ListNodeAllocIDrange (%08x): node not in free list???\n");
+}
+
+static void fn_stub2(void) {
+    mslDebugPrintf("ListNodeAllocID NULL pool\n");
+    mslDebugPrintf("ListNodeAllocID pool was never Attached\n");
+    mslDebugPrintf("ListNodeAllocID: id 0 Invalid\n");
+    mslDebugPrintf("ListNodeAllocID: id %08x exceeds pool size (%x)\n");
+    mslDebugPrintf("ListNodeAllocID: ID %08x is already in use\n");
+    mslDebugPrintf("ListNodeAllocID (%08x): node not in free list???\n");
+}
+
 _ListNode* ListNodeAlloc(ListPool* pool) {
     _ListNode* node;
     int allocated;
 
     if (pool == 0) {
-        mslDebugPrintf(LIST_STRING(0x4C0));
+        mslDebugPrintf("ListNodeAlloc NULL pool\n");
         return 0;
     }
     if (pool->element_count == 0) {
-        mslDebugPrintf(LIST_STRING(0x4D9));
+        mslDebugPrintf("ListNodeAlloc pool was never Attached\n");
         return 0;
     }
 
@@ -303,7 +278,7 @@ _ListNode* ListNodeAlloc(ListPool* pool) {
     }
 
     if (allocated == 0) {
-        mslDebugPrintf(LIST_STRING(0x500));
+        mslDebugPrintf("ListNodeAlloc no more nodes\n");
     }
     return node;
 }
@@ -315,9 +290,9 @@ static inline void reset_pool(ListPool* pool) {
     u32 index;
 
     if (pool == 0) {
-        mslDebugPrintf(LIST_STRING(0x1DE));
+        mslDebugPrintf("ListPoolReset NULL pool\n");
     } else if (pool->element_count == 0) {
-        mslDebugPrintf(LIST_STRING(0x1F7));
+        mslDebugPrintf("ListPoolReset pool was never Attached\n");
     } else {
         data = pool->elements;
         node = pool->nodes;
@@ -345,24 +320,28 @@ static inline void reset_pool(ListPool* pool) {
     }
 }
 
+static void fn_stub3(void) {
+    mslDebugPrintf("ListPoolDetach discarding %d un-deleted elements\n");
+}
+
 int ListPoolAttach(
     ListPool* pool, void* memory, u32 element_count,
     u32 element_size) {
     if (pool == 0) {
-        mslDebugPrintf(LIST_STRING(0x54F));
+        mslDebugPrintf("ListPoolAttach NULL == pool\n");
         return 0;
     }
     if (memory == 0) {
-        mslDebugPrintf(LIST_STRING(0x56C));
+        mslDebugPrintf("ListPoolAttach NULL == mem\n");
         return 0;
     }
     if (element_count == 0) {
-        mslDebugPrintf(LIST_STRING(0x588));
+        mslDebugPrintf("ListPoolAttach to what?  elts == 0\n");
         return 0;
     }
 
     mslDebugPrintf(
-        LIST_STRING(0x5AC), element_count, element_size, memory);
+        "ListPoolAttach: %d elts of size %d at 0x%08x\n", element_count, element_size, memory);
     pool->element_count = element_count;
     pool->element_size = element_size;
     pool->elements = memory;

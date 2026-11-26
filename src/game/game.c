@@ -54,7 +54,7 @@ struct GameObjectLatch {
     unsigned int obj_instance;
 };
 
-const char* mk6_version_string = "0.142_gc";
+const char* mk6_version_string = MK6_VERSION_STRING;
 int b_game_timer_off = 1;
 
 static int continue_timer;

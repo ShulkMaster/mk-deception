@@ -1,6 +1,3 @@
-/* TODO: [review] layout stub: lunge_for_throw reproduces a linker-stripped retail function only to
- * recreate its .sdata2 pool position (0.8f); the body is NOT recovered source. Replace with the
- * genuine body if a source turns up. */
 #include "game/konquest_missions.h"
 #include "game/pwrbar.h"
 #include "game/collision.h"
@@ -2473,7 +2470,7 @@ void two_player_animation(AniData* animation, float attacker_blend) {
         animation, attacker_blend, 0.0f, 1, 0);
 }
 
-float lunge_for_throw(void) {
+static float fn_stub1(void) {
     return 0.8f;
 }
 
