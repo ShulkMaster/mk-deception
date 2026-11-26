@@ -21,8 +21,6 @@ typedef struct ShadowboxObject {
     MkObj object;
 } ShadowboxObject;
 
-static const char stringBase0[] = "Shadow2\0SHADOWBOX";
-
 static const float kShadowScaleDefault = 1.7f;
 static const float kShadowScaleAlt = 2.5f;
 static const float kFarClipMul = 2.0f;
@@ -424,9 +422,9 @@ int SetupShadow(ShadowObject* shadow) {
     owner->shadowbox->flags.scale_active = 1;
     insert_fgnd_mkobj(owner->shadowbox);
     if (owner->character_id == 0x1D) {
-        material = obj_find_material_with_texture(owner->shadowbox, stringBase0);
+        material = obj_find_material_with_texture(owner->shadowbox, "Shadow2");
     } else {
-        material = obj_find_material_with_texture(owner->shadowbox, stringBase0 + 8);
+        material = obj_find_material_with_texture(owner->shadowbox, "SHADOWBOX");
     }
     if (material != NULL) {
         material->texture = RwTextureCreate(owner->shadow_raster);

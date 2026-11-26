@@ -4571,13 +4571,11 @@ static void mk_chess_fetch_quadrant_params(
 }
 
 
-/* TODO: [near miss] 99.73958%; end-block selected x/y colour r30/r31, retail r26/r27;
- * owner of the three-cursor update (MAP move_all_cursors_to 0x178) unresolved. */
 static void mk_chess_move_cursor_to_next_diagnal_piece(unsigned int side, unsigned int direction) {
     ChessPiece* selected = 0;
     const ChessCursor* cursor = &mk_chess_pdata->cursors[side];
-    unsigned char current_y = cursor->cell_y;
-    unsigned char current_x = cursor->cell_x;
+    unsigned int current_y = cursor->cell_y;
+    unsigned int current_x = cursor->cell_x;
     int first_x, first_y, end_x, end_y;
     unsigned int best_distance;
     unsigned int best_axis_distance;
@@ -4591,18 +4589,16 @@ static void mk_chess_move_cursor_to_next_diagnal_piece(unsigned int side, unsign
         unsigned char selected_x;
         unsigned char selected_y;
         snd_req(0x36A);
-        selected_y = selected->cell_y;
-        selected_x = selected->cell_x;
-        mk_chess_position_reset_cursor(&mk_chess_pdata->cursors[0], selected_x, selected_y);
-        mk_chess_position_reset_cursor(&mk_chess_pdata->cursors[1], selected_x, selected_y);
-        mk_chess_position_reset_cursor(&mk_chess_pdata->cursor, selected_x, selected_y);
+        current_y = selected->cell_y;
+        current_x = selected->cell_x;
+        selected_y = current_y;
+        selected_x = current_x;
+        mk_chess_reset_all_cursors(selected_x, selected_y);
         mk_chess_hud_set_piece_portrait(mk_chess_pdata->board[selected->cell_x].cells[selected->cell_y].piece);
     }
 }
 
 
-/* TODO: [near miss] 99.87342%; end-block selection x/y colour r22/r23, retail r26/r27;
- * owner of the three-cursor update (MAP move_all_cursors_to 0x178) unresolved. */
 static void mk_chess_move_cursor_to_next_piece(unsigned int side, unsigned int direction) {
     ChessCursor* cursor = &mk_chess_pdata->cursors[side];
     int x = cursor->cell_x;
@@ -4633,8 +4629,18 @@ static void mk_chess_move_cursor_to_next_piece(unsigned int side, unsigned int d
     mk_chess_locate_closest_piece_in_area_to(side, direction, x, y, first_x, first_y, end_x, end_y,
         &selected, &best_distance, &best_axis_distance);
     if (selected != 0) {
+        int cell_y;
+        int cell_x;
+        unsigned char selected_y;
+        unsigned char selected_x;
         snd_req(0x36A);
-        mk_chess_position_selection_cursors(selected);
+        cell_y = selected->cell_y;
+        cell_x = selected->cell_x;
+        selected_y = cell_y;
+        selected_x = cell_x;
+        mk_chess_position_mode_cursor(&mk_chess_pdata->cursors[0], selected_x, selected_y);
+        mk_chess_position_mode_cursor(&mk_chess_pdata->cursors[1], selected_x, selected_y);
+        mk_chess_position_mode_cursor(&mk_chess_pdata->cursor, selected_x, selected_y);
         mk_chess_hud_set_piece_portrait(selected);
     }
 }
@@ -6317,8 +6323,6 @@ static float p_mk_chess_piece_init(void) {
 }
 
 
-/* TODO: [near miss] 96.76243%; pre-RA scheduler issues the last_x copy before the row
- * clear (retail: both copies after the store); recover the x-step owner boundary. */
 static void mk_chess_iterate_thru_move(ChessPiece* piece, ChessPieceMoveMap* map,
     ChessMovementSkill* skill, int x_step, int y_step) {
     ChessBoardRow* board = mk_chess_pdata->board;
@@ -6354,12 +6358,12 @@ static void mk_chess_iterate_thru_move(ChessPiece* piece, ChessPieceMoveMap* map
             }
             return;
         }
-        remaining--;
         last_x = x;
         last_y = y;
+        map->rows[last_y] &= ~(7 << (last_x * 3));
+        map->rows[last_y] |= 1 << (last_x * 3);
+        remaining--;
         x += x_step;
-        map->rows[last_y] &= ~(7U << (last_x * 3));
-        map->rows[last_y] |= 1U << (last_x * 3);
         y += y_step;
     }
     mk_chess_append_empty_move_end(piece, map, last_x, last_y);

@@ -215,9 +215,6 @@ static const unsigned char SurroundPanTable[] = {
     0x77, 0x78, 0x70, 0x40, 0x40, 0x10
 };
 
-static const char stringBase0[] =
-    "SBPlayable_Stream\0SoundBuffer_Playable\0SoundBuffer_Data";
-
 SoundBufferUpdateList ms_UpdateList__20SoundBuffer_Playable = {0, 0};
 extern unsigned char __vt__10IRefCntRes[];
 extern unsigned char __vt__11SoundBuffer[];
@@ -1914,6 +1911,12 @@ void SoundBuffer_Playable::StopIfDonePlaying(void) {
     }
 }
 
+static SoundBuffer_Data* fn_stub1(void) {
+    return (SoundBuffer_Data*)operator new(
+        sizeof(SoundBuffer_Data), (_mwMemHeap*)MWSOUND_HEAP, (mwMemFlags)0x10,
+        "SoundBuffer_Data", 0, 0);
+}
+
 SoundBuffer_Playable* SoundBuffer::CreatePlayableStaticBuffer(
     _mslBank* bank, _GameCubeFileEntry* entry) {
     SoundBufferPlayableLayout* playable;
@@ -1923,7 +1926,7 @@ SoundBuffer_Playable* SoundBuffer::CreatePlayableStaticBuffer(
             operator new(
                 sizeof(SoundBufferPlayableLayout), (_mwMemHeap*)MWSOUND_HEAP,
                 (mwMemFlags)0x10,
-                stringBase0 + 0x12, 0, 0);
+                "SoundBuffer_Playable", 0, 0);
 
     if (playable != 0) {
         playable->vtable =
@@ -2012,7 +2015,7 @@ SoundBuffer_Playable* SoundBuffer::CreatePlayableStreamBuffer(
             operator new(
                 sizeof(SBPlayableStreamLayout), (_mwMemHeap*)MWSOUND_HEAP,
                 (mwMemFlags)0x10,
-                stringBase0, 0, 0);
+                "SBPlayable_Stream", 0, 0);
 
     if (stream != 0) {
         SoundBufferPlayableLayout* playable = &stream->playable;
