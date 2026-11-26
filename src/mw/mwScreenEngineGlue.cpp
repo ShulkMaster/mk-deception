@@ -124,7 +124,6 @@ class mkScreenEngineClient : public ScreenClient {
 public:
     mkScreenEngineClient() {}
     virtual void PrintObjectDepth(ScreenRenderInfo*, int, int);
-    virtual ~mkScreenEngineClient() {}
     virtual void* Malloc(size_t, int, char*);
     virtual void Free(void*);
     virtual ScreenResourceLibrary* CreateResourceLibrary(ScreenResourceLibrary*);
