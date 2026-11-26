@@ -25,7 +25,7 @@ static int oid_to_kill_mask;
 #include "runtime/fonts_data.inc"
 
 static const char* fonts_default_text(void) {
-    return &stringBase0[0x2E78];
+    return "";
 }
 
 static int fonts_half(int v) {
@@ -264,8 +264,8 @@ void update_string_obj_pfx(StringObj* obj, PfxFontSlot* font, const char* text) 
     }
 }
 
-/* TODO: [near miss] 97.35%; valign read after the render_y store (H27); y_off load/test still
- * precedes the vertical conversion; shared setter expansion regresses the exact standalone setter. */
+/* TODO: [near miss] 97.35%; order valign, font_height, render_y store, y_off gives retail's
+ * load/store sequence (8 words off, fuzzy 96.47): font-address temp r3 (retail r0) lets the y load hoist. */
 void update_string_obj(StringObj* obj, int font, const char* text) {
     int halign;
     int valign;

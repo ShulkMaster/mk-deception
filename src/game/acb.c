@@ -20,15 +20,6 @@
 
 static const char movelist_charmap[] = "lrRLYBAX...../.:.";
 
-static const char stringBase0[] =
-    "%d / %d\0"
-    "STYLE_SPECIAL\0"
-    "pause_movelist\0"
-    "%u ( %0.3f, %0.3f, %0.3f ) %c\0";
-
-#define STR_MOVELIST_COUNTER_FMT (&stringBase0[0])
-#define STR_STYLE_SPECIAL (&stringBase0[0x8])
-#define STR_PAUSE_MOVELIST (&stringBase0[0x16])
 
 static const float movelist_loop_neg_one = -1.0f;
 static const float movelist_loop_pos_one = 1.0f;
@@ -132,7 +123,7 @@ void movelist_change_move(int delta) {
     if (delta >= max_move) {
         display_move = max_move;
     }
-    sprintf(screen_pdata->counter_buf, STR_MOVELIST_COUNTER_FMT, display_move, max_move);
+    sprintf(screen_pdata->counter_buf, "%d / %d", display_move, max_move);
 }
 
 void movelist_change_style(int delta) {
@@ -322,7 +313,7 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
     }
     if (movelist_pdata->style_count > 3) {
         named_pfx = load_named_2d_pfxobj(
-            0x10005, 0x9012, STR_STYLE_SPECIAL, 0, 5);
+            0x10005, 0x9012, "STYLE_SPECIAL", 0, 5);
         if (named_pfx != 0) {
             movelist_set_pfx_byte_flags(named_pfx, 1, 1);
             movelist_pdata->styles[movelist_pdata->style_count - 1].pfx_obj =
@@ -347,7 +338,7 @@ static void init_movelist(MovelistPdata* movelist_pdata) {
         if (max_move <= 0) {
             display_move = max_move;
         }
-        sprintf(screen_pdata->counter_buf, STR_MOVELIST_COUNTER_FMT,
+        sprintf(screen_pdata->counter_buf, "%d / %d",
                 display_move, max_move);
     }
 }
@@ -356,8 +347,12 @@ static float p_loop_movelist(void) {
     char* screen_name;
 
     screen_name = get_current_screen_name();
-    if (screen_name == 0 || strcmp(screen_name, STR_PAUSE_MOVELIST) != 0) {
+    if (screen_name == 0 || strcmp(screen_name, "pause_movelist") != 0) {
         return movelist_loop_neg_one;
     }
     return movelist_loop_pos_one;
+}
+
+static const char* fn_stub1(void) {
+    return "%u ( %0.3f, %0.3f, %0.3f ) %c";
 }

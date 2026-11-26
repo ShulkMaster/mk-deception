@@ -564,6 +564,11 @@ void set_player_state(PlyrInfo* player, int state) {
     player->player_state = state;
 }
 
+static float fn_stub1(void) {
+    shared_ani[0] = 0;
+    return 2.0f;
+}
+
 void switch_to_bgnd_moveset(PlyrPdata* pdata, int moveset_index) {
     GlobalMoveset* moveset;
     MkObj* primary;

@@ -287,6 +287,11 @@ static inline void pz_start_round_animation(
     }
 }
 
+static void* fn_stub1(float* value) {
+    *value = 0.02f;
+    return &pz_shared_ani;
+}
+
 int pz_fighter_fatality_over(void) {
     return g_pz_fighters_engine.fatality_abort == 0;
 }
@@ -1831,6 +1836,11 @@ static inline int pz_dispatch_happy_reaction(unsigned int* happy_source) {
     return handled;
 }
 
+static void fn_stub2(float* values) {
+    values[0] = 2.45f;
+    values[1] = 6.2f;
+}
+
 void pz_fighter_anim_object_to(
     unsigned int player,
     int mirror,
@@ -3111,9 +3121,6 @@ static void pz_fighter_calculate_start_pos(void) {
         screen_scale = 1.1f;
     }
 
-    post1_scale = -1.6f * screen_scale;
-    post2_scale = 1.6f * screen_scale;
-
     player1_idle_y = g_game_info.plyr0.slot.mirror_a->pos.value.y;
     player2_idle_y = g_game_info.plyr1.slot.mirror_a->pos.value.y;
 
@@ -3143,6 +3150,9 @@ static void pz_fighter_calculate_start_pos(void) {
     g_pz_fighters_engine.player2_idle.x = player2_idle_x;
     g_pz_fighters_engine.player2_idle.y = player2_idle_y;
     g_pz_fighters_engine.player2_idle.z = player2_idle_z;
+
+    post1_scale = -1.6f * screen_scale;
+    post2_scale = 1.6f * screen_scale;
 
     g_pz_fighters_engine.fighter_posts[0].x =
         g_pz_fighters_engine.arena_axis.x * post1_scale;
