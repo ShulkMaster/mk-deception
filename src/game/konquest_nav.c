@@ -386,8 +386,6 @@ void nav_get_unit_vector_to_area(int areaIndex, Vec* out, Vec* pos) {
     out->y = 0.0f;
 }
 
-/* TODO: [near miss] 98.05556%; 18 FPR rows across zero, plane and distance;
- * retain raw plane snapshot; recover original distance/normal ownership. */
 static struct NavArea* unit_vector_to_area(struct NavArea* area, Vec* nearestNormal,
                                     float* nearestDistance,
                                     Vec* farthestNormal,
@@ -407,27 +405,26 @@ static struct NavArea* unit_vector_to_area(struct NavArea* area, Vec* nearestNor
     count = area->boundaryCount;
     for (i = 0; i < count; i++) {
         struct NavBoundary* boundary = (struct NavBoundary*)cursor;
-        struct NavBoundary plane;
+        float nx;
+        float nz;
         float distance;
 
-        plane.z = boundary->z;
-        distance = plane.z * position->z;
-        plane.x = boundary->x;
-        plane.offset = boundary->offset;
-        distance = plane.x * position->x + distance -
-                   (0.35f + plane.offset);
+        nz = boundary->z;
+        nx = boundary->x;
+        distance = boundary->offset;
+        distance = nx * position->x + nz * position->z - (0.35f + distance);
         cursor += sizeof(struct NavBoundary);
 
         if (distance > 0.0f) {
             inside = 0;
             if (distance > *farthestDistance) {
-                farthestNormal->x = plane.x;
-                farthestNormal->z = plane.z;
+                farthestNormal->x = nx;
+                farthestNormal->z = nz;
                 *farthestDistance = distance;
             }
             if (distance < *nearestDistance) {
-                nearestNormal->x = plane.x;
-                nearestNormal->z = plane.z;
+                nearestNormal->x = nx;
+                nearestNormal->z = nz;
                 *nearestDistance = distance;
             }
         }

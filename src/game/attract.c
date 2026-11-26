@@ -56,11 +56,6 @@ struct BioFlasherPdata {
     unsigned int bio_text_inst;
 };
 
-static const char stringBase0[] =
-    "bio_strings_eng.mko\0"
-    "PART_A\0"
-    "PART_B";
-
 static const float sleep_ticks_one = 1.0f;
 static const float sleep_ticks_twenty = 20.0f;
 static const float sleep_ticks_neg_one = -1.0f;
@@ -427,7 +422,7 @@ static void atm_bio_screen(void) {
     }
 
     load_ssf(bio_text_file_table);
-    load_string_bank(0x20000U, &stringBase0[0]);
+    load_string_bank(0x20000U, "bio_strings_eng.mko");
     load_ssf(bios_file_table);
     load_art_section(0x90046, &sec_eu_biofont);
     load_font(0x10);
@@ -466,8 +461,8 @@ static void atm_bio_screen(void) {
     }
 
     x = (screen_width - 0x300) / 2;
-    load_named_2d_pfxobj_xy(0x90046, 0x4006, &stringBase0[0x14], 0, x, 0, 0x1E);
-    load_named_2d_pfxobj_xy(0x90046, 0x4007, &stringBase0[0x1B], 0, x + 0x200, 0, 0x1E);
+    load_named_2d_pfxobj_xy(0x90046, 0x4006, "PART_A", 0, x, 0, 0x1E);
+    load_named_2d_pfxobj_xy(0x90046, 0x4007, "PART_B", 0, x + 0x200, 0, 0x1E);
 
     turn_camera_on();
     fade_from_black(0xC, 1);
