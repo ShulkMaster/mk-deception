@@ -469,1005 +469,50 @@ static inline unsigned int* get_trial_sign_list(void) {
 
     return sign_list;
 }
+int trial_never_passed_this_mission(void);
+void drone_set_handicap(int player, float handicap);
+void drone_start_bleeding(int player, float rate);
+int trial_invisible_callback(PlyrPdata* player);
+int trial_change_style_callback(int player);
+int trial_block_callback(int player);
+void trial_set_special_restrictions(unsigned int restrictions);
+float trial_damage_callback(int player, int damage_type, float damage);
+void drone_set_damage_multiplier(int player, float multiplier);
+void show_text(int font, unsigned int color, unsigned int string_id, float x, float y, float scale,
+               unsigned int prompt_flags, int duration);
+void trial_debug_mission_list(void);
+int trial_get_background_root(void);
+static float fn_stub1(void);
+void give_koin_award(int amount, int type);
+void konquest_run_ending(void);
+void trial_set_round_health_restoration(float restoration);
+void cleanup_mission_state(void);
+void trial_mirror_anims_if_needed(void);
+int konquest_passed_last_mission(void);
+void drone_set_anim_step(float step);
+void trial_end_tunes(void);
+void trial_start_tunes(void);
+void play_background_music(int sound);
 
-int trial_never_passed_this_mission(void) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state == 0) {
-        return 0;
-    }
-    return get_konq_profile_value(5, state->mission_index) <= 0;
-}
-
-void drone_set_handicap(int player, float handicap) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state == 0) {
-        return;
-    }
-    if ((player == 0 && state->fight->field_04 == 0) ||
-        (player == 1 && state->fight->field_04 == 1)) {
-        g_game_info.plyr0.field_10 = handicap;
-        if (g_game_info.plyr0.field_0C > handicap) {
-            g_game_info.plyr0.field_0C = handicap;
-        }
-    } else {
-        g_game_info.plyr1.field_10 = handicap;
-        if (g_game_info.plyr1.field_0C > handicap) {
-            g_game_info.plyr1.field_0C = handicap;
-        }
-    }
-}
-
-void drone_start_bleeding(int player, float rate) {
-    struct KonquestBloodRushPdata* pdata;
-    struct KonquestMissionState* state;
-    MkObj* fighter;
-    MkObj* mirror;
-    Vec velocity = {0.0f, 0.0f, 0.0f};
-    Vec direction = {1.0f, 0.0f, 0.0f};
-
-    state = get_mission_state();
-    mission_state = state;
-    if (state == 0) {
-        return;
-    }
-
-    if ((player == 0 && state->fight->field_04 == 0) ||
-        (player == 1 && state->fight->field_04 == 1)) {
-        direction.x = 1.0f;
-        mirror = g_game_info.plyr0.slot.mirror_a;
-        fighter = (MkObj*)g_game_info.plyr0.slot.fighter;
-    } else {
-        direction.x = -1.0f;
-        mirror = g_game_info.plyr1.slot.mirror_a;
-        fighter = (MkObj*)g_game_info.plyr1.slot.fighter;
-    }
-
-    start_gusher(
-        heart_beat, fighter, mirror, 9, &velocity, &direction);
-
-    if (_create_mkproc_generic_nostack(
-            0x501B, 0x1F, p_blood_rush,
-            sizeof(struct KonquestBloodRushPdata), (MkHdr**)&pdata) != 0) {
-        pdata->player = ((PlyrPdata*)fighter)->plyr_num;
-        pdata->rate = -1.0f * rate;
-    }
-}
-
-float p_blood_rush(void) {
-    struct KonquestBloodRushPdata* pdata =
-        (struct KonquestBloodRushPdata*)apdata;
-    int player = pdata->player;
-    float rate = pdata->rate;
-
-    if (g_game_info.flag_bits.lens_flare_enabled) {
-        if (player == 0) {
-            adjust_p1_life(rate);
-        } else {
-            adjust_p2_life(rate);
-        }
-    }
-    return 30.0f;
-}
-
-int trial_invisible_callback(PlyrPdata* player) {
-    int player_number = player->plyr_num;
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state == 0) {
-        return 1;
-    }
-    if (player_number != state->fight->field_04 &&
-        (state->restriction_flags & 0x20)) {
-        return 0;
-    }
-    return 1;
-}
-
-int trial_change_style_callback(int player) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state == 0) {
-        return 1;
-    }
-    if (((player == 0 && state->fight->field_04 == 0) ||
-         (player == 1 && state->fight->field_04 == 1)) &&
-        (state->restriction_flags & 2)) {
-        return 0;
-    }
-    return 1;
-}
-
-int trial_block_callback(int player) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state == 0) {
-        return 1;
-    }
-    if (((player == 0 && state->fight->field_04 == 0) ||
-         (player == 1 && state->fight->field_04 == 1)) &&
-        (state->restriction_flags & 1)) {
-        return 0;
-    }
-    return 1;
-}
-
-void trial_set_special_restrictions(unsigned int restrictions) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state != 0) {
-        state->restriction_flags = restrictions;
-    }
-}
-
-float trial_damage_callback(
-    int player, int damage_type, float damage) {
-    int player_side = player == 0;
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state == 0) {
-        return damage;
-    }
-    damage *= state->damage_scale[player];
-
-    if (state->restriction_flags & 4) {
-        if (player_side == state->fight->field_04 &&
-            !is_weapon_style(
-                (&g_game_info.plyr0)[player_side]
-                    .slot.pdata->fighter_definition)) {
-            damage = 0.0f;
-        }
-    } else if (state->restriction_flags & 8) {
-        if (player_side == state->fight->field_04) {
-            if (state->restriction_phase == 0) {
-                if (state->fight->slot.pdata->state == 0x120C) {
-                    state->restriction_phase = 1;
-                } else {
-                    damage = 0.0f;
-                }
-            } else if (state->drone->slot.pdata->state == 0) {
-                state->restriction_phase = 0;
-                damage = 0.0f;
-            }
-        }
-    } else if ((state->restriction_flags & 0x10) &&
-               player_side == state->fight->field_04 &&
-               damage_type != 1) {
-        damage = 0.0f;
-    }
-    return damage;
-}
-
-void drone_set_damage_multiplier(int player, float multiplier) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state == 0) {
-        return;
-    }
-    if ((player == 0 && state->fight->field_04 == 0) ||
-        (player == 1 && state->fight->field_04 == 1)) {
-        state->damage_scale[0] = multiplier;
-        return;
-    }
-    state->damage_scale[1] = multiplier;
-}
-
-void show_text(
-    int font, unsigned int color, unsigned int string_id, float x, float y,
-    float scale, unsigned int prompt_flags, int duration) {
-    struct KonquestTrialWindowPdata* pdata;
-
-    if (_create_mkproc_generic_bigstack(
-            0x9002, aproc->priority + 1, p_show_text_window,
-            sizeof(*pdata), (MkHdr**)&pdata) != 0) {
-        zero_pdata_payload(sizeof(*pdata), &pdata->hdr);
-        pdata->visible_item_count = 0;
-        pdata->top = 0;
-        pdata->left = (float)screen_width * x;
-        pdata->bottom = 480.0f - (480.0f * y);
-        pdata->priority = 4;
-        pdata->width = (float)screen_width * scale;
-        pdata->prompt_flags = prompt_flags;
-        pdata->font = font;
-        pdata->color = color;
-        pdata->button_charmap = 0;
-        pdata->swap_buttons = 0;
-        pdata->art_slot = 0x2001E;
-        if (prompt_flags & 0x400) {
-            duration = (float)duration * inverse_game_speed;
-        }
-        pdata->timeout = duration - 0x18;
-        strcpy(pdata->text, get_string_by_id(string_id));
-        text_window_state = 0;
-        while (text_window_state == 0) {
-            _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep();
-        }
-    }
-}
-
-void trial_debug_mission_list(void) {
-}
-
-int trial_get_background_root(void) {
-    return (int)konquest_save_data.background_and_flags >> 16;
-}
-
-void give_koin_award(int amount, int type) {
-    static const char* mission_complete[6] = {
-        "MISSION COMPLETE", "MISI\323N COMPLETA", "AUFTRAG ERFOLGREICH",
-        "MISSION ACCOMPLIE", "MISSIONE COMPIUTA", "MISSION COMPLETE"
-    };
-    static int koin_list[6] = {
-        0x0A930013, 0x0A930014, 0x0A930015,
-        0x0A930016, 0x0A930017, 0x0A930018
-    };
-    char amount_text[8];
-    ScreenObj* sign;
-    ScreenObj* koin;
-    StringObj* title;
-    StringObj* amount_string;
-    int alpha;
-
-    duck_sounds(0.5f);
-    _mkproc_sleep_ticks = 15.0f;
-    aproc->vtbl->sleep();
-    snd_req(0x15EC);
-    add_to_konq_profile_value(type + 7, amount);
-    sign = load_2d_pfxobj_xy(
-        0x2001E, 0x9008, 0x0A930012, 0,
-        screen_width / 2 - 0x80, 0x66, 0x24);
-    title = create_wrapped_string(
-        0x9008, load_font(3),
-        mission_complete[get_language_setting()],
-        screen_width / 2 - 0x71, 0x138, 0xE2, 0, 1, 0);
-    title->priority = 0x22;
-    insert_string_obj((ScreenObj*)title);
-    if (type > 6) {
-        type = 2;
-    }
-    koin = load_2d_pfxobj_xy(
-        0x2001E, 0x9008, koin_list[type], 0,
-        screen_width / 2 - 0x40, 0xB6, 0x23);
-    load_font(3);
-    if (amount > 99999) {
-        amount = 99999;
-    }
-    sprintf(amount_text, "%d", amount);
-    amount_string = string_center_xy(
-        0x9008, 3, amount_text,
-        screen_width / 2 + 0x17, 0xC9, 0x23);
-
-    if (sign != 0) {
-        alpha = 0;
-        while ((unsigned char)alpha < 0xF0) {
-            pfx_2d_obj_set_alpha_by_id(0x9008, alpha);
-            _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep();
-            alpha += 8;
-        }
-        pfx_2d_obj_set_alpha_by_id(0x9008, 0xFF);
-        _mkproc_sleep_ticks = 120.0f;
-        aproc->vtbl->sleep();
-        alpha = 0xF0;
-        while ((unsigned char)alpha != 0) {
-            pfx_2d_obj_set_alpha_by_id(0x9008, alpha);
-            _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep();
-            alpha -= 8;
-        }
-        if (sign->instance != 0) {
-            sign->typed_vtbl->destroy(sign);
-        }
-        if (koin->instance != 0) {
-            koin->typed_vtbl->destroy(koin);
-        }
-        if (amount_string->instance != 0) {
-            amount_string->typed_vtbl->destroy(amount_string);
-        }
-        if (title->instance != 0) {
-            title->typed_vtbl->destroy(title);
-        }
-    }
-    duck_sounds(1.0f);
-}
-
-void konquest_run_ending(void) {
-    fade_to_black(8, 1);
-    gamelogic_jump(2, p_konquest_ending);
-}
-
-void trial_set_round_health_restoration(float restoration) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state != 0) {
-        if (restoration < -1.0 || restoration > 1.0) {
-            restoration = 1.0f;
-        }
-        state->round_health_restoration = restoration;
-    }
-}
-
-void cleanup_mission_state(void) {
-    mission_state = 0;
-    mission_state_item.state = 0;
-    mission_state_item.instance = 0;
-    current_anim_pdata = 0;
-}
-
-void trial_mirror_anims_if_needed(void) {
-    if (mission_state->fight->field_04 == 1) {
-        camera_set_animation_mirror_plane(3);
-    }
-}
-
-int konquest_passed_last_mission(void) {
-    return konquest_save_data.passed_last_mission;
-}
-
-void drone_set_anim_step(float step) {
-    if (current_anim_pdata != 0) {
-        current_anim_pdata->step = step;
-    }
-}
-
-void trial_end_tunes(void) {
-    struct KonquestMissionState* state = get_mission_state();
-    int music;
-
-    mission_state = state;
-    if (state == 0) {
-        return;
-    }
-    if (!(state->display_flags & 1)) {
-        return;
-    }
-    music = state->tune_table->entries[state->randomized_side].end_music;
-    if (music >= 0) {
-        if (bgnd_music_ptr1 != 0) {
-            snd_stop(bgnd_music_ptr1);
-        }
-        bgnd_music_ptr1 = snd_req(music);
-    }
-}
-
-void trial_start_tunes(void) {
-    int music = 0;
-    struct KonquestMissionState* state = get_mission_state();
-    unsigned int function;
-
-    mission_state = state;
-    if (state != 0) {
-        function = check_script_function_exists(
-            state->tick_script, "use_scene_music");
-        if (function != 0) {
-            cmdscript_setup_execution(mission_state->tick_script, function);
-            cmdscript_execute(mission_state->tick_script);
-            music = active_cmdscript->regs[0];
-        }
-
-        if (music != 0) {
-            music = mission_state->tune_table->script_music;
-            if (music >= 0) {
-                if (bgnd_music_ptr1 != 0) {
-                    snd_stop(bgnd_music_ptr1);
-                }
-                bgnd_music_ptr1 = snd_req(music);
-            }
-        } else if (mission_state->display_flags & 1) {
-            if (g_game_info.pselect.field_1f4 == 1) {
-                mission_state->randomized_side = (unsigned short)randu0(2);
-                music = mission_state->tune_table
-                    ->entries[mission_state->randomized_side].round_one_music;
-                if (music >= 0) {
-                    if (bgnd_music_ptr1 != 0) {
-                        snd_stop(bgnd_music_ptr1);
-                    }
-                    bgnd_music_ptr1 = snd_req(music);
-                }
-            } else {
-                music = mission_state->tune_table
-                    ->entries[mission_state->randomized_side].later_round_music;
-                if (music >= 0) {
-                    if (bgnd_music_ptr1 != 0) {
-                        snd_stop(bgnd_music_ptr1);
-                    }
-                    bgnd_music_ptr1 = snd_req(music);
-                }
-            }
-        } else if (g_game_info.pselect.field_1f4 == 1) {
-            mission_state->randomized_side = (unsigned short)randu0(3);
-            music = mission_state->tune_table
-                ->basic_round_one_music[mission_state->randomized_side];
-            if (music >= 0) {
-                if (bgnd_music_ptr1 != 0) {
-                    snd_stop(bgnd_music_ptr1);
-                }
-                bgnd_music_ptr1 = snd_req(music);
-            }
-        }
-    }
-}
-
-void play_background_music(int sound) {
-    if (sound >= 0) {
-        if (bgnd_music_ptr1 != 0) {
-            snd_stop(bgnd_music_ptr1);
-        }
-        bgnd_music_ptr1 = snd_req(sound);
-    }
-}
-
-static const Vec trial_stripped_vector = {0.3f, 1.32f, 7.32f};
-
-void trial_setup_nis_scene(int setup) {
-    Vec monk_position = {1.0f, 0.0f, 6.0f};
-    Vec monk_angle = {0.0f, 3.1415927f, 0.0f};
-    CamVec3 camera_position = {0.0f, 1.5478f, 3.129f};
-    CamVec3 camera_angle = {0.0f, 3.1415927f, 0.0f};
-
-    if (mission_state->fight ==
-        &g_game_info.plyr1) {
-        monk_position.x = -1.0f;
-    }
-
-    if (setup != 0) {
-        struct KonquestMissionState* state = get_mission_state();
-        MkObj* raw;
-        MkObj* monk;
-
-        mission_state = state;
-        if (state == 0) {
-            monk = 0;
-        } else {
-            raw = state->monk;
-            monk = MK_HDR_LIVE(raw, state->monk_instance);
-        }
-
-        if (monk != 0) {
-            monk->flags.pin_animation = 0;
-            monk->pos.value.x = monk_position.x;
-            monk->pos.value.y = monk_position.y;
-            monk->pos.value.z = monk_position.z;
-            monk->ang.x = monk_angle.x;
-            monk->ang.y = monk_angle.y;
-            monk->ang.z = monk_angle.z;
-            monk->flags.hidden = 0;
-        }
-        set_camera_position(&camera_position);
-        set_camera_angle(&camera_angle);
-        start_mkpfx_FadeSnapShot();
-        move_plyrs_to_round_start();
-        xfer_player_proc(g_game_info.plyr0.idle_proc, j_exit);
-        xfer_player_proc(g_game_info.plyr1.idle_proc, j_exit);
-    }
-    xfer_camera(p_idle, 0);
-}
-
-void trial_restart_round(void) {
-    MkObj* monk;
-
-    start_mkpfx_FadeSnapShot();
-    move_plyrs_to_round_start();
-    start_constrain_proc();
-    skip_camera_intro();
-    stop_tunes();
-    bgnd_music_ptr1 = snd_req(
-        g_game_info.section->music_id_round_0_1);
-    set_camera_destination(&camera_obj->pos);
-    set_camera_target_angle(&camera_obj->ang);
-    force_midpoint_calculation_update = 0;
-    xfer_camera(p_camera_proc, 1);
-    monk = get_mission_monk();
-    if (monk != 0) {
-        monk->flags.hidden = 1;
-    }
-}
-
-int current_player_is_drone(void) {
-    PlyrPdata* drone;
-
-    if (plyr_pdata == 0) {
-        return 0;
-    }
-    if (g_game_info.plyr0.player_state == 2) {
-        drone = g_game_info.plyr1.slot.pdata;
-    } else {
-        drone = g_game_info.plyr0.slot.pdata;
-    }
-    if (plyr_pdata == drone) {
-        return 1;
-    }
-    return 0;
-}
+void trial_setup_nis_scene(int setup);
+void trial_restart_round(void);
+int current_player_is_drone(void);
 
 static inline void set_monk_lip_synch_texture(KonquestLipSyncPdata* lip) {
     lip->texture_latch = mission_state->monk_face_texture;
 }
+void drone_lip_synch(int sound_id, LipSyncKeyframe* keyframes);
+static float fn_stub2(void);
+void trial_register_special_move(unsigned int move);
+void trial_register_script_function(unsigned int function);
+int trial_show_standard_fight_messages(void);
 
-void drone_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
-    KonquestLipSyncPdata* lip;
-    MkProc* process = _create_mkproc_generic_nostack(
-        0x8232, 0x1F, p_do_lip_synch, sizeof(*lip), (MkHdr**)&lip);
-
-    if (process == 0) {
-        return;
-    }
-    zero_pdata_payload(sizeof(*lip), &lip->hdr);
-    lip->sound_handle = sound_id;
-    lip->keyframes = keyframes;
-
-    if (aproc->pid == 0x9007) {
-        mission_state = get_mission_state();
-        if (mission_state == 0) {
-            return;
-        }
-        lip->mode = 2;
-        set_monk_lip_synch_texture(lip);
-        return;
-    }
-
-    if (aproc->pid == 0x1001 || aproc->pid == 0x1002) {
-        AnimPdata* animation;
-
-        process = MK_LIVE(plyr_pdata->face_anim_proc,
-            plyr_pdata->face_anim_proc_instance);
-        if (process == 0) {
-            return;
-        }
-        animation = (AnimPdata*)pdata_of_proc(process);
-        if (animation != 0) {
-            set_anim_script(
-                animation, plyr_pdata->face_animations[0], 3);
-            animation->step = 1.0f;
-            animation->transition_step = 0.2f;
-            animation->hand_transition = 1.0f;
-            xfer_proc(process, p_animate);
-        }
-        lip->mode = 3;
-        lip->player.animation = animation;
-        lip->player.table = plyr_pdata->face_animations;
-        return;
-    }
-
-    if (process->instance != 0) {
-        process->vtbl->destroy(process);
-    }
-}
-
-void trial_register_special_move(unsigned int move) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state == 0 || mode_of_play != 8 ||
-        !g_game_info.flag_bits.lens_flare_enabled) {
-        return;
-    }
-    if ((aproc->pid == 0x1001 || aproc->pid == 0x1002) &&
-        plyr_pdata != 0) {
-        trial_register_attack(plyr_pdata->plyr_num, 3, move);
-    }
-}
-
-void trial_register_script_function(unsigned int function) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state == 0 || mode_of_play != 8 ||
-        !g_game_info.flag_bits.lens_flare_enabled) {
-        return;
-    }
-    if ((aproc->pid == 0x1001 || aproc->pid == 0x1002) &&
-        plyr_pdata != 0) {
-        trial_register_attack(
-            plyr_pdata->plyr_num,
-            plyr_pdata->player_slot, function);
-    }
-}
-
-int trial_show_standard_fight_messages(void) {
-    return mission_state->display_flags & 1;
-}
-
-void load_window_frame(void) {
-    struct KonquestTrialWindowPdata* pdata = (struct KonquestTrialWindowPdata*)apdata;
-    int frame_flags;
-    int index;
-
-    if (pdata != 0) {
-        frame_flags = 0;
-        ((ScreenObjFlags*)&frame_flags)->hidden = 1;
-        for (index = 0; index < 9; index++) {
-            unsigned int art_id = get_artid_of_named_item_in_slot(
-                pdata->art_slot, "JNY_WINDOW01", 1);
-            ScreenObj* object = load_2d_pfxobj(
-                pdata->art_slot, 0x9004, art_id + index,
-                frame_flags, pdata->priority);
-
-            pdata->frame[index].object = object;
-            pdata->frame[index].instance = object->instance;
-            mk_insert((MkHdr*)object, &aproc->pdata_list_b);
-        }
-    }
-}
-
-void create_string_objects(void) {
-    int alignment;
-    StringObj* string;
-    unsigned int color;
-    unsigned char* color_bytes;
-    unsigned int packed_color;
-    struct KonquestTrialWindowPdata* pdata;
-
-    pdata = (struct KonquestTrialWindowPdata*)apdata;
-    if (pdata != 0) {
-        if (pdata->prompt_flags & 0x800) {
-            alignment = 1;
-        } else if (pdata->prompt_flags & 0x1000) {
-            alignment = 2;
-        } else {
-            alignment = 0;
-        }
-        string = create_wrapped_string(
-            0x9002, load_font(pdata->font), pdata->text,
-            pdata->left, pdata->bottom, pdata->width,
-            0, alignment, 2);
-        string->priority = pdata->priority - 2;
-        packed_color = pdata->color;
-        color_bytes = (unsigned char*)&color;
-        color_bytes[0] = packed_color >> 24;
-        color_bytes[1] = packed_color >> 16;
-        color_bytes[2] = packed_color >> 8;
-        color_bytes[3] = packed_color;
-        pfxfont_set_string_color(
-            &string->pfx, &color);
-        pdata->top = string->text_h;
-        mk_insert((MkHdr*)string, &aproc->pdata_list_b);
-        insert_2d_obj((ScreenObj*)string);
-    }
-}
-
-void set_prompt_items(struct KonquestTrialWindowPdata* unused) {
-    int y;
-    struct KonquestTrialWindowPdata* pdata =
-        (struct KonquestTrialWindowPdata*)apdata;
-    ScreenObj* object;
-
-    if (pdata == 0) {
-        return;
-    }
-    get_font_height(pdata->font);
-    y = (pdata->bottom - pdata->top) - 8;
-
-    if (pdata->prompt_flags & 1) {
-        object = MK_LIVE(pdata->prompt_ok.object, pdata->prompt_ok.instance);
-        if (object == 0) {
-            object = load_named_2d_pfxobj(pdata->art_slot, 0x9004, "OK_BUTTON", 0, pdata->priority - 1);
-            if (object != 0) {
-                pdata->prompt_ok.object = object;
-                pdata->prompt_ok.instance = object->instance;
-                mk_insert((MkHdr*)object, &aproc->pdata_list_b);
-            }
-        }
-        if (object != 0) {
-            object->flag_bits.hidden = 0;
-            object->x =
-                pdata->left + pdata->width - object->pfx2d->tex_w;
-            object->y = y;
-            pdata->visible_item_count++;
-        }
-    }
-    if (pdata->prompt_flags & 4) {
-        object = load_prompt(
-            pdata, &pdata->prompt_retry, "TRY_AGAIN_BUTTON", 1);
-        if (object != 0) {
-            object->flag_bits.hidden = 0;
-            object->x =
-                pdata->left + pdata->width - object->pfx2d->tex_w;
-            object->y = y;
-            pdata->visible_item_count++;
-        }
-    }
-    if (pdata->prompt_flags & 2) {
-        object = load_prompt(
-            pdata, &pdata->prompt_cancel, "BUTTONCANCEL", 1);
-        if (object != 0) {
-            object->flag_bits.hidden = 0;
-            object->x = pdata->left;
-            object->y = y;
-            pdata->visible_item_count++;
-        }
-    }
-    if (pdata->prompt_flags & 8) {
-        object = load_prompt(
-            pdata, &pdata->prompt_cancel, "RETURN_BUTTON", 0);
-        if (object != 0) {
-            object->flag_bits.hidden = 0;
-            object->x = pdata->left;
-            object->y = y;
-            pdata->visible_item_count++;
-        }
-    }
-}
-
-void plot_and_show_window_frame(struct KonquestTrialWindowPdata* unused) {
-    struct KonquestTrialWindowPdata* pdata =
-        (struct KonquestTrialWindowPdata*)apdata;
-    int left;
-    int right;
-    int bottom;
-    int top;
-    int font_height;
-    float height_scale;
-    float width_scale;
-
-    if (pdata == 0) {
-        return;
-    }
-    font_height = get_font_height(pdata->font);
-    left = pdata->left - 0xF;
-    right = pdata->left + pdata->width + 0xF;
-    bottom = pdata->bottom + font_height + 3;
-    top = (pdata->bottom - pdata->top) - font_height / 2;
-    width_scale = (float)((right - left) - 3) / 16.0f;
-    height_scale = (float)((bottom - top) - 3) / 16.0f;
-
-    place_frame_piece(&pdata->frame[0], left, bottom, 1.0f, 1.0f, 0);
-    place_frame_piece(
-        &pdata->frame[1], left + 3, bottom,
-        width_scale, 1.0f, 1);
-    place_frame_piece(&pdata->frame[2], right, bottom, 1.0f, 1.0f, 0);
-    place_frame_piece(
-        &pdata->frame[3], left, top + 3,
-        1.0f, height_scale, 1);
-    place_frame_piece(
-        &pdata->frame[4], left + 3, top + 3,
-        width_scale, height_scale, 1);
-    place_frame_piece(
-        &pdata->frame[5], right, top + 3,
-        1.0f, height_scale, 1);
-    place_frame_piece(&pdata->frame[6], left, top, 1.0f, 1.0f, 0);
-    place_frame_piece(
-        &pdata->frame[7], left + 3, top,
-        width_scale, 1.0f, 1);
-    place_frame_piece(&pdata->frame[8], right, top, 1.0f, 1.0f, 0);
-}
-
-#pragma ppc_unroll_instructions_limit 1
-static void text_window_fade_out(unsigned char ticks) {
-    struct KonquestTrialWindowPdata* pdata =
-        (struct KonquestTrialWindowPdata*)apdata;
-    int alpha = 0xFF;
-    unsigned char alpha_step = 0xFF / ticks;
-    ScreenObj* object;
-    int index;
-
-    if (pdata != 0) {
-        while (ticks != 0) {
-            pfx_2d_obj_set_alpha_by_id(0x9002, alpha);
-            if (pdata->prompt_flags & 0x10) {
-                pfx_2d_obj_set_alpha_by_id(0x9004, alpha);
-            }
-            _mkproc_sleep_ticks = 1.0f;
-            alpha = (alpha - alpha_step) & 0xFF;
-            ticks--;
-            aproc->vtbl->sleep();
-        }
-        if (pdata->prompt_flags & 0x10) {
-            pfx_2d_obj_set_alpha_by_id(0x9004, 0xFF);
-            for (index = 0; index < 9; index++) {
-                hide_screen_latch(&pdata->frame[index]);
-            }
-            object = MK_LIVE(pdata->prompt_ok.object, pdata->prompt_ok.instance);
-            if (object != 0) {
-                object->flag_bits.hidden = 1;
-            }
-            object = MK_LIVE(pdata->prompt_retry.object, pdata->prompt_retry.instance);
-            if (object != 0) {
-                object->flag_bits.hidden = 1;
-            }
-            object = MK_LIVE(pdata->prompt_548.object, pdata->prompt_548.instance);
-            if (object != 0) {
-                object->flag_bits.hidden = 1;
-            }
-            object = MK_LIVE(pdata->prompt_cancel.object, pdata->prompt_cancel.instance);
-            if (object != 0) {
-                object->flag_bits.hidden = 1;
-            }
-            object = MK_LIVE(pdata->prompt_550.object, pdata->prompt_550.instance);
-            if (object != 0) {
-                object->flag_bits.hidden = 1;
-            }
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-}
-#pragma ppc_unroll_instructions_limit 40
-
-void text_window_fade_in(unsigned char ticks) {
-    int alpha = 0;
-    int target;
-    unsigned char step;
-    struct KonquestTrialWindowPdata* pdata =
-        (struct KonquestTrialWindowPdata*)apdata;
-
-    if (pdata != 0) {
-        target = (unsigned char)pdata->color;
-        step = target / ticks;
-
-        do {
-            pfx_2d_obj_set_alpha_by_id(0x9002, alpha);
-            if (pdata->prompt_flags & 0x10) {
-                pfx_2d_obj_set_alpha_by_id(0x9004, alpha);
-            }
-            if (target - step < (unsigned char)alpha) {
-                alpha = target;
-            } else {
-                alpha = ((unsigned char)alpha + step) & 0xFF;
-            }
-            _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep();
-        } while ((unsigned char)alpha < (unsigned char)target);
-        pfx_2d_obj_set_alpha_by_id(0x9002, target);
-        if (pdata->prompt_flags & 0x10) {
-            pfx_2d_obj_set_alpha_by_id(0x9004, target);
-        }
-    }
-}
-
-float p_show_text_window(void) {
-    struct KonquestTrialWindowPdata* window =
-        (struct KonquestTrialWindowPdata*)apdata;
-    int result = 0;
-
-    if (window->prompt_flags & 0x10) {
-        load_window_frame();
-    }
-    create_string_objects();
-
-    set_prompt_items(window);
-    if (window->prompt_flags & 0x10) {
-        plot_and_show_window_frame(window);
-        push_game_state(0x15);
-    }
-
-    if (window->prompt_flags & 0x20) {
-        text_window_fade_in(30);
-    } else if (window->prompt_flags & 0x100) {
-        text_window_fade_in(10);
-    }
-
-    while (result == 0) {
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-        if (mcard_msg_active == 0) {
-            if (((window->prompt_flags & 1) ||
-                 (window->prompt_flags & 4)) &&
-                check_switch_edge(window->controller_port, 6)) {
-                result = 1;
-                snd_req(0x15ED);
-            }
-            if ((window->prompt_flags & 0x80) &&
-                check_switch_edge(window->controller_port, 6)) {
-                result = 1;
-                snd_req(0x15ED);
-            }
-            if (((window->prompt_flags & 8) ||
-                 (window->prompt_flags & 2)) &&
-                check_switch_edge(window->controller_port, 7)) {
-                result = 2;
-                snd_req(0x15ED);
-            }
-            if (window->timeout > 0) {
-                window->timeout--;
-            }
-            if (window->timeout == 0) {
-                result = 3;
-            }
-        }
-    }
-
-    if (window->prompt_flags & 0x10) {
-        pop_game_state();
-    }
-    if (window->prompt_flags & 0x40) {
-        text_window_fade_out(30);
-    } else if (window->prompt_flags & 0x200) {
-        text_window_fade_out(10);
-    }
-
-    destroy_screen_latch(&window->prompt_ok);
-    destroy_screen_latch(&window->prompt_retry);
-    destroy_screen_latch(&window->prompt_548);
-    destroy_screen_latch(&window->prompt_550);
-    destroy_screen_latch(&window->prompt_cancel);
-    text_window_state = result;
-    return -1.0f;
-}
-
-void trial_set_next_mission(
-    int mission, int pair_a_low, int pair_a_high,
-    int pair_b_low, int pair_b_high, int value_a, int value_b,
-    int background_root) {
-    konquest_save_data.next_mission = mission;
-    konquest_save_data.mission_pair_a =
-        (unsigned int)pair_a_low | ((unsigned int)pair_a_high << 16);
-    konquest_save_data.mission_pair_b =
-        (unsigned int)pair_b_low | ((unsigned int)pair_b_high << 16);
-    konquest_save_data.next_value_a = value_a;
-    konquest_save_data.next_value_b = value_b;
-    konquest_save_data.background_and_flags =
-        (konquest_save_data.background_and_flags & 0xFFFF) |
-        ((unsigned int)background_root << 16);
-    fade_to_black(8, 1);
-    gamelogic_jump(2, p_gamelogic);
-}
-
-int trial_get_drone_difficulty(void) {
-    int index;
-    struct KonquestMissionState* state;
-    int completed;
-
-    state = get_mission_state();
-
-    mission_state = state;
-    if (state == 0) {
-        return 0;
-    }
-    if (state->drone_difficulty == 9) {
-        completed = 0;
-        for (index = 0; index < 0x1C2; index++) {
-            if (((unsigned char*)p1_profile_konquest)[index + 0x6C] != 0) {
-                completed++;
-            }
-        }
-        state->drone_difficulty =
-            7.0f * ((float)completed / 106.0f) + 0.5f;
-    }
-    return mission_state->drone_difficulty;
-}
-
-int trial_get_round_length(void) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state == 0) {
-        return 0;
-    }
-    return state->round_timer;
-}
-
-void trial_set_tick_function(unsigned int script_enabled) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state != 0) {
-        state->tick_script_function = script_enabled;
-    }
-}
-
-void trial_setup_onscreen_display_items(
-    int item_c, int enabled, const char* format) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state != 0) {
-        state->display_item_c = item_c;
-        mission_state->display_item_a = enabled;
-        mission_state->display_format = format;
-    }
-}
+void trial_set_next_mission(int mission, int pair_a_low, int pair_a_high, int pair_b_low,
+                            int pair_b_high, int value_a, int value_b, int background_root);
+int trial_get_drone_difficulty(void);
+int trial_get_round_length(void);
+void trial_set_tick_function(unsigned int script_enabled);
+void trial_setup_onscreen_display_items(int item_c, int enabled, const char* format);
 
 static inline void destroy_current_countdown_string(void) {
     struct KonquestMissionState* state = mission_state;
@@ -1481,230 +526,16 @@ static inline void destroy_current_countdown_string(void) {
         mission_state->countdown_string_instance = 0;
     }
 }
-
-void trial_start_countdown(int countdown, float x, float y) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state != 0) {
-        char text[2];
-        int screen_x;
-        int screen_y;
-        int change;
-        StringObj* string;
-
-        text[0] = (char)countdown + '0';
-        text[1] = '\0';
-        screen_x = (float)screen_width * x;
-        screen_y = 480.0f * y;
-        change = -countdown;
-        load_font(1);
-        destroy_mkprocs_pid(0x900D);
-
-        destroy_current_countdown_string();
-
-        string = string_center_xy(
-            0x9005, 1, text, screen_x, screen_y, 0x22);
-        if (string != 0) {
-            mission_state->countdown_string = string;
-            mission_state->countdown_string_instance = string->instance;
-            display_numerical_change(
-                string, 1, countdown, change, 60, 0x98967F);
-        }
-
-        if (_create_mkproc_generic_tinystack(
-                0x900D, 0x1F, p_finish_countdown, 0, 0) == 0) {
-            destroy_current_countdown_string();
-        }
-    }
-}
-
-static float p_finish_countdown(void) {
-    StringObj* string;
-    struct KonquestMissionState* state;
-
-    aproc->flags_bits.use_game_speed = 1;
-    string = MK_LIVE(mission_state->countdown_string, mission_state->countdown_string_instance);
-    if (string != 0) {
-        update_string_obj(string, 1, "0");
-        _mkproc_sleep_ticks = 60.0f;
-        aproc->vtbl->sleep();
-    }
-
-    state = mission_state;
-    string = MK_LIVE(mission_state->countdown_string, mission_state->countdown_string_instance);
-    if (string != 0) {
-        string = state->countdown_string;
-        if (string->instance != 0) {
-            string->typed_vtbl->destroy(string);
-        }
-        mission_state->countdown_string = 0;
-        mission_state->countdown_string_instance = 0;
-    }
-    return -1.0f;
-}
-
-void trial_do_dialog(
-    int unused, int string_id,
-    float unused_x, float unused_y, float unused_scale,
-    unsigned int ticks, int wait) {
-    unsigned int instance;
-    MkProc* dialog;
-    int scaled_ticks = (float)ticks * inverse_game_speed;
-
-    dialog = konquest_set_dialog_text(
-        get_string_by_id(string_id), 0);
-    calc_print_speed_for_nis_dialog(dialog, scaled_ticks);
-    if (dialog != 0) {
-        instance = dialog->instance;
-        if (wait != 0) {
-            while (MK_LIVE(&dialog->hdr, instance) != 0) {
-                _mkproc_sleep_ticks = 1.0f;
-                aproc->vtbl->sleep();
-            }
-        }
-    }
-}
-
-void trial_show_spoken_text_window(
-    int string_id, float x, float y, float scale,
-    int style, int sound, int unused0, int unused1, int flags) {
-    MslSoundHandle voice = 0;
-
-    if (sound >= 0) {
-        voice = snd_req(sound);
-    }
-    trial_show_text_window(string_id, x, y, scale, style, flags);
-    if (voice != 0) {
-        snd_stop(voice);
-    }
-}
-
-void trial_show_text_window(
-    int string_id, float x, float y, float scale, int style, int flags) {
-    struct KonquestMissionState* state;
-    struct KonquestTrialWindowPdata* pdata;
-    const char* text;
-    int swap_buttons = 0;
-    int drone_is_right;
-
-    state = get_mission_state();
-    mission_state = state;
-    if (state == 0) {
-        return;
-    }
-
-    text = get_string_by_id(style);
-    state = get_mission_state();
-    mission_state = state;
-    if (state != 0) {
-        drone_is_right = is_a_to_the_right_of_b(
-            state->fight->slot.mirror_a, state->drone->slot.mirror_a);
-    } else {
-        drone_is_right = 0;
-    }
-    if (drone_is_right != 0) {
-        swap_buttons = 1;
-    }
-
-    if (_create_mkproc_generic_bigstack(
-            0x9002, aproc->priority + 1, p_show_text_window,
-            sizeof(*pdata), (MkHdr**)&pdata) != 0) {
-        int left;
-        int width;
-
-        zero_pdata_payload(sizeof(*pdata), &pdata->hdr);
-        text_window_state = 0;
-        left = (float)screen_width * x;
-        width = (float)screen_width * scale;
-        pdata->visible_item_count = 0;
-        pdata->top = 0;
-        pdata->left = left;
-        pdata->bottom = 480.0f - (480.0f * y);
-        pdata->priority = 0x24;
-        pdata->width = width;
-        pdata->prompt_flags = flags | 0x10;
-        pdata->font = 6;
-        pdata->timeout = -1;
-        pdata->color = string_id;
-        pdata->controller_port = mission_state->fight->pad_index;
-        pdata->button_charmap = danton20_charmap;
-        pdata->swap_buttons = swap_buttons;
-        pdata->art_slot = 0x2001E;
-        strcpy(pdata->text, text);
-        if (pdata->button_charmap != 0) {
-            rewrite_button_string(
-                danton20_charmap, pdata->text, swap_buttons,
-                (int*)g_game_info.pads[pdata->controller_port].switch_map);
-        }
-        set_default_switch_maps();
-        while (text_window_state == 0) {
-            _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep();
-        }
-        set_game_switch_maps();
-    }
-}
-
-void trial_set_ending_functions(
-    int winner_function, int loser_function) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state != 0) {
-        state->winner_end_function = winner_function;
-        mission_state->loser_end_function = loser_function;
-    }
-}
-
-void trial_set_round_timer(int ticks) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state != 0) {
-        state->round_timer = ticks;
-    }
-}
-
-void trial_set_num_rounds(int rounds) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state != 0) {
-        state->num_rounds = rounds;
-    }
-}
-
-static float p_flip_move_description(void) {
-    struct KonquestMissionState* state;
-    int flipped;
-
-    if (mission_state->display_item_c == 0) {
-        return -1.0f;
-    }
-    state = get_mission_state();
-    mission_state = state;
-    if (state != 0) {
-        flipped = is_a_to_the_right_of_b(
-            state->fight->slot.mirror_a,
-            state->drone->slot.mirror_a);
-    } else {
-        flipped = 0;
-    }
-    if (flipped != mission_state->move_description_flipped) {
-        mission_state->move_description_flipped = flipped;
-        trial_show_move_message();
-    }
-    return 1.0f;
-}
-
-void drone_set_special_directions(int unused, int flags) {
-    struct DroneOverrideInfo info;
-
-    info.flags = flags;
-    info.likelihood_scale = (flags & 1) ? 0.0f : 1.0f;
-    setDroneOverrideSwitch(unused, &info);
-}
+void trial_start_countdown(int countdown, float x, float y);
+void trial_do_dialog(int unused, int string_id, float unused_x, float unused_y, float unused_scale,
+                     unsigned int ticks, int wait);
+void trial_show_spoken_text_window(int string_id, float x, float y, float scale, int style,
+                                   int sound, int unused0, int unused1, int flags);
+void trial_set_ending_functions(int winner_function, int loser_function);
+void trial_set_round_timer(int ticks);
+void trial_set_num_rounds(int rounds);
+static float p_flip_move_description(void);
+void drone_set_special_directions(int unused, int flags);
 
 static inline void wait_for_current_drone_getup(void) {
     MkProc* idle_process;
@@ -1724,72 +555,11 @@ static inline void wait_for_current_drone_getup(void) {
         aproc->vtbl->sleep();
     }
 }
-
-void drone_set_difficulty_level(int difficulty) {
-    PlyrInfo* drone = mission_state->drone;
-    PlyrPdata* fighter = drone->slot.pdata;
-
-    wait_for_current_drone_getup();
-    if (difficulty == 8) {
-        if (drone->player_state == 0) {
-            fighter->drone_handoff_pending = 1;
-        }
-        drone->player_state = 3;
-    } else if (difficulty != 8) {
-        if (drone->player_state == 3) {
-            fighter->drone_handoff_pending = 1;
-        }
-        drone->player_state = 0;
-    }
-    mission_state->drone_difficulty = difficulty;
-}
-
-void trial_set_next_setup_function(int setup_function) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state != 0) {
-        state->next_setup_function = setup_function;
-        mission_state->display_flags |= 4;
-    }
-}
-
-void drone_blend_to_ani(
-    AnimScript* animation, int transition, float blend) {
-    transition_to_anim_script(
-        blend, current_anim_pdata, animation, transition);
-    _mkproc_sleep_ticks = 1.0f;
-    aproc->vtbl->sleep();
-}
-
-void drone_face_monk(void) {
-    MkObj* monk = get_mission_monk();
-
-    if (monk != 0) {
-        rotate_towards_position(&monk->pos.value, 0.05f);
-    }
-}
-
-void trial_show_monk(int show) {
-    MkObj* monk = get_mission_monk();
-
-    if (monk != 0) {
-        monk->flags.hidden = show == 0;
-    }
-}
-
-float trial_run_loser_animation_script(void) {
-    plyr_anim_pdata->step = 1.0f;
-    face_opponent_now();
-    plyr_pdata->death_type = 0xA;
-    blend_to_ani(bgnd_animations.loser_start, 3, 0.1f);
-    ani_to_blend_frame(10.0f);
-    blend_to_ani(bgnd_animations.loser_loop, 0, 0.1f);
-    xfer_proc(plyr_anim_proc, p_animate);
-    aproc->vtbl
-        ->jump_sleep(j_stay_down_dead, 0.0f);
-    return 0.0f;
-}
+void drone_set_difficulty_level(int difficulty);
+void trial_set_next_setup_function(int setup_function);
+void drone_blend_to_ani(AnimScript* animation, int transition, float blend);
+void drone_face_monk(void);
+float trial_run_loser_animation_script(void);
 
 static inline MkProc* mission_script_process_live(struct KonquestMissionState* state)
 {
@@ -1806,97 +576,10 @@ static inline MkProc* mission_script_process_live(struct KonquestMissionState* s
     }
     return live;
 }
-
-void drone_set_script(int player, int script_function) {
-    struct KonquestMissionState* state = get_mission_state();
-    MkProc* process;
-    CmdScript* script;
-
-    mission_state = state;
-    if (state == 0) {
-        return;
-    }
-    if (player == 2) {
-        process = mission_script_process_live(state);
-        if (process != 0) {
-            script = get_cmdscript_for_proc(process);
-            script->unk28 = script_function;
-            xfer_proc(process, call_mission_script);
-        }
-        return;
-    }
-
-    if ((player == 0 && state->fight->field_04 == 0) ||
-        (player == 1 && state->fight->field_04 == 1)) {
-        process = g_game_info.plyr0.idle_proc;
-        script = get_cmdscript_for_proc(process);
-        script->unk28 = script_function;
-        xfer_player_proc(process, call_mission_script);
-        return;
-    }
-    process = g_game_info.plyr1.idle_proc;
-    script = get_cmdscript_for_proc(process);
-    script->unk28 = script_function;
-    xfer_player_proc(process, call_mission_script);
-}
-
-static float call_mission_script(void) {
-    if ((unsigned int)active_cmdscript->unk28 != 0) {
-        cmdscript_setup_execution(
-            mission_state->tick_script,
-            active_cmdscript->unk28);
-        cmdscript_execute(mission_state->tick_script);
-    }
-    if (aproc->pid == 0x1001 || aproc->pid == 0x1002) {
-        aproc->vtbl
-            ->jump_sleep(j_exit, 0.0f);
-        return 0.0f;
-    }
-    for (;;) {
-        _mkproc_sleep_ticks = 60.0f;
-        aproc->vtbl->sleep();
-    }
-}
-
-void drone_apply_damage(int player, float damage) {
-    if ((player == 0 && mission_state->fight->field_04 == 0) ||
-        (player == 1 && mission_state->fight->field_04 == 1)) {
-        adjust_p1_life(damage);
-        return;
-    }
-    adjust_p2_life(damage);
-}
-
-void drone_set_health(int player, float health) {
-    float* current_health;
-
-    if ((player == 0 && mission_state->fight->field_04 == 0) ||
-        (player == 1 && mission_state->fight->field_04 == 1)) {
-        current_health = &g_game_info.plyr0.field_0C;
-    } else {
-        current_health = &g_game_info.plyr1.field_0C;
-    }
-    *current_health = health;
-}
-
-void drone_set_position(
-    int player, float x, float y, float z) {
-    PlyrInfo* fighter;
-    Vec position;
-
-    position.x = x;
-    position.y = y;
-    position.z = z;
-    if (mission_state->fight->field_04 == 1) {
-        position.x = -position.x;
-        position.z = -position.z;
-    }
-    fighter = player == 0 ? mission_state->fight : mission_state->drone;
-    move_player(
-        fighter->slot.mirror_a, &position,
-        &fighter->slot.mirror_a->ang);
-    force_midpoint_calculation_update = 1;
-}
+void drone_set_script(int player, int script_function);
+void drone_apply_damage(int player, float damage);
+void drone_set_health(int player, float health);
+void drone_set_position(int player, float x, float y, float z);
 
 static inline void wait_for_drone_getup(MkProc* process, int* timeout) {
     if (process == 0) {
@@ -1908,872 +591,964 @@ static inline void wait_for_drone_getup(MkProc* process, int* timeout) {
         aproc->vtbl->sleep();
     }
 }
+void drone_change_to_style(int player, int style);
+void drone_do_special_move(int player, int script_function);
+void drone_dispatch_switches(int player);
+void drone_set_switch_state(int player, unsigned int switch_state);
+int get_konquest_drone_switch_state(int player);
+void trial_set_move_message(const char* message, const char* parameter);
+void trial_clear_provision(void);
+void trial_register_combo(int player, int hit_count, PlyrPdata* pdata, float damage);
+void trial_set_combo_requirement(int hits, float damage);
+void trial_add_required_attack(unsigned char attack, unsigned char count, int flags);
+void trial_add_required_sequence(const char* message, const char* message_parameter);
+void trial_register_attack(int player, unsigned char attack_type, unsigned char attack_value);
+void trial_set_type(int type);
+int trial_check_state(void);
+void trial_add_success_condition(int index, int value, int required_count);
+void trial_state_collision_check(int collision_result, int player);
+static int register_condition(const struct KonquestMissionCondition* condition);
+void trial_increment_state_value(int player, int state_index, int opponent_event);
+float p_konquest_register_bleeding(void);
+static float p_trial_tick(void);
+void trial_start_new_round(void);
 
-void drone_change_to_style(int player, int style) {
-    FighterMirror* fighter;
-    int timeout;
-    int attempts;
-    PlyrInfo* info;
-    MkProc* idle_process;
+int trial_end_round(void);
+void skip_end_of_trial_wrapup(void);
+float end_of_trial_wrapup(int winner);
 
-    attempts = 0;
-    if ((player == 0 && mission_state->fight->field_04 == 0) ||
-        (player == 1 && mission_state->fight->field_04 == 1)) {
-        info = mission_state->fight;
-    } else {
-        info = mission_state->drone;
+
+static inline struct TrialWrapupEntry* wrapup_select_entry(
+    struct TrialWrapupEntry* table, unsigned short choice) {
+    int i;
+
+    for (i = 0; i < choice; i++) {
+        table++;
     }
-    fighter = info->slot.fighter;
-    timeout = 0xF0;
-    if ((player == 0 && mission_state->fight->field_04 == 0) ||
-        (player == 1 && mission_state->fight->field_04 == 1)) {
-        idle_process = g_game_info.plyr0.idle_proc;
-    } else {
-        idle_process = g_game_info.plyr1.idle_proc;
-    }
-    wait_for_drone_getup(idle_process, &timeout);
-    while (fighter->style_idx != style && attempts < 5) {
-        struct KonquestSwitchPdata* pdata;
-        MkProc* process = _create_mkproc_generic_tinystack(
-            0x3002, 6, switch_proc_advance_moveset,
-            sizeof(struct KonquestSwitchPdata), (MkHdr**)&pdata);
+    return table;
+}
 
-        if (process != 0) {
-            process->pre_destroy = pre_switchp;
-            process->destroy_cb = post_switchp;
-            pdata->player = info;
+static inline void trial_transform_monk_into_player(struct KonquestMissionState* state,
+                                                    MkObj* monk) {
+    MkProc* script_process;
+
+    if (monk != 0) {
+        script_process = MK_LIVE(state->script_process, state->script_process_instance);
+        if (script_process == 0) {
+            return;
         }
-        _mkproc_sleep_ticks = 15.0f;
-        aproc->vtbl->sleep();
-        attempts++;
-    }
-}
-
-void drone_do_special_move(int player, int script_function) {
-    PlyrInfo* fighter;
-    CmdScript* script;
-
-    if ((player == 0 && mission_state->fight->field_04 == 0) ||
-        (player == 1 && mission_state->fight->field_04 == 1)) {
-        fighter = mission_state->fight;
-    } else {
-        fighter = mission_state->drone;
-    }
-    script = get_cmdscript_for_proc(fighter->idle_proc);
-    if (script != 0) {
-        script->unk28 = script_function;
-        xfer_proc(
-            fighter->idle_proc, p_run_special_move);
-    }
-}
-
-static float p_run_special_move(void) {
-    cmdscript_reset_stack();
-    cmdscript_setup_execution(
-        plyr_pdata->cmo, active_cmdscript->unk28);
-    call_player_script_function(plyr_pdata->cmo);
-    return -1.0f;
-}
-
-void drone_dispatch_switches(int player) {
-    int index;
-    unsigned int mask;
-    SwitchMapEntry* switch_map;
-    unsigned int switch_state;
-    PlyrInfo* player_info;
-
-    if ((player == 0 && mission_state->fight->field_04 == 0) ||
-        (player == 1 && mission_state->fight->field_04 == 1)) {
-        switch_map = g_game_info.pads[0].switch_map;
-        player_info = &g_game_info.plyr0;
-        switch_state = mission_state->player_one_switch_state;
-    } else {
-        switch_map = g_game_info.pads[1].switch_map;
-        player_info = &g_game_info.plyr1;
-        switch_state = mission_state->player_two_switch_state;
-    }
-    for (index = 0, mask = 1; index < 16; index++, mask <<= 1) {
-        if ((switch_state & mask) != 0) {
-            struct KonquestSwitchPdata* pdata;
-            MkProc* process = _create_mkproc_generic_tinystack(
-                0x3002, 6, switch_map[index].proc_fn,
-                sizeof(struct KonquestSwitchPdata), (MkHdr**)&pdata);
-
-            if (process != 0) {
-                process->pre_destroy = pre_switchp;
-                process->destroy_cb = post_switchp;
-                pdata->player = player_info;
+        if (state->transform_complete == 0) {
+            xfer_proc(script_process, p_transform_into_player);
+            while (script_process->entry == p_transform_into_player) {
+                _mkproc_sleep_ticks = 1.0f;
+                aproc->vtbl->sleep();
             }
         }
     }
+    mission_state->transform_complete = 1;
 }
+void trial_round_init(void);
+void trial_game_init(void);
+PlyrInfo* trial_get_drone_info(void);
+void trial_setup_fight(void);
+static const char* fn_stub3(void);
+void konquest_map_setup_fight(int mission, int pair_a_low, int pair_a_high, int pair_b_low,
+                              int pair_b_high, int value_a, int value_b, int background_root,
+                              const char* fight_name);
 
-void drone_set_switch_state(int player, unsigned int switch_state) {
-    MkObj* first;
-    MkObj* second;
-    unsigned int* stored_state;
-
-    if ((player == 0 && mission_state->fight->field_04 == 0) ||
-        (player == 1 && mission_state->fight->field_04 == 1)) {
-        first = g_game_info.plyr0.slot.mirror_a;
-        stored_state = &mission_state->player_one_switch_state;
-        second = g_game_info.plyr1.slot.mirror_a;
-    } else {
-        first = g_game_info.plyr1.slot.mirror_a;
-        stored_state = &mission_state->player_two_switch_state;
-        second = g_game_info.plyr0.slot.mirror_a;
-    }
-    if (is_a_to_the_right_of_b(first, second) != 0) {
-        *stored_state = ((switch_state * 4) & 0x8000) |
-            ((switch_state & 0xFFFF5FFF) |
-             ((switch_state >> 2) & 0x2000));
-        return;
-    }
-    *stored_state = switch_state;
-}
-
-int get_konquest_drone_switch_state(int player) {
+MkObj* trial_get_monk(void) {
     struct KonquestMissionState* state = get_mission_state();
+    MkObj* monk;
 
     mission_state = state;
     if (state == 0) {
         return 0;
     }
-    if (player == 0) {
-        return state->player_one_switch_state;
-    }
-    return state->player_two_switch_state;
-}
-
-#pragma dont_inline on
-static void increment_progress_count(unsigned char increment) {
-    StringObj* string;
-    char text[48];
-
-    mission_state->progress_count += increment;
-    if (mission_state->progress_count >=
-        mission_state->progress_required) {
-        mission_state->progress_count =
-            mission_state->progress_required;
-    }
-    if (increment != 0) {
-        snd_req(0x15EB);
-    }
-    if (increment != 0 && (mission_state->display_flags & 2)) {
-        mission_state->drone->field_0C = 1.0f;
-    }
-    if (mission_state->display_item_a == 0) {
-        return;
-    }
-
-    sprintf(
-        text, mission_state->display_format,
-        mission_state->progress_count,
-        mission_state->progress_required);
-    string = MK_LIVE(mission_state->progress_string,
-        mission_state->progress_string_instance);
-    if (string != 0) {
-        update_string_obj(string, 6, text);
-    } else {
-        string = string_right_xy(
-            0x9007, 6, text, screen_width - 0x28,
-            0x146, 0x22);
-        if (string != 0) {
-            mission_state->progress_string = string;
-            mission_state->progress_string_instance = string->instance;
-        }
-    }
-    show_background_box(
-        2, (screen_width - 0x32) - string->text_w,
-        0x144, 0x24, string->text_w + 0x14, 0x1C);
-}
-#pragma dont_inline reset
-
-static void trial_show_move_message(void) {
-    StringObj* string;
-    char text[48];
-
-    if (mission_state->display_item_c == 0) {
-        return;
-    }
-    if (mission_state->move_message != 0) {
-        string = MK_LIVE(mission_state->move_string.object, mission_state->move_string.instance);
-        if (string != 0) {
-            update_string_obj(string, 6, mission_state->move_message);
-        } else {
-            string = string_left_xy(
-                0x9007, 6, mission_state->move_message,
-                0x28, 0x16E, 0x22);
-            if (string != 0) {
-                mission_state->move_string.object = string;
-                mission_state->move_string.instance = string->instance;
-            }
-        }
-        if (*mission_state->move_message != ' ') {
-            show_background_box(
-                1, 0x1E, 0x16C, 0x24,
-                string->text_w + 0x14, 0x1A);
-        } else {
-            hide_background_box(&mission_state->background_boxes[1]);
-        }
-    }
-
-    if (mission_state->move_message_param != 0) {
-        strcpy(text, mission_state->move_message_param);
-        rewrite_button_string(
-            movelist_charmap, text,
-            mission_state->move_description_flipped,
-            (int*)g_game_info
-                .pads[mission_state->fight->pad_index].switch_map);
-        string = MK_LIVE(mission_state->move_param_string.object, mission_state->move_param_string.instance);
-        if (string != 0) {
-            update_string_obj(string, 7, text);
-        } else {
-            string = string_right_xy(
-                0x9007, 7, text, screen_width - 0x28,
-                0x16C, 0x22);
-            if (string != 0) {
-                mission_state->move_param_string.object = string;
-                mission_state->move_param_string.instance = string->instance;
-            }
-        }
-        if (*mission_state->move_message_param != ' ') {
-            show_background_box(
-                0, (screen_width - 0x32) - string->text_w,
-                0x166, 0x24, string->text_w + 0x14, 0x22);
-        } else {
-            hide_background_box(&mission_state->background_boxes[0]);
-        }
-    }
-}
-
-static void show_background_box(
-    int style, int x, int y, int priority, int width, int height) {
-    struct KonquestBackgroundBox* box =
-        &mission_state->background_boxes[style];
-    ScreenObj* object;
-
-    object = box->pieces[0].object;
-    object = (object != 0)
-        ? (box->pieces[0].object->instance == box->pieces[0].instance ? object : 0)
-        : 0;
-    if (object == 0) {
-        object = load_2d_pfxobj(
-            0x2001E, 0x9006, 0x0A93000D, 0, priority);
-        if (object != 0) {
-            box->pieces[0].object = object;
-            box->pieces[0].instance = object->instance;
-        }
-    }
-    if (object != 0) {
-        object->x = x + 1;
-        object->y = y + 1;
-        object->flag_bits.scaled = 1;
-        object->flag_bits.hidden = 0;
-        object->scale_x = width - 2;
-        object->scale_y = height - 2;
-        pfx_2d_obj_set_alpha(object, 0xA5);
-    }
-
-    object = MK_LIVE(box->pieces[1].object, box->pieces[1].instance);
-    if (object == 0) {
-        object = load_2d_pfxobj(
-            0x2001E, 0x9006, 0x0A93000E, 0, priority);
-        if (object != 0) {
-            box->pieces[1].object = object;
-            box->pieces[1].instance = object->instance;
-        }
-    }
-    if (object != 0) {
-        object->x = x;
-        object->y = y;
-        object->flag_bits.scaled = 1;
-        object->flag_bits.hidden = 0;
-        object->scale_x = width;
-        object->scale_y = 1.0f;
-        pfx_2d_obj_set_alpha(object, 0xA5);
-    }
-
-    object = MK_LIVE(box->pieces[2].object, box->pieces[2].instance);
-    if (object == 0) {
-        object = load_2d_pfxobj(
-            0x2001E, 0x9006, 0x0A93000E, 0, priority);
-        if (object != 0) {
-            box->pieces[2].object = object;
-            box->pieces[2].instance = object->instance;
-        }
-    }
-    if (object != 0) {
-        object->x = x;
-        object->y = y + height;
-        object->flag_bits.scaled = 1;
-        object->flag_bits.hidden = 0;
-        object->scale_x = width;
-        object->scale_y = 1.0f;
-        pfx_2d_obj_set_alpha(object, 0xA5);
-    }
-
-    object = MK_LIVE(box->pieces[3].object, box->pieces[3].instance);
-    if (object == 0) {
-        object = load_2d_pfxobj(
-            0x2001E, 0x9006, 0x0A93000E, 0, priority);
-        if (object != 0) {
-            box->pieces[3].object = object;
-            box->pieces[3].instance = object->instance;
-        }
-    }
-    if (object != 0) {
-        object->x = x;
-        object->y = y;
-        object->flag_bits.scaled = 1;
-        object->flag_bits.hidden = 0;
-        object->scale_x = 1.0f;
-        object->scale_y = height;
-        pfx_2d_obj_set_alpha(object, 0xA5);
-    }
-
-    object = MK_LIVE(box->pieces[4].object, box->pieces[4].instance);
-    if (object == 0) {
-        object = load_2d_pfxobj(
-            0x2001E, 0x9006, 0x0A93000E, 0, priority);
-        if (object != 0) {
-            box->pieces[4].object = object;
-            box->pieces[4].instance = object->instance;
-        }
-    }
-    if (object != 0) {
-        object->x = x + width;
-        object->y = y;
-        object->flag_bits.scaled = 1;
-        object->flag_bits.hidden = 0;
-        object->scale_x = 1.0f;
-        object->scale_y = height;
-        pfx_2d_obj_set_alpha(object, 0xA5);
-    }
-}
-
-void trial_set_move_message(
-    const char* message, const char* parameter) {
-    mission_state->move_message = message;
-    mission_state->move_message_param = parameter;
-}
-
-void trial_clear_provision(void) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state != 0 && plyr_obj == state->fight->slot.mirror_a) {
-        state->condition_active = 0;
-    }
-}
-
-void trial_register_combo(
-    int player, int hit_count, PlyrPdata* pdata, float damage) {
-    struct KonquestMissionState* state = get_mission_state();
-    PlyrInfo* fight;
-    int complete;
-
-    mission_state = state;
-    if (state == 0) {
-        return;
-    }
-    if (mode_of_play != 8) {
-        return;
-    }
-    fight = state->fight;
-    if (fight == 0) {
-        return;
-    }
-    if (player == fight->field_04 ||
-        !g_game_info.flag_bits.lens_flare_enabled) {
-        return;
-    }
-    if (state->trial_type == 3) {
-        complete = 0;
-        if (state->combo_damage > 0.0f && damage >= state->combo_damage) {
-            complete = 1;
-        }
-        if (state->combo_hits > 0) {
-            if (hit_count >= state->combo_hits) {
-                complete = 1;
-            } else {
-                complete = 0;
-            }
-        }
-        state->combo_complete = complete;
-        return;
-    }
-    if (state->trial_type != 1) {
-        return;
-    }
-    if (player != fight->field_04) {
-        struct KonquestRequiredSequenceList* list =
-            &state->required_sequences;
-        struct KonquestRequiredSequence* sequence =
-            &list->entries[list->current_sequence];
-
-        if (sequence != 0) {
-            sequence->current = sequence->first;
-        }
-    }
-}
-
-void trial_set_combo_requirement(int hits, float damage) {
-    mission_state->combo_hits = hits;
-    mission_state->combo_damage = damage;
-}
-
-void trial_add_required_attack(
-    unsigned char attack, unsigned char count, int flags) {
-    struct KonquestRequiredSequenceList* list =
-        &mission_state->required_sequences;
-    struct KonquestRequiredSequence* sequence =
-        &list->entries[list->current_sequence - 1];
-    struct KonquestRequiredAttack* required_attack =
-        &list->attacks[list->attack_count];
-
-    if (sequence == 0 || required_attack == 0 || list == 0) {
-        return;
-    }
-    required_attack->type = attack;
-    required_attack->value = count;
-    required_attack->flags = flags;
-    required_attack->next = 0;
-    if (sequence->current != 0) {
-        sequence->current->next = required_attack;
-    } else {
-        sequence->first = required_attack;
-    }
-    sequence->current = required_attack;
-    list->attack_count++;
-}
-
-void trial_add_required_sequence(
-    const char* message, const char* message_parameter) {
-    struct KonquestRequiredSequenceList* list =
-        &mission_state->required_sequences;
-    struct KonquestRequiredSequence* sequence =
-        &list->entries[list->current_sequence];
-
-    if (sequence == 0 || list == 0) {
-        return;
-    }
-    sequence->message_parameter = message_parameter;
-    sequence->message = message;
-    list->current_sequence++;
-    list->sequence_count++;
-    mission_state->progress_required++;
-}
-
-void trial_register_attack(
-    int player, unsigned char attack_type, unsigned char attack_value) {
-    struct KonquestMissionState* state = get_mission_state();
-    int trial_type;
-
-    mission_state = state;
-    if (state == 0 || mode_of_play != 8 ||
-        !g_game_info.flag_bits.lens_flare_enabled) {
-        return;
-    }
-    if (active_cmdscript != 0 && plyr_pdata != 0 &&
-        active_cmdscript->mko == plyr_pdata->cmo) {
-        attack_type = 3;
-    }
-    trial_type = state->trial_type;
-    if (trial_type == 1 && player == state->fight->field_04) {
-        unsigned char sequence_index;
-        struct KonquestRequiredSequenceList* list;
-        struct KonquestRequiredSequence* sequence;
-        struct KonquestRequiredAttack* required_attack;
-
-        sequence_index = state->required_sequences.current_sequence;
-        list = &state->required_sequences;
-        sequence = &list->entries[sequence_index];
-        required_attack = sequence->current;
-        if (sequence == 0 || required_attack == 0 || list == 0) {
-            return;
-        }
-        if (required_attack->type != attack_type &&
-            required_attack->type != 0xFF) {
-            return;
-        }
-        if (required_attack->value != attack_value &&
-            required_attack->value != 0xFF) {
-            return;
-        }
-        if (required_attack->flags == 0) {
-            increment_required_moves_progress(sequence, list);
-            return;
-        }
-        state->condition_value = sequence_index;
-        mission_state->condition_player =
-            mission_state->drone->field_04;
-        mission_state->condition_mode = 1;
-        mission_state->condition_active = 1;
-        if (active_cmdscript != 0 && active_cmdscript->attrs_table != 0) {
-            struct KonquestTrialScriptAttrs* attrs =
-                active_cmdscript->attrs_table;
-
-            mission_state->condition_ticks = attrs->condition_ticks;
-        } else {
-            mission_state->condition_ticks = 1;
-        }
-    } else if (trial_type == 0 &&
-               player == state->fight->field_04) {
-        trial_increment_state_value(player, 5, 0);
-    }
-}
-
-void trial_set_type(int type) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state != 0) {
-        state->trial_type = type;
-        if (type == 2) {
-            struct KonquestMissionState* active_state = mission_state;
-
-            active_state->display_flags = 9;
-            mission_state->randomized_side = (unsigned short)randu0(2);
-        }
-    }
-}
-
-int trial_check_state(void) {
-    int complete = 0;
-    struct KonquestMissionState* state = get_mission_state();
-    int index;
-    int result;
-    float fight_health;
-    float drone_health;
-
-    mission_state = state;
-    if (state == 0) {
-        return 0;
-    }
-    if (!g_game_info.flag_bits.lens_flare_enabled) {
-        return 0;
-    }
-    fight_health = state->fight->field_0C;
-    drone_health = state->drone->field_0C;
-    switch (state->trial_type) {
-    case 0: {
-        struct KonquestSuccessCondition* conditions = state->success_conditions;
-
-        index = 0;
-        complete = 1;
-        for (; index < 35 && complete; index++) {
-            if (conditions[index].current_count < conditions[index].required_count) {
-                complete = 0;
-            }
-        }
-        break;
-    }
-    case 2:
-        if (drone_health == 0.0f) {
-            complete = 1;
-        }
-        if (g_game_info.field_204 <= 0 && is_timer_off() == 0) {
-            complete = 0;
-        }
-        break;
-    case 1:
-        if (state->progress_count >= state->progress_required) {
-            complete = 1;
-        }
-        break;
-    case 3:
-        complete = state->combo_complete;
-        break;
-    }
-    if (mission_state->field_2E8 != 2) {
-        if (complete) {
-            result = 2;
-            mission_state->current_setup_function =
-                mission_state->next_setup_function;
-            mission_state->next_setup_function = 0;
-            if (mission_state->fight->field_04 == 0) {
-                result = 1;
-            }
-            return result;
-        }
-        if (drone_health == 0.0f || fight_health == 0.0f) {
-            result = 1;
-            if (mission_state->fight->field_04 == 0) {
-                result = 2;
-            }
-            return result;
-        }
-        if (g_game_info.field_204 != 0 || is_timer_off() != 0) {
+    monk = state->monk;
+    if (monk != 0) {
+        if (monk->hdr.instance != state->monk_instance) {
             return 0;
         }
-    }
-    if (g_game_info.field_204 <= 0) {
-        if (complete) {
-            if (mission_state->fight->field_04 == 0) {
-                result = 1;
-            } else {
-                result = 2;
-            }
-        } else {
-            if (mission_state->fight->field_04 == 0) {
-                result = 2;
-            } else {
-                result = 1;
-            }
-        }
-        return result;
+        return monk;
     }
     return 0;
 }
 
-void trial_add_success_condition(int index, int value, int required_count) {
-    struct KonquestMissionState* state = get_mission_state();
-
-    mission_state = state;
-    if (state != 0) {
-        state->success_conditions[index].required_count = required_count;
-        mission_state->success_conditions[index].condition.type = value;
-        mission_state->success_conditions[index].condition.value = index;
-        mission_state->progress_required += (unsigned char)required_count;
+void konquest_map_setup_fight(
+    int mission, int pair_a_low, int pair_a_high,
+    int pair_b_low, int pair_b_high, int value_a, int value_b,
+    int background_root, const char* fight_name) {
+    konquest_save_data.mission_pair_a =
+        (unsigned int)pair_a_low | ((unsigned int)pair_a_high << 16);
+    konquest_save_data.mission_pair_b =
+        (unsigned int)pair_b_low | ((unsigned int)pair_b_high << 16);
+    konquest_save_data.next_value_a = value_a;
+    konquest_save_data.next_value_b = value_b;
+    konquest_save_data.next_mission = mission;
+    konquest_save_data.background_and_flags =
+        (unsigned int)konquest_pdata->region->background_id |
+        ((unsigned int)background_root << 16);
+    if (fight_name != 0) {
+        strncpy(konquest_save_data.fight_name, fight_name, 0x40);
+    } else {
+        konquest_save_data.fight_name[0] = '\0';
     }
 }
 
-void trial_state_collision_check(int collision_result, int player) {
+static void pw_konquest_trial_monk(void) {
     struct KonquestMissionState* state = get_mission_state();
-    int airborne;
-    int boost_active;
-    int condition_mode;
+    MkProc* process;
 
     mission_state = state;
-    if (state == 0 || mode_of_play != 8 ||
-        !g_game_info.flag_bits.lens_flare_enabled) {
+    if (state == 0) {
         return;
     }
-    if (state->condition_active != 0) {
-        state->condition_ticks--;
-        if (mission_state->condition_ticks < 0) {
-            mission_state->condition_ticks = 0;
+    process = MK_LIVE(state->monk_process, state->monk_process_instance);
+    if (process != 0) {
+        current_anim_pdata = (AnimPdata*)pdata_of_proc(process);
+    }
+}
+
+static void ps_konquest_trial_monk(void) {
+    current_anim_pdata = 0;
+}
+
+static const char* fn_stub3(void) {
+    return "konquest_trial_anims.sec";
+}
+
+static void trial_load_monk(void) {
+    struct KonquestMissionState* state = get_mission_state();
+    const Vec* position;
+    const Vec* angles;
+    MkProc* monk_process;
+    AnimPdata* animation;
+    MkObj* player_object;
+    MkObj* monk;
+    MkProc* script_process;
+    AniTextureControl* face_texture;
+
+    mission_state = state;
+    if (state == 0 || state->fight->player_index == 0x1A || state->fight->player_index == 0x19) {
+        return;
+    }
+    if (state->fight->field_04 == 0) {
+        position = &g_game_info.misc->player0_start;
+        angles = &g_game_info.misc->player0_angles;
+    } else {
+        position = &g_game_info.misc->player1_start;
+        angles = &g_game_info.misc->player1_angles;
+    }
+
+    monk_process = load_hero_model(bgnd_animations.monk_animation);
+    if (monk_process != 0) {
+        player_object = mission_state->fight->slot.mirror_a;
+        player_object->flags.hidden = 1;
+        xfer_proc(monk_process, p_animate);
+        animation = (AnimPdata*)pdata_of_proc(monk_process);
+        mission_state->monk_process = monk_process;
+        mission_state->monk_process_instance = monk_process->instance;
+
+        monk = MK_HDR_LIVE(animation->obj, animation->obj_instance);
+
+        if (monk != 0) {
+            monk->light_flags = player_object->light_flags;
+            monk->pos.value.x = position->x;
+            monk->pos.value.y = position->y;
+            monk->pos.value.z = position->z;
+            monk->ang.x = angles->x;
+            monk->ang.y = angles->y;
+            monk->ang.z = angles->z;
+            monk->flags.scale_active = 1;
+            monk->scale.x = 1.1f;
+            monk->scale.y = 1.1f;
+            monk->scale.z = 1.1f;
+            monk->flags.pin_animation = 0;
+            mission_state->monk = monk;
+            mission_state->monk_instance = monk->hdr.instance;
+            insert_ground_me_mkobj(monk);
+            monk->flags.launched = 1;
+            monk->flags.bit09_6 = 1;
         }
-        if (mission_state->trial_type == 0) {
-            struct KonquestSuccessCondition* conditions =
-                mission_state->success_conditions;
 
-            if (mission_state->condition_player != player) {
-                return;
-            }
-            airborne = is_pX_airborn(player);
-            if (player == 0) {
-                boost_active = g_game_info.plyr1.slot.pdata
-                    ->damage_boost_until > (unsigned int)game_tick_ctr;
-            } else {
-                boost_active = g_game_info.plyr0.slot.pdata
-                    ->damage_boost_until > (unsigned int)game_tick_ctr;
-            }
-            condition_mode = mission_state->condition_mode;
-            if ((condition_mode == 1 && collision_result == 1) ||
-                (condition_mode == 2 && airborne != 0 &&
-                 collision_result == 1) ||
-                (condition_mode == 3 && boost_active != 0 &&
-                 collision_result == 1) ||
-                (condition_mode == 0 && collision_result == 0)) {
-                increment_progress_count(1);
-                conditions[mission_state->condition_value].current_count++;
-                mission_state->condition_active = 0;
-            }
-        } else if (mission_state->trial_type == 1) {
-            struct KonquestRequiredSequenceList* list =
-                &mission_state->required_sequences;
-            struct KonquestRequiredSequence* sequence =
-                &list->entries[mission_state->condition_value];
-
-            if (sequence == 0 || list == 0) {
-                return;
-            }
-            if (mission_state->condition_player == player) {
-                if (collision_result == 0) {
-                    if (mission_state->condition_ticks == 0) {
-                        sequence->current = sequence->first;
-                        mission_state->condition_active = 0;
-                    }
-                } else {
-                    increment_required_moves_progress(sequence, list);
-                    mission_state->condition_active = 0;
-                }
-            }
+        script_process = _create_mkproc_generic_bigstack(0x9007, 0x1F, p_idle, 0, 0);
+        if (script_process != 0) {
+            set_process_as_scriptable(script_process);
+            mission_state->script_process = script_process;
+            mission_state->script_process_instance = script_process->instance;
+            script_process->pre_destroy = pw_konquest_trial_monk;
+            script_process->destroy_cb = ps_konquest_trial_monk;
+        }
+        face_texture = konquest_create_monk_face_ani_texture(monk);
+        if (face_texture != 0) {
+            mission_state->monk_face_texture.texture = face_texture;
+            mission_state->monk_face_texture.instance = face_texture->instance;
         }
     }
 }
 
-static int register_condition(
-    const struct KonquestMissionCondition* condition) {
+
+static void start_hero_transform_effect(MkObj* hero) {
+    unsigned int emitter;
+    MkObj* effect_object;
+    MkPfx* particle;
+
+    emitter = fx_next_emitter(fx_by_owner("hero_transform_smoke", 4));
+    particle = pfx_from_emitter(emitter);
+    effect_object = pfx_bind_emitter_num_to_new_obj(particle, 0x6015, 0);
+    get_bone_world_pos(hero, 0x10, &effect_object->pos.value);
+    effect_object->flags.airborne = 1;
+    update_mkobj(effect_object != 0 ? as_mkhdr(&effect_object->hdr) : 0);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x00, 1);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x14, 2);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x15, 3);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x18, 4);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x19, 5);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x04, 6);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x05, 7);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x0A, 8);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x0B, 9);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x09, 10);
+    fx_restart_emit(emitter);
+
+    emitter = fx_next_emitter(fx_by_owner("hero_transform_explode", 4));
+    particle = pfx_from_emitter(emitter);
+    effect_object = pfx_bind_emitter_num_to_new_obj(particle, 0x6015, 0);
+    get_bone_world_pos(hero, 0x10, &effect_object->pos.value);
+    effect_object->flags.airborne = 1;
+    update_mkobj(effect_object != 0 ? as_mkhdr(&effect_object->hdr) : 0);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x00, 1);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x14, 2);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x15, 3);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x18, 4);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x19, 5);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x04, 6);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x05, 7);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x0A, 8);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x0B, 9);
+    fx_restart_emit(emitter);
+    emitter = fx_next_emitter(emitter);
+    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x09, 10);
+    fx_restart_emit(emitter);
+}
+
+#pragma opt_propagation off
+static float p_finish_transform_monk(void) {
+    Vec position = {4000.0f, 0.0f, 4000.0f};
+    Vec angles = {0.0f, 0.0f, 0.0f};
+    MkObj* sidekick;
+    MkObj* monk;
+    MkProc* monk_process;
+    AnimPdata* animation;
+    MkObj* player_object;
+    struct KonquestMissionState* state = mission_state;
+    PlyrPdata* fighter = state->fight->slot.pdata;
+
+    player_object = state->fight->slot.mirror_a;
+
+    sidekick = MK_HDR_LIVE(fighter->sidekick_obj, fighter->sidekick_instance);
+    monk_process = MK_LIVE(state->monk_process, state->monk_process_instance);
+    if (monk_process != 0) {
+        animation = (AnimPdata*)pdata_of_proc(monk_process);
+        animation->step = -0.8f;
+    } else {
+        aproc->vtbl
+            ->jump_sleep(p_idle, 0.0f);
+        return 0.0f;
+    }
+    monk = get_mission_monk();
+    xfer_proc(monk_process, p_anim_idle);
+    set_anim_script_frame(
+        animation, bgnd_animations.monk_transform_animation, 0x43, 32.0f);
+    monk->pos.value.x = player_object->pos.value.x;
+    monk->pos.value.y = player_object->pos.value.y;
+    monk->pos.value.z = player_object->pos.value.z;
+    monk->ang.x = player_object->ang.x;
+    monk->ang.y = player_object->ang.y;
+    monk->ang.z = player_object->ang.z;
+    update_mkobj(monk != 0 ? as_mkhdr(&monk->hdr) : 0);
+    start_hero_transform_effect(player_object);
+    shake_camera(3, 0.03f);
+    _mkproc_sleep_ticks = 15.0f;
+    aproc->vtbl->sleep();
+
+    xfer_camera(p_idle, 1);
+    hide_player(mission_state->fight->slot.pdata, 1);
+    move_player(player_object, &position, &angles);
+    if (sidekick != 0) {
+        sidekick->pos.value.x = position.x;
+        sidekick->pos.value.y = position.y;
+        sidekick->pos.value.z = position.z;
+    }
+    monk->flags.hidden = 0;
+    while (animation->frame > 0.0f) {
+        animpdata_ani_1_frame(animation);
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    animation->step = 1.0f;
+    xfer_proc(monk_process, p_animate);
+    transition_to_anim_script(
+        0.1f, animation, bgnd_animations.monk_animation, 0x40);
+    aproc->vtbl
+        ->jump_sleep(p_idle, 0.0f);
+    return 0.0f;
+}
+#pragma opt_propagation reset
+
+static float p_finish_transform_player(void) {
+    struct KonquestMissionState* state = get_mission_state();
+    MkProc* animation_process;
+    AnimPdata* animation;
+    MkObj* monk;
+
+    mission_state = state;
+    animation_process = MK_LIVE(state->fight->slot.pdata->anim_proc, state->fight->slot.pdata->anim_proc_instance);
+    animation = (AnimPdata*)pdata_of_proc(animation_process);
+    monk = get_mission_monk();
+
+    xfer_proc(animation_process, p_anim_idle);
+    set_anim_script_frame(
+        animation, bgnd_animations.transform_animation, 0x43, 63.0f);
+    plyr_obj->pos.value.x = monk->pos.value.x;
+    plyr_obj->pos.value.y = monk->pos.value.y;
+    plyr_obj->pos.value.z = monk->pos.value.z;
+    update_mkobj(
+        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    start_hero_transform_effect(plyr_obj);
+    shake_camera(3, 0.03f);
+    _mkproc_sleep_ticks = 15.0f;
+    aproc->vtbl->sleep();
+
+    plyr_obj->flags.scale_active = 1;
+    plyr_obj->scale.z = 1.0f;
+    plyr_obj->scale.x = 1.0f;
+    plyr_obj->scale.y = 0.8f;
+    plyr_obj->flags.hidden = 0;
+    monk->flags.hidden = 1;
+
+    while (animation->frame < animation->high_frame - 10.0f) {
+        animpdata_ani_1_frame(animation);
+        if (plyr_obj->scale.y < 1.0f) {
+            plyr_obj->scale.y += 0.02f;
+        } else {
+            plyr_obj->scale.y = 1.0f;
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+    plyr_obj->scale.y = 1.0f;
+    update_mkobj(
+        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
+    plyr_obj->flags.scale_active = 0;
+    aproc->vtbl
+        ->jump_sleep(j_exit_blend_stance, 0.0f);
+    return 0.0f;
+}
+
+static float p_transform_into_player(void) {
+    MkProc* monk_process;
+    AnimPdata* animation;
+    MkProc* player_process;
+
+    monk_process = MK_LIVE(mission_state->monk_process, mission_state->monk_process_instance);
+    if (monk_process != 0) {
+        animation = (AnimPdata*)pdata_of_proc(monk_process);
+        animation->step = 0.8f;
+        xfer_proc(monk_process, p_anim_idle);
+        transition_to_anim_script(
+            0.05f, animation,
+            bgnd_animations.monk_transform_animation, 0x43);
+        animpdata_ani_to_frame_x(animation, 32.0f);
+        snd_req(0x15EF);
+        player_process = mission_state->fight->idle_proc;
+        xfer_player_proc(player_process, p_finish_transform_player);
+        while (player_process->entry == p_finish_transform_player) {
+            animpdata_ani_1_frame(animation);
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+        }
+    }
+    aproc->vtbl
+        ->jump_sleep(p_idle, 0.0f);
+    return 0.0f;
+}
+
+static float p_transform_into_monk(void) {
+    MkProc* script_process;
+    MkProc* animation_process = plyr_anim_proc;
+    AnimPdata* animation = plyr_anim_pdata;
+
+    script_process = MK_LIVE(mission_state->script_process, mission_state->script_process_instance);
+    if (animation_process != 0 && animation != 0) {
+        xfer_proc(animation_process, p_anim_idle);
+        animation->step = -1.0f;
+        transition_to_anim_script_frame(
+            animation, bgnd_animations.transform_animation, 0x43, 0.05f,
+            105.0f);
+        plyr_obj->flags.scale_active = 1;
+        plyr_obj->scale.z = 1.0f;
+        plyr_obj->scale.x = 1.0f;
+        plyr_obj->scale.y = 1.0f;
+        while (animation->frame > 63.0f) {
+            animpdata_ani_1_frame(animation);
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+        }
+        snd_req(0x15EF);
+        xfer_proc(script_process, p_finish_transform_monk);
+        while (script_process->entry == p_finish_transform_monk) {
+            animpdata_ani_1_frame(animation);
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+        }
+    }
+    aproc->vtbl
+        ->jump_sleep(j_exit_blend_stance, 0.0f);
+    return 0.0f;
+}
+
+void trial_setup_fight(void) {
+    PlyrInfo* player;
+    PlyrInfo* drone;
+
+    if (g_game_info.plyr0.player_state == 2) {
+        player = &g_game_info.plyr1;
+        drone = &g_game_info.plyr0;
+    } else {
+        player = &g_game_info.plyr0;
+        drone = &g_game_info.plyr1;
+    }
+    drone->player_index =
+        (unsigned short)konquest_save_data.mission_pair_a;
+    drone->field_14 =
+        (int)konquest_save_data.mission_pair_a >> 16;
+    player->player_index =
+        (unsigned short)konquest_save_data.mission_pair_b;
+    player->field_14 =
+        (int)konquest_save_data.mission_pair_b >> 16;
+    force_bgnd_num =
+        (unsigned short)konquest_save_data.background_and_flags;
+}
+
+PlyrInfo* trial_get_drone_info(void) {
     struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
         return 0;
     }
-    switch (condition->type) {
-    case 0:
-        state->condition_active = 0;
-        return 1;
-    case 1:
-        state->condition_value = condition->value;
-        mission_state->condition_player =
-            mission_state->fight->field_04;
-        mission_state->condition_mode = 1;
-        mission_state->condition_active = 1;
-        break;
-    case 2:
-        state->condition_value = condition->value;
-        mission_state->condition_player =
-            mission_state->drone->field_04;
-        mission_state->condition_mode = 1;
-        mission_state->condition_active = 1;
-        break;
-    case 3:
-        state->condition_value = condition->value;
-        mission_state->condition_player =
-            mission_state->fight->field_04;
-        mission_state->condition_mode = 0;
-        mission_state->condition_active = 1;
-        break;
-    case 4:
-        state->condition_value = condition->value;
-        mission_state->condition_player =
-            mission_state->drone->field_04;
-        mission_state->condition_mode = 2;
-        mission_state->condition_active = 1;
-        break;
-    case 5:
-        state->condition_value = condition->value;
-        mission_state->condition_player =
-            mission_state->drone->field_04;
-        mission_state->condition_mode = 3;
-        mission_state->condition_active = 1;
-        break;
-    }
-    return 0;
+    return state->drone;
 }
 
-static void increment_required_moves_progress(
-    struct KonquestRequiredSequence* sequence,
-    struct KonquestRequiredSequenceList* list) {
-    struct KonquestMissionState* state = get_mission_state();
+void trial_game_init(void) {
+    char mission_name[64];
+    struct KonquestMissionState* state = (struct KonquestMissionState*)get_mkhdr(
+        &vtbl_mkpdata_generic, sizeof(struct KonquestMissionState));
 
     mission_state = state;
-    if (state == 0) {
-        return;
-    }
-    sequence->current = sequence->current->next;
-    if (sequence->current == 0) {
-        sequence->current = sequence->first;
-        increment_progress_count(1);
-        list->current_sequence++;
-        if (list->current_sequence == list->sequence_count) {
-            list->current_sequence = 0;
-            mission_state->move_message = 0;
-            mission_state->move_message_param = 0;
+    if (state != 0) {
+        konquest_save_data.passed_last_mission = 0;
+        konquest_save_data.progression = 0;
+        zero_pdata_payload(sizeof(*state), &state->hdr);
+        mission_state_item.state = mission_state;
+        mission_state_item.instance = mission_state->hdr.instance;
+        if (g_game_info.plyr0.player_state == 2) {
+            mission_state->fight =
+                &g_game_info.plyr0;
+            mission_state->drone =
+                &g_game_info.plyr1;
         } else {
-            const char* message = sequence[1].message;
-            const char* message_parameter =
-                sequence[1].message_parameter;
-
-            mission_state->move_message = message;
-            mission_state->move_message_param = message_parameter;
+            mission_state->fight =
+                &g_game_info.plyr1;
+            mission_state->drone =
+                &g_game_info.plyr0;
         }
-        trial_show_move_message();
+        unassign_player(mission_state->drone);
+        g_game_info.pads[2].flag_bits.connected = 1;
+        assign_player(2);
+        g_game_info.pads[2].flag_bits.connected = 0;
+        set_game_switch_maps();
+        mission_state->display_flags =
+            (unsigned int)konquest_save_data.next_value_a | 4;
+        mission_state->drone_difficulty = konquest_save_data.next_value_b;
+        mission_state->mission_index = konquest_save_data.next_mission;
+        mission_state->current_setup_function = 1;
+        mission_state->damage_scale[0] = 1.0f;
+        mission_state->damage_scale[1] = 1.0f;
+        if (mission_state->display_flags & 1) {
+            mission_state->trial_type = 2;
+        }
+        load_ssf(konquest_region_data[konquest_save_data.region_index].art_files);
+        load_string_bank(
+            0x20000,
+            konquest_region_data[konquest_save_data.region_index].string_bank);
+        sprintf(
+            mission_name, "mission_%03d.mko",
+            mission_state->mission_index);
+        mission_state->tick_script =
+            cmdscript_loadfile_by_name(0x10, mission_name);
+        trial_load_monk();
+        add_art_section_by_name_async_language(
+            0x2001E, "trial_sprites.sec");
+        wait_for_slot_load(0x2001E);
+        load_font(6);
+        load_font(7);
+        mission_state->tune_table =
+            get_data_table_by_name("bgnd_music");
+        g_game_info.plyr0.field_0C = 1.0f;
+        g_game_info.plyr1.field_0C = 1.0f;
+        g_game_info.plyr0.field_10 = 1.0f;
+        g_game_info.plyr1.field_10 = 1.0f;
     }
 }
 
-void trial_increment_state_value(
-    int player, int state_index, int opponent_event) {
+void trial_round_init(void) {
     struct KonquestMissionState* state = get_mission_state();
-    struct KonquestSuccessCondition* conditions;
-    struct KonquestSuccessCondition* entry;
+    int i;
+    struct KonquestRequiredSequenceList* sequences;
+    MkObj* monk;
+    MkProc* process;
+    int flipped;
 
     mission_state = state;
-    if (!(state != 0 && mode_of_play == 8) ||
-        !g_game_info.flag_bits.lens_flare_enabled) {
+    if (state == 0) {
         return;
     }
-    if ((opponent_event != 0 || player == state->fight->field_04) &&
-        (opponent_event != 1 || player != state->fight->field_04) &&
-        state->trial_type == 0) {
-        conditions = state->success_conditions;
-        entry = &conditions[state_index];
-        if (entry->required_count <= 0 ||
-            entry->current_count >= entry->required_count) {
-            return;
-        }
-        if (register_condition(&entry->condition)) {
-            increment_progress_count(1);
-            conditions[state_index].current_count++;
+
+    state = get_mission_state();
+    mission_state = state;
+    if (state != 0) {
+        turn_camera_on();
+        if (g_game_info.pselect.field_1f4 == 1) {
+            turn_camera_on();
+            skip_camera_intro();
+            if (mission_state->transform_complete == 0) {
+                fade_from_black(20, 0);
+            }
+        } else if (mission_state->display_flags & 1) {
+            _mkproc_sleep_ticks = 90.0f;
+            aproc->vtbl->sleep();
         }
     }
-}
 
-#pragma dont_inline on
-float p_konquest_register_bleeding(void) {
-    struct KonquestMissionState* state = MK_HDR_LIVE(mission_state_item.state,
-                                                mission_state_item.instance);
+    push_game_state(6);
 
+    state = get_mission_state();
     mission_state = state;
     if (state == 0) {
-        return -1.0f;
-    }
-    if (mode_of_play != 8 ||
-        !g_game_info.flag_bits.lens_flare_enabled) {
-        return -1.0f;
-    }
-    if (state->trial_type != 0 || state->bleeding_required <= 0) {
-        return -1.0f;
-    }
-    if (state->drone->slot.pdata->postround_value == 0.0f) {
-        return -1.0f;
-    }
-    if (state->fight->field_04 == 0) {
-        become_plyr2_proc();
+        monk = 0;
     } else {
-        become_plyr1_proc();
+        monk = MK_HDR_LIVE(state->monk, state->monk_instance);
     }
-    trial_increment_state_value(plyr_pdata->plyr_num, 0x18, 1);
-    return 30.0f;
-}
-#pragma dont_inline reset
 
-static float p_trial_tick(void) {
-    struct KonquestMissionState* state = get_mission_state();
-
+    state = get_mission_state();
     mission_state = state;
-    if (state == 0) {
-        return -1.0f;
+    if (state != 0) {
+        trial_transform_monk_into_player(state, monk);
     }
-    if (state->tick_script_function == 0) {
-        return -1.0f;
-    }
-    cmdscript_setup_execution(
-        state->tick_script, state->tick_script_function);
-    cmdscript_execute(mission_state->tick_script);
-    return 1.0f;
-}
 
-void trial_start_new_round(void) {
-    g_game_info.flag_bits.field_bit0 = 0;
-    if (mission_state->round_health_restoration > 0.0) {
-        mission_state->fight->field_0C +=
-            mission_state->round_health_restoration;
+    mission_state->player_one_wrapup_state = 0;
+    mission_state->player_two_wrapup_state = 0;
+    mission_state->restriction_phase = 0;
+    if (mission_state->display_flags & 4) {
+        turn_controllers_on();
+        mission_state->display_flags &= ~4;
+        memset(
+            &mission_state->required_sequences, 0,
+            sizeof(mission_state->required_sequences));
+        mission_state->progress_count = 0;
+        mission_state->progress_required = 0;
+        mission_state->field_2E8 = 0;
+        mission_state->tick_script_function = 0;
+        g_game_info.plyr0.slot.pdata->breaker_strength = 3;
+        g_game_info.plyr1.slot.pdata->breaker_strength = 3;
+        if (mission_state->current_setup_function == 0) {
+            g_game_info.pselect.field_1f4 = 1;
+            mission_state->fight->field_40 = 0;
+            mission_state->drone->field_40 = 0;
+            mission_state->current_setup_function = 1;
+        }
+        cmdscript_setup_execution(
+            mission_state->tick_script,
+            mission_state->current_setup_function);
+        cmdscript_execute(mission_state->tick_script);
+        if (mission_state->display_flags & 1) {
+            turn_controllers_off();
+        }
+        init_pwr_bars();
+        if (are_powerbars_retracted()) {
+            extend_powerbars();
+        }
     } else {
-        mission_state->fight->field_0C =
-            mission_state->fight->field_10;
+        if (are_powerbars_retracted()) {
+            init_pwr_bars();
+            extend_powerbars();
+        }
+        start_powerbar_monitor();
     }
-    if (mission_state->fight->field_0C > 1.0) {
-        mission_state->fight->field_0C = 1.0f;
+    pop_game_state();
+
+    if (mission_state->trial_type == 1) {
+        sequences = &mission_state->required_sequences;
+        for (i = 0; i < sequences->sequence_count; i++) {
+            sequences->entries[i].current = sequences->entries[i].first;
+        }
+        mission_state->progress_required = sequences->sequence_count;
+        sequences->current_sequence = 0;
+        trial_set_move_message(
+            mission_state->required_sequences.entries[0].message,
+            mission_state->required_sequences.entries[0].message_parameter);
     }
-    mission_state->drone->field_0C =
-        mission_state->drone->field_10;
+
+    if (mission_state->tick_script_function != 0) {
+        process = _create_mkproc_generic_bigstack(
+            0x9003, 6, p_trial_tick, 0, 0);
+        if (process != 0) {
+            set_process_as_scriptable(process);
+        }
+    }
+    if (mission_state->display_item_c != 0) {
+        _create_mkproc_generic_nostack(
+            0x9004, 0x1F, p_flip_move_description, 0, 0);
+        state = get_mission_state();
+        mission_state = state;
+        if (state != 0) {
+            flipped = is_a_to_the_right_of_b(
+                state->fight->slot.mirror_a, state->drone->slot.mirror_a);
+        } else {
+            flipped = 0;
+        }
+        mission_state->move_description_flipped = flipped;
+    }
+    trial_show_move_message();
+    increment_progress_count(0);
+    if (mission_state->drone_difficulty == 8 &&
+        mission_state->drone->pad_index >= 0) {
+        turn_port_off(mission_state->drone->pad_index);
+    }
+    mission_state->field_2E8 = 0;
+    g_game_info.field_204 = mission_state->round_timer;
 }
 
+static float successful_trial_player_wrapup(void) {
+    set_ani_speed(1.0f);
+    blend_to_stance(0.1f);
+    _mkproc_sleep_ticks = 10.0f;
+    aproc->vtbl->sleep();
+    mission_state->player_one_wrapup_state = 2;
+    aproc->vtbl
+        ->jump_sleep(j_exit_blend_stance, 0.0f);
+    return 0.0f;
+}
+
+static float successful_trial_drone_wrapup(void) {
+    int sound_id;
+    LipSyncKeyframe* lip_sync;
+    int generic;
+    struct TrialWrapupData* wrapup =
+        mission_state->drone->slot.pdata->status_data->trial_wrapup_data;
+    struct TrialWrapupEntry* entry;
+    MkProc* animation_process;
+    AnimPdata* animation_pdata;
+    AnimScript* animation;
+    unsigned short choice;
+    int i;
+    float duration;
+    float post_sound_delay;
+    float animation_duration;
+
+    if (wrapup != 0) {
+        entry = wrapup->success_table;
+        choice = randu0(
+            (unsigned short)get_row_count_for_table_by_pointer(
+                plyr_pdata->cmo, entry));
+        for (i = 0; i < choice; i++) {
+            entry++;
+        }
+        wrapup->selected_success = entry;
+        generic = 0;
+    } else {
+        entry = wrapup_select_entry(generic_char_success_table, randu0(5));
+        generic_char_wrapup_data.selected_success = entry;
+        generic = 1;
+    }
+    sound_id = entry->sound_id;
+    lip_sync = entry->lip_sync;
+    post_sound_delay = entry->post_sound_delay;
+
+    set_ani_speed(1.0f);
+    rotate_towards_him(0.2f);
+    blend_to_stance(0.1f);
+    _mkproc_sleep_ticks = 30.0f;
+    aproc->vtbl->sleep();
+    if (is_weapon_style(plyr_pdata->fighter_definition)) {
+        plyr_weapon_hide(plyr_pdata, 0, plyr_pdata->mirror_slots);
+    }
+
+    if (apdata != 0) {
+        PlyrPdata* pdata = (PlyrPdata*)apdata;
+
+        animation_process = MK_LIVE(pdata->anim_proc, pdata->anim_proc_instance);
+
+        if (animation_process != 0) {
+            animation_pdata =
+                (AnimPdata*)pdata_of_proc(animation_process);
+            if (animation_pdata != 0) {
+                animation_pdata->flags |= 0x4000;
+            }
+        }
+    }
+
+    duration = duration_of_lip_sync(lip_sync);
+    if (entry->animation_id >= 3000) {
+        animation = get_animation(entry->animation_id);
+    } else {
+        animation = get_animation(entry->animation_id + 3000);
+    }
+    if (animation != 0 && plyr_anim_pdata != 0) {
+        transition_to_anim_script(
+            0.1f, plyr_anim_pdata, animation, 0x4003);
+        animation_duration =
+            animation->frame_count;
+        if (animation_duration > 10.0f) {
+            animation_duration -= 10.0f;
+        }
+        if (animation_duration > duration) {
+            duration = animation_duration;
+        }
+    }
+
+    _mkproc_sleep_ticks = post_sound_delay;
+    aproc->vtbl->sleep();
+    if (generic != 0) {
+        plyr_snd_req(sound_id);
+    } else {
+        drone_lip_synch(sound_id, lip_sync);
+    }
+    duration -= post_sound_delay;
+    if (duration < 0.0f) {
+        duration = 0.0f;
+    }
+    _mkproc_sleep_ticks = duration;
+    aproc->vtbl->sleep();
+
+    if (apdata != 0) {
+        PlyrPdata* pdata = (PlyrPdata*)apdata;
+
+        animation_process = MK_LIVE(pdata->anim_proc, pdata->anim_proc_instance);
+
+        if (animation_process != 0) {
+            animation_pdata =
+                (AnimPdata*)pdata_of_proc(animation_process);
+            if (animation_pdata != 0) {
+                animation_pdata->flags &= ~0x4000;
+            }
+        }
+    }
+    if (is_weapon_style(plyr_pdata->fighter_definition)) {
+        plyr_weapon_show(plyr_pdata, 0, plyr_pdata->mirror_slots);
+    }
+    mission_state->player_two_wrapup_state = 2;
+    aproc->vtbl
+        ->jump_sleep(j_exit_blend_stance, 0.0f);
+    return 0.0f;
+}
+
+static float failed_trial_drone_wrapup(void) {
+    int sound_id;
+    LipSyncKeyframe* lip_sync;
+    int generic;
+    struct TrialWrapupData* wrapup =
+        mission_state->drone->slot.pdata->status_data->trial_wrapup_data;
+    struct TrialWrapupEntry* entry;
+    MkProc* animation_process;
+    AnimPdata* animation_pdata;
+    AnimScript* animation;
+    unsigned short choice;
+    int i;
+    float duration;
+    float post_sound_delay;
+    float animation_duration;
+
+    if (wrapup != 0) {
+        entry = wrapup->failure_table;
+        choice = randu0(
+            (unsigned short)get_row_count_for_table_by_pointer(
+                plyr_pdata->cmo, entry));
+        for (i = 0; i < choice; i++) {
+            entry++;
+        }
+        wrapup->selected_failure = entry;
+        generic = 0;
+    } else {
+        entry = wrapup_select_entry(generic_char_failure_table, randu0(5));
+        generic_char_wrapup_data.selected_failure = entry;
+        generic = 1;
+    }
+    sound_id = entry->sound_id;
+    lip_sync = entry->lip_sync;
+    post_sound_delay = 0.0f;
+
+    set_ani_speed(1.0f);
+    rotate_towards_him(0.2f);
+    blend_to_stance(0.1f);
+    _mkproc_sleep_ticks = 30.0f;
+    aproc->vtbl->sleep();
+
+    if (apdata != 0) {
+        PlyrPdata* pdata = (PlyrPdata*)apdata;
+
+        animation_process = MK_LIVE(pdata->anim_proc, pdata->anim_proc_instance);
+
+        if (animation_process != 0) {
+            animation_pdata =
+                (AnimPdata*)pdata_of_proc(animation_process);
+            if (animation_pdata != 0) {
+                animation_pdata->flags |= 0x4000;
+            }
+        }
+    }
+
+    duration = duration_of_lip_sync(lip_sync);
+    if (entry->animation_id >= 3000) {
+        animation = get_animation(entry->animation_id);
+    } else {
+        animation = get_animation(entry->animation_id + 3000);
+    }
+    if (animation != 0 && plyr_anim_pdata != 0) {
+        transition_to_anim_script(
+            0.1f, plyr_anim_pdata, animation, 3);
+        animation_duration =
+            animation->frame_count;
+        if (animation_duration > 10.0f) {
+            animation_duration -= 10.0f;
+        }
+        if (animation_duration > duration) {
+            duration = animation_duration;
+        }
+    }
+
+    _mkproc_sleep_ticks = post_sound_delay;
+    aproc->vtbl->sleep();
+    if (generic != 0) {
+        plyr_snd_req(sound_id);
+    } else {
+        drone_lip_synch(sound_id, lip_sync);
+    }
+    duration -= post_sound_delay;
+    if (duration < 0.0f) {
+        duration = 0.0f;
+    }
+    _mkproc_sleep_ticks = duration;
+    aproc->vtbl->sleep();
+
+    if (apdata != 0) {
+        PlyrPdata* pdata = (PlyrPdata*)apdata;
+
+        animation_process = MK_LIVE(pdata->anim_proc, pdata->anim_proc_instance);
+
+        if (animation_process != 0) {
+            animation_pdata =
+                (AnimPdata*)pdata_of_proc(animation_process);
+            if (animation_pdata != 0) {
+                animation_pdata->flags &= ~0x4000;
+            }
+        }
+    }
+    mission_state->player_two_wrapup_state = 2;
+    aproc->vtbl
+        ->jump_sleep(j_exit_blend_stance, 0.0f);
+    return 0.0f;
+}
+
+#pragma opt_propagation off
+float end_of_trial_wrapup(int winner) {
+    int process_side;
+
+    if (mission_state->display_flags & 1) {
+        mission_state->player_one_wrapup_state = 2;
+        mission_state->player_two_wrapup_state = 2;
+        return 0.0f;
+    }
+    process_side = aproc->pid != 0x1001;
+    if (mission_state->fight->field_04 == process_side) {
+        if (mission_state->player_one_wrapup_state != 0) {
+            mission_state->player_one_wrapup_state = 2;
+            return 0.0f;
+        }
+        mission_state->player_one_wrapup_state = 1;
+        if (winner != 0) {
+            aproc->vtbl
+                ->jump_sleep(successful_trial_player_wrapup, 0.0f);
+            return 0.0f;
+        }
+        aproc->vtbl
+            ->jump_sleep(successful_trial_player_wrapup, 0.0f);
+        return 0.0f;
+    }
+    if (mission_state->player_two_wrapup_state != 0) {
+        mission_state->player_two_wrapup_state = 2;
+        return 0.0f;
+    }
+    mission_state->player_two_wrapup_state = 1;
+    if (winner != 0) {
+        aproc->vtbl
+            ->jump_sleep(failed_trial_drone_wrapup, 0.0f);
+        return 0.0f;
+    }
+    aproc->vtbl
+        ->jump_sleep(successful_trial_drone_wrapup, 0.0f);
+    return 0.0f;
+}
+#pragma opt_propagation reset
+
+void skip_end_of_trial_wrapup(void) {
+    if ((aproc->pid == 0x1001 ? 0 : 1) ==
+        mission_state->fight->field_04) {
+        mission_state->player_one_wrapup_state = 2;
+        return;
+    }
+    mission_state->player_two_wrapup_state = 2;
+}
 #pragma ppc_unroll_instructions_limit 1
 int trial_end_round(void) {
     struct KonquestMissionState* state;
@@ -3030,923 +1805,2254 @@ int trial_end_round(void) {
 }
 #pragma ppc_unroll_instructions_limit 40
 
-void skip_end_of_trial_wrapup(void) {
-    if ((aproc->pid == 0x1001 ? 0 : 1) ==
-        mission_state->fight->field_04) {
-        mission_state->player_one_wrapup_state = 2;
+void trial_start_new_round(void) {
+    g_game_info.flag_bits.field_bit0 = 0;
+    if (mission_state->round_health_restoration > 0.0) {
+        mission_state->fight->field_0C +=
+            mission_state->round_health_restoration;
+    } else {
+        mission_state->fight->field_0C =
+            mission_state->fight->field_10;
+    }
+    if (mission_state->fight->field_0C > 1.0) {
+        mission_state->fight->field_0C = 1.0f;
+    }
+    mission_state->drone->field_0C =
+        mission_state->drone->field_10;
+}
+
+static float p_trial_tick(void) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state == 0) {
+        return -1.0f;
+    }
+    if (state->tick_script_function == 0) {
+        return -1.0f;
+    }
+    cmdscript_setup_execution(
+        state->tick_script, state->tick_script_function);
+    cmdscript_execute(mission_state->tick_script);
+    return 1.0f;
+}
+
+#pragma dont_inline on
+float p_konquest_register_bleeding(void) {
+    struct KonquestMissionState* state = MK_HDR_LIVE(mission_state_item.state,
+                                                mission_state_item.instance);
+
+    mission_state = state;
+    if (state == 0) {
+        return -1.0f;
+    }
+    if (mode_of_play != 8 ||
+        !g_game_info.flag_bits.lens_flare_enabled) {
+        return -1.0f;
+    }
+    if (state->trial_type != 0 || state->bleeding_required <= 0) {
+        return -1.0f;
+    }
+    if (state->drone->slot.pdata->postround_value == 0.0f) {
+        return -1.0f;
+    }
+    if (state->fight->field_04 == 0) {
+        become_plyr2_proc();
+    } else {
+        become_plyr1_proc();
+    }
+    trial_increment_state_value(plyr_pdata->plyr_num, 0x18, 1);
+    return 30.0f;
+}
+#pragma dont_inline reset
+
+#pragma dont_inline on
+void trial_increment_state_value(
+    int player, int state_index, int opponent_event) {
+    struct KonquestMissionState* state = get_mission_state();
+    struct KonquestSuccessCondition* conditions;
+    struct KonquestSuccessCondition* entry;
+
+    mission_state = state;
+    if (!(state != 0 && mode_of_play == 8) ||
+        !g_game_info.flag_bits.lens_flare_enabled) {
         return;
     }
-    mission_state->player_two_wrapup_state = 2;
-}
-
-#pragma opt_propagation off
-float end_of_trial_wrapup(int winner) {
-    int process_side;
-
-    if (mission_state->display_flags & 1) {
-        mission_state->player_one_wrapup_state = 2;
-        mission_state->player_two_wrapup_state = 2;
-        return 0.0f;
-    }
-    process_side = aproc->pid != 0x1001;
-    if (mission_state->fight->field_04 == process_side) {
-        if (mission_state->player_one_wrapup_state != 0) {
-            mission_state->player_one_wrapup_state = 2;
-            return 0.0f;
-        }
-        mission_state->player_one_wrapup_state = 1;
-        if (winner != 0) {
-            aproc->vtbl
-                ->jump_sleep(successful_trial_player_wrapup, 0.0f);
-            return 0.0f;
-        }
-        aproc->vtbl
-            ->jump_sleep(successful_trial_player_wrapup, 0.0f);
-        return 0.0f;
-    }
-    if (mission_state->player_two_wrapup_state != 0) {
-        mission_state->player_two_wrapup_state = 2;
-        return 0.0f;
-    }
-    mission_state->player_two_wrapup_state = 1;
-    if (winner != 0) {
-        aproc->vtbl
-            ->jump_sleep(failed_trial_drone_wrapup, 0.0f);
-        return 0.0f;
-    }
-    aproc->vtbl
-        ->jump_sleep(successful_trial_drone_wrapup, 0.0f);
-    return 0.0f;
-}
-#pragma opt_propagation reset
-
-
-static inline struct TrialWrapupEntry* wrapup_select_entry(
-    struct TrialWrapupEntry* table, unsigned short choice) {
-    int i;
-
-    for (i = 0; i < choice; i++) {
-        table++;
-    }
-    return table;
-}
-
-static float failed_trial_drone_wrapup(void) {
-    int sound_id;
-    LipSyncKeyframe* lip_sync;
-    int generic;
-    struct TrialWrapupData* wrapup =
-        mission_state->drone->slot.pdata->status_data->trial_wrapup_data;
-    struct TrialWrapupEntry* entry;
-    MkProc* animation_process;
-    AnimPdata* animation_pdata;
-    AnimScript* animation;
-    unsigned short choice;
-    int i;
-    float duration;
-    float post_sound_delay;
-    float animation_duration;
-
-    if (wrapup != 0) {
-        entry = wrapup->failure_table;
-        choice = randu0(
-            (unsigned short)get_row_count_for_table_by_pointer(
-                plyr_pdata->cmo, entry));
-        for (i = 0; i < choice; i++) {
-            entry++;
-        }
-        wrapup->selected_failure = entry;
-        generic = 0;
-    } else {
-        entry = wrapup_select_entry(generic_char_failure_table, randu0(5));
-        generic_char_wrapup_data.selected_failure = entry;
-        generic = 1;
-    }
-    sound_id = entry->sound_id;
-    lip_sync = entry->lip_sync;
-    post_sound_delay = 0.0f;
-
-    set_ani_speed(1.0f);
-    rotate_towards_him(0.2f);
-    blend_to_stance(0.1f);
-    _mkproc_sleep_ticks = 30.0f;
-    aproc->vtbl->sleep();
-
-    if (apdata != 0) {
-        PlyrPdata* pdata = (PlyrPdata*)apdata;
-
-        animation_process = MK_LIVE(pdata->anim_proc, pdata->anim_proc_instance);
-
-        if (animation_process != 0) {
-            animation_pdata =
-                (AnimPdata*)pdata_of_proc(animation_process);
-            if (animation_pdata != 0) {
-                animation_pdata->flags |= 0x4000;
-            }
-        }
-    }
-
-    duration = duration_of_lip_sync(lip_sync);
-    if (entry->animation_id >= 3000) {
-        animation = get_animation(entry->animation_id);
-    } else {
-        animation = get_animation(entry->animation_id + 3000);
-    }
-    if (animation != 0 && plyr_anim_pdata != 0) {
-        transition_to_anim_script(
-            0.1f, plyr_anim_pdata, animation, 3);
-        animation_duration =
-            animation->frame_count;
-        if (animation_duration > 10.0f) {
-            animation_duration -= 10.0f;
-        }
-        if (animation_duration > duration) {
-            duration = animation_duration;
-        }
-    }
-
-    _mkproc_sleep_ticks = post_sound_delay;
-    aproc->vtbl->sleep();
-    if (generic != 0) {
-        plyr_snd_req(sound_id);
-    } else {
-        drone_lip_synch(sound_id, lip_sync);
-    }
-    duration -= post_sound_delay;
-    if (duration < 0.0f) {
-        duration = 0.0f;
-    }
-    _mkproc_sleep_ticks = duration;
-    aproc->vtbl->sleep();
-
-    if (apdata != 0) {
-        PlyrPdata* pdata = (PlyrPdata*)apdata;
-
-        animation_process = MK_LIVE(pdata->anim_proc, pdata->anim_proc_instance);
-
-        if (animation_process != 0) {
-            animation_pdata =
-                (AnimPdata*)pdata_of_proc(animation_process);
-            if (animation_pdata != 0) {
-                animation_pdata->flags &= ~0x4000;
-            }
-        }
-    }
-    mission_state->player_two_wrapup_state = 2;
-    aproc->vtbl
-        ->jump_sleep(j_exit_blend_stance, 0.0f);
-    return 0.0f;
-}
-
-static float successful_trial_drone_wrapup(void) {
-    int sound_id;
-    LipSyncKeyframe* lip_sync;
-    int generic;
-    struct TrialWrapupData* wrapup =
-        mission_state->drone->slot.pdata->status_data->trial_wrapup_data;
-    struct TrialWrapupEntry* entry;
-    MkProc* animation_process;
-    AnimPdata* animation_pdata;
-    AnimScript* animation;
-    unsigned short choice;
-    int i;
-    float duration;
-    float post_sound_delay;
-    float animation_duration;
-
-    if (wrapup != 0) {
-        entry = wrapup->success_table;
-        choice = randu0(
-            (unsigned short)get_row_count_for_table_by_pointer(
-                plyr_pdata->cmo, entry));
-        for (i = 0; i < choice; i++) {
-            entry++;
-        }
-        wrapup->selected_success = entry;
-        generic = 0;
-    } else {
-        entry = wrapup_select_entry(generic_char_success_table, randu0(5));
-        generic_char_wrapup_data.selected_success = entry;
-        generic = 1;
-    }
-    sound_id = entry->sound_id;
-    lip_sync = entry->lip_sync;
-    post_sound_delay = entry->post_sound_delay;
-
-    set_ani_speed(1.0f);
-    rotate_towards_him(0.2f);
-    blend_to_stance(0.1f);
-    _mkproc_sleep_ticks = 30.0f;
-    aproc->vtbl->sleep();
-    if (is_weapon_style(plyr_pdata->fighter_definition)) {
-        plyr_weapon_hide(plyr_pdata, 0, plyr_pdata->mirror_slots);
-    }
-
-    if (apdata != 0) {
-        PlyrPdata* pdata = (PlyrPdata*)apdata;
-
-        animation_process = MK_LIVE(pdata->anim_proc, pdata->anim_proc_instance);
-
-        if (animation_process != 0) {
-            animation_pdata =
-                (AnimPdata*)pdata_of_proc(animation_process);
-            if (animation_pdata != 0) {
-                animation_pdata->flags |= 0x4000;
-            }
-        }
-    }
-
-    duration = duration_of_lip_sync(lip_sync);
-    if (entry->animation_id >= 3000) {
-        animation = get_animation(entry->animation_id);
-    } else {
-        animation = get_animation(entry->animation_id + 3000);
-    }
-    if (animation != 0 && plyr_anim_pdata != 0) {
-        transition_to_anim_script(
-            0.1f, plyr_anim_pdata, animation, 0x4003);
-        animation_duration =
-            animation->frame_count;
-        if (animation_duration > 10.0f) {
-            animation_duration -= 10.0f;
-        }
-        if (animation_duration > duration) {
-            duration = animation_duration;
-        }
-    }
-
-    _mkproc_sleep_ticks = post_sound_delay;
-    aproc->vtbl->sleep();
-    if (generic != 0) {
-        plyr_snd_req(sound_id);
-    } else {
-        drone_lip_synch(sound_id, lip_sync);
-    }
-    duration -= post_sound_delay;
-    if (duration < 0.0f) {
-        duration = 0.0f;
-    }
-    _mkproc_sleep_ticks = duration;
-    aproc->vtbl->sleep();
-
-    if (apdata != 0) {
-        PlyrPdata* pdata = (PlyrPdata*)apdata;
-
-        animation_process = MK_LIVE(pdata->anim_proc, pdata->anim_proc_instance);
-
-        if (animation_process != 0) {
-            animation_pdata =
-                (AnimPdata*)pdata_of_proc(animation_process);
-            if (animation_pdata != 0) {
-                animation_pdata->flags &= ~0x4000;
-            }
-        }
-    }
-    if (is_weapon_style(plyr_pdata->fighter_definition)) {
-        plyr_weapon_show(plyr_pdata, 0, plyr_pdata->mirror_slots);
-    }
-    mission_state->player_two_wrapup_state = 2;
-    aproc->vtbl
-        ->jump_sleep(j_exit_blend_stance, 0.0f);
-    return 0.0f;
-}
-
-static float successful_trial_player_wrapup(void) {
-    set_ani_speed(1.0f);
-    blend_to_stance(0.1f);
-    _mkproc_sleep_ticks = 10.0f;
-    aproc->vtbl->sleep();
-    mission_state->player_one_wrapup_state = 2;
-    aproc->vtbl
-        ->jump_sleep(j_exit_blend_stance, 0.0f);
-    return 0.0f;
-}
-
-static inline void trial_transform_monk_into_player(struct KonquestMissionState* state,
-                                                    MkObj* monk) {
-    MkProc* script_process;
-
-    if (monk != 0) {
-        script_process = MK_LIVE(state->script_process, state->script_process_instance);
-        if (script_process == 0) {
+    if ((opponent_event != 0 || player == state->fight->field_04) &&
+        (opponent_event != 1 || player != state->fight->field_04) &&
+        state->trial_type == 0) {
+        conditions = state->success_conditions;
+        entry = &conditions[state_index];
+        if (entry->required_count <= 0 ||
+            entry->current_count >= entry->required_count) {
             return;
         }
-        if (state->transform_complete == 0) {
-            xfer_proc(script_process, p_transform_into_player);
-            while (script_process->entry == p_transform_into_player) {
-                _mkproc_sleep_ticks = 1.0f;
-                aproc->vtbl->sleep();
-            }
+        if (register_condition(&entry->condition)) {
+            increment_progress_count(1);
+            conditions[state_index].current_count++;
         }
     }
-    mission_state->transform_complete = 1;
 }
+#pragma dont_inline reset
 
-void trial_round_init(void) {
+#pragma dont_inline on
+static void increment_required_moves_progress(
+    struct KonquestRequiredSequence* sequence,
+    struct KonquestRequiredSequenceList* list) {
     struct KonquestMissionState* state = get_mission_state();
-    int i;
-    struct KonquestRequiredSequenceList* sequences;
-    MkObj* monk;
-    MkProc* process;
-    int flipped;
 
     mission_state = state;
     if (state == 0) {
         return;
     }
-
-    state = get_mission_state();
-    mission_state = state;
-    if (state != 0) {
-        turn_camera_on();
-        if (g_game_info.pselect.field_1f4 == 1) {
-            turn_camera_on();
-            skip_camera_intro();
-            if (mission_state->transform_complete == 0) {
-                fade_from_black(20, 0);
-            }
-        } else if (mission_state->display_flags & 1) {
-            _mkproc_sleep_ticks = 90.0f;
-            aproc->vtbl->sleep();
-        }
-    }
-
-    push_game_state(6);
-
-    state = get_mission_state();
-    mission_state = state;
-    if (state == 0) {
-        monk = 0;
-    } else {
-        monk = MK_HDR_LIVE(state->monk, state->monk_instance);
-    }
-
-    state = get_mission_state();
-    mission_state = state;
-    if (state != 0) {
-        trial_transform_monk_into_player(state, monk);
-    }
-
-    mission_state->player_one_wrapup_state = 0;
-    mission_state->player_two_wrapup_state = 0;
-    mission_state->restriction_phase = 0;
-    if (mission_state->display_flags & 4) {
-        turn_controllers_on();
-        mission_state->display_flags &= ~4;
-        memset(
-            &mission_state->required_sequences, 0,
-            sizeof(mission_state->required_sequences));
-        mission_state->progress_count = 0;
-        mission_state->progress_required = 0;
-        mission_state->field_2E8 = 0;
-        mission_state->tick_script_function = 0;
-        g_game_info.plyr0.slot.pdata->breaker_strength = 3;
-        g_game_info.plyr1.slot.pdata->breaker_strength = 3;
-        if (mission_state->current_setup_function == 0) {
-            g_game_info.pselect.field_1f4 = 1;
-            mission_state->fight->field_40 = 0;
-            mission_state->drone->field_40 = 0;
-            mission_state->current_setup_function = 1;
-        }
-        cmdscript_setup_execution(
-            mission_state->tick_script,
-            mission_state->current_setup_function);
-        cmdscript_execute(mission_state->tick_script);
-        if (mission_state->display_flags & 1) {
-            turn_controllers_off();
-        }
-        init_pwr_bars();
-        if (are_powerbars_retracted()) {
-            extend_powerbars();
-        }
-    } else {
-        if (are_powerbars_retracted()) {
-            init_pwr_bars();
-            extend_powerbars();
-        }
-        start_powerbar_monitor();
-    }
-    pop_game_state();
-
-    if (mission_state->trial_type == 1) {
-        sequences = &mission_state->required_sequences;
-        for (i = 0; i < sequences->sequence_count; i++) {
-            sequences->entries[i].current = sequences->entries[i].first;
-        }
-        mission_state->progress_required = sequences->sequence_count;
-        sequences->current_sequence = 0;
-        trial_set_move_message(
-            mission_state->required_sequences.entries[0].message,
-            mission_state->required_sequences.entries[0].message_parameter);
-    }
-
-    if (mission_state->tick_script_function != 0) {
-        process = _create_mkproc_generic_bigstack(
-            0x9003, 6, p_trial_tick, 0, 0);
-        if (process != 0) {
-            set_process_as_scriptable(process);
-        }
-    }
-    if (mission_state->display_item_c != 0) {
-        _create_mkproc_generic_nostack(
-            0x9004, 0x1F, p_flip_move_description, 0, 0);
-        state = get_mission_state();
-        mission_state = state;
-        if (state != 0) {
-            flipped = is_a_to_the_right_of_b(
-                state->fight->slot.mirror_a, state->drone->slot.mirror_a);
+    sequence->current = sequence->current->next;
+    if (sequence->current == 0) {
+        sequence->current = sequence->first;
+        increment_progress_count(1);
+        list->current_sequence++;
+        if (list->current_sequence == list->sequence_count) {
+            list->current_sequence = 0;
+            mission_state->move_message = 0;
+            mission_state->move_message_param = 0;
         } else {
-            flipped = 0;
-        }
-        mission_state->move_description_flipped = flipped;
-    }
-    trial_show_move_message();
-    increment_progress_count(0);
-    if (mission_state->drone_difficulty == 8 &&
-        mission_state->drone->pad_index >= 0) {
-        turn_port_off(mission_state->drone->pad_index);
-    }
-    mission_state->field_2E8 = 0;
-    g_game_info.field_204 = mission_state->round_timer;
-}
+            const char* message = sequence[1].message;
+            const char* message_parameter =
+                sequence[1].message_parameter;
 
-void trial_game_init(void) {
-    char mission_name[64];
-    struct KonquestMissionState* state = (struct KonquestMissionState*)get_mkhdr(
-        &vtbl_mkpdata_generic, sizeof(struct KonquestMissionState));
-
-    mission_state = state;
-    if (state != 0) {
-        konquest_save_data.passed_last_mission = 0;
-        konquest_save_data.progression = 0;
-        zero_pdata_payload(sizeof(*state), &state->hdr);
-        mission_state_item.state = mission_state;
-        mission_state_item.instance = mission_state->hdr.instance;
-        if (g_game_info.plyr0.player_state == 2) {
-            mission_state->fight =
-                &g_game_info.plyr0;
-            mission_state->drone =
-                &g_game_info.plyr1;
-        } else {
-            mission_state->fight =
-                &g_game_info.plyr1;
-            mission_state->drone =
-                &g_game_info.plyr0;
+            mission_state->move_message = message;
+            mission_state->move_message_param = message_parameter;
         }
-        unassign_player(mission_state->drone);
-        g_game_info.pads[2].flag_bits.connected = 1;
-        assign_player(2);
-        g_game_info.pads[2].flag_bits.connected = 0;
-        set_game_switch_maps();
-        mission_state->display_flags =
-            (unsigned int)konquest_save_data.next_value_a | 4;
-        mission_state->drone_difficulty = konquest_save_data.next_value_b;
-        mission_state->mission_index = konquest_save_data.next_mission;
-        mission_state->current_setup_function = 1;
-        mission_state->damage_scale[0] = 1.0f;
-        mission_state->damage_scale[1] = 1.0f;
-        if (mission_state->display_flags & 1) {
-            mission_state->trial_type = 2;
-        }
-        load_ssf(konquest_region_data[konquest_save_data.region_index].art_files);
-        load_string_bank(
-            0x20000,
-            konquest_region_data[konquest_save_data.region_index].string_bank);
-        sprintf(
-            mission_name, "mission_%03d.mko",
-            mission_state->mission_index);
-        mission_state->tick_script =
-            cmdscript_loadfile_by_name(0x10, mission_name);
-        trial_load_monk();
-        add_art_section_by_name_async_language(
-            0x2001E, "trial_sprites.sec");
-        wait_for_slot_load(0x2001E);
-        load_font(6);
-        load_font(7);
-        mission_state->tune_table =
-            get_data_table_by_name("bgnd_music");
-        g_game_info.plyr0.field_0C = 1.0f;
-        g_game_info.plyr1.field_0C = 1.0f;
-        g_game_info.plyr0.field_10 = 1.0f;
-        g_game_info.plyr1.field_10 = 1.0f;
+        trial_show_move_message();
     }
 }
+#pragma dont_inline reset
 
-PlyrInfo* trial_get_drone_info(void) {
+static int register_condition(
+    const struct KonquestMissionCondition* condition) {
     struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
         return 0;
     }
-    return state->drone;
-}
-
-void trial_setup_fight(void) {
-    PlyrInfo* player;
-    PlyrInfo* drone;
-
-    if (g_game_info.plyr0.player_state == 2) {
-        player = &g_game_info.plyr1;
-        drone = &g_game_info.plyr0;
-    } else {
-        player = &g_game_info.plyr0;
-        drone = &g_game_info.plyr1;
+    switch (condition->type) {
+    case 0:
+        state->condition_active = 0;
+        return 1;
+    case 1:
+        state->condition_value = condition->value;
+        mission_state->condition_player =
+            mission_state->fight->field_04;
+        mission_state->condition_mode = 1;
+        mission_state->condition_active = 1;
+        break;
+    case 2:
+        state->condition_value = condition->value;
+        mission_state->condition_player =
+            mission_state->drone->field_04;
+        mission_state->condition_mode = 1;
+        mission_state->condition_active = 1;
+        break;
+    case 3:
+        state->condition_value = condition->value;
+        mission_state->condition_player =
+            mission_state->fight->field_04;
+        mission_state->condition_mode = 0;
+        mission_state->condition_active = 1;
+        break;
+    case 4:
+        state->condition_value = condition->value;
+        mission_state->condition_player =
+            mission_state->drone->field_04;
+        mission_state->condition_mode = 2;
+        mission_state->condition_active = 1;
+        break;
+    case 5:
+        state->condition_value = condition->value;
+        mission_state->condition_player =
+            mission_state->drone->field_04;
+        mission_state->condition_mode = 3;
+        mission_state->condition_active = 1;
+        break;
     }
-    drone->player_index =
-        (unsigned short)konquest_save_data.mission_pair_a;
-    drone->field_14 =
-        (int)konquest_save_data.mission_pair_a >> 16;
-    player->player_index =
-        (unsigned short)konquest_save_data.mission_pair_b;
-    player->field_14 =
-        (int)konquest_save_data.mission_pair_b >> 16;
-    force_bgnd_num =
-        (unsigned short)konquest_save_data.background_and_flags;
+    return 0;
 }
 
-static float p_transform_into_monk(void) {
-    MkProc* script_process;
-    MkProc* animation_process = plyr_anim_proc;
-    AnimPdata* animation = plyr_anim_pdata;
-
-    script_process = MK_LIVE(mission_state->script_process, mission_state->script_process_instance);
-    if (animation_process != 0 && animation != 0) {
-        xfer_proc(animation_process, p_anim_idle);
-        animation->step = -1.0f;
-        transition_to_anim_script_frame(
-            animation, bgnd_animations.transform_animation, 0x43, 0.05f,
-            105.0f);
-        plyr_obj->flags.scale_active = 1;
-        plyr_obj->scale.z = 1.0f;
-        plyr_obj->scale.x = 1.0f;
-        plyr_obj->scale.y = 1.0f;
-        while (animation->frame > 63.0f) {
-            animpdata_ani_1_frame(animation);
-            _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep();
-        }
-        snd_req(0x15EF);
-        xfer_proc(script_process, p_finish_transform_monk);
-        while (script_process->entry == p_finish_transform_monk) {
-            animpdata_ani_1_frame(animation);
-            _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep();
-        }
-    }
-    aproc->vtbl
-        ->jump_sleep(j_exit_blend_stance, 0.0f);
-    return 0.0f;
-}
-
-static float p_transform_into_player(void) {
-    MkProc* monk_process;
-    AnimPdata* animation;
-    MkProc* player_process;
-
-    monk_process = MK_LIVE(mission_state->monk_process, mission_state->monk_process_instance);
-    if (monk_process != 0) {
-        animation = (AnimPdata*)pdata_of_proc(monk_process);
-        animation->step = 0.8f;
-        xfer_proc(monk_process, p_anim_idle);
-        transition_to_anim_script(
-            0.05f, animation,
-            bgnd_animations.monk_transform_animation, 0x43);
-        animpdata_ani_to_frame_x(animation, 32.0f);
-        snd_req(0x15EF);
-        player_process = mission_state->fight->idle_proc;
-        xfer_player_proc(player_process, p_finish_transform_player);
-        while (player_process->entry == p_finish_transform_player) {
-            animpdata_ani_1_frame(animation);
-            _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep();
-        }
-    }
-    aproc->vtbl
-        ->jump_sleep(p_idle, 0.0f);
-    return 0.0f;
-}
-
-static float p_finish_transform_player(void) {
+void trial_state_collision_check(int collision_result, int player) {
     struct KonquestMissionState* state = get_mission_state();
-    MkProc* animation_process;
-    AnimPdata* animation;
-    MkObj* monk;
+    int airborne;
+    int boost_active;
+    int condition_mode;
 
     mission_state = state;
-    animation_process = MK_LIVE(state->fight->slot.pdata->anim_proc, state->fight->slot.pdata->anim_proc_instance);
-    animation = (AnimPdata*)pdata_of_proc(animation_process);
-    monk = get_mission_monk();
-
-    xfer_proc(animation_process, p_anim_idle);
-    set_anim_script_frame(
-        animation, bgnd_animations.transform_animation, 0x43, 63.0f);
-    plyr_obj->pos.value.x = monk->pos.value.x;
-    plyr_obj->pos.value.y = monk->pos.value.y;
-    plyr_obj->pos.value.z = monk->pos.value.z;
-    update_mkobj(
-        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    start_hero_transform_effect(plyr_obj);
-    shake_camera(3, 0.03f);
-    _mkproc_sleep_ticks = 15.0f;
-    aproc->vtbl->sleep();
-
-    plyr_obj->flags.scale_active = 1;
-    plyr_obj->scale.z = 1.0f;
-    plyr_obj->scale.x = 1.0f;
-    plyr_obj->scale.y = 0.8f;
-    plyr_obj->flags.hidden = 0;
-    monk->flags.hidden = 1;
-
-    while (animation->frame < animation->high_frame - 10.0f) {
-        animpdata_ani_1_frame(animation);
-        if (plyr_obj->scale.y < 1.0f) {
-            plyr_obj->scale.y += 0.02f;
-        } else {
-            plyr_obj->scale.y = 1.0f;
-        }
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-    plyr_obj->scale.y = 1.0f;
-    update_mkobj(
-        plyr_obj != 0 ? as_mkhdr(&plyr_obj->hdr) : 0);
-    plyr_obj->flags.scale_active = 0;
-    aproc->vtbl
-        ->jump_sleep(j_exit_blend_stance, 0.0f);
-    return 0.0f;
-}
-
-#pragma opt_propagation off
-static float p_finish_transform_monk(void) {
-    Vec position = {4000.0f, 0.0f, 4000.0f};
-    Vec angles = {0.0f, 0.0f, 0.0f};
-    MkObj* sidekick;
-    MkObj* monk;
-    MkProc* monk_process;
-    AnimPdata* animation;
-    MkObj* player_object;
-    struct KonquestMissionState* state = mission_state;
-    PlyrPdata* fighter = state->fight->slot.pdata;
-
-    player_object = state->fight->slot.mirror_a;
-
-    sidekick = MK_HDR_LIVE(fighter->sidekick_obj, fighter->sidekick_instance);
-    monk_process = MK_LIVE(state->monk_process, state->monk_process_instance);
-    if (monk_process != 0) {
-        animation = (AnimPdata*)pdata_of_proc(monk_process);
-        animation->step = -0.8f;
-    } else {
-        aproc->vtbl
-            ->jump_sleep(p_idle, 0.0f);
-        return 0.0f;
-    }
-    monk = get_mission_monk();
-    xfer_proc(monk_process, p_anim_idle);
-    set_anim_script_frame(
-        animation, bgnd_animations.monk_transform_animation, 0x43, 32.0f);
-    monk->pos.value.x = player_object->pos.value.x;
-    monk->pos.value.y = player_object->pos.value.y;
-    monk->pos.value.z = player_object->pos.value.z;
-    monk->ang.x = player_object->ang.x;
-    monk->ang.y = player_object->ang.y;
-    monk->ang.z = player_object->ang.z;
-    update_mkobj(monk != 0 ? as_mkhdr(&monk->hdr) : 0);
-    start_hero_transform_effect(player_object);
-    shake_camera(3, 0.03f);
-    _mkproc_sleep_ticks = 15.0f;
-    aproc->vtbl->sleep();
-
-    xfer_camera(p_idle, 1);
-    hide_player(mission_state->fight->slot.pdata, 1);
-    move_player(player_object, &position, &angles);
-    if (sidekick != 0) {
-        sidekick->pos.value.x = position.x;
-        sidekick->pos.value.y = position.y;
-        sidekick->pos.value.z = position.z;
-    }
-    monk->flags.hidden = 0;
-    while (animation->frame > 0.0f) {
-        animpdata_ani_1_frame(animation);
-        _mkproc_sleep_ticks = 1.0f;
-        aproc->vtbl->sleep();
-    }
-    animation->step = 1.0f;
-    xfer_proc(monk_process, p_animate);
-    transition_to_anim_script(
-        0.1f, animation, bgnd_animations.monk_animation, 0x40);
-    aproc->vtbl
-        ->jump_sleep(p_idle, 0.0f);
-    return 0.0f;
-}
-#pragma opt_propagation reset
-
-
-static void start_hero_transform_effect(MkObj* hero) {
-    unsigned int emitter;
-    MkObj* effect_object;
-    MkPfx* particle;
-
-    emitter = fx_next_emitter(fx_by_owner("hero_transform_smoke", 4));
-    particle = pfx_from_emitter(emitter);
-    effect_object = pfx_bind_emitter_num_to_new_obj(particle, 0x6015, 0);
-    get_bone_world_pos(hero, 0x10, &effect_object->pos.value);
-    effect_object->flags.airborne = 1;
-    update_mkobj(effect_object != 0 ? as_mkhdr(&effect_object->hdr) : 0);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x00, 1);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x14, 2);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x15, 3);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x18, 4);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x19, 5);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x04, 6);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x05, 7);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x0A, 8);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x0B, 9);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x09, 10);
-    fx_restart_emit(emitter);
-
-    emitter = fx_next_emitter(fx_by_owner("hero_transform_explode", 4));
-    particle = pfx_from_emitter(emitter);
-    effect_object = pfx_bind_emitter_num_to_new_obj(particle, 0x6015, 0);
-    get_bone_world_pos(hero, 0x10, &effect_object->pos.value);
-    effect_object->flags.airborne = 1;
-    update_mkobj(effect_object != 0 ? as_mkhdr(&effect_object->hdr) : 0);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x00, 1);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x14, 2);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x15, 3);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x18, 4);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x19, 5);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x04, 6);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x05, 7);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x0A, 8);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x0B, 9);
-    fx_restart_emit(emitter);
-    emitter = fx_next_emitter(emitter);
-    pfx_bind_emitter_num_to_obj_bone(particle, hero, 0x09, 10);
-    fx_restart_emit(emitter);
-}
-
-static void trial_load_monk(void) {
-    struct KonquestMissionState* state = get_mission_state();
-    const Vec* position;
-    const Vec* angles;
-    MkProc* monk_process;
-    AnimPdata* animation;
-    MkObj* player_object;
-    MkObj* monk;
-    MkProc* script_process;
-    AniTextureControl* face_texture;
-
-    mission_state = state;
-    if (state == 0 || state->fight->player_index == 0x1A || state->fight->player_index == 0x19) {
+    if (state == 0 || mode_of_play != 8 ||
+        !g_game_info.flag_bits.lens_flare_enabled) {
         return;
     }
-    if (state->fight->field_04 == 0) {
-        position = &g_game_info.misc->player0_start;
-        angles = &g_game_info.misc->player0_angles;
-    } else {
-        position = &g_game_info.misc->player1_start;
-        angles = &g_game_info.misc->player1_angles;
-    }
-
-    monk_process = load_hero_model(bgnd_animations.monk_animation);
-    if (monk_process != 0) {
-        player_object = mission_state->fight->slot.mirror_a;
-        player_object->flags.hidden = 1;
-        xfer_proc(monk_process, p_animate);
-        animation = (AnimPdata*)pdata_of_proc(monk_process);
-        mission_state->monk_process = monk_process;
-        mission_state->monk_process_instance = monk_process->instance;
-
-        monk = MK_HDR_LIVE(animation->obj, animation->obj_instance);
-
-        if (monk != 0) {
-            monk->light_flags = player_object->light_flags;
-            monk->pos.value.x = position->x;
-            monk->pos.value.y = position->y;
-            monk->pos.value.z = position->z;
-            monk->ang.x = angles->x;
-            monk->ang.y = angles->y;
-            monk->ang.z = angles->z;
-            monk->flags.scale_active = 1;
-            monk->scale.x = 1.1f;
-            monk->scale.y = 1.1f;
-            monk->scale.z = 1.1f;
-            monk->flags.pin_animation = 0;
-            mission_state->monk = monk;
-            mission_state->monk_instance = monk->hdr.instance;
-            insert_ground_me_mkobj(monk);
-            monk->flags.launched = 1;
-            monk->flags.bit09_6 = 1;
+    if (state->condition_active != 0) {
+        state->condition_ticks--;
+        if (mission_state->condition_ticks < 0) {
+            mission_state->condition_ticks = 0;
         }
+        if (mission_state->trial_type == 0) {
+            struct KonquestSuccessCondition* conditions =
+                mission_state->success_conditions;
 
-        script_process = _create_mkproc_generic_bigstack(0x9007, 0x1F, p_idle, 0, 0);
-        if (script_process != 0) {
-            set_process_as_scriptable(script_process);
-            mission_state->script_process = script_process;
-            mission_state->script_process_instance = script_process->instance;
-            script_process->pre_destroy = pw_konquest_trial_monk;
-            script_process->destroy_cb = ps_konquest_trial_monk;
-        }
-        face_texture = konquest_create_monk_face_ani_texture(monk);
-        if (face_texture != 0) {
-            mission_state->monk_face_texture.texture = face_texture;
-            mission_state->monk_face_texture.instance = face_texture->instance;
+            if (mission_state->condition_player != player) {
+                return;
+            }
+            airborne = is_pX_airborn(player);
+            if (player == 0) {
+                boost_active = g_game_info.plyr1.slot.pdata
+                    ->damage_boost_until > (unsigned int)game_tick_ctr;
+            } else {
+                boost_active = g_game_info.plyr0.slot.pdata
+                    ->damage_boost_until > (unsigned int)game_tick_ctr;
+            }
+            condition_mode = mission_state->condition_mode;
+            if ((condition_mode == 1 && collision_result == 1) ||
+                (condition_mode == 2 && airborne != 0 &&
+                 collision_result == 1) ||
+                (condition_mode == 3 && boost_active != 0 &&
+                 collision_result == 1) ||
+                (condition_mode == 0 && collision_result == 0)) {
+                increment_progress_count(1);
+                conditions[mission_state->condition_value].current_count++;
+                mission_state->condition_active = 0;
+            }
+        } else if (mission_state->trial_type == 1) {
+            struct KonquestRequiredSequenceList* list =
+                &mission_state->required_sequences;
+            struct KonquestRequiredSequence* sequence =
+                &list->entries[mission_state->condition_value];
+
+            if (sequence == 0 || list == 0) {
+                return;
+            }
+            if (mission_state->condition_player == player) {
+                if (collision_result == 0) {
+                    if (mission_state->condition_ticks == 0) {
+                        sequence->current = sequence->first;
+                        mission_state->condition_active = 0;
+                    }
+                } else {
+                    increment_required_moves_progress(sequence, list);
+                    mission_state->condition_active = 0;
+                }
+            }
         }
     }
 }
 
-static void ps_konquest_trial_monk(void) {
-    current_anim_pdata = 0;
-}
-
-static void pw_konquest_trial_monk(void) {
+void trial_add_success_condition(int index, int value, int required_count) {
     struct KonquestMissionState* state = get_mission_state();
-    MkProc* process;
+
+    mission_state = state;
+    if (state != 0) {
+        state->success_conditions[index].required_count = required_count;
+        mission_state->success_conditions[index].condition.type = value;
+        mission_state->success_conditions[index].condition.value = index;
+        mission_state->progress_required += (unsigned char)required_count;
+    }
+}
+
+int trial_check_state(void) {
+    int complete = 0;
+    struct KonquestMissionState* state = get_mission_state();
+    int index;
+    int result;
+    float fight_health;
+    float drone_health;
+
+    mission_state = state;
+    if (state == 0) {
+        return 0;
+    }
+    if (!g_game_info.flag_bits.lens_flare_enabled) {
+        return 0;
+    }
+    fight_health = state->fight->field_0C;
+    drone_health = state->drone->field_0C;
+    switch (state->trial_type) {
+    case 0: {
+        struct KonquestSuccessCondition* conditions = state->success_conditions;
+
+        index = 0;
+        complete = 1;
+        for (; index < 35 && complete; index++) {
+            if (conditions[index].current_count < conditions[index].required_count) {
+                complete = 0;
+            }
+        }
+        break;
+    }
+    case 2:
+        if (drone_health == 0.0f) {
+            complete = 1;
+        }
+        if (g_game_info.field_204 <= 0 && is_timer_off() == 0) {
+            complete = 0;
+        }
+        break;
+    case 1:
+        if (state->progress_count >= state->progress_required) {
+            complete = 1;
+        }
+        break;
+    case 3:
+        complete = state->combo_complete;
+        break;
+    }
+    if (mission_state->field_2E8 != 2) {
+        if (complete) {
+            result = 2;
+            mission_state->current_setup_function =
+                mission_state->next_setup_function;
+            mission_state->next_setup_function = 0;
+            if (mission_state->fight->field_04 == 0) {
+                result = 1;
+            }
+            return result;
+        }
+        if (drone_health == 0.0f || fight_health == 0.0f) {
+            result = 1;
+            if (mission_state->fight->field_04 == 0) {
+                result = 2;
+            }
+            return result;
+        }
+        if (g_game_info.field_204 != 0 || is_timer_off() != 0) {
+            return 0;
+        }
+    }
+    if (g_game_info.field_204 <= 0) {
+        if (complete) {
+            if (mission_state->fight->field_04 == 0) {
+                result = 1;
+            } else {
+                result = 2;
+            }
+        } else {
+            if (mission_state->fight->field_04 == 0) {
+                result = 2;
+            } else {
+                result = 1;
+            }
+        }
+        return result;
+    }
+    return 0;
+}
+
+void trial_set_type(int type) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state != 0) {
+        state->trial_type = type;
+        if (type == 2) {
+            struct KonquestMissionState* active_state = mission_state;
+
+            active_state->display_flags = 9;
+            mission_state->randomized_side = (unsigned short)randu0(2);
+        }
+    }
+}
+
+void trial_register_attack(
+    int player, unsigned char attack_type, unsigned char attack_value) {
+    struct KonquestMissionState* state = get_mission_state();
+    int trial_type;
+
+    mission_state = state;
+    if (state == 0 || mode_of_play != 8 ||
+        !g_game_info.flag_bits.lens_flare_enabled) {
+        return;
+    }
+    if (active_cmdscript != 0 && plyr_pdata != 0 &&
+        active_cmdscript->mko == plyr_pdata->cmo) {
+        attack_type = 3;
+    }
+    trial_type = state->trial_type;
+    if (trial_type == 1 && player == state->fight->field_04) {
+        unsigned char sequence_index;
+        struct KonquestRequiredSequenceList* list;
+        struct KonquestRequiredSequence* sequence;
+        struct KonquestRequiredAttack* required_attack;
+
+        sequence_index = state->required_sequences.current_sequence;
+        list = &state->required_sequences;
+        sequence = &list->entries[sequence_index];
+        required_attack = sequence->current;
+        if (sequence == 0 || required_attack == 0 || list == 0) {
+            return;
+        }
+        if (required_attack->type != attack_type &&
+            required_attack->type != 0xFF) {
+            return;
+        }
+        if (required_attack->value != attack_value &&
+            required_attack->value != 0xFF) {
+            return;
+        }
+        if (required_attack->flags == 0) {
+            increment_required_moves_progress(sequence, list);
+            return;
+        }
+        state->condition_value = sequence_index;
+        mission_state->condition_player =
+            mission_state->drone->field_04;
+        mission_state->condition_mode = 1;
+        mission_state->condition_active = 1;
+        if (active_cmdscript != 0 && active_cmdscript->attrs_table != 0) {
+            struct KonquestTrialScriptAttrs* attrs =
+                active_cmdscript->attrs_table;
+
+            mission_state->condition_ticks = attrs->condition_ticks;
+        } else {
+            mission_state->condition_ticks = 1;
+        }
+    } else if (trial_type == 0 &&
+               player == state->fight->field_04) {
+        trial_increment_state_value(player, 5, 0);
+    }
+}
+
+void trial_add_required_sequence(
+    const char* message, const char* message_parameter) {
+    struct KonquestRequiredSequenceList* list =
+        &mission_state->required_sequences;
+    struct KonquestRequiredSequence* sequence =
+        &list->entries[list->current_sequence];
+
+    if (sequence == 0 || list == 0) {
+        return;
+    }
+    sequence->message_parameter = message_parameter;
+    sequence->message = message;
+    list->current_sequence++;
+    list->sequence_count++;
+    mission_state->progress_required++;
+}
+
+void trial_add_required_attack(
+    unsigned char attack, unsigned char count, int flags) {
+    struct KonquestRequiredSequenceList* list =
+        &mission_state->required_sequences;
+    struct KonquestRequiredSequence* sequence =
+        &list->entries[list->current_sequence - 1];
+    struct KonquestRequiredAttack* required_attack =
+        &list->attacks[list->attack_count];
+
+    if (sequence == 0 || required_attack == 0 || list == 0) {
+        return;
+    }
+    required_attack->type = attack;
+    required_attack->value = count;
+    required_attack->flags = flags;
+    required_attack->next = 0;
+    if (sequence->current != 0) {
+        sequence->current->next = required_attack;
+    } else {
+        sequence->first = required_attack;
+    }
+    sequence->current = required_attack;
+    list->attack_count++;
+}
+
+void trial_set_combo_requirement(int hits, float damage) {
+    mission_state->combo_hits = hits;
+    mission_state->combo_damage = damage;
+}
+
+void trial_register_combo(
+    int player, int hit_count, PlyrPdata* pdata, float damage) {
+    struct KonquestMissionState* state = get_mission_state();
+    PlyrInfo* fight;
+    int complete;
 
     mission_state = state;
     if (state == 0) {
         return;
     }
-    process = MK_LIVE(state->monk_process, state->monk_process_instance);
-    if (process != 0) {
-        current_anim_pdata = (AnimPdata*)pdata_of_proc(process);
+    if (mode_of_play != 8) {
+        return;
+    }
+    fight = state->fight;
+    if (fight == 0) {
+        return;
+    }
+    if (player == fight->field_04 ||
+        !g_game_info.flag_bits.lens_flare_enabled) {
+        return;
+    }
+    if (state->trial_type == 3) {
+        complete = 0;
+        if (state->combo_damage > 0.0f && damage >= state->combo_damage) {
+            complete = 1;
+        }
+        if (state->combo_hits > 0) {
+            if (hit_count >= state->combo_hits) {
+                complete = 1;
+            } else {
+                complete = 0;
+            }
+        }
+        state->combo_complete = complete;
+        return;
+    }
+    if (state->trial_type != 1) {
+        return;
+    }
+    if (player != fight->field_04) {
+        struct KonquestRequiredSequenceList* list =
+            &state->required_sequences;
+        struct KonquestRequiredSequence* sequence =
+            &list->entries[list->current_sequence];
+
+        if (sequence != 0) {
+            sequence->current = sequence->first;
+        }
     }
 }
 
-void konquest_map_setup_fight(
+void trial_clear_provision(void) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state != 0 && plyr_obj == state->fight->slot.mirror_a) {
+        state->condition_active = 0;
+    }
+}
+
+void trial_set_move_message(
+    const char* message, const char* parameter) {
+    mission_state->move_message = message;
+    mission_state->move_message_param = parameter;
+}
+
+static void show_background_box(
+    int style, int x, int y, int priority, int width, int height) {
+    struct KonquestBackgroundBox* box =
+        &mission_state->background_boxes[style];
+    ScreenObj* object;
+
+    object = box->pieces[0].object;
+    object = (object != 0)
+        ? (box->pieces[0].object->instance == box->pieces[0].instance ? object : 0)
+        : 0;
+    if (object == 0) {
+        object = load_2d_pfxobj(
+            0x2001E, 0x9006, 0x0A93000D, 0, priority);
+        if (object != 0) {
+            box->pieces[0].object = object;
+            box->pieces[0].instance = object->instance;
+        }
+    }
+    if (object != 0) {
+        object->x = x + 1;
+        object->y = y + 1;
+        object->flag_bits.scaled = 1;
+        object->flag_bits.hidden = 0;
+        object->scale_x = width - 2;
+        object->scale_y = height - 2;
+        pfx_2d_obj_set_alpha(object, 0xA5);
+    }
+
+    object = MK_LIVE(box->pieces[1].object, box->pieces[1].instance);
+    if (object == 0) {
+        object = load_2d_pfxobj(
+            0x2001E, 0x9006, 0x0A93000E, 0, priority);
+        if (object != 0) {
+            box->pieces[1].object = object;
+            box->pieces[1].instance = object->instance;
+        }
+    }
+    if (object != 0) {
+        object->x = x;
+        object->y = y;
+        object->flag_bits.scaled = 1;
+        object->flag_bits.hidden = 0;
+        object->scale_x = width;
+        object->scale_y = 1.0f;
+        pfx_2d_obj_set_alpha(object, 0xA5);
+    }
+
+    object = MK_LIVE(box->pieces[2].object, box->pieces[2].instance);
+    if (object == 0) {
+        object = load_2d_pfxobj(
+            0x2001E, 0x9006, 0x0A93000E, 0, priority);
+        if (object != 0) {
+            box->pieces[2].object = object;
+            box->pieces[2].instance = object->instance;
+        }
+    }
+    if (object != 0) {
+        object->x = x;
+        object->y = y + height;
+        object->flag_bits.scaled = 1;
+        object->flag_bits.hidden = 0;
+        object->scale_x = width;
+        object->scale_y = 1.0f;
+        pfx_2d_obj_set_alpha(object, 0xA5);
+    }
+
+    object = MK_LIVE(box->pieces[3].object, box->pieces[3].instance);
+    if (object == 0) {
+        object = load_2d_pfxobj(
+            0x2001E, 0x9006, 0x0A93000E, 0, priority);
+        if (object != 0) {
+            box->pieces[3].object = object;
+            box->pieces[3].instance = object->instance;
+        }
+    }
+    if (object != 0) {
+        object->x = x;
+        object->y = y;
+        object->flag_bits.scaled = 1;
+        object->flag_bits.hidden = 0;
+        object->scale_x = 1.0f;
+        object->scale_y = height;
+        pfx_2d_obj_set_alpha(object, 0xA5);
+    }
+
+    object = MK_LIVE(box->pieces[4].object, box->pieces[4].instance);
+    if (object == 0) {
+        object = load_2d_pfxobj(
+            0x2001E, 0x9006, 0x0A93000E, 0, priority);
+        if (object != 0) {
+            box->pieces[4].object = object;
+            box->pieces[4].instance = object->instance;
+        }
+    }
+    if (object != 0) {
+        object->x = x + width;
+        object->y = y;
+        object->flag_bits.scaled = 1;
+        object->flag_bits.hidden = 0;
+        object->scale_x = 1.0f;
+        object->scale_y = height;
+        pfx_2d_obj_set_alpha(object, 0xA5);
+    }
+}
+
+static void trial_show_move_message(void) {
+    StringObj* string;
+    char text[48];
+
+    if (mission_state->display_item_c == 0) {
+        return;
+    }
+    if (mission_state->move_message != 0) {
+        string = MK_LIVE(mission_state->move_string.object, mission_state->move_string.instance);
+        if (string != 0) {
+            update_string_obj(string, 6, mission_state->move_message);
+        } else {
+            string = string_left_xy(
+                0x9007, 6, mission_state->move_message,
+                0x28, 0x16E, 0x22);
+            if (string != 0) {
+                mission_state->move_string.object = string;
+                mission_state->move_string.instance = string->instance;
+            }
+        }
+        if (*mission_state->move_message != ' ') {
+            show_background_box(
+                1, 0x1E, 0x16C, 0x24,
+                string->text_w + 0x14, 0x1A);
+        } else {
+            hide_background_box(&mission_state->background_boxes[1]);
+        }
+    }
+
+    if (mission_state->move_message_param != 0) {
+        strcpy(text, mission_state->move_message_param);
+        rewrite_button_string(
+            movelist_charmap, text,
+            mission_state->move_description_flipped,
+            (int*)g_game_info
+                .pads[mission_state->fight->pad_index].switch_map);
+        string = MK_LIVE(mission_state->move_param_string.object, mission_state->move_param_string.instance);
+        if (string != 0) {
+            update_string_obj(string, 7, text);
+        } else {
+            string = string_right_xy(
+                0x9007, 7, text, screen_width - 0x28,
+                0x16C, 0x22);
+            if (string != 0) {
+                mission_state->move_param_string.object = string;
+                mission_state->move_param_string.instance = string->instance;
+            }
+        }
+        if (*mission_state->move_message_param != ' ') {
+            show_background_box(
+                0, (screen_width - 0x32) - string->text_w,
+                0x166, 0x24, string->text_w + 0x14, 0x22);
+        } else {
+            hide_background_box(&mission_state->background_boxes[0]);
+        }
+    }
+}
+
+#pragma dont_inline on
+static void increment_progress_count(unsigned char increment) {
+    StringObj* string;
+    char text[48];
+
+    mission_state->progress_count += increment;
+    if (mission_state->progress_count >=
+        mission_state->progress_required) {
+        mission_state->progress_count =
+            mission_state->progress_required;
+    }
+    if (increment != 0) {
+        snd_req(0x15EB);
+    }
+    if (increment != 0 && (mission_state->display_flags & 2)) {
+        mission_state->drone->field_0C = 1.0f;
+    }
+    if (mission_state->display_item_a == 0) {
+        return;
+    }
+
+    sprintf(
+        text, mission_state->display_format,
+        mission_state->progress_count,
+        mission_state->progress_required);
+    string = MK_LIVE(mission_state->progress_string,
+        mission_state->progress_string_instance);
+    if (string != 0) {
+        update_string_obj(string, 6, text);
+    } else {
+        string = string_right_xy(
+            0x9007, 6, text, screen_width - 0x28,
+            0x146, 0x22);
+        if (string != 0) {
+            mission_state->progress_string = string;
+            mission_state->progress_string_instance = string->instance;
+        }
+    }
+    show_background_box(
+        2, (screen_width - 0x32) - string->text_w,
+        0x144, 0x24, string->text_w + 0x14, 0x1C);
+}
+#pragma dont_inline reset
+
+int get_konquest_drone_switch_state(int player) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state == 0) {
+        return 0;
+    }
+    if (player == 0) {
+        return state->player_one_switch_state;
+    }
+    return state->player_two_switch_state;
+}
+
+void drone_set_switch_state(int player, unsigned int switch_state) {
+    MkObj* first;
+    MkObj* second;
+    unsigned int* stored_state;
+
+    if ((player == 0 && mission_state->fight->field_04 == 0) ||
+        (player == 1 && mission_state->fight->field_04 == 1)) {
+        first = g_game_info.plyr0.slot.mirror_a;
+        stored_state = &mission_state->player_one_switch_state;
+        second = g_game_info.plyr1.slot.mirror_a;
+    } else {
+        first = g_game_info.plyr1.slot.mirror_a;
+        stored_state = &mission_state->player_two_switch_state;
+        second = g_game_info.plyr0.slot.mirror_a;
+    }
+    if (is_a_to_the_right_of_b(first, second) != 0) {
+        *stored_state = ((switch_state * 4) & 0x8000) |
+            ((switch_state & 0xFFFF5FFF) |
+             ((switch_state >> 2) & 0x2000));
+        return;
+    }
+    *stored_state = switch_state;
+}
+
+void drone_dispatch_switches(int player) {
+    int index;
+    unsigned int mask;
+    SwitchMapEntry* switch_map;
+    unsigned int switch_state;
+    PlyrInfo* player_info;
+
+    if ((player == 0 && mission_state->fight->field_04 == 0) ||
+        (player == 1 && mission_state->fight->field_04 == 1)) {
+        switch_map = g_game_info.pads[0].switch_map;
+        player_info = &g_game_info.plyr0;
+        switch_state = mission_state->player_one_switch_state;
+    } else {
+        switch_map = g_game_info.pads[1].switch_map;
+        player_info = &g_game_info.plyr1;
+        switch_state = mission_state->player_two_switch_state;
+    }
+    for (index = 0, mask = 1; index < 16; index++, mask <<= 1) {
+        if ((switch_state & mask) != 0) {
+            struct KonquestSwitchPdata* pdata;
+            MkProc* process = _create_mkproc_generic_tinystack(
+                0x3002, 6, switch_map[index].proc_fn,
+                sizeof(struct KonquestSwitchPdata), (MkHdr**)&pdata);
+
+            if (process != 0) {
+                process->pre_destroy = pre_switchp;
+                process->destroy_cb = post_switchp;
+                pdata->player = player_info;
+            }
+        }
+    }
+}
+
+static float p_run_special_move(void) {
+    cmdscript_reset_stack();
+    cmdscript_setup_execution(
+        plyr_pdata->cmo, active_cmdscript->unk28);
+    call_player_script_function(plyr_pdata->cmo);
+    return -1.0f;
+}
+
+void drone_do_special_move(int player, int script_function) {
+    PlyrInfo* fighter;
+    CmdScript* script;
+
+    if ((player == 0 && mission_state->fight->field_04 == 0) ||
+        (player == 1 && mission_state->fight->field_04 == 1)) {
+        fighter = mission_state->fight;
+    } else {
+        fighter = mission_state->drone;
+    }
+    script = get_cmdscript_for_proc(fighter->idle_proc);
+    if (script != 0) {
+        script->unk28 = script_function;
+        xfer_proc(
+            fighter->idle_proc, p_run_special_move);
+    }
+}
+
+void drone_change_to_style(int player, int style) {
+    FighterMirror* fighter;
+    int timeout;
+    int attempts;
+    PlyrInfo* info;
+    MkProc* idle_process;
+
+    attempts = 0;
+    if ((player == 0 && mission_state->fight->field_04 == 0) ||
+        (player == 1 && mission_state->fight->field_04 == 1)) {
+        info = mission_state->fight;
+    } else {
+        info = mission_state->drone;
+    }
+    fighter = info->slot.fighter;
+    timeout = 0xF0;
+    if ((player == 0 && mission_state->fight->field_04 == 0) ||
+        (player == 1 && mission_state->fight->field_04 == 1)) {
+        idle_process = g_game_info.plyr0.idle_proc;
+    } else {
+        idle_process = g_game_info.plyr1.idle_proc;
+    }
+    wait_for_drone_getup(idle_process, &timeout);
+    while (fighter->style_idx != style && attempts < 5) {
+        struct KonquestSwitchPdata* pdata;
+        MkProc* process = _create_mkproc_generic_tinystack(
+            0x3002, 6, switch_proc_advance_moveset,
+            sizeof(struct KonquestSwitchPdata), (MkHdr**)&pdata);
+
+        if (process != 0) {
+            process->pre_destroy = pre_switchp;
+            process->destroy_cb = post_switchp;
+            pdata->player = info;
+        }
+        _mkproc_sleep_ticks = 15.0f;
+        aproc->vtbl->sleep();
+        attempts++;
+    }
+}
+
+void drone_set_position(
+    int player, float x, float y, float z) {
+    PlyrInfo* fighter;
+    Vec position;
+
+    position.x = x;
+    position.y = y;
+    position.z = z;
+    if (mission_state->fight->field_04 == 1) {
+        position.x = -position.x;
+        position.z = -position.z;
+    }
+    fighter = player == 0 ? mission_state->fight : mission_state->drone;
+    move_player(
+        fighter->slot.mirror_a, &position,
+        &fighter->slot.mirror_a->ang);
+    force_midpoint_calculation_update = 1;
+}
+
+void drone_set_health(int player, float health) {
+    float* current_health;
+
+    if ((player == 0 && mission_state->fight->field_04 == 0) ||
+        (player == 1 && mission_state->fight->field_04 == 1)) {
+        current_health = &g_game_info.plyr0.field_0C;
+    } else {
+        current_health = &g_game_info.plyr1.field_0C;
+    }
+    *current_health = health;
+}
+
+void drone_apply_damage(int player, float damage) {
+    if ((player == 0 && mission_state->fight->field_04 == 0) ||
+        (player == 1 && mission_state->fight->field_04 == 1)) {
+        adjust_p1_life(damage);
+        return;
+    }
+    adjust_p2_life(damage);
+}
+
+static float call_mission_script(void) {
+    if ((unsigned int)active_cmdscript->unk28 != 0) {
+        cmdscript_setup_execution(
+            mission_state->tick_script,
+            active_cmdscript->unk28);
+        cmdscript_execute(mission_state->tick_script);
+    }
+    if (aproc->pid == 0x1001 || aproc->pid == 0x1002) {
+        aproc->vtbl
+            ->jump_sleep(j_exit, 0.0f);
+        return 0.0f;
+    }
+    for (;;) {
+        _mkproc_sleep_ticks = 60.0f;
+        aproc->vtbl->sleep();
+    }
+}
+
+void drone_set_script(int player, int script_function) {
+    struct KonquestMissionState* state = get_mission_state();
+    MkProc* process;
+    CmdScript* script;
+
+    mission_state = state;
+    if (state == 0) {
+        return;
+    }
+    if (player == 2) {
+        process = mission_script_process_live(state);
+        if (process != 0) {
+            script = get_cmdscript_for_proc(process);
+            script->unk28 = script_function;
+            xfer_proc(process, call_mission_script);
+        }
+        return;
+    }
+
+    if ((player == 0 && state->fight->field_04 == 0) ||
+        (player == 1 && state->fight->field_04 == 1)) {
+        process = g_game_info.plyr0.idle_proc;
+        script = get_cmdscript_for_proc(process);
+        script->unk28 = script_function;
+        xfer_player_proc(process, call_mission_script);
+        return;
+    }
+    process = g_game_info.plyr1.idle_proc;
+    script = get_cmdscript_for_proc(process);
+    script->unk28 = script_function;
+    xfer_player_proc(process, call_mission_script);
+}
+
+float trial_run_loser_animation_script(void) {
+    plyr_anim_pdata->step = 1.0f;
+    face_opponent_now();
+    plyr_pdata->death_type = 0xA;
+    blend_to_ani(bgnd_animations.loser_start, 3, 0.1f);
+    ani_to_blend_frame(10.0f);
+    blend_to_ani(bgnd_animations.loser_loop, 0, 0.1f);
+    xfer_proc(plyr_anim_proc, p_animate);
+    aproc->vtbl
+        ->jump_sleep(j_stay_down_dead, 0.0f);
+    return 0.0f;
+}
+
+void trial_show_monk(int show) {
+    MkObj* monk = get_mission_monk();
+
+    if (monk != 0) {
+        monk->flags.hidden = show == 0;
+    }
+}
+
+void drone_face_monk(void) {
+    MkObj* monk = get_mission_monk();
+
+    if (monk != 0) {
+        rotate_towards_position(&monk->pos.value, 0.05f);
+    }
+}
+
+void drone_blend_to_ani(
+    AnimScript* animation, int transition, float blend) {
+    transition_to_anim_script(
+        blend, current_anim_pdata, animation, transition);
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+}
+
+void trial_set_next_setup_function(int setup_function) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state != 0) {
+        state->next_setup_function = setup_function;
+        mission_state->display_flags |= 4;
+    }
+}
+
+void drone_set_difficulty_level(int difficulty) {
+    PlyrInfo* drone = mission_state->drone;
+    PlyrPdata* fighter = drone->slot.pdata;
+
+    wait_for_current_drone_getup();
+    if (difficulty == 8) {
+        if (drone->player_state == 0) {
+            fighter->drone_handoff_pending = 1;
+        }
+        drone->player_state = 3;
+    } else if (difficulty != 8) {
+        if (drone->player_state == 3) {
+            fighter->drone_handoff_pending = 1;
+        }
+        drone->player_state = 0;
+    }
+    mission_state->drone_difficulty = difficulty;
+}
+
+void drone_set_special_directions(int unused, int flags) {
+    struct DroneOverrideInfo info;
+
+    info.flags = flags;
+    info.likelihood_scale = (flags & 1) ? 0.0f : 1.0f;
+    setDroneOverrideSwitch(unused, &info);
+}
+
+static float p_flip_move_description(void) {
+    struct KonquestMissionState* state;
+    int flipped;
+
+    if (mission_state->display_item_c == 0) {
+        return -1.0f;
+    }
+    state = get_mission_state();
+    mission_state = state;
+    if (state != 0) {
+        flipped = is_a_to_the_right_of_b(
+            state->fight->slot.mirror_a,
+            state->drone->slot.mirror_a);
+    } else {
+        flipped = 0;
+    }
+    if (flipped != mission_state->move_description_flipped) {
+        mission_state->move_description_flipped = flipped;
+        trial_show_move_message();
+    }
+    return 1.0f;
+}
+
+void trial_set_num_rounds(int rounds) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state != 0) {
+        state->num_rounds = rounds;
+    }
+}
+
+void trial_set_round_timer(int ticks) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state != 0) {
+        state->round_timer = ticks;
+    }
+}
+
+void trial_set_ending_functions(
+    int winner_function, int loser_function) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state != 0) {
+        state->winner_end_function = winner_function;
+        mission_state->loser_end_function = loser_function;
+    }
+}
+
+void trial_show_text_window(
+    int string_id, float x, float y, float scale, int style, int flags) {
+    struct KonquestMissionState* state;
+    struct KonquestTrialWindowPdata* pdata;
+    const char* text;
+    int swap_buttons = 0;
+    int drone_is_right;
+
+    state = get_mission_state();
+    mission_state = state;
+    if (state == 0) {
+        return;
+    }
+
+    text = get_string_by_id(style);
+    state = get_mission_state();
+    mission_state = state;
+    if (state != 0) {
+        drone_is_right = is_a_to_the_right_of_b(
+            state->fight->slot.mirror_a, state->drone->slot.mirror_a);
+    } else {
+        drone_is_right = 0;
+    }
+    if (drone_is_right != 0) {
+        swap_buttons = 1;
+    }
+
+    if (_create_mkproc_generic_bigstack(
+            0x9002, aproc->priority + 1, p_show_text_window,
+            sizeof(*pdata), (MkHdr**)&pdata) != 0) {
+        int left;
+        int width;
+
+        zero_pdata_payload(sizeof(*pdata), &pdata->hdr);
+        text_window_state = 0;
+        left = (float)screen_width * x;
+        width = (float)screen_width * scale;
+        pdata->visible_item_count = 0;
+        pdata->top = 0;
+        pdata->left = left;
+        pdata->bottom = 480.0f - (480.0f * y);
+        pdata->priority = 0x24;
+        pdata->width = width;
+        pdata->prompt_flags = flags | 0x10;
+        pdata->font = 6;
+        pdata->timeout = -1;
+        pdata->color = string_id;
+        pdata->controller_port = mission_state->fight->pad_index;
+        pdata->button_charmap = danton20_charmap;
+        pdata->swap_buttons = swap_buttons;
+        pdata->art_slot = 0x2001E;
+        strcpy(pdata->text, text);
+        if (pdata->button_charmap != 0) {
+            rewrite_button_string(
+                danton20_charmap, pdata->text, swap_buttons,
+                (int*)g_game_info.pads[pdata->controller_port].switch_map);
+        }
+        set_default_switch_maps();
+        while (text_window_state == 0) {
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+        }
+        set_game_switch_maps();
+    }
+}
+
+void trial_show_spoken_text_window(
+    int string_id, float x, float y, float scale,
+    int style, int sound, int unused0, int unused1, int flags) {
+    MslSoundHandle voice = 0;
+
+    if (sound >= 0) {
+        voice = snd_req(sound);
+    }
+    trial_show_text_window(string_id, x, y, scale, style, flags);
+    if (voice != 0) {
+        snd_stop(voice);
+    }
+}
+
+void trial_do_dialog(
+    int unused, int string_id,
+    float unused_x, float unused_y, float unused_scale,
+    unsigned int ticks, int wait) {
+    unsigned int instance;
+    MkProc* dialog;
+    int scaled_ticks = (float)ticks * inverse_game_speed;
+
+    dialog = konquest_set_dialog_text(
+        get_string_by_id(string_id), 0);
+    calc_print_speed_for_nis_dialog(dialog, scaled_ticks);
+    if (dialog != 0) {
+        instance = dialog->instance;
+        if (wait != 0) {
+            while (MK_LIVE(&dialog->hdr, instance) != 0) {
+                _mkproc_sleep_ticks = 1.0f;
+                aproc->vtbl->sleep();
+            }
+        }
+    }
+}
+
+static float p_finish_countdown(void) {
+    StringObj* string;
+    struct KonquestMissionState* state;
+
+    aproc->flags_bits.use_game_speed = 1;
+    string = MK_LIVE(mission_state->countdown_string, mission_state->countdown_string_instance);
+    if (string != 0) {
+        update_string_obj(string, 1, "0");
+        _mkproc_sleep_ticks = 60.0f;
+        aproc->vtbl->sleep();
+    }
+
+    state = mission_state;
+    string = MK_LIVE(mission_state->countdown_string, mission_state->countdown_string_instance);
+    if (string != 0) {
+        string = state->countdown_string;
+        if (string->instance != 0) {
+            string->typed_vtbl->destroy(string);
+        }
+        mission_state->countdown_string = 0;
+        mission_state->countdown_string_instance = 0;
+    }
+    return -1.0f;
+}
+
+void trial_start_countdown(int countdown, float x, float y) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state != 0) {
+        char text[2];
+        int screen_x;
+        int screen_y;
+        int change;
+        StringObj* string;
+
+        text[0] = (char)countdown + '0';
+        text[1] = '\0';
+        screen_x = (float)screen_width * x;
+        screen_y = 480.0f * y;
+        change = -countdown;
+        load_font(1);
+        destroy_mkprocs_pid(0x900D);
+
+        destroy_current_countdown_string();
+
+        string = string_center_xy(
+            0x9005, 1, text, screen_x, screen_y, 0x22);
+        if (string != 0) {
+            mission_state->countdown_string = string;
+            mission_state->countdown_string_instance = string->instance;
+            display_numerical_change(
+                string, 1, countdown, change, 60, 0x98967F);
+        }
+
+        if (_create_mkproc_generic_tinystack(
+                0x900D, 0x1F, p_finish_countdown, 0, 0) == 0) {
+            destroy_current_countdown_string();
+        }
+    }
+}
+
+void trial_setup_onscreen_display_items(
+    int item_c, int enabled, const char* format) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state != 0) {
+        state->display_item_c = item_c;
+        mission_state->display_item_a = enabled;
+        mission_state->display_format = format;
+    }
+}
+
+void trial_set_tick_function(unsigned int script_enabled) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state != 0) {
+        state->tick_script_function = script_enabled;
+    }
+}
+
+int trial_get_round_length(void) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state == 0) {
+        return 0;
+    }
+    return state->round_timer;
+}
+
+int trial_get_drone_difficulty(void) {
+    int index;
+    struct KonquestMissionState* state;
+    int completed;
+
+    state = get_mission_state();
+
+    mission_state = state;
+    if (state == 0) {
+        return 0;
+    }
+    if (state->drone_difficulty == 9) {
+        completed = 0;
+        for (index = 0; index < 0x1C2; index++) {
+            if (((unsigned char*)p1_profile_konquest)[index + 0x6C] != 0) {
+                completed++;
+            }
+        }
+        state->drone_difficulty =
+            7.0f * ((float)completed / 106.0f) + 0.5f;
+    }
+    return mission_state->drone_difficulty;
+}
+
+void trial_set_next_mission(
     int mission, int pair_a_low, int pair_a_high,
     int pair_b_low, int pair_b_high, int value_a, int value_b,
-    int background_root, const char* fight_name) {
+    int background_root) {
+    konquest_save_data.next_mission = mission;
     konquest_save_data.mission_pair_a =
         (unsigned int)pair_a_low | ((unsigned int)pair_a_high << 16);
     konquest_save_data.mission_pair_b =
         (unsigned int)pair_b_low | ((unsigned int)pair_b_high << 16);
     konquest_save_data.next_value_a = value_a;
     konquest_save_data.next_value_b = value_b;
-    konquest_save_data.next_mission = mission;
     konquest_save_data.background_and_flags =
-        (unsigned int)konquest_pdata->region->background_id |
+        (konquest_save_data.background_and_flags & 0xFFFF) |
         ((unsigned int)background_root << 16);
-    if (fight_name != 0) {
-        strncpy(konquest_save_data.fight_name, fight_name, 0x40);
-    } else {
-        konquest_save_data.fight_name[0] = '\0';
+    fade_to_black(8, 1);
+    gamelogic_jump(2, p_gamelogic);
+}
+
+float p_show_text_window(void) {
+    struct KonquestTrialWindowPdata* window =
+        (struct KonquestTrialWindowPdata*)apdata;
+    int result = 0;
+
+    if (window->prompt_flags & 0x10) {
+        load_window_frame();
+    }
+    create_string_objects();
+
+    set_prompt_items(window);
+    if (window->prompt_flags & 0x10) {
+        plot_and_show_window_frame(window);
+        push_game_state(0x15);
+    }
+
+    if (window->prompt_flags & 0x20) {
+        text_window_fade_in(30);
+    } else if (window->prompt_flags & 0x100) {
+        text_window_fade_in(10);
+    }
+
+    while (result == 0) {
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+        if (mcard_msg_active == 0) {
+            if (((window->prompt_flags & 1) ||
+                 (window->prompt_flags & 4)) &&
+                check_switch_edge(window->controller_port, 6)) {
+                result = 1;
+                snd_req(0x15ED);
+            }
+            if ((window->prompt_flags & 0x80) &&
+                check_switch_edge(window->controller_port, 6)) {
+                result = 1;
+                snd_req(0x15ED);
+            }
+            if (((window->prompt_flags & 8) ||
+                 (window->prompt_flags & 2)) &&
+                check_switch_edge(window->controller_port, 7)) {
+                result = 2;
+                snd_req(0x15ED);
+            }
+            if (window->timeout > 0) {
+                window->timeout--;
+            }
+            if (window->timeout == 0) {
+                result = 3;
+            }
+        }
+    }
+
+    if (window->prompt_flags & 0x10) {
+        pop_game_state();
+    }
+    if (window->prompt_flags & 0x40) {
+        text_window_fade_out(30);
+    } else if (window->prompt_flags & 0x200) {
+        text_window_fade_out(10);
+    }
+
+    destroy_screen_latch(&window->prompt_ok);
+    destroy_screen_latch(&window->prompt_retry);
+    destroy_screen_latch(&window->prompt_548);
+    destroy_screen_latch(&window->prompt_550);
+    destroy_screen_latch(&window->prompt_cancel);
+    text_window_state = result;
+    return -1.0f;
+}
+
+void text_window_fade_in(unsigned char ticks) {
+    int alpha = 0;
+    int target;
+    unsigned char step;
+    struct KonquestTrialWindowPdata* pdata =
+        (struct KonquestTrialWindowPdata*)apdata;
+
+    if (pdata != 0) {
+        target = (unsigned char)pdata->color;
+        step = target / ticks;
+
+        do {
+            pfx_2d_obj_set_alpha_by_id(0x9002, alpha);
+            if (pdata->prompt_flags & 0x10) {
+                pfx_2d_obj_set_alpha_by_id(0x9004, alpha);
+            }
+            if (target - step < (unsigned char)alpha) {
+                alpha = target;
+            } else {
+                alpha = ((unsigned char)alpha + step) & 0xFF;
+            }
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+        } while ((unsigned char)alpha < (unsigned char)target);
+        pfx_2d_obj_set_alpha_by_id(0x9002, target);
+        if (pdata->prompt_flags & 0x10) {
+            pfx_2d_obj_set_alpha_by_id(0x9004, target);
+        }
+    }
+}
+#pragma ppc_unroll_instructions_limit 1
+static void text_window_fade_out(unsigned char ticks) {
+    struct KonquestTrialWindowPdata* pdata =
+        (struct KonquestTrialWindowPdata*)apdata;
+    int alpha = 0xFF;
+    unsigned char alpha_step = 0xFF / ticks;
+    ScreenObj* object;
+    int index;
+
+    if (pdata != 0) {
+        while (ticks != 0) {
+            pfx_2d_obj_set_alpha_by_id(0x9002, alpha);
+            if (pdata->prompt_flags & 0x10) {
+                pfx_2d_obj_set_alpha_by_id(0x9004, alpha);
+            }
+            _mkproc_sleep_ticks = 1.0f;
+            alpha = (alpha - alpha_step) & 0xFF;
+            ticks--;
+            aproc->vtbl->sleep();
+        }
+        if (pdata->prompt_flags & 0x10) {
+            pfx_2d_obj_set_alpha_by_id(0x9004, 0xFF);
+            for (index = 0; index < 9; index++) {
+                hide_screen_latch(&pdata->frame[index]);
+            }
+            object = MK_LIVE(pdata->prompt_ok.object, pdata->prompt_ok.instance);
+            if (object != 0) {
+                object->flag_bits.hidden = 1;
+            }
+            object = MK_LIVE(pdata->prompt_retry.object, pdata->prompt_retry.instance);
+            if (object != 0) {
+                object->flag_bits.hidden = 1;
+            }
+            object = MK_LIVE(pdata->prompt_548.object, pdata->prompt_548.instance);
+            if (object != 0) {
+                object->flag_bits.hidden = 1;
+            }
+            object = MK_LIVE(pdata->prompt_cancel.object, pdata->prompt_cancel.instance);
+            if (object != 0) {
+                object->flag_bits.hidden = 1;
+            }
+            object = MK_LIVE(pdata->prompt_550.object, pdata->prompt_550.instance);
+            if (object != 0) {
+                object->flag_bits.hidden = 1;
+            }
+        }
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+}
+#pragma ppc_unroll_instructions_limit 40
+
+void plot_and_show_window_frame(struct KonquestTrialWindowPdata* unused) {
+    struct KonquestTrialWindowPdata* pdata =
+        (struct KonquestTrialWindowPdata*)apdata;
+    int left;
+    int right;
+    int bottom;
+    int top;
+    int font_height;
+    float height_scale;
+    float width_scale;
+
+    if (pdata == 0) {
+        return;
+    }
+    font_height = get_font_height(pdata->font);
+    left = pdata->left - 0xF;
+    right = pdata->left + pdata->width + 0xF;
+    bottom = pdata->bottom + font_height + 3;
+    top = (pdata->bottom - pdata->top) - font_height / 2;
+    width_scale = (float)((right - left) - 3) / 16.0f;
+    height_scale = (float)((bottom - top) - 3) / 16.0f;
+
+    place_frame_piece(&pdata->frame[0], left, bottom, 1.0f, 1.0f, 0);
+    place_frame_piece(
+        &pdata->frame[1], left + 3, bottom,
+        width_scale, 1.0f, 1);
+    place_frame_piece(&pdata->frame[2], right, bottom, 1.0f, 1.0f, 0);
+    place_frame_piece(
+        &pdata->frame[3], left, top + 3,
+        1.0f, height_scale, 1);
+    place_frame_piece(
+        &pdata->frame[4], left + 3, top + 3,
+        width_scale, height_scale, 1);
+    place_frame_piece(
+        &pdata->frame[5], right, top + 3,
+        1.0f, height_scale, 1);
+    place_frame_piece(&pdata->frame[6], left, top, 1.0f, 1.0f, 0);
+    place_frame_piece(
+        &pdata->frame[7], left + 3, top,
+        width_scale, 1.0f, 1);
+    place_frame_piece(&pdata->frame[8], right, top, 1.0f, 1.0f, 0);
+}
+
+void set_prompt_items(struct KonquestTrialWindowPdata* unused) {
+    int y;
+    struct KonquestTrialWindowPdata* pdata =
+        (struct KonquestTrialWindowPdata*)apdata;
+    ScreenObj* object;
+
+    if (pdata == 0) {
+        return;
+    }
+    get_font_height(pdata->font);
+    y = (pdata->bottom - pdata->top) - 8;
+
+    if (pdata->prompt_flags & 1) {
+        object = MK_LIVE(pdata->prompt_ok.object, pdata->prompt_ok.instance);
+        if (object == 0) {
+            object = load_named_2d_pfxobj(pdata->art_slot, 0x9004, "OK_BUTTON", 0, pdata->priority - 1);
+            if (object != 0) {
+                pdata->prompt_ok.object = object;
+                pdata->prompt_ok.instance = object->instance;
+                mk_insert((MkHdr*)object, &aproc->pdata_list_b);
+            }
+        }
+        if (object != 0) {
+            object->flag_bits.hidden = 0;
+            object->x =
+                pdata->left + pdata->width - object->pfx2d->tex_w;
+            object->y = y;
+            pdata->visible_item_count++;
+        }
+    }
+    if (pdata->prompt_flags & 4) {
+        object = load_prompt(
+            pdata, &pdata->prompt_retry, "TRY_AGAIN_BUTTON", 1);
+        if (object != 0) {
+            object->flag_bits.hidden = 0;
+            object->x =
+                pdata->left + pdata->width - object->pfx2d->tex_w;
+            object->y = y;
+            pdata->visible_item_count++;
+        }
+    }
+    if (pdata->prompt_flags & 2) {
+        object = load_prompt(
+            pdata, &pdata->prompt_cancel, "BUTTONCANCEL", 1);
+        if (object != 0) {
+            object->flag_bits.hidden = 0;
+            object->x = pdata->left;
+            object->y = y;
+            pdata->visible_item_count++;
+        }
+    }
+    if (pdata->prompt_flags & 8) {
+        object = load_prompt(
+            pdata, &pdata->prompt_cancel, "RETURN_BUTTON", 0);
+        if (object != 0) {
+            object->flag_bits.hidden = 0;
+            object->x = pdata->left;
+            object->y = y;
+            pdata->visible_item_count++;
+        }
     }
 }
 
-MkObj* trial_get_monk(void) {
+void create_string_objects(void) {
+    int alignment;
+    StringObj* string;
+    unsigned int color;
+    unsigned char* color_bytes;
+    unsigned int packed_color;
+    struct KonquestTrialWindowPdata* pdata;
+
+    pdata = (struct KonquestTrialWindowPdata*)apdata;
+    if (pdata != 0) {
+        if (pdata->prompt_flags & 0x800) {
+            alignment = 1;
+        } else if (pdata->prompt_flags & 0x1000) {
+            alignment = 2;
+        } else {
+            alignment = 0;
+        }
+        string = create_wrapped_string(
+            0x9002, load_font(pdata->font), pdata->text,
+            pdata->left, pdata->bottom, pdata->width,
+            0, alignment, 2);
+        string->priority = pdata->priority - 2;
+        packed_color = pdata->color;
+        color_bytes = (unsigned char*)&color;
+        color_bytes[0] = packed_color >> 24;
+        color_bytes[1] = packed_color >> 16;
+        color_bytes[2] = packed_color >> 8;
+        color_bytes[3] = packed_color;
+        pfxfont_set_string_color(
+            &string->pfx, &color);
+        pdata->top = string->text_h;
+        mk_insert((MkHdr*)string, &aproc->pdata_list_b);
+        insert_2d_obj((ScreenObj*)string);
+    }
+}
+
+void load_window_frame(void) {
+    struct KonquestTrialWindowPdata* pdata = (struct KonquestTrialWindowPdata*)apdata;
+    int frame_flags;
+    int index;
+
+    if (pdata != 0) {
+        frame_flags = 0;
+        ((ScreenObjFlags*)&frame_flags)->hidden = 1;
+        for (index = 0; index < 9; index++) {
+            unsigned int art_id = get_artid_of_named_item_in_slot(
+                pdata->art_slot, "JNY_WINDOW01", 1);
+            ScreenObj* object = load_2d_pfxobj(
+                pdata->art_slot, 0x9004, art_id + index,
+                frame_flags, pdata->priority);
+
+            pdata->frame[index].object = object;
+            pdata->frame[index].instance = object->instance;
+            mk_insert((MkHdr*)object, &aproc->pdata_list_b);
+        }
+    }
+}
+
+int trial_show_standard_fight_messages(void) {
+    return mission_state->display_flags & 1;
+}
+
+void trial_register_script_function(unsigned int function) {
     struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state == 0 || mode_of_play != 8 ||
+        !g_game_info.flag_bits.lens_flare_enabled) {
+        return;
+    }
+    if ((aproc->pid == 0x1001 || aproc->pid == 0x1002) &&
+        plyr_pdata != 0) {
+        trial_register_attack(
+            plyr_pdata->plyr_num,
+            plyr_pdata->player_slot, function);
+    }
+}
+
+void trial_register_special_move(unsigned int move) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state == 0 || mode_of_play != 8 ||
+        !g_game_info.flag_bits.lens_flare_enabled) {
+        return;
+    }
+    if ((aproc->pid == 0x1001 || aproc->pid == 0x1002) &&
+        plyr_pdata != 0) {
+        trial_register_attack(plyr_pdata->plyr_num, 3, move);
+    }
+}
+
+static float fn_stub2(void) {
+    return 60.0f;
+}
+
+void drone_lip_synch(int sound_id, LipSyncKeyframe* keyframes) {
+    KonquestLipSyncPdata* lip;
+    MkProc* process = _create_mkproc_generic_nostack(
+        0x8232, 0x1F, p_do_lip_synch, sizeof(*lip), (MkHdr**)&lip);
+
+    if (process == 0) {
+        return;
+    }
+    zero_pdata_payload(sizeof(*lip), &lip->hdr);
+    lip->sound_handle = sound_id;
+    lip->keyframes = keyframes;
+
+    if (aproc->pid == 0x9007) {
+        mission_state = get_mission_state();
+        if (mission_state == 0) {
+            return;
+        }
+        lip->mode = 2;
+        set_monk_lip_synch_texture(lip);
+        return;
+    }
+
+    if (aproc->pid == 0x1001 || aproc->pid == 0x1002) {
+        AnimPdata* animation;
+
+        process = MK_LIVE(plyr_pdata->face_anim_proc,
+            plyr_pdata->face_anim_proc_instance);
+        if (process == 0) {
+            return;
+        }
+        animation = (AnimPdata*)pdata_of_proc(process);
+        if (animation != 0) {
+            set_anim_script(
+                animation, plyr_pdata->face_animations[0], 3);
+            animation->step = 1.0f;
+            animation->transition_step = 0.2f;
+            animation->hand_transition = 1.0f;
+            xfer_proc(process, p_animate);
+        }
+        lip->mode = 3;
+        lip->player.animation = animation;
+        lip->player.table = plyr_pdata->face_animations;
+        return;
+    }
+
+    if (process->instance != 0) {
+        process->vtbl->destroy(process);
+    }
+}
+
+int current_player_is_drone(void) {
+    PlyrPdata* drone;
+
+    if (plyr_pdata == 0) {
+        return 0;
+    }
+    if (g_game_info.plyr0.player_state == 2) {
+        drone = g_game_info.plyr1.slot.pdata;
+    } else {
+        drone = g_game_info.plyr0.slot.pdata;
+    }
+    if (plyr_pdata == drone) {
+        return 1;
+    }
+    return 0;
+}
+
+void trial_restart_round(void) {
     MkObj* monk;
+
+    start_mkpfx_FadeSnapShot();
+    move_plyrs_to_round_start();
+    start_constrain_proc();
+    skip_camera_intro();
+    stop_tunes();
+    bgnd_music_ptr1 = snd_req(
+        g_game_info.section->music_id_round_0_1);
+    set_camera_destination(&camera_obj->pos);
+    set_camera_target_angle(&camera_obj->ang);
+    force_midpoint_calculation_update = 0;
+    xfer_camera(p_camera_proc, 1);
+    monk = get_mission_monk();
+    if (monk != 0) {
+        monk->flags.hidden = 1;
+    }
+}
+
+static const Vec trial_stripped_vector = {0.3f, 1.32f, 7.32f};
+
+void trial_setup_nis_scene(int setup) {
+    Vec monk_position = {1.0f, 0.0f, 6.0f};
+    Vec monk_angle = {0.0f, 3.1415927f, 0.0f};
+    CamVec3 camera_position = {0.0f, 1.5478f, 3.129f};
+    CamVec3 camera_angle = {0.0f, 3.1415927f, 0.0f};
+
+    if (mission_state->fight ==
+        &g_game_info.plyr1) {
+        monk_position.x = -1.0f;
+    }
+
+    if (setup != 0) {
+        struct KonquestMissionState* state = get_mission_state();
+        MkObj* raw;
+        MkObj* monk;
+
+        mission_state = state;
+        if (state == 0) {
+            monk = 0;
+        } else {
+            raw = state->monk;
+            monk = MK_HDR_LIVE(raw, state->monk_instance);
+        }
+
+        if (monk != 0) {
+            monk->flags.pin_animation = 0;
+            monk->pos.value.x = monk_position.x;
+            monk->pos.value.y = monk_position.y;
+            monk->pos.value.z = monk_position.z;
+            monk->ang.x = monk_angle.x;
+            monk->ang.y = monk_angle.y;
+            monk->ang.z = monk_angle.z;
+            monk->flags.hidden = 0;
+        }
+        set_camera_position(&camera_position);
+        set_camera_angle(&camera_angle);
+        start_mkpfx_FadeSnapShot();
+        move_plyrs_to_round_start();
+        xfer_player_proc(g_game_info.plyr0.idle_proc, j_exit);
+        xfer_player_proc(g_game_info.plyr1.idle_proc, j_exit);
+    }
+    xfer_camera(p_idle, 0);
+}
+
+void play_background_music(int sound) {
+    if (sound >= 0) {
+        if (bgnd_music_ptr1 != 0) {
+            snd_stop(bgnd_music_ptr1);
+        }
+        bgnd_music_ptr1 = snd_req(sound);
+    }
+}
+
+void trial_start_tunes(void) {
+    int music = 0;
+    struct KonquestMissionState* state = get_mission_state();
+    unsigned int function;
+
+    mission_state = state;
+    if (state != 0) {
+        function = check_script_function_exists(
+            state->tick_script, "use_scene_music");
+        if (function != 0) {
+            cmdscript_setup_execution(mission_state->tick_script, function);
+            cmdscript_execute(mission_state->tick_script);
+            music = active_cmdscript->regs[0];
+        }
+
+        if (music != 0) {
+            music = mission_state->tune_table->script_music;
+            if (music >= 0) {
+                if (bgnd_music_ptr1 != 0) {
+                    snd_stop(bgnd_music_ptr1);
+                }
+                bgnd_music_ptr1 = snd_req(music);
+            }
+        } else if (mission_state->display_flags & 1) {
+            if (g_game_info.pselect.field_1f4 == 1) {
+                mission_state->randomized_side = (unsigned short)randu0(2);
+                music = mission_state->tune_table
+                    ->entries[mission_state->randomized_side].round_one_music;
+                if (music >= 0) {
+                    if (bgnd_music_ptr1 != 0) {
+                        snd_stop(bgnd_music_ptr1);
+                    }
+                    bgnd_music_ptr1 = snd_req(music);
+                }
+            } else {
+                music = mission_state->tune_table
+                    ->entries[mission_state->randomized_side].later_round_music;
+                if (music >= 0) {
+                    if (bgnd_music_ptr1 != 0) {
+                        snd_stop(bgnd_music_ptr1);
+                    }
+                    bgnd_music_ptr1 = snd_req(music);
+                }
+            }
+        } else if (g_game_info.pselect.field_1f4 == 1) {
+            mission_state->randomized_side = (unsigned short)randu0(3);
+            music = mission_state->tune_table
+                ->basic_round_one_music[mission_state->randomized_side];
+            if (music >= 0) {
+                if (bgnd_music_ptr1 != 0) {
+                    snd_stop(bgnd_music_ptr1);
+                }
+                bgnd_music_ptr1 = snd_req(music);
+            }
+        }
+    }
+}
+
+void trial_end_tunes(void) {
+    struct KonquestMissionState* state = get_mission_state();
+    int music;
+
+    mission_state = state;
+    if (state == 0) {
+        return;
+    }
+    if (!(state->display_flags & 1)) {
+        return;
+    }
+    music = state->tune_table->entries[state->randomized_side].end_music;
+    if (music >= 0) {
+        if (bgnd_music_ptr1 != 0) {
+            snd_stop(bgnd_music_ptr1);
+        }
+        bgnd_music_ptr1 = snd_req(music);
+    }
+}
+
+void drone_set_anim_step(float step) {
+    if (current_anim_pdata != 0) {
+        current_anim_pdata->step = step;
+    }
+}
+
+int konquest_passed_last_mission(void) {
+    return konquest_save_data.passed_last_mission;
+}
+
+void trial_mirror_anims_if_needed(void) {
+    if (mission_state->fight->field_04 == 1) {
+        camera_set_animation_mirror_plane(3);
+    }
+}
+
+void cleanup_mission_state(void) {
+    mission_state = 0;
+    mission_state_item.state = 0;
+    mission_state_item.instance = 0;
+    current_anim_pdata = 0;
+}
+
+void trial_set_round_health_restoration(float restoration) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state != 0) {
+        if (restoration < -1.0 || restoration > 1.0) {
+            restoration = 1.0f;
+        }
+        state->round_health_restoration = restoration;
+    }
+}
+
+void konquest_run_ending(void) {
+    fade_to_black(8, 1);
+    gamelogic_jump(2, p_konquest_ending);
+}
+
+void give_koin_award(int amount, int type) {
+    static const char* mission_complete[6] = {
+        "MISSION COMPLETE", "MISI\323N COMPLETA", "AUFTRAG ERFOLGREICH",
+        "MISSION ACCOMPLIE", "MISSIONE COMPIUTA", "MISSION COMPLETE"
+    };
+    static int koin_list[6] = {
+        0x0A930013, 0x0A930014, 0x0A930015,
+        0x0A930016, 0x0A930017, 0x0A930018
+    };
+    char amount_text[8];
+    ScreenObj* sign;
+    ScreenObj* koin;
+    StringObj* title;
+    StringObj* amount_string;
+    int alpha;
+
+    duck_sounds(0.5f);
+    _mkproc_sleep_ticks = 15.0f;
+    aproc->vtbl->sleep();
+    snd_req(0x15EC);
+    add_to_konq_profile_value(type + 7, amount);
+    sign = load_2d_pfxobj_xy(
+        0x2001E, 0x9008, 0x0A930012, 0,
+        screen_width / 2 - 0x80, 0x66, 0x24);
+    title = create_wrapped_string(
+        0x9008, load_font(3),
+        mission_complete[get_language_setting()],
+        screen_width / 2 - 0x71, 0x138, 0xE2, 0, 1, 0);
+    title->priority = 0x22;
+    insert_string_obj((ScreenObj*)title);
+    if (type > 6) {
+        type = 2;
+    }
+    koin = load_2d_pfxobj_xy(
+        0x2001E, 0x9008, koin_list[type], 0,
+        screen_width / 2 - 0x40, 0xB6, 0x23);
+    load_font(3);
+    if (amount > 99999) {
+        amount = 99999;
+    }
+    sprintf(amount_text, "%d", amount);
+    amount_string = string_center_xy(
+        0x9008, 3, amount_text,
+        screen_width / 2 + 0x17, 0xC9, 0x23);
+
+    if (sign != 0) {
+        alpha = 0;
+        while ((unsigned char)alpha < 0xF0) {
+            pfx_2d_obj_set_alpha_by_id(0x9008, alpha);
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+            alpha += 8;
+        }
+        pfx_2d_obj_set_alpha_by_id(0x9008, 0xFF);
+        _mkproc_sleep_ticks = 120.0f;
+        aproc->vtbl->sleep();
+        alpha = 0xF0;
+        while ((unsigned char)alpha != 0) {
+            pfx_2d_obj_set_alpha_by_id(0x9008, alpha);
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+            alpha -= 8;
+        }
+        if (sign->instance != 0) {
+            sign->typed_vtbl->destroy(sign);
+        }
+        if (koin->instance != 0) {
+            koin->typed_vtbl->destroy(koin);
+        }
+        if (amount_string->instance != 0) {
+            amount_string->typed_vtbl->destroy(amount_string);
+        }
+        if (title->instance != 0) {
+            title->typed_vtbl->destroy(title);
+        }
+    }
+    duck_sounds(1.0f);
+}
+
+static float fn_stub1(void) {
+    return 90.0f;
+}
+
+int trial_get_background_root(void) {
+    return (int)konquest_save_data.background_and_flags >> 16;
+}
+
+void trial_debug_mission_list(void) {
+}
+
+void show_text(
+    int font, unsigned int color, unsigned int string_id, float x, float y,
+    float scale, unsigned int prompt_flags, int duration) {
+    struct KonquestTrialWindowPdata* pdata;
+
+    if (_create_mkproc_generic_bigstack(
+            0x9002, aproc->priority + 1, p_show_text_window,
+            sizeof(*pdata), (MkHdr**)&pdata) != 0) {
+        zero_pdata_payload(sizeof(*pdata), &pdata->hdr);
+        pdata->visible_item_count = 0;
+        pdata->top = 0;
+        pdata->left = (float)screen_width * x;
+        pdata->bottom = 480.0f - (480.0f * y);
+        pdata->priority = 4;
+        pdata->width = (float)screen_width * scale;
+        pdata->prompt_flags = prompt_flags;
+        pdata->font = font;
+        pdata->color = color;
+        pdata->button_charmap = 0;
+        pdata->swap_buttons = 0;
+        pdata->art_slot = 0x2001E;
+        if (prompt_flags & 0x400) {
+            duration = (float)duration * inverse_game_speed;
+        }
+        pdata->timeout = duration - 0x18;
+        strcpy(pdata->text, get_string_by_id(string_id));
+        text_window_state = 0;
+        while (text_window_state == 0) {
+            _mkproc_sleep_ticks = 1.0f;
+            aproc->vtbl->sleep();
+        }
+    }
+}
+
+void drone_set_damage_multiplier(int player, float multiplier) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state == 0) {
+        return;
+    }
+    if ((player == 0 && state->fight->field_04 == 0) ||
+        (player == 1 && state->fight->field_04 == 1)) {
+        state->damage_scale[0] = multiplier;
+        return;
+    }
+    state->damage_scale[1] = multiplier;
+}
+
+float trial_damage_callback(
+    int player, int damage_type, float damage) {
+    int player_side = player == 0;
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state == 0) {
+        return damage;
+    }
+    damage *= state->damage_scale[player];
+
+    if (state->restriction_flags & 4) {
+        if (player_side == state->fight->field_04 &&
+            !is_weapon_style(
+                (&g_game_info.plyr0)[player_side]
+                    .slot.pdata->fighter_definition)) {
+            damage = 0.0f;
+        }
+    } else if (state->restriction_flags & 8) {
+        if (player_side == state->fight->field_04) {
+            if (state->restriction_phase == 0) {
+                if (state->fight->slot.pdata->state == 0x120C) {
+                    state->restriction_phase = 1;
+                } else {
+                    damage = 0.0f;
+                }
+            } else if (state->drone->slot.pdata->state == 0) {
+                state->restriction_phase = 0;
+                damage = 0.0f;
+            }
+        }
+    } else if ((state->restriction_flags & 0x10) &&
+               player_side == state->fight->field_04 &&
+               damage_type != 1) {
+        damage = 0.0f;
+    }
+    return damage;
+}
+
+void trial_set_special_restrictions(unsigned int restrictions) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state != 0) {
+        state->restriction_flags = restrictions;
+    }
+}
+
+int trial_block_callback(int player) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state == 0) {
+        return 1;
+    }
+    if (((player == 0 && state->fight->field_04 == 0) ||
+         (player == 1 && state->fight->field_04 == 1)) &&
+        (state->restriction_flags & 1)) {
+        return 0;
+    }
+    return 1;
+}
+
+int trial_change_style_callback(int player) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state == 0) {
+        return 1;
+    }
+    if (((player == 0 && state->fight->field_04 == 0) ||
+         (player == 1 && state->fight->field_04 == 1)) &&
+        (state->restriction_flags & 2)) {
+        return 0;
+    }
+    return 1;
+}
+
+int trial_invisible_callback(PlyrPdata* player) {
+    int player_number = player->plyr_num;
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state == 0) {
+        return 1;
+    }
+    if (player_number != state->fight->field_04 &&
+        (state->restriction_flags & 0x20)) {
+        return 0;
+    }
+    return 1;
+}
+
+float p_blood_rush(void) {
+    struct KonquestBloodRushPdata* pdata =
+        (struct KonquestBloodRushPdata*)apdata;
+    int player = pdata->player;
+    float rate = pdata->rate;
+
+    if (g_game_info.flag_bits.lens_flare_enabled) {
+        if (player == 0) {
+            adjust_p1_life(rate);
+        } else {
+            adjust_p2_life(rate);
+        }
+    }
+    return 30.0f;
+}
+
+void drone_start_bleeding(int player, float rate) {
+    struct KonquestBloodRushPdata* pdata;
+    struct KonquestMissionState* state;
+    MkObj* fighter;
+    MkObj* mirror;
+    Vec velocity = {0.0f, 0.0f, 0.0f};
+    Vec direction = {1.0f, 0.0f, 0.0f};
+
+    state = get_mission_state();
+    mission_state = state;
+    if (state == 0) {
+        return;
+    }
+
+    if ((player == 0 && state->fight->field_04 == 0) ||
+        (player == 1 && state->fight->field_04 == 1)) {
+        direction.x = 1.0f;
+        mirror = g_game_info.plyr0.slot.mirror_a;
+        fighter = (MkObj*)g_game_info.plyr0.slot.fighter;
+    } else {
+        direction.x = -1.0f;
+        mirror = g_game_info.plyr1.slot.mirror_a;
+        fighter = (MkObj*)g_game_info.plyr1.slot.fighter;
+    }
+
+    start_gusher(
+        heart_beat, fighter, mirror, 9, &velocity, &direction);
+
+    if (_create_mkproc_generic_nostack(
+            0x501B, 0x1F, p_blood_rush,
+            sizeof(struct KonquestBloodRushPdata), (MkHdr**)&pdata) != 0) {
+        pdata->player = ((PlyrPdata*)fighter)->plyr_num;
+        pdata->rate = -1.0f * rate;
+    }
+}
+
+void drone_set_handicap(int player, float handicap) {
+    struct KonquestMissionState* state = get_mission_state();
+
+    mission_state = state;
+    if (state == 0) {
+        return;
+    }
+    if ((player == 0 && state->fight->field_04 == 0) ||
+        (player == 1 && state->fight->field_04 == 1)) {
+        g_game_info.plyr0.field_10 = handicap;
+        if (g_game_info.plyr0.field_0C > handicap) {
+            g_game_info.plyr0.field_0C = handicap;
+        }
+    } else {
+        g_game_info.plyr1.field_10 = handicap;
+        if (g_game_info.plyr1.field_0C > handicap) {
+            g_game_info.plyr1.field_0C = handicap;
+        }
+    }
+}
+
+int trial_never_passed_this_mission(void) {
+    struct KonquestMissionState* state = get_mission_state();
 
     mission_state = state;
     if (state == 0) {
         return 0;
     }
-    monk = state->monk;
-    if (monk != 0) {
-        if (monk->hdr.instance != state->monk_instance) {
-            return 0;
-        }
-        return monk;
-    }
-    return 0;
+    return get_konq_profile_value(5, state->mission_index) <= 0;
 }
