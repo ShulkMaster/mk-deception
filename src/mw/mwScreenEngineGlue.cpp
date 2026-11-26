@@ -657,7 +657,7 @@ extern unsigned int fx_by_id(int effect_id, unsigned int owner);
 extern int curr_pipeline_used;
 extern void* __dt__10ScreenNodeFv(void* node, short del);
 extern void __dl__10ScreenNodeFPv(void* node);
-static inline MkObj* ScreenModelLive(ScreenModel* self);
+static inline MkObj* ScreenModelLive(const ScreenModel* self);
 
 
 
@@ -1323,6 +1323,14 @@ static inline int ScreenTextVisibleLines(ScreenText* text) {
 inline unsigned char TextItem::ShouldAutoScrollDown() {
     return (this->scrollLimit - this->scrollPos -
             ScreenTextVisibleLines((ScreenText*)this->textNode)) == 0;
+}
+
+static inline StringObj* screen_text_live_string(const ScreenText* text) {
+    return MK_LIVE(text->stringObj, text->stringObjInstance);
+}
+
+static inline ScreenObj* screen_poly_live_object(const ScreenPoly* poly) {
+    return MK_LIVE(poly->screenObj, poly->screenObjInstance);
 }
 
 static inline AniTextureControl* wif_image_live_texture(const WifImage* image) {
@@ -2848,29 +2856,19 @@ ScreenText::ScreenText(SEText* se) {
     stringObjInstance = 0;
 }
 
-#pragma push
-#pragma opt_common_subs off
 ScreenText::~ScreenText() {
-    StringObj* live;
-
-    live = MK_LIVE(this->stringObj, (unsigned int)this->stringObjInstance);
-    if (live != 0) {
-        if (this->stringObj->instance != 0) {
-            this->stringObj->typed_vtbl->destroy(this->stringObj);
+    if (screen_text_live_string(this) != 0) {
+        StringObj* obj = this->stringObj;
+        if (obj->instance != 0) {
+            obj->typed_vtbl->destroy(obj);
         }
         this->stringObj = 0;
         this->stringObjInstance = 0;
     }
 }
-#pragma pop
-#pragma push
-#pragma opt_common_subs off
 void Close__10ScreenTextFv(ScreenText* text) {
-    StringObj* obj;
-
-    obj = MK_LIVE(text->stringObj, text->stringObjInstance);
-    if (obj != 0) {
-        obj = text->stringObj;
+    if (screen_text_live_string(text) != 0) {
+        StringObj* obj = text->stringObj;
         if (obj->instance != 0) {
             obj->typed_vtbl->destroy(obj);
         }
@@ -2878,7 +2876,6 @@ void Close__10ScreenTextFv(ScreenText* text) {
         text->stringObjInstance = 0;
     }
 }
-#pragma pop
 
 int GetStringLen__10ScreenTextFv(ScreenText* text) {
     StringObj* obj;
@@ -3206,28 +3203,18 @@ ScreenPoly::ScreenPoly() {
     colorTex = 0;
 }
 
-#pragma push
-#pragma opt_common_subs off
 ScreenPoly::~ScreenPoly() {
-    ScreenObj* live;
-
-    live = MK_LIVE(this->screenObj, (unsigned int)this->screenObjInstance);
-    if (live != 0) {
-        if (this->screenObj->instance != 0) {
-            this->screenObj->typed_vtbl->destroy(this->screenObj);
+    if (screen_poly_live_object(this) != 0) {
+        ScreenObj* obj = this->screenObj;
+        if (obj->instance != 0) {
+            obj->typed_vtbl->destroy(obj);
         }
         this->screenObj = 0;
         this->screenObjInstance = 0;
     }
 }
-#pragma pop
-#pragma push
-#pragma opt_common_subs off
 void Close__10ScreenPolyFv(ScreenPoly* poly) {
-    ScreenObj* live;
-
-    live = MK_LIVE(poly->screenObj, (unsigned int)poly->screenObjInstance);
-    if (live != 0) {
+    if (screen_poly_live_object(poly) != 0) {
         ScreenObj* obj = poly->screenObj;
         if (obj->instance != 0) {
             obj->typed_vtbl->destroy(obj);
@@ -3236,7 +3223,6 @@ void Close__10ScreenPolyFv(ScreenPoly* poly) {
         poly->screenObjInstance = 0;
     }
 }
-#pragma pop
 
 void Render__10ScreenPolyFP16ScreenRenderInfo(ScreenPoly* poly,
                                               ScreenRenderInfoC* info) {
@@ -3436,12 +3422,9 @@ ScreenModel::ScreenModel() {
     visible = 1;
 }
 
-#pragma push
-#pragma opt_common_subs off
 ScreenModel::~ScreenModel() {
     ScreenModel::Dispose();
 }
-#pragma pop
 
 void ScreenModel::SetVisible(unsigned int visible) {
     this->visible = (visible != 0);
@@ -3450,10 +3433,8 @@ void ScreenModel::SetVisible(unsigned int visible) {
 unsigned int ScreenModel::IsVisible() {
     return this->visible;
 }
-#pragma push
-#pragma opt_common_subs off
 void ScreenModel::Dispose() {
-    if (MK_HDR_LIVE(this->model, this->modelInstance) != 0) {
+    if (ScreenModelLive(this) != 0) {
         MkObj* mkobj = this->model;
         if (mkobj->hdr.instance != 0) {
             mkobj->hdr.typed_vtbl->destroy(&mkobj->hdr);
@@ -3462,7 +3443,6 @@ void ScreenModel::Dispose() {
         this->modelInstance = 0;
     }
 }
-#pragma pop
 
 void ScreenModel::Render(ScreenRenderInfo* info) {
     MkObj* mkobj;
@@ -4304,23 +4284,17 @@ WifImage::~WifImage() {}
 
 
 void WifImage::Init() {}
-#pragma push
-#pragma opt_common_subs off
 void WifImage::Dispose() {
-    AniTextureControl* live;
-
     ScreenControl::Dispose();
-    live = MK_LIVE(this->curTexture, this->curTextureInstance);
-    if (live != 0) {
-        if (this->curTexture->instance != 0) {
-            ((MkVtableAniTextureControl*)this->curTexture->vtbl)->destroy(
-                this->curTexture);
+    if (wif_image_live_texture(this) != 0) {
+        AniTextureControl* texture = this->curTexture;
+        if (texture->instance != 0) {
+            ((MkVtableAniTextureControl*)texture->vtbl)->destroy(texture);
         }
         this->curTexture = 0;
         this->curTextureInstance = 0;
     }
 }
-#pragma pop
 
 void WifImage::Close() {
     this->started = 0;
@@ -7365,7 +7339,7 @@ static inline int SeTagIsGroup(unsigned int tag) {
     return tag == (unsigned int)kSeTagOBJ || tag == (unsigned int)kSeTagGROP;
 }
 
-static inline MkObj* ScreenModelLive(ScreenModel* self) {
+static inline MkObj* ScreenModelLive(const ScreenModel* self) {
     MkObj* mkobj;
 
     mkobj = self->model;
