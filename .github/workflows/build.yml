@@ -60,6 +60,7 @@ jobs:
         fi
         baseline_dir="${RUNNER_TEMP}/mkd-base-${{ matrix.version }}"
         git worktree add --detach "${baseline_dir}" "${base_sha}"
+        git -C "${baseline_dir}" submodule update --init --recursive
         cp -a /orig "${baseline_dir}/"
         cd "${baseline_dir}"
         python configure.py --map --version ${{ matrix.version }} \
