@@ -1,6 +1,3 @@
-/* TODO: [review] layout stubs: mwFileCommand::getError() const reproduces a linker-stripped retail
- * function only to recreate its .data layout; the body is NOT recovered source. Replace with a
- * genuine body if a source turns up. */
 #include "mw/mwFile.h"
 
 struct mwFileTypeInfo;
@@ -116,8 +113,12 @@ void mwFileCommand::handleCompletion(mwFileAsyncResult result)
 
 int mwFileCommand::getError() const
 {
-    mwFileQueryable base;
     return error;
+}
+
+static void fn_stub1(void)
+{
+    mwFileQueryable base;
 }
 
 mwFileCommand::~mwFileCommand()

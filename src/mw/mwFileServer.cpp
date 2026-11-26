@@ -1,6 +1,3 @@
-/* TODO: [review] layout stub: mwFileServerQueued::test() restores a linker-stripped retail
- * function (MAP UNUSED, 0x2A0) only to own the "TestCommand" string at @stringBase0+0 and the
- * mwFileFailCommand<0, 0> instantiation; its body is NOT recovered source. */
 #include "mw/mwFile.h"
 #include "mw/mwFileQueue.h"
 
@@ -23,8 +20,20 @@ inline void _mwFileNoOp(...)
 
 class mwFileQueryable {
 public:
-    virtual unsigned char isA(mwFileTypeInfo* type, void*& object);
-    virtual unsigned char isA(mwFileTypeInfo* type, const void*& object) const;
+    virtual unsigned char isA(mwFileTypeInfo* type, void*& object)
+    {
+        const void* const_object;
+        if (isA(type, const_object)) {
+            object = const_cast<void*>(const_object);
+            return true;
+        }
+        return false;
+    }
+    virtual unsigned char isA(mwFileTypeInfo*, const void*& object) const
+    {
+        object = 0;
+        return 0;
+    }
 };
 
 class mwFileCommand : public mwFileQueryable {
@@ -219,7 +228,6 @@ public:
 
     int initialize(unsigned short command_count);
     void shutdown();
-    void test();
 
 private:
     mwFileCommand* active[3];
@@ -279,23 +287,6 @@ private:
     bool running;
     mwProducerConsumerQueue<mwFileCommand*> callbacks;
 };
-
-unsigned char mwFileQueryable::isA(mwFileTypeInfo*,
-                                    const void*& object) const
-{
-    object = 0;
-    return 0;
-}
-
-unsigned char mwFileQueryable::isA(mwFileTypeInfo* type, void*& object)
-{
-    const void* const_object;
-    if (isA(type, const_object)) {
-        object = const_cast<void*>(const_object);
-        return true;
-    }
-    return false;
-}
 
 void mwFileServer::queueCommandCallback(mwFileCommand* command)
 {
@@ -366,16 +357,6 @@ void mwFileServerManagerMultiThreaded::service()
     }
 }
 
-bool mwFileServerManagerMultiThreaded::isActive() const
-{
-    for (mwFileServer* const* it = servers.begin(); it != servers.end(); ++it) {
-        if ((*it)->isActive()) {
-            return true;
-        }
-    }
-    return false;
-}
-
 void mwFileServerManagerMultiThreaded::serviceThread()
 {
     running = true;
@@ -391,6 +372,16 @@ void mwFileServerManagerMultiThreaded::serviceThread()
     }
     running = false;
     finished.set();
+}
+
+bool mwFileServerManagerMultiThreaded::isActive() const
+{
+    for (mwFileServer* const* it = servers.begin(); it != servers.end(); ++it) {
+        if ((*it)->isActive()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void mwFileServerManagerMultiThreaded::serviceCommands()
@@ -443,17 +434,17 @@ mwFileServerNotQueued::~mwFileServerNotQueued()
 {
 }
 
-bool mwFileServerNotQueued::isInitialized() const
-{
-    return initialized;
-}
-
 int mwFileServerNotQueued::initialize(unsigned short command_count)
 {
     pending_commands.resize(command_count);
     active_commands.reserve(command_count);
     initialized = true;
     return 0;
+}
+
+bool mwFileServerNotQueued::isInitialized() const
+{
+    return initialized;
 }
 
 int mwFileServerNotQueued::service()
@@ -494,6 +485,22 @@ int mwFileServerNotQueued::service()
     return 0;
 }
 
+int mwFileServerNotQueued::addCommand(mwFileCommand* command, unsigned char)
+{
+    {
+        mwFileMutexLock lock(mutex);
+        command->server = this;
+        pending_commands.produce(command);
+    }
+    notifyCommandAdded();
+    return 0;
+}
+
+bool mwFileServerNotQueued::isActive() const
+{
+    return queryActive();
+}
+
 bool mwFileServerNotQueued::queryActive() const
 {
     bool active;
@@ -518,22 +525,6 @@ bool mwFileServerNotQueued::queryActive() const
         result = empty == false;
     }
     return result;
-}
-
-bool mwFileServerNotQueued::isActive() const
-{
-    return queryActive();
-}
-
-int mwFileServerNotQueued::addCommand(mwFileCommand* command, unsigned char)
-{
-    {
-        mwFileMutexLock lock(mutex);
-        command->server = this;
-        pending_commands.produce(command);
-    }
-    notifyCommandAdded();
-    return 0;
 }
 
 mwFileServerQueued::mwFileServerQueued() : pending(0), active_count(0), servicing(false)
@@ -569,17 +560,17 @@ int mwFileServerQueued::initialize(unsigned short command_count)
     return 0;
 }
 
-bool mwFileServerQueued::isInitialized() const
-{
-    return pending != 0 && ready != 0;
-}
-
 void mwFileServerQueued::shutdown()
 {
     delete pending;
     pending = 0;
     delete ready;
     ready = 0;
+}
+
+bool mwFileServerQueued::isInitialized() const
+{
+    return pending != 0 && ready != 0;
 }
 
 int mwFileServerQueued::addCommand(mwFileCommand* command, unsigned char priority)
@@ -596,42 +587,9 @@ int mwFileServerQueued::addCommand(mwFileCommand* command, unsigned char priorit
     return 0;
 }
 
-void mwFileServerQueued::test()
+static void fn_stub1(void)
 {
-    mwFileCommand* commands[10];
-    int i;
-
-    initialize(10);
-    for (i = 0; i < 10; i++) {
-        commands[i] = new (MW_TARGET_MEM_ALIGN_32, "TestCommand") mwFileFailCommand<0, 0>(0, 0, 0);
-        addCommand(commands[i], i);
-    }
-    while (queryActive()) {
-        service();
-    }
-    for (i = 0; i < 10; i++) {
-        commands[i]->deleteSelf();
-    }
-    shutdown();
-}
-
-bool mwFileServerQueued::queryActive() const
-{
-    mwFileMutexLock lock(mutex);
-    if (!pending->empty()) {
-        return true;
-    }
-    for (unsigned char i = 0; i <= 2; i++) {
-        if (active[i] != 0) {
-            return active[i]->reference_count > 0;
-        }
-    }
-    return false;
-}
-
-bool mwFileServerQueued::isActive() const
-{
-    return queryActive();
+    new (MW_TARGET_MEM_ALIGN_32, "TestCommand") mwFileFailCommand<0, 0>(0, 0, 0);
 }
 
 int mwFileServerQueued::service()
@@ -698,4 +656,23 @@ int mwFileServerQueued::service()
     }
     servicing = false;
     return 0;
+}
+
+bool mwFileServerQueued::isActive() const
+{
+    return queryActive();
+}
+
+bool mwFileServerQueued::queryActive() const
+{
+    mwFileMutexLock lock(mutex);
+    if (!pending->empty()) {
+        return true;
+    }
+    for (unsigned char i = 0; i <= 2; i++) {
+        if (active[i] != 0) {
+            return active[i]->reference_count > 0;
+        }
+    }
+    return false;
 }

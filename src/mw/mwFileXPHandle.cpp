@@ -36,10 +36,6 @@ typedef char mwFileBufferSizeCheck[sizeof(mwFileBuffer) == 0x18 ? 1 : -1];
 
 extern void _mwFileNoOp(...);
 
-static const char stringBase0[] =
-    "mwFile: WARNING - destroying unflushed file buffer\n\0"
-    "File buffer";
-
 u32 mwFileBuffer::readInRange(unsigned char*& destination,
                                         u32& length,
                                         unsigned long long& position)
@@ -90,7 +86,7 @@ void mwFileBuffer::reset(unsigned long long position, u32 length)
 void mwFileBuffer::shutdown()
 {
     if (dirty) {
-        _mwFileNoOp(&stringBase0[0]);
+        _mwFileNoOp("mwFile: WARNING - destroying unflushed file buffer\n");
     }
 
     if (buffer != 0) {
@@ -111,7 +107,7 @@ int mwFileBuffer::initialize(u32 size, mwTargetMemAlign alignment)
 
     capacity = size;
     file_position = 0;
-    if (!mwFileMemAlloc(buffer, size, alignment, &stringBase0[52])) {
+    if (!mwFileMemAlloc(buffer, size, alignment, "File buffer")) {
         return -10;
     }
     if (buffer == 0) {
