@@ -209,10 +209,30 @@ def reloc_expr(reloc: Relocation, local_names: dict[str, str] | None = None) -> 
     return f"{name} {sign} 0x{abs(reloc.addend):X}"
 
 
-def string_reloc_expr(reloc: Relocation, base_name: str = "stringBase0") -> str:
-    if reloc.type != R_PPC_ADDR32 or reloc.symbol.name != "@stringBase0":
-        raise ValueError(f"expected @stringBase0 ADDR32 relocation at 0x{reloc.offset:X}")
-    return f"(char*)&{base_name}[0x{reloc.addend:X}]"
+def pool_string_literal(reloc: Relocation, pool: Symbol, data: bytes) -> str:
+    """Return the C literal for a pointer into the retail @stringBase0 pool."""
+    if reloc.type != R_PPC_ADDR32 or reloc.symbol.name != pool.name:
+        raise ValueError(f"expected {pool.name} ADDR32 relocation at 0x{reloc.offset:X}")
+    start = reloc.addend
+    if not 0 <= start < len(data) or (start and data[start - 1] != 0) or b"\0" not in data[start:]:
+        raise ValueError(f"relocation at 0x{reloc.offset:X} does not start a pooled string")
+    return c_string(data[start:data.index(b"\0", start)])
+
+
+def check_pool_order(unit: str, data: bytes, starts: list[int], code_tail: bytes = b"") -> None:
+    """The literals rebuild the pool only if first-reference order is pool order.
+
+    `-str reuse,pool` places each distinct literal once, in order of first
+    appearance; strings used only by functions in the unit follow as code_tail.
+    """
+    seen: set[int] = set()
+    rebuilt = bytearray()
+    for start in starts:
+        if start not in seen:
+            seen.add(start)
+            rebuilt += data[start:data.index(b"\0", start) + 1]
+    if bytes(rebuilt) + code_tail != data:
+        raise ValueError(f"{unit}: literal tables do not rebuild the retail string pool")
 
 
 def emit_nbc(elf: Elf32) -> dict[str, str]:
@@ -222,30 +242,22 @@ def emit_nbc(elf: Elf32) -> dict[str, str]:
     pool_data = elf.symbol_data("@stringBase0")
     if not pool_data.endswith(b"\0"):
         raise ValueError("nbc.o: unterminated string pool")
-    # Adjacent string literals retain the retail encoding without out-of-range
-    # integer initializers for implementations where plain char is signed.
-    strings = pool_data[:-1].split(b"\0")
-    pool_text = "/* Generated from retail nbc.o @stringBase0. */\n"
-    pool_text += "\n".join(
-        "    " + (c_string(value)[:-1] + r'\0"' if i + 1 < len(strings)
-                 else c_string(value))
-        for i, value in enumerate(strings)
-    ) + "\n"
 
     table = elf.symbol("nbc_general_text")
     if table.size % 4 or table.section_index != elf.section(".data").index:
         raise ValueError("nbc.o: unexpected nbc_general_text layout")
     relocs = elf.relocations(".data")
-    lines = ["/* Generated pointer table into stringBase0. */"]
+    lines = ["/* Generated nbc_general_text literals. */"]
+    starts = []
     for offset in range(table.value, table.value + table.size, 4):
         reloc = relocs.get(offset)
         if reloc is None:
             raise ValueError(f"nbc.o: missing table relocation at 0x{offset:X}")
-        lines.append(f"    &stringBase0[0x{reloc.addend:X}],")
-    return {
-        "game/nbc_stringBase0.inc": pool_text,
-        "game/nbc_general_text.inc": "\n".join(lines) + "\n",
-    }
+        lines.append(f"    {pool_string_literal(reloc, pool, pool_data)},")
+        starts.append(reloc.addend)
+    # nbc_find_text's " " fallback is the only code-only string.
+    check_pool_order("nbc.o", pool_data, starts, b" \0")
+    return {"game/nbc_general_text.inc": "\n".join(lines) + "\n"}
 
 
 def emit_gcmcardmsg(elf: Elf32) -> dict[str, str]:
@@ -257,28 +269,14 @@ def emit_gcmcardmsg(elf: Elf32) -> dict[str, str]:
     data = elf.symbol_data(pool.name)
     if not data.endswith(b"\0"):
         raise ValueError("gcmcardmsg.o: unterminated string pool")
-    strings = data[:-1].split(b"\0")
-    pool_text = "/* Generated from retail gcmcardmsg.o @stringBase0. */\n"
-    pool_text += "\n".join(
-        "    " + (c_string(value)[:-1] + r'\0"' if i + 1 < len(strings) else c_string(value))
-        for i, value in enumerate(strings)
-    ) + "\n"
     relocs = elf.relocations(".data")
-    lines = ["/* Generated gc_mc_msg_text: 145 entries, five languages each. */"]
-    literal_lines = lines.copy()
+    literal_lines = ["/* Generated gc_mc_msg_text: 145 entries, five languages each. */"]
     for offset in range(table.value, table.value + table.size, 4):
         reloc = relocs.get(offset)
-        if (reloc is None or reloc.type != R_PPC_ADDR32 or reloc.symbol.name != pool.name
-                or not 0 <= reloc.addend < pool.size or b"\0" not in data[reloc.addend:]):
-            raise ValueError(f"gcmcardmsg.o: invalid text relocation at 0x{offset:X}")
-        lines.append(f"    &stringBase0[0x{reloc.addend:X}],")
-        end = data.index(b"\0", reloc.addend)
-        literal_lines.append(f"    {c_string(data[reloc.addend:end])},")
-    return {
-        "platform/gcmcardmsg_stringBase0.inc": pool_text,
-        "platform/gcmcardmsg_text.inc": "\n".join(lines) + "\n",
-        "platform/gcmcardmsg_text_literals.inc": "\n".join(literal_lines) + "\n",
-    }
+        if reloc is None:
+            raise ValueError(f"gcmcardmsg.o: missing text relocation at 0x{offset:X}")
+        literal_lines.append(f"    {pool_string_literal(reloc, pool, data)},")
+    return {"platform/gcmcardmsg_text_literals.inc": "\n".join(literal_lines) + "\n"}
 
 
 def emit_pselect(elf: Elf32) -> dict[str, str]:
@@ -319,17 +317,18 @@ def emit_fonts(elf: Elf32) -> dict[str, str]:
         raise ValueError("fonts.o: unexpected generated-data symbol sizes")
     data = elf.section(".data").data
     relocs = elf.relocations(".data")
+    pool_data = elf.symbol_data(pool.name)
+    starts = []
     lines = ["/* Generated from retail fonts.o; do not hand-edit. */", ""]
-    lines.append(f"static const char stringBase0[0x{pool.size:X}] = {{")
-    lines.append(byte_initializer(elf.symbol_data(pool.name)))
-    lines.extend(["};", "", "FontTableEntry font_table[18] = {"])
+    lines.append("FontTableEntry font_table[18] = {")
     for row in range(18):
         base = font_table.value + row * 24
         row_words = words(data[base : base + 24])
         name_reloc = relocs.get(base)
         if name_reloc is None:
             raise ValueError(f"fonts.o: missing font name relocation for row {row}")
-        name = string_reloc_expr(name_reloc)
+        name = pool_string_literal(name_reloc, pool, pool_data)
+        starts.append(name_reloc.addend)
         if base + 12 in relocs:
             raise ValueError(f"fonts.o: unexpected asset handle relocation for row {row}")
         handle = f"0x{row_words[3]:08X}"
@@ -345,8 +344,10 @@ def emit_fonts(elf: Elf32) -> dict[str, str]:
             reloc = relocs.get(base + column * 4)
             if reloc is None:
                 raise ValueError(f"fonts.o: missing string relocation for row {row}, column {column}")
-            expressions.append(string_reloc_expr(reloc))
+            expressions.append(pool_string_literal(reloc, pool, pool_data))
+            starts.append(reloc.addend)
         lines.append("    " + ", ".join(expressions) + ",")
+    check_pool_order("fonts.o", pool_data, starts)
     size_value = words(elf.symbol_data(size_symbol.name))[0]
     lines.extend(["};", "", f"int string_tbl_size = 0x{size_value:X};"])
     return {"runtime/fonts_data.inc": "\n".join(lines) + "\n"}
@@ -641,8 +642,8 @@ def generate(object_root: Path) -> dict[str, str]:
             if relative in outputs:
                 raise ValueError(f"duplicate generated path: {relative}")
             outputs[relative] = contents
-    if len(outputs) != 15:
-        raise AssertionError(f"expected 15 generated includes, got {len(outputs)}")
+    if len(outputs) != 12:
+        raise AssertionError(f"expected 12 generated includes, got {len(outputs)}")
     return outputs
 
 

@@ -1042,8 +1042,6 @@ static inline const unsigned int* cmdscript_register_slot(
     return &script->regs[index];
 }
 
-/* TODO: [near miss] 97.89474%; argument-index and packed-shift homes differ;
- * recover a packed-word lifetime beyond the shared global input captures. */
 static void _set_bit_field(void) {
     unsigned int* args;
     CmdScript* cs;
@@ -1054,10 +1052,11 @@ static void _set_bit_field(void) {
 
     args = current_args;
     cs = active_cmdscript;
+    shift = args[3];
     dst = (unsigned int*)*cmdscript_register_slot(cs, args[1]);
-    src = *cmdscript_register_slot(cs, args[2]);
+    shift >>= 16;
     mask = args[4];
-    shift = args[3] >> 16;
+    src = *cmdscript_register_slot(cs, args[2]);
     *dst = (*dst & ~mask) | (src << shift);
 }
 
@@ -1066,21 +1065,20 @@ static inline unsigned int* cmdscript_mutable_register_slot(
     return &script->regs[index];
 }
 
-/* TODO: [near miss] 95.93750%; packed shift stays an emission temp above
- * both global owners; recover that owner boundary before further coloring. */
 static void _get_bit_field(void) {
-    unsigned int val;
     unsigned int* args;
     CmdScript* cs;
     unsigned int mask;
     unsigned int shift;
+    unsigned int val;
 
     args = current_args;
     cs = active_cmdscript;
+    shift = args[3];
     val = *cmdscript_register_slot(cs, args[2]);
     mask = args[4];
-    shift = args[3] >> 16;
     val &= mask;
+    shift >>= 16;
     val >>= shift;
     *cmdscript_mutable_register_slot(cs, args[1]) = val;
 }
