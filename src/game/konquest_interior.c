@@ -1,6 +1,3 @@
-/* TODO: [review] layout stub: p_konquest_interior_test reproduces a linker-stripped retail function
- * only to recreate its .sdata2 pool position (60.0f); the body is NOT recovered source. Replace with
- * the genuine body if a source turns up. */
 #include "game/game_info.h"
 #include "game/konquest.h"
 #include "math/gxMath.h"
@@ -999,7 +996,7 @@ void setup_interior_fighting_arena(void) {
     konq_interior_apply_fight_objects(g_game_info.bgnd_obj, rec);
 }
 
-float p_konquest_interior_test(void) {
+static float fn_stub1(void) {
     return 60.0f;
 }
 

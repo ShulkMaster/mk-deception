@@ -82,7 +82,6 @@ struct LadderCharacterTexture {
     char* texture_name;
 };
 
-
 struct LadderCoinType coin_offset_tbl[6] = {
     {0, "LAD_WALLETKOIN_PLATINUM"},
     {1, "LAD_WALLETKOIN_ONYX"},
@@ -538,16 +537,6 @@ static struct LadderEntry* current_ladder_tbl;
 static struct LadderStringRef bgnd_name_item;
 static int curr_ladder_char;
 static int curr_ladder_pos;
-const char* ladder_koin_type_to_string(int type) {
-    int i;
-
-    for (i = 0; i < LADDER_COIN_TYPE_COUNT; i++) {
-        if (coin_offset_tbl[i].type == type) {
-            return coin_offset_tbl[i].name;
-        }
-    }
-    return 0;
-}
 
 static inline int ladder_str_to_koin_type(const char* name) {
     int i;
@@ -560,14 +549,6 @@ static inline int ladder_str_to_koin_type(const char* name) {
     return 0;
 }
 
-const char* get_rnd_chess_koin_type(int difficulty) {
-    const char* coin;
-
-    coin = chess_koins[randu0(n_chess_koins) & 0xFFFF];
-    g_game_info.pselect.field_1e4 = ladder_str_to_koin_type(coin);
-    return coin;
-}
-
 static inline const char* get_rnd_ladder_koin_type(void) {
     const char* coin;
 
@@ -576,56 +557,6 @@ static inline const char* get_rnd_ladder_koin_type(void) {
     return coin;
 }
 
-int get_chess_leader_won_coin_award(void) {
-    int difficulty;
-    int award;
-
-    difficulty = game_settings.arcade_difficulty;
-    if (difficulty < 2) {
-        return 0;
-    }
-
-    award = 200;
-    if (difficulty == 2) {
-        return award * 1.0f;
-    }
-    if (difficulty == 3) {
-        return award * 1.5f;
-    }
-    if (difficulty == 4) {
-        award = award * 2.0f;
-    }
-    return award;
-}
-
-int get_chess_coin_award(int coin_index) {
-    int award;
-
-    if (coin_index < 0 || coin_index > 6) {
-        return 0;
-    }
-
-    award = chess_koin_award_table[coin_index] * 5;
-    if (game_settings.arcade_difficulty == 0) {
-        return (0.5f * (float)award);
-    }
-    if (game_settings.arcade_difficulty == 1) {
-        return (0.75f * (float)award);
-    }
-    if (game_settings.arcade_difficulty == 3) {
-        return (1.1f * (float)award);
-    }
-    if (game_settings.arcade_difficulty == 4) {
-        award = (1.25f * (float)award);
-    }
-    return award;
-}
-
-int get_ladder_position(void) {
-    return curr_ladder_pos;
-}
-
-#pragma opt_common_subs off
 static inline int ladder_get_bgnd_at_pos(int position)
 {
     if (is_bgnd_locked(current_ladder_tbl[position].background_id)) {
@@ -633,102 +564,7 @@ static inline int ladder_get_bgnd_at_pos(int position)
     }
     return current_ladder_tbl[position].background_id;
 }
-
-int advance_ladder_position(void) {
-    int ladder_size;
-    int mode;
-    int table_index;
-    int next_position;
-
-    ladder_size = 8;
-    mode = mode_of_play;
-    if (mode == 6) {
-        ladder_size = 6;
-    }
-
-    if (curr_ladder_pos == 0 || curr_ladder_char == -1) {
-        if (g_game_info.plyr0.player_state == 2) {
-            curr_ladder_char = g_game_info.plyr0.player_index;
-        } else {
-            curr_ladder_char = g_game_info.plyr1.player_index;
-        }
-    }
-
-    next_position = ++curr_ladder_pos;
-    if (next_position == ladder_size) {
-        g_game_info.pause_flag_bits.ladder_complete = 1;
-        curr_ladder_pos = 0;
-        curr_ladder_char = -1;
-        g_game_info.field_20C = 0;
-
-        if (mode == 6) {
-            pz_loss_in_a_row = 0;
-            table_index = randu0(5) & 0xFFFF;
-            ladder_data_tbl_offset = table_index;
-            current_ladder_tbl = pz_ladder_data_table_list[table_index];
-        } else {
-            table_index = randu0(14) & 0xFFFF;
-            ladder_data_tbl_offset = table_index;
-            current_ladder_tbl = ladder_data_table_list[table_index];
-        }
-        return 1;
-    }
-
-    g_game_info.bgnd_id = ladder_get_bgnd_at_pos(next_position);
-    return 0;
-}
-#pragma opt_common_subs reset
-
-void init_current_ladder_char(void) {
-    curr_ladder_char = -1;
-}
-
-int ladder_get_current_bgnd(void) {
-    return ladder_get_bgnd_at_pos(curr_ladder_pos);
-}
-void one_player_ladder_init(void) {
-    int table_index;
-
-    curr_ladder_pos = 0;
-    curr_ladder_char = -1;
-    g_game_info.field_20C = 0;
-
-    if (mode_of_play == 6) {
-        pz_loss_in_a_row = 0;
-        table_index = randu0(5) & 0xFFFF;
-        ladder_data_tbl_offset = table_index;
-        current_ladder_tbl = pz_ladder_data_table_list[table_index];
-    } else {
-        table_index = randu0(14) & 0xFFFF;
-        ladder_data_tbl_offset = table_index;
-        current_ladder_tbl = ladder_data_table_list[table_index];
-    }
-}
-
-static inline int get_curr_difficulty(void) {
-    float difficulty_ranges[10] = {
-        5.0f, 25.0f,
-        15.0f, 40.0f,
-        25.0f, 60.0f,
-        40.0f, 80.0f,
-        80.0f, 100.0f,
-    };
-    int display_difficulty;
-    float step;
-
-    display_difficulty = mode_of_play == 6
-        ? game_settings.rounds_to_win
-        : game_settings.kombat_difficulty;
-    if (display_difficulty > 4) {
-        display_difficulty = 4;
-    } else if (display_difficulty < 0) {
-        display_difficulty = 0;
-    }
-    step = (difficulty_ranges[display_difficulty * 2 + 1] -
-            difficulty_ranges[display_difficulty * 2]) / 7.0f;
-    return 0.5f + (step * (float)curr_ladder_pos +
-        difficulty_ranges[display_difficulty * 2]);
-}
+static int get_curr_difficulty(void);
 
 static inline int get_ladder_coin_award(int position) {
     int award;
@@ -750,103 +586,13 @@ static inline int get_ladder_coin_award(int position) {
     return award;
 }
 
-static void build_ladder_hud_data(void) {
-    char text_buffer[120];
-    StringObj* arena_name;
-    const char* text;
-    int background_id;
-    int award;
-    int hours;
-    int minutes;
-    int seconds;
-    int ladder_position;
-
-    arena_name = 0;
-    ladder_position = curr_ladder_pos;
-    if (is_bgnd_locked(
-            current_ladder_tbl[ladder_position].background_id)) {
-        background_id =
-            current_ladder_tbl[ladder_position].locked_background_id;
-    } else {
-        background_id =
-            current_ladder_tbl[ladder_position].background_id;
-    }
-
-    text = get_string_by_id(
-        global_background_data[background_id].field8 |
-        0x10000u);
-    if (text != 0) {
-        int x;
-        int y;
-
-        x = ladder_data_table[background_id].x;
-        y = ladder_data_table[background_id].y;
-        if (mode_of_play == 6) {
-            y += 60;
-        }
-        arena_name = string_center_xy(
-            0x209A,
-            9,
-            text,
-            x,
-            y,
-            0x1D);
-        if (arena_name != 0) {
-            bgnd_name_item.object = arena_name;
-            bgnd_name_item.instance = arena_name->instance;
-        }
-    }
-    set_string_obj_alpha(arena_name, 0.0f);
-
-    hours = g_game_info.field_20C / 3600;
-    minutes = g_game_info.field_20C / 60 - hours * 60;
-    seconds = g_game_info.field_20C - (minutes * 60 + hours * 3600);
-    if (hours != 0) {
-        sprintf(
-            text_buffer,
-            get_string_by_id(0x10029),
-            hours,
-            minutes,
-            seconds);
-        string_left_xy(
-            0x209A, 0, text_buffer, 0x31, 0x18F, 0x1D);
-    } else {
-        sprintf(
-            text_buffer,
-            get_string_by_id(0x1002A),
-            minutes,
-            seconds);
-        string_left_xy(
-            0x209A, 0, text_buffer, 0x31, 0x18F, 0x1D);
-    }
-
-    award = get_curr_difficulty();
-    sprintf(text_buffer, get_string(0x24), award);
-    string_left_xy(
-        0x209A, 0, text_buffer, 0x31, 0x17B, 0x1D);
-
-    if (g_game_info.plyr0.player_state != 2 ||
-        p1_profile_status != 1) {
-        if (g_game_info.plyr1.player_state != 2) {
-            return;
-        }
-        if (p2_profile_status != 1) {
-            return;
-        }
-    }
-
-    award = get_ladder_coin_award(curr_ladder_pos);
-    g_game_info.pselect.field_1e8 = award;
-
-    if (mode_of_play != 6) {
-        get_rnd_ladder_koin_type();
-        show_koin_award(
-            0,
-            g_game_info.pselect.field_1e8,
-            g_game_info.pselect.field_1e4,
-            0x23);
-    }
+static inline void ladder_sleep(float ticks) {
+    _mkproc_sleep_ticks = ticks;
+    aproc->vtbl->sleep();
 }
+static void show_ladder_hud_data(void);
+static void build_ladder_hud_data(void);
+static void wait_for_cpu_opponent_download(PlyrInfo* opponent);
 
 static inline char* fetch_plyr_ladder_model_name(
     struct LadderModelEntry* models, int character_id, int alternate_model)
@@ -869,6 +615,22 @@ static inline int ladder_get_char_at_pos(int position)
         return current_ladder_tbl[position].locked_character_id;
     }
     return current_ladder_tbl[position].character_id;
+}
+
+extern MkFileInfo sec_fightingart;
+const char* pz_ladder_koins[2] = {
+    "LAD_WALLETKOIN_PLATINUM",
+    "LAD_WALLETKOIN_ONYX",
+};
+unsigned short n_pz_ladder_koins = 2;
+
+static inline const char* get_rnd_pz_ladder_koin_type(void)
+{
+    const char* coin;
+
+    coin = pz_ladder_koins[randu0(n_pz_ladder_koins) & 0xFFFF];
+    g_game_info.pselect.field_1e4 = ladder_str_to_koin_type(coin);
+    return coin;
 }
 
 static void place_plyr_on_ladder(int position, int alternate_model) {
@@ -974,53 +736,6 @@ static void place_plyr_on_ladder(int position, int alternate_model) {
         }
         animation->step = 1.0f;
     }
-}
-
-extern MkFileInfo sec_fightingart;
-const char* pz_ladder_koins[2] = {
-    "LAD_WALLETKOIN_PLATINUM",
-    "LAD_WALLETKOIN_ONYX",
-};
-unsigned short n_pz_ladder_koins = 2;
-
-static inline void ladder_sleep(float ticks) {
-    _mkproc_sleep_ticks = ticks;
-    aproc->vtbl->sleep();
-}
-
-static inline void ladder_create_player_with_slow_camera(PlyrInfo* opponent) {
-    CameraPdata* camera = get_pdata_of_camera();
-    float speed = camera->speed;
-    camera->speed *= 1e-9f;
-    create_player(opponent->field_04, opponent);
-    camera->speed = speed;
-}
-
-static inline const char* get_rnd_pz_ladder_koin_type(void)
-{
-    const char* coin;
-
-    coin = pz_ladder_koins[randu0(n_pz_ladder_koins) & 0xFFFF];
-    g_game_info.pselect.field_1e4 = ladder_str_to_koin_type(coin);
-    return coin;
-}
-
-static inline void show_ladder_hud_data(void)
-{
-    StringObj* arena_name;
-    int alpha;
-
-    alpha = 0;
-    arena_name = 0;
-    while (alpha < 255) {
-        arena_name = MK_LIVE(bgnd_name_item.object, bgnd_name_item.instance);
-        if (arena_name != 0) {
-            set_string_obj_alpha(arena_name, (unsigned char)alpha);
-            alpha += (signed char)(8.0f * game_speed);
-            ladder_sleep(1.0f);
-        }
-    }
-    set_string_obj_alpha(arena_name, 255.0f);
 }
 
 float p_ladder_select(void) {
@@ -1166,7 +881,7 @@ float p_ladder_select(void) {
             }
             camera->speed *= 1e-7f;
         }
-        ladder_create_player_with_slow_camera(opponent);
+        wait_for_cpu_opponent_download(opponent);
         resume_frames = frames;
         if (game_speed == 1.2f) resume_frames = frames + 6;
         for (i = 0; i < resume_frames; i++) {
@@ -1193,7 +908,7 @@ float p_ladder_select(void) {
         struct LadderPlacement* placement;
         int placement_position;
         if (curr_ladder_pos > 0) {
-            ladder_create_player_with_slow_camera(opponent);
+            wait_for_cpu_opponent_download(opponent);
         }
         if (opponent->player_index == 27)
             tag_team_activate_player(opponent->slot.mirror_a, (unsigned short)randu0(1));
@@ -1275,4 +990,292 @@ float p_ladder_select(void) {
     if (mode_of_play == 6) gamelogic_jump(3, p_puzzle_fighter);
     gamelogic_jump(2, p_gamelogic);
     return -1.0f;
+}
+
+static void wait_for_cpu_opponent_download(PlyrInfo* opponent) {
+    CameraPdata* camera = get_pdata_of_camera();
+    float speed = camera->speed;
+    camera->speed *= 1e-9f;
+    create_player(opponent->field_04, opponent);
+    camera->speed = speed;
+}
+
+static void build_ladder_hud_data(void) {
+    char text_buffer[120];
+    StringObj* arena_name;
+    const char* text;
+    int background_id;
+    int award;
+    int hours;
+    int minutes;
+    int seconds;
+    int ladder_position;
+
+    arena_name = 0;
+    ladder_position = curr_ladder_pos;
+    if (is_bgnd_locked(
+            current_ladder_tbl[ladder_position].background_id)) {
+        background_id =
+            current_ladder_tbl[ladder_position].locked_background_id;
+    } else {
+        background_id =
+            current_ladder_tbl[ladder_position].background_id;
+    }
+
+    text = get_string_by_id(
+        global_background_data[background_id].field8 |
+        0x10000u);
+    if (text != 0) {
+        int x;
+        int y;
+
+        x = ladder_data_table[background_id].x;
+        y = ladder_data_table[background_id].y;
+        if (mode_of_play == 6) {
+            y += 60;
+        }
+        arena_name = string_center_xy(
+            0x209A,
+            9,
+            text,
+            x,
+            y,
+            0x1D);
+        if (arena_name != 0) {
+            bgnd_name_item.object = arena_name;
+            bgnd_name_item.instance = arena_name->instance;
+        }
+    }
+    set_string_obj_alpha(arena_name, 0.0f);
+
+    hours = g_game_info.field_20C / 3600;
+    minutes = g_game_info.field_20C / 60 - hours * 60;
+    seconds = g_game_info.field_20C - (minutes * 60 + hours * 3600);
+    if (hours != 0) {
+        sprintf(
+            text_buffer,
+            get_string_by_id(0x10029),
+            hours,
+            minutes,
+            seconds);
+        string_left_xy(
+            0x209A, 0, text_buffer, 0x31, 0x18F, 0x1D);
+    } else {
+        sprintf(
+            text_buffer,
+            get_string_by_id(0x1002A),
+            minutes,
+            seconds);
+        string_left_xy(
+            0x209A, 0, text_buffer, 0x31, 0x18F, 0x1D);
+    }
+
+    award = get_curr_difficulty();
+    sprintf(text_buffer, get_string(0x24), award);
+    string_left_xy(
+        0x209A, 0, text_buffer, 0x31, 0x17B, 0x1D);
+
+    if (g_game_info.plyr0.player_state != 2 ||
+        p1_profile_status != 1) {
+        if (g_game_info.plyr1.player_state != 2) {
+            return;
+        }
+        if (p2_profile_status != 1) {
+            return;
+        }
+    }
+
+    award = get_ladder_coin_award(curr_ladder_pos);
+    g_game_info.pselect.field_1e8 = award;
+
+    if (mode_of_play != 6) {
+        get_rnd_ladder_koin_type();
+        show_koin_award(
+            0,
+            g_game_info.pselect.field_1e8,
+            g_game_info.pselect.field_1e4,
+            0x23);
+    }
+}
+
+static void show_ladder_hud_data(void)
+{
+    StringObj* arena_name;
+    int alpha;
+
+    alpha = 0;
+    arena_name = 0;
+    while (alpha < 255) {
+        arena_name = MK_LIVE(bgnd_name_item.object, bgnd_name_item.instance);
+        if (arena_name != 0) {
+            set_string_obj_alpha(arena_name, (unsigned char)alpha);
+            alpha += (signed char)(8.0f * game_speed);
+            ladder_sleep(1.0f);
+        }
+    }
+    set_string_obj_alpha(arena_name, 255.0f);
+}
+
+static int get_curr_difficulty(void) {
+    float difficulty_ranges[10] = {
+        5.0f, 25.0f,
+        15.0f, 40.0f,
+        25.0f, 60.0f,
+        40.0f, 80.0f,
+        80.0f, 100.0f,
+    };
+    int display_difficulty;
+    float step;
+
+    display_difficulty = mode_of_play == 6
+        ? game_settings.rounds_to_win
+        : game_settings.kombat_difficulty;
+    if (display_difficulty > 4) {
+        display_difficulty = 4;
+    } else if (display_difficulty < 0) {
+        display_difficulty = 0;
+    }
+    step = (difficulty_ranges[display_difficulty * 2 + 1] -
+            difficulty_ranges[display_difficulty * 2]) / 7.0f;
+    return 0.5f + (step * (float)curr_ladder_pos +
+        difficulty_ranges[display_difficulty * 2]);
+}
+void one_player_ladder_init(void) {
+    int table_index;
+
+    curr_ladder_pos = 0;
+    curr_ladder_char = -1;
+    g_game_info.field_20C = 0;
+
+    if (mode_of_play == 6) {
+        pz_loss_in_a_row = 0;
+        table_index = randu0(5) & 0xFFFF;
+        ladder_data_tbl_offset = table_index;
+        current_ladder_tbl = pz_ladder_data_table_list[table_index];
+    } else {
+        table_index = randu0(14) & 0xFFFF;
+        ladder_data_tbl_offset = table_index;
+        current_ladder_tbl = ladder_data_table_list[table_index];
+    }
+}
+
+int ladder_get_current_bgnd(void) {
+    return ladder_get_bgnd_at_pos(curr_ladder_pos);
+}
+
+void init_current_ladder_char(void) {
+    curr_ladder_char = -1;
+}
+
+#pragma opt_common_subs off
+int advance_ladder_position(void) {
+    int ladder_size;
+    int mode;
+    int table_index;
+    int next_position;
+
+    ladder_size = 8;
+    mode = mode_of_play;
+    if (mode == 6) {
+        ladder_size = 6;
+    }
+
+    if (curr_ladder_pos == 0 || curr_ladder_char == -1) {
+        if (g_game_info.plyr0.player_state == 2) {
+            curr_ladder_char = g_game_info.plyr0.player_index;
+        } else {
+            curr_ladder_char = g_game_info.plyr1.player_index;
+        }
+    }
+
+    next_position = ++curr_ladder_pos;
+    if (next_position == ladder_size) {
+        g_game_info.pause_flag_bits.ladder_complete = 1;
+        curr_ladder_pos = 0;
+        curr_ladder_char = -1;
+        g_game_info.field_20C = 0;
+
+        if (mode == 6) {
+            pz_loss_in_a_row = 0;
+            table_index = randu0(5) & 0xFFFF;
+            ladder_data_tbl_offset = table_index;
+            current_ladder_tbl = pz_ladder_data_table_list[table_index];
+        } else {
+            table_index = randu0(14) & 0xFFFF;
+            ladder_data_tbl_offset = table_index;
+            current_ladder_tbl = ladder_data_table_list[table_index];
+        }
+        return 1;
+    }
+
+    g_game_info.bgnd_id = ladder_get_bgnd_at_pos(next_position);
+    return 0;
+}
+#pragma opt_common_subs reset
+
+int get_ladder_position(void) {
+    return curr_ladder_pos;
+}
+
+int get_chess_coin_award(int coin_index) {
+    int award;
+
+    if (coin_index < 0 || coin_index > 6) {
+        return 0;
+    }
+
+    award = chess_koin_award_table[coin_index] * 5;
+    if (game_settings.arcade_difficulty == 0) {
+        return (0.5f * (float)award);
+    }
+    if (game_settings.arcade_difficulty == 1) {
+        return (0.75f * (float)award);
+    }
+    if (game_settings.arcade_difficulty == 3) {
+        return (1.1f * (float)award);
+    }
+    if (game_settings.arcade_difficulty == 4) {
+        award = (1.25f * (float)award);
+    }
+    return award;
+}
+
+int get_chess_leader_won_coin_award(void) {
+    int difficulty;
+    int award;
+
+    difficulty = game_settings.arcade_difficulty;
+    if (difficulty < 2) {
+        return 0;
+    }
+
+    award = 200;
+    if (difficulty == 2) {
+        return award * 1.0f;
+    }
+    if (difficulty == 3) {
+        return award * 1.5f;
+    }
+    if (difficulty == 4) {
+        award = award * 2.0f;
+    }
+    return award;
+}
+
+const char* get_rnd_chess_koin_type(int difficulty) {
+    const char* coin;
+
+    coin = chess_koins[randu0(n_chess_koins) & 0xFFFF];
+    g_game_info.pselect.field_1e4 = ladder_str_to_koin_type(coin);
+    return coin;
+}
+const char* ladder_koin_type_to_string(int type) {
+    int i;
+
+    for (i = 0; i < LADDER_COIN_TYPE_COUNT; i++) {
+        if (coin_offset_tbl[i].type == type) {
+            return coin_offset_tbl[i].name;
+        }
+    }
+    return 0;
 }

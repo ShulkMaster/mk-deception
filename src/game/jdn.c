@@ -27,7 +27,6 @@ const struct FxPfxDefinition noch_pfx_table = {
     0, 0, 0, 0.0f, 0.0f, 0.0f, 0, 0, 0,
     mkpfx_spawnupdate_glass_break,
 };
-static const char stringBase0[] = "C - glass shards\0C.glass_shard";
 
 static PfxColor glass_fragment_alphas[0xB5];
 float soul_sine[0x400];
@@ -42,7 +41,7 @@ MkPfx* start_pfx_glass_shards(
     unsigned int index;
 
     pfx = create_pfx(0x8023, 0x8023, pfx_glass_break_run, &glass,
-                     &noch_pfx_table, stringBase0);
+                     &noch_pfx_table, "C - glass shards");
     if (pfx != 0 && glass != 0) {
         emitter_object = (MkObj*)pfx_get_emitter_obj(glass, 0);
         if (emitter_object == 0) {
@@ -110,7 +109,7 @@ MkPfx* start_pfx_glass_shards(
     } else {
         return 0;
     }
-    glass->name_dst = (char*)stringBase0 + 0x11;
+    glass->name_dst = "C.glass_shard";
     return glass;
 }
 

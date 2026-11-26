@@ -116,135 +116,60 @@ static const float sleep_ticks_one = 1.0f;
 #define MENU_TARGET_DELETE_PROFILE 20
 #define MENU_TARGET_IDLE 24
 
-static const char stringBase0[] =
-     "msel_goro.sec\0"
-     "msel_shao_kahn.sec\0"
-     "msel_ashrah.sec\0"
-     "msel_baraka.sec\0"
-     "msel_boraicho.sec\0"
-     "msel_dairou.sec\0"
-     "msel_darrius.sec\0"
-     "msel_ermac.sec\0"
-     "msel_havik.sec\0"
-     "msel_hotaru.sec\0"
-     "msel_jade.sec\0"
-     "msel_kabal.sec\0"
-     "msel_kenshi.sec\0"
-     "msel_kira.sec\0"
-     "msel_kobra.sec\0"
-     "msel_liu_kang.sec\0"
-     "msel_li_mei.sec\0"
-     "msel_mileena.sec\0"
-     "msel_nightwolf.sec\0"
-     "msel_raiden.sec\0"
-     "msel_scorpion.sec\0"
-     "msel_shujinko.sec\0"
-     "msel_sindel.sec\0"
-     "msel_smokenoob.sec\0"
-     "msel_subzero.sec\0"
-     "msel_tanya.sec\0"
-     "msel_goro_alt.sec\0"
-     "msel_shao_kahn_alt.sec\0"
-     "msel_ashrah_alt.sec\0"
-     "msel_baraka_alt.sec\0"
-     "msel_boraicho_alt.sec\0"
-     "msel_dairou_alt.sec\0"
-     "msel_darrius_alt.sec\0"
-     "msel_ermac_alt.sec\0"
-     "msel_havik_alt.sec\0"
-     "msel_hotaru_alt.sec\0"
-     "msel_jade_alt.sec\0"
-     "msel_kabal_alt.sec\0"
-     "msel_kenshi_alt.sec\0"
-     "msel_kira_alt.sec\0"
-     "msel_kobra_alt.sec\0"
-     "msel_liu_kang_alt.sec\0"
-     "msel_li_mei_alt.sec\0"
-     "msel_mileena_alt.sec\0"
-     "msel_nightwolf_alt.sec\0"
-     "msel_raiden_alt.sec\0"
-     "msel_scorpion_alt.sec\0"
-     "msel_shujinko_alt.sec\0"
-     "msel_sindel_alt.sec\0"
-     "msel_smokenoob_alt.sec\0"
-     "msel_subzero_alt.sec\0"
-     "msel_tanya_alt.sec\0"
-     "common/music_select/music_select\0"
-     "NEWACCOUNTPASSWORD\0"
-     "NEWACCOUNTNAME\0"
-     "MSEL_PORTRAIT\0"
-     "GC_A_BTN\0"
-     "GC_X_BTN\0"
-     "GC_B_BTN\0"
-     "GC_Y_BTN\0"
-     "GC_L_BTN\0"
-     "GC_R_BTN\0"
-     "GC_Z_BTN\0"
-     "common/options/op_controllerconfig\0"
-     "common/options/op_options\0"
-     "Current scheme is: %d\n\0"
-     "konquest/popups/k_pause_menu\0"
-     "pause_menu/pause_menu\0"
-     "common/main_menu/m_mode_select";
-
-#define STR_SOUNDTRACK_SCREEN (&stringBase0[0x3BA])
-#define STR_NEWACCOUNTPASSWORD (&stringBase0[0x3DB])
-#define STR_NEWACCOUNTNAME (&stringBase0[0x3EE])
-#define STR_MAIN_MENU_SCREEN (&stringBase0[0x4D1])
 
 static ModeSelectPortrait portrait_list[] = {
-    { &stringBase0[0x0], 0x1E },
-    { &stringBase0[0xE], 0x1F },
-    { &stringBase0[0x21], 0x7 },
-    { &stringBase0[0x31], 0x1 },
-    { &stringBase0[0x41], 0xA },
-    { &stringBase0[0x53], 0x16 },
-    { &stringBase0[0x63], 0x18 },
-    { &stringBase0[0x74], 0x6 },
-    { &stringBase0[0x83], 0xE },
-    { &stringBase0[0x92], 0xB },
-    { &stringBase0[0xA2], 0x15 },
-    { &stringBase0[0xB0], 0x13 },
-    { &stringBase0[0xBF], 0xC },
-    { &stringBase0[0xCF], 0x12 },
-    { &stringBase0[0xDD], 0x14 },
-    { &stringBase0[0xEC], 0x10 },
-    { &stringBase0[0xFE], 0x9 },
-    { &stringBase0[0x10E], 0x4 },
-    { &stringBase0[0x11F], 0x5 },
-    { &stringBase0[0x132], 0x17 },
-    { &stringBase0[0x142], 0x0 },
-    { &stringBase0[0x154], 0x19 },
-    { &stringBase0[0x166], 0x8 },
-    { &stringBase0[0x176], 0x1B },
-    { &stringBase0[0x189], 0x3 },
-    { &stringBase0[0x19A], 0xF },
-    { &stringBase0[0x1A9], 0x1001E },
-    { &stringBase0[0x1BB], 0x1001F },
-    { &stringBase0[0x1D2], 0x10007 },
-    { &stringBase0[0x1E6], 0x10001 },
-    { &stringBase0[0x1FA], 0x1000A },
-    { &stringBase0[0x210], 0x10016 },
-    { &stringBase0[0x224], 0x10018 },
-    { &stringBase0[0x239], 0x10006 },
-    { &stringBase0[0x24C], 0x1000E },
-    { &stringBase0[0x25F], 0x1000B },
-    { &stringBase0[0x273], 0x10015 },
-    { &stringBase0[0x285], 0x10013 },
-    { &stringBase0[0x298], 0x1000C },
-    { &stringBase0[0x2AC], 0x10012 },
-    { &stringBase0[0x2BE], 0x10014 },
-    { &stringBase0[0x2D1], 0x10010 },
-    { &stringBase0[0x2E7], 0x10009 },
-    { &stringBase0[0x2FB], 0x10004 },
-    { &stringBase0[0x310], 0x10005 },
-    { &stringBase0[0x327], 0x10017 },
-    { &stringBase0[0x33B], 0x10000 },
-    { &stringBase0[0x351], 0x10019 },
-    { &stringBase0[0x367], 0x10008 },
-    { &stringBase0[0x37B], 0x1001B },
-    { &stringBase0[0x392], 0x10003 },
-    { &stringBase0[0x3A7], 0x1000F },
+    { "msel_goro.sec", 0x1E },
+    { "msel_shao_kahn.sec", 0x1F },
+    { "msel_ashrah.sec", 0x7 },
+    { "msel_baraka.sec", 0x1 },
+    { "msel_boraicho.sec", 0xA },
+    { "msel_dairou.sec", 0x16 },
+    { "msel_darrius.sec", 0x18 },
+    { "msel_ermac.sec", 0x6 },
+    { "msel_havik.sec", 0xE },
+    { "msel_hotaru.sec", 0xB },
+    { "msel_jade.sec", 0x15 },
+    { "msel_kabal.sec", 0x13 },
+    { "msel_kenshi.sec", 0xC },
+    { "msel_kira.sec", 0x12 },
+    { "msel_kobra.sec", 0x14 },
+    { "msel_liu_kang.sec", 0x10 },
+    { "msel_li_mei.sec", 0x9 },
+    { "msel_mileena.sec", 0x4 },
+    { "msel_nightwolf.sec", 0x5 },
+    { "msel_raiden.sec", 0x17 },
+    { "msel_scorpion.sec", 0x0 },
+    { "msel_shujinko.sec", 0x19 },
+    { "msel_sindel.sec", 0x8 },
+    { "msel_smokenoob.sec", 0x1B },
+    { "msel_subzero.sec", 0x3 },
+    { "msel_tanya.sec", 0xF },
+    { "msel_goro_alt.sec", 0x1001E },
+    { "msel_shao_kahn_alt.sec", 0x1001F },
+    { "msel_ashrah_alt.sec", 0x10007 },
+    { "msel_baraka_alt.sec", 0x10001 },
+    { "msel_boraicho_alt.sec", 0x1000A },
+    { "msel_dairou_alt.sec", 0x10016 },
+    { "msel_darrius_alt.sec", 0x10018 },
+    { "msel_ermac_alt.sec", 0x10006 },
+    { "msel_havik_alt.sec", 0x1000E },
+    { "msel_hotaru_alt.sec", 0x1000B },
+    { "msel_jade_alt.sec", 0x10015 },
+    { "msel_kabal_alt.sec", 0x10013 },
+    { "msel_kenshi_alt.sec", 0x1000C },
+    { "msel_kira_alt.sec", 0x10012 },
+    { "msel_kobra_alt.sec", 0x10014 },
+    { "msel_liu_kang_alt.sec", 0x10010 },
+    { "msel_li_mei_alt.sec", 0x10009 },
+    { "msel_mileena_alt.sec", 0x10004 },
+    { "msel_nightwolf_alt.sec", 0x10005 },
+    { "msel_raiden_alt.sec", 0x10017 },
+    { "msel_scorpion_alt.sec", 0x10000 },
+    { "msel_shujinko_alt.sec", 0x10019 },
+    { "msel_sindel_alt.sec", 0x10008 },
+    { "msel_smokenoob_alt.sec", 0x1001B },
+    { "msel_subzero_alt.sec", 0x10003 },
+    { "msel_tanya_alt.sec", 0x1000F },
 };
 
 static int button_checklist[] = {7, 4, 6, 5, 2, 1, 3};
@@ -445,7 +370,7 @@ float p_soundtrack(void) {
     soundtrack_build_titles(pdata);
 
     push_game_state(9);
-    load_screen(STR_SOUNDTRACK_SCREEN, 0x90046, &pdata->hdr, 1);
+    load_screen("common/music_select/music_select", 0x90046, &pdata->hdr, 1);
     turn_camera_on();
     turn_controllers_on();
     wait_for_screen_close();
@@ -454,11 +379,11 @@ float p_soundtrack(void) {
 }
 
 const char* get_screens_online_options_newaccountpassword(void) {
-    return STR_NEWACCOUNTPASSWORD;
+    return "NEWACCOUNTPASSWORD";
 }
 
 const char* get_screens_online_options_newaccountname(void) {
-    return STR_NEWACCOUNTNAME;
+    return "NEWACCOUNTNAME";
 }
 
 const char* get_p2_player_name(void) {
@@ -477,8 +402,8 @@ const char* get_p1_player_name(void) {
 
 #pragma opt_common_subs off
 void get_modeselect_portrait_list(GVTexturePair out) {
-    *out.colors = load_named_tga_from_slot(0x90046, &stringBase0[0x3FD]);
-    *out.alphas = load_named_alpha_texture_from_slot(0x90046, &stringBase0[0x3FD]);
+    *out.colors = load_named_tga_from_slot(0x90046, "MSEL_PORTRAIT");
+    *out.alphas = load_named_alpha_texture_from_slot(0x90046, "MSEL_PORTRAIT");
 }
 #pragma opt_common_subs reset
 
@@ -540,13 +465,13 @@ void controller_setup_save_to_profile(int player, int save) {
 }
 
 void cconfig_get_button_textures(GVTexturePair out) {
-    out.colors[0] = load_named_tga_from_slot(0x90046, &stringBase0[0x40B]);
-    out.colors[1] = load_named_tga_from_slot(0x90046, &stringBase0[0x414]);
-    out.colors[2] = load_named_tga_from_slot(0x90046, &stringBase0[0x41D]);
-    out.colors[3] = load_named_tga_from_slot(0x90046, &stringBase0[0x426]);
-    out.colors[6] = load_named_tga_from_slot(0x90046, &stringBase0[0x42F]);
-    out.colors[4] = load_named_tga_from_slot(0x90046, &stringBase0[0x438]);
-    out.colors[5] = load_named_tga_from_slot(0x90046, &stringBase0[0x441]);
+    out.colors[0] = load_named_tga_from_slot(0x90046, "GC_A_BTN");
+    out.colors[1] = load_named_tga_from_slot(0x90046, "GC_X_BTN");
+    out.colors[2] = load_named_tga_from_slot(0x90046, "GC_B_BTN");
+    out.colors[3] = load_named_tga_from_slot(0x90046, "GC_Y_BTN");
+    out.colors[6] = load_named_tga_from_slot(0x90046, "GC_L_BTN");
+    out.colors[4] = load_named_tga_from_slot(0x90046, "GC_R_BTN");
+    out.colors[5] = load_named_tga_from_slot(0x90046, "GC_Z_BTN");
 }
 
 int controller_get_texture_index_for_button(int player, int button) {
@@ -706,7 +631,7 @@ static float p_controller_config(void) {
         move_profile_p1_to_p2();
     }
 
-    load_screen(&stringBase0[0x44A], 0x90046, 0, 1);
+    load_screen("common/options/op_controllerconfig", 0x90046, 0, 1);
 
     proc = find_mkproc_pid(0x2001);
     if (proc != 0) {
@@ -815,7 +740,7 @@ static float p_game_options(void) {
 
     memory_move_game_setting(&saved_settings, &game_settings);
     get_menu_mode_sub_var();
-    load_screen(&stringBase0[0x46D], 0x90046, 0, 1);
+    load_screen("common/options/op_options", 0x90046, 0, 1);
     turn_camera_on();
     turn_controllers_on();
     push_game_state(9);
@@ -896,17 +821,17 @@ static float p_pause_menu(void) {
         break;
     case 6:
     default:
-        vdebug_print_message(&stringBase0[0x487], scheme);
+        vdebug_print_message("Current scheme is: %d\n", scheme);
         screen_slot = 0;
         break;
     }
 
     switch (mode_of_play) {
     case 7:
-        screen_name = &stringBase0[0x49E];
+        screen_name = "konquest/popups/k_pause_menu";
         break;
     default:
-        screen_name = &stringBase0[0x4BB];
+        screen_name = "pause_menu/pause_menu";
         break;
     }
     load_screen(screen_name, screen_slot, 0, 0);
@@ -987,9 +912,9 @@ static float p_pause_menu(void) {
 const char* get_pause_menu_name(void) {
     switch (mode_of_play) {
     case 7:
-        return &stringBase0[0x49E];
+        return "konquest/popups/k_pause_menu";
     default:
-        return &stringBase0[0x4BB];
+        return "pause_menu/pause_menu";
     }
 }
 
@@ -1025,7 +950,7 @@ int get_pause_menu_ssh(void) {
         break;
     case 6:
     default:
-        vdebug_print_message(&stringBase0[0x487], scheme);
+        vdebug_print_message("Current scheme is: %d\n", scheme);
         slot = 0;
         break;
     }
@@ -1172,8 +1097,8 @@ float p_main_menu(void) {
         watcherPdata->last_num_controllers = get_num_controllers();
     }
 
-    preload_screen_data(STR_MAIN_MENU_SCREEN, 0x90046);
-    load_screen(STR_MAIN_MENU_SCREEN, 0x90046, 0, 0);
+    preload_screen_data("common/main_menu/m_mode_select", 0x90046);
+    load_screen("common/main_menu/m_mode_select", 0x90046, 0, 0);
     turn_camera_on();
     turn_controllers_on();
 

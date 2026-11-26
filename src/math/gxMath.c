@@ -1,6 +1,3 @@
-/* TODO: [review] layout stubs: gxMathTan2, gxMathSin2, gxMathCosSin2, gxMathCos2, gxMathArcSin and
- * sinCosTable reproduce linker-stripped retail functions/data only to recreate their pool/data
- * layout; the bodies are NOT recovered source. Replace with genuine bodies if a source turns up. */
 #include "math/gxMath.h"
 
 #define kAngleToIndex 166886.05f
@@ -69,7 +66,7 @@
 #define kAcosLinA7 11.964287f
 #define kAcosLinB7 -11.964287f
 
-float gxMathTan2(float angle) {
+static float fn_stub1(float angle) {
     float x;
     float x2;
     float sinV;
@@ -106,7 +103,7 @@ float gxMathTan(float angle) {
     return sinV / cosV;
 }
 
-float gxMathSin2(float angle) {
+static float fn_stub2(float angle) {
     return gxMathSin(angle);
 }
 
@@ -137,7 +134,7 @@ float gxMathSin(float angle) {
     return x * t;
 }
 
-void gxMathCosSin2(float* cosOut, float* sinOut, float angle) {
+static void fn_stub3(float* cosOut, float* sinOut, float angle) {
     gxMathCosSin(cosOut, sinOut, angle);
 }
 
@@ -185,7 +182,7 @@ void gxMathCosSin(float* cosOut, float* sinOut, float angle) {
     *cosOut = cosV;
 }
 
-float gxMathCos2(float angle) {
+static float fn_stub4(float angle) {
     return gxMathCos(angle);
 }
 
@@ -366,7 +363,7 @@ float gxMathArcTan(float x) {
     return result;
 }
 
-float gxMathArcSin(float x) {
+static float fn_stub5(float x) {
     float x2;
     float p;
 

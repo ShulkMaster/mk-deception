@@ -160,51 +160,6 @@ extern void _mwFileNoOp(...);
 
 static const u32 MWF_OPEN_READ = 1;
 
-static const char stringBase0[] =
-    "mwFile: ERROR - calling mwFileGetCommandProgress on a command that can "
-    "not report progress\n\0"
-    "mwFile: ERROR - failure to read command progress\n\0"
-    "mwFile: ERROR - failure aborting command\n\0"
-    "zero byte read/write command\0"
-    "mwFile: ERROR - failure starting async write: %d\n\0"
-    "mwFile: ERROR - passed a NULL file handle in mwFileReadAsync\n\0"
-    "mwFile: ERROR - passed a NULL buffer in mwFileReadAsync\n\0"
-    "mwFile: ERROR - file read out of range (%s, offset - %d, file size - "
-    "%d)\n\0"
-    "out of range read command\0"
-    "mwFile: INFO - truncating read beyond end of file (%s, offset - %d): "
-    "was %d bytes, now %d bytes\n\0"
-    "mwFile: ERROR - failure starting async read: %d\n\0"
-    "mwFile: ERROR - failure starting async flush: %d\n\0"
-    "mwFile: ERROR - failure starting async close: %d\n\0"
-    "mwFile - WARNING - opening files for reading AND writing not supported, "
-    "buffers may not be consistent - %s\n\0"
-    "mwFile - WARNING - neither MWF_OPEN_READ nor MWF_OPEN_WRITE provided to "
-    "mwFileOpenAsync - defaulting to MWF_OPEN_READ on file %s\n\0"
-    "mwFile: INFO - mwFileOpenAsync(%s, 0x%x, %p, %p)\n\0"
-    "mwFile: ERROR - couldn't find mount point for async open of %s\n\0"
-    "mwFile: ERROR - failure starting async open: %d\n";
-
-typedef char stringBase0SizeCheck[sizeof(stringBase0) == 0x469 ? 1 : -1];
-
-enum {
-    ABORT_ERROR_MESSAGE = 0x8E,
-    ZERO_LENGTH_NAME = 0xB8,
-    WRITE_ERROR_MESSAGE = 0xD5,
-    NULL_FILE_MESSAGE = 0x107,
-    NULL_BUFFER_MESSAGE = 0x145,
-    READ_RANGE_MESSAGE = 0x17E,
-    RANGE_FAILURE_NAME = 0x1C8,
-    READ_TRUNCATE_MESSAGE = 0x1E2,
-    READ_ERROR_MESSAGE = 0x243,
-    CLOSE_ERROR_MESSAGE = 0x2A6,
-    OPEN_READ_WRITE_MESSAGE = 0x2D8,
-    OPEN_NO_MODE_MESSAGE = 0x344,
-    OPEN_INFO_MESSAGE = 0x3C6,
-    OPEN_MOUNT_MESSAGE = 0x3F8,
-    OPEN_ERROR_MESSAGE = 0x438
-};
-
 template <u32 ResultValue, int ResultError>
 inline mwFileFailCommand<ResultValue, ResultError>::~mwFileFailCommand()
 {
@@ -273,6 +228,14 @@ inline void mwFileFailCommand<ResultValue, ResultError>::deleteSelf()
     }
 }
 
+static int fn_stub1(void)
+{
+    _mwFileNoOp("mwFile: ERROR - calling mwFileGetCommandProgress on a command that can "
+                "not report progress\n");
+    _mwFileNoOp("mwFile: ERROR - failure to read command progress\n");
+    return -1;
+}
+
 void mwFileFreeCommand(mwFileCommand* command)
 {
     if (command != 0) {
@@ -302,7 +265,7 @@ int mwFileAbortCommand(mwFileCommand* command)
 {
     int result = command->abort();
     if (result != 0) {
-        _mwFileNoOp(&stringBase0[ABORT_ERROR_MESSAGE]);
+        _mwFileNoOp("mwFile: ERROR - failure aborting command\n");
         return result;
     }
     return 0;
@@ -316,7 +279,7 @@ mwFileCommand* mwFileWriteAsync(
     int result;
 
     if (length == 0) {
-        command = new (MW_TARGET_MEM_ALIGN_32, &stringBase0[ZERO_LENGTH_NAME])
+        command = new (MW_TARGET_MEM_ALIGN_32, "zero byte read/write command")
             mwFileFailCommand<0, 0>(
                 completion_callback, completion_data, file);
         if (command == 0) {
@@ -332,7 +295,7 @@ mwFileCommand* mwFileWriteAsync(
     }
 
     if (result != 0) {
-        _mwFileNoOp(&stringBase0[WRITE_ERROR_MESSAGE], result);
+        _mwFileNoOp("mwFile: ERROR - failure starting async write: %d\n", result);
         return 0;
     }
     return command;
@@ -347,21 +310,21 @@ mwFileCommand* mwFileReadAsync(
     unsigned long long file_size;
 
     if (file == 0) {
-        _mwFileNoOp(&stringBase0[NULL_FILE_MESSAGE]);
+        _mwFileNoOp("mwFile: ERROR - passed a NULL file handle in mwFileReadAsync\n");
         return 0;
     }
     if (buffer == 0) {
-        _mwFileNoOp(&stringBase0[NULL_BUFFER_MESSAGE]);
+        _mwFileNoOp("mwFile: ERROR - passed a NULL buffer in mwFileReadAsync\n");
         return 0;
     }
 
     file_size = file->getSize();
     if (file_size < offset) {
         _mwFileNoOp(
-            &stringBase0[READ_RANGE_MESSAGE], file->getDebugName(),
+            "mwFile: ERROR - file read out of range (%s, offset - %d, file size - %d)\n", file->getDebugName(),
             (int)offset, file_size);
         command = new (MW_TARGET_MEM_ALIGN_32,
-                       &stringBase0[RANGE_FAILURE_NAME])
+                       "out of range read command")
             mwFileFailCommand<0, -9>(
                 completion_callback, completion_data, file);
         if (command == 0) {
@@ -375,14 +338,14 @@ mwFileCommand* mwFileReadAsync(
             u32 truncated_length =
                 file_size - offset;
             _mwFileNoOp(
-                &stringBase0[READ_TRUNCATE_MESSAGE], file->getDebugName(),
+                "mwFile: INFO - truncating read beyond end of file (%s, offset - %d): was %d bytes, now %d bytes\n", file->getDebugName(),
                 (int)offset, length, truncated_length);
             length = truncated_length;
         }
 
         if (length == 0) {
             command = new (
-                MW_TARGET_MEM_ALIGN_32, &stringBase0[ZERO_LENGTH_NAME])
+                MW_TARGET_MEM_ALIGN_32, "zero byte read/write command")
                 mwFileFailCommand<0, 0>(
                     completion_callback, completion_data, file);
             if (command == 0) {
@@ -399,7 +362,21 @@ mwFileCommand* mwFileReadAsync(
     }
 
     if (result != 0) {
-        _mwFileNoOp(&stringBase0[READ_ERROR_MESSAGE], result);
+        _mwFileNoOp("mwFile: ERROR - failure starting async read: %d\n", result);
+        return 0;
+    }
+    return command;
+}
+
+extern "C" mwFileCommand* mwFileFlushAsync(
+    mwFile* file, mwFileCallback completion_callback, void* completion_data)
+{
+    mwFileCommand* command;
+    int result = file->startFlushFileCommand(
+        command, completion_callback, completion_data);
+
+    if (result != 0) {
+        _mwFileNoOp("mwFile: ERROR - failure starting async flush: %d\n", result);
         return 0;
     }
     return command;
@@ -413,7 +390,7 @@ mwFileCommand* mwFileCloseAsync(
         command, completion_callback, completion_data);
 
     if (result != 0) {
-        _mwFileNoOp(&stringBase0[CLOSE_ERROR_MESSAGE], result);
+        _mwFileNoOp("mwFile: ERROR - failure starting async close: %d\n", result);
         return 0;
     }
     return command;
@@ -429,21 +406,21 @@ mwFileCommand* mwFileOpenAsync(
 
     u32 read_mode = flags & 1;
     if (read_mode != 0 && (flags & 2) != 0) {
-        _mwFileNoOp(&stringBase0[OPEN_READ_WRITE_MESSAGE], path);
+        _mwFileNoOp("mwFile - WARNING - opening files for reading AND writing not supported, buffers may not be consistent - %s\n", path);
     }
     if (read_mode == 0 && (flags & 2) == 0) {
-        _mwFileNoOp(&stringBase0[OPEN_NO_MODE_MESSAGE], path);
+        _mwFileNoOp("mwFile - WARNING - neither MWF_OPEN_READ nor MWF_OPEN_WRITE provided to mwFileOpenAsync - defaulting to MWF_OPEN_READ on file %s\n", path);
         flags |= MWF_OPEN_READ;
     }
 
     _mwFileNoOp(
-        &stringBase0[OPEN_INFO_MESSAGE], path, flags,
+        "mwFile: INFO - mwFileOpenAsync(%s, 0x%x, %p, %p)\n", path, flags,
         completion_callback, completion_data);
 
     int result = mwFileMountTable::get().getMountPointFromPath(
         mount_point, relative_path, path);
     if (result != 0) {
-        _mwFileNoOp(&stringBase0[OPEN_MOUNT_MESSAGE], path);
+        _mwFileNoOp("mwFile: ERROR - couldn't find mount point for async open of %s\n", path);
         return 0;
     }
 
@@ -451,7 +428,7 @@ mwFileCommand* mwFileOpenAsync(
         command, relative_path, flags,
         completion_callback, completion_data);
     if (result != 0) {
-        _mwFileNoOp(&stringBase0[OPEN_ERROR_MESSAGE], result);
+        _mwFileNoOp("mwFile: ERROR - failure starting async open: %d\n", result);
         return 0;
     }
     return command;

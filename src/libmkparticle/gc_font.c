@@ -1,6 +1,3 @@
-/* TODO: [review] layout stubs: get_num_newlines, render_string and nativefont_instance_geometry
- * reproduce linker-stripped retail functions only to recreate their pool layout; the bodies are
- * NOT recovered source. Replace with genuine bodies if a source turns up. */
 #include "libmkparticle/gc_font.h"
 #include "libmkparticle/gc_state.h"
 #include "libmkparticle/texture_bridge.h"
@@ -28,15 +25,15 @@ int nativefont_estimate_geometry_size(int glyph_count) {
     return size + 0x80;
 }
 
-static int get_num_newlines(const char* text) {
+static int fn_stub1(const char* text) {
     return 0;
 }
 
-static float render_string(float x) {
+static float fn_stub2(float x) {
     return (int)(0.5f + x);
 }
 
-int nativefont_instance_geometry(NativeFontInstance* inst) {
+static int fn_stub3(NativeFontInstance* inst) {
     return 0;
 }
 

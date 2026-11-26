@@ -22,24 +22,6 @@ extern "C" {
 static int mwMovie_initialized;
 static int mwMovie_num_players;
 
-static const char stringBase0[] =
-    "Invalid player state to update movie!\n\0"
-    "Invalid player state to stop movie playback!\n\0"
-    "Invalid player state to stop movie!\n\0"
-    "MovieManager.cpp\0"
-    "Assertion failed: 0\0"
-    "MOVIE\0"
-    "Invalid player state to start movie playback!\n\0"
-    "Error creating a movie player, out of memory!\n";
-
-#define STR_INVALID_UPDATE (&stringBase0[0])
-#define STR_INVALID_STOP_PLAYBACK (&stringBase0[0x27])
-#define STR_INVALID_STOP (&stringBase0[0x55])
-#define STR_FILE_MOVIEMANAGER (&stringBase0[0x7A])
-#define STR_ASSERT_FAILED (&stringBase0[0x8B])
-#define STR_TEXTURE_NAME (&stringBase0[0x9F])
-#define STR_INVALID_START (&stringBase0[0xA5])
-#define STR_OUT_OF_MEMORY (&stringBase0[0xD4])
 static inline void movie_stop_inline(MoviePlayer* movie) {
     switch (movie->state) {
     case 2:
@@ -51,7 +33,7 @@ static inline void movie_stop_inline(MoviePlayer* movie) {
     case 0:
         break;
     default:
-        mwMovLog(STR_INVALID_STOP_PLAYBACK);
+        mwMovLog("Invalid player state to stop movie playback!\n");
         break;
     }
 }
@@ -71,7 +53,7 @@ static inline int movie_update_inline(MoviePlayer* movie) {
     case 2:
         break;
     default:
-        mwMovLog(STR_INVALID_UPDATE);
+        mwMovLog("Invalid player state to update movie!\n");
         break;
     }
     return 0;
@@ -90,7 +72,7 @@ static inline void movie_delete_inline(MoviePlayer* movie) {
         mwMovie_num_players--;
         break;
     default:
-        mwMovLog(STR_INVALID_STOP);
+        mwMovLog("Invalid player state to stop movie!\n");
         break;
     }
     if (mwMovie_num_players == 0 && mwMovie_initialized != 0) {
@@ -116,7 +98,7 @@ void MoviePlayFullScreen(MoviePlayer* movie, const char* path) {
         movie->state = 1;
         break;
     default:
-        mwMovLog(STR_INVALID_START);
+        mwMovLog("Invalid player state to start movie playback!\n");
         break;
     }
 }
@@ -135,7 +117,7 @@ void MoviePlayModeSelect(MoviePlayer* movie, const char* path) {
         movie->state = 1;
         break;
     default:
-        mwMovLog(STR_INVALID_START);
+        mwMovLog("Invalid player state to start movie playback!\n");
         break;
     }
 }
@@ -201,7 +183,7 @@ MoviePlayer* MovieNew(RwRaster* raster, int use_audio, int use_rw, int width, in
 
     player = (MoviePlayer*)mwMovMalloc(sizeof(*player));
     if (player == 0) {
-        mwMovLog(STR_OUT_OF_MEMORY);
+        mwMovLog("Error creating a movie player, out of memory!\n");
     } else {
         short const_one;
         short const_four;
@@ -227,6 +209,27 @@ MoviePlayer* MovieNew(RwRaster* raster, int use_audio, int use_rw, int width, in
 
 void MovieDelete(MoviePlayer* movie) {
     movie_delete_inline(movie);
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0xD4); rebuilt from siblings, size exact,
+ * loop parameter inferred. */
+void MoviePlay(MoviePlayer* movie, const char* path, int loop) {
+    switch (movie->state) {
+    case 1:
+    case 2:
+        movie_stop_inline(movie);
+    case 0:
+        if (loop != 0) {
+            mwMovieStartPlaybackLooping(movie->handle, path);
+        } else {
+            mwMovieStartPlayback(movie->handle, path);
+        }
+        movie->state = 1;
+        break;
+    default:
+        mwMovLog("Invalid player state to start movie playback!\n");
+        break;
+    }
 }
 
 void MovieStop(MoviePlayer* movie) {
@@ -260,7 +263,7 @@ RwTexture* MovieNewTexture(int width, int height) {
     RwRasterUnlock(raster);
     texture = RwTextureCreate(raster);
     rwTextureWriteAddressModes(texture, 3);
-    strcpy(texture->name, STR_TEXTURE_NAME);
+    strcpy(texture->name, "MOVIE");
     return texture;
 }
 
@@ -306,7 +309,7 @@ void Simple_MoviePlayFullScreen(const char* path, int width, int height,
         movie_stop_inline(movie);
         movie_delete_inline(movie);
     } else {
-        OSPanic(STR_FILE_MOVIEMANAGER, 0x2D8, STR_ASSERT_FAILED);
+        OSPanic("MovieManager.cpp", 0x2D8, "Assertion failed: 0");
     }
     mslResumeSpuDma();
 }

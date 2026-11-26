@@ -296,6 +296,98 @@ void initialize_bgnd_collisions(BgndDataTable* background) {
     }
 }
 
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x1BC); body reconstructed, size exact. */
+static int xz_arena_velocity_intersection_test(
+    Vec* start, Vec* end, Vec* edge_start, Vec* edge_end, Vec* intersection) {
+    float min_x;
+    float max_x;
+    float edge_min_x;
+    float edge_max_x;
+    float min_z;
+    float max_z;
+    float edge_min_z;
+    float edge_max_z;
+    float delta_x;
+    float delta_z;
+    float edge_delta_x;
+    float edge_delta_z;
+    float offset_x;
+    float offset_z;
+    float denominator;
+    float edge_fraction;
+    float path_fraction;
+
+    if (start->x >= end->x) {
+        min_x = end->x;
+        max_x = start->x;
+    } else {
+        min_x = start->x;
+        max_x = end->x;
+    }
+    if (edge_start->x >= edge_end->x) {
+        edge_min_x = edge_end->x;
+        edge_max_x = edge_start->x;
+    } else {
+        edge_min_x = edge_start->x;
+        edge_max_x = edge_end->x;
+    }
+    if (max_x < edge_min_x || min_x > edge_max_x) {
+        return 0;
+    }
+    if (start->z >= end->z) {
+        min_z = end->z;
+        max_z = start->z;
+    } else {
+        min_z = start->z;
+        max_z = end->z;
+    }
+    if (edge_start->z >= edge_end->z) {
+        edge_min_z = edge_end->z;
+        edge_max_z = edge_start->z;
+    } else {
+        edge_min_z = edge_start->z;
+        edge_max_z = edge_end->z;
+    }
+    if (max_z < edge_min_z || min_z > edge_max_z) {
+        return 0;
+    }
+
+    delta_x = end->x - start->x;
+    edge_delta_z = edge_start->z - edge_end->z;
+    delta_z = end->z - start->z;
+    edge_delta_x = edge_start->x - edge_end->x;
+    offset_z = start->z - edge_start->z;
+    offset_x = start->x - edge_start->x;
+    denominator = delta_z * edge_delta_x - delta_x * edge_delta_z;
+    edge_fraction = edge_delta_z * offset_x - edge_delta_x * offset_z;
+    if (denominator == 0.0f) {
+        return 0;
+    }
+    if (denominator > 0.0f) {
+        if (edge_fraction < 0.0f || edge_fraction > denominator) {
+            return 0;
+        }
+    } else if (edge_fraction > 0.0f || edge_fraction < denominator) {
+        return 0;
+    }
+    path_fraction = delta_x * offset_z - delta_z * offset_x;
+    if (denominator > 0.0f) {
+        if (path_fraction < 0.0f || path_fraction > denominator) {
+            return 0;
+        }
+    } else if (path_fraction > 0.0f || path_fraction < denominator) {
+        return 0;
+    }
+    intersection->x = start->x + edge_fraction * delta_x / denominator;
+    intersection->y = 0.0f;
+    intersection->z = start->z + edge_fraction * delta_z / denominator;
+    return 1;
+}
+
+static float fn_stub1(void) {
+    return -1.0f;
+}
+
 float dist_behind_me(void) {
     MkObj* object;
     Vec direction;

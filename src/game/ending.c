@@ -218,7 +218,7 @@ static inline int count_credits_text(void) {
 }
 
 
-static inline void ending_show_text_window(
+static void ending_show_text_window(
     float left_fraction, float bottom_fraction, float width_fraction,
     char* text, int alignment, int oid, int duration, int field_024,
     int field_02C, int field_030, int field_034, int string_id) {

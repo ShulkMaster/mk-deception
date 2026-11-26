@@ -19,9 +19,6 @@
 #include "runtime/mk_obj.h"
 #include "game/weapon.h"
 
-static const char stringBase0[0xA] = "get_mkhdr";
-
-
 MkPtr* mkptr_list = 0;
 MkPtr* free_mkptrs = 0;
 MkPtr* master_clean_up_list = 0;
@@ -133,19 +130,19 @@ MkHdr* get_mkhdr_generic(unsigned int size) {
     MkHdr* hdr;
 
     if (size <= 0x40U) {
-        hdr = _mwMemMalloc(fixed_block_16_heap, size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_16_heap, size, 4, "get_mkhdr", 0, 0);
     } else if (size <= 0x80U) {
-        hdr = _mwMemMalloc(fixed_block_32_heap, size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_32_heap, size, 4, "get_mkhdr", 0, 0);
     } else if (size <= 0x100U) {
-        hdr = _mwMemMalloc(fixed_block_64_heap, size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_64_heap, size, 4, "get_mkhdr", 0, 0);
     } else if (size <= 0x200U) {
-        hdr = _mwMemMalloc(fixed_block_128_heap, size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_128_heap, size, 4, "get_mkhdr", 0, 0);
     } else if (size <= 0x800U) {
-        hdr = _mwMemMalloc(fixed_block_512_heap, size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_512_heap, size, 4, "get_mkhdr", 0, 0);
     } else if (size <= 0x1000U) {
-        hdr = _mwMemMalloc(fixed_block_1024_heap, size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_1024_heap, size, 4, "get_mkhdr", 0, 0);
     } else {
-        hdr = _mwMemMalloc(wave_heap, size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(wave_heap, size, 4, "get_mkhdr", 0, 0);
     }
     if (hdr == 0) {
         return 0;
@@ -690,19 +687,19 @@ MkHdr* get_mkhdr(void* vtbl, unsigned int size) {
     MkHdr* hdr;
 
     if (size <= 0x40U) {
-        hdr = _mwMemMalloc(fixed_block_16_heap, size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_16_heap, size, 4, "get_mkhdr", 0, 0);
     } else if (size <= 0x80U) {
-        hdr = _mwMemMalloc(fixed_block_32_heap, size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_32_heap, size, 4, "get_mkhdr", 0, 0);
     } else if (size <= 0x100U) {
-        hdr = _mwMemMalloc(fixed_block_64_heap, size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_64_heap, size, 4, "get_mkhdr", 0, 0);
     } else if (size <= 0x200U) {
-        hdr = _mwMemMalloc(fixed_block_128_heap, size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_128_heap, size, 4, "get_mkhdr", 0, 0);
     } else if (size <= 0x800U) {
-        hdr = _mwMemMalloc(fixed_block_512_heap, size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_512_heap, size, 4, "get_mkhdr", 0, 0);
     } else if (size <= 0x1000U) {
-        hdr = _mwMemMalloc(fixed_block_1024_heap, size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(fixed_block_1024_heap, size, 4, "get_mkhdr", 0, 0);
     } else {
-        hdr = _mwMemMalloc(wave_heap, size, 4, (void *)stringBase0, 0, 0);
+        hdr = _mwMemMalloc(wave_heap, size, 4, "get_mkhdr", 0, 0);
     }
     if (hdr == 0) {
         return 0;

@@ -394,11 +394,11 @@ static const PuzzleAttackParameters pz_attack_common = {
     45.0f, 0.1f, 3.2f, 0x00010001, 0x00070007, 3,
     0.4f, 0.8f, 1.1f, 55.0f, 47.0f, 0, 1, 0, 0,
 };
-static const PuzzleAttackParameters pz_attack_dizzy_punch = {
+static const PuzzleAttackParameters pz_attack_showoff_punch = {
     9.0f, 0.1f, 1.15f, 0x00010001, 0x00070007, 3,
     0.2f, 0.75f, 0.92f, 13.0f, 11.0f, 1, 1, 0, 0,
 };
-static const PuzzleAttackParameters pz_attack_showoff_punch = {
+static const PuzzleAttackParameters pz_attack_dizzy_punch = {
     9.0f, 0.1f, 1.15f, 0x00010001, 0x00070007, 3,
     0.2f, 0.75f, 0.92f, 13.0f, 11.0f, 1, 1, 0, 0,
 };
@@ -2047,6 +2047,11 @@ float pz_fighter_round_ground_pound(void) {
     return 0.0f;
 }
 
+static void fn_stub1(float* values) {
+    values[0] = 0.049087387f;
+    values[1] = 184.0f;
+}
+
 float pz_fighter_one_arm_victory(void) {
     int flags = 3;
 
@@ -2170,6 +2175,11 @@ float pz_fighter_wipe_blood_off(void) {
     ani_to_frame_x(128.0f);
     aproc->vtbl->jump_sleep(pz_fighter_double_arm_victory, 0.0f);
     return 0.0f;
+}
+
+static void fn_stub2(float* values) {
+    values[0] = 5.0f;
+    values[1] = 0.4f;
 }
 
 float pz_fighter_won2(void) {

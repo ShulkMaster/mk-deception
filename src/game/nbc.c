@@ -9,14 +9,6 @@ struct TextTableInfo {
 
 extern const char* gc_mc_msg_text[];
 
-static const char stringBase0[] =
-#include "game/nbc_stringBase0.inc"
-;
-
-const unsigned int gap_04_80313324_rodata = 0;
-
-#define nbc_empty_string (&stringBase0[0x1A62])
-
 const char* nbc_general_text[] = {
 #include "game/nbc_general_text.inc"
 };
@@ -66,17 +58,17 @@ const char* nbc_find_text(int index, int table) {
     const char** strings;
 
     if (table < 0 || (unsigned int)table >= 2) {
-        return nbc_empty_string;
+        return " ";
     }
     if (index < 0 || index >= text_table_info[table].count) {
-        return nbc_empty_string;
+        return " ";
     }
     language = get_language();
     if (language == 5) {
         language = 0;
     }
     if (language < 0 || language >= 5) {
-        return nbc_empty_string;
+        return " ";
     }
     strings = text_table_info[table].strings;
     return (strings + index * 5)[language];

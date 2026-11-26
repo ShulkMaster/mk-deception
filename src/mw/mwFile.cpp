@@ -172,22 +172,7 @@ extern "C" {
 int mwFileClose(mwFile* file);
 }
 
-static const char stringBase0[] =
-    "mwFile: WARNING - profile data only available on metrics builds of "
-    "mwFile\n\0"
-    "mwFile: ERROR - invalid range for seek\n\0"
-    "mwFile: ERROR - mwFile does not support reading and writing at the same "
-    "time\n\0"
-    "mwFile: ERROR -- couldn't initialize file handle tracking\n\0"
-    "mwFile: ERROR - initializing mounting system: %d\n\0"
-    "mwFile: ERROR - initializing platform-specific mwFile: %d\n";
-
 enum {
-    INVALID_SEEK_MESSAGE = 0x4B,
-    INVALID_OPEN_MODE_MESSAGE = 0x73,
-    TRACKING_INIT_MESSAGE = 0xC1,
-    MOUNT_INIT_MESSAGE = 0xFC,
-    PLATFORM_INIT_MESSAGE = 0x12E,
     MWF_OPEN_WRITE_MODE = 0x1A,
     MWF_OPEN_APPEND_MODE = 0x16
 };
@@ -210,8 +195,6 @@ typedef char mwFileServerSizeCheck[
     sizeof(mwFileServerNotQueued) == 0x68 ? 1 : -1];
 typedef char mwFileMutexSizeCheck[
     sizeof(mwFileMutex) == 0x18 ? 1 : -1];
-typedef char stringBase0SizeCheck[sizeof(stringBase0) == 0x169 ? 1 : -1];
-
 static inline void setDefaultInitParam(mwFileInitParam* parameters)
 {
     if (parameters != 0) {
@@ -225,6 +208,11 @@ static inline void setDefaultInitParam(mwFileInitParam* parameters)
         parameters->command_retries = 10;
         parameters->field_0x18 = 0;
     }
+}
+
+extern "C" void mwFileEnumerateProfileData(void)
+{
+    _mwFileNoOp("mwFile: WARNING - profile data only available on metrics builds of mwFile\n");
 }
 
 extern "C" unsigned long long mwFileGetSize(mwFile* file)
@@ -243,7 +231,7 @@ extern "C" long long mwFileSeek(
     int result = file->seek(offset, (mwFileSeekOrigin)origin);
     file->setError(result);
     if (result != 0) {
-        _mwFileNoOp(&stringBase0[INVALID_SEEK_MESSAGE]);
+        _mwFileNoOp("mwFile: ERROR - invalid range for seek\n");
     }
     return file->getPosition();
 }
@@ -312,7 +300,7 @@ extern "C" int mwFileOpenModeToFlags(const char* mode)
         flags |= MWF_OPEN_APPEND_MODE;
     }
     if (strchr(mode, '+') != 0) {
-        _mwFileNoOp(&stringBase0[INVALID_OPEN_MODE_MESSAGE]);
+        _mwFileNoOp("mwFile: ERROR - mwFile does not support reading and writing at the same time\n");
     }
     return flags;
 }
@@ -331,7 +319,7 @@ extern "C" int mwFileInit(mwFileInitParam* parameters)
 
     if (_mwFileInitHandleTracking(parameters) !=
         parameters->file_handle_tracking_size) {
-        _mwFileNoOp(&stringBase0[TRACKING_INIT_MESSAGE]);
+        _mwFileNoOp("mwFile: ERROR -- couldn't initialize file handle tracking\n");
         return 0;
     }
 
@@ -353,13 +341,13 @@ extern "C" int mwFileInit(mwFileInitParam* parameters)
 
     result = _mwFileMountInit();
     if (result != 0) {
-        _mwFileNoOp(&stringBase0[MOUNT_INIT_MESSAGE], result);
+        _mwFileNoOp("mwFile: ERROR - initializing mounting system: %d\n", result);
         return result;
     }
 
     result = _mwFilePlatformInit(parameters);
     if (result != 0) {
-        _mwFileNoOp(&stringBase0[PLATFORM_INIT_MESSAGE], result);
+        _mwFileNoOp("mwFile: ERROR - initializing platform-specific mwFile: %d\n", result);
         return result;
     }
     return 0;

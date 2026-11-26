@@ -49,20 +49,6 @@
 static int AttachPlugins(void);
 
 extern int curr_pipeline_used;
-static const char display_text[] =                                             \
-    "/hostwrite/%03d.tga\0"                                                   \
-    "Tick = %02d\0"                                                           \
-    "FR = %02d\0"                                                             \
-    "RpWorldPluginAttach failed.\0"                                           \
-    "RpSkinPluginAttach failed.\0"                                            \
-    "RpHAnimPluginAttach failed.\0"                                           \
-    "RpSpecularPluginAttach failed.\0"                                        \
-    "specskin_plugin_attach failed.\0"                                        \
-    "RpMatFXPluginAttach failed.\0"                                           \
-    "RpClumpMkobjPluginAttach failed.\0"                                      \
-    "RpAtomicMksobjPluginAttach failed.\0"                                    \
-    "RpMaterialMkmaterialPluginAttach failed.\0"                              \
-    "RpColorSetPluginAttach failed.";
 
 static float halt_during_screen_save(void);
 static float _print_screen_to_tga(void);
@@ -348,7 +334,7 @@ capture_camera_ready:
         }
         image = RwImageCreate(width, height, 0x20);
         if (image != 0) {
-            sprintf(filename, display_text, capture_num);
+            sprintf(filename, "/hostwrite/%03d.tga", capture_num);
             capture_num++;
             RwImageAllocatePixels(image);
             RwImageSetFromRaster(image, image_raster);
@@ -360,6 +346,14 @@ capture_camera_ready:
         }
     }
     return -1.0f;
+}
+
+static const char* fn_stub1(void) {
+    return "Tick = %02d";
+}
+
+static const char* fn_stub2(void) {
+    return "FR = %02d";
 }
 
 void pull_clump_from_world(RpClump* clump) {
@@ -377,44 +371,44 @@ int add_clump_to_world(RpWorld* world, RpClump* clump) {
 
 static int AttachPlugins(void) {
     if (!RpWorldPluginAttach()) {
-        debug_error_message(display_text + 0x2A);
+        debug_error_message("RpWorldPluginAttach failed.");
         return 0;
     }
     if (!RpSkinPluginAttach()) {
-        debug_error_message(display_text + 0x46);
+        debug_error_message("RpSkinPluginAttach failed.");
         return 0;
     }
     RtAnimInitialize();
     if (!RpHAnimPluginAttach()) {
-        debug_error_message(display_text + 0x61);
+        debug_error_message("RpHAnimPluginAttach failed.");
         return 0;
     }
     if (!RpSpecularPluginAttach()) {
-        debug_error_message(display_text + 0x7D);
+        debug_error_message("RpSpecularPluginAttach failed.");
         return 0;
     }
     if (!specskin_plugin_attach()) {
-        debug_error_message(display_text + 0x9C);
+        debug_error_message("specskin_plugin_attach failed.");
         return 0;
     }
     if (!RpMatFXPluginAttach()) {
-        debug_error_message(display_text + 0xBB);
+        debug_error_message("RpMatFXPluginAttach failed.");
         return 0;
     }
     if (!RpClumpMkobjPluginAttach()) {
-        debug_error_message(display_text + 0xD7);
+        debug_error_message("RpClumpMkobjPluginAttach failed.");
         return 0;
     }
     if (!RpAtomicMksobjPluginAttach()) {
-        debug_error_message(display_text + 0xF8);
+        debug_error_message("RpAtomicMksobjPluginAttach failed.");
         return 0;
     }
     if (!RpMaterialMkmaterialPluginAttach()) {
-        debug_error_message(display_text + 0x11B);
+        debug_error_message("RpMaterialMkmaterialPluginAttach failed.");
         return 0;
     }
     if (!RpColorSetPluginAttach()) {
-        debug_error_message(display_text + 0x144);
+        debug_error_message("RpColorSetPluginAttach failed.");
         return 0;
     }
     return 1;
@@ -551,7 +545,7 @@ void Render(void) {
             fading_screen.fade_active == 0) {
             render_collision_regions();
             if (show_ticks != 0) {
-                sprintf(tick_text, display_text + 0x14, exec_tick_ctr);
+                sprintf(tick_text, "Tick = %02d", exec_tick_ctr);
             }
         } else {
             del_string_obj_by_id(0x900E);

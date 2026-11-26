@@ -120,28 +120,6 @@ extern void _mwFileNoOp(...);
 extern int _mwFilePlatformInterlockedIncrement(volatile int&);
 extern int _mwFilePlatformInterlockedDecrement(volatile int&);
 
-static const char stringBase0[] =
-    "mwFile: ERROR - seek tried to go beyond beginning of %s in seek mode "
-    "MWF_SEEK_START\n\0\0"
-    "mwFile: ERROR - seek of %d bytes tried to go beyond beginning of %s in "
-    "seek mode MWF_SEEK_CURRENT\n\0"
-    "mwFile: ERROR - seek of %d bytes exceeded end of %s in seek mode "
-    "MWF_SEEK_END\n\0"
-    "mwFile: ERROR - seek of %d bytes tried to go beyond beginning of %s\n\0"
-    "mwFile: WARNING - seek of %d bytes past end of %s, which has size of %d "
-    "bytes\n";
-
-typedef char stringBase0SizeCheck[sizeof(stringBase0) == 0x19C ? 1 : -1];
-
-enum {
-    SEEK_START_MESSAGE = 0,
-    EMPTY_DEBUG_NAME = 0x55,
-    SEEK_CURRENT_MESSAGE = 0x56,
-    SEEK_END_EXCEEDED_MESSAGE = 0xB9,
-    SEEK_END_BEFORE_START_MESSAGE = 0x108,
-    SEEK_PAST_END_MESSAGE = 0x14D
-};
-
 void mwFile::updateSize(unsigned long long new_size)
 {
     size = new_size;
@@ -157,8 +135,8 @@ int mwFile::seek(long long offset, mwFileSeekOrigin origin)
             position = offset;
         } else {
             _mwFileNoOp(
-                &stringBase0[SEEK_START_MESSAGE],
-                &stringBase0[EMPTY_DEBUG_NAME]);
+                "mwFile: ERROR - seek tried to go beyond beginning of %s in seek mode MWF_SEEK_START\n",
+                "");
             result = -9;
             position = 0;
         }
@@ -171,8 +149,8 @@ int mwFile::seek(long long offset, mwFileSeekOrigin origin)
             offset = -(unsigned long long)offset;
             if (position < (unsigned long long)offset) {
                 _mwFileNoOp(
-                    &stringBase0[SEEK_CURRENT_MESSAGE], (int)offset,
-                    &stringBase0[EMPTY_DEBUG_NAME]);
+                    "mwFile: ERROR - seek of %d bytes tried to go beyond beginning of %s in seek mode MWF_SEEK_CURRENT\n", (int)offset,
+                    "");
                 result = -9;
                 position = 0;
             } else {
@@ -184,14 +162,14 @@ int mwFile::seek(long long offset, mwFileSeekOrigin origin)
     case MWF_SEEK_END:
         if (offset < 0) {
             _mwFileNoOp(
-                &stringBase0[SEEK_END_EXCEEDED_MESSAGE], (int)offset,
-                &stringBase0[EMPTY_DEBUG_NAME]);
+                "mwFile: ERROR - seek of %d bytes exceeded end of %s in seek mode MWF_SEEK_END\n", (int)offset,
+                "");
             result = -9;
             position = size;
         } else if (size < (unsigned long long)offset) {
             _mwFileNoOp(
-                &stringBase0[SEEK_END_BEFORE_START_MESSAGE], (int)offset,
-                &stringBase0[EMPTY_DEBUG_NAME]);
+                "mwFile: ERROR - seek of %d bytes tried to go beyond beginning of %s\n", (int)offset,
+                "");
             result = -9;
             position = 0;
         } else {
@@ -202,8 +180,8 @@ int mwFile::seek(long long offset, mwFileSeekOrigin origin)
 
     if (position > size) {
         _mwFileNoOp(
-            &stringBase0[SEEK_PAST_END_MESSAGE], (int)offset,
-            &stringBase0[EMPTY_DEBUG_NAME], (int)size);
+            "mwFile: WARNING - seek of %d bytes past end of %s, which has size of %d bytes\n", (int)offset,
+            "", (int)size);
         result = -9;
         position = size;
     }
@@ -254,7 +232,7 @@ void mwFile::setDebugName(const char*)
 
 const char* mwFile::getDebugName() const
 {
-    return &stringBase0[EMPTY_DEBUG_NAME];
+    return "";
 }
 
 mwFile::~mwFile()

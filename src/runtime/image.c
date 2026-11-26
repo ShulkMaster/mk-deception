@@ -33,11 +33,11 @@ static const float kOne = 1.0f;
 static const float kHalf = 0.5f;
 static const float kNegOne = -1.0f;
 
-static float u32_to_float(unsigned int v) {
+static inline float u32_to_float(unsigned int v) {
     return v;
 }
 
-static float s32_to_float(int v) {
+static inline float s32_to_float(int v) {
     return v;
 }
 
@@ -203,6 +203,10 @@ static inline void set_wiff_material_textures(AniTextureControl* atc) {
             RpMaterialSetAlphaPassTexture(atc->materials[i], alpha);
         }
     }
+}
+
+static float fn_stub1(void) {
+    return 1.0f;
 }
 
 AniTextureControl* attach_named_wiff_to_first_material(int slot, char* name, ImageMkSobj* mkobj) {

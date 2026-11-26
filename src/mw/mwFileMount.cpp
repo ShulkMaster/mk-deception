@@ -139,10 +139,22 @@ public:
 };
 }
 
+enum mwFileError {
+    MWFILE_ERROR_NONE = 0,
+    MWFILE_ERROR_ABORTED = -16,
+    MWFILE_ERROR_COVER_OPEN = -19,
+    MWFILE_ERROR_NO_DISK = -20,
+    MWFILE_ERROR_WRONG_DISK = -21,
+    MWFILE_ERROR_DRIVE = -22,
+    MWFILE_ERROR_FATAL = -23
+};
+
 class mwFileDevice {
 public:
-    virtual ~mwFileDevice();
+    virtual ~mwFileDevice() = 0;
     virtual void setErrorCallback(mwFileErrorCallback, void*) = 0;
+    virtual void reportError(mwFileError, mwFileCommand*) = 0;
+    virtual void revokeError(mwFileCommand*) = 0;
 
     struct Callback {
         Callback() {}

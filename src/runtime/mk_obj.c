@@ -112,32 +112,32 @@ void limb_sever_show_z_meat_chunks_all(MkObj* obj);
 
 RpAtomic* force_atomic_material_alpha(RpAtomic* atomic, void* alpha);
 void mkobj_destroy_bones(MkObj* obj);
-static struct HeadTrackingPdata* pdata_headtracking;
-static MkPtr* limb_bone_list;
-unsigned int uploaded_light_state;
-int skip_light_setup;
-static unsigned int last_obj_light_flags;
-static RpAtomic* atomic1;
-static unsigned int oid_to_kill_mask;
-static unsigned int oid_to_kill;
-MkPtr* ground_me_mkobj_list;
-MkPtr* bone_hierarchy_mkobj_list;
-MkPtr* point_light_list;
-MkPtr* gore2_light_list;
-MkPtr* skinned_obj_light_list;
-MkPtr* board_piece_light_list;
-MkPtr* bgnd_spec_light_list;
-MkPtr* hol_plight_list;
-MkPtr* weapon_trail_light_list;
-MkPtr* clone_light_list;
-MkPtr* freeze_light_list;
-MkPtr* special_light_list;
-MkPtr* plyr_light_list;
-MkPtr* fgnd_light_list;
-MkPtr* bgnd_light_list;
-MkPtr* particle_mkobj_list;
-MkPtr* fgnd_mkobj_list;
 float obj_game_speed;
+MkPtr* fgnd_mkobj_list;
+MkPtr* particle_mkobj_list;
+MkPtr* bgnd_light_list;
+MkPtr* fgnd_light_list;
+MkPtr* plyr_light_list;
+MkPtr* special_light_list;
+MkPtr* freeze_light_list;
+MkPtr* clone_light_list;
+MkPtr* weapon_trail_light_list;
+MkPtr* hol_plight_list;
+MkPtr* bgnd_spec_light_list;
+MkPtr* board_piece_light_list;
+MkPtr* skinned_obj_light_list;
+MkPtr* gore2_light_list;
+MkPtr* point_light_list;
+MkPtr* bone_hierarchy_mkobj_list;
+MkPtr* ground_me_mkobj_list;
+static unsigned int oid_to_kill;
+static unsigned int oid_to_kill_mask;
+static RpAtomic* atomic1;
+static unsigned int last_obj_light_flags;
+int skip_light_setup;
+unsigned int uploaded_light_state;
+static MkPtr* limb_bone_list;
+static struct HeadTrackingPdata* pdata_headtracking;
 
 static struct HotAmbientLightDef hot_ambient_light = {
     1, 0, 3, {1.0f, 1.0f, 1.0f, 1.0f}
@@ -239,7 +239,7 @@ static RpAtomic* AtomicFaceCamera(RpAtomic* atomic, void* data);
 static MkSobj* rwframe_find_child_sobj_by_id(
     RwFrame* frame, unsigned int id, int depth);
 
-static float normalize_obj_angle(float angle) {
+static inline float normalize_obj_angle(float angle) {
     int fixed;
 
     fixed = angle * 166886.1f;

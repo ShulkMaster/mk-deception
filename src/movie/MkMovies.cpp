@@ -15,10 +15,6 @@ extern "C" {
 RwTexture* GetScreenPolyTexture__FPv(void* screen_poly);
 void SetScreenPolyTexture__FPvP9RwTexture(void* screen_poly, RwTexture* texture);
 
-static const char stringBase0[] = "MFS:%08x.%08x\0%s";
-
-#define STR_MFS_PATH_FMT (&stringBase0[0])
-#define STR_NAME_PATH_FMT (&stringBase0[0xE])
 
 static MkMovieTexPlayer _mmp_data[2] = {0};
 
@@ -114,13 +110,13 @@ static inline MkMovieTexPlayer* mmp_prepare_movie_path(
     if (use_mfs != 0) {
         block = load_named_binary_block(GetArtSlot__Fv(), name, &block_size);
         if (block != 0) {
-            sprintf(player->path, STR_MFS_PATH_FMT, block, block_size);
+            sprintf(player->path, "MFS:%08x.%08x", block, block_size);
         } else {
-            sprintf(player->path, STR_NAME_PATH_FMT, name);
+            sprintf(player->path, "%s", name);
             return 0;
         }
     } else {
-        sprintf(player->path, STR_NAME_PATH_FMT, name);
+        sprintf(player->path, "%s", name);
     }
     return player;
 }

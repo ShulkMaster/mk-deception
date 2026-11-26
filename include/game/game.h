@@ -21,6 +21,10 @@ int is_timer_off(void);
 int check_for_winner(void);
 int is_load_meter_active(void);
 
+#ifdef VERSION_GQNE5D
+#define MK6_VERSION_STRING "0.142_gc"
+#endif
+
 extern const char* mk6_version_string;
 extern int b_game_timer_off;
 extern int game_save_loop_count;

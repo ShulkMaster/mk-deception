@@ -22,17 +22,15 @@
 #include "runtime/mk_cmdscript.h"
 
 #include "game/fatality.h"
+#include "runtime/cfile.h"
 
 static float p_switch_log_fadeoff(void);
 
-static const char io_text[] =
-    "/logs/errorlog.txt\0 \0R\0l\0r\0Y\0X\0A\0B\0(\0/\0{\0:\0a\0";
+static char* error_log_path = "/logs/errorlog.txt";
 
 const char* practice_font_offset_tbl[16] = {
-    io_text + 0x13, io_text + 0x15, io_text + 0x17, io_text + 0x19,
-    io_text + 0x1B, io_text + 0x1D, io_text + 0x1F, io_text + 0x21,
-    io_text + 0x13, io_text + 0x13, io_text + 0x13, io_text + 0x13,
-    io_text + 0x23, io_text + 0x25, io_text + 0x27, io_text + 0x29
+    " ", "R", "l", "r", "Y", "X", "A", "B",
+    " ", " ", " ", " ", "(", "/", "{", ":"
 };
 
 struct SwitchLogEntry p1_switch_log[30];
@@ -55,6 +53,7 @@ int practice_p1_index;
 int practice_p2_index;
 int last_switch_time;
 int sw_log_on;
+static FILE* f_error_log;
 int debug_message_handler_set;
 
 static int check_decoy_distance_too_close(void) {
@@ -305,8 +304,6 @@ int get_stick_pos(int port, int stick, float* horizontal, float* vertical) {
     return 1;
 }
 
-/* TODO: [near miss] 97.04546%; literal and merged-BSS owner order differs;
- * recover original literal emission; complete reset expansion still rotates homes. */
 void init_switch_log(void) {
     int i;
     for (i = 0; i < 30; i++) {
@@ -318,10 +315,10 @@ void init_switch_log(void) {
         p1_pad_switch_log[i].tick = -1;
         p2_switch_log[i].tick = -1;
         p2_pad_switch_log[i].tick = -1;
-        p1_switch_log[i].label = io_text + 0x2D;
-        p1_pad_switch_log[i].label = io_text + 0x2D;
-        p2_switch_log[i].label = io_text + 0x2D;
-        p2_pad_switch_log[i].label = io_text + 0x2D;
+        p1_switch_log[i].label = "";
+        p1_pad_switch_log[i].label = "";
+        p2_switch_log[i].label = "";
+        p2_pad_switch_log[i].label = "";
     }
     practice_p1_index = 0;
     practice_p2_index = 0;
@@ -631,6 +628,25 @@ void scan_switch_sequences(unsigned int* sequence) {
 
     next_sequence:
         sequence_index++;
+    }
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x34); body reconstructed, size exact. */
+void close_error_log(void) {
+    if (f_error_log != 0) {
+        fclose(f_error_log);
+        f_error_log = 0;
+    }
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x78); body reconstructed, size exact. */
+void log_error_message(const char* message) {
+    if (f_error_log == 0) {
+        f_error_log = fopen(error_log_path, "a");
+    }
+    if (f_error_log != 0) {
+        fputs(message, f_error_log);
+        close_error_log();
     }
 }
 

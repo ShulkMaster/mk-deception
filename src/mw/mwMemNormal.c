@@ -113,7 +113,8 @@ static inline void privAddFreeHdrSorted(_mwMemHeap* heap, MwMemFreeHeader* block
     MwMemFreeHeader* next;
     MwMemFreeHeader* current = heap->freeList;
 
-    next = previous = 0;
+    previous = 0;
+    next = 0;
 
     if (current == 0) {
         heap->freeList = block;
@@ -210,8 +211,8 @@ static void privFreeMemFromUsed(MwMemUsedHeader* block) {
     }
 }
 
-/* TODO: [breakthrough needed] 95.51724%; zero-copy and orphan return loop remain;
- * verified sorted-insertion helpers preserve the unit but not these emissions. */
+/* TODO: [breakthrough needed] 96.55173%; retail ends `blr; b <search loop test>; blr`: an orphan
+ * branch block after the tail return; dead loops, goto, outer infinite loops do not emit it. */
 static void privReturnUsedBlockToFreeList(_mwMemHeap* heap, MwMemUsedHeader* block) {
     privAddFreeHdrSorted(heap, (MwMemFreeHeader*)block);
 }
