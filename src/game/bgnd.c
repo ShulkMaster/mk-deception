@@ -236,6 +236,10 @@ static float p_bgnd_point_light_life_span(void);
 static float p_bl_beetle_brains(void);
 static int beetle_squashed(
     BlBeetleControl* beetle, PlyrInfo** squashing_player);
+static float dist_to_plyr_bid_squared(PlyrInfo* player, int bone_id,
+                                      Vec* position);
+static float xz_dist_to_plyr_bid_squared(PlyrInfo* player, int bone_id,
+                                         Vec* position);
 static void bl_init_beetle_pebbles_first_floor(BlBeetlePdata* data);
 static void bl_process_beetle_follow_plyr_personality(
     BlBeetleControl* beetle);
@@ -1702,6 +1706,7 @@ void bgnd_setup_rx_handler(int handler);
 void bgnd_make_mkobj_transl(MkObj* object);
 void make_subobject_transl(MkSobj* object);
 void bgnd_make_object_transl(unsigned int object_id);
+static void plyr_direction_to_normal(PlyrPdata* player, Vec* normal);
 void mks_xfer_collision_info_plyr_to_bgnd_script( PlyrPdata* player, int script_function);
 
 void mks_xfer_collision_info_plyr_to_script(int script_function, int player);
@@ -2958,7 +2963,6 @@ void bgnd_swap_textures_tbl(const BgndSwapTextureEntry* entries, int frame) {
     }
 }
 #pragma opt_loop_invariants reset
-#pragma auto_inline on
 void bgnd_swap_textures(int sobj_id, int material_id, unsigned int frame) {
     char sobj_error[80];
     char material_error[80];
@@ -2982,7 +2986,6 @@ void bgnd_swap_textures(int sobj_id, int material_id, unsigned int frame) {
                 sobj_id, material_id);
     }
 }
-#pragma auto_inline reset
 void bgnd_append_texture_to_material_tbl(
     const BgndAppendTextureEntry* entries) {
     char message[180];
@@ -3093,6 +3096,31 @@ void mks_xfer_collision_info_plyr_to_bgnd_script(
             xfer_player_proc(process, bgnd_call_script_function);
         }
     }
+}
+
+static void plyr_direction_to_normal(PlyrPdata* player, Vec* normal) {
+    MkObj* target;
+    MkObj* source;
+    float inverse_length;
+    float z;
+    float y;
+    float x;
+
+    target = player->plyr_info->slot.mirror_a;
+    source = player->his_plyr_pdata->plyr_info->slot.mirror_a;
+    x = target->pos.value.x - source->pos.value.x;
+    y = target->pos.value.y - source->pos.value.y;
+    z = target->pos.value.z - source->pos.value.z;
+    normal->x = x;
+    normal->y = y;
+    normal->z = z;
+    inverse_length = gxMathFastInvSqrt(z * z + (x * x + y * y));
+    x *= inverse_length;
+    y *= inverse_length;
+    z *= inverse_length;
+    normal->x = x;
+    normal->y = y;
+    normal->z = z;
 }
 
 void bgnd_make_object_transl(unsigned int object_id) {
@@ -3932,8 +3960,8 @@ void bgnd_rotate_xz_about_orgin_active_sobj(float angle) {
     g_active_sobj->ang.y = angle;
     update_mksobj(g_active_sobj);
 }
-/* TODO: [near miss] 99.60674%; item-ID parameter claims after list head/zero;
- * complete transfer extraction retains that owner; stop at coloring. */
+/* TODO: [near miss] 99.60674%; item_id one interference short (r28, retail r31). PS2 split into stripped
+ * bgnd_set_object_visual_position + bgnd_make_object_available_pickupable keeps it (98.82%); find the missing edge. */
 void bgnd_make_displayed_item_pickupable_at_active_sobj_pos(int item_id) {
     BgndDisplayedItem* item;
     MkPtr** displayed_list;
@@ -4640,7 +4668,6 @@ BgndDisplayedItem* bgnd_get_item_from_displayed_list(int item_id) {
     BgndDisplayedItem* item;
     MkPtr** list;
     MkPtr* link;
-    MkPtr* next;
 
     list = &g_game_info.displayed_items;
     if (list != 0) {
@@ -4648,9 +4675,7 @@ BgndDisplayedItem* bgnd_get_item_from_displayed_list(int item_id) {
         while (link != 0) {
             item = (BgndDisplayedItem*)link->hdr;
             if (link->instance != item->hdr.instance) {
-                next = link->next;
-                discard_stale_mkptr(link);
-                link = next;
+                link = discard_stale_mkptr_and_advance(link);
             } else {
                 if (item->type == item_id) {
                     return item;
@@ -6637,11 +6662,9 @@ MkObj* bgnd_fetch_obj(int model_id) {
     return g_bgnd_preloaded_models[model_id];
 }
 
-#pragma auto_inline on
 MkSobj* bgnd_fetch_sobj(int model_index, unsigned int object_id) {
     return bgnd_lookup_sobj(model_index, object_id);
 }
-#pragma auto_inline reset
 void bgnd_set_material_color(int model_index, unsigned int object_id,
                              int red, int green, int blue, int alpha) {
     MkSobj* object;
@@ -9519,27 +9542,15 @@ static float p_beetle_lair_wall_breaking_controller(void) {
     return 0.0f;
 }
 static int beetle_lair_react_to_wall_danger_zone_cb(PlyrPdata* player) {
-    MkObj* source;
-    MkObj* target;
     Vec wall_normal = {0.0f, 0.0f, 1.0f};
+    Vec direction;
     float dot;
-    float inverse_length;
-    float x;
-    float y;
-    float z;
     float target_z;
 
-    target = player->plyr_info->slot.mirror_a;
-    source = player->his_plyr_pdata->plyr_info->slot.mirror_a;
-    y = target->pos.value.y - source->pos.value.y;
-    x = target->pos.value.x - source->pos.value.x;
-    target_z = target->pos.value.z;
-    z = target_z - source->pos.value.z;
-    inverse_length = gxMathFastInvSqrt(z * z + (x * x + y * y));
-    x *= inverse_length;
-    y *= inverse_length;
-    z *= inverse_length;
-    dot = wall_normal.x * x + wall_normal.y * y + wall_normal.z * z;
+    target_z = player->plyr_info->slot.mirror_a->pos.value.z;
+    plyr_direction_to_normal(player, &direction);
+    dot = wall_normal.x * direction.x + wall_normal.y * direction.y +
+          wall_normal.z * direction.z;
     if (target_z < 10.0f) {
         if (dot > 0.7f) {
             return 1;
@@ -10621,17 +10632,30 @@ static void bl_process_beetle_follow_plyr_personality(
     }
 }
 
-static inline int bl_beetle_near_bone(
-    BlBeetleControl* beetle, MkObj* fighter, int bone, float limit_sq) {
+static float xz_dist_to_plyr_bid_squared(PlyrInfo* player, int bone_id,
+                                         Vec* position) {
     Vec bone_position;
     Vec offset = {0.0f, 0.0f, 0.0f};
+    float distance;
 
-    get_bone_world_pos(fighter, bone, &bone_position);
-    offset.x = beetle->position.x - bone_position.x;
-    offset.y = beetle->position.y - bone_position.y;
-    offset.z = beetle->position.z - bone_position.z;
-    return offset.x * offset.x + offset.y * offset.y + offset.z * offset.z <
-        limit_sq;
+    get_bone_world_pos(player->slot.mirror_a, bone_id, &bone_position);
+    offset.x = position->x - bone_position.x;
+    offset.z = position->z - bone_position.z;
+    distance = offset.x * offset.x + offset.z * offset.z;
+    return distance;
+}
+static float dist_to_plyr_bid_squared(PlyrInfo* player, int bone_id,
+                                      Vec* position) {
+    Vec bone_position;
+    Vec offset = {0.0f, 0.0f, 0.0f};
+    float distance;
+
+    get_bone_world_pos(player->slot.mirror_a, bone_id, &bone_position);
+    offset.x = position->x - bone_position.x;
+    offset.y = position->y - bone_position.y;
+    offset.z = position->z - bone_position.z;
+    distance = offset.x * offset.x + offset.y * offset.y + offset.z * offset.z;
+    return distance;
 }
 static int beetle_squashed(
     BlBeetleControl* beetle, PlyrInfo** squashing_player) {
@@ -10649,22 +10673,16 @@ static int beetle_squashed(
         }
 
         if ((*squashing_player)->slot.fighter->active != 0) {
-            Vec offset_0 = {0.0f, 0.0f, 0.0f};
-            Vec bone_position_0;
-
-            get_bone_world_pos(
-                (*squashing_player)->slot.mirror_a, 0, &bone_position_0);
-            offset_0.x = beetle->position.x - bone_position_0.x;
-            offset_0.z = beetle->position.z - bone_position_0.z;
-            if (offset_0.x * offset_0.x + offset_0.z * offset_0.z < 1.0f) {
-                if (bl_beetle_near_bone(beetle,
-                        (*squashing_player)->slot.mirror_a, 11, 0.08f) ||
-                    bl_beetle_near_bone(beetle,
-                        (*squashing_player)->slot.mirror_a, 10, 0.08f) ||
-                    bl_beetle_near_bone(beetle,
-                        (*squashing_player)->slot.mirror_a, 3, 0.3f) ||
-                    bl_beetle_near_bone(beetle,
-                        (*squashing_player)->slot.mirror_a, 9, 0.3f)) {
+            if (xz_dist_to_plyr_bid_squared(
+                    *squashing_player, 0, &beetle->position) < 1.0f) {
+                if (dist_to_plyr_bid_squared(
+                        *squashing_player, 11, &beetle->position) < 0.08f ||
+                    dist_to_plyr_bid_squared(
+                        *squashing_player, 10, &beetle->position) < 0.08f ||
+                    dist_to_plyr_bid_squared(
+                        *squashing_player, 3, &beetle->position) < 0.3f ||
+                    dist_to_plyr_bid_squared(
+                        *squashing_player, 9, &beetle->position) < 0.3f) {
                     return 1;
                 }
             }
@@ -12119,7 +12137,6 @@ unsigned int get_next_bgnd(void) {
     }
     return background;
 }
-#pragma auto_inline on
 int is_bgnd_locked(int bgnd_id) {
     unsigned long long unlocked;
 
@@ -12150,7 +12167,6 @@ int is_bgnd_locked(int bgnd_id) {
     }
     return 1;
 }
-#pragma auto_inline reset
 void bgnd_level_transition_start(void) {
     drone_ai_dont_think();
     turn_controllers_off();

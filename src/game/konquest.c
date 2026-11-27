@@ -1091,10 +1091,10 @@ extern struct KonquestPuiVtable vtbl_konquest_pui;
 static struct KonquestSobjVtable vtbl_konquest_sobj_struct;
 static struct KonquestObjectVtable vtbl_konquest_obj;
 extern struct KonquestDayOfWeek days_of_week[7];
-static PlyrPdata pdata_monk;
-int konq_nis_anims[0x14];
-struct KonquestSavedState konquest_save_data;
 int konquest_animations[0x24];
+struct KonquestSavedState konquest_save_data;
+int konq_nis_anims[0x14];
+static PlyrPdata pdata_monk;
 
 static int konquest_save_on_exit = 1;
 
@@ -1436,6 +1436,7 @@ static float p_monk_getup(void);
 static float p_monk_punch_react(void);
 static float p_monk_punch(void);
 static float p_monk_move(void);
+static inline void check_footsteps(void);
 static float ramp_game_speed(void);
 static float p_monitor_meditation_time(void);
 static float p_monk_meditate(void);
@@ -2293,27 +2294,20 @@ static inline KonquestChildObject* find_object_child_by_enumeration(
 void konquest_transition_object_to_state( int object_uid, int enumeration, int state);
 static inline void calc_closest_point_on_line(
     Vec* out, Vec* point, Vec* start, Vec* end) {
-    float edge_x;
-    float edge_y;
-    float edge_z;
-    float length_squared;
     float length;
-    float x_product;
-    float z_product;
-    float projection_numerator;
-    x_product = point->x - start->x;
-    z_product = point->z - start->z;
-    edge_x = end->x - start->x;
-    edge_y = end->y - start->y;
-    edge_z = end->z - start->z;
-    x_product *= edge_x;
-    z_product = (float)(z_product * edge_z);
-    projection_numerator = x_product + z_product;
-    length_squared = edge_x * edge_x + edge_y * edge_y + edge_z * edge_z;
-    length = gxMathFastSqrt(length_squared);
-    out->x = (projection_numerator / (length * length)) * (end->x - start->x) + start->x;
+    float projection;
+    float z_projection;
+
+    projection = (point->x - start->x) * (end->x - start->x);
+    z_projection = (point->z - start->z) * (end->z - start->z);
+    projection += z_projection;
+    length = gxMathFastSqrt((end->x - start->x) * (end->x - start->x) +
+                            (end->y - start->y) * (end->y - start->y) +
+                            (end->z - start->z) * (end->z - start->z));
+    projection /= length * length;
+    out->x = start->x + projection * (end->x - start->x);
     out->y = 0.0f;
-    out->z = (projection_numerator / (length * length)) * (end->z - start->z) + start->z;
+    out->z = start->z + projection * (end->z - start->z);
 }
 
 void turn_to_face_exterior_door(void);
@@ -2350,9 +2344,9 @@ static inline KonquestChildObject* find_trigger_door(
 void konquest_open_door(int enumeration, int remain_open);
 
 static inline KonquestChildObject* find_door_partner_inline(
-    KonquestChildObject* door) {
+    void* object) {
+    KonquestChildObject* door = object;
     MkPtr* next;
-    struct KonquestEnumerationEntry* entry;
     MkPtr* link;
     int partner_uid;
     int uid;
@@ -2360,9 +2354,9 @@ static inline KonquestChildObject* find_door_partner_inline(
     if (door == 0) {
         return 0;
     }
-    entry = &konquest_pdata->region_table
-                 ->enumerations[door->definition->enumeration_index];
-    partner_uid = entry->partner_uid;
+    partner_uid = konquest_pdata->region_table
+                      ->enumerations[door->definition->enumeration_index]
+                      .partner_uid;
     uid = door->owner->uid;
     if (konquest_has_list(&konquest_pdata->door_objects)) {
         link = konquest_pdata->door_objects;
@@ -6326,8 +6320,16 @@ static inline void update_child_object_matrix(
     }
 }
 
-/* TODO: [near miss] 99.35%; position velocity.x first written after the angle velocities (scalarizer
- * order); remaining FPR sweep needs +1 phantom degree on position remaining_ticks. */
+static inline float konquest_motion_step(Vec* value, Vec* velocity, float ticks) {
+    if (ticks > 0.0f) {
+        value->x += velocity->x * game_speed;
+        value->y += velocity->y * game_speed;
+        value->z += velocity->z * game_speed;
+        ticks -= game_speed;
+    }
+    return ticks;
+}
+
 static void object_transition_to_state(
     KonquestChildObject* record, int state, int play_sound) {
     struct KonquestObjectState* state_data;
@@ -6370,12 +6372,12 @@ static void object_transition_to_state(
     target_angles.y = record->base_angles.y + state_data->angles.y;
     target_angles.z = record->base_angles.z + state_data->angles.z;
 
+    position_motion.velocity.x = target_position.x - record->position.x;
     position_motion.velocity.y = target_position.y - record->position.y;
     position_motion.velocity.z = target_position.z - record->position.z;
     angle_motion.velocity.x = target_angles.x - angles->x;
     angle_motion.velocity.y = target_angles.y - angles->y;
     angle_motion.velocity.z = target_angles.z - angles->z;
-    position_motion.velocity.x = target_position.x - record->position.x;
 
     position_motion.length_squared =
         position_motion.velocity.x * position_motion.velocity.x +
@@ -6448,18 +6450,10 @@ static void object_transition_to_state(
         MKMATRIX* matrix;
         MkSobj* object;
 
-        if (position_motion.remaining_ticks > 0.0f) {
-            record->position.x += position_motion.velocity.x * game_speed;
-            record->position.y += position_motion.velocity.y * game_speed;
-            record->position.z += position_motion.velocity.z * game_speed;
-            position_motion.remaining_ticks -= game_speed;
-        }
-        if (angle_motion.remaining_ticks > 0.0f) {
-            angles->x += angle_motion.velocity.x * game_speed;
-            angles->y += angle_motion.velocity.y * game_speed;
-            angles->z += angle_motion.velocity.z * game_speed;
-            angle_motion.remaining_ticks -= game_speed;
-        }
+        position_motion.remaining_ticks = konquest_motion_step(
+            &record->position, &position_motion.velocity, position_motion.remaining_ticks);
+        angle_motion.remaining_ticks = konquest_motion_step(
+            angles, &angle_motion.velocity, angle_motion.remaining_ticks);
 
         matrix = 0;
         if (record->matrix_index >= 0) {
@@ -6536,27 +6530,19 @@ static inline void konquest_start_door_proc(KonquestChildObject* door,
     }
 }
 
-/* TODO: [near miss] 97.66868%; partner_uid address: retail adds 4 to the enumerations base
- * (ours to idx*28) and remain_open/partner_uid saved homes swap; recover the entry read owner. */
 void konquest_open_door_sobj(
     KonquestChildObject* door, int remain_open) {
     KonquestChildObject* partner;
-    int partner_uid;
-    struct KonquestEnumerationEntry* entry;
 
     konquest_start_door_proc(door, remain_open);
-
-    entry = &konquest_pdata->region_table
-                 ->enumerations[door->definition->enumeration_index];
-    partner_uid = entry->partner_uid;
-    if (partner_uid == -1) {
-        return;
+    if (konquest_pdata->region_table
+            ->enumerations[door->definition->enumeration_index]
+            .partner_uid != -1) {
+        partner = find_door_partner_inline(door);
+        if (partner != 0) {
+            konquest_start_door_proc(partner, remain_open);
+        }
     }
-    partner = find_door_partner_inline(door);
-    if (partner == 0) {
-        return;
-    }
-    konquest_start_door_proc(partner, remain_open);
 }
 
 void konquest_open_door(int enumeration, int remain_open) {
@@ -6574,8 +6560,6 @@ void konquest_open_door(int enumeration, int remain_open) {
     }
 }
 
-/* TODO: [near miss] 99.30%; helper z product in split form (user-approved identity cast), projection read
- * inline; edge/x-product homes and loop delta.z extra store remain. */
 void turn_to_face_exterior_door(void) {
     Vec closest;
     KonquestChildObject* door;
@@ -6584,7 +6568,6 @@ void turn_to_face_exterior_door(void) {
     Vec delta;
     Vec angles;
     float distance_squared;
-    float next_distance_squared;
     float previous_distance_squared;
     float inverse_length;
     float angle_difference;
@@ -6646,14 +6629,12 @@ void turn_to_face_exterior_door(void) {
         turning = 0;
         calc_closest_point_on_line(&closest, &hero->pos.value,
             &path[0].position, &path[1].position);
+        previous_distance_squared = distance_squared;
         delta.x = hero->pos.value.x - closest.x;
         delta.y = hero->pos.value.y - closest.y;
-        delta.z = hero->pos.value.z;
-        delta.z -= closest.z;
-        next_distance_squared = delta.z * delta.z +
-                                (delta.x * delta.x + delta.y * delta.y);
-        previous_distance_squared = distance_squared;
-        distance_squared = next_distance_squared;
+        delta.z = hero->pos.value.z - closest.z;
+        distance_squared = delta.z * delta.z +
+                           (delta.x * delta.x + delta.y * delta.y);
         delta.x = path[2].position.x - hero->pos.value.x;
         delta.z = path[2].position.z - hero->pos.value.z;
         inverse_length = gxMathFastInvSqrt(
@@ -7845,11 +7826,8 @@ static float p_control_konquest_monk(void) {
 static inline void run_monk_move_frames(int initial_state)
 {
     struct MonkStateData* state;
-    float frame_delta;
     int current_state;
     int animation_complete;
-    struct MonkStateData* event_state;
-    AnimPdata* animation;
 
     if (anim_pdata->animation != monk_state_data[konquest_pdata->hero_state].animation) {
         transition_to_anim_script(
@@ -7866,55 +7844,7 @@ static inline void run_monk_move_frames(int initial_state)
         advance_anim(anim_pdata);
         pose_anim(anim_pdata, 1);
 
-        animation = anim_pdata;
-        current_state = konquest_pdata->hero_state;
-        event_state = &monk_state_data[current_state];
-        if (event_state->animation_event_count != 0) {
-            frame_delta =
-                animation->frame -
-                (float)event_state->animation_event_frames
-                    [konquest_pdata->animation_event_index];
-            if ((frame_delta >= 0.0f ? frame_delta : -frame_delta) <
-                animation->step) {
-                if (current_state == 2) {
-                    random_snd_req(0x85);
-                    if (get_game_state() == 0x13 &&
-                        konquest_pdata->region_table->effect_bank_name != 0) {
-                        MkObj* effect_hero;
-                        Vec effect_position;
-                        Vec bone_offset;
-                        int bone;
-                        unsigned int effect;
-
-                        effect_hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
-
-                        bone_offset = (Vec){0.0f, -0.05f, 0.0f};
-
-                        bone = monk_state_data
-                            [konquest_pdata->hero_state]
-                                .animation_event_bones
-                                    [konquest_pdata
-                                         ->animation_event_index];
-                        effect = fx_by_owner("dust_puff", 4);
-                        get_bone_offset_world_pos(
-                            effect_hero, bone, &bone_offset,
-                            &effect_position);
-                        fx_set_param_v3(
-                            effect, 0x202, effect_position.x,
-                            effect_position.y, effect_position.z);
-                        fx_restart_emit(effect);
-                    }
-                } else if (current_state == 1) {
-                    random_snd_req(0x84);
-                }
-                konquest_pdata->animation_event_index++;
-                if (konquest_pdata->animation_event_index >=
-                    monk_state_data[konquest_pdata->hero_state]
-                        .animation_event_count) {
-                    konquest_pdata->animation_event_index = 0;
-                }
-            }
-        }
+        check_footsteps();
 
         if ((anim_pdata->flags & 3) != 0 &&
             anim_pdata->frame >= anim_pdata->high_frame) {
@@ -8485,6 +8415,63 @@ static float p_monk_unconscious(void) {
     camera_set_glitch_flag();
     aproc->vtbl->jump_sleep(p_control_konquest_monk, 0.0f);
     return 0.0f;
+}
+
+static inline void check_footsteps(void) {
+    int current_state;
+    struct MonkStateData* event_state;
+    AnimPdata* animation;
+    float frame_delta;
+
+    animation = anim_pdata;
+    current_state = konquest_pdata->hero_state;
+    event_state = &monk_state_data[current_state];
+    if (event_state->animation_event_count != 0) {
+        frame_delta =
+            animation->frame -
+            (float)event_state->animation_event_frames
+                [konquest_pdata->animation_event_index];
+        if ((frame_delta >= 0.0f ? frame_delta : -frame_delta) <
+            animation->step) {
+            if (current_state == 2) {
+                random_snd_req(0x85);
+                if (get_game_state() == 0x13 &&
+                    konquest_pdata->region_table->effect_bank_name != 0) {
+                    MkObj* effect_hero;
+                    Vec effect_position;
+                    Vec bone_offset;
+                    int bone;
+                    unsigned int effect;
+
+                    effect_hero = MK_HDR_LIVE(konquest_pdata->hero_object, konquest_pdata->hero_instance);
+
+                    bone_offset = (Vec){0.0f, -0.05f, 0.0f};
+
+                    bone = monk_state_data
+                        [konquest_pdata->hero_state]
+                            .animation_event_bones
+                                [konquest_pdata
+                                     ->animation_event_index];
+                    effect = fx_by_owner("dust_puff", 4);
+                    get_bone_offset_world_pos(
+                        effect_hero, bone, &bone_offset,
+                        &effect_position);
+                    fx_set_param_v3(
+                        effect, 0x202, effect_position.x,
+                        effect_position.y, effect_position.z);
+                    fx_restart_emit(effect);
+                }
+            } else if (current_state == 1) {
+                random_snd_req(0x84);
+            }
+            konquest_pdata->animation_event_index++;
+            if (konquest_pdata->animation_event_index >=
+                monk_state_data[konquest_pdata->hero_state]
+                    .animation_event_count) {
+                konquest_pdata->animation_event_index = 0;
+            }
+        }
+    }
 }
 
 static float p_collide_monk(void) {
@@ -9913,13 +9900,10 @@ static float p_konquest_map_screen(void) {
         map_center_y - (int)(map_scale_z * hero->pos.value.z) - 0x10,
         0x20);
     for (index = 0; index < 4; index++) {
-        float angle;
-
-        angle = -(1.5707964f * (float)index - 7.0685835f);
         cursor->pfx2d->verts[index].x =
-            22.63f * gxMathCos(angle + hero->ang.y) + 16.0f;
+            22.63f * gxMathCos(-(1.5707964f * (float)index - 7.0685835f) + hero->ang.y) + 16.0f;
         cursor->pfx2d->verts[index].y =
-            22.63f * gxMathSin(angle + hero->ang.y) + 16.0f;
+            22.63f * gxMathSin(-(1.5707964f * (float)index - 7.0685835f) + hero->ang.y) + 16.0f;
     }
     blink_cursor(cursor, 0x8245, 0x1E, 0xA);
 
