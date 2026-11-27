@@ -60,6 +60,8 @@ public:
         u32 request_address);
     static void i_ARQCALLBACK_ArqComplete_LastRead(
         u32 request_address);
+    static SBPlayable_Stream* GetObject(void);
+    SBPlayable_Stream();
     virtual ~SBPlayable_Stream();
     virtual void FreeObject(void);
     virtual void FreeResources(void);
@@ -72,6 +74,8 @@ public:
     virtual void iUpdate_MslTick(void);
     virtual void StopIfDonePlaying(void);
     void ResetValues(void);
+    void UnPrep(void);
+    void iPrepForPlay(void);
     int iPlayPrepped(void);
     void iAX_FindNewEndBlock(int block);
     inline void iAX_GetVoiceBlock(
@@ -117,110 +121,13 @@ public:
 
 typedef char SBPlayableStreamSize[sizeof(SBPlayable_Stream) == 0xCC ? 1 : -1];
 
-typedef void (*SoundBufferMethod)(SoundBuffer_Playable*);
-typedef int (*SoundBufferIntMethod)(SoundBuffer_Playable*);
-typedef void (*SoundBufferLostVoiceMethod)(
-    SoundBuffer_Playable*, _AXVPB*);
-typedef int (*SoundBufferLongMethod)(
-    SoundBuffer_Playable*, s32);
-typedef int (*SoundBufferByteMethod)(
-    SoundBuffer_Playable*, unsigned char);
-typedef SoundBuffer_Playable* (*SoundBufferDestroyMethod)(
-    SoundBuffer_Playable*, short);
-
-struct SoundBufferPlayableVTable {
-    unsigned char pad00[8];
-    SoundBufferDestroyMethod Destroy;
-    SoundBufferMethod FreeObject;
-    SoundBufferMethod FreeResources;
-    unsigned char pad14[0x18];
-    SoundBufferLongMethod SetVolume;
-    unsigned char pad30[4];
-    SoundBufferByteMethod SetPan;
-    SoundBufferByteMethod SetSurroundPan;
-    unsigned char pad3C[8];
-    SoundBufferIntMethod Stop;
-    unsigned char pad48[0x0C];
-    SoundBufferLostVoiceMethod LostVoice;
-    unsigned char pad58[8];
-    SoundBufferMethod StopIfDonePlaying;
-};
-
-struct SoundBufferPlayableLayout {
-    SoundBufferPlayableVTable* vtable;
-    int reference_count;
-    MSLGCN_ARamBlock* aram_block;
-    _mslBank* bank;
-    _GameCubeFileEntry* file_entry;
-    SoundBufferPlayableLayout* next;
-    SoundBufferPlayableLayout* previous;
-    u32 current_position;
-    u32 mix_fader;
-    unsigned char pan;
-    unsigned char volume;
-    unsigned char pad26[2];
-    u32 frequency;
-    s32 state;
-    _AXVPB* voices[2];
-};
-
-typedef char SoundBufferPlayableLayoutSize[
-    sizeof(SoundBufferPlayableLayout) == 0x38 ? 1 : -1];
-
-struct SBPlayableStreamLayout {
-    SoundBufferPlayableLayout playable;
-    unsigned char ready_to_play;
-    unsigned char last_read_pending;
-    unsigned char voices_started;
-    unsigned char play_when_ready;
-    u32 play_flags;
-    u32 cache_buffers[2];
-    s32 cache_buffer_size;
-    s32 cache_buffer1_size;
-    _mwFile* stream_context;
-    u32 primary_offset;
-    u32 aligned_size;
-    u32 segment_size;
-    int segment_shift;
-    u32 source_read_offset;
-    u32 source_bytes_remaining;
-    mslStreamFileRequest* pending_file_request;
-    u32 queued_read_offset;
-    u32 queued_read_size;
-    u32 queued_block_count;
-    unsigned char partial_read;
-    unsigned char at_zero_buffer;
-    unsigned char crossed_stream_end;
-    unsigned char end_of_stream;
-    volatile s32 pending_arq_count;
-    s32 ring_block_count;
-    s32 source_blocks_remaining;
-    s32 ring_write_block;
-    s32 ring_play_block;
-    s32 pending_ax_block;
-    s32 ax_end_block;
-    s32 end_pass_count;
-    s32 stream_end_block;
-    u32 initial_position;
-    s32 ring_scan_stop_block;
-    unsigned char block_headers[2][0x10];
-};
-
-typedef char SBPlayableStreamLayoutSize[
-    sizeof(SBPlayableStreamLayout) == 0xCC ? 1 : -1];
-
 static const unsigned char SurroundPanTable[] = {
     0x40, 0x10, 0x10, 0x40, 0x08, 0x78,
     0x20, 0x7C, 0x40, 0x7C, 0x60, 0x7C,
     0x77, 0x78, 0x70, 0x40, 0x40, 0x10
 };
 
-SoundBufferUpdateList ms_UpdateList__20SoundBuffer_Playable = {0, 0};
-extern unsigned char __vt__10IRefCntRes[];
-extern unsigned char __vt__11SoundBuffer[];
-extern unsigned char __vt__16SoundBuffer_Data[];
-extern unsigned char __vt__20SoundBuffer_Playable[];
-extern unsigned char __vt__17SBPlayable_Stream[];
+SoundBufferUpdateList SoundBuffer_Playable::ms_UpdateList = {0, 0};
 
 void AXVPB_ComputeVoiceRatio(
     u32 frequency, unsigned short& ratio_hi,
@@ -276,33 +183,26 @@ inline void SBPlayable_Stream::iAX_GetVoiceBlock(
     }
 }
 
+SBPlayable_Stream::SBPlayable_Stream() {
+    ResetValues();
+}
+
 SBPlayable_Stream::~SBPlayable_Stream() {
     FreeResources();
 }
 
-void SBPlayable_Stream::FreeObject(void) {
-    SoundBuffer_Playable* self = this;
-    BOOL enabled;
+SBPlayable_Stream* SBPlayable_Stream::GetObject(void) {
+    SBPlayable_Stream* stream =
+        new (MWSOUND_HEAP, (mwMemFlags)0x10, "SBPlayable_Stream", 0, 0)
+            SBPlayable_Stream;
 
-    this->FreeResources();
-    enabled = OSDisableInterrupts();
-    if (self->previous != 0) {
-        if ((self->previous->next = self->next) != 0) {
-            self->next->previous = self->previous;
-        } else {
-            ms_UpdateList__20SoundBuffer_Playable.last =
-                self->previous;
-        }
-    } else {
-        ms_UpdateList__20SoundBuffer_Playable.first =
-            self->next;
-        if (ms_UpdateList__20SoundBuffer_Playable.first != 0) {
-            self->next->previous = 0;
-        } else {
-            ms_UpdateList__20SoundBuffer_Playable.last = 0;
-        }
-    }
-    OSRestoreInterrupts(enabled);
+    stream->UpdateList_Insert();
+    return stream;
+}
+
+void SBPlayable_Stream::FreeObject(void) {
+    FreeResources();
+    UpdateList_Remove();
     delete this;
 }
 
@@ -348,113 +248,49 @@ void SBPlayable_Stream::ResetValues(void) {
 }
 
 void SBPlayable_Stream::FreeResources(void) {
-    SoundBuffer_Playable* self = this;
+    Stop();
+    SoundBuffer_Playable::FreeResources();
+}
 
-    this->Stop();
-    this->Stop();
-    if (self->aram_block != 0) {
-        self->aram_block->Release();
-        self->aram_block = 0;
+void SBPlayable_Stream::iPrepForPlay(void) {
+    if (ready_to_play == 0 && last_read_pending == 0) {
+        cache_buffers[0] = mslStreamCache_GetStreamBuffer();
+        if (cache_buffers[0] == 0) {
+            UnPrep();
+            return;
+        }
+        cache_buffer_size = mslStreamCache_GetSizeBuffer();
+        if (file_entry->has_secondary != 0) {
+            ring_block_count = cache_buffer_size / 0x2000;
+            cache_buffers[1] = mslStreamCache_GetStreamBuffer();
+            if (cache_buffers[1] == 0) {
+                UnPrep();
+                return;
+            }
+            cache_buffer1_size = cache_buffer_size;
+        } else {
+            ring_block_count = cache_buffer_size / 0x4000;
+        }
+
+        if (cache_buffer_size >= file_entry->aram_size) {
+            source_blocks_remaining = -1;
+        } else {
+            source_blocks_remaining = ring_block_count;
+        }
+        ring_write_block = 0;
+        ring_play_block = 0;
+        source_read_offset = 0;
+        source_bytes_remaining = aligned_size;
+        last_read_pending = 1;
     }
 }
 
 void SBPlayable_Stream::PrepForPlay(void) {
-    SBPlayable_Stream* stream =
-        this;
-
-    while (stream->pending_arq_count != 0) {
+    while (pending_arq_count != 0) {
     }
 
     BOOL enabled = OSDisableInterrupts();
-    if (stream->ready_to_play == 0 &&
-        stream->last_read_pending == 0) {
-        do {
-        stream->cache_buffers[0] =
-            mslStreamCache_GetStreamBuffer();
-        if (stream->cache_buffers[0] == 0) {
-            BOOL cleanup_enabled = OSDisableInterrupts();
-
-            stream->ready_to_play = 0;
-            stream->last_read_pending = 0;
-            stream->play_when_ready = 0;
-            if (stream->cache_buffers[0] != 0) {
-                mslStreamCache_ReleaseBuffer(
-                    stream->cache_buffers[0]);
-            }
-            if (stream->cache_buffers[1] != 0) {
-                mslStreamCache_ReleaseBuffer(
-                    stream->cache_buffers[1]);
-            }
-            stream->cache_buffers[0] = 0;
-            stream->cache_buffers[1] = 0;
-            stream->cache_buffer_size = 0;
-            stream->cache_buffer1_size = 0;
-            if (stream->pending_file_request != 0) {
-                mslStreamFile_CancelRequest(
-                    stream->pending_file_request);
-                stream->pending_file_request = 0;
-            }
-            OSRestoreInterrupts(cleanup_enabled);
-            break;
-        } else {
-            stream->cache_buffer_size =
-                mslStreamCache_GetSizeBuffer();
-            if (stream->file_entry->has_secondary != 0) {
-                stream->ring_block_count =
-                    stream->cache_buffer_size / 0x2000;
-                stream->cache_buffers[1] =
-                    mslStreamCache_GetStreamBuffer();
-                if (stream->cache_buffers[1] == 0) {
-                    BOOL cleanup_enabled =
-                        OSDisableInterrupts();
-
-                    stream->ready_to_play = 0;
-                    stream->last_read_pending = 0;
-                    stream->play_when_ready = 0;
-                    if (stream->cache_buffers[0] != 0) {
-                        mslStreamCache_ReleaseBuffer(
-                            stream->cache_buffers[0]);
-                    }
-                    if (stream->cache_buffers[1] != 0) {
-                        mslStreamCache_ReleaseBuffer(
-                            stream->cache_buffers[1]);
-                    }
-                    stream->cache_buffers[0] = 0;
-                    stream->cache_buffers[1] = 0;
-                    stream->cache_buffer_size = 0;
-                    stream->cache_buffer1_size = 0;
-                    if (stream->pending_file_request != 0) {
-                        mslStreamFile_CancelRequest(
-                            stream->pending_file_request);
-                        stream->pending_file_request = 0;
-                    }
-                    OSRestoreInterrupts(cleanup_enabled);
-                    break;
-                } else {
-                    stream->cache_buffer1_size =
-                        stream->cache_buffer_size;
-                }
-            } else {
-                stream->ring_block_count =
-                    stream->cache_buffer_size / 0x4000;
-            }
-
-            if (stream->cache_buffer_size >=
-                stream->file_entry->aram_size) {
-                stream->source_blocks_remaining = -1;
-            } else {
-                stream->source_blocks_remaining =
-                    stream->ring_block_count;
-            }
-            stream->ring_write_block = 0;
-            stream->ring_play_block = 0;
-            stream->source_read_offset = 0;
-            stream->source_bytes_remaining =
-                stream->aligned_size;
-            stream->last_read_pending = 1;
-        }
-        } while (0);
-    }
+    iPrepForPlay();
     OSRestoreInterrupts(enabled);
 }
 
@@ -494,8 +330,8 @@ int SBPlayable_Stream::Play(u32 flags) {
     return result;
 }
 
-/* TODO: [near miss] 97.00%; named result blocks two shared null zeros;
- * recover result/outer critical-section ownership without changing voice teardown. */
+/* TODO: [near miss] 97.00%; hand-inlined base Stop + UnPrep, 2 instrs short (shared zeros);
+ * the inline-call form is exact size but colours this/enabled low (DS notes 124/161/232). */
 int SBPlayable_Stream::Stop(void) {
     BOOL enabled = OSDisableInterrupts();
     int result = -1;
@@ -915,6 +751,29 @@ void SBPlayable_Stream::StopIfDonePlaying(void) {
             this->Stop();
         }
     }
+}
+
+void SBPlayable_Stream::UnPrep(void) {
+    BOOL enabled = OSDisableInterrupts();
+
+    ready_to_play = 0;
+    last_read_pending = 0;
+    play_when_ready = 0;
+    if (cache_buffers[0] != 0) {
+        mslStreamCache_ReleaseBuffer(cache_buffers[0]);
+    }
+    if (cache_buffers[1] != 0) {
+        mslStreamCache_ReleaseBuffer(cache_buffers[1]);
+    }
+    cache_buffers[0] = 0;
+    cache_buffers[1] = 0;
+    cache_buffer_size = 0;
+    cache_buffer1_size = 0;
+    if (pending_file_request != 0) {
+        mslStreamFile_CancelRequest(pending_file_request);
+        pending_file_request = 0;
+    }
+    OSRestoreInterrupts(enabled);
 }
 
 int SBPlayable_Stream::iPlayPrepped(void) {
@@ -1363,6 +1222,8 @@ void i_AXVPB_SetVoice_Loop_To_Zero(_AXVPB* voice) {
     i_AXVPB_SetVoice_Looping(voice, 0);
 }
 
+SoundBuffer::SoundBuffer() {
+}
 
 SoundBuffer::~SoundBuffer() {
 }
@@ -1443,13 +1304,29 @@ int SoundBuffer::SetCurrentPosition(u32 position) {
     return -1;
 }
 
+SoundBuffer_Data::SoundBuffer_Data() {
+    ResetValues();
+}
+
 SoundBuffer_Data::~SoundBuffer_Data() {
     FreeResources();
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x84); body from sibling GetObject, compiles to 0x84. */
+SoundBuffer_Data* SoundBuffer_Data::GetObject(void) {
+    return new (MWSOUND_HEAP, (mwMemFlags)0x10, "SoundBuffer_Data", 0, 0)
+        SoundBuffer_Data;
 }
 
 void SoundBuffer_Data::FreeObject(void) {
     this->FreeResources();
     delete this;
+}
+
+void SoundBuffer_Data::ResetValues(void) {
+    aram_block = 0;
+    bank = 0;
+    file_entry = 0;
 }
 
 void SoundBuffer_Data::FreeResources(void) {
@@ -1481,34 +1358,97 @@ SPSoundEntry* SoundBuffer_Data::GetSoundEntryRight(void) {
     return sound;
 }
 
+void SoundBuffer_Playable::ListUpdate_AXUser(void) {
+    SoundBuffer_Playable* playable;
+    BOOL enabled = OSDisableInterrupts();
+
+    playable = ms_UpdateList.first;
+    while (playable != 0) {
+        SoundBuffer_Playable* next = playable->next;
+        playable->iUpdate_AXUser();
+        playable = next;
+    }
+    OSRestoreInterrupts(enabled);
+}
+
+void SoundBuffer_Playable::ListUpdate_MslTick(void) {
+    SoundBuffer_Playable* playable;
+    BOOL enabled = OSDisableInterrupts();
+
+    playable = ms_UpdateList.first;
+    while (playable != 0) {
+        SoundBuffer_Playable* next = playable->next;
+        playable->iUpdate_MslTick();
+        playable = next;
+    }
+    OSRestoreInterrupts(enabled);
+}
+
+void SoundBuffer_Playable::UpdateList_Insert(void) {
+    BOOL enabled = OSDisableInterrupts();
+
+    if ((previous = ms_UpdateList.last) != 0) {
+        ms_UpdateList.last->next = this;
+    } else {
+        ms_UpdateList.first = this;
+    }
+    ms_UpdateList.last = this;
+    next = 0;
+    OSRestoreInterrupts(enabled);
+}
+
+void SoundBuffer_Playable::UpdateList_Remove(void) {
+    BOOL enabled = OSDisableInterrupts();
+
+    if (previous != 0) {
+        if ((previous->next = next) != 0) {
+            next->previous = previous;
+        } else {
+            ms_UpdateList.last = previous;
+        }
+    } else {
+        ms_UpdateList.first = next;
+        if (ms_UpdateList.first != 0) {
+            next->previous = 0;
+        } else {
+            ms_UpdateList.last = 0;
+        }
+    }
+    OSRestoreInterrupts(enabled);
+}
+
+SoundBuffer_Playable::SoundBuffer_Playable() {
+    ResetValues();
+}
+
 SoundBuffer_Playable::~SoundBuffer_Playable() {
     FreeResources();
 }
 
-void SoundBuffer_Playable::FreeObject(void) {
-    SoundBuffer_Playable* self = this;
-    BOOL enabled;
+SoundBuffer_Playable* SoundBuffer_Playable::GetObject(void) {
+    SoundBuffer_Playable* playable =
+        new (MWSOUND_HEAP, (mwMemFlags)0x10, "SoundBuffer_Playable", 0, 0)
+            SoundBuffer_Playable;
 
-    this->FreeResources();
-    enabled = OSDisableInterrupts();
-    if (self->previous != 0) {
-        if ((self->previous->next = self->next) != 0) {
-            self->next->previous = self->previous;
-        } else {
-            ms_UpdateList__20SoundBuffer_Playable.last =
-                self->previous;
-        }
-    } else {
-        ms_UpdateList__20SoundBuffer_Playable.first =
-            self->next;
-        if (ms_UpdateList__20SoundBuffer_Playable.first != 0) {
-            self->next->previous = 0;
-        } else {
-            ms_UpdateList__20SoundBuffer_Playable.last = 0;
-        }
-    }
-    OSRestoreInterrupts(enabled);
+    playable->UpdateList_Insert();
+    return playable;
+}
+
+void SoundBuffer_Playable::FreeObject(void) {
+    FreeResources();
+    UpdateList_Remove();
     delete this;
+}
+
+void SoundBuffer_Playable::ResetValues(void) {
+    current_position = 0;
+    mix_fader = 0;
+    pan = 0x40;
+    volume = 0x7F;
+    frequency = 0;
+    state = 8;
+    voices[0] = 0;
+    voices[1] = 0;
 }
 
 void SoundBuffer_Playable::FreeResources(void) {
@@ -1911,163 +1851,73 @@ void SoundBuffer_Playable::StopIfDonePlaying(void) {
     }
 }
 
-static SoundBuffer_Data* fn_stub1(void) {
-    return (SoundBuffer_Data*)operator new(
-        sizeof(SoundBuffer_Data), (_mwMemHeap*)MWSOUND_HEAP, (mwMemFlags)0x10,
-        "SoundBuffer_Data", 0, 0);
+void SetAramFromGCFileEntry(
+    MSLGCN_ARamBlock* aram_block, _GameCubeFileEntry* entry) {
+    u32 secondary_offset;
+    int channel_count;
+    u32 primary_offset = entry->primary_aram_offset;
+    u32 aram_size = entry->aram_size;
+
+    if (entry->has_secondary != 0) {
+        secondary_offset = entry->secondary_aram_offset;
+        channel_count = 2;
+    } else {
+        channel_count = 1;
+        secondary_offset = 0;
+    }
+    aram_block->SetNumChannels(channel_count);
+    aram_block->SetARamBuffers(
+        primary_offset, secondary_offset, aram_size);
+}
+
+SoundBuffer_Data* SoundBuffer_Data::iCreateAramOrDestroyBuffer(
+    SoundBuffer_Data* buffer, _mslBank* bank,
+    _GameCubeFileEntry* entry) {
+    MSLGCN_ARamBlock* aram_block;
+
+    if (buffer == 0) {
+        return 0;
+    }
+    buffer->bank = bank;
+    buffer->file_entry = entry;
+    aram_block = MSLGCN_ARamBlock::GetObject();
+    if (aram_block != 0) {
+        buffer->aram_block = aram_block;
+        aram_block->SetParent(bank->resident_aram_block);
+        SetAramFromGCFileEntry(aram_block, entry);
+    } else {
+        if (--buffer->reference_count == 0) {
+            buffer->FreeObject();
+        }
+        buffer = 0;
+    }
+    return buffer;
 }
 
 SoundBuffer_Playable* SoundBuffer::CreatePlayableStaticBuffer(
     _mslBank* bank, _GameCubeFileEntry* entry) {
-    SoundBufferPlayableLayout* playable;
     BOOL enabled = OSDisableInterrupts();
-    playable =
-        (SoundBufferPlayableLayout*)
-            operator new(
-                sizeof(SoundBufferPlayableLayout), (_mwMemHeap*)MWSOUND_HEAP,
-                (mwMemFlags)0x10,
-                "SoundBuffer_Playable", 0, 0);
-
-    if (playable != 0) {
-        playable->vtable =
-            (SoundBufferPlayableVTable*)__vt__10IRefCntRes;
-        playable->reference_count = 1;
-        playable->vtable =
-            (SoundBufferPlayableVTable*)__vt__11SoundBuffer;
-        playable->vtable =
-            (SoundBufferPlayableVTable*)__vt__16SoundBuffer_Data;
-        playable->aram_block = 0;
-        playable->bank = 0;
-        playable->file_entry = 0;
-        playable->vtable =
-            (SoundBufferPlayableVTable*)__vt__20SoundBuffer_Playable;
-        playable->current_position = 0;
-        playable->mix_fader = 0;
-        playable->pan = 0x40;
-        playable->volume = 0x7F;
-        playable->frequency = 0;
-        playable->state = 8;
-        playable->voices[0] = 0;
-        playable->voices[1] = 0;
-    }
-
-    BOOL list_enabled = OSDisableInterrupts();
-    if ((playable->previous =
-             (SoundBufferPlayableLayout*)
-                 ms_UpdateList__20SoundBuffer_Playable.last) != 0) {
-        ((SoundBufferPlayableLayout*)
-            ms_UpdateList__20SoundBuffer_Playable.last)->next = playable;
-    } else {
-        ms_UpdateList__20SoundBuffer_Playable.first =
-            (SoundBuffer_Playable*)playable;
-    }
-    ms_UpdateList__20SoundBuffer_Playable.last =
-        (SoundBuffer_Playable*)playable;
-    playable->next = 0;
-    OSRestoreInterrupts(list_enabled);
-
-    if (playable == 0) {
-        playable = 0;
-    } else {
-        MSLGCN_ARamBlock* aram_block;
-
-        playable->bank = bank;
-        playable->file_entry = entry;
-        aram_block = MSLGCN_ARamBlock::GetObject();
-        if (aram_block != 0) {
-            playable->aram_block = aram_block;
-            u32 aram_size;
-            u32 primary_offset;
-            u32 secondary_offset;
-            int channel_count;
-
-            aram_block->SetParent(bank->resident_aram_block);
-            primary_offset = entry->primary_aram_offset;
-            aram_size = entry->aram_size;
-            if (entry->has_secondary != 0) {
-                secondary_offset = entry->secondary_aram_offset;
-                channel_count = 2;
-            } else {
-                channel_count = 1;
-                secondary_offset = 0;
-            }
-            aram_block->SetNumChannels(channel_count);
-            aram_block->SetARamBuffers(
-                primary_offset, secondary_offset, aram_size);
-        } else {
-            if (--playable->reference_count == 0) {
-                ((SoundBuffer_Playable*)playable)->FreeObject();
-            }
-            playable = 0;
-        }
-    }
+    SoundBuffer_Playable* playable = (SoundBuffer_Playable*)
+        SoundBuffer_Data::iCreateAramOrDestroyBuffer(
+            SoundBuffer_Playable::GetObject(), bank, entry);
 
     OSRestoreInterrupts(enabled);
-    return (SoundBuffer_Playable*)playable;
+    return playable;
 }
 
 SoundBuffer_Playable* SoundBuffer::CreatePlayableStreamBuffer(
     _mslBank* bank, _GameCubeFileEntry* entry) {
-    SBPlayableStreamLayout* stream;
     BOOL enabled = OSDisableInterrupts();
-    stream =
-        (SBPlayableStreamLayout*)
-            operator new(
-                sizeof(SBPlayableStreamLayout), (_mwMemHeap*)MWSOUND_HEAP,
-                (mwMemFlags)0x10,
-                "SBPlayable_Stream", 0, 0);
-
-    if (stream != 0) {
-        SoundBufferPlayableLayout* playable = &stream->playable;
-        playable->vtable =
-            (SoundBufferPlayableVTable*)__vt__10IRefCntRes;
-        playable->reference_count = 1;
-        playable->vtable =
-            (SoundBufferPlayableVTable*)__vt__11SoundBuffer;
-        playable->vtable =
-            (SoundBufferPlayableVTable*)__vt__16SoundBuffer_Data;
-        playable->aram_block = 0;
-        playable->bank = 0;
-        playable->file_entry = 0;
-        playable->vtable =
-            (SoundBufferPlayableVTable*)__vt__20SoundBuffer_Playable;
-        playable->current_position = 0;
-        playable->mix_fader = 0;
-        playable->pan = 0x40;
-        playable->volume = 0x7F;
-        playable->frequency = 0;
-        playable->state = 8;
-        playable->voices[0] = 0;
-        playable->voices[1] = 0;
-        playable->vtable =
-            (SoundBufferPlayableVTable*)__vt__17SBPlayable_Stream;
-        ((SBPlayable_Stream*)stream)->ResetValues();
-    }
-
-    BOOL list_enabled = OSDisableInterrupts();
-    if ((stream->playable.previous =
-             (SoundBufferPlayableLayout*)
-                 ms_UpdateList__20SoundBuffer_Playable.last) != 0) {
-        ((SoundBufferPlayableLayout*)
-            ms_UpdateList__20SoundBuffer_Playable.last)->next =
-                &stream->playable;
-    } else {
-        ms_UpdateList__20SoundBuffer_Playable.first =
-            (SoundBuffer_Playable*)stream;
-    }
-    ms_UpdateList__20SoundBuffer_Playable.last =
-        (SoundBuffer_Playable*)stream;
-    stream->playable.next = 0;
-    OSRestoreInterrupts(list_enabled);
+    SBPlayable_Stream* stream = SBPlayable_Stream::GetObject();
 
     if (stream != 0) {
         SPSoundEntry* sound;
 
-        stream->playable.bank = bank;
-        stream->playable.file_entry = entry;
+        stream->bank = bank;
+        stream->file_entry = entry;
         stream->stream_context = bank->stream_context;
         stream->primary_offset = entry->primary_aram_offset;
-        if (stream->playable.file_entry->has_secondary != 0) {
+        if (stream->file_entry->has_secondary != 0) {
             stream->aligned_size =
                 (entry->aram_size + 0x1FFF) & ~0x1FFF;
             stream->aligned_size <<= 1;
@@ -2083,35 +1933,17 @@ SoundBuffer_Playable* SoundBuffer::CreatePlayableStreamBuffer(
         sound = SPGetSoundEntry(entry->sound_table, 0);
         stream->initial_position =
             sound->end_address & (stream->segment_size * 2 - 1);
-        ((SoundBuffer_Playable*)stream)->PrepForPlay();
+        stream->PrepForPlay();
     }
 
     OSRestoreInterrupts(enabled);
-    return (SoundBuffer_Playable*)stream;
+    return stream;
 }
 
 void SoundBuffer::SB_AXUserCallback(void) {
-    BOOL enabled = OSDisableInterrupts();
-    SoundBuffer_Playable* playable =
-        ms_UpdateList__20SoundBuffer_Playable.first;
-
-    while (playable != 0) {
-        SoundBuffer_Playable* current = playable;
-        playable = playable->next;
-        current->iUpdate_AXUser();
-    }
-    OSRestoreInterrupts(enabled);
+    SoundBuffer_Playable::ListUpdate_AXUser();
 }
 
 void SoundBuffer::SB_MslTickCallback(void) {
-    BOOL enabled = OSDisableInterrupts();
-    SoundBuffer_Playable* playable =
-        ms_UpdateList__20SoundBuffer_Playable.first;
-
-    while (playable != 0) {
-        SoundBuffer_Playable* current = playable;
-        playable = playable->next;
-        current->iUpdate_MslTick();
-    }
-    OSRestoreInterrupts(enabled);
+    SoundBuffer_Playable::ListUpdate_MslTick();
 }

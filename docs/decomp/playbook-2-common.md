@@ -1692,6 +1692,22 @@ settings. Verify emitted calls, helper symbols, every consumer.
   addresses become IRO CSE temps below the inliner band
   (`p_screen_engine_tick` 100%; nesting alone 14 rows, expression body alone 3).
 
+- Loop-invariant scale named at the outer statement (`row_base = row * 20;`
+  before the inner loop), all ops right, lone GPR swap: retail gives the scale
+  the register a named local cannot get (named numbers below the in-loop index
+  CSE temp). REQUIRE capture: scale web must number above that CSE AND its
+  `mulli` must stay at the outer statement (unnamed `row * 20` in the loop
+  colours right but LICM appends it at the preheader end, after later outer
+  statements -> schedule rows). TRY a one-line `static inline` helper that
+  returns the scale, called at the same outer statement
+  (`row_base = coffin_row_base(row);`). The inliner result temp is defined
+  there, `row_base = @tmp` is copy-propagated, the web is an inliner object
+  (highest FE band), not single-use so never moved into the loop
+  (`set_number_positions_and_values` 18 rows -> 100%; sibling
+  `set_koin_positions_and_colors` byte-neutral with the same helper). Do not
+  pair the named local with an in-loop respelling of the same product: IRO
+  leaves differ (`row_base` vs CSE temp), index CSE breaks, `col` materializes.
+
 - Retail keeps a range check of a variable that matched sibling inlines of
   the same helper lack: REQUIRE MAP-UNUSED out-of-line size = current helper
   + that check. TRY the extra helper parameter: constant at sibling call

@@ -179,7 +179,7 @@ Tools:
 | `li rX,0` vs `mr rX,rZero`; `li;li` vs `li;mr` in a preheader | H29, H15, H11 |
 | Retail-only `b` to a case body between switch dispatch and first arm | N14 |
 | Differing instruction absent from pre-RA `initial` pcode | H29, N14 (not coloring) |
-| Same ops, regs swapped | H15, H21, H22, then tier 4 stops |
+| Same ops, regs swapped | H15, H21, H22, then tier 4 stops; named outer-loop scale (`row * N`) vs in-loop index CSE -> H07 inline scale helper |
 | Same ops, only volatile temps (r0/r3-r12, f0-f13) rotated | H27 statement/operand order, H15; inline arg temp propagated past helper's first statement -> H07 param type identity; constant operand and variable operand trade r0 -> H26 in-place derivation in the result's local; load temp beats a helper local to r3 through a folded `&p->member` local -> H21 named owner local |
 | Lone web wants r3/f1 (return/arg reg), no order fixes it | H01 return type/arg, H15 |
 | Add/or operands commuted in one row | H15, H22 |

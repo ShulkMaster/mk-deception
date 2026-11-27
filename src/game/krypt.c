@@ -407,6 +407,10 @@ static inline int coffin_uses_near_tombstone(int index) {
     return 0;
 }
 
+static inline int coffin_row_base(int row) {
+    return row * 0x14;
+}
+
 static inline void tombstone_grid_origin(
     int row, int col, float* x, float* z) {
     *x = s_tomb_col_spacing * (float)col + s_tomb_col_origin;
@@ -2337,7 +2341,7 @@ static void set_koin_positions_and_colors(PfxVm* pfx) {
     for (row_off = 0; row_off < 4; row_off++) {
         row = view_row + row_off;
         z_near = s_tomb_koin_z_near + base_z;
-        row_base = row * 0x14;
+        row_base = coffin_row_base(row);
         z_far = s_tomb_koin_z_far + base_z;
         for (col_off = 0; col_off < 9; col_off++) {
             col = view_col + col_off;
@@ -2362,8 +2366,6 @@ static void set_koin_positions_and_colors(PfxVm* pfx) {
     }
 }
 
-/* TODO: [near miss] 99.61938%; named row_base numbers below the coffin-offset CSE; row*20
- * must reach pcode before z_far; recover the row-scale owner. */
 static void set_number_positions_and_values(PfxVm* pfx) {
     Vec* pos;
     float* uv;
@@ -2408,7 +2410,7 @@ static void set_number_positions_and_values(PfxVm* pfx) {
     for (row_off = 0; row_off < 4; row_off++) {
         row = view_row + row_off;
         z_near = s_tomb_z_near + base_z;
-        row_base = row * 0x14;
+        row_base = coffin_row_base(row);
         z_far = s_tomb_z_far + base_z;
         for (col_off = 0; col_off < 9; col_off++) {
             col = view_col + col_off;
