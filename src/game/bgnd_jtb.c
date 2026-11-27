@@ -632,8 +632,8 @@ static int nb_npc_hurt_player(
     return 0;
 }
 
-/* TODO: [near miss] 99.50593%; 17 FPR-home rows: named blend temps (weighted_sum,
- * weighted_target, correction) must number above their split webs; recover blend owner. */
+/* TODO: [near miss] 99.50593%; 17 FPR rows: x blend defs and y/z split webs must pop before the divisor
+ * CSE and a codegen temp; a Vec blend helper lifts only the x defs (28 rows); owner unknown. */
 static void nb_npc_slave_hit_by_plyr(int npc_id) {
     struct NbNpcState* npc;
     Vec target = {0.0f, 0.0f, 0.0f};

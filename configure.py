@@ -1234,7 +1234,7 @@ config.libs = [
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
             Object(NonMatching, "cam.o", source="runtime/cam.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly", "-inline auto,deferred"]),
-            Object(NonMatching, "krypt.o", source="game/krypt.c",
+            Object(Matching, "krypt.o", source="game/krypt.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly",
                                  "-inline auto,deferred"]),

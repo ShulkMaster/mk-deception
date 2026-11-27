@@ -1692,6 +1692,26 @@ settings. Verify emitted calls, helper symbols, every consumer.
   addresses become IRO CSE temps below the inliner band
   (`p_screen_engine_tick` 100%; nesting alone 14 rows, expression body alone 3).
 
+- Loop-invariant scale named at the outer statement (`row_base = row * 20;`
+  before the inner loop), all ops right, lone GPR swap: retail gives the scale
+  the register a named local cannot get (named numbers below the in-loop index
+  CSE temp). REQUIRE capture: scale web must number above that CSE AND its
+  `mulli` must stay at the outer statement (unnamed `row * 20` in the loop
+  colours right but LICM appends it at the preheader end, after later outer
+  statements -> schedule rows). TRY a one-line `static inline` helper that
+  returns the scale, called at the same outer statement
+  (`row_base = coffin_row_base(row);`). The expression inline's result is an
+  IRO lowering temp (`fn_0046ec50`) defined there, `row_base = @tmp` is
+  copy-propagated, so the web ranks above split/CSE/LICM temps (still below
+  inline locals, inline args and inline results), not single-use so never
+  moved into the loop (`set_number_positions_and_values` 18 rows -> 100%;
+  sibling `set_koin_positions_and_colors` byte-neutral with the same helper).
+  No fit: web must rank above an inline local (`save_to_memcard2`,
+  `mk_chess_spell_set_target_health`); unit built `-inline off` (helper
+  becomes a `bl`, `ScreenObject::ProcessEvent`). Do not
+  pair the named local with an in-loop respelling of the same product: IRO
+  leaves differ (`row_base` vs CSE temp), index CSE breaks, `col` materializes.
+
 - Retail keeps a range check of a variable that matched sibling inlines of
   the same helper lack: REQUIRE MAP-UNUSED out-of-line size = current helper
   + that check. TRY the extra helper parameter: constant at sibling call
@@ -5340,6 +5360,15 @@ stream, N copies more or fewer; pop-order solver says "moves a parameter" or
   (`setup_per_tile_navigations`: helper `Vec* intersection` -> direct
   `&intersections[outputIndex++]`, plus `tileCount` declared before
   `areaCount`). Recheck helper MAP size.
+- IF the stall pick is a parameter (cannot renumber) and minus-one and decl
+  sweeps each fail alone | REQUIRE retail saved homes high->low and the entry
+  `li` order both read as one declaration order with the stall pick and one
+  more web on top (r31, r30) | TRY that declaration order with initializers
+  (the r31 web declared last) AND one copy fewer across all of them (hero
+  live helper -> MK_LIVE). Scan then skips param + last-declared web (degree
+  >= K), pushes the rest ascending, and the two pop first. Search minus-copy
+  on the reordered graph, not on the current numbering (`do_dialog`: left,
+  right, bottom, yes, no, ok; both latches MK_LIVE; stall gone).
 - IF the helper is already exact MAP size but small MAP UNUSED helpers sit
   just before it | REQUIRE each small helper's out-of-line size = its MAP size
   and the outer helper still = its MAP size with them inlined | TRY nest them
@@ -5349,8 +5378,8 @@ stream, N copies more or fewer; pop-order solver says "moves a parameter" or
   `mwsfcre_UsrMalloc` 0x40 inside the 0xe8 allocator = 100; sibling
   `mwsfcre_MallocRfb` then needs its own lever, H32 CSE-type split).
 - STOP when Step A finds no N <= 3, no minus and no minus + numbering pair:
-  interference edge or numbering, not this rule (`do_dialog`,
-  `render_player_joints`, `pfxvm`).
+  interference edge or numbering, not this rule (`render_player_joints`,
+  `pfxvm`).
 
 ## Traps
 

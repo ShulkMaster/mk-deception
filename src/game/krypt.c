@@ -407,6 +407,10 @@ static inline int coffin_uses_near_tombstone(int index) {
     return 0;
 }
 
+static inline int coffin_row_base(int row) {
+    return row * 0x14;
+}
+
 static inline void tombstone_grid_origin(
     int row, int col, float* x, float* z) {
     *x = s_tomb_col_spacing * (float)col + s_tomb_col_origin;
@@ -1402,24 +1406,21 @@ static float p_running_footstep_proc(void) {
     }
     return -1.0f;
 }
-/* TODO: [near miss] 99.58334%; 31 saved-GPR rows remain;
- * dialog-type copy/lifetime ownership is unresolved; stop at coloring. */
 static int do_dialog(int dialog_type) {
     int result;
-    ScreenObj* dialog_left;
-    ScreenObj* dialog_right;
-    ScreenObj* yes_button = 0;
-    ScreenObj* no_button = 0;
-    ScreenObj* ok_button;
     ScreenObj* hud_icon_a;
     ScreenObj* hud_icon_b;
+    ScreenObj* dialog_left;
+    ScreenObj* dialog_right;
     ScreenObj* dialog_bottom = 0;
+    ScreenObj* yes_button = 0;
+    ScreenObj* no_button = 0;
+    ScreenObj* ok_button = 0;
     StringObj* dialog_text;
     const char* message;
 
-    ok_button = 0;
     hud_icon_a = MK_LIVE(krypt_pdata->open_button.obj, krypt_pdata->open_button.obj_instance);
-    hud_icon_b = krypt_pdata_live_exit_button_obj(krypt_pdata);
+    hud_icon_b = MK_LIVE(krypt_pdata->exit_button.obj, krypt_pdata->exit_button.obj_instance);
     message = 0;
     dialog_left = load_named_2d_pfxobj(0x140066, 0x830F, "DIALOG_LEFT", 0, 0x4C);
     dialog_left->x = screen_width / 2 - 0xC0;
@@ -2337,7 +2338,7 @@ static void set_koin_positions_and_colors(PfxVm* pfx) {
     for (row_off = 0; row_off < 4; row_off++) {
         row = view_row + row_off;
         z_near = s_tomb_koin_z_near + base_z;
-        row_base = row * 0x14;
+        row_base = coffin_row_base(row);
         z_far = s_tomb_koin_z_far + base_z;
         for (col_off = 0; col_off < 9; col_off++) {
             col = view_col + col_off;
@@ -2362,8 +2363,6 @@ static void set_koin_positions_and_colors(PfxVm* pfx) {
     }
 }
 
-/* TODO: [near miss] 99.61938%; named row_base numbers below the coffin-offset CSE; row*20
- * must reach pcode before z_far; recover the row-scale owner. */
 static void set_number_positions_and_values(PfxVm* pfx) {
     Vec* pos;
     float* uv;
@@ -2408,7 +2407,7 @@ static void set_number_positions_and_values(PfxVm* pfx) {
     for (row_off = 0; row_off < 4; row_off++) {
         row = view_row + row_off;
         z_near = s_tomb_z_near + base_z;
-        row_base = row * 0x14;
+        row_base = coffin_row_base(row);
         z_far = s_tomb_z_far + base_z;
         for (col_off = 0; col_off < 9; col_off++) {
             col = view_col + col_off;
