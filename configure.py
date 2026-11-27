@@ -1137,7 +1137,7 @@ config.libs = [
             Object(Matching("GQNE5D"), "pz_fighters.o", source="game/pz_fighters.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly"]),
-            Object(NonMatching, "mk_chess.o", source="game/mk_chess.c",
+            Object(Matching, "mk_chess.o", source="game/mk_chess.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly",
                                  "-inline noauto,deferred"]),

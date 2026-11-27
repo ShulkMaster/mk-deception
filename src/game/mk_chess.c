@@ -1074,16 +1074,13 @@ static inline ScreenObj* mk_chess_live_screen(ChessScreenRef* owner) {
     return MK_LIVE(owner->screen, owner->instance);
 }
 
-static inline void mk_chess_refresh_side_health(ChessPiece* piece) {
-    ChessSideState* side;
-    unsigned int side_index;
+static inline void mk_chess_refresh_side_health(unsigned int side_index) {
     ScreenObj* bar;
 
-    side_index = piece->side;
-    side = mk_chess_pdata->sides[side_index];
-    if (side->hud->selected_piece != 0) {
-        bar = mk_chess_live_screen(&side->team_art[3]);
-        bar->scale_x = 6.0f * side->hud->selected_piece->health;
+    if (mk_chess_pdata->sides[side_index]->hud->selected_piece != 0) {
+        bar = MK_LIVE(mk_chess_pdata->sides[side_index]->team_art[3].screen,
+                      mk_chess_pdata->sides[side_index]->team_art[3].instance);
+        bar->scale_x = 6.0f * mk_chess_pdata->sides[side_index]->hud->selected_piece->health;
         if (side_index == 1) {
             bar->scale_x *= -1.0f;
         }
@@ -1890,28 +1887,6 @@ typedef struct ChessMagicRingsPdata {
 } ChessMagicRingsPdata;
 
 static float p_magic_rings_fx(void);
-
-static inline void mk_chess_restart_ring(ChessMagicRingsPdata* data, unsigned int index) {
-    RwRGBA color = {255, 255, 255, 255};
-    MkObj* object = MK_HDR_LIVE(data->rings[index].object, data->rings[index].instance);
-    if (object == 0) {
-        data->active[index] = 0;
-    } else {
-        data->phase[index] = 0;
-        data->elapsed[index] = 1.0f + data->initial_scale / data->scale_per_tick;
-        data->active[index] = 1;
-        object->pos.value.x = data->position.x;
-        object->pos.value.y = data->position.y;
-        object->pos.value.z = data->position.z;
-        object->scale.x = data->scale.x * data->initial_scale;
-        object->scale.y = data->scale.y * data->initial_scale;
-        object->scale.z = data->scale.z * data->initial_scale;
-        unhide_obj(object);
-        update_mkobj(object);
-        color.alpha = 255;
-        obj_set_color_for_all_materials(object, &color);
-    }
-}
 
 static inline void mk_chess_choose_trap_region(unsigned int side, unsigned int* x,
     unsigned int* y, unsigned int wide_threshold, unsigned int middle_threshold) {
@@ -6033,16 +6008,16 @@ void mk_chess_rotate_towards_cell(float x, float y, float step, int track_other,
 
 static inline void mk_chess_lift_active_piece(void) {
     AnimPdata* animation;
-    unsigned int ticks = 19;
+    unsigned int ticks = 20;
 
     g_active_piece->object->pos_vel.y = 0.02f;
-    do {
+    while (ticks-- != 0) {
         animation = g_active_piece->animation;
         advance_anim(animation);
         pose_anim(animation, 1);
         _mkproc_sleep_ticks = 1.0f;
         aproc->vtbl->sleep();
-    } while (ticks-- != 0);
+    }
 }
 
 void mk_chess_ani_until_reached_destination(
@@ -6858,7 +6833,7 @@ void mk_chess_spell_set_target_health(unsigned int target, float health) {
     ChessPiece* piece = mk_chess_get_piece_at_cell(spell->target_x[target], spell->target_y[target]);
 
     piece->health = health;
-    mk_chess_refresh_side_health(piece);
+    mk_chess_refresh_side_health(piece->side);
 }
 
 
@@ -9418,6 +9393,7 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_0->y = middle_0->y + center->y;
             middle_0->z = middle_0->z + center->z;
             first_offset = 62.0f * (camera_distance / 60.0f);
+            second_offset = 34.0f * (camera_distance / 60.0f);
             dx = normal_unit.x * first_offset;
             dz = normal_unit.z * first_offset;
             middle_0->x += dx;
@@ -9429,7 +9405,6 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_1->x = middle_1->x + center->x;
             middle_1->y = middle_1->y + center->y;
             middle_1->z = middle_1->z + center->z;
-            second_offset = 34.0f * (camera_distance / 60.0f);
             dx = normal_unit.x * second_offset;
             dz = normal_unit.z * second_offset;
             middle_1->x += dx;
@@ -12127,6 +12102,27 @@ static void mk_chess_camera_init_for_place_traps(void) {
 }
 
 
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x128); body inferred from mk_chess_camera_init, compiles to 0x114. */
+void mk_chess_arttool_camera_init(void) {
+    Vec target = {0.0f, 0.0f, 0.0f};
+    CameraObj* camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
+
+    CameraSize(Camera, 0, gxMathTan(0.28797933f), DEFAULT_ASPECTRATIO);
+    mk_chess_pdata->camera.completion = 0;
+    look_at_target(&target);
+    mk_chess_pdata->camera.current_look_at.x = target.x;
+    mk_chess_pdata->camera.current_look_at.y = target.y;
+    mk_chess_pdata->camera.current_look_at.z = target.z;
+    xfer_camera(p_mk_chess_cam_control, 0);
+    mk_chess_pdata->camera.viewing_quadrant = 0;
+    mk_chess_pdata->camera.field_4C = 0;
+    mk_chess_pdata->camera.field_50 = 0;
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+    mk_chess_set_viewing_quadrant(camera);
+}
+
+
 static float p_mk_chess_start_fatality(void) {
     if (f_fatality_available != 0) {
         turn_controllers_off();
@@ -13962,6 +13958,28 @@ static void start_gnd_blast(ChessPiece* piece, Vec* scale, int spawn_secondary,
     }
 }
 
+
+static inline void mk_chess_restart_ring(ChessMagicRingsPdata* data, unsigned int index) {
+    RwRGBA color = {255, 255, 255, 255};
+    MkObj* object = MK_HDR_LIVE(data->rings[index].object, data->rings[index].instance);
+    if (object == 0) {
+        data->active[index] = 0;
+    } else {
+        data->phase[index] = 0;
+        data->elapsed[index] = 1.0f + data->initial_scale / data->scale_per_tick;
+        data->active[index] = 1;
+        object->pos.value.x = data->position.x;
+        object->pos.value.y = data->position.y;
+        object->pos.value.z = data->position.z;
+        object->scale.x = data->scale.x * data->initial_scale;
+        object->scale.y = data->scale.y * data->initial_scale;
+        object->scale.z = data->scale.z * data->initial_scale;
+        unhide_obj(object);
+        update_mkobj(object);
+        color.alpha = 255;
+        obj_set_color_for_all_materials(object, &color);
+    }
+}
 
 static float p_magic_rings_fx(void) {
     RwRGBA color = {255, 255, 255, 255};
@@ -16944,6 +16962,8 @@ static void mk_chess_drone_complete_action(ChessDroneState* drone) {
     }
 }
 
+static ChessClassDefinition* g_active_class_definition;
+static ChessModeState* mk_chess_pdata;
 ChessPiece* g_active_piece_being_defined;
 int g_active_team;
 ChessPiece* g_active_piece;
