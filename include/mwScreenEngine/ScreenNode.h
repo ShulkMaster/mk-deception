@@ -3,6 +3,12 @@
 #include "dolphin/types.h"
 class ScreenMgr; class ScreenAction; class ScreenMatrixStack; class ScreenAnimControl;
 class ScreenRenderInfo;
+struct ScreenColor_t {
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
+    unsigned char a;
+};
 class ScreenNode {
 public:
     ScreenNode();

@@ -8,24 +8,6 @@ typedef struct AniTextureControl AniTextureControl;
 class ScreenPoly;
 class ScreenText;
 
-typedef struct ScreenObjectHead {
-    unsigned char node[0x18];
-    struct SEObject_t* ext;
-    struct ScreenView* screen;
-    void* parent;
-    unsigned char pad28[0x68];
-} ScreenObjectHead;
-
-typedef struct ScreenControlView {
-    void* vtbl;
-    ScreenObjectHead head;
-    int collectionId;
-    int gvContext;
-    int optionId;
-    int pad9C;
-    int field_0xA0;
-} ScreenControlView;
-
 class KeyEntry : public ScreenControl {
 public:
     KeyEntry();
@@ -50,6 +32,7 @@ public:
     void UpdateString();
     void ScrollText(int dir, int amount);
     unsigned char ShouldAutoScrollDown();
+    void RestoreString();
 
     ScreenNode* textNode;
     char* editBuf;
@@ -100,8 +83,17 @@ public:
     virtual void FinishSetup(ScreenParams* params, int nodeIndex) = 0;
     virtual void ClearContents() = 0;
 
-    unsigned char color[4];
-    unsigned char* cellColors;
+    void ScrollDown(int delta);
+    void ScrollUp(int delta);
+    void ScrollLeft(int delta);
+    void ScrollRight(int delta);
+    void RefreshOption(int doUpdate);
+    void RefreshCollection(int doUpdate);
+    void SubmitOption();
+    int get_current_row();
+
+    ScreenColor_t color;
+    ScreenColor_t* cellColors;
     int padAC;
     ScreenNode* nodeB0;
     ScreenNode* nodeB4;
@@ -122,6 +114,8 @@ public:
     int cellArray;
     int flag104;
     int flag108;
+    int hasExtraRes;
+    int extraResId;
 };
 
 class SpreadSheet_text : public SpreadSheet {
@@ -133,8 +127,6 @@ public:
     virtual void AllocateCollection();
     virtual void FinishSetup(ScreenParams* params, int nodeIndex);
     virtual void ClearContents();
-    int hasExtraRes;
-    int extraResId;
     int pad114;
     ScreenText** unk118;
     char** strings;
@@ -149,8 +141,6 @@ public:
     virtual void AllocateCollection();
     virtual void FinishSetup(ScreenParams* params, int nodeIndex);
     virtual void ClearContents();
-    int hasExtraRes;
-    int extraResId;
     int pad114;
     ScreenPoly** unk118;
     GMTextureInfo_t textures;
@@ -246,11 +236,18 @@ public:
     virtual void ScrollInc(int delta);
     virtual void ScrollDec(int delta);
 
+    void ClearStrings();
+    int IsItemValid(int& index, int delta);
+    void RefreshOption(int doUpdate);
+    void EnsureVisiblity();
+    void RefreshCollection(int doUpdate);
+    void SubmitOption();
+
     ScreenNode** itemNodes;
     ScreenNode* linkedNode;
     char** strings;
     int paramB0;
-    unsigned char color[4];
+    ScreenColor_t color;
     int focusIndex;
     int focusMax;
     int stringCount;

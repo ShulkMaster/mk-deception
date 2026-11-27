@@ -4,25 +4,11 @@
 #include "mwScreenEngine/ScreenNode.h"
 
 typedef struct RwTexture RwTexture;
-typedef struct RwFrame RwFrame;
 typedef struct ScreenObj ScreenObj;
-typedef struct ScreenMatrixStackC ScreenMatrixStackC;
+struct _MKV3D;
 class ScreenPoly;
 
-/* C views shared by the Glue implementations of ScreenPoly/Text/Particle. */
-typedef struct ScreenRenderInfoC {
-    unsigned int flags;        /* +0x00 */
-    ScreenMatrixStackC* matrixStack; /* +0x04 */
-    float colorScale[4];       /* +0x08 */
-    float colorTranslation[4]; /* +0x18 */
-} ScreenRenderInfoC; /* 0x28 */
 
-struct ScreenMatrixStackC {
-    void* vtbl;  /* +0x00 */
-    RwFrame* frame; /* +0x04 -- passed to RwFrameGetLTM */
-}; /* 0x08 */
-
-/* Patched POLY element from the screen-set blob (retail ILP32). */
 typedef struct SEPolyPosition {
     float x;
     float y;
@@ -68,6 +54,16 @@ public:
     virtual void SetVisible(unsigned int visible);
     virtual unsigned int IsVisible();
     virtual void Close();
+
+    void SetPosition(int index, _MKV3D* pos);
+    void SetPositionOffset(_MKV3D* offset);
+    void SetColor(int index, ScreenColor_t* color);
+    void SetTexture(RwTexture* tex);
+    void SetAlphaTexture(RwTexture* tex);
+    RwTexture* GetTexture();
+    void GetPosition(int index, _MKV3D* pos);
+
+    static const int vert_map[4];
 
     ScreenObj* screenObj; /* +0x10 -- live pfx chrome */
     int screenObjInstance; /* +0x14 */

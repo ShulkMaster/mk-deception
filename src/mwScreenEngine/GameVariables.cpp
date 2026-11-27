@@ -113,9 +113,9 @@ void GameVariableDispatcher::Register(GameVariables* vars) {
     }
 }
 
-int GameVariableDispatcher::IsValidInt(unsigned int a, unsigned int b,
-                                       unsigned int c, unsigned int id,
-                                       int value) {
+unsigned int GameVariableDispatcher::IsValidInt(unsigned int a, unsigned int b,
+                                                unsigned int c, unsigned int id,
+                                                int value) {
     GameVariables* cur;
 
     cur = m_head;
@@ -267,7 +267,7 @@ void GameVariableDispatcher::SetColState(unsigned int unused, unsigned int id,
     }
 }
 
-int GameVariableDispatcher::IsValidOption(unsigned int unused, unsigned int id) {
+unsigned int GameVariableDispatcher::IsValidOption(unsigned int unused, unsigned int id) {
     GameVariables* cur;
 
     cur = m_head;

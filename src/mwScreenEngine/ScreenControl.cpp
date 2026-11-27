@@ -43,7 +43,7 @@ void ScreenControl::RegisterGameVariables(unsigned int,
 int ScreenControl::HandleAction(ScreenMgr* mgr, const ScreenAction* action) {
     ScreenAction local;
     ScreenParams* params;
-    ScreenNode* node;
+    ScreenControl* node;
     int handled;
     int value;
 
@@ -55,7 +55,7 @@ int ScreenControl::HandleAction(ScreenMgr* mgr, const ScreenAction* action) {
 
     switch (action->m_arg) {
     case kScreenArgCtrlFwdCollection:
-        node = params->GetScreenNode(0);
+        node = static_cast<ScreenControl*>(params->GetScreenNode(0));
         if (node != 0) {
             local.Init(action->m_event, action->m_eventIndex, action->m_object,
                        kScreenArgRefreshCollection, action->m_params,
@@ -65,7 +65,7 @@ int ScreenControl::HandleAction(ScreenMgr* mgr, const ScreenAction* action) {
         break;
 
     case kScreenArgCtrlFwdOption:
-        node = params->GetScreenNode(0);
+        node = static_cast<ScreenControl*>(params->GetScreenNode(0));
         if (node != 0) {
             local.Init(action->m_event, action->m_eventIndex, action->m_object,
                        kScreenArgRefreshOption, action->m_params,
@@ -75,7 +75,7 @@ int ScreenControl::HandleAction(ScreenMgr* mgr, const ScreenAction* action) {
         break;
 
     case kScreenArgCtrlRefreshSelf:
-        node = params->GetScreenNode(0);
+        node = static_cast<ScreenControl*>(params->GetScreenNode(0));
         if (node == this) {
             value = params->GetInt(1);
             if (value == 0) {

@@ -347,6 +347,7 @@ cflags_base = [
     "-RTTI off",
     "-fp_contract on",
     "-str reuse",
+    "-sym on",
     "-multibyte",  # For Wii compilers, replace with `-enc SJIS`
     "-i include",
     f"-i build/{config.version}/include",
@@ -357,8 +358,7 @@ cflags_base = [
 
 # Debug flags
 if args.debug:
-    # Or -sym dwarf-2 for Wii compilers
-    cflags_base.extend(["-sym on", "-DDEBUG=1"])
+    cflags_base.append("-DDEBUG=1")
 else:
     cflags_base.append("-DNDEBUG=1")
 
@@ -1274,7 +1274,7 @@ config.libs = [
                    extra_cflags=["-O4,s", "-str reuse,pool,readonly", "-inline auto,deferred"]),
             Object(Matching("GQNE5D"), "ending.o", source="game/ending.c", extra_cflags=["-O4,s", "-str reuse,pool,readonly"]),
             Object(Matching, "mwScreenEngineGlue.o", source="mw/mwScreenEngineGlue.cpp",
-                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-bool off", "-RTTI on", "-str reuse,pool,readonly", "-inline auto,deferred", "-sym on"]),
+                   extra_cflags=["-O4,s", "-use_lmw_stmw on", "-bool off", "-RTTI on", "-str reuse,pool,readonly", "-inline auto,deferred,level=2"]),
             Object(Matching, "plyrprofile.o", source="game/plyrprofile.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on",
                                  "-str reuse,pool,readonly",
@@ -2508,6 +2508,7 @@ config.libs = [
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenClient.o",
                 source="mwScreenEngine/ScreenClient.cpp",
+                extra_cflags=["-inline auto,level=1"],
             ),
             Object(
                 Matching,
@@ -2519,12 +2520,13 @@ config.libs = [
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenResourceLibrary.o",
                 source="mwScreenEngine/ScreenResourceLibrary.cpp",
+                extra_cflags=["-inline auto,level=1"],
             ),
             Object(
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenUtil.o",
                 source="mwScreenEngine/ScreenUtil.cpp",
-                extra_cflags=["-O4,s", "-use_lmw_stmw on"],
+                extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline auto,level=1"],
             ),
             Object(
                 Matching,
@@ -2554,13 +2556,13 @@ config.libs = [
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenActionStack.o",
                 source="mwScreenEngine/ScreenActionStack.cpp",
-                extra_cflags=["-O4,s", "-use_lmw_stmw on"],
+                extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline auto,level=1"],
             ),
             Object(
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenNode.o",
                 source="mwScreenEngine/ScreenNode.cpp",
-                extra_cflags=["-sdata 0", "-sdata2 0", "-str reuse,pool,readonly"],
+                extra_cflags=["-sdata 0", "-sdata2 0", "-str reuse,pool,readonly", "-inline auto,level=1"],
             ),
             Object(
                 NonMatching,
@@ -2584,7 +2586,7 @@ config.libs = [
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/ScreenScreenAction.o",
                 source="mwScreenEngine/ScreenScreenAction.cpp",
-                extra_cflags=["-O4,s", "-use_lmw_stmw on"],
+                extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline auto,level=1"],
             ),
             Object(
                 NonMatching,
@@ -2596,7 +2598,7 @@ config.libs = [
                 Matching,
                 "mwScreenEngineGCrelease.a/mk6/mwScreenEngine/mwScreenEngineGC_Data/release/GameVariables.o",
                 source="mwScreenEngine/GameVariables.cpp",
-                extra_cflags=["-O4,s", "-use_lmw_stmw on"],
+                extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline auto,level=1"],
             ),
             Object(
                 Matching,
