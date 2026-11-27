@@ -32,7 +32,7 @@ struct TgaHeaderValues {
   int color_map_length;
   int color_map_depth;
   int origin_x;
-  unsigned int origin_y;
+  int origin_y;
   int width;
   int height;
   int pixel_depth;
@@ -82,8 +82,6 @@ RwImage *tgaImageWriteUncompressed24bitRGB(MkHwFileRequest *file, RwImage *image
   return image;
 }
 
-/* TODO: [near miss] 99.02439%; header li 24 loses the pre-RA tie to the origin-Y
- * rlwinm (opcode rank, same late/height); helper boundary is MAP-exact. */
 RwImage *ImageWriteTGA(RwImage *image, const char *path) {
   RwImage *result;
   MkHwFileRequest *file;
@@ -118,11 +116,11 @@ RwImage *ImageWriteTGA(RwImage *image, const char *path) {
     header.origin_x_lo = values.origin_x;
     header.origin_x_hi = ((values.origin_x & 0xff00) >> 8);
     header.origin_y_lo = values.origin_y;
-    header.origin_y_hi = (values.origin_y >> 8);
+    header.origin_y_hi = ((values.origin_y & 0xff00) >> 8);
     header.width_lo = values.width;
-    header.width_hi = (values.width >> 8);
+    header.width_hi = ((values.width & 0xff00) >> 8);
     header.height_lo = values.height;
-    header.height_hi = (values.height >> 8);
+    header.height_hi = ((values.height & 0xff00) >> 8);
     header.pixel_depth = values.pixel_depth;
     header.descriptor = values.descriptor;
     debug_file_write(file, &header, sizeof(header));
