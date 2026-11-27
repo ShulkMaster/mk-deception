@@ -345,8 +345,8 @@ void ScreenObject::ProcessSubActions(const ScreenAction* action, int match) {
     ProcessSubActions(mgr, action, match);
 }
 
-/* TODO: [near miss] 99.66667%; stack/arg-copy swap r26/r28: named stack must number above the FE arg
- * copy; direct-member and late-stack spellings regress; link blocker with ProcessSubActions. */
+/* TODO: [near miss] 99.66667%; stack/arg-copy swap r26/r28: named stack must number above the LICM arg
+ * copy; -inline off turns inline accessors into calls; link blocker with ProcessSubActions. */
 void ScreenObject::ProcessEvent(ScreenMgr* mgr, int eventId, int arg) {
     unsigned int numEvents;
     unsigned int numActions;

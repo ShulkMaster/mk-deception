@@ -6789,8 +6789,8 @@ float mk_chess_spell_get_target_max_health(unsigned int target) {
 }
 
 
-/* TODO: [near miss] 99.34782%; side CSE35 must precede selected inline43;
- * recover their real owner boundary without changing unsigned comparison. */
+/* TODO: [near miss] 99.34782%; side byte (substituted-arg IRO temp) must number above inline local
+ * selected; side helpers are substituted (neutral) or become iargs (worse); owner still unknown. */
 void mk_chess_spell_set_target_health(unsigned int target, float health) {
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
     ChessPiece* piece = mk_chess_get_piece_at_cell(spell->target_x[target], spell->target_y[target]);

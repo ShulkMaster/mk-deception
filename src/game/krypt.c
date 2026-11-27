@@ -1406,24 +1406,21 @@ static float p_running_footstep_proc(void) {
     }
     return -1.0f;
 }
-/* TODO: [near miss] 99.58334%; 31 saved-GPR rows remain;
- * dialog-type copy/lifetime ownership is unresolved; stop at coloring. */
 static int do_dialog(int dialog_type) {
     int result;
-    ScreenObj* dialog_left;
-    ScreenObj* dialog_right;
-    ScreenObj* yes_button = 0;
-    ScreenObj* no_button = 0;
-    ScreenObj* ok_button;
     ScreenObj* hud_icon_a;
     ScreenObj* hud_icon_b;
+    ScreenObj* dialog_left;
+    ScreenObj* dialog_right;
     ScreenObj* dialog_bottom = 0;
+    ScreenObj* yes_button = 0;
+    ScreenObj* no_button = 0;
+    ScreenObj* ok_button = 0;
     StringObj* dialog_text;
     const char* message;
 
-    ok_button = 0;
     hud_icon_a = MK_LIVE(krypt_pdata->open_button.obj, krypt_pdata->open_button.obj_instance);
-    hud_icon_b = krypt_pdata_live_exit_button_obj(krypt_pdata);
+    hud_icon_b = MK_LIVE(krypt_pdata->exit_button.obj, krypt_pdata->exit_button.obj_instance);
     message = 0;
     dialog_left = load_named_2d_pfxobj(0x140066, 0x830F, "DIALOG_LEFT", 0, 0x4C);
     dialog_left->x = screen_width / 2 - 0xC0;

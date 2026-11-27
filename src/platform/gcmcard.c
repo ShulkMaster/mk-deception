@@ -913,8 +913,8 @@ static inline int mem_card_write(CARDFileInfo* fileInfo, void* buffer, const int
     return result;
 }
 
-/* TODO: [near miss] 99.951%; checksum length CSE temp (r6) pops after inline oldBit (r5): retail length
- * web must be created before calc_data_checksum's locals; no caller spelling found. */
+/* TODO: [near miss] 99.951%; length CSE temp (r6) must number between calc_data_checksum's oldBit and p
+ * (inline-local slot); caller-side length helpers number above all its locals (r3). */
 int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int createFlag,
                      const char* unusedStr, const char* fileName, void* buffer, int size,
                      unsigned int* freeBlocks,
