@@ -368,8 +368,24 @@ static inline void nb_get_rope_angle(
     angle_vector->z *= angle;
 }
 
-/* TODO: [breakthrough needed] 98.42388%; acceleration re-stored before each momentum add
- * (backend frsp forwarding, PS2 too); construct unknown, self-copy helpers dead. */
+static inline void nb_vec_add_scaled(Vec* dst, const Vec* src, const float* scale) {
+    dst->x += src->x * *scale;
+    dst->y += src->y * *scale;
+    dst->z += src->z * *scale;
+}
+
+static inline void nb_vec_copy(Vec* dst, const Vec* src) {
+    dst->x = src->x;
+    dst->y = src->y;
+    dst->z = src->z;
+}
+
+static inline void nb_vec_add(Vec* dst, const Vec* a, const Vec* b) {
+    dst->x = a->x + b->x;
+    dst->y = a->y + b->y;
+    dst->z = a->z + b->z;
+}
+
 static float p_npc_on_pendulum_rope(void) {
     MkObj* object;
     struct NbNpcState* npc;
@@ -425,9 +441,8 @@ static float p_npc_on_pendulum_rope(void) {
             acceleration.y = 0.0f;
             acceleration.x = 0.0f;
             acceleration.y = -npc->acceleration_scale;
-            npc->momentum.x = acceleration.x + npc->momentum.x;
-            npc->momentum.y += acceleration.y;
-            npc->momentum.z += acceleration.z;
+            nb_vec_copy(&acceleration, &acceleration);
+            nb_vec_add(&npc->momentum, &npc->momentum, &acceleration);
         } else {
             if (distance > npc->rope_length + 0.002f ||
                 distance < npc->rope_length - 0.002f) {
@@ -462,12 +477,9 @@ static float p_npc_on_pendulum_rope(void) {
             nb_get_desired_acceleration(
                 npc, &acceleration, &normal);
 
-            acceleration.x += npc->momentum.x * npc->field_8C;
-            acceleration.y += npc->momentum.y * npc->field_8C;
-            acceleration.z += npc->momentum.z * npc->field_8C;
-            npc->momentum.x += acceleration.x;
-            npc->momentum.y += acceleration.y;
-            npc->momentum.z += acceleration.z;
+            nb_vec_add_scaled(&acceleration, &npc->momentum, &npc->field_8C);
+            nb_vec_copy(&acceleration, &acceleration);
+            nb_vec_add(&npc->momentum, &npc->momentum, &acceleration);
 
             if (npc->momentum.x * normal.x +
                     npc->momentum.y * normal.y +

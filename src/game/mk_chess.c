@@ -1075,13 +1075,12 @@ static inline ScreenObj* mk_chess_live_screen(ChessScreenRef* owner) {
 }
 
 static inline void mk_chess_refresh_side_health(unsigned int side_index) {
-    ChessSideState* side = mk_chess_pdata->sides[side_index];
-    ChessPiece* selected = side->hud->selected_piece;
     ScreenObj* bar;
 
-    if (selected != 0) {
-        bar = mk_chess_live_screen(&side->team_art[3]);
-        bar->scale_x = 6.0f * selected->health;
+    if (mk_chess_pdata->sides[side_index]->hud->selected_piece != 0) {
+        bar = MK_LIVE(mk_chess_pdata->sides[side_index]->team_art[3].screen,
+                      mk_chess_pdata->sides[side_index]->team_art[3].instance);
+        bar->scale_x = 6.0f * mk_chess_pdata->sides[side_index]->hud->selected_piece->health;
         if (side_index == 1) {
             bar->scale_x *= -1.0f;
         }
@@ -1565,6 +1564,10 @@ static inline unsigned int mk_chess_best_counterattack_rating(
     return best;
 }
 
+static inline MkHdr* mk_chess_alloc_pdata(int size) {
+    return get_mkpdata_generic(size);
+}
+
 static inline ChessAttackerInfo* mk_chess_get_attacker_info(ChessAttackerInfo* info) {
     if (info != 0) {
         return info;
@@ -1884,28 +1887,6 @@ typedef struct ChessMagicRingsPdata {
 } ChessMagicRingsPdata;
 
 static float p_magic_rings_fx(void);
-
-static inline void mk_chess_restart_ring(ChessMagicRingsPdata* data, unsigned int index) {
-    RwRGBA color = {255, 255, 255, 255};
-    MkObj* object = MK_HDR_LIVE(data->rings[index].object, data->rings[index].instance);
-    if (object == 0) {
-        data->active[index] = 0;
-    } else {
-        data->phase[index] = 0;
-        data->elapsed[index] = 1.0f + data->initial_scale / data->scale_per_tick;
-        data->active[index] = 1;
-        object->pos.value.x = data->position.x;
-        object->pos.value.y = data->position.y;
-        object->pos.value.z = data->position.z;
-        object->scale.x = data->scale.x * data->initial_scale;
-        object->scale.y = data->scale.y * data->initial_scale;
-        object->scale.z = data->scale.z * data->initial_scale;
-        unhide_obj(object);
-        update_mkobj(object);
-        color.alpha = 255;
-        obj_set_color_for_all_materials(object, &color);
-    }
-}
 
 static inline void mk_chess_choose_trap_region(unsigned int side, unsigned int* x,
     unsigned int* y, unsigned int wide_threshold, unsigned int middle_threshold) {
@@ -3561,39 +3542,35 @@ static inline void chess_spell_row_coordinates(ChessHudState* hud,
     }
 }
 
-static inline void append_chess_spell_rows(ChessHudState* hud, ChessPiece* caster,
+static inline void append_chess_spell_row(ChessHudState* hud, ChessPiece* caster, unsigned int spell,
                                           const int* text_x, const int* marker_x,
-                                          int* row_offset, unsigned int* marker) {
-    unsigned int spell;
-    for (spell = 0; spell < 4; spell++) {
-        StringObj* string;
-        if (mk_chess_hud_spell_available(caster, spell) == 0) {
-            ScreenObj* image = MK_LIVE(
-                mk_chess_pdata->manager.spell_hud[*marker + 3].screen,
-                mk_chess_pdata->manager.spell_hud[*marker + 3].instance);
-            image->pfx2d->verts[0].a = 255;
-            image->x = *marker_x - image->pfx2d->tex_w / 2;
-            image->y = screen_height / 2 + 82 - *row_offset;
-            unhide_screen_obj(image);
-            mk_insert((MkHdr*)image, &hud->images);
-            (*marker)++;
-        }
-        string = string_center_xy(0xC01C, 8,
-            get_string_by_id(g_board_game_controller.class_definitions[caster->type]
-                .spell_definitions[spell].name_id | 0x20000),
-            *text_x, screen_height / 2 + 101 - *row_offset, 0x4E);
-        if (caster->type == 3) {
-            string->pfx.instance0.native_color.r = 0x13;
-            string->pfx.instance0.native_color.g = 0x8A;
-            string->pfx.instance0.native_color.b = 0xFC;
-        } else {
-            string->pfx.instance0.native_color.r = 0xFC;
-            string->pfx.instance0.native_color.g = 0x84;
-            string->pfx.instance0.native_color.b = 0x1A;
-        }
-        mk_insert((MkHdr*)string, &hud->strings);
-        *row_offset += 28;
+                                          int row, unsigned int* marker) {
+    StringObj* string;
+    if (mk_chess_hud_spell_available(caster, spell) == 0) {
+        ScreenObj* image = MK_LIVE(
+            mk_chess_pdata->manager.spell_hud[*marker + 3].screen,
+            mk_chess_pdata->manager.spell_hud[*marker + 3].instance);
+        image->pfx2d->verts[0].a = 255;
+        image->x = *marker_x - image->pfx2d->tex_w / 2;
+        image->y = screen_height / 2 + 82 - row * 28;
+        unhide_screen_obj(image);
+        mk_insert((MkHdr*)image, &hud->images);
+        (*marker)++;
     }
+    string = string_center_xy(0xC01C, 8,
+        get_string_by_id(g_board_game_controller.class_definitions[caster->type]
+            .spell_definitions[spell].name_id | 0x20000),
+        *text_x, screen_height / 2 + 101 - row * 28, 0x4E);
+    if (caster->type == 3) {
+        string->pfx.instance0.native_color.r = 0x13;
+        string->pfx.instance0.native_color.g = 0x8A;
+        string->pfx.instance0.native_color.b = 0xFC;
+    } else {
+        string->pfx.instance0.native_color.r = 0xFC;
+        string->pfx.instance0.native_color.g = 0x84;
+        string->pfx.instance0.native_color.b = 0x1A;
+    }
+    mk_insert((MkHdr*)string, &hud->strings);
 }
 
 static inline void mk_chess_start_rescue_string_fade(
@@ -3793,6 +3770,44 @@ static inline void mk_chess_start_special_cell(unsigned int x, unsigned int y)
 
 }
 
+static inline void mk_chess_start_placed_special_cell(unsigned int x, unsigned int y)
+{
+    ChessCell* cell = &mk_chess_pdata->board[x].cells[y];
+    unsigned int emitter;
+    MkPfx* particle;
+    MkObj* object;
+    float pz, py, px;
+    switch (cell->square_type) {
+    case 1:
+        cell->emitter = fx_by_owner("health_effect", 4);
+        cell->emitter = fx_next_emitter(cell->emitter);
+        if ((int)cell->emitter != 0) {
+            emitter = cell->emitter;
+            pz = cell->position.z;
+            py = cell->position.y;
+            px = cell->position.x;
+            if ((int)emitter != 0) {
+                fx_reset_emit(emitter);
+                particle = pfx_from_emitter(emitter);
+                if (particle != 0) {
+                    object = pfx_bind_emitter_num_to_new_obj(particle, 0x8227, emitter_id_from_handle(emitter));
+                    if (object != 0) {
+                        object->flags.airborne = 1;
+                        object->pos.value.x = px;
+                        object->pos.value.y = py;
+                        object->pos.value.z = pz;
+                        update_mkobj(object);
+                        fx_resume_emit(emitter);
+                    }
+                }
+            }
+            cell->flag_bits.emitter_active = 1;
+        }
+        break;
+    }
+
+}
+
 static inline void mk_chess_activate_power_cell(ChessCell* cell)
 {
     unsigned int effect;
@@ -3836,11 +3851,33 @@ static inline void mk_chess_activate_power_cell(ChessCell* cell)
 static inline void mk_chess_restore_special_cell(unsigned int x, unsigned int y)
 {
     ChessCell* cell = &mk_chess_pdata->board[x].cells[y];
+    unsigned int emitter;
+    MkPfx* particle;
+    MkObj* object;
+    float pz, py, px;
     switch (cell->square_type) {
     case 1:
         cell->emitter = fx_by_owner("health_effect", 4);
         cell->emitter = fx_next_emitter(cell->emitter);
-        mk_chess_start_cell_emitter(cell->emitter, cell->position.x, cell->position.y, cell->position.z);
+        emitter = cell->emitter;
+        pz = cell->position.z;
+        py = cell->position.y;
+        px = cell->position.x;
+        if ((int)emitter != 0) {
+            fx_reset_emit(emitter);
+            particle = pfx_from_emitter(emitter);
+            if (particle != 0) {
+                object = pfx_bind_emitter_num_to_new_obj(particle, 0x8227, emitter_id_from_handle(emitter));
+                if (object != 0) {
+                    object->flags.airborne = 1;
+                    object->pos.value.x = px;
+                    object->pos.value.y = py;
+                    object->pos.value.z = pz;
+                    update_mkobj(object);
+                    fx_resume_emit(emitter);
+                }
+            }
+        }
         cell->flag_bits.emitter_active = 1;
         if (cell->piece != 0) {
             cell->flag_bits.second_emitter_active = 1;
@@ -5214,8 +5251,6 @@ static float p_mk_chess_loop(void) {
 }
 
 
-/* TODO: [near miss] 99.73309%; 14 fresh-cell/particle register rows remain;
- * signed emitter guards and operation order agree; stop at ownership coloring. */
 void mk_chess_place_special_cell_at(
     unsigned int x, unsigned int y, int type, float px, float py, float pz,
     float scale, int restored)
@@ -5238,7 +5273,7 @@ void mk_chess_place_special_cell_at(
     if (restored != 0) {
         mk_chess_restore_special_cell(x, y);
     } else {
-        mk_chess_start_special_cell(x, y);
+        mk_chess_start_placed_special_cell(x, y);
     }
 }
 
@@ -5971,16 +6006,28 @@ void mk_chess_rotate_towards_cell(float x, float y, float step, int track_other,
 }
 
 
-/* TODO: [near miss] 99.56612%; board CSE and split rise countdown still
- * colour ahead of target (r31/r26 vs ours); needs a web-kind change, not order. */
+static inline void mk_chess_lift_active_piece(void) {
+    AnimPdata* animation;
+    unsigned int ticks = 20;
+
+    g_active_piece->object->pos_vel.y = 0.02f;
+    while (ticks-- != 0) {
+        animation = g_active_piece->animation;
+        advance_anim(animation);
+        pose_anim(animation, 1);
+        _mkproc_sleep_ticks = 1.0f;
+        aproc->vtbl->sleep();
+    }
+}
+
 void mk_chess_ani_until_reached_destination(
     float start_x, float start_y, float target_x, float target_y, float frames,
     int airborne) {
-    unsigned int bob_ticks;
-    ChessCell* start;
-    float start_height;
-    unsigned int descending;
     ChessCell* target;
+    ChessCell* start;
+    unsigned int descending;
+    unsigned int bob_ticks;
+    float start_height;
     float delta_x;
     float delta_z;
 
@@ -5998,15 +6045,7 @@ void mk_chess_ani_until_reached_destination(
     g_active_piece->object->flags.gravity_enabled = 1;
     g_active_piece->object->flags.bit09_6 = 0;
     if (airborne == 1) {
-        bob_ticks = 19;
-        g_active_piece->object->pos_vel.y = 0.02f;
-        do {
-            AnimPdata* animation = g_active_piece->animation;
-            advance_anim(animation);
-            pose_anim(animation, 1);
-            _mkproc_sleep_ticks = 1.0f;
-            aproc->vtbl->sleep();
-        } while (bob_ticks-- != 0);
+        mk_chess_lift_active_piece();
         bob_ticks = 20;
     }
     delta_x = target->position.x - start->position.x;
@@ -6789,16 +6828,12 @@ float mk_chess_spell_get_target_max_health(unsigned int target) {
 }
 
 
-/* TODO: [near miss] 99.34782%; side byte (substituted-arg IRO temp) must number above inline local
- * selected; side helpers are substituted (neutral) or become iargs (worse); owner still unknown. */
 void mk_chess_spell_set_target_health(unsigned int target, float health) {
     ChessSpellState* spell = mk_chess_pdata->manager.spell;
     ChessPiece* piece = mk_chess_get_piece_at_cell(spell->target_x[target], spell->target_y[target]);
-    unsigned char side_index;
 
     piece->health = health;
-    side_index = piece->side;
-    mk_chess_refresh_side_health(side_index);
+    mk_chess_refresh_side_health(piece->side);
 }
 
 
@@ -7211,12 +7246,11 @@ static unsigned int mk_chess_spell_hud_handle_bar_slide_out(ChessHudState* hud) 
 }
 
 
-/* TODO: [near miss] 99.40367%; six row/caster homes and latch order remain;
- * returning the next row regresses; recover original row/spell ownership. */
 static void mk_chess_spell_hud_show_my_spells(ChessHudState* hud) {
     unsigned int target;
+    unsigned int spell;
     int text_x;
-    int row_offset = 0;
+    int row = 0;
     unsigned int marker = 0;
     int marker_x;
     ChessStringFadePdata* fade;
@@ -7226,8 +7260,10 @@ static void mk_chess_spell_hud_show_my_spells(ChessHudState* hud) {
     for (target = 0; target < 2; target++) {
         ChessPiece* caster = mk_chess_find_spellcaster_on_side(hud->side, target);
         if (caster != 0) {
-            append_chess_spell_rows(hud, caster, &text_x, &marker_x,
-                                   &row_offset, &marker);
+            for (spell = 0; spell < 4; spell++, row++) {
+                append_chess_spell_row(hud, caster, spell, &text_x, &marker_x,
+                                       row, &marker);
+            }
         }
     }
     if (prepare_chess_spell_strings(&hud->strings) && _create_mkproc_generic_tinystack(
@@ -9291,8 +9327,6 @@ static void mk_chess_game_event(unsigned int event, ChessPiece** pieces,
 }
 
 
-/* TODO: [near miss] 99.88506%; 12 FPR rows in the side-1/type-5 block: offset primary webs,
- * second_offset and the normal_unit.z CSE colour f6-f12; operand orders now retail. */
 static int mk_chess_choose_middle_control_points_for_fight_cam(
     const Vec* normal, const Vec* axis, const Vec* camera_position, Vec* center,
     unsigned int camera_side, unsigned int camera_type, Vec* camera_start,
@@ -9300,7 +9334,6 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
     Vec normal_unit = {0.0f, 0.0f, 0.0f};
     Vec between = {0.0f, 0.0f, 0.0f};
     Vec axis_unit = {0.0f, 0.0f, 0.0f};
-    Vec offset;
     int timing = 7;
     float dy = camera_start->y - camera_end->y;
     float dx = camera_start->x - camera_end->x;
@@ -9316,7 +9349,6 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
         if (camera_type == 5U) {
             float first_offset;
             float side_sign;
-            float second_offset;
 
             side_sign = 1.0f;
             if (((axis_unit.x * camera_position->x) + (float)(axis_unit.z * camera_position->z)) < 0.0f) {
@@ -9329,29 +9361,27 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_0->x = middle_0->x + center->x;
             middle_0->y = middle_0->y + center->y;
             middle_0->z = middle_0->z + center->z;
-            offset.x = 35.0f * normal_unit.x;
-            offset.z = 35.0f * normal_unit.z;
-            middle_0->x += offset.x;
-            middle_0->z += offset.z;
+            dx = 35.0f * normal_unit.x;
+            dz = 35.0f * normal_unit.z;
+            middle_0->x += dx;
+            middle_0->z += dz;
             first_offset = 45.0f * side_sign;
-            offset.x = axis_unit.x * first_offset;
-            offset.z = axis_unit.z * first_offset;
-            middle_0->x += offset.x;
-            middle_0->z += offset.z;
+            dx = axis_unit.x * first_offset;
+            dz = axis_unit.z * first_offset;
+            middle_0->x += dx;
+            middle_0->z += dz;
             middle_1->x = camera_end->x;
             middle_1->y = camera_end->y;
             middle_1->z = camera_end->z;
             middle_1->y = middle_0->y / 2.0f;
-            offset.x = 50.0f * normal_unit.x;
-            offset.z = 50.0f * normal_unit.z;
-            middle_1->x += offset.x;
-            middle_1->z += offset.z;
-            second_offset = 10.0f * side_sign;
-            offset.x = axis_unit.x;
-            offset.x *= second_offset;
-            offset.z = axis_unit.z * second_offset;
-            middle_1->x += offset.x;
-            middle_1->z += offset.z;
+            dx = 50.0f * normal_unit.x;
+            dz = 50.0f * normal_unit.z;
+            middle_1->x += dx;
+            middle_1->z += dz;
+            dx = axis_unit.x * (10.0f * side_sign);
+            dz = axis_unit.z * (10.0f * side_sign);
+            middle_1->x += dx;
+            middle_1->z += dz;
         } else {
             float first_offset;
             float second_offset;
@@ -9363,10 +9393,11 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_0->y = middle_0->y + center->y;
             middle_0->z = middle_0->z + center->z;
             first_offset = 62.0f * (camera_distance / 60.0f);
-            offset.x = normal_unit.x * first_offset;
-            offset.z = normal_unit.z * first_offset;
-            middle_0->x += offset.x;
-            middle_0->z += offset.z;
+            second_offset = 34.0f * (camera_distance / 60.0f);
+            dx = normal_unit.x * first_offset;
+            dz = normal_unit.z * first_offset;
+            middle_0->x += dx;
+            middle_0->z += dz;
             middle_0->y *= 0.65f;
             middle_1->x = 0.1f * between.x;
             middle_1->y = 0.1f * between.y;
@@ -9374,11 +9405,10 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_1->x = middle_1->x + center->x;
             middle_1->y = middle_1->y + center->y;
             middle_1->z = middle_1->z + center->z;
-            second_offset = 34.0f * (camera_distance / 60.0f);
-            offset.x = normal_unit.x * second_offset;
-            offset.z = normal_unit.z * second_offset;
-            middle_1->x += offset.x;
-            middle_1->z += offset.z;
+            dx = normal_unit.x * second_offset;
+            dz = normal_unit.z * second_offset;
+            middle_1->x += dx;
+            middle_1->z += dz;
             if (camera_distance > 50.0f) {
                 timing = 6;
             }
@@ -9429,27 +9459,25 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_0->x = middle_0->x + center->x;
             middle_0->y = middle_0->y + center->y;
             middle_0->z = middle_0->z + center->z;
-            offset.x = normal_unit.x * (35.0f + height_adjust);
-            offset.z = normal_unit.z * (35.0f + height_adjust);
-            middle_0->x += offset.x;
-            middle_0->z += offset.z;
+            dx = normal_unit.x * (35.0f + height_adjust);
+            dz = normal_unit.z * (35.0f + height_adjust);
+            middle_0->x += dx;
+            middle_0->z += dz;
             middle_1->x = 0.7f * between.x;
             middle_1->y = 0.7f * between.y;
             middle_1->z = 0.7f * between.z;
             middle_1->x = middle_1->x + center->x;
             middle_1->y = middle_1->y + center->y;
             middle_1->z = middle_1->z + center->z;
-            offset.x = normal_unit.x;
-            offset.x *= 22.0f + height_adjust;
-            offset.z = normal_unit.z * (22.0f + height_adjust);
-            middle_1->x += offset.x;
-            middle_1->z += offset.z;
+            dx = normal_unit.x * (22.0f + height_adjust);
+            dz = normal_unit.z * (22.0f + height_adjust);
+            middle_1->x += dx;
+            middle_1->z += dz;
         }
     } else {
         if (camera_type == 5U) {
             float first_offset;
             float side_sign;
-            float second_offset;
 
             side_sign = 1.0f;
             if (((axis_unit.x * camera_position->x) + (float)(axis_unit.z * camera_position->z)) < 0.0f) {
@@ -9459,29 +9487,27 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_0->y = camera_start->y;
             middle_0->z = camera_start->z;
             middle_0->y *= 0.9f;
-            offset.x = -35.0f * normal_unit.x;
-            offset.z = -35.0f * normal_unit.z;
-            middle_0->x += offset.x;
-            middle_0->z += offset.z;
+            dx = -35.0f * normal_unit.x;
+            dz = -35.0f * normal_unit.z;
+            middle_0->x += dx;
+            middle_0->z += dz;
             first_offset = 90.0f * side_sign;
-            offset.x = axis_unit.x * first_offset;
-            offset.z = axis_unit.z * first_offset;
-            middle_0->x += offset.x;
-            middle_0->z += offset.z;
+            dx = axis_unit.x * first_offset;
+            dz = axis_unit.z * first_offset;
+            middle_0->x += dx;
+            middle_0->z += dz;
             middle_1->x = camera_end->x;
             middle_1->y = camera_end->y;
             middle_1->z = camera_end->z;
             middle_1->y = middle_0->y / 2.0f;
-            offset.x = 50.0f * normal_unit.x;
-            offset.z = 50.0f * normal_unit.z;
-            middle_1->x += offset.x;
-            middle_1->z += offset.z;
-            second_offset = 25.0f * side_sign;
-            offset.x = axis_unit.x;
-            offset.x *= second_offset;
-            offset.z = axis_unit.z * second_offset;
-            middle_1->x += offset.x;
-            middle_1->z += offset.z;
+            dx = 50.0f * normal_unit.x;
+            dz = 50.0f * normal_unit.z;
+            middle_1->x += dx;
+            middle_1->z += dz;
+            dx = axis_unit.x * (25.0f * side_sign);
+            dz = axis_unit.z * (25.0f * side_sign);
+            middle_1->x += dx;
+            middle_1->z += dz;
         } else {
             middle_0->x = 0.5f * between.x;
             middle_0->y = 0.5f * between.y;
@@ -9489,10 +9515,10 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_0->x = middle_0->x + center->x;
             middle_0->y = middle_0->y + center->y;
             middle_0->z = middle_0->z + center->z;
-            offset.x = 60.0f * axis_unit.x;
-            offset.z = 60.0f * axis_unit.z;
-            middle_0->x += offset.x;
-            middle_0->z += offset.z;
+            dx = 60.0f * axis_unit.x;
+            dz = 60.0f * axis_unit.z;
+            middle_0->x += dx;
+            middle_0->z += dz;
             middle_1->x = -1.0f * between.x;
             middle_1->y = -1.0f * between.y;
             middle_1->z = -1.0f * between.z;
@@ -9500,10 +9526,10 @@ static int mk_chess_choose_middle_control_points_for_fight_cam(
             middle_1->y = middle_1->y + center->y;
             middle_1->z = middle_1->z + center->z;
             middle_1->y = middle_0->y / 2.0f;
-            offset.x = 30.0f * axis_unit.x;
-            offset.z = 30.0f * axis_unit.z;
-            middle_1->x += offset.x;
-            middle_1->z += offset.z;
+            dx = 30.0f * axis_unit.x;
+            dz = 30.0f * axis_unit.z;
+            middle_1->x += dx;
+            middle_1->z += dz;
         }
         timing = 6;
     }
@@ -9516,8 +9542,10 @@ static float mk_chess_fight_cam_target_reached(void) {
 }
 
 
-/* TODO: [near miss] 99.63950%; one FP group left: to.x/to.z 15*normal offsets and the
- * second InvSqrt arg/result owners; near_point x/z are read directly at both uses. */
+static inline float mk_chess_length_sq_xz(const Vec* v) {
+    return v->x * v->x + v->z * v->z;
+}
+
 static void mk_chess_set_up_fight_cam(Vec* first, Vec* second, Vec* near_point, Vec* far_point) {
     Vec from;
     Vec middle_0;
@@ -9558,13 +9586,14 @@ static void mk_chess_set_up_fight_cam(Vec* first, Vec* second, Vec* near_point, 
     to.y = 6.0f;
     to.x += near_point->x;
     to.z += near_point->z;
-    inverse_length = (float)(normal.z * normal.z) +
-        ((float)(normal.x * normal.x) + (float)(normal.y * normal.y));
-    inverse_length = gxMathFastInvSqrt(inverse_length);
-    to.x += (float)(15.0f * (normal.x * inverse_length));
-    to.z += (float)(15.0f * (normal.z * inverse_length));
-    inverse_length = gxMathFastInvSqrt(
-        (float)(normal.x * normal.x) + (float)(normal.z * normal.z));
+    inverse_length = gxMathFastInvSqrt(normal.z * normal.z + (normal.x * normal.x + normal.y * normal.y));
+    normal_x = normal.x * inverse_length;
+    normal_z = normal.z * inverse_length;
+    normal_x = 15.0f * normal_x;
+    normal_z = 15.0f * normal_z;
+    to.x += normal_x;
+    to.z += normal_z;
+    inverse_length = gxMathFastInvSqrt(mk_chess_length_sq_xz(&normal));
     normal_x = normal.x * inverse_length;
     normal_z = normal.z * inverse_length;
     approach_x = center.x - camera->pos.x;
@@ -9624,8 +9653,6 @@ static void mk_chess_set_up_fight_cam(Vec* first, Vec* second, Vec* near_point, 
 }
 
 
-/* TODO: [near miss] 99.93887%; distance>=10 block only: the perpendicular.z CSE temp is
- * numbered below the offset.x holder member (5 rows); function-scope Vec offset holder kept. */
 static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_position,
     unsigned int position_class, unsigned int height_class, Vec* from,
     Vec* middle_1, Vec* middle_2, Vec* to) {
@@ -9633,8 +9660,9 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_positi
     int timing = 12;
     Vec perpendicular = {0.0f, 0.0f, 0.0f};
     Vec delta;
-    Vec offset;
     float inverse_length;
+    float dx;
+    float dz;
     delta.x = camera_position->x - to->x;
     delta.y = camera_position->y - to->y;
     delta.z = camera_position->z - to->z;
@@ -9649,9 +9677,10 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_positi
         perpendicular.z = -1.0f * perpendicular.z;
     }
     if (position_class == 1) {
-        float from_dx = from->x - to->x;
-        float from_dz = from->z - to->z;
-        float distance = gxMathFastSqrt(from_dx * from_dx + from_dz * from_dz);
+        float distance;
+        dx = from->x - to->x;
+        dz = from->z - to->z;
+        distance = gxMathFastSqrt(dx * dx + dz * dz);
         if (height_class == 4) {
             middle_1->x = 0.6f * delta.x;
             middle_1->y = 0.6f * delta.y;
@@ -9659,10 +9688,10 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_positi
             middle_1->x += to->x;
             middle_1->y += to->y;
             middle_1->z += to->z;
-            offset.x = 2.0f * perpendicular.x;
-            offset.z = 2.0f * perpendicular.z;
-            middle_1->x += offset.x;
-            middle_1->z += offset.z;
+            dx = 2.0f * perpendicular.x;
+            dz = 2.0f * perpendicular.z;
+            middle_1->x += dx;
+            middle_1->z += dz;
             middle_2->x = middle_1->x;
             middle_2->y = middle_1->y;
             middle_2->z = middle_1->z;
@@ -9693,10 +9722,10 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_positi
                 middle_1->x += to->x;
                 middle_1->y += to->y;
                 middle_1->z += to->z;
-                offset.x = 20.0f * perpendicular.x;
-                offset.z = 20.0f * perpendicular.z;
-                middle_1->x += offset.x;
-                middle_1->z += offset.z;
+                dx = 20.0f * perpendicular.x;
+                dz = 20.0f * perpendicular.z;
+                middle_1->x += dx;
+                middle_1->z += dz;
                 middle_1->y *= 0.5f;
                 middle_2->x = -0.3f * delta.x;
                 middle_2->y = -0.3f * delta.y;
@@ -9704,10 +9733,10 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_positi
                 middle_2->x += to->x;
                 middle_2->y += to->y;
                 middle_2->z += to->z;
-                offset.x = 40.0f * perpendicular.x;
-                offset.z = 40.0f * perpendicular.z;
-                middle_2->x += offset.x;
-                middle_2->z += offset.z;
+                dx = 40.0f * perpendicular.x;
+                dz = 40.0f * perpendicular.z;
+                middle_2->x += dx;
+                middle_2->z += dz;
             }
         }
     } else if (position_class == 2) {
@@ -9719,20 +9748,20 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_positi
             middle_1->x += to->x;
             middle_1->y += to->y;
             middle_1->z += to->z;
-            offset.x = 20.0f * perpendicular.x;
-            offset.z = 20.0f * perpendicular.z;
-            middle_1->x += offset.x;
-            middle_1->z += offset.z;
+            dx = 20.0f * perpendicular.x;
+            dz = 20.0f * perpendicular.z;
+            middle_1->x += dx;
+            middle_1->z += dz;
             middle_2->x = -0.3f * delta.x;
             middle_2->y = -0.3f * delta.y;
             middle_2->z = -0.3f * delta.z;
             middle_2->x += to->x;
             middle_2->y += to->y;
             middle_2->z += to->z;
-            offset.x = 40.0f * perpendicular.x;
-            offset.z = 40.0f * perpendicular.z;
-            middle_2->x += offset.x;
-            middle_2->z += offset.z;
+            dx = 40.0f * perpendicular.x;
+            dz = 40.0f * perpendicular.z;
+            middle_2->x += dx;
+            middle_2->z += dz;
         } else {
             middle_1->x = 1.5f * delta.x;
             middle_1->y = 1.5f * delta.y;
@@ -9740,10 +9769,10 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_positi
             middle_1->x += to->x;
             middle_1->y += to->y;
             middle_1->z += to->z;
-            offset.x = 20.0f * perpendicular.x;
-            offset.z = 20.0f * perpendicular.z;
-            middle_1->x += offset.x;
-            middle_1->z += offset.z;
+            dx = 20.0f * perpendicular.x;
+            dz = 20.0f * perpendicular.z;
+            middle_1->x += dx;
+            middle_1->z += dz;
             middle_1->y *= 0.5f;
             middle_2->x = -0.3f * delta.x;
             middle_2->y = -0.3f * delta.y;
@@ -9751,10 +9780,10 @@ static int mk_chess_choose_middle_control_points_for_zoom_cam(Vec* camera_positi
             middle_2->x += to->x;
             middle_2->y += to->y;
             middle_2->z += to->z;
-            offset.x = 40.0f * perpendicular.x;
-            offset.z = 40.0f * perpendicular.z;
-            middle_2->x += offset.x;
-            middle_2->z += offset.z;
+            dx = 40.0f * perpendicular.x;
+            dz = 40.0f * perpendicular.z;
+            middle_2->x += dx;
+            middle_2->z += dz;
         }
     }
     return timing;
@@ -12073,6 +12102,27 @@ static void mk_chess_camera_init_for_place_traps(void) {
 }
 
 
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x128); body inferred from mk_chess_camera_init, compiles to 0x114. */
+void mk_chess_arttool_camera_init(void) {
+    Vec target = {0.0f, 0.0f, 0.0f};
+    CameraObj* camera = MK_HDR_LIVE(camera_item.node, camera_item.instance);
+
+    CameraSize(Camera, 0, gxMathTan(0.28797933f), DEFAULT_ASPECTRATIO);
+    mk_chess_pdata->camera.completion = 0;
+    look_at_target(&target);
+    mk_chess_pdata->camera.current_look_at.x = target.x;
+    mk_chess_pdata->camera.current_look_at.y = target.y;
+    mk_chess_pdata->camera.current_look_at.z = target.z;
+    xfer_camera(p_mk_chess_cam_control, 0);
+    mk_chess_pdata->camera.viewing_quadrant = 0;
+    mk_chess_pdata->camera.field_4C = 0;
+    mk_chess_pdata->camera.field_50 = 0;
+    _mkproc_sleep_ticks = 1.0f;
+    aproc->vtbl->sleep();
+    mk_chess_set_viewing_quadrant(camera);
+}
+
+
 static float p_mk_chess_start_fatality(void) {
     if (f_fatality_available != 0) {
         turn_controllers_off();
@@ -13909,6 +13959,28 @@ static void start_gnd_blast(ChessPiece* piece, Vec* scale, int spawn_secondary,
 }
 
 
+static inline void mk_chess_restart_ring(ChessMagicRingsPdata* data, unsigned int index) {
+    RwRGBA color = {255, 255, 255, 255};
+    MkObj* object = MK_HDR_LIVE(data->rings[index].object, data->rings[index].instance);
+    if (object == 0) {
+        data->active[index] = 0;
+    } else {
+        data->phase[index] = 0;
+        data->elapsed[index] = 1.0f + data->initial_scale / data->scale_per_tick;
+        data->active[index] = 1;
+        object->pos.value.x = data->position.x;
+        object->pos.value.y = data->position.y;
+        object->pos.value.z = data->position.z;
+        object->scale.x = data->scale.x * data->initial_scale;
+        object->scale.y = data->scale.y * data->initial_scale;
+        object->scale.z = data->scale.z * data->initial_scale;
+        unhide_obj(object);
+        update_mkobj(object);
+        color.alpha = 255;
+        obj_set_color_for_all_materials(object, &color);
+    }
+}
+
 static float p_magic_rings_fx(void) {
     RwRGBA color = {255, 255, 255, 255};
     ChessMagicRingsPdata* data = (ChessMagicRingsPdata*)apdata;
@@ -15434,14 +15506,13 @@ static unsigned int mk_chess_drone_calc_fight_favorability_rating(
 }
 
 
-/* TODO: [near miss] 98.86842%; coalesced list/rating copies keep inputs in
- * r25-r27; recover original owner lifetimes for retail r29-r31. */
 static void mk_chess_calc_all_attackers_for(
     ChessPiece* target, MkPtr** attackers, unsigned int* count) {
+    ChessPiece* piece;
     unsigned int index;
     unsigned int side = target->side == 0;
     for (index = 0; index < mk_chess_pdata->sides[side]->live_piece_count; index++) {
-        ChessPiece* piece = mk_chess_pdata->sides[side]->pieces[index];
+        piece = mk_chess_pdata->sides[side]->pieces[index];
         if (((piece->move_map->rows[target->cell_y] >> (target->cell_x * 3)) & 7) == 2) {
             ChessAttackerInfo* existing = 0;
             ChessAttackerInfo* info;
@@ -15477,7 +15548,7 @@ static void mk_chess_calc_all_attackers_for(
             } else {
                 update = 1;
                 counterattack = mk_chess_best_counterattack_rating(piece, target);
-                info = (ChessAttackerInfo*)get_mkpdata_generic(sizeof(ChessAttackerInfo));
+                info = (ChessAttackerInfo*)mk_chess_alloc_pdata(sizeof(ChessAttackerInfo));
                 if (info != 0) {
                     zero_pdata_payload(sizeof(ChessAttackerInfo), &info->hdr);
                 }
@@ -16891,6 +16962,8 @@ static void mk_chess_drone_complete_action(ChessDroneState* drone) {
     }
 }
 
+static ChessClassDefinition* g_active_class_definition;
+static ChessModeState* mk_chess_pdata;
 ChessPiece* g_active_piece_being_defined;
 int g_active_team;
 ChessPiece* g_active_piece;
