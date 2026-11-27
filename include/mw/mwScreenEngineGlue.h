@@ -1,112 +1,13 @@
 #ifndef MW_SCREEN_ENGINE_GLUE_H
 #define MW_SCREEN_ENGINE_GLUE_H
 
-#include "runtime/hashtable.h"
 #include "runtime/mk_struct.h"
-
-typedef struct RwRaster RwRaster;
-
-/*
- * mwScreenEngineGlue.o -- Midway C APIs around ScreenMgr / ScreenClient.
- *
- * B15 / B18 / B18d: p_main_menu + pselect call these unmangled C entry points
- * after art SSF load. Retail TU is ~61KB (.text); the 2D-menu callables are
- * lifted here (NonMatching -- ASM still linked for the rest).
- *
- * Soft ceiling: load_screen ~91.6%, preload ~99.2%, broadcast/fire ~81-85%;
- * wait_for_screen_close ~99.8%; fire_switches ~91%; CreateElement ~81%;
- * ReadStringData ~86%; CreateInstance ~82%; CreatePoly ~83%;
- * set_target_game_mode ~99.7%; LoadScreenSet ~92%; p_handle ~80%.
- *
- * Retail: Typical title path (retail screen name, not the literal "MAIN_MENU"):
- *   preload_screen_data("common/main_menu/m_mode_select", 0x90046);
- *   load_screen("common/main_menu/m_mode_select", 0x90046, 0, 0);
- *   ...
- *   wait_for_screen_close();
- * Character select (B19) reuses the same Glue with slot 0x17006A.
- *
- * =====================================================================
- * CALL PATH -- load_screen -> image screen_obj_list -> render_2d_objs
- * =====================================================================
- *
- *   load_screen(name, slot, share_pdata, unload_slot)
- *     1. screen_engine_client.slot = slot; optional unload_section_slot
- *     2. ScreenMgr::LoadScreen(name, 1)
- *     3. If LoadScreen != 0 and no pid 0x9011 yet:
- *          get_mkhdr(&vtbl_screen_engine, 0x8)
- *          insert_2d_obj(latch)                  -- onto image.screen_obj_list
- *          spawn p_screen_engine_tick (0x9011) + 3 controller procs
- *     4. Per frame (display -> render_2d_objs):
- *          vtbl_screen_engine entry -> screen_engine_render()
- *            -> ScreenMgr::Render() -> Screen::RenderAll (ScreenObject tree)
- *     5. Tick: p_screen_engine_tick -> Idle / UpdateAnimations
- *        Ctrl: p_handle_screen_engine_controller -> fire_switches -> FireEvent
- *
- * =====================================================================
- * Retail MUST-RUN (visible 2D menu -- link; do not stub away)
- * =====================================================================
- *
- *   init_screen_engine (boot once)
- *   preload_screen_data / load_screen / wait_for_screen_close
- *   broadcast_screen_studio_event
- *   screen_engine_render / p_screen_engine_tick / p_handle_screen_engine_controller
- *   screen_engine_fire_switches (pad edges -> FireEvent; soft-ceiling OK)
- *   ScreenMgr::LoadScreen / Idle / Render / FireEvent / BroadcastEvent
- *   insert_2d_obj path in load_screen (engine latch on screen_obj_list)
- *   render_2d_objs -> screen_engine_render bridge
- *
- * =====================================================================
- * CreateElement POLY / TEXT
- * =====================================================================
- *
- * POLY -- retail CreatePoly builds ScreenPoly 0x7C from SEPolyElement_t.
- *   Disc layout is ILP32 SeRef @+0x70. See ScreenPoly.h.
- *
- * TEXT -- CreateText builds ScreenText 0x24; labels need:
- *   1. CreateElement('TEXT') (Midway CreateText preferred)
- *   2. ProcessEngineEvent 0x407/0x409 (0x408 no-op) before Render
- *   3. Link pfxfont + gc_font (nativefont_*)
- *   Soft: ProcessEngineEvent ~98.5%; ScreenText::Render ~93.3%
- *   See ScreenText.h / ScreenUtil.h.
- */
 
 /* Screen engine tick pid (also wait_for_screen_close). */
 #define SCREEN_ENGINE_PID 0x9011
 /* Per-port controller handler pids start at this id (ports 0..2). */
 #define SCREEN_ENGINE_CTRL_PID 0x901F
 
-/*
- * =====================================================================
- * WAVE C NAV -- pad edges -> ScreenMgr::FireEvent studio ids
- * =====================================================================
- *
- * gcio maps GC PAD bits through default_switch_map into logical switch
- * bits on GcPadSlot.edge (+0x14). p_handle_screen_engine_controller
- * reads that edge and calls screen_engine_fire_switches.
- *
- * Logical bit -> FireEvent(id, user=plyr_idx+1, 0):
- *   0x0001 L2     -> 0x3F9     0x0002 R2     -> 0x3FB
- *   0x0004 L1     -> 0x3F8     0x0008 R1/Z   -> 0x3FA
- *   0x0010 Y      -> 0x3F3     0x0020 X      -> 0x3F6
- *   0x0040 A      -> 0x3F2     0x0080 B      -> 0x3F7
- *   0x0100 Select -> 0x3F4     0x0800 Start  -> 0x3F5
- *   0x1000 D-Up   -> 0x3EE     0x2000 D-Right-> 0x3F1
- *   0x4000 D-Down -> 0x3EF     0x8000 D-Left -> 0x3F0
- * C-stick dirs (one-shot via s_nRepeatedStickBits): 0x401..0x404
- *
- * Mode-select MVP cares about:
- *   D-Pad / stick -> focus walk (ScreenSetFocusAction on those events)
- *   A (0x3F2) confirm / B (0x3F7) back -- scripted actions on focused obj
- *
- * Focus change (ScreenObject::SetFocus, fireEvents!=0):
- *   lose focus 0x3ED / gain focus 0x3EC
- *
- * Confirm -> leave menu idle: scr_*.sec actions with m_arg == 0x1389
- * (mkScreenEngineClient::HandleAction) write target_game_mode from
- * GetInt(0). Modes 6/7/11 -> pselect path in p_main_menu; 0x18 = idle.
- * Full HandleAction stays ASM; set_target_game_mode is the C twin.
- * D-Pad edges spawn hold-repeat mkprocs (p_repeat_button_input).
- */
 #define SE_EVT_FOCUS_GAIN 0x3EC
 #define SE_EVT_FOCUS_LOSE 0x3ED
 #define SE_EVT_DPAD_UP 0x3EE
@@ -131,9 +32,6 @@ typedef struct RwRaster RwRaster;
 /* HandleAction m_arg: params GetInt(0) -> target_game_mode (+ player latch). */
 #define SE_ACT_SET_TARGET_GAME_MODE 0x1389
 
-/* Menu idle sentinel while mode select is open (p_main_menu / load_screen). */
-#define SE_MENU_IDLE_MODE 0x18
-
 /* Studio events deferred while paused / controller-removed (12 slots). */
 typedef struct PausedStudioEvent {
     unsigned int event; /* +0x00 -- 0 = empty */
@@ -148,46 +46,6 @@ typedef struct ScreenFontCacheRow {
     int unloadId; /* +0x04 */
     PfxFontSlot font; /* +0x08 -- face + metrics */
 } ScreenFontCacheRow; /* 0x10 */
-
-/* SE string table (Screen.h SEStringTable_t) -- C view for Glue. */
-typedef struct SEStringTableView {
-    unsigned int count; /* +0x00 */
-    /* char* strings[count] packed at +0x04 */
-} SEStringTableView;
-
-/* Screen::m_data (SEScreen_t) -- C view; CHAR names via strings. */
-typedef struct SEScreenDataView {
-    unsigned char pad00[0x14];
-    SEStringTableView* strings; /* +0x14 */
-} SEScreenDataView;
-
-/* Retail packed string at +4 after count (ILP32). No null/bounds guard. */
-static inline char* SEStringAt(SEStringTableView* table, unsigned int index) {
-    return ((char**)((char*)table + 4))[index];
-}
-
-/*
- * C views of C++ ScreenSet / resource lib (Glue LoadScreenSet / ReadStringData).
- * Matches retail offsets used by mkScreenEngineClient -- not full class layout.
- */
-typedef struct ScreenResourceLibView {
-    void* vtbl; /* +0x00 */
-    void* parent; /* +0x04 */
-    Hashtable strings; /* +0x08 -- ReadStringData store */
-} ScreenResourceLibView;
-
-typedef struct ScreenSetView {
-    void* vtbl; /* +0x00 */
-    int unloadId; /* +0x04 -- art file_index after LoadScreenSet */
-    ScreenResourceLibView* resourceLib; /* +0x08 */
-} ScreenSetView;
-
-/* RwTexture filter/addressing word CreatePoly writes (retail +0x50). */
-typedef struct RwTextureFilterView {
-    RwRaster* raster; /* +0x00 */
-    unsigned char pad04[0x4C];
-    unsigned int filterFlags; /* +0x50 */
-} RwTextureFilterView;
 
 /* Controller-handler pdata (0x1C) for p_handle_screen_engine_controller. */
 typedef struct ScreenCtrlPdata {
@@ -242,11 +100,11 @@ void refresh_screen_by_name(char* name);
 int get_multi_profile_cursor_p2(void);
 void set_popup_type(int type);
 int get_gameoption_exitwithsave(void);
+void set_gameoption_exitwithsave(int save);
 void refresh_active_screen(void);
 int get_multi_profile_cursor_p1(void);
 void ppc_set_stage_value(int stage);
-extern const int vert_map__10ScreenPoly[4];
-int GetArtSlot__Fv(void);
+int ppc_get_stage_value(void);
 
 #ifdef __cplusplus
 }

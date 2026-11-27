@@ -4,8 +4,8 @@ class ScreenResourceLibrary {
 public:
     ScreenResourceLibrary(ScreenResourceLibrary*);
     virtual ~ScreenResourceLibrary();
-    virtual const char* GetString(int);
-    virtual const char* GetString(char*);
+    virtual const char* GetString(int) { return 0; }
+    virtual const char* GetString(char*) { return 0; }
     ScreenResourceLibrary* m_parent;
 };
 #endif

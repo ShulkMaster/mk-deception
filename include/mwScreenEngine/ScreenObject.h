@@ -282,8 +282,14 @@ public:
     virtual void Dispose();
     virtual void Render(ScreenRenderInfo* info);
     virtual void SetComponent(ScreenAnimControl* ctrl, float* values, int unused);
-    virtual void SetVisible(unsigned int visible); /* also weak in Glue */
-    virtual unsigned int IsVisible(); /* also weak in Glue */
+    virtual void SetVisible(unsigned int visible) {
+        if (visible != 0) {
+            m_ext->flags |= 1;
+        } else {
+            m_ext->flags &= ~1U;
+        }
+    }
+    virtual unsigned int IsVisible() { return m_ext->flags & 1; }
     virtual int HandleAction(ScreenMgr* mgr, const ScreenAction* action);
     virtual void SetMatrixStack(ScreenMatrixStack* stack);
     virtual void HandleEvent(ScreenMgr* mgr, int event, int arg);

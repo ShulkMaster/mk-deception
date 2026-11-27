@@ -5,34 +5,22 @@
 #include "mwScreenEngine/ScreenControl.h"
 
 typedef struct AniTextureControl AniTextureControl;
-typedef struct ScreenNode ScreenNode;
-typedef struct ScreenPoly ScreenPoly;
-typedef struct ScreenText ScreenText;
+class ScreenPoly;
+class ScreenText;
 
-typedef struct ScreenObjectHead {
-    unsigned char node[0x18];
-    struct SEObject_t* ext;
-    struct ScreenView* screen;
-    void* parent;
-    unsigned char pad28[0x68];
-} ScreenObjectHead;
-
-typedef struct ScreenControlView {
-    void* vtbl;
-    ScreenObjectHead head;
-    int collectionId;
-    int gvContext;
-    int optionId;
-    int pad9C;
-    int field_0xA0;
-} ScreenControlView;
-
-typedef struct KeyEntry {
-    ScreenControlView ctrl;
-} KeyEntry;
+class KeyEntry : public ScreenControl {
+public:
+    KeyEntry();
+    virtual ~KeyEntry();
+    virtual void Init();
+    virtual void Dispose();
+    virtual int HandleAction(ScreenMgr* mgr, const ScreenAction* action);
+    virtual void ProcessParams(ScreenParams* params);
+};
 
 class TextItem : public ScreenControl {
 public:
+    TextItem();
     virtual ~TextItem();
     virtual void Init();
     virtual void Dispose();
@@ -44,6 +32,7 @@ public:
     void UpdateString();
     void ScrollText(int dir, int amount);
     unsigned char ShouldAutoScrollDown();
+    void RestoreString();
 
     ScreenNode* textNode;
     char* editBuf;
@@ -57,6 +46,7 @@ public:
 
 class KeyPad : public ScreenControl {
 public:
+    KeyPad();
     virtual ~KeyPad();
     virtual void Init();
     virtual void Dispose();
@@ -79,6 +69,7 @@ public:
 
 class SpreadSheet : public ScreenControl {
 public:
+    SpreadSheet();
     virtual ~SpreadSheet();
     virtual void Init();
     virtual void Dispose() = 0;
@@ -92,8 +83,17 @@ public:
     virtual void FinishSetup(ScreenParams* params, int nodeIndex) = 0;
     virtual void ClearContents() = 0;
 
-    unsigned char color[4];
-    unsigned char* cellColors;
+    void ScrollDown(int delta);
+    void ScrollUp(int delta);
+    void ScrollLeft(int delta);
+    void ScrollRight(int delta);
+    void RefreshOption(int doUpdate);
+    void RefreshCollection(int doUpdate);
+    void SubmitOption();
+    int get_current_row();
+
+    ScreenColor_t color;
+    ScreenColor_t* cellColors;
     int padAC;
     ScreenNode* nodeB0;
     ScreenNode* nodeB4;
@@ -114,18 +114,19 @@ public:
     int cellArray;
     int flag104;
     int flag108;
+    int hasExtraRes;
+    int extraResId;
 };
 
 class SpreadSheet_text : public SpreadSheet {
 public:
+    SpreadSheet_text();
     virtual ~SpreadSheet_text();
     virtual void Dispose();
     virtual void Update();
     virtual void AllocateCollection();
     virtual void FinishSetup(ScreenParams* params, int nodeIndex);
     virtual void ClearContents();
-    int hasExtraRes;
-    int extraResId;
     int pad114;
     ScreenText** unk118;
     char** strings;
@@ -133,14 +134,13 @@ public:
 
 class SpreadSheet_image : public SpreadSheet {
 public:
+    SpreadSheet_image();
     virtual ~SpreadSheet_image();
     virtual void Dispose();
     virtual void Update();
     virtual void AllocateCollection();
     virtual void FinishSetup(ScreenParams* params, int nodeIndex);
     virtual void ClearContents();
-    int hasExtraRes;
-    int extraResId;
     int pad114;
     ScreenPoly** unk118;
     GMTextureInfo_t textures;
@@ -150,6 +150,7 @@ typedef GVTextureCollection ImageListTexCollection;
 
 class ImageList : public ScreenControl {
 public:
+    ImageList();
     virtual ~ImageList();
     virtual void Init();
     virtual void Dispose();
@@ -200,16 +201,16 @@ typedef char check_ImageList_layout[
      (uptr)&((ImageList*)0)->wrap == 0x10C &&
      (uptr)&((ImageList*)0)->hasLinkNode == 0x110) ? 1 : -1];
 
-typedef struct WifImage {
-    void Close();
+class WifImage : public ScreenControl {
+public:
+    WifImage();
+    virtual ~WifImage();
+    virtual void Init();
+    virtual void Dispose();
+    virtual void Close();
+    virtual void HandleEvent(ScreenMgr* mgr, int event, int arg);
+    virtual void ProcessParams(ScreenParams* params);
 
-    void* vtbl;
-    ScreenObjectHead head;
-    int collectionId;
-    int gvContext;
-    int optionId;
-    int pad9C;
-    int unkA0;
     AniTextureControl* curTexture;
     int curTextureInstance;
     ScreenPoly* statusNode;
@@ -217,10 +218,11 @@ typedef struct WifImage {
     void* images[16];
     int imageCount;
     float unkF8;
-} WifImage;
+};
 
 class TextList : public ScreenControl {
 public:
+    TextList();
     virtual ~TextList();
     virtual void Init();
     virtual void Dispose();
@@ -234,11 +236,18 @@ public:
     virtual void ScrollInc(int delta);
     virtual void ScrollDec(int delta);
 
+    void ClearStrings();
+    int IsItemValid(int& index, int delta);
+    void RefreshOption(int doUpdate);
+    void EnsureVisiblity();
+    void RefreshCollection(int doUpdate);
+    void SubmitOption();
+
     ScreenNode** itemNodes;
     ScreenNode* linkedNode;
     char** strings;
     int paramB0;
-    unsigned char color[4];
+    ScreenColor_t color;
     int focusIndex;
     int focusMax;
     int stringCount;

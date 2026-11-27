@@ -17,7 +17,7 @@ public:
     virtual void* CreateElement(ScreenMgr*, Screen*, ScreenObject*, void*) = 0;
     virtual ScreenObject* CreateInstance(ScreenMgr*, int, ScreenParams*) = 0;
     virtual int LoadScreenSet(ScreenSet*) = 0;
-    virtual int DoneLoadingSet(ScreenSet*);
+    virtual int DoneLoadingSet(ScreenSet*) { return 1; }
     virtual int LoadScreen(ScreenSet*, Screen*, unsigned int) = 0;
     virtual void UnloadScreen(Screen*) = 0;
     virtual void UnloadScreenSet(int) = 0;

@@ -8,12 +8,14 @@
 #include "runtime/cstdio.h"
 #include "rw/rwcore_types.h"
 
+int GetArtSlot(void);
+RwTexture* GetScreenPolyTexture(void* screen_poly);
+void SetScreenPolyTexture(void* screen_poly, RwTexture* texture);
+
 extern "C" {
 
 #include "runtime/asset.h"
 #include "mw/mwScreenEngineGlue.h"
-RwTexture* GetScreenPolyTexture__FPv(void* screen_poly);
-void SetScreenPolyTexture__FPvP9RwTexture(void* screen_poly, RwTexture* texture);
 
 
 static MkMovieTexPlayer _mmp_data[2] = {0};
@@ -65,9 +67,9 @@ static inline void mmp_release_player(MkMovieTexPlayer* player) {
             RW_OFFSET_OF(MkMovieTexPlayer, screen_poly) + screenOffset);
         savedTex = *(RwTexture**)((char*)player +
             RW_OFFSET_OF(MkMovieTexPlayer, saved_texture) + screenOffset);
-        RwTexture* tex = GetScreenPolyTexture__FPv(screenPoly);
+        RwTexture* tex = GetScreenPolyTexture(screenPoly);
         if (tex != savedTex) {
-            SetScreenPolyTexture__FPvP9RwTexture(screenPoly, savedTex);
+            SetScreenPolyTexture(screenPoly, savedTex);
         }
     }
     MovieDeleteTexture(player->texture);
@@ -108,7 +110,7 @@ static inline MkMovieTexPlayer* mmp_prepare_movie_path(
     int block_size;
 
     if (use_mfs != 0) {
-        block = load_named_binary_block(GetArtSlot__Fv(), name, &block_size);
+        block = load_named_binary_block(GetArtSlot(), name, &block_size);
         if (block != 0) {
             sprintf(player->path, "MFS:%08x.%08x", block, block_size);
         } else {
@@ -142,9 +144,9 @@ void mkMovieTexPlay(int index, const char* name, int unused1, int unused2, int u
                 screenPoly = (&player->screen_poly)[screenIndex];
                 if (screenPoly != 0) {
                     texture = player->texture;
-                    tex = GetScreenPolyTexture__FPv(screenPoly);
+                    tex = GetScreenPolyTexture(screenPoly);
                     if (tex != texture) {
-                        SetScreenPolyTexture__FPvP9RwTexture(screenPoly, texture);
+                        SetScreenPolyTexture(screenPoly, texture);
                     }
                 }
                 screenIndex++;
@@ -171,7 +173,7 @@ void mkMovieTexInit(int index, void* screen_poly, int width, int height) {
             player->unk28 = -1;
             player->screen_count = 1;
             player->screen_poly = screen_poly;
-            player->saved_texture = GetScreenPolyTexture__FPv(screen_poly);
+            player->saved_texture = GetScreenPolyTexture(screen_poly);
         }
     }
 }

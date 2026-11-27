@@ -339,20 +339,3 @@ ScreenAction* ScreenActionStack::CreateAction(unsigned int type) {
     }
     return action;
 }
-
-inline ScreenInsertScreenAction::ScreenInsertScreenAction() {
-    m_stackIndex = -1;
-}
-
-inline ScreenReplaceScreenAction::ScreenReplaceScreenAction() {
-    m_insertIndex = -1;
-}
-
-inline ScreenCloseScreenAction::ScreenCloseScreenAction() {
-}
-
-inline ScreenOpenScreenAction::ScreenOpenScreenAction() {
-}
-
-inline ScreenExitScreenAction::ScreenExitScreenAction() {
-}

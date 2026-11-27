@@ -271,8 +271,8 @@ int ScreenEnableAction::Update(ScreenMgr* mgr, ScreenActionStack&,
     return 1;
 }
 
-/* TODO: [near miss] 99.00944%; 21 colouring rows: retail pops `this` first (r31), which needs
- * two more interference edges at K=29 (TU is -inline off); next: find the missing `this` user. */
+/* TODO: [near miss] 99.00944%; sole link blocker (-sym on sections exact): retail colours `this` r31
+ * first, needing two more interference edges at K=29; decl-order/local-merge sweeps flat; stop. */
 int ScreenUserConfirmAction::Update(ScreenMgr* mgr, ScreenActionStack&,
                                     int) {
     int confirmId;
