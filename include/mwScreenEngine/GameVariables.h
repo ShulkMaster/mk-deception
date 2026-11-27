@@ -3,22 +3,6 @@
 
 typedef struct GMTextureInfo_t GMTextureInfo_t;
 
-/*
- * GameVariables / GameVariableDispatcher -- menu option/collection ranges.
- *
- * GameVariables is the abstract base of the menu-variable providers: the
- * subclass supplies Get/Set for ints, floats, strings, arrays and collections;
- * the base supplies the option/collection range bookkeeping plus empty
- * HandleAction/HandleEvent/row/col stubs. Declaration order below IS the
- * retail vtable slot order (__vt__13GameVariables, .data 0x68 = 26 words:
- * 2 header words then slots 2..25); pure slots are the 0x00000000 entries.
- *
- * BSS `game_variables` (Glue island) is one such subclass (size 0x1C).
- * ScreenControl::RegisterGameVariables chains it onto the static dispatcher,
- * whose Get/Set helpers walk m_next via the non-virtual IsValidOptionRange /
- * IsValidCollectionRange and then make an ordinary virtual call on the node.
- */
-
 class ScreenMgr;
 class ScreenAction;
 class ScreenObject;
@@ -78,8 +62,8 @@ public:
 
     void Register(GameVariables* vars);
 
-    int IsValidInt(unsigned int a, unsigned int b, unsigned int c, unsigned int id,
-                   int value);
+    unsigned int IsValidInt(unsigned int a, unsigned int b, unsigned int c,
+                            unsigned int id, int value);
     int GetInt(unsigned int unused, unsigned int id);
     void SetInt(unsigned int unused, unsigned int id, int value);
     char* GetString(unsigned int unused, unsigned int id);
@@ -90,7 +74,7 @@ public:
     int GetColState(unsigned int unused, unsigned int id, int col);
     void SetRowState(unsigned int unused, unsigned int id, int row, int value);
     void SetColState(unsigned int unused, unsigned int id, int col, int value);
-    int IsValidOption(unsigned int unused, unsigned int id);
+    unsigned int IsValidOption(unsigned int unused, unsigned int id);
     int GetStringCollection(unsigned int unused, unsigned int id, char*** out);
     int GetStringMatrixCollection(unsigned int unused, unsigned int id, char*** out,
                                   int& rows);
