@@ -26,7 +26,6 @@ static float p_morph(void);
 static void do_morph(MkHdr* hdr);
 static float p_bone_matcher(void);
 
-MkProc* morph_proc;
 
 struct MorphState {
     MkHdr hdr;
@@ -134,11 +133,19 @@ struct AnimSelectionFrame {
 
 AnimPdata* anim_pdata;
 MkObj* anim_obj;
-MkFlippedBoneMap* flipped_bones;
 static float flip_factor;
+MkFlippedBoneMap* flipped_bones;
+unsigned short* mka_hdr;
+AnimChannelHeader* mka_channel_hdr;
+AnimMergedChannelHeader* mka_merge_channel_hdr;
+float mka_sought_fno;
+int mka_bytes_per_frame;
+unsigned short* mka_prev_fp;
+unsigned short* mka_next_fp;
+float mka_prev_fno;
+float mka_next_fno;
+MkProc* morph_proc;
 static Quat qy180 = {0.0f, 1.0f, 0.0f, 0.0f};
-static const char morph_not_found_format[64] =
-    "sobj ID: %d was not found. Error in obj_start_morph mk_anim.c";
 static int _flipped_human_bones[] = {
     0, 2, 1, 3, 5, 4, 6, 8, 7, 9, 11, 10, 14, 13, 12, 17, 16, 15,
     19, 18, 21, 20, 23, 22, 25, 24, 27, 26, 29, 28, 31, 30, 33, 32,
@@ -152,15 +159,6 @@ MkFlippedBoneMap flipped_human_bones = {
 };
 extern unsigned char shared_ani[];
 
-float mka_next_fno;
-float mka_prev_fno;
-unsigned short* mka_next_fp;
-unsigned short* mka_prev_fp;
-int mka_bytes_per_frame;
-float mka_sought_fno;
-AnimMergedChannelHeader* mka_merge_channel_hdr;
-AnimChannelHeader* mka_channel_hdr;
-unsigned short* mka_hdr;
 
 static void apply_tag_frame(AnimPdata* anim, MkObj* obj);
 static void apply_anim_offset(
@@ -569,10 +567,8 @@ struct MorphState* obj_start_morph(
             if (sobj != 0) {
                 morph->atomic = sobj->atomic;
             } else {
-                sprintf(
-                    message,
-                    morph_not_found_format,
-                    sobj_id);
+                sprintf(message, "sobj ID: %d was not found. Error in obj_start_morph mk_anim.c",
+                        sobj_id);
                 return 0;
             }
         }
@@ -1213,6 +1209,53 @@ static inline AnimScript** anim_shared_scripts(void) {
 }
 
 #pragma opt_propagation off
+static void unpack_quat160_frame(Quat* out, struct AnimQuatFrame* frame) {
+    float scale = 4.6566129e-10f;
+
+    out->x = scale * (float)frame->x;
+    out->y = flip_factor * (scale * (float)frame->y);
+    out->z = flip_factor * (scale * (float)frame->z);
+    out->w = scale * (float)frame->w;
+}
+
+static void unpack_focal_length_frame(float* out, struct AnimScalarFrame* frame) {
+    *out = 0.006994113f * (float)frame->value;
+}
+
+static void unpack_posquat_frame(RwV3d* pos, Quat* quat, struct AnimMatrixFrame* frame) {
+    pos->x = flip_factor * (0.0009765625f * (float)frame->x);
+    pos->y = 0.0009765625f * (float)frame->y;
+    pos->z = 0.0009765625f * (float)frame->z;
+    quat->x = 0.00048828125f * (float)(short)frame->packed_xy.x;
+    quat->y = flip_factor *
+        (0.00048828125f * (float)((frame->packed_yzw.y_high << 4) + frame->packed_xy.y_low));
+    quat->z = flip_factor * (0.00048828125f * (float)frame->packed_yzw.z);
+    quat->w = 0.00048828125f * (float)frame->packed_yzw.w;
+}
+
+static void unpack_camera_pos_frame(Vec* out, struct AnimVecFrame* frame) {
+    out->x = flip_factor * (0.001953125f * (float)frame->x);
+    out->y = 0.001953125f * (float)frame->y;
+    out->z = 0.001953125f * (float)frame->z;
+}
+
+static void unpack_pos_frame(Vec* out, struct AnimVecFrame* frame) {
+    out->x = flip_factor * (0.0009765625f * (float)frame->x);
+    out->y = 0.0009765625f * (float)frame->y;
+    out->z = 0.0009765625f * (float)frame->z;
+}
+
+static void unpack_bonematcher_frame(BoneMatcherState* out, struct AnimPoseFrame* frame) {
+    out->fake_child_bid = frame->bone_and_flags & 0xFFF;
+    out->child_offset.x = 0.0009765625f * (float)frame->position_x;
+    out->child_offset.y = 0.0009765625f * (float)frame->position_y;
+    out->child_offset.z = 0.0009765625f * (float)frame->position_z;
+    out->parent_bid = frame->pose_id;
+    out->parent_offset.x = 0.0009765625f * (float)frame->offset_x;
+    out->parent_offset.y = 0.0009765625f * (float)frame->offset_y;
+    out->parent_offset.z = 0.0009765625f * (float)frame->offset_z;
+}
+
 int pose_anim(AnimPdata* anim, int update_object) {
     float remaining_channel_weight;
     AnimScript* script;
@@ -1244,11 +1287,6 @@ int pose_anim(AnimPdata* anim, int update_object) {
     int channel_type;
     MkBone* bone;
     unsigned short* sample;
-    const float quat_scale = 4.6566129e-10f;
-    const float focal_scale = 0.006994113f;
-    const float translation_scale_1 = 0.0009765625f;
-    const float packed_quat_scale = 0.00048828125f;
-    const float translation_scale_9 = 0.001953125f;
 
     unsigned int flags;
     result = 1;
@@ -1514,20 +1552,8 @@ int pose_anim(AnimPdata* anim, int update_object) {
                     struct AnimVecFrame* next = (struct AnimVecFrame*)mka_next_fp;
                     float contribution;
 
-                    previous_vec.x = flip_factor *
-                        (translation_scale_1 *
-                         (float)previous->x);
-                    previous_vec.y = translation_scale_1 *
-                        (float)previous->y;
-                    previous_vec.z = translation_scale_1 *
-                        (float)previous->z;
-                    next_vec.x = flip_factor *
-                        (translation_scale_1 *
-                         (float)next->x);
-                    next_vec.y = translation_scale_1 *
-                        (float)next->y;
-                    next_vec.z = translation_scale_1 *
-                        (float)next->z;
+                    unpack_pos_frame(&previous_vec, previous);
+                    unpack_pos_frame(&next_vec, next);
                     if (!bone->field_64) {
                         interp_v3(
                             &bone->translation.value,
@@ -1568,14 +1594,8 @@ int pose_anim(AnimPdata* anim, int update_object) {
                         (struct AnimVecFrame*)mka_next_fp;
                     float contribution;
 
-                    previous_vec.x = flip_factor *
-                        (translation_scale_9 * (float)previous->x);
-                    previous_vec.y = translation_scale_9 * (float)previous->y;
-                    previous_vec.z = translation_scale_9 * (float)previous->z;
-                    next_vec.x = flip_factor *
-                        (translation_scale_9 * (float)next->x);
-                    next_vec.y = translation_scale_9 * (float)next->y;
-                    next_vec.z = translation_scale_9 * (float)next->z;
+                    unpack_camera_pos_frame(&previous_vec, previous);
+                    unpack_camera_pos_frame(&next_vec, next);
                     if (!bone->field_64) {
                         interp_v3(
                             &bone->translation.value,
@@ -1614,18 +1634,8 @@ int pose_anim(AnimPdata* anim, int update_object) {
                         (struct AnimQuatFrame*)mka_prev_fp;
                     struct AnimQuatFrame* next =
                         (struct AnimQuatFrame*)mka_next_fp;
-                    previous_quat.x = quat_scale * (float)previous->x;
-                    previous_quat.y = flip_factor *
-                        (quat_scale * (float)previous->y);
-                    previous_quat.z = flip_factor *
-                        (quat_scale * (float)previous->z);
-                    previous_quat.w = quat_scale * (float)previous->w;
-                    next_quat.x = quat_scale * (float)next->x;
-                    next_quat.y = flip_factor *
-                        (quat_scale * (float)next->y);
-                    next_quat.z = flip_factor *
-                        (quat_scale * (float)next->z);
-                    next_quat.w = quat_scale * (float)next->w;
+                    unpack_quat160_frame(&previous_quat, previous);
+                    unpack_quat160_frame(&next_quat, next);
                     goto interpolate_quat;
                 }
                 case 4:
@@ -1755,7 +1765,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                     continue;
                 }
                 case 6:
-                    break;
+                    goto pin_frame;
                 case 7: {
                     BoneMatcherState* pose;
 
@@ -1787,48 +1797,8 @@ int pose_anim(AnimPdata* anim, int update_object) {
                             pose->flags_08.bits.inactive = 0;
                             previous = (struct AnimPoseFrame*)mka_prev_fp;
                             next = (struct AnimPoseFrame*)mka_next_fp;
-                            previous_pose.fake_child_bid =
-                                previous->bone_and_flags & 0xFFF;
-                            previous_pose.child_offset.x =
-                                translation_scale_1 *
-                                (float)previous->position_x;
-                            previous_pose.child_offset.y =
-                                translation_scale_1 *
-                                (float)previous->position_y;
-                            previous_pose.child_offset.z =
-                                translation_scale_1 *
-                                (float)previous->position_z;
-                            previous_pose.parent_bid = previous->pose_id;
-                            previous_pose.parent_offset.x =
-                                translation_scale_1 *
-                                (float)previous->offset_x;
-                            previous_pose.parent_offset.y =
-                                translation_scale_1 *
-                                (float)previous->offset_y;
-                            previous_pose.parent_offset.z =
-                                translation_scale_1 *
-                                (float)previous->offset_z;
-                            next_pose.fake_child_bid =
-                                next->bone_and_flags & 0xFFF;
-                            next_pose.child_offset.x =
-                                translation_scale_1 *
-                                (float)next->position_x;
-                            next_pose.child_offset.y =
-                                translation_scale_1 *
-                                (float)next->position_y;
-                            next_pose.child_offset.z =
-                                translation_scale_1 *
-                                (float)next->position_z;
-                            next_pose.parent_bid = next->pose_id;
-                            next_pose.parent_offset.x =
-                                translation_scale_1 *
-                                (float)next->offset_x;
-                            next_pose.parent_offset.y =
-                                translation_scale_1 *
-                                (float)next->offset_y;
-                            next_pose.parent_offset.z =
-                                translation_scale_1 *
-                                (float)next->offset_z;
+                            unpack_bonematcher_frame(&previous_pose, previous);
+                            unpack_bonematcher_frame(&next_pose, next);
 
                             selected_pose = &previous_pose;
                             if (previous_pose.fake_child_bid ==
@@ -1869,8 +1839,8 @@ int pose_anim(AnimPdata* anim, int update_object) {
                     float scaled_next;
                     float scaled_previous;
 
-                    scaled_next = focal_scale * (float)next->value;
-                    scaled_previous = focal_scale * (float)previous->value;
+                    unpack_focal_length_frame(&scaled_next, next);
+                    unpack_focal_length_frame(&scaled_previous, previous);
                     set_camera_focal_length(
                         (scaled_previous + scaled_next) / 2.0f);
                     continue;
@@ -1888,13 +1858,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                     float contribution;
 
                     if (!bone->field_64) {
-                        bone->translation.value.x = flip_factor *
-                            (translation_scale_1 *
-                             (float)frame->x);
-                        bone->translation.value.y = translation_scale_1 *
-                            (float)frame->y;
-                        bone->translation.value.z = translation_scale_1 *
-                            (float)frame->z;
+                        unpack_pos_frame(&bone->translation.value, frame);
                         contribution = anim_apply_root_offset(
                             channel_weight, anim, active_channel_obj,
                             &bone->translation.value,
@@ -1902,13 +1866,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                             transition_pass, update_object);
                         bone->field_64 = contribution;
                     } else {
-                        previous_vec.x = flip_factor *
-                            (translation_scale_1 *
-                             (float)frame->x);
-                        previous_vec.y = translation_scale_1 *
-                            (float)frame->y;
-                        previous_vec.z = translation_scale_1 *
-                            (float)frame->z;
+                        unpack_pos_frame(&previous_vec, frame);
                         contribution = anim_apply_root_offset(
                             channel_weight, anim, active_channel_obj,
                             &previous_vec,
@@ -1929,13 +1887,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                     float contribution;
 
                     if (!bone->field_64) {
-                        bone->translation.value.x = flip_factor *
-                            (translation_scale_9 *
-                             (float)frame->x);
-                        bone->translation.value.y = translation_scale_9 *
-                            (float)frame->y;
-                        bone->translation.value.z = translation_scale_9 *
-                            (float)frame->z;
+                        unpack_camera_pos_frame(&bone->translation.value, frame);
                         contribution = anim_apply_root_offset(
                             channel_weight, anim, active_channel_obj,
                             &bone->translation.value,
@@ -1943,13 +1895,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                             transition_pass, update_object);
                         bone->field_64 = contribution;
                     } else {
-                        previous_vec.x = flip_factor *
-                            (translation_scale_9 *
-                             (float)frame->x);
-                        previous_vec.y = translation_scale_9 *
-                            (float)frame->y;
-                        previous_vec.z = translation_scale_9 *
-                            (float)frame->z;
+                        unpack_camera_pos_frame(&previous_vec, frame);
                         contribution = anim_apply_root_offset(
                             channel_weight, anim, active_channel_obj,
                             &previous_vec,
@@ -1970,21 +1916,11 @@ int pose_anim(AnimPdata* anim, int update_object) {
                         (struct AnimQuatFrame*)sample;
 
                     if (!bone->field_60) {
-                        bone->rotation.x = quat_scale * (float)frame->x;
-                        bone->rotation.y = flip_factor *
-                            (quat_scale * (float)frame->y);
-                        bone->rotation.z = flip_factor *
-                            (quat_scale * (float)frame->z);
-                        bone->rotation.w = quat_scale * (float)frame->w;
+                        unpack_quat160_frame(&bone->rotation, frame);
                         bone->field_60 = channel_weight;
                         continue;
                     }
-                    previous_quat.x = quat_scale * (float)frame->x;
-                    previous_quat.y = flip_factor *
-                        (quat_scale * (float)frame->y);
-                    previous_quat.z = flip_factor *
-                        (quat_scale * (float)frame->z);
-                    previous_quat.w = quat_scale * (float)frame->w;
+                    unpack_quat160_frame(&previous_quat, frame);
                     goto blend_exact_quat;
                 }
                 case 4: {
@@ -2095,7 +2031,8 @@ int pose_anim(AnimPdata* anim, int update_object) {
                     }
                     continue;
                 }
-                case 6: {
+                case 6:
+                pin_frame: {
                     if (pin_flag != 0 &&
                         channel_weight >= 0.0f) {
                         active_channel_obj->ground_bone = sample[1];
@@ -2147,35 +2084,16 @@ int pose_anim(AnimPdata* anim, int update_object) {
                             struct AnimPoseFrame* frame =
                                 (struct AnimPoseFrame*)sample;
                             pose->flags_08.bits.inactive = 0;
-                            pose->fake_child_bid =
-                                frame->bone_and_flags & 0xFFF;
-                            pose->child_offset.x =
-                                translation_scale_1 *
-                                (float)frame->position_x;
-                            pose->child_offset.y =
-                                translation_scale_1 *
-                                (float)frame->position_y;
-                            pose->child_offset.z =
-                                translation_scale_1 *
-                                (float)frame->position_z;
-                            pose->parent_bid = frame->pose_id;
-                            pose->parent_offset.x =
-                                translation_scale_1 *
-                                (float)frame->offset_x;
-                            pose->parent_offset.y =
-                                translation_scale_1 *
-                                (float)frame->offset_y;
-                            pose->parent_offset.z =
-                                translation_scale_1 *
-                                (float)frame->offset_z;
+                            unpack_bonematcher_frame(pose, frame);
                         }
                     }
                     continue;
                 }
                 case 8: {
-                    set_camera_focal_length(
-                        focal_scale *
-                        (float)((struct AnimScalarFrame*)sample)->value);
+                    float focal_length;
+
+                    unpack_focal_length_frame(&focal_length, (struct AnimScalarFrame*)sample);
+                    set_camera_focal_length(focal_length);
                     continue;
                 }
                 case 12: {
@@ -2183,25 +2101,7 @@ int pose_anim(AnimPdata* anim, int update_object) {
                         (struct AnimMatrixFrame*)sample;
                     struct RwMatrix* matrix = bone->parent_matrix;
 
-                    matrix->pos.x =
-                        flip_factor *
-                        (translation_scale_1 * (float)frame->x);
-                    matrix->pos.y =
-                        translation_scale_1 * (float)frame->y;
-                    matrix->pos.z =
-                        translation_scale_1 * (float)frame->z;
-                    bone->rotation_90.x =
-                        packed_quat_scale * (float)(short)frame->packed_xy.x;
-                    bone->rotation_90.y = flip_factor *
-                        (packed_quat_scale *
-                         (float)((frame->packed_yzw.y_high << 4) +
-                                 frame->packed_xy.y_low));
-                    bone->rotation_90.z = flip_factor *
-                        (packed_quat_scale *
-                         (float)frame->packed_yzw.z);
-                    bone->rotation_90.w =
-                        packed_quat_scale *
-                        (float)frame->packed_yzw.w;
+                    unpack_posquat_frame(&matrix->pos, &bone->rotation_90, frame);
                     gxQuatQuatToMat(
                         RW_MATRIX_MAT33(bone->parent_matrix),
                         &bone->rotation_90);
@@ -3307,8 +3207,6 @@ MkBone* alloc_bone(void) {
     return bone;
 }
 
-/* TODO: [near miss] 99.87%; hierarchy-loop -1/0 store constants and node_id
- * swap volatile homes (r0/r5/r6); structure and saved homes agree. */
 static void process_obj_bones(MkObj* obj, int* tags) {
     RpClump* clump = obj->clump;
     RpHAnimHierarchy* found_hierarchy = 0;
@@ -3374,18 +3272,18 @@ static void process_obj_bones(MkObj* obj, int* tags) {
         bone_indices[i] = -1;
         linked_bones[i] = 0;
         node = &hierarchy->pNodeInfo[i];
-        node_id = node->nodeID;
+        node_id = node->nodeID & ~0x8000;
         j = 0;
         while ((tag = tags[j]) != 0 && j < bone_count) {
             if (tag != -1) {
                 bone = obj->bones[j];
-                if ((node_id & ~0xF8000) == tag) {
+                if ((node_id & ~0xF0000) == tag) {
                     if ((node->nodeID & 0x8000) != 0) {
                         linked_bones[i] = bone;
                     } else if (bone->tag == -2) {
                         bone_indices[i] = j;
                         bone->tag = node->nodeID & 0xFFF0FFFF;
-                        bone->limb_id = (node_id >> 16) & 0xF;
+                        bone->limb_id = (node_id & 0xF0000) >> 16;
                     }
                 }
             }
@@ -3501,7 +3399,7 @@ void bone_make_parents_my_children(MkBone* bone) {
     RtQuatConvertFromMatrix(&bone->rotation, bone->parent_matrix);
 }
 
-static inline void quat_to_normalized_matrix(RwMatrix* matrix, Quat* rotation) {
+static inline void quat_to_normalized_matrix(RwMatrix* matrix, const Quat* const rotation) {
     float scale;
     Vec scaled;
     Vec weighted;
@@ -3535,8 +3433,8 @@ static inline void quat_to_normalized_matrix(RwMatrix* matrix, Quat* rotation) {
     matrix->right.z = cross.y - weighted.y;
     matrix->right.y = cross.z + weighted.z;
     matrix->at.z = 1.0f - (square.x + square.y);
-    matrix->at.x = cross.y + weighted.y;
     matrix->up.x = cross.z - weighted.z;
+    matrix->at.x = cross.y + weighted.y;
 }
 
 static inline void mkbone_unlink_from_parent(MkBone* bone) {
@@ -3569,8 +3467,6 @@ static inline void mkbone_unlink_from_parent(MkBone* bone) {
 
 #pragma push
 #pragma auto_inline off
-/* TODO: [near miss] 99.45283%; unlink guard and retail size agree; scaled x/y/z products in order;
- * recover normalized-quaternion publication lifetimes and FPR owners. */
 static void _bone_make_parents_my_children(MkBone* bone) {
     Vec displacement;
     Quat inverse_rotation __attribute__((aligned(16)));
