@@ -356,6 +356,10 @@ typedef struct MkObj {
     };
 } MkObj;
 
+static inline MkBone* mk_obj_get_bone(MkObj* object, unsigned int index) {
+    return object->bones[index];
+}
+
 #ifndef __cplusplus
 typedef char MkFlippedBoneMapSizeCheck[
     sizeof(MkFlippedBoneMap) == 0x08 ? 1 : -1];

@@ -523,11 +523,6 @@ static void do_assign_constant_v3(unsigned char* destination, int stride,
     }
 }
 
-static inline unsigned char* pfx_field_address(unsigned char* data, PfxVmField* const field)
-{
-    return data + field->offset;
-}
-
 void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
 {
     int current_stride;
@@ -552,7 +547,7 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
             continue;
         }
         previous_value = previous->data + instruction->field.offset;
-        current_value = pfx_field_address(current->data, &instruction->field) +
+        current_value = current->data + pfx_field_get_offset(&instruction->field) +
                         current->stride * behavior->active_particle_count;
         current_stride = current->stride;
         switch (instruction->opcode) {
@@ -566,10 +561,10 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
                     behavior->effect, -1,
                     instruction->arguments.field.description);
             } else {
-                argument_value = pfx_field_address(
+                argument_value =
                     behavior->previous_streams[
-                        instruction->arguments.field.stream].data,
-                    &instruction->arguments.field);
+                        instruction->arguments.field.stream].data +
+                    pfx_field_get_offset(&instruction->arguments.field);
             }
             argument_stride =
                 behavior->previous_streams[
@@ -640,9 +635,9 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
             PfxSpawnTable* table;
             PfxVmField* index_field =
                 &instruction->arguments.table.index_field;
-            unsigned char* index_values = pfx_field_address(
-                behavior->previous_streams[index_field->stream].data,
-                index_field);
+            unsigned char* index_values =
+                behavior->previous_streams[index_field->stream].data +
+                pfx_field_get_offset(index_field);
             table = instruction->arguments.table.table;
             if (pfx_field_get_type(index_field->description) == 4) {
                 do_copy_from_table_int(behavior->particle_count, table,
@@ -677,7 +672,7 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
                 bounce_count_stride * behavior->active_particle_count);
             velocities =
                 behavior->current_streams[velocity_field->stream].data +
-                velocity_field->offset;
+                pfx_field_get_offset(velocity_field);
             velocities = PFX_FIELD_AT(velocities,
                 behavior->current_streams[velocity_field->stream].stride *
                 behavior->active_particle_count);
@@ -710,7 +705,7 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
             unsigned char* age_values =
                 behavior->current_streams[
                     instruction->arguments.fade.age_field.stream].data +
-                instruction->arguments.fade.age_field.offset;
+                pfx_field_get_offset(&instruction->arguments.fade.age_field);
             age_values = PFX_FIELD_AT(age_values,
                 behavior->current_streams[
                     instruction->arguments.fade.age_field.stream].stride *
@@ -727,7 +722,7 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
             PfxFieldBuffer* age_stream = &behavior->current_streams[
                 instruction->arguments.color_lerp.age_field.stream];
             unsigned char* age_values = age_stream->data +
-                instruction->arguments.color_lerp.age_field.offset;
+                pfx_field_get_offset(&instruction->arguments.color_lerp.age_field);
             age_values = PFX_FIELD_AT(age_values,
                 age_stream->stride * behavior->active_particle_count);
             do_lerp_color(
@@ -739,7 +734,7 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
             unsigned char* age_values =
                 behavior->current_streams[
                     instruction->arguments.texture_anim.age_field.stream].data +
-                instruction->arguments.texture_anim.age_field.offset;
+                pfx_field_get_offset(&instruction->arguments.texture_anim.age_field);
             age_values = PFX_FIELD_AT(age_values,
                 behavior->current_streams[
                     instruction->arguments.texture_anim.age_field.stream].stride *

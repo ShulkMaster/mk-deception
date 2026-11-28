@@ -42,6 +42,10 @@ typedef struct FontMetrics {
     GlyphMetrics glyphs[1]; /* +0x34 - variable; index via (ch - 0x20) */
 } FontMetrics;
 
+static inline float font_metrics_get_cell_height(FontMetrics* metrics) {
+    return metrics->cell_height;
+}
+
 /* View of FontTableEntry.face + .metrics (return of load_font). */
 typedef struct PfxFontSlot {
     FontFace* face;       /* +0x00 TGA / FontFace* */

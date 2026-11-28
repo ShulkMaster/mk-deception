@@ -12,6 +12,10 @@ typedef struct PfxVmField {
     int offset;
 } PfxVmField;
 
+static inline int pfx_field_get_offset(PfxVmField* const field) {
+    return field->offset;
+}
+
 typedef union PfxUpdateArguments {
     PfxVmField field;
     struct {

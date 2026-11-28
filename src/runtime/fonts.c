@@ -25,10 +25,6 @@ static inline const char* fonts_default_text(void) {
     return "";
 }
 
-static inline float fonts_metrics_height(FontMetrics* metrics) {
-    return metrics->cell_height;
-}
-
 static inline int fonts_find_key(const char* keys, char key) {
     int index;
 
@@ -189,7 +185,7 @@ void string_obj_set_valign(StringObj* obj, PfxFontSlot* font, int valign) {
     int font_height;
     float h;
 
-    h = font->metrics->cell_height;
+    h = font_metrics_get_cell_height(font->metrics);
     obj->valign = valign;
     obj->render_y = obj->y;
     font_height = h;
@@ -256,7 +252,7 @@ float get_font_height(int font) {
 
     metrics = font_table[font].slot.metrics;
     if (metrics != NULL) {
-        return fonts_metrics_height(metrics);
+        return font_metrics_get_cell_height(metrics);
     }
     return kZeroHeight;
 }

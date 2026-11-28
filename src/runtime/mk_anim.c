@@ -695,10 +695,6 @@ static inline void compose_bone_rotation(
     out->z += parent->z * target->w;
 }
 
-static inline MkBone* matcher_bone_by_index(MkObj* object, unsigned int index) {
-    return object->bones[index];
-}
-
 static float p_bone_matcher(void) {
     BoneMatcherState* matcher = (BoneMatcherState*)apdata;
     MkObj* parent_obj;
@@ -790,7 +786,7 @@ static float p_bone_matcher(void) {
     }
 
     child_bone = child_obj->bones[child_bid];
-    parent_bone = matcher_bone_by_index(parent_obj, parent_bid);
+    parent_bone = mk_obj_get_bone(parent_obj, parent_bid);
     if (child_bone == 0 || parent_bone == 0) {
         mkproc_die();
     }
