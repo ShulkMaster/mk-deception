@@ -1110,7 +1110,7 @@ config.libs = [
             Object(Matching("GQNE5D"), "plyr.o", source="game/plyr.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
                                  "-str reuse,pool,readonly", "-inline noauto"]),
-            Object(NonMatching, "io.o", source="platform/io.c",
+            Object(Matching, "io.o", source="platform/io.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline auto,deferred",
                                  "-str reuse,pool,readonly"]),
             Object(Matching("GQNE5D"), "shadow.o", source="runtime/shadow.c", extra_cflags=["-use_lmw_stmw on", "-O4,s", "-opt noloop", "-inline auto,deferred", "-str reuse,pool,readonly"]),
@@ -2136,7 +2136,7 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_vom.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_adxt.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_adxt.c",
                 extra_cflags=["-sdata 0", "-sdata2 0", "-use_lmw_stmw on", "-pooldata off"],
@@ -2153,7 +2153,7 @@ config.libs = [
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_mpvf.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_mpv.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_mpv.c",
                 extra_cflags=["-use_lmw_stmw on", "-sdata 0", "-sdata2 0", "-inline auto,deferred"],
@@ -2177,7 +2177,7 @@ config.libs = [
                 extra_cflags=["-use_lmw_stmw on"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmwsfdg.a//crimw/dev/sofdec/src/sfdcore/sfd/sfd_tim.o",
                 source="libmwsfdg/crimw/dev/sofdec/src/sfdcore/sfd/sfd_tim.c",
                 extra_cflags=["-sdata", "0", "-sdata2", "0"],
@@ -2260,7 +2260,7 @@ config.libs = [
                 Matching,
                 "mwMovie_release.a/mk6/mwMovie/build/gc/mwMovie_Data/release/mwMovie.o",
                 source="movie/mwMovie.cpp",
-                extra_cflags=["-opt nopeephole", "-schedule off"],
+                extra_cflags=["-opt nopeephole", "-schedule off", "-str reuse,pool"],
             ),
             Object(
                 Matching,
@@ -2373,7 +2373,7 @@ config.libs = [
                 source="libmsl/mslqueue.c",
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslBank.o",
                 source="libmsl/mslBank.cpp",
                 extra_cflags=[
@@ -2406,17 +2406,16 @@ config.libs = [
                               "-str reuse,pool,readonly"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslSoundBuffer.o",
                 source="libmsl/mslSoundBuffer.cpp",
                 extra_cflags=["-use_lmw_stmw on", "-inline auto,deferred", "-str reuse,pool,readonly"],
             ),
             Object(
-                NonMatching,
+                Matching,
                 "libmsl.a/mslStreamFile.o",
                 source="libmsl/mslStreamFile.cpp",
-                extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly",
-                              "-pragma \"opt_common_subs off\""],
+                extra_cflags=["-use_lmw_stmw on", "-str reuse,pool,readonly", "-inline auto,deferred"],
             ),
             Object(
                 Matching,
