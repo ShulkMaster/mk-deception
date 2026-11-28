@@ -386,6 +386,18 @@ static inline void nb_vec_add(Vec* dst, const Vec* a, const Vec* b) {
     dst->z = a->z + b->z;
 }
 
+static inline void nb_vec_scale(Vec* dst, const Vec* src, float scale) {
+    dst->x = src->x * scale;
+    dst->y = src->y * scale;
+    dst->z = src->z * scale;
+}
+
+static inline void nb_vec_sub(Vec* dst, const Vec* a, const Vec* b) {
+    dst->x = a->x - b->x;
+    dst->y = a->y - b->y;
+    dst->z = a->z - b->z;
+}
+
 static float p_npc_on_pendulum_rope(void) {
     MkObj* object;
     struct NbNpcState* npc;
@@ -644,8 +656,6 @@ static int nb_npc_hurt_player(
     return 0;
 }
 
-/* TODO: [near miss] 99.50593%; 17 FPR rows: x blend defs and y/z split webs must pop before the divisor
- * CSE and a codegen temp; a Vec blend helper lifts only the x defs (28 rows); owner unknown. */
 static void nb_npc_slave_hit_by_plyr(int npc_id) {
     struct NbNpcState* npc;
     Vec target = {0.0f, 0.0f, 0.0f};
@@ -654,15 +664,13 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
     float previous_hit;
     float force;
     float inverse_length;
-    float old_x;
-    float old_y;
-    float old_z;
+    Vec old;
     Vec blended_momentum;
     float target_weight;
     float correction_weight;
-    float weighted_sum;
-    float weighted_target;
-    float correction;
+    Vec weighted_momentum;
+    Vec weighted_target;
+    float divisor;
     int player_index;
     unsigned int collision_id;
     int hit_id;
@@ -695,9 +703,7 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
         delta.x = spad_get_pos(0, 0);
         delta.y = spad_get_pos(0, 1);
         delta.z = spad_get_pos(0, 2);
-        old_x = npc->momentum.x;
-        old_y = npc->momentum.y;
-        old_z = npc->momentum.z;
+        nb_vec_copy(&old, &npc->momentum);
 
         player_index = player_side;
         power = reaction_fetch_current_power_level(player_index);
@@ -719,27 +725,16 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
         target.z *= force;
         target_weight = 1.0f;
         correction_weight = 0.9f;
-        weighted_sum = old_x * npc->acceleration_divisor;
-        weighted_target = target.x * target_weight;
-        correction = target.x - old_x;
-        weighted_sum += weighted_target;
-        correction *= correction_weight;
-        blended_momentum.x = weighted_sum + correction;
-        weighted_sum = old_y * npc->acceleration_divisor;
-        weighted_target = target.y * target_weight;
-        correction = target.y - old_y;
-        weighted_sum += weighted_target;
-        correction *= correction_weight;
-        blended_momentum.y = weighted_sum + correction;
-        weighted_sum = old_z * npc->acceleration_divisor;
-        weighted_target = target.z * target_weight;
-        correction = target.z - old_z;
-        weighted_sum += weighted_target;
-        correction *= correction_weight;
-        blended_momentum.z = weighted_sum + correction;
-        blended_momentum.x *= 1.0f / (npc->acceleration_divisor + target_weight);
-        blended_momentum.y *= 1.0f / (npc->acceleration_divisor + target_weight);
-        blended_momentum.z *= 1.0f / (npc->acceleration_divisor + target_weight);
+        divisor = npc->acceleration_divisor;
+        nb_vec_scale(&weighted_momentum, &old, divisor);
+        nb_vec_scale(&weighted_target, &target, target_weight);
+        nb_vec_copy(&weighted_target, &weighted_target);
+        nb_vec_sub(&old, &target, &old);
+        nb_vec_add(&weighted_momentum, &weighted_momentum, &weighted_target);
+        nb_vec_scale(&old, &old, correction_weight);
+        nb_vec_add(&blended_momentum, &weighted_momentum, &old);
+        nb_vec_scale(
+            &blended_momentum, &blended_momentum, 1.0f / (divisor + target_weight));
 
         if ((reaction_fetch_current_flags(player_index) & 0x80) != 0) {
             blended_momentum.x = 0.205f * blended_momentum.x;
@@ -756,9 +751,7 @@ static void nb_npc_slave_hit_by_plyr(int npc_id) {
 
         snd_req(0x110);
         random_hit(1);
-        npc->momentum.x = blended_momentum.x;
-        npc->momentum.y = blended_momentum.y;
-        npc->momentum.z = blended_momentum.z;
+        nb_vec_copy(&npc->momentum, &blended_momentum);
     }
 
     bgnd_collision_if_enable_col(5, collision_id);
