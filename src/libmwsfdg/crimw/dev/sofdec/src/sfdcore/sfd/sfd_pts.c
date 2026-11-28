@@ -30,8 +30,8 @@ int SFPTS_IsPtsQueFull(SfdHandle* handle, int buffer_index)
            handle->buffers[buffer_index].work.ring.pts_queue.capacity;
 }
 
-/* TODO: [breakthrough needed] 98.49397%; found-arm `b` needs inlined MAP helpers sfpts_SearchPtsQue
- * 0xac + sfpts_ReadPtsQueSub 0x108; no 0xac search shape found, helper locals colour wrong. */
+/* TODO: [breakthrough needed] 98.49397%; found-arm `b` = inlined MAP statics (Search 0xac, Sub 0x108 shapes found,
+ * CFG exact) but then hn must number above the search counter (36 words); no source gives an inliner-level base. */
 int SFPTS_ReadPtsQue(SfdHandle* handle, int buffer_index,
                      unsigned int position, SfdPtsEntry* output)
 {

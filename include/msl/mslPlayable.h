@@ -14,9 +14,9 @@ struct SoundBufferUpdateList;
 class IRefCntRes {
 public:
     IRefCntRes() : reference_count(1) {}
-    virtual ~IRefCntRes();
+    virtual ~IRefCntRes() {}
     virtual void FreeObject(void) = 0;
-    virtual void FreeResources(void);
+    virtual void FreeResources(void) {}
     int reference_count;
 };
 

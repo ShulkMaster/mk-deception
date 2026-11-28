@@ -158,80 +158,19 @@ static void* mallocCallback(void*, unsigned int);
 static void freeCallback(void*, void*);
 void MOVPRINT(const char*, ...);
 
-namespace {
-extern char stringBase0[];
-}
-
 mwMovieSetup MoviePlayerSetup = {
-    0, 0, 0.0f, 1.0f, stringBase0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0.0f, 1.0f, "", 0, 0, 0, 0, 0, 0, 0,
 };
 
-namespace {
-char stringBase0[] =
-    "\0"
-    "mwMovie.cpp\0"
-    "Assertion failure: player != 0L\0"
-    "Assertion failure: pBitmap != 0L\0"
-    "mwMovie - Player already initialized!\n\0"
-    "Assertion failure: 0 == 1\0"
-    "mwMovie - Unknown Display Mode for initialization !\n\0"
-    "mwMovie - Unknown Movie Source Device !\n\0"
-    "Assertion failure: player->playerHandle != 0L\0"
-    "mwMovie - Movie player was not initialized!\n\0"
-    "Assertion failure: 0L != player\0"
-    "mwMovie - Player is in process of stopping another movie!\n\0"
-    "mwMovie - Unknown player state!\n\0"
-    "mwMovie - No player object passed into movie close function!\n\0"
-    "mwMovie Warning - Movie is still preparing to be played, not playing yet!\n\0"
-    "mwMovie Warning - Cannot pause movies that have not started playback!\n\0"
-    "mwMovie Warning - Player is already paused!\n\0"
-    "mwMovie Warning - Player is not playing anything to pause!\n\0"
-    "mwMovie Warning - Player is in the stopping phase!\n\0"
-    "mwMovie - No player object passed into tick function!\n\0"
-    "CRI Error - %s\n\0"
-    "mwMovie Error - Sofdec player already created!\n\0"
-    "mwMovie Error - Cannot create movie player handle!\n\0"
-    "mwMovie - There is no Sofdec player to destroy!\n\0"
-    "Assertion failure: fileName != 0L\0"
-    "mwMovie dropped frame(s) between frame %d and frame %d\n\0"
-    "Assertion failure: 0L != player->playerHandle\0"
-    "mwMovie - Internal Error reported by CRI!\n\0"
-    "mwMovie - Unknown CRI SOFDEC status!\n\0"
-    "SOFDEC Allocated %.2f K \t at location: 0x%x\n\0"
-    "SOFDEC Failed on allocation of %.2f K!\n\0"
-    "SOFDEC Freeing block at: 0x%X\n"
-    "\0\0\0\0\0\0";
-}
 
-#define STR_FILE (&stringBase0[0x001])
-#define STR_ASSERT_PLAYER (&stringBase0[0x00D])
-#define STR_ASSERT_BITMAP (&stringBase0[0x02D])
-#define STR_ALREADY_INITIALIZED (&stringBase0[0x04E])
-#define STR_ASSERT_ZERO (&stringBase0[0x075])
-#define STR_UNKNOWN_DISPLAY (&stringBase0[0x08F])
-#define STR_UNKNOWN_SOURCE (&stringBase0[0x0C4])
-#define STR_ASSERT_HANDLE (&stringBase0[0x0ED])
-#define STR_NOT_INITIALIZED (&stringBase0[0x11B])
-#define STR_ASSERT_PLAYER_REVERSED (&stringBase0[0x148])
-#define STR_STOPPING_ANOTHER (&stringBase0[0x168])
-#define STR_UNKNOWN_STATE (&stringBase0[0x1A3])
-#define STR_NO_PLAYER_CLOSE (&stringBase0[0x1C4])
-#define STR_STOPPING_PHASE (&stringBase0[0x2FD])
-#define STR_NO_PLAYER_TICK (&stringBase0[0x331])
-#define STR_CRI_ERROR (&stringBase0[0x368])
-#define STR_ALREADY_CREATED (&stringBase0[0x378])
-#define STR_CREATE_FAILED (&stringBase0[0x3A8])
-#define STR_NO_PLAYER_DESTROY (&stringBase0[0x3DC])
-#define STR_ASSERT_FILENAME (&stringBase0[0x40D])
-#define STR_DROPPED_FRAMES (&stringBase0[0x42F])
-#define STR_ASSERT_HANDLE_REVERSED (&stringBase0[0x467])
-#define STR_INTERNAL_ERROR (&stringBase0[0x495])
-#define STR_UNKNOWN_CRI_STATUS (&stringBase0[0x4C0])
-#define STR_ALLOCATED (&stringBase0[0x4E6])
-#define STR_ALLOCATION_FAILED (&stringBase0[0x513])
-#define STR_FREEING (&stringBase0[0x53B])
 
 static char PrintBuff[256];
+
+static void fn_stub1(void)
+{
+    OSPanic("mwMovie.cpp", 0, "Assertion failure: player != 0L");
+    OSPanic("mwMovie.cpp", 0, "Assertion failure: pBitmap != 0L");
+}
 
 extern "C" void mwMovieSetTapoutCallback(void* callback)
 {
@@ -244,8 +183,8 @@ extern "C" int mwMovieInit(MwMovieInitParams* params)
         MoviePlayerSetup.once = 1;
     }
     if (MoviePlayerSetup.initialized == 1) {
-        MOVPRINT(STR_ALREADY_INITIALIZED);
-        OSPanic(STR_FILE, 0x96, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - Player already initialized!\n");
+        OSPanic("mwMovie.cpp", 0x96, "Assertion failure: 0 == 1");
         return 0;
     }
 
@@ -260,8 +199,8 @@ extern "C" int mwMovieInit(MwMovieInitParams* params)
         MoviePlayerSetup.refresh_rate = 60.0f;
         break;
     default:
-        MOVPRINT(STR_UNKNOWN_DISPLAY);
-        OSPanic(STR_FILE, 0xAB, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - Unknown Display Mode for initialization !\n");
+        OSPanic("mwMovie.cpp", 0xAB, "Assertion failure: 0 == 1");
         return 0;
     }
 
@@ -278,8 +217,8 @@ extern "C" int mwMovieInit(MwMovieInitParams* params)
         initADXwithMEM(params->audio_enable);
         break;
     default:
-        MOVPRINT(STR_UNKNOWN_SOURCE);
-        OSPanic(STR_FILE, 0xC5, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - Unknown Movie Source Device !\n");
+        OSPanic("mwMovie.cpp", 0xC5, "Assertion failure: 0 == 1");
         return 0;
     }
 
@@ -333,10 +272,10 @@ extern "C" void mwMovieSetMovieVolume(void* handle, float volume)
     int decibels;
 
     if (player == 0) {
-        OSPanic(STR_FILE, 0x133, STR_ASSERT_PLAYER);
+        OSPanic("mwMovie.cpp", 0x133, "Assertion failure: player != 0L");
     }
     if (player->player_handle == 0) {
-        OSPanic(STR_FILE, 0x134, STR_ASSERT_HANDLE);
+        OSPanic("mwMovie.cpp", 0x134, "Assertion failure: player->playerHandle != 0L");
     }
     decibels = mwMovieDbVolFromLinear(volume);
     player->player_handle->interface->set_volume(player->player_handle,
@@ -349,8 +288,8 @@ extern "C" _mwMovPlayer* mwMovieCreatePlayer(MwMovieCreateParams* params)
     _mwMovPlayer* player;
 
     if (MoviePlayerSetup.initialized == 0) {
-        MOVPRINT(STR_NOT_INITIALIZED);
-        OSPanic(STR_FILE, 0x146, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - Movie player was not initialized!\n");
+        OSPanic("mwMovie.cpp", 0x146, "Assertion failure: 0 == 1");
         return 0;
     }
     player = (_mwMovPlayer*)mwMovMalloc(sizeof(_mwMovPlayer));
@@ -364,7 +303,7 @@ extern "C" _mwMovPlayer* mwMovieCreatePlayer(MwMovieCreateParams* params)
 extern "C" void mwMovieDestroyPlayer(_mwMovPlayer* player)
 {
     if (player == 0) {
-        OSPanic(STR_FILE, 0x15F, STR_ASSERT_PLAYER_REVERSED);
+        OSPanic("mwMovie.cpp", 0x15F, "Assertion failure: 0L != player");
     }
     destroySofdecPlayer(player);
     memset(player, 0, sizeof(_mwMovPlayer));
@@ -383,12 +322,12 @@ extern "C" void mwMovieStartPlayback(_mwMovPlayer* player, const char* filename)
         player->state = 1;
         break;
     case 4:
-        MOVPRINT(STR_STOPPING_ANOTHER);
-        OSPanic(STR_FILE, 0x17D, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - Player is in process of stopping another movie!\n");
+        OSPanic("mwMovie.cpp", 0x17D, "Assertion failure: 0 == 1");
         break;
     default:
-        MOVPRINT(STR_UNKNOWN_STATE);
-        OSPanic(STR_FILE, 0x182, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - Unknown player state!\n");
+        OSPanic("mwMovie.cpp", 0x182, "Assertion failure: 0 == 1");
         break;
     }
 }
@@ -406,12 +345,12 @@ extern "C" void mwMovieStartPlaybackLooping(_mwMovPlayer* player,
         player->state = 1;
         break;
     case 4:
-        MOVPRINT(STR_STOPPING_ANOTHER);
-        OSPanic(STR_FILE, 0x19A, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - Player is in process of stopping another movie!\n");
+        OSPanic("mwMovie.cpp", 0x19A, "Assertion failure: 0 == 1");
         break;
     default:
-        MOVPRINT(STR_UNKNOWN_STATE);
-        OSPanic(STR_FILE, 0x19F, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - Unknown player state!\n");
+        OSPanic("mwMovie.cpp", 0x19F, "Assertion failure: 0 == 1");
         break;
     }
 }
@@ -419,8 +358,8 @@ extern "C" void mwMovieStartPlaybackLooping(_mwMovPlayer* player,
 extern "C" void mwMovieStopPlayback(_mwMovPlayer* player)
 {
     if (player == 0) {
-        MOVPRINT(STR_NO_PLAYER_CLOSE);
-        OSPanic(STR_FILE, 0x1AA, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - No player object passed into movie close function!\n");
+        OSPanic("mwMovie.cpp", 0x1AA, "Assertion failure: 0 == 1");
         return;
     }
     switch (player->state) {
@@ -435,17 +374,25 @@ extern "C" void mwMovieStopPlayback(_mwMovPlayer* player)
     case 4:
         break;
     default:
-        MOVPRINT(STR_UNKNOWN_STATE);
-        OSPanic(STR_FILE, 0x1C0, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - Unknown player state!\n");
+        OSPanic("mwMovie.cpp", 0x1C0, "Assertion failure: 0 == 1");
         break;
     }
+}
+
+static void fn_stub2(void)
+{
+    MOVPRINT("mwMovie Warning - Movie is still preparing to be played, not playing yet!\n");
+    MOVPRINT("mwMovie Warning - Cannot pause movies that have not started playback!\n");
+    MOVPRINT("mwMovie Warning - Player is already paused!\n");
+    MOVPRINT("mwMovie Warning - Player is not playing anything to pause!\n");
 }
 
 extern "C" void mwMovieUnPauseMovie(_mwMovPlayer* player)
 {
     if (player == 0) {
-        MOVPRINT(STR_NO_PLAYER_CLOSE);
-        OSPanic(STR_FILE, 0x1F7, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - No player object passed into movie close function!\n");
+        OSPanic("mwMovie.cpp", 0x1F7, "Assertion failure: 0 == 1");
         return;
     }
     switch (player->state) {
@@ -458,11 +405,11 @@ extern "C" void mwMovieUnPauseMovie(_mwMovPlayer* player)
         player->state = 2;
         break;
     case 4:
-        MOVPRINT(STR_STOPPING_PHASE);
+        MOVPRINT("mwMovie Warning - Player is in the stopping phase!\n");
         break;
     default:
-        MOVPRINT(STR_UNKNOWN_STATE);
-        OSPanic(STR_FILE, 0x20D, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - Unknown player state!\n");
+        OSPanic("mwMovie.cpp", 0x20D, "Assertion failure: 0 == 1");
         break;
     }
 }
@@ -503,8 +450,8 @@ static inline void executeMovieTickState(
         }
         break;
     default:
-        MOVPRINT(STR_UNKNOWN_STATE);
-        OSPanic(STR_FILE, 0x260, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - Unknown player state!\n");
+        OSPanic("mwMovie.cpp", 0x260, "Assertion failure: 0 == 1");
         *finished = 1;
         break;
     }
@@ -519,8 +466,8 @@ extern "C" int mwMoviePlayTick(_mwMovPlayer* player)
     int finished = 0;
 
     if (player == 0) {
-        MOVPRINT(STR_NO_PLAYER_TICK);
-        OSPanic(STR_FILE, 0x21F, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - No player object passed into tick function!\n");
+        OSPanic("mwMovie.cpp", 0x21F, "Assertion failure: 0 == 1");
         return 1;
     }
     executeMovieTickState(player, &finished);
@@ -529,7 +476,7 @@ extern "C" int mwMoviePlayTick(_mwMovPlayer* player)
 
 static void errorCallback(void*, char* message)
 {
-    MOVPRINT(STR_CRI_ERROR, message);
+    MOVPRINT("CRI Error - %s\n", message);
     MoviePlayerSetup.cri_error = 1;
 }
 
@@ -560,11 +507,11 @@ static void createSofdecPlayer(_mwMovPlayer* player)
 
     memset(&params, 0, sizeof(params));
     if (player == 0) {
-        OSPanic(STR_FILE, 0x2AE, STR_ASSERT_PLAYER);
+        OSPanic("mwMovie.cpp", 0x2AE, "Assertion failure: player != 0L");
     }
     if (player->player_handle != 0) {
-        MOVPRINT(STR_ALREADY_CREATED);
-        OSPanic(STR_FILE, 0x2B4, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie Error - Sofdec player already created!\n");
+        OSPanic("mwMovie.cpp", 0x2B4, "Assertion failure: 0 == 1");
         return;
     }
     __mwMovie_startVideo(player);
@@ -586,8 +533,8 @@ static void createSofdecPlayer(_mwMovPlayer* player)
     mwPlySetMallocFn(mallocCallback, freeCallback, 0);
     player->player_handle = mwPlyCreateSofdec(&params);
     if (player->player_handle == 0) {
-        MOVPRINT(STR_CREATE_FAILED);
-        OSPanic(STR_FILE, 0x2DA, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie Error - Cannot create movie player handle!\n");
+        OSPanic("mwMovie.cpp", 0x2DA, "Assertion failure: 0 == 1");
         return;
     }
     mwPlySetAudioCh(player->player_handle, player->create.audio_channel);
@@ -602,11 +549,11 @@ static void createSofdecPlayer(_mwMovPlayer* player)
 static void destroySofdecPlayer(_mwMovPlayer* player)
 {
     if (player == 0) {
-        OSPanic(STR_FILE, 0x2F5, STR_ASSERT_PLAYER);
+        OSPanic("mwMovie.cpp", 0x2F5, "Assertion failure: player != 0L");
     }
     if (player->player_handle == 0) {
-        MOVPRINT(STR_NO_PLAYER_DESTROY);
-        OSPanic(STR_FILE, 0x2FA, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - There is no Sofdec player to destroy!\n");
+        OSPanic("mwMovie.cpp", 0x2FA, "Assertion failure: 0 == 1");
         return;
     }
     player->player_handle->interface->destroy(player->player_handle);
@@ -623,13 +570,13 @@ static void startMoviePlay(_mwMovPlayer* player, char* fileName, bool loop)
     strcpy(cursor, fileName);
     fileName = fullPath;
     if (player == 0) {
-        OSPanic(STR_FILE, 0x312, STR_ASSERT_PLAYER);
+        OSPanic("mwMovie.cpp", 0x312, "Assertion failure: player != 0L");
     }
     if (player->player_handle == 0) {
-        OSPanic(STR_FILE, 0x313, STR_ASSERT_HANDLE);
+        OSPanic("mwMovie.cpp", 0x313, "Assertion failure: player->playerHandle != 0L");
     }
     if (fileName == 0) {
-        OSPanic(STR_FILE, 0x314, STR_ASSERT_FILENAME);
+        OSPanic("mwMovie.cpp", 0x314, "Assertion failure: fileName != 0L");
     }
     player->previous_frame = -1;
     if (loop == true) {
@@ -643,10 +590,10 @@ static void startMoviePlay(_mwMovPlayer* player, char* fileName, bool loop)
 static void stopMoviePlay(_mwMovPlayer* player)
 {
     if (player == 0) {
-        OSPanic(STR_FILE, 0x328, STR_ASSERT_PLAYER);
+        OSPanic("mwMovie.cpp", 0x328, "Assertion failure: player != 0L");
     }
     if (player->player_handle == 0) {
-        OSPanic(STR_FILE, 0x329, STR_ASSERT_HANDLE);
+        OSPanic("mwMovie.cpp", 0x329, "Assertion failure: player->playerHandle != 0L");
     }
     player->player_handle->interface->stop(player->player_handle);
 }
@@ -658,10 +605,10 @@ static int executeMovieFrame(_mwMovPlayer* player)
     MwsFrameOutput frame;
 
     if (player == 0) {
-        OSPanic(STR_FILE, 0x333, STR_ASSERT_PLAYER);
+        OSPanic("mwMovie.cpp", 0x333, "Assertion failure: player != 0L");
     }
     if (player->player_handle == 0) {
-        OSPanic(STR_FILE, 0x334, STR_ASSERT_HANDLE);
+        OSPanic("mwMovie.cpp", 0x334, "Assertion failure: player->playerHandle != 0L");
     }
     mwPlyGetCurFrm(player->player_handle, &frame);
     if (frame.frame != 0) {
@@ -686,7 +633,7 @@ static int executeMovieFrame(_mwMovPlayer* player)
         player->frame.display_mode = frame.display_mode;
         player->frame.transport = frame.transport;
         if (frame.display_time - player->previous_frame != 1) {
-            MOVPRINT(STR_DROPPED_FRAMES, player->previous_frame,
+            MOVPRINT("mwMovie dropped frame(s) between frame %d and frame %d\n", player->previous_frame,
                      frame.display_time);
         }
         player->previous_frame = frame.display_time;
@@ -703,10 +650,10 @@ static void updatePlayerState(_mwMovPlayer* player)
     int status;
 
     if (player == 0) {
-        OSPanic(STR_FILE, 0x358, STR_ASSERT_PLAYER_REVERSED);
+        OSPanic("mwMovie.cpp", 0x358, "Assertion failure: 0L != player");
     }
     if (player->player_handle == 0) {
-        OSPanic(STR_FILE, 0x359, STR_ASSERT_HANDLE_REVERSED);
+        OSPanic("mwMovie.cpp", 0x359, "Assertion failure: 0L != player->playerHandle");
     }
     if (MoviePlayerSetup.cri_error == 1) {
         MoviePlayerSetup.cri_error = 0;
@@ -750,12 +697,12 @@ static void updatePlayerState(_mwMovPlayer* player)
         player->state = 2;
         break;
     case 4:
-        MOVPRINT(STR_INTERNAL_ERROR);
-        OSPanic(STR_FILE, 0x396, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - Internal Error reported by CRI!\n");
+        OSPanic("mwMovie.cpp", 0x396, "Assertion failure: 0 == 1");
         break;
     default:
-        MOVPRINT(STR_UNKNOWN_CRI_STATUS);
-        OSPanic(STR_FILE, 0x39B, STR_ASSERT_ZERO);
+        MOVPRINT("mwMovie - Unknown CRI SOFDEC status!\n");
+        OSPanic("mwMovie.cpp", 0x39B, "Assertion failure: 0 == 1");
         break;
     }
 }
@@ -765,16 +712,16 @@ static void* mallocCallback(void*, unsigned int size)
     void* memory = mwMovMalloc(size);
 
     if (memory != 0) {
-        MOVPRINT(STR_ALLOCATED, (float)size / 1024.0f, memory);
+        MOVPRINT("SOFDEC Allocated %.2f K \t at location: 0x%x\n", (float)size / 1024.0f, memory);
     } else {
-        MOVPRINT(STR_ALLOCATION_FAILED, (float)size / 1024.0f);
+        MOVPRINT("SOFDEC Failed on allocation of %.2f K!\n", (float)size / 1024.0f);
     }
     return memory;
 }
 
 static void freeCallback(void*, void* memory)
 {
-    MOVPRINT(STR_FREEING, memory);
+    MOVPRINT("SOFDEC Freeing block at: 0x%X\n", memory);
     mwMovFree(memory);
 }
 

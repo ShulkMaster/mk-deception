@@ -64,6 +64,11 @@ int SFTIM_IsVideoTerm(SfdHandle* handle)
                        handle->timer_state.current_time_scale) != 0;
 }
 
+static float fn_stub1(int value)
+{
+    return (float)value;
+}
+
 static inline int sftim_IsGetFrmTime(SfdHandle* handle, int value, int scale)
 {
     SfdTimerState* timer;
@@ -490,15 +495,25 @@ int SFTIM_ChkRegularTime(SfdHandle* handle, int* value, int* scale)
     return 1;
 }
 
-/* TODO: [near miss] 98.64045%; live diff retains previous-sample reload CSE;
- * real read-boundary evidence is missing; donor fake volatile excluded. */
+static inline int sftim_GetExtClockDelta(const SfdTimerState* const timer,
+                                         int sample)
+{
+    int delta;
+
+    delta = sample - timer->previous_external_sample;
+    if (delta < 0) {
+        delta = timer->external_clock_wrap + delta;
+        delta++;
+    }
+    return delta;
+}
+
 static int sftim_GetTimeExtClock(SfdHandle* handle, int* value, int* scale)
 {
     int sample;
     int sample_scale;
     int result;
     int update;
-    int delta;
 
     if (SFTIM_ChkRegularTime(handle, value, scale) == 0) {
         return 0;
@@ -520,12 +535,8 @@ static int sftim_GetTimeExtClock(SfdHandle* handle, int* value, int* scale)
         update = 1;
     }
     if (update != 0 && handle->timer_state.previous_external_sample != -5) {
-        delta = sample - handle->timer_state.previous_external_sample;
-        if (delta < 0) {
-            delta = handle->timer_state.external_clock_wrap + delta;
-            delta++;
-        }
-        handle->timer_state.current_clock_sample += delta;
+        handle->timer_state.current_clock_sample +=
+            sftim_GetExtClockDelta(&handle->timer_state, sample);
     }
     handle->timer_state.previous_external_sample = sample;
     handle->timer_state.clock_sample_scale = sample_scale;
@@ -642,6 +653,7 @@ static int sftim_CheckStagnant(SfdHandle* handle)
     SfdTimerState* timer;
     SfdTimerLibraryWork* library;
     int threshold;
+    int base;
     int elapsed;
     int scale;
 
@@ -658,7 +670,9 @@ static int sftim_CheckStagnant(SfdHandle* handle)
         scale = library->source;
         elapsed = timer->video_clock_sample - timer->previous_clock_sample;
     } else {
-        elapsed = timer->current_clock_sample - timer->previous_clock_sample;
+        elapsed = timer->current_clock_sample;
+        base = timer->previous_clock_sample;
+        elapsed -= base;
         scale = timer->clock_sample_scale;
     }
     if (elapsed / scale > threshold) {
@@ -667,8 +681,6 @@ static int sftim_CheckStagnant(SfdHandle* handle)
     return 0;
 }
 
-/* TODO: [near miss] 99.79311%; normal-branch current/previous loads reversed; in-place
- * elapsed = current; elapsed -= previous fixes the order but swaps elapsed/previous r0/r3. */
 int SFTIM_IsStagnant(SfdHandle* handle)
 {
     if (sftim_CheckStagnant(handle) != 0) {
