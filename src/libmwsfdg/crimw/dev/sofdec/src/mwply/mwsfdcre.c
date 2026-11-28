@@ -147,6 +147,37 @@ typedef char MwsPlayerSizeCheck[sizeof(MwsPlayer) == 0x2B8 ? 1 : -1];
 typedef char MwsLibraryWorkSizeCheck[sizeof(MwsLibraryWork) == 0x162C ? 1 : -1];
 typedef char MwsPlayerInterfaceSizeCheck[sizeof(MwsPlayerInterface) == 0x44 ? 1 : -1];
 
+typedef struct SfdCreateInfo {
+    signed char creatable;
+    signed char available;
+    const SfdTransportInterface* system_transport;
+    const SfdTransportInterface* video_transport;
+    const SfdTransportInterface* audio_transport;
+    int pack_size;
+    int width;
+    int height;
+    int bit_rate;
+    int picture_rate;
+    int vbv_size;
+    signed char audio_channels;
+    int audio_frequency;
+    int reserved[4];
+} SfdCreateInfo;
+
+typedef struct MwsHeaderInfo {
+    int valid;
+    int file_type;
+    int width;
+    int height;
+    int picture_rate;
+    int maximum_frames;
+    int effect_type;
+    int video_elements;
+    int audio_elements;
+    int audio_frequency;
+    int audio_channels;
+} MwsHeaderInfo;
+
 extern const SfdTransportInterface SFD_tr_sd_mps;
 extern const SfdTransportInterface SFD_tr_vd_mpv, SFD_tr_ad_adxt;
 extern const SfdTransportInterface SFD_tr_vo_manu, SFD_tr_ao_auto_p;
@@ -175,6 +206,9 @@ extern void LSC_Destroy(LSC*);
 extern void LSC_SetStmHndl(LSC*, ADXStream*);
 extern int SFD_SetPicUsrBuf(SfdHandle*, void*, int, int);
 extern int SFD_SetMpvCond(SfdHandle*, int, int);
+extern void SFD_AnalyCreInf(void* data, int size, SfdCreateInfo* info);
+extern void MWSFFRM_AnalyTotalFrmNum(void* data, int size, MwsHeaderInfo* info);
+extern int mwPlyCalcWorkSfd(MwsCreateParams* params);
 
 extern void mwSfdVsync(void);
 extern int mwSfdExecSvrHndl(MwsPlayer*);
@@ -203,21 +237,6 @@ static const SfdTransportSetup mwsfd_vonlysfd_trsetup = {{
     &SFD_tr_in_mem, &SFD_tr_sd_mps, &SFD_tr_vd_mpv, 0, 0, 0,
     &SFD_tr_vo_manu, 0, &SFD_tr_uo
 }};
-static const char allocation_count_exceeded[0x24] = "E2053001 MWSFD_Malloc: cnt over.";
-static const char header_null[0x28] = "E204161: mwPlyGetHdrInf(): NULL pointer";
-static const char header_size_invalid[0x2C] = "E204162: mwPlyGetHdrInf(): bufsize error";
-static const char destroy_failed[0x20] = "E20010703E MWSFCRE_DestroySfd: ";
-static const char allocation_leak[] = "E2053005: forgot free.";
-static const char composition_work_failed[0x24] = "E2053003: not enough work: sfx_wk";
-static const char additional_info_work_failed[0x28] = "E2053004: not enough work: ainfsj_buf";
-static const char invalid_buffer_format[0x24] = "E3012102: Buffer format is invalid.";
-static const char create_parameter_null[] = "E1122612 mwPlyCreateSofdec : cprm is NULL.";
-static const char player_limit_exceeded[0x50] = "E4061801 mwPlyCreateSofdec: Number of MWPLY handles exceeds its maximum number.";
-static const char allocator_missing[] = "E2053006 mwPlyCreateSofdec: Didn't set malloc/free func.";
-static const char create_sfd_failed[] = "E2012 mwPlyCreate:can't create SFD";
-static const char picture_user_internal_error[] = "E02120501: Internal Error: mwsfcre_AttachPicUsrBuf().";
-static const char create_picture_short_message[] =
-    "E02120502: mwsfcre_AttachPicUsrBuf(): usrdatbuf is short.";
 static const float create_picture_rounding_half = 0.5f;
 #pragma force_active reset
 
@@ -281,11 +300,12 @@ static inline void* mwsfcre_OrgMalloc(MwsPlayer* player, long size)
     return memory;
 }
 
-static inline void* mwsfcre_Alloc(MwsPlayer* player, long size)
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0xE8); body of the copies inlined in this unit, compiles to 0xE8. */
+void* MWSFD_Malloc(MwsPlayer* player, long size)
 {
     void* memory;
     if (player->allocation_count >= 32) {
-        MWSFSVM_Error(allocation_count_exceeded);
+        MWSFSVM_Error("E2053001 MWSFD_Malloc: cnt over.");
         return 0;
     }
     if (size < 0) return 0;
@@ -360,7 +380,7 @@ static inline void mwsfcre_AttachPictureUser(MwsPlayer* player,
     int skip_count;
 
     if (config == 0) {
-        MWSFSVM_Error(picture_user_internal_error);
+        MWSFSVM_Error("E02120501: Internal Error: mwsfcre_AttachPicUsrBuf().");
     } else {
         skip_count = player->create.frame_count;
         element_size = config->element_size;
@@ -393,15 +413,66 @@ static inline void MWSFCRE_DestroySfd(MwsPlayer* player)
     if (player->sfd != 0) {
         if (SFD_Destroy(player->sfd) != 0) {
             MWSFLIB_SetErrCode(-0x132);
-            MWSFSVM_Error(destroy_failed);
+            MWSFSVM_Error("E20010703E MWSFCRE_DestroySfd: ");
         }
     }
     MWSST_Destroy(&player->sound);
     mwsfcre_FreeAll(player);
-    if (player->allocation_count != 0) MWSFSVM_Error(allocation_leak);
+    if (player->allocation_count != 0) MWSFSVM_Error("E2053005: forgot free.");
     memset(player, 0, sizeof(*player));
     player->active = 0;
     player->interface = &mwsfd_if;
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x50); RE4 mwsfcre_GetFtype body ported, compiles to 0x50. */
+static int mwsfcre_DecideFtypeByHdrInf(SfdCreateInfo* info)
+{
+    int file_type = 0;
+
+    if (info->system_transport == 0) {
+        if (info->video_transport != 0 && info->audio_transport == 0) {
+            file_type = 2;
+        }
+    } else {
+        if (info->audio_transport == 0) {
+            file_type = 3;
+        } else {
+            file_type = 1;
+        }
+    }
+    return file_type;
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x204); RE4 mwsfdcre.c body ported, compiles to 0x204. */
+void mwPlyGetHdrInf(void* data, int size, MwsHeaderInfo* header)
+{
+    MwsHeaderInfo info;
+    SfdCreateInfo create;
+
+    if (data == 0 || header == 0) {
+        MWSFSVM_Error("E204161: mwPlyGetHdrInf(): NULL pointer");
+        return;
+    }
+    if (size <= 0) {
+        MWSFSVM_Error("E204162: mwPlyGetHdrInf(): bufsize error");
+        return;
+    }
+    memset(&info, 0, sizeof(info));
+    SFD_AnalyCreInf(data, size, &create);
+    if (create.creatable == 0 || create.available == 0) {
+        *header = info;
+        header->valid = 0;
+        return;
+    }
+    info.file_type = mwsfcre_DecideFtypeByHdrInf(&create);
+    info.width = create.width;
+    info.height = create.height;
+    info.picture_rate = create.picture_rate;
+    info.audio_frequency = create.audio_frequency;
+    info.audio_channels = create.audio_channels;
+    MWSFFRM_AnalyTotalFrmNum(data, size, &info);
+    info.valid = info.file_type != 0;
+    *header = info;
 }
 
 void mwSfdDestroy(MWPLY handle)
@@ -421,18 +492,18 @@ static int mwsfcre_MallocCompoWork(MwsPlayer* player)
 {
     const MwsCreateParams* create = &player->create;
     long size = MWSFSFX_CalcHnWorkSiz(player->create.width, player->create.height);
-    void* memory = mwsfcre_Alloc(player, size);
+    void* memory = MWSFD_Malloc(player, size);
     if (memory == 0) {
-        MWSFSVM_Error(composition_work_failed);
+        MWSFSVM_Error("E2053003: not enough work: sfx_wk");
         mwsfcre_FreeAll(player);
         return -1;
     }
     player->composition_work = memory;
     player->composition_work_size = size;
     if (MWSFTAG_IsUseAinfSj(create) == 1) {
-        memory = mwsfcre_Alloc(player, 0x20000);
+        memory = MWSFD_Malloc(player, 0x20000);
         if (memory == 0) {
-            MWSFSVM_Error(additional_info_work_failed);
+            MWSFSVM_Error("E2053004: not enough work: ainfsj_buf");
             mwsfcre_FreeAll(player);
             return -1;
         }
@@ -446,8 +517,8 @@ static int mwsfcre_MallocCompoWork(MwsPlayer* player)
 }
 
 
-/* TODO: [blocked] emitted here but absent from retail; `inline` loses the .bss order, so this
- * relies on link-time dead stripping once mwsfdcre links (unverified while NonMatching). */
+/* TODO: [blocked] absent from the retail MAP, dead-stripped at link (SHA-1 OK); without it .bss is reordered and
+ * mwsfcre_MallocRfb/CreateSfd lose their pool bases, `= 0` definitions move mwsfdcre_bufptr to .data. */
 void mwPlySetFrmBuf(int count, int size, void** buffers)
 {
     int i;
@@ -472,12 +543,13 @@ static int mwsfcre_MallocRfb(MwsPlayer*, MwsCreateParams*,
                              MwsReferenceBuffers*);
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer*, MwsCreateParams*);
 
-static inline int mwsfcre_IsValidBufFmt(const MwsCreateParams* params)
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x48); body of the copy inlined in mwPlyCreateSofdec, compiles to 0x48. */
+static int mwsfcre_IsOkCprm(const MwsCreateParams* params)
 {
     int valid = 1;
 
     if (params->buffer_format != 0 && params->buffer_format != 3) {
-        MWSFSVM_Error(invalid_buffer_format);
+        MWSFSVM_Error("E3012102: Buffer format is invalid.");
         valid = 0;
     }
     return valid;
@@ -551,10 +623,10 @@ MwsPlayer* mwPlyCreateSofdec(MwsCreateParams* params)
     int file_type;
 
     if (params == 0) {
-        MWSFSVM_Error(create_parameter_null);
+        MWSFSVM_Error("E1122612 mwPlyCreateSofdec : cprm is NULL.");
         return 0;
     }
-    if (mwsfcre_IsValidBufFmt(params) != 1) {
+    if (mwsfcre_IsOkCprm(params) != 1) {
         return 0;
     }
     work = MWSFLIB_GetLibWorkPtr();
@@ -564,11 +636,11 @@ MwsPlayer* mwPlyCreateSofdec(MwsCreateParams* params)
     }
     if (index == 8) {
         MWSFLIB_SetErrCode(-0xB);
-        MWSFSVM_Error(player_limit_exceeded);
+        MWSFSVM_Error("E4061801 mwPlyCreateSofdec: Number of MWPLY handles exceeds its maximum number.");
         return 0;
     }
     if (mwsfcre_ChkMallocFn(params) == -1) {
-        MWSFSVM_Error(allocator_missing);
+        MWSFSVM_Error("E2053006 mwPlyCreateSofdec: Didn't set malloc/free func.");
         return 0;
     }
 
@@ -579,11 +651,11 @@ MwsPlayer* mwPlyCreateSofdec(MwsCreateParams* params)
     sfd = mwsfcre_CreateSfd(player, params);
     player->sfd = sfd;
     if (player->sfd == 0) {
-        MWSFSVM_Error(create_sfd_failed);
+        MWSFSVM_Error("E2012 mwPlyCreate:can't create SFD");
         mwSfdDestroy((MWPLY)player);
         return 0;
     }
-    mwsfcre_AttachPictureUser(player, create_picture_short_message);
+    mwsfcre_AttachPictureUser(player, "E02120502: mwsfcre_AttachPicUsrBuf(): usrdatbuf is short.");
 
     sector_count = params->decoder_count;
     file_type = params->file_type;
@@ -669,27 +741,6 @@ MwsPlayer* mwPlyCreateSofdec(MwsCreateParams* params)
     return player;
 }
 
-#pragma force_active on
-static const char reset_stop_failed[] =
-    "E0203261: MWSFCRE_ResetSfdHn: SFD_Stop() failed.";
-static const char reset_error_callback_failed[] =
-    "E0203262: MWSFCRE_ResetSfdHn: SFD_SetErrFn() failed.";
-static const char reset_picture_user_short[0x38] =
-    "E02120503: mwPlyAttachPicUsrBuf(): bufsize is short.";
-static const char create_buffer_format_invalid[0x28] =
-    "E206011: MwsfdCrePrm: illigal buffmt.";
-static const char create_work_failed[0x1C] = "E2053002: not enough work";
-static const char create_audio_work_failed[0x1C] = "E4041301: not enough work";
-static const char sfd_create_error[0x2C] =
-    "E20010703C mwPlyCreateSofdec: create error";
-static const char sfd_error_callback_error[0x28] =
-    "E20010703D mwPlyCreateSofdec: set errcb";
-static const char supply_sj_failed[0x24] =
-    "E20010703B MWSFCRE_SetSupplySj: ";
-static const char calculate_work_parameter_null[0x34] =
-    "E1122613 mwPlyCalcWorkCprmSfd: cprm is NULL.";
-#pragma force_active reset
-
 int MWSFCRE_ResetSfdHn(MwsPlayer* player)
 {
     MwsPictureUserConfig* config;
@@ -700,29 +751,43 @@ int MWSFCRE_ResetSfdHn(MwsPlayer* player)
 
     sfd = player->sfd;
     if (SFD_Stop(sfd) != 0) {
-        MWSFSVM_Error(reset_stop_failed);
+        MWSFSVM_Error("E0203261: MWSFCRE_ResetSfdHn: SFD_Stop() failed.");
         return -1;
     }
     if (SFD_SetErrFn(sfd, MWSFLIB_SfdErrFunc, player) != 0) {
         MWSFLIB_SetErrCode(-0x12F);
-        MWSFSVM_Error(reset_error_callback_failed);
+        MWSFSVM_Error("E0203262: MWSFCRE_ResetSfdHn: SFD_SetErrFn() failed.");
         return -1;
     }
     config = player->picture_user;
     if (config == 0) {
-        MWSFSVM_Error(picture_user_internal_error);
+        MWSFSVM_Error("E02120501: Internal Error: mwsfcre_AttachPicUsrBuf().");
     } else {
         frame_count = player->create.frame_count;
         element_size = config->element_size;
         buffer = config->buffer;
         if (config->buffer_size < (frame_count + 3) * element_size) {
-            MWSFSVM_Error(create_picture_short_message);
+            MWSFSVM_Error("E02120502: mwsfcre_AttachPicUsrBuf(): usrdatbuf is short.");
         } else if (MWSFD_GetUsePicUsr() == 1) {
             SFD_SetPicUsrBuf(player->sfd, buffer, frame_count + 3,
                              element_size);
         }
     }
     return 0;
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x110); RE4 mwsfdcre.c body ported, compiles to 0xE4. */
+void mwPlyAttachPicUsrBuf(MwsPlayer* player, void* buffer, int buffer_size,
+                          int element_size)
+{
+    if (buffer_size < (player->create.frame_count + 3) * element_size) {
+        MWSFSVM_Error("E02120503: mwPlyAttachPicUsrBuf(): bufsize is short.");
+        return;
+    }
+    player->internal_picture_user.buffer = buffer;
+    player->internal_picture_user.buffer_size = buffer_size;
+    player->internal_picture_user.element_size = element_size;
+    mwsfcre_AttachPictureUser(player, "E02120502: mwsfcre_AttachPicUsrBuf(): usrdatbuf is short.");
 }
 
 static inline int mwsfcre_CnvBufFmt(int format)
@@ -735,7 +800,7 @@ static inline int mwsfcre_CnvBufFmt(int format)
     case 2: result = 2; break;
     case 3: result = 3; break;
     default:
-        MWSFSVM_Error(create_buffer_format_invalid);
+        MWSFSVM_Error("E206011: MwsfdCrePrm: illigal buffmt.");
         result = 3;
         break;
     }
@@ -756,7 +821,7 @@ static inline int mwsfcre_MallocFrmTbl(MwsPlayer* player,
     width = params->width;
     height = params->height;
     if (params->buffer_format >= 4 || params->buffer_format < 0)
-        MWSFSVM_Error(create_buffer_format_invalid);
+        MWSFSVM_Error("E206011: MwsfdCrePrm: illigal buffmt.");
     frame_size = mwsfcre_CalcFrameSize(width, height);
     if (mwsfdcre_bufnum != 0) {
         if (mwsfdcre_bufnum < frame_count + 2 ||
@@ -770,7 +835,7 @@ static inline int mwsfcre_MallocFrmTbl(MwsPlayer* player,
         }
     } else {
         for (index = 0; index < frame_count; index++) {
-            frame_buffers[index] = mwsfcre_Alloc(player, frame_size);
+            frame_buffers[index] = MWSFD_Malloc(player, frame_size);
             if (frame_buffers[index] == 0) result = -1;
         }
     }
@@ -782,12 +847,12 @@ static inline void* mwsfcre_MallocWk(MwsPlayer* player, long work_size)
 {
     long size = work_size;
 
-    return mwsfcre_Alloc(player, size);
+    return MWSFD_Malloc(player, size);
 }
 
 static inline void* mwsfcre_MallocX(MwsPlayer* player, int size)
 {
-    return mwsfcre_Alloc(player, size);
+    return MWSFD_Malloc(player, size);
 }
 
 static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
@@ -864,7 +929,7 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
         frame_width = params->width;
         frame_height = params->height;
         if (params->buffer_format >= 4 || params->buffer_format < 0) {
-            MWSFSVM_Error(create_buffer_format_invalid);
+            MWSFSVM_Error("E206011: MwsfdCrePrm: illigal buffmt.");
         }
         frame_size = mwsfcre_CalcFrameSize(frame_width, frame_height);
         rfb = frame_size * 2;
@@ -872,17 +937,17 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     }
 
     allocation_size = sib + vib + aib + 0x20;
-    shared_work = mwsfcre_Alloc(player, allocation_size);
+    shared_work = MWSFD_Malloc(player, allocation_size);
     allocation_size = sjb + 0x40;
-    stream_work = mwsfcre_Alloc(player, allocation_size);
+    stream_work = MWSFD_Malloc(player, allocation_size);
     rfb_result = mwsfcre_MallocRfb(player, params, &references);
     frame_result = mwsfcre_MallocFrmTbl(player, params, frame_buffers);
 
     if (mwsfcre_UsesAudio(file_type) == 1) {
         allocation_size = adxibuf;
-        audio_stream_buffer = mwsfcre_Alloc(player, allocation_size);
+        audio_stream_buffer = MWSFD_Malloc(player, allocation_size);
         allocation_size = adxwk;
-        audio_decoder_work = mwsfcre_Alloc(player, allocation_size);
+        audio_decoder_work = MWSFD_Malloc(player, allocation_size);
     } else {
         audio_stream_buffer = 0;
         audio_decoder_work = 0;
@@ -894,13 +959,13 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     if (shared_work == 0 || stream_work == 0 || rfb_result != 0 ||
         frame_result != 0 || picture_user_work == 0 || decoder_work == 0 ||
         filename_work == 0 || video_work == 0) {
-        MWSFSVM_Error(create_work_failed);
+        MWSFSVM_Error("E2053002: not enough work");
         mwsfcre_FreeAll(player);
         return 0;
     }
     if (mwsfcre_UsesAudio(file_type) == 1) {
         if (audio_stream_buffer == 0 || audio_decoder_work == 0) {
-            MWSFSVM_Error(create_audio_work_failed);
+            MWSFSVM_Error("E4041301: not enough work");
             mwsfcre_FreeAll(player);
             return 0;
         }
@@ -973,12 +1038,12 @@ static SfdHandle* mwsfcre_CreateSfd(MwsPlayer* player,
     sfd = SFD_Create(&create, 0);
     if (sfd == 0) {
         MWSFLIB_SetErrCode(-0x131);
-        MWSFSVM_Error(sfd_create_error);
+        MWSFSVM_Error("E20010703C mwPlyCreateSofdec: create error");
         return 0;
     }
     if (SFD_SetErrFn(sfd, MWSFLIB_SfdErrFunc, player) != 0) {
         MWSFLIB_SetErrCode(-0x12F);
-        MWSFSVM_Error(sfd_error_callback_error);
+        MWSFSVM_Error("E20010703D mwPlyCreateSofdec: set errcb");
         return 0;
     }
     player->filename = filename_work;
@@ -1017,8 +1082,8 @@ static int mwsfcre_MallocRfb(MwsPlayer* player,
         }
         break;
     case 0:
-        output->buffers[0] = mwsfcre_Alloc(player, frame_size);
-        output->buffers[1] = mwsfcre_Alloc(player, frame_size);
+        output->buffers[0] = MWSFD_Malloc(player, frame_size);
+        output->buffers[1] = MWSFD_Malloc(player, frame_size);
         break;
     }
     if (output->buffers[0] == 0 || output->buffers[1] == 0) result = -1;
@@ -1055,6 +1120,31 @@ void MWSFCRE_SetSupplySj(MwsPlayer* player)
     }
     if (SFD_SetSupplySj(sfd, &supply) != 0) {
         MWSFLIB_SetErrCode(-0x138);
-        MWSFSVM_Error(supply_sj_failed);
+        MWSFSVM_Error("E20010703B MWSFCRE_SetSupplySj: ");
     }
+}
+
+static inline int mwsfcre_CalcWorkSfx(MwsCreateParams* params)
+{
+    int size = MWSFSFX_CalcHnWorkSiz(params->width, params->height);
+
+    if (MWSFTAG_IsUseAinfSj(params) == 1) {
+        size += 0x20000;
+    }
+    return size;
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x84); RE4 mwsfdcre.c body ported, compiles to 0x84. */
+int mwPlyCalcWorkCprmSfd(MwsCreateParams* params)
+{
+    int sfd_size;
+    int sfx_size;
+
+    if (params == 0) {
+        MWSFSVM_Error("E1122613 mwPlyCalcWorkCprmSfd: cprm is NULL.");
+        return 0;
+    }
+    sfd_size = mwPlyCalcWorkSfd(params);
+    sfx_size = mwsfcre_CalcWorkSfx(params);
+    return sfd_size + sfx_size;
 }

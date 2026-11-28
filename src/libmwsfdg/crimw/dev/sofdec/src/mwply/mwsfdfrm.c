@@ -122,40 +122,6 @@ extern void MWSFD_SetColAdj(MwsPlayer* player, int adjustment);
 extern void MWSFSFX_SetFxType(MwsPlayer* player, int type);
 extern void MWSFTAG_UpdateTagInf(MwsPlayer* player);
 
-#pragma force_active on
-static const char get_skip_invalid[0x34] =
-    "E202231: mwPlyGetNumSkipDisp: handle is invalid.";
-static const char get_user_invalid[0x34] =
-    "E3122201: mwPlyGetNextPicUsr: handle is invalid.";
-static const char next_frame_invalid[0x34] =
-    "E1122618: mwPlyIsNextFrmReady: handle is invalid.";
-static const char release_frame_invalid[0x30] =
-    "E1122615: mwPlyRelCurFrm: handle is invalid.";
-static const char to_sfd_picture_type[0x24] =
-    "mwl_convPtypeToSFD : Invalid Ptype";
-static const char decide_frame_type[0x34] =
-    "E301271: mwsffrm_DecideFrmType() : Invalid Pstruct";
-static const char from_sfd_picture_type[0x28] =
-    "mwl_convPtypeFromSFD : Invalid Ptype";
-static const char get_fps_failed[0x20] =
-    "E201301: MWSFD: GetFps failed.";
-static const char get_cur_frame_invalid[0x30] =
-    "E1122614: mwPlyGetCurFrm: handle is invalid.";
-static const char get_sync_invalid[0x30] =
-    "E2010801: mwPlyGetFrmSync: handle is invalid.";
-static const char set_sync_invalid[0x34] =
-    "E1122629: mwPlySetFrmSync: handle is invalid.";
-#pragma force_active off
-
-static inline int mwPlyIsNextFrmReady(MwsPlayer* player)
-{
-    if (MWSFD_IsEnableHndl(player) == 0) {
-        MWSFSVM_Error(next_frame_invalid);
-        return 0;
-    }
-    return SFD_IsNextFrmReady(mwPlyGetSfdHn(player));
-}
-
 static inline int mwsffrm_IsCurCcs(MwsPlayer* player)
 {
     int index = player->current_header % 8;
@@ -244,6 +210,37 @@ int mwPlyGetFxType(MwsPlayer* player)
     return type;
 }
 
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x50); RE4 mwsfdfrm.c body ported, compiles to 0x50. */
+int mwPlyGetNumSkipDisp(MwsPlayer* player)
+{
+    if (MWSFD_IsEnableHndl(player) == 0) {
+        MWSFSVM_Error("E202231: mwPlyGetNumSkipDisp: handle is invalid.");
+        return 0;
+    }
+    return player->skipped_frames;
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0xA0); RE4 mwsfdfrm.c body ported, compiles to 0x64 (body incomplete). */
+void* mwPlyGetNextPicUsr(MwsPlayer* player, int* size)
+{
+    if (MWSFD_IsEnableHndl(player) == 0) {
+        MWSFSVM_Error("E3122201: mwPlyGetNextPicUsr: handle is invalid.");
+        return 0;
+    }
+    *size = player->picture_user_size;
+    return player->picture_user_data;
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x58); RE4 mwsfdfrm.c body ported, compiles to 0x58. */
+int mwPlyIsNextFrmReady(MwsPlayer* player)
+{
+    if (MWSFD_IsEnableHndl(player) == 0) {
+        MWSFSVM_Error("E1122618: mwPlyIsNextFrmReady: handle is invalid.");
+        return 0;
+    }
+    return SFD_IsNextFrmReady(mwPlyGetSfdHn(player));
+}
+
 void mwPlyRelCurFrm(MwsPlayer* player)
 {
     SfdHandle* sfd;
@@ -252,7 +249,7 @@ void mwPlyRelCurFrm(MwsPlayer* player)
     int released;
 
     if (MWSFD_IsEnableHndl(player) == 0) {
-        MWSFSVM_Error(release_frame_invalid);
+        MWSFSVM_Error("E1122615: mwPlyRelCurFrm: handle is invalid.");
         return;
     }
     frame = player->current_frame;
@@ -264,6 +261,32 @@ void mwPlyRelCurFrm(MwsPlayer* player)
         player->released_frames++;
         player->acquired_frames = player->released_frames;
     }
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x78); RE4 mwsfdfrm.c body plus a case 4 arm, compiles to 0x78. */
+int mwl_convPtypeToSFD(int type)
+{
+    int result;
+
+    switch (type) {
+    case 1:
+        result = 1;
+        break;
+    case 2:
+        result = 2;
+        break;
+    case 3:
+        result = 3;
+        break;
+    case 4:
+        result = 4;
+        break;
+    default:
+        MWSFSVM_Error("mwl_convPtypeToSFD : Invalid Ptype");
+        result = 3;
+        break;
+    }
+    return result;
 }
 
 void mwPlyCalcYccPlane(void* buffer, int width, int height,
@@ -278,6 +301,58 @@ void mwPlyCalcYccPlane(void* buffer, int width, int height,
     output->y_pitch = plane.y_pitch;
     output->cb_pitch = plane.c_pitch;
     output->cr_pitch = plane.c_pitch;
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0xA4); body of mwPlyGetCurFrm's frame-type block, compiles to 0xA4. */
+static int mwsffrm_DecideFrmType(MwsPlayer* player, SfdVideoFrameInfo* frame)
+{
+    int result = 0;
+
+    switch (frame->field_58) {
+    case 3:
+        if ((signed char)frame->fields_6C[0] == 0) {
+            result = 2;
+        }
+        break;
+    case 1:
+    case 2:
+        result = 2;
+        break;
+    case 0:
+    default:
+        MWSFSVM_Error("E301271: mwsffrm_DecideFrmType() : Invalid Pstruct");
+        break;
+    }
+    if (MWSFD_GetUsePicUsr() == 1 && MWSFD_IsFrmDivField(player) == 1) {
+        result = 2;
+    }
+    return result;
+}
+
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x78); RE4 mwsfdfrm.c body ported, compiles to 0x78. */
+static int mwl_convPtypeFromSFD(int type)
+{
+    int result;
+
+    switch (type) {
+    case 1:
+        result = 1;
+        break;
+    case 2:
+        result = 2;
+        break;
+    case 3:
+        result = 3;
+        break;
+    case 4:
+        result = 4;
+        break;
+    default:
+        MWSFSVM_Error("mwl_convPtypeFromSFD : Invalid Ptype");
+        result = 1;
+        break;
+    }
+    return result;
 }
 
 void mwl_convFrmInfFromSFD(MwsPlayer* player, SfdVideoFrameInfo* source,
@@ -342,7 +417,7 @@ void mwl_convFrmInfFromSFD(MwsPlayer* player, SfdVideoFrameInfo* source,
         picture_type = 4;
         break;
     default:
-        MWSFSVM_Error(from_sfd_picture_type);
+        MWSFSVM_Error("mwl_convPtypeFromSFD : Invalid Ptype");
         picture_type = 1;
         break;
     }
@@ -353,7 +428,7 @@ void mwl_convFrmInfFromSFD(MwsPlayer* player, SfdVideoFrameInfo* source,
     field_38 = source->field_24;
     field_3C = source->field_28;
     if (SFD_GetFps(sfd, &frame_rate) != 0) {
-        MWSFSVM_Error(get_fps_failed);
+        MWSFSVM_Error("E201301: MWSFD: GetFps failed.");
     }
     divisor = display_scale * 1000;
     display_time = UTY_MulDiv(display_time_source, frame_rate, divisor);
@@ -419,7 +494,7 @@ void mwPlyGetCurFrm(void* object, void* output)
     int effect_type;
 
     if (MWSFD_IsEnableHndl(player) == 0) {
-        MWSFSVM_Error(get_cur_frame_invalid);
+        MWSFSVM_Error("E1122614: mwPlyGetCurFrm: handle is invalid.");
         frame_output->frame = 0;
         return;
     }
@@ -506,7 +581,7 @@ void mwPlyGetCurFrm(void* object, void* output)
             break;
         case 0:
         default:
-            MWSFSVM_Error(decide_frame_type);
+            MWSFSVM_Error("E301271: mwsffrm_DecideFrmType() : Invalid Pstruct");
             break;
         }
         if (MWSFD_GetUsePicUsr() == 1 && MWSFD_IsFrmDivField(player) == 1) {
@@ -522,10 +597,20 @@ void mwPlyGetCurFrm(void* object, void* output)
     }
 }
 
+/* TODO: [provisional] linker-stripped (MAP UNUSED 0x50); RE4 mwsfdfrm.c body ported, compiles to 0x50. */
+int mwPlyGetFrmSync(MwsPlayer* player)
+{
+    if (MWSFD_IsEnableHndl(player) == 0) {
+        MWSFSVM_Error("E2010801: mwPlyGetFrmSync: handle is invalid.");
+        return 0;
+    }
+    return player->frame_sync;
+}
+
 void mwPlySetFrmSync(MwsPlayer* player, int sync)
 {
     if (MWSFD_IsEnableHndl(player) == 0) {
-        MWSFSVM_Error(set_sync_invalid);
+        MWSFSVM_Error("E1122629: mwPlySetFrmSync: handle is invalid.");
         return;
     }
     player->frame_sync = sync;
