@@ -1233,7 +1233,7 @@ config.libs = [
             Object(NonMatching, "konquest_time.o",
                    source="game/konquest_time.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on"]),
-            Object(NonMatching, "cam.o", source="runtime/cam.c",
+            Object(Matching("GQNE5D"), "cam.o", source="runtime/cam.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly", "-inline auto,deferred"]),
             Object(Matching, "krypt.o", source="game/krypt.c",
                    extra_cflags=["-use_lmw_stmw on", "-O4,s",
