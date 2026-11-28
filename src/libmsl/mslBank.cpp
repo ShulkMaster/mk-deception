@@ -164,15 +164,16 @@ extern "C" void* mslBankUnLoad(mslLoadedBank* bank) {
     return 0;
 }
 
-/* TODO: [breakthrough needed] 93.88%; loop 2 lacks retail's register cursor (r10) beside the
- * address-taken command_item slot (8(r1)); remaining rows follow from it. */
 extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
-    mslBankSoundDefinition* definition;
-    mslBankSoundEntry* sound_entry;
     mslBankWaveEntry* wave;
-    mslCmdItem* command_item;
     int i;
+    mslBankSoundEntry* sound_entry;
+    mslBankSoundDefinition* definition;
+    mslCmdItem* command_item;
     int j;
+    mslBankSoundDefinition* sound_definition;
+    mslCmdItem** command_slot;
+    mslCmdItem* next_command;
 
     bank->waves.pointer =
         (mslBankWaveEntry*)bank->At(bank->waves.offset);
@@ -187,22 +188,23 @@ extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
     bank->string_table.pointer = bank->At(bank->string_table.offset);
 
     definition = bank->definitions.pointer;
-    command_item = bank->command_items.pointer;
-    sound_entry = bank->sounds.pointer;
-    for (i = 0; i < bank->sound_count; i++, sound_entry++, definition++) {
+    next_command = bank->command_items.pointer;
+    for (i = 0, sound_entry = bank->sounds.pointer; i < bank->sound_count;
+         i++, sound_entry++, definition++) {
         sound_entry->definition = definition;
         sound_entry->owner_bank = bank;
     }
 
     sound_entry = bank->sounds.pointer;
     for (i = 0; i < bank->sound_count; i++, sound_entry++) {
-        mslBankSoundDefinition* sound_definition = sound_entry->definition;
-        mslCmdItem** command_slot = &sound_definition->commands;
+        sound_definition = sound_entry->definition;
+        command_slot = &sound_definition->commands;
 
         for (j = 0; j < sound_definition->command_count; j++) {
-            *command_slot = command_item;
-            command_item++;
+            *command_slot = next_command++;
+            command_item = *command_slot;
             command_slot = &command_item;
+            command_item++;
         }
     }
 
@@ -219,30 +221,31 @@ extern "C" void* mslBankUpdatePtrs(mslLoadedBank* bank) {
 
     sound_entry = bank->sounds.pointer;
     for (i = 0; i < bank->sound_count; i++, sound_entry++) {
-        definition = sound_entry->definition;
-        command_item = definition->commands;
-        for (j = 0; j < definition->command_count; j++, command_item++) {
-            u32 source_offset;
+        sound_definition = sound_entry->definition;
+        command_item = sound_definition->commands;
+        for (j = 0; j < sound_definition->command_count; j++, command_item++) {
             if (command_item->value == 32767000.0f) {
                 command_item->value = -1.0f;
             }
 
-            source_offset = command_item->source.offset;
-            if (source_offset != 0xffffffff) {
+            if (command_item->source.pointer != (void*)-1) {
                 if (((bank->flags & 0x10) == 0 ||
                      command_item->type == 5 ||
                      command_item->type == 6) &&
-                    (source_offset & 0xf0000000) !=
+                    ((u32)command_item->source.pointer & 0xf0000000) !=
                         0x20000000) {
-                    command_item->source.offset =
-                        source_offset + bank->string_table.offset;
+                    command_item->source.pointer =
+                        (char*)command_item->source.pointer +
+                        bank->string_table.offset;
                 }
             } else {
                 command_item->source.pointer = 0;
             }
 
-            if (command_item->target.offset != 0xffffffff) {
-                command_item->target.offset += bank->string_table.offset;
+            if (command_item->target.pointer != (void*)-1) {
+                command_item->target.pointer =
+                    (char*)command_item->target.pointer +
+                    bank->string_table.offset;
             } else {
                 command_item->target.pointer = 0;
             }
