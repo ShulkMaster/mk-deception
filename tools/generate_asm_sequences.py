@@ -183,6 +183,7 @@ def emit_macro(
     text: bool = False,
     stack: tuple[str, int, int, bool] | None = None,
     rebind: dict[str, tuple[str, int]] | None = None,
+    opaque: frozenset[int] = frozenset(),
 ) -> list[str]:
     """Emit SEQ_<name>.  A whole function is a `nofralloc` asm function body.
     A block is a run of instructions inside a C function, invoked from an
@@ -194,7 +195,10 @@ def emit_macro(
     branch targets as labels, so the compiler sees its registers.
     `rebind` (macro parameter -> (register, address)) spells a register that
     the block redefines with a second C operand: the destination of the
-    instruction at `address` and every later use of that register."""
+    instruction at `address` and every later use of that register.
+    `opaque` lists addresses of a text block that are emitted as `opword`
+    all the same: instructions the compiler would delete once it can read
+    them (an unreachable branch, a register move it believes dead)."""
     parameters = (list(operands) if operands else []) + list(rebind or {})
     register_to_parameter = {register: name for name, register in (operands or {}).items()}
     lines = [f"#define SEQ_{sequence.name}({', '.join(parameters)}) \\"]
@@ -219,6 +223,9 @@ def emit_macro(
             sequence.address + 4 * len(sequence.instructions) in label_at
         )
         suffix = "" if last else " \\"
+        if sequence.address + 4 * index in opaque:
+            lines.append(f"    opword 0x{word:08X};{suffix}")
+            continue
         assembly = rename_symbols(assembly, symbols or {})
         if text:
             assembly = LOCAL_TARGET_RE.sub(r"L_\1", assembly)
@@ -497,6 +504,14 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
                 raise ValueError(f"{name}.operands: expected an object")
             sequence = block_sequence(name, parent, address, size, raw_operands, text)
             rebind = block_rebind(name, sequence, raw_operands, entry.get("rebind"))
+            raw_opaque = entry.get("opaque", [])
+            if not isinstance(raw_opaque, list) or (raw_opaque and not text):
+                raise ValueError(f'{name}.opaque: needs "text": true and a list of addresses')
+            opaque = frozenset(
+                parse_int(value, f"{name}.opaque") for value in raw_opaque
+            )
+            if any(not address <= value < address + size or value % 4 for value in opaque):
+                raise ValueError(f"{name}.opaque: address outside the block")
             lines.extend(
                 emit_macro(
                     sequence,
@@ -507,6 +522,7 @@ def generate(manifest_path: Path, version: str, build_root: Path) -> tuple[Path,
                     text=text,
                     stack=stack,
                     rebind=rebind,
+                    opaque=opaque,
                 )
             )
             lines.append("")

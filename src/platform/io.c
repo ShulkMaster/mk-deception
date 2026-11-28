@@ -521,8 +521,6 @@ static void execute_scan_sequence_cmd(unsigned int action,
 
 }
 
-/* TODO: [near miss] 99.93%; requirement_count decrement order: retail issues the SR
- * requirements*4 decrement before it (pre-RA pcode has biv first); next: CTR/peephole order. */
 void scan_switch_sequences(unsigned int* sequence) {
     struct SwitchLogEntry* switch_log;
     int requirement_count;
@@ -580,8 +578,8 @@ void scan_switch_sequences(unsigned int* sequence) {
         }
         history = log_index;
         for (; requirement_count-- > 0;) {
-            entry = &switch_log[history];
-            if (--history < 0) history = 29;
+            entry = &switch_log[history--];
+            if (history < 0) history = 29;
             expected = requirements[requirement_count];
             switch (expected) {
             case 0x80000001:
