@@ -39,7 +39,7 @@ typedef char RwMatrixSizeCheck[sizeof(RwMatrix) == 0x40 ? 1 : -1];
         (m)->right.y = (m)->right.z = (m)->up.x = 0.0f;                       \
         (m)->up.z = (m)->at.x = (m)->at.y = 0.0f;                             \
         (m)->pos.x = (m)->pos.y = (m)->pos.z = 0.0f;                          \
-        (m)->flags |= 0x20003;                                                \
+        (m)->flags = (m)->flags | 0x20003;                                    \
     } while (0)
 
 typedef int RwOpCombineType;

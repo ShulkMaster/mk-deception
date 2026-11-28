@@ -19,6 +19,11 @@ public:
 
     void Clear();
 
+    ScreenAction* GetNext() const { return m_next; }
+    ScreenEvent* GetEvent() const { return m_event; }
+    unsigned int GetEventIndex() const { return m_eventIndex; }
+    unsigned int GetFlags() const { return m_flags; }
+
     void* operator new(size_t size);
     void operator delete(void* p);
 
@@ -29,7 +34,7 @@ public:
     unsigned int field_0x14;
     ScreenEvent* m_event;
     int m_arg;
-    int m_eventIndex;
+    unsigned int m_eventIndex;
     unsigned int m_id;
     unsigned int m_flags;
     ScreenObject* m_object;

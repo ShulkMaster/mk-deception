@@ -69,14 +69,13 @@ void ScreenAnimScene::SnapToTime(int time) {
     m_flags &= ~ANIM_SCENE_PLAYING;
 }
 
-/* TODO: [near miss] 99.87654%; all eight-local orders retain the direction/count conflict;
- * recover a real count boundary above the hoisted enum conversion. */
 void ScreenAnimScene::Process(int dt) {
     AnimDirectionE dir;
     int processed;
     int finished;
     SEAnimSceneData_t* data;
     int effectCount;
+    int direction;
     int trackIdx;
     int effectIdx;
     SEAnimTrack_t* track;
@@ -108,6 +107,7 @@ void ScreenAnimScene::Process(int dt) {
         }
     }
 
+    direction = dir;
     for (trackIdx = 0; trackIdx < data->trackCount; trackIdx++) {
         track = SEAnimTrackAt(data, trackIdx);
         localTime = m_time - track->timeOffset;
@@ -116,7 +116,7 @@ void ScreenAnimScene::Process(int dt) {
             ScreenAnimEffect* effect = track->effects->effects[effectIdx];
             if (effect != 0) {
                 processed += 1;
-                done = effect->Process(localTime, dir, m_elements);
+                done = effect->Process(localTime, direction, m_elements);
                 if (done != 0) {
                     finished += 1;
                 }
