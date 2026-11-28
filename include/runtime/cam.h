@@ -138,6 +138,7 @@ float get_pan_value(Vec* position);
 void get_target_movement_vector(const Vec* current_position,
                                 const Vec* target_position, Vec* movement,
                                 float duration);
+void get_new_target(const Vec* target, const Vec* step, Vec* current);
 void interaction_cam_set_target_info(
     float angle_a, float field_14, float field_18, float angle_b,
     float field_20, float field_24, int duration);
