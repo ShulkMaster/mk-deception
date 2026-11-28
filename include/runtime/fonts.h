@@ -66,7 +66,7 @@ extern FontTableEntry font_table[18];
 extern FontStringRow string_table[];
 extern int string_tbl_size;
 
-PfxFontSlot* load_font(int slot);
+PfxFontSlot* load_font(unsigned int slot);
 PfxFontSlot* load_font_in_slot(int slot, int handle, int tga_arg, int binary_id);
 PfxFontSlot* load_named_font(const char* name);
 void unload_font(int slot);

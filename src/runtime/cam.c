@@ -85,20 +85,29 @@ struct FadeBoxItem {
     unsigned int instance;
 };
 
-extern float DEFAULT_FIELD_OF_VIEW;
-extern float DEFAULT_ASPECTRATIO;
-extern float cam_fov;
-extern float camera_speed;
-extern float cam_rot_speed;
-extern float field_of_view_ratio;
-extern int end_round_cam_done;
-extern int camera_mode;
-extern float right_frustum_plane_dist;
-extern float left_frustum_plane_dist;
-extern struct FadeBoxItem lower_fade_box_item;
-extern struct FadeBoxItem upper_fade_box_item;
+struct CameraScriptMonitorItem {
+    MkProc* node;
+    unsigned int instance;
+};
 
-extern MkProcEntryFn old_camera_function;
+float DEFAULT_ASPECTRATIO = 1.3333334f;
+float DEFAULT_FIELD_OF_VIEW = 72.0f;
+RwCamera* Camera = 0;
+float cam_fov = 0.0f;
+int camera_mode = 0;
+CameraItem camera_item;
+CameraObj* camera_obj;
+RwMatrix* camera_mat;
+float camera_speed;
+float cam_rot_speed;
+float field_of_view_ratio;
+int force_midpoint_calculation_update;
+struct CameraScriptMonitorItem camera_script_monitor_item;
+CameraInfo camera_info;
+static float left_frustum_plane_dist;
+static float right_frustum_plane_dist;
+int end_round_cam_done;
+static MkProcEntryFn old_camera_function;
 MslSoundHandle pan_vol_snd_req(int sound_id, float pan, float volume);
 
 Vec cam_ang_offset = {0.0f, 0.0f, 0.0f};
@@ -367,15 +376,6 @@ struct CameraScriptPdata {
     int flags;
 };
 
-struct CameraScriptMonitorItem {
-    MkProc* node;
-    unsigned int instance;
-};
-
-static int number_of_danger_zones;
-int force_midpoint_calculation_update;
-static float conversation_interaction_angle;
-extern struct CameraScriptMonitorItem camera_script_monitor_item;
 extern struct ActiveNpcCameraView* g_active_npc;
 extern struct KonquestCameraPdataView* konquest_pdata;
 
@@ -419,28 +419,6 @@ static inline void add_camera_offsets_impl(void) {
     camera->ang.z += cam_ang_offset.z;
 }
 
-static inline void get_target_movement_vector_impl(
-    const Vec* const current_position, const Vec* const target_position,
-    Vec* const movement, float duration) {
-    static float units_per_tick;
-    Vec delta;
-    Vec direction;
-    float length;
-    float inverse_length;
-
-    delta.x = target_position->x - current_position->x;
-    delta.y = target_position->y - current_position->y;
-    delta.z = target_position->z - current_position->z;
-    length = gxMathFastSqrt(delta.z * delta.z +
-                            (delta.x * delta.x + delta.y * delta.y));
-    units_per_tick = length / (60.0f * (0.6f * duration));
-    inverse_length = gxMathFastInvSqrt(delta.z * delta.z +
-                                       (delta.x * delta.x + delta.y * delta.y));
-    gxVectScale(&direction, &delta, inverse_length);
-    movement->x = direction.x * units_per_tick;
-    movement->y = direction.y * units_per_tick;
-    movement->z = direction.z * units_per_tick;
-}
 static void mkproc_jump_sleep(MkProcEntryFn entry);
 static void mkproc_sleep(void);
 
@@ -1514,11 +1492,8 @@ void set_camera_velocity(CamVec3* velocity) {
 }
 
 void set_camera_focal_length(float focal_length) {
-    float view_window;
-
-    view_window = 20.7f / (2.0f * focal_length);
-    cam_fov = 114.59156f * gxMathArcTan(view_window);
-    CameraSize(Camera, 0, view_window, DEFAULT_ASPECTRATIO);
+    cam_fov = 114.59156f * gxMathArcTan(20.7f / (2.0f * focal_length));
+    CameraSize(Camera, 0, 20.7f / (2.0f * focal_length), DEFAULT_ASPECTRATIO);
 }
 
 void look_at_target(Vec* target) {
@@ -1545,16 +1520,16 @@ void look_at_target(Vec* target) {
 
 int move_to_end_point(const Vec* endpoint, float* initial_speed,
                       float* final_speed, int reset, float time) {
-    static unsigned int num_ticks;
-    static float desired_speed;
+    static unsigned int num_ticks = 0;
+    static float desired_speed = 0.0f;
     static int initializing = 1;
-    static float speed_increment;
-    static float current_speed;
-    static unsigned int blending_ticks;
-    static float decelerate_distance;
-    static float final_speed_increment;
-    static int decelerating;
-    static float distance_traveled;
+    static float speed_increment = 0.0f;
+    static float current_speed = 0.0f;
+    static unsigned int blending_ticks = 0;
+    static float decelerate_distance = 0.0f;
+    static float final_speed_increment = 0.0f;
+    static int decelerating = 0;
+    static float distance_traveled = 0.0f;
     static Vec unit_vector = {0.0f, 0.0f, 0.0f};
     CameraObj* camera;
     float dx;
@@ -1659,19 +1634,19 @@ int move_to_end_point(const Vec* endpoint, float* initial_speed,
 int orbit_position_to_end_point(Vec* center, Vec* endpoint,
                                 float* initial_speed, float* final_speed,
                                 float time, unsigned int direction, int reset) {
-    static unsigned int num_ticks;
+    static unsigned int num_ticks = 0;
     static Vec swing_vector = {0.0f, 0.0f, 0.0f};
-    static float desired_speed;
+    static float desired_speed = 0.0f;
     static int initializing = 1;
-    static float speed_increment;
-    static float current_speed;
-    static unsigned int blending_ticks;
-    static float angle_rotated;
-    static float radius_increment;
-    static float height_increment;
-    static float decelerate_angle;
-    static float final_speed_increment;
-    static int decelerating;
+    static float speed_increment = 0.0f;
+    static float current_speed = 0.0f;
+    static unsigned int blending_ticks = 0;
+    static float angle_rotated = 0.0f;
+    static float radius_increment = 0.0f;
+    static float height_increment = 0.0f;
+    static float decelerate_angle = 0.0f;
+    static float final_speed_increment = 0.0f;
+    static int decelerating = 0;
     static float initial_height;
     static float initial_radius;
     static float angle = 10.0f;
@@ -1958,14 +1933,65 @@ void set_camera_target_angle(CamVec3* angle) {
     camera_info.pdata->target_ang.z = angle->z;
 }
 
+static int number_of_danger_zones;
+static struct FadeBoxItem upper_fade_box_item;
+static struct FadeBoxItem lower_fade_box_item;
+static float conversation_interaction_angle;
+
 void get_target_movement_vector(const Vec* current_position,
                                 const Vec* target_position, Vec* movement,
                                 float duration) {
-    if (current_position == 0 || target_position == 0 || movement == 0) {
+    static float units_per_tick;
+    Vec delta;
+    Vec direction;
+    float length;
+    float inverse_length;
+
+    if (!current_position || !target_position || !movement) {
         return;
     }
-    get_target_movement_vector_impl(current_position, target_position,
-                                        movement, duration);
+    delta.x = target_position->x - current_position->x;
+    delta.y = target_position->y - current_position->y;
+    delta.z = target_position->z - current_position->z;
+    length = gxMathFastSqrt(delta.z * delta.z +
+                            (delta.x * delta.x + delta.y * delta.y));
+    units_per_tick = length / (60.0f * (0.6f * duration));
+    inverse_length = gxMathFastInvSqrt(delta.z * delta.z +
+                                       (delta.x * delta.x + delta.y * delta.y));
+    gxVectScale(&direction, &delta, inverse_length);
+    movement->x = direction.x * units_per_tick;
+    movement->y = direction.y * units_per_tick;
+    movement->z = direction.z * units_per_tick;
+}
+
+static inline float camera_vector_length_squared(const Vec* v) {
+    return v->x * v->x + v->y * v->y + v->z * v->z;
+}
+
+void get_new_target(const Vec* target, const Vec* step, Vec* current) {
+    float step_length;
+    float dz;
+    float dy;
+    float dx;
+    float remaining_length;
+
+    if (!target || !step || !current) {
+        return;
+    }
+    step_length = gxMathFastSqrt(camera_vector_length_squared(step));
+    dx = target->x - current->x;
+    dy = target->y - current->y;
+    dz = target->z - current->z;
+    remaining_length = gxMathFastSqrt(dx * dx + dy * dy + dz * dz);
+    if (remaining_length < step_length) {
+        current->x = target->x;
+        current->y = target->y;
+        current->z = target->z;
+    } else {
+        current->x += step->x;
+        current->y += step->y;
+        current->z += step->z;
+    }
 }
 
 float p_puzzle_game_camera_proc(void) {
@@ -5597,6 +5623,10 @@ float p_mk_chess_cam_chase_cursor(void) {
     return 1.0f;
 }
 
+static float fn_stub1(void) {
+    return 4.0f;
+}
+
 static int BezierCamera_GetNextPoint(struct BezierCamera* camera, Vec* point) {
     if (camera->time > 1.0f) {
         BezierCamera_Evaluate(camera, 1.0f, point);
@@ -5765,29 +5795,6 @@ static inline void camera_direction_angles(Vec* angles, float dx, float dy,
     v3_to_xy_ang(angles, &direction);
 }
 
-static inline float camera_vector_length_squared(const Vec* v) {
-    return v->x * v->x + v->y * v->y + v->z * v->z;
-}
-
-static inline int camera_target_within_step(const Vec* current,
-                                            const Vec* target,
-                                            const Vec* step) {
-    float step_length = gxMathFastSqrt(camera_vector_length_squared(step));
-    float dz;
-    float dy;
-    float dx;
-    float remaining_length;
-
-    dx = target->x - current->x;
-    dy = target->y - current->y;
-    dz = target->z - current->z;
-    remaining_length = gxMathFastSqrt(dx * dx + dy * dy + dz * dz);
-
-    return remaining_length < step_length;
-}
-
-/* TODO: [near miss] 99.96622%; get_target_movement_vector_impl numbers the units_per_tick load above the
- * direction.x product (retail below it); the out-of-line wrapper needs its three static reads. */
 static float generic_victory_camera(void) {
     MkProc* camera_proc = camera_info.proc;
     CameraPdata* pdata = camera_info.pdata;
@@ -5897,21 +5904,12 @@ static float generic_victory_camera(void) {
     }
 
     camera_copy_look_target(&current_look_target, &moving_look_target);
-    get_target_movement_vector_impl(&current_look_target, &look_target,
+    get_target_movement_vector(&current_look_target, &look_target,
                                     &look_step, travel_time);
 
     while (move_to_end_point(&destination, &initial_speed, &final_speed, 0,
                              travel_time) == 0) {
-        if (camera_target_within_step(&current_look_target, &look_target,
-                                      &look_step)) {
-            current_look_target.x = look_target.x;
-            current_look_target.y = look_target.y;
-            current_look_target.z = look_target.z;
-        } else {
-            current_look_target.x += look_step.x;
-            current_look_target.y += look_step.y;
-            current_look_target.z += look_step.z;
-        }
+        get_new_target(&look_target, &look_step, &current_look_target);
 
         chess_camera_look_at(&current_look_target);
         remove_camera_offsets_impl();

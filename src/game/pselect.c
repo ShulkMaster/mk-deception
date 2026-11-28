@@ -2589,13 +2589,10 @@ float p_pselect(void) {
 
 static void init_startup_selboxes(void);
 
-/* TODO: [near miss] 98.29480%; coloring only: p1_pos/p2_pos must number above the
- * hoisted mask/table loads (retail r28/r17); recover their owner kind. */
 static void init_startup_selboxes(void) {
     int max_col;
-    int p1_pos;
-    int p2_pos;
     int mop;
+    int i;
 
     mop = mode_of_play;
     p1_selbox_start_pos = 2;
@@ -2614,28 +2611,24 @@ static void init_startup_selboxes(void) {
         break;
     }
 
-    p1_pos = p1_selbox_start_pos;
-    while (is_char_locked(get_char_from_tbl(p1_pos), 0)) {
-        p1_pos += 1;
-        if (p1_pos > max_col) {
-            p1_pos = 0;
+    for (i = 0; is_char_locked(get_char_from_tbl(p1_selbox_start_pos), 0); i++) {
+        p1_selbox_start_pos += 1;
+        if (p1_selbox_start_pos > max_col) {
+            p1_selbox_start_pos = 0;
         }
     }
-    p1_selbox_start_pos = p1_pos;
-    p1_selbox_pos = p1_pos;
+    p1_selbox_pos = p1_selbox_start_pos;
     if (g_game_info.plyr0.player_state == 1) {
         fire_screen_studio_event(0x1FA4, 0);
     }
 
-    p2_pos = p2_selbox_start_pos;
-    while (is_char_locked(get_char_from_tbl(p2_pos), 0)) {
-        p2_pos -= 1;
-        if (p2_pos < 0) {
-            p2_pos = max_col;
+    for (i = 0; is_char_locked(get_char_from_tbl(p2_selbox_start_pos), 0); i++) {
+        p2_selbox_start_pos -= 1;
+        if (p2_selbox_start_pos < 0) {
+            p2_selbox_start_pos = max_col;
         }
     }
-    p2_selbox_start_pos = p2_pos;
-    p2_selbox_pos = p2_pos;
+    p2_selbox_pos = p2_selbox_start_pos;
     if (g_game_info.plyr1.player_state == 1) {
         fire_screen_studio_event(0x1FA4, 1);
     }

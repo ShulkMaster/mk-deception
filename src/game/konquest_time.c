@@ -1,10 +1,10 @@
 #include "game/konquest_time.h"
 
 static inline unsigned int calc_priority_value_for_event(const KonquestTime* time) {
-    int has_year = time->year != -1;
-    unsigned int specified = time->month == -1 ? 0 : 2;
+    unsigned int specified = 0;
 
-    specified = has_year | specified;
+    specified |= time->year == -1 ? 0 : 1;
+    specified |= time->month == -1 ? 0 : 2;
     specified |= time->day_of_week == -1 ? 0 : 4;
     specified |= time->day_of_month == -1 ? 0 : 8;
     return specified;
@@ -44,8 +44,6 @@ KonquestTimedEvent* npc_which_event_is_more_recent(
     return event_b;
 }
 
-/* TODO: [near miss] 99.74359%; weekday IRO and month codegen owners differ;
- * no two-edge repair preserves other homes; recover their original producer. */
 static KonquestTimedEvent* which_event_is_more_recent(
     const KonquestTime* current, KonquestTimedEvent* event_a,
     KonquestTimedEvent* event_b) {
@@ -103,23 +101,13 @@ static KonquestTimedEvent* which_event_is_more_recent(
     return event_b;
 }
 
-/* TODO: [near miss] 94.97%; retail is two calc_priority_value_for_event shapes (year|month first);
- * a-side OR order and b month/dow load homes differ; the canonical helper call is 49 words off. */
 int does_event_a_trump_event_b(
     const KonquestTimedEvent* event_a, const KonquestTimedEvent* event_b) {
-    int day_of_month_a;
     unsigned int specificity_a;
     unsigned int specificity_b;
-    int has_year_b;
 
-    day_of_month_a = event_a->time.day_of_month;
-    specificity_a = (day_of_month_a == -1 ? 0 : 8) |
-                    ((event_a->time.day_of_week == -1 ? 0 : 4) |
-                     ((event_a->time.month == -1 ? 0 : 2) |
-                      (event_a->time.year == -1 ? 0 : 1)));
-    has_year_b = event_b->time.year != -1;
-    specificity_b = has_year_b | (event_b->time.month == -1 ? 0 : 2) | (event_b->time.day_of_week == -1 ? 0 : 4);
-    specificity_b |= event_b->time.day_of_month == -1 ? 0 : 8;
+    specificity_a = calc_priority_value_for_event(&event_a->time);
+    specificity_b = calc_priority_value_for_event(&event_b->time);
     if (specificity_a > specificity_b) {
         return 1;
     }

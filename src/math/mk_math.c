@@ -31,7 +31,7 @@ static const float kV3ToQuatAntiParallel = -0.9999f;
 static const float kHugeNeg = -1.0e21f;
 static const float kHugePos = 1.0e21f;
 
-static float mk_inv_sqrt(float x) {
+static inline float mk_inv_sqrt(float x) {
 #ifdef VERSION_GQNE5D
     union {
         float f;
@@ -88,6 +88,14 @@ int intersect_xz_lines(const Vec* p, const Vec* dir, Vec* out, float a, float b)
     return 1;
 }
 
+static void fn_stub1(float* x) {
+    x[0] = 0.5f;
+    x[1] = 2.0f;
+    x[2] = 1.0f;
+    x[3] = 3.0f;
+    x[4] = 0.001f;
+}
+
 #pragma push
 #pragma scheduling off
 void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float t) {
@@ -97,18 +105,15 @@ void parametric_ray_to_point(Vec* out, const Vec* origin, const Vec* dir, float 
 }
 #pragma pop
 
-/* TODO: [near miss] 99.61207%; FPR colouring only after the nx/ny/nz accumulator staging;
- * remaining vector/denom homes differ. */
 int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, const Vec* cylAxis,
                          float radius, float* tNear, float* tFar) {
-    float nx;
-    float ny;
-    float nz;
+    Vec n;
     float lenN;
     Vec displacement;
     float invLen;
     float dist;
     int hit;
+    Vec perpendicular;
     Vec vector;
     float lenQ;
     float invQ;
@@ -118,29 +123,25 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
     float chordOffset;
     float lenO;
 
-    nx = dir->z;
-    nx = dir->y * cylAxis->z - nx * cylAxis->y;
-    ny = dir->z;
-    ny = ny * cylAxis->x - dir->x * cylAxis->z;
-    nz = dir->y;
-    nz = dir->x * cylAxis->y - nz * cylAxis->x;
     displacement.x = origin->x - cylPos->x;
     displacement.y = origin->y - cylPos->y;
     displacement.z = origin->z - cylPos->z;
-    lenN = nx * nx + ny * ny + nz * nz;
+    n.x = dir->y * cylAxis->z - dir->z * cylAxis->y;
+    n.y = dir->z * cylAxis->x - dir->x * cylAxis->z;
+    n.z = dir->x * cylAxis->y - dir->y * cylAxis->x;
+    lenN = n.x * n.x + n.y * n.y + n.z * n.z;
     invLen = gxMathFastSqrt(lenN);
 
     if (invLen < kTiny) {
         dist = displacement.x * cylAxis->x + displacement.y * cylAxis->y + displacement.z * cylAxis->z;
-        dist = -dist;
-        vector.x = cylAxis->x * dist;
-        vector.y = cylAxis->y * dist;
-        vector.z = dist;
-        vector.z *= cylAxis->z;
-        vector.y = vector.y + displacement.y;
-        vector.x = vector.x + displacement.x;
-        vector.z = vector.z + displacement.z;
-        lenO = vector.x * vector.x + vector.y * vector.y + vector.z * vector.z;
+        perpendicular.x = cylAxis->x * -dist;
+        perpendicular.y = cylAxis->y * -dist;
+        perpendicular.z = cylAxis->z * -dist;
+        perpendicular.x += displacement.x;
+        perpendicular.y += displacement.y;
+        perpendicular.z += displacement.z;
+        lenO = perpendicular.x * perpendicular.x + perpendicular.y * perpendicular.y +
+               perpendicular.z * perpendicular.z;
         dist = gxMathFastSqrt(lenO);
         *tNear = kHugeNeg;
         *tFar = kHugePos;
@@ -148,10 +149,10 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
     }
 
     invLen = kOne / invLen;
-    nx *= invLen;
-    ny *= invLen;
-    nz *= invLen;
-    dist = displacement.x * nx + displacement.y * ny + displacement.z * nz;
+    n.x *= invLen;
+    n.y *= invLen;
+    n.z *= invLen;
+    dist = displacement.x * n.x + displacement.y * n.y + displacement.z * n.z;
     if (dist < kZero) {
         dist = -dist;
     }
@@ -160,11 +161,11 @@ int ray_cyl_intersection(const Vec* origin, const Vec* dir, const Vec* cylPos, c
         vector.x = displacement.y * cylAxis->z - displacement.z * cylAxis->y;
         vector.y = displacement.z * cylAxis->x - displacement.x * cylAxis->z;
         vector.z = displacement.x * cylAxis->y - displacement.y * cylAxis->x;
-        tMid = -(vector.x * nx + vector.y * ny + vector.z * nz);
+        tMid = -(vector.x * n.x + vector.y * n.y + vector.z * n.z);
         tMid = invLen * tMid;
-        vector.x = ny * cylAxis->z - nz * cylAxis->y;
-        vector.y = nz * cylAxis->x - nx * cylAxis->z;
-        vector.z = nx * cylAxis->y - ny * cylAxis->x;
+        vector.x = n.y * cylAxis->z - n.z * cylAxis->y;
+        vector.y = n.z * cylAxis->x - n.x * cylAxis->z;
+        vector.z = n.x * cylAxis->y - n.y * cylAxis->x;
         lenQ = vector.x * vector.x + vector.y * vector.y + vector.z * vector.z;
         invQ = mk_inv_sqrt(lenQ);
         vector.y *= invQ;
@@ -430,6 +431,10 @@ void interp_v3(Vec* out, Vec* a, Vec* b, float t) {
     out->x = a->x * t + b->x * s;
     out->y = a->y * t + b->y * s;
     out->z = a->z * t + b->z * s;
+}
+
+static float fn_stub2(void) {
+    return 3.1415927f;
 }
 
 void norm_angles_v3(Vec* ang) {
