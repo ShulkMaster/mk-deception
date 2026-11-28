@@ -523,9 +523,11 @@ static void do_assign_constant_v3(unsigned char* destination, int stride,
     }
 }
 
-/* TODO: [near miss] 99.906%; current_stride assigned before the first cursor gives field_offset its
- * retail colour; the stream-base CSE still takes r3 (retail r5): its data load must be emitted before the
- * stride load while the stride stays a named web. */
+static inline unsigned char* pfx_field_address(unsigned char* data, PfxVmField* const field)
+{
+    return data + field->offset;
+}
+
 void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
 {
     int current_stride;
@@ -537,7 +539,6 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
     unsigned char* current_value;
     unsigned char* argument_value;
     int argument_stride;
-    int field_offset;
     if (behavior->particle_count == 0) {
         return;
     }
@@ -550,11 +551,10 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
         if (previous->data == 0) {
             continue;
         }
-        field_offset = instruction->field.offset;
-        previous_value = previous->data + field_offset;
+        previous_value = previous->data + instruction->field.offset;
+        current_value = pfx_field_address(current->data, &instruction->field) +
+                        current->stride * behavior->active_particle_count;
         current_stride = current->stride;
-        current_value = current->data + field_offset +
-                        current_stride * behavior->active_particle_count;
         switch (instruction->opcode) {
         case 2:
         case 9:
@@ -566,10 +566,10 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
                     behavior->effect, -1,
                     instruction->arguments.field.description);
             } else {
-                argument_value =
+                argument_value = pfx_field_address(
                     behavior->previous_streams[
-                        instruction->arguments.field.stream].data +
-                    instruction->arguments.field.offset;
+                        instruction->arguments.field.stream].data,
+                    &instruction->arguments.field);
             }
             argument_stride =
                 behavior->previous_streams[
@@ -640,9 +640,9 @@ void pfxvm_execute_behavior_update(PfxBehavior* behavior, float frame_time)
             PfxSpawnTable* table;
             PfxVmField* index_field =
                 &instruction->arguments.table.index_field;
-            unsigned char* index_values =
-                behavior->previous_streams[index_field->stream].data +
-                index_field->offset;
+            unsigned char* index_values = pfx_field_address(
+                behavior->previous_streams[index_field->stream].data,
+                index_field);
             table = instruction->arguments.table.table;
             if (pfx_field_get_type(index_field->description) == 4) {
                 do_copy_from_table_int(behavior->particle_count, table,

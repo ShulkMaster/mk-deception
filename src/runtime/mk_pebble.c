@@ -1,6 +1,3 @@
-/* BUILD: TU-wide CSE disable replaces create_pebble_userdata pragmas and also improves
- * pebble_render_callback. */
-
 #include "runtime/mk_pebble.h"
 
 #include "game/collision.h"
@@ -25,12 +22,9 @@ void vdestroy_pebble(PebbleData* pebble_data) {
     mkhdr_memfree(&pebble_data->hdr);
 }
 
-/* TODO: [near miss] 98.46716%; flag-offset/base-reload creation order remains;
- * direct/indexed helper and full named-owner controls are exhausted. */
 PebbleData* create_pebble_userdata(MkSobj* sobj, int count, int user_data_size) {
     RpAtomic* atomic;
     PebbleData* pebble_data;
-    int matrix_total;
     int allocation_size;
     int i;
 
@@ -41,17 +35,15 @@ PebbleData* create_pebble_userdata(MkSobj* sobj, int count, int user_data_size) 
     if (pebble_data == 0) {
         return 0;
     }
-    user_data_size *= count;
-    matrix_total = count * sizeof(Pebble);
-    allocation_size = matrix_total + sizeof(PebbleRenderData);
-    allocation_size += user_data_size;
+    allocation_size = count * sizeof(Pebble) + sizeof(PebbleRenderData);
+    allocation_size += user_data_size * count;
     allocation_size += count * sizeof(PebbleFlags);
     pebble_data->pebbles = get_mem(allocation_size);
     pebble_data->render_data = (PebbleRenderData*)((unsigned char*)pebble_data->pebbles +
-                                                  matrix_total);
+                                                  count * sizeof(Pebble));
     pebble_data->user_data = pebble_data->render_data + 1;
     pebble_data->flags = (PebbleFlags*)((unsigned char*)pebble_data->user_data +
-                                       user_data_size);
+                                       user_data_size * count);
     pebble_data->render_data->callback = atomic->renderCallBack;
     if (pebble_data->render_data->callback == pebble_render_callback) {
         pebble_data->render_data->callback = pebble_render_nothing_callback;
