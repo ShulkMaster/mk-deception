@@ -13,40 +13,7 @@ typedef unsigned int (*ScreenRegisterFn)(const ScreenAction* action);
 struct ScreenRegisterEntry {
     ScreenRegisterFn fn; /* +0x00 */
     unsigned int id; /* +0x04 */
-}; /* 0x08 */
-
-/*
- * ScreenMgr -- Midway screen stack orchestrator (mwScreenEngine).
- *
- * =====================================================================
- * ScreenClient contract (retail LoadScreenSet path)
- * =====================================================================
- *
- * Game owns: Init / LoadScreen / Idle / Render / FireEvent / BroadcastEvent /
- * GetActiveScreen / Open/Close/Append/Remove / Dispose / LoadCompleted.
- *
- * ScreenClient via ScreenUtil: LoadScreenSet / UnloadScreenSet / CreateElement /
- * UnloadScreen / DoneLoadingSet / Malloc / Free / PreloadData / Pre/PostRender.
- *
- * Glue load_screen -> LoadScreen(path,1) -> insert_2d_obj(vtbl_screen_engine)
- * onto image.screen_obj_list -> render_2d_objs -> screen_engine_render -> Render.
- *
- * Retail pointer tables: m_stack[i] / m_branch[i] / m_confirm[i]. Disc SE* blobs
- * keep packed u32 slots at +4 after count (ILP32).
- *
- * Layout (retail GC):
- *   +0x00 vtbl
- *   +0x14 flags (1 after Reset)
- *   +0x18 branch depth (-1 reset)
- *   +0x1c ScreenSet* m_branch[16]
- *   +0x5c / +0xe4 / +0x164 path char buffers
- *   +0xdc root set, +0xe0 current set
- *   +0x1a4 active count (-1 empty), +0x1a8 Screen* m_stack[16]
- *   +0x22c embedded ScreenActionStack (0x1C)
- *   +0x248 m_confirm[4] -- also stage words (GetStage index 1..3 -> [0..2])
- *   +0x258/25c/260 register-action table + fire latch
- */
-
+};
 class ScreenMgr {
 public:
     ScreenMgr();
@@ -59,6 +26,7 @@ public:
 
     void Reset();
     Screen* GetActiveScreen();
+    ScreenActionStack* GetActionStack() { return &m_actionStack; }
     /* Returns 1 on accept (may still be loading); 0 if InitBranchPath fails. */
     int LoadScreen(char* path, unsigned int flags);
 

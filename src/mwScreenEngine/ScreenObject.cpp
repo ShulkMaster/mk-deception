@@ -1,7 +1,3 @@
-/* BUILD: -inline off: keep GetFocus/FireEvent/ProcessEvent as bl (MWCC otherwise inlines them
- * into FireEvent/BroadcastEvent/SetComponent -> 0% / 3-5x size). -O4,s: mtctr/bdnz + stmw for
- * ctor/HasEvent/SetLast/SetComponent loops. */
-
 #include "mwScreenEngine/ScreenObject.h"
 #include "mwScreenEngine/Screen.h"
 #include "mwScreenEngine/ScreenAction.h"
@@ -277,8 +273,6 @@ void ScreenObject::SetParent(ScreenObject* parent) {
     m_parent = parent;
 }
 
-/* TODO: [near miss] 99.35780%; 14 colouring rows: event must number below stack and above
- * both actionType split webs; next: a web-kind change that adds no saved register. */
 void ScreenObject::ProcessSubActions(ScreenMgr* mgr, const ScreenAction* action,
                                      int match) {
     ScreenEvent* event;
@@ -292,11 +286,11 @@ void ScreenObject::ProcessSubActions(ScreenMgr* mgr, const ScreenAction* action,
     unsigned int actionType;
     ScreenAction* next;
 
-    next = action->m_next;
-    event = action->m_event;
-    eventIndex = action->m_eventIndex;
-    flags = action->m_flags;
-    stack = &mgr->m_actionStack;
+    stack = mgr->GetActionStack();
+    next = action->GetNext();
+    event = action->GetEvent();
+    eventIndex = action->GetEventIndex();
+    flags = action->GetFlags();
 
     if (next != 0 && next->m_arg == SCREEN_ACTION_ELSE) {
         static_cast<ScreenElseAction*>(next)->m_takeElse = 0;
@@ -345,11 +339,9 @@ void ScreenObject::ProcessSubActions(const ScreenAction* action, int match) {
     ProcessSubActions(mgr, action, match);
 }
 
-/* TODO: [near miss] 99.66667%; stack/arg-copy swap r26/r28: named stack must number above the LICM arg
- * copy; -inline off turns inline accessors into calls; link blocker with ProcessSubActions. */
 void ScreenObject::ProcessEvent(ScreenMgr* mgr, int eventId, int arg) {
     unsigned int numEvents;
-    unsigned int numActions;
+    int numActions;
     ScreenActionStack* stack;
     unsigned int i;
     int actionType;
@@ -358,7 +350,7 @@ void ScreenObject::ProcessEvent(ScreenMgr* mgr, int eventId, int arg) {
     unsigned int j;
     ScreenParams* params;
 
-    stack = &mgr->m_actionStack;
+    stack = mgr->GetActionStack();
     numEvents = GetNumEvents();
     for (i = 0; i < numEvents; i++) {
         event = GetEvent(i);

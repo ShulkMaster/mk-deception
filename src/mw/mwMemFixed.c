@@ -130,6 +130,7 @@ static inline void privFBHeapPartition(_mwMemHeap* heap) {
     u32 block_count;
     MwMemFreeHeader* header;
     int alignment;
+    u8 prefix_size;
 
     fixedBlockHeapCorrectPads(heap);
     heap->usedList = 0;
@@ -145,7 +146,8 @@ static inline void privFBHeapPartition(_mwMemHeap* heap) {
         header->allocationSize = heap->blockSize + heap->blockPrefixSize;
         header->prefixSize = 0;
         header->heapIndex = 0;
-        header->alignmentPadding = heap->blockPrefixSize;
+        prefix_size = heap->blockPrefixSize;
+        header->alignmentPadding = prefix_size;
         privClearBitFlag(&header->flags);
         privSetAlignInBitFlag(&header->flags, alignment);
         privSetBitFromBitFlag(&header->flags, 5);
@@ -160,13 +162,12 @@ static inline void privFBHeapPartition(_mwMemHeap* heap) {
         }
         index++;
         header = (MwMemFreeHeader*)mwMemByteAddress(header, heap->blockSize);
-        header = (MwMemFreeHeader*)mwMemByteAddress(header, heap->blockPrefixSize);
+        prefix_size = heap->blockPrefixSize;
+        header = (MwMemFreeHeader*)mwMemByteAddress(header, prefix_size);
         header++;
     }
 }
 
-/* TODO: [near miss] 99.739%; loop-tail blockSize/prefix loads and the split header web
- * swap r0/r3; needs a prefix-load or header-split kind change, not decl order. */
 void fixedBlockHeapResetHeap(_mwMemHeap* heap, int preserve_blocks) {
     MwMemUsedHeader* used;
 

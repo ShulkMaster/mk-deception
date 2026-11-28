@@ -701,18 +701,15 @@ static inline unsigned int get_gc_offset(unsigned int offset) {
 }
 
 static inline int calc_data_checksum(unsigned char* buffer, unsigned int length) {
-    unsigned char oldBit;
     unsigned char* p = buffer;
     int sum = 0;
-    unsigned int bit = 0x80;
+    unsigned char bit = 0x80;
     unsigned int i;
 
     for (i = 0; i < length; i++) {
-        oldBit = bit;
-        sum += (unsigned char)(*p++ | oldBit);
-        bit = (unsigned char)bit >> 1;
-        oldBit = (unsigned int)oldBit >> 1;
-        if (oldBit == 0) {
+        sum += (unsigned char)(*p++ | bit);
+        bit = bit >> 1;
+        if (bit == 0) {
             bit = 0x80;
         }
     }
@@ -913,8 +910,6 @@ static inline int mem_card_write(CARDFileInfo* fileInfo, void* buffer, const int
     return result;
 }
 
-/* TODO: [near miss] 99.951%; length CSE temp (r6) must number between calc_data_checksum's oldBit and p
- * (inline-local slot); caller-side length helpers number above all its locals (r3). */
 int save_to_memcard2(const int device, int modeFlag, unsigned int offset, int createFlag,
                      const char* unusedStr, const char* fileName, void* buffer, int size,
                      unsigned int* freeBlocks,

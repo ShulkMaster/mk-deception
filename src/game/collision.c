@@ -1216,8 +1216,6 @@ static inline PlayerCollisionNode* add_attack_collision_node(
     return &storage->attacks[index];
 }
 
-/* TODO: [near miss] 99.9798%; last_pair_index takes saved r25 (retail r29); replay needs extra
- * edges to first_index and two bone-loop temps or an earlier pop; no single lever. */
 static void generate_weapon_collision_nodes(
     PlayerCollisionData* collision_data, MkObj* weapon, float radius) {
     PlayerCollisionNode node;
@@ -1229,9 +1227,9 @@ static void generate_weapon_collision_nodes(
     float attack_radius;
     Vec movement;
     Vec difference;
-    unsigned int first_index;
-    unsigned int last_pair_index;
     unsigned int index;
+    unsigned int first_index;
+    int last_pair_index;
     unsigned int bone_index;
 
     first_index = collision_data->field_93F4;
@@ -1579,8 +1577,8 @@ static void render_konquest_shadow_objects(MkHdr* hdr) {
     }
 }
 
-/* TODO: [near miss] 99.81195%; 14 sphere center/index GPR rows remain;
- * generic local-order controls fail; recover the original center/index ownership. */
+/* TODO: [near miss] 99.81195%; one sphere helper for all four sites is instruction-exact; retail keeps that helper's
+ * shape argument in an inline object created before its locals (joint/recorded sites), ours is an IRO loop temp at degree K. */
 static void render_player_joints(PlayerCollisionData* collision) {
     CollisionShape shape;
     unsigned int index;
@@ -3141,8 +3139,8 @@ static CollisionObj* convert_cdf_triangle_to_collision_cylinder(
     return collision;
 }
 
-/* TODO: [near miss] 98.80165%; shared get_center_for_box closes the center FPR rows; the
- * SR corner-offset li takes r3 below the sqrt temps (retail r5); one fmuls schedules early. */
+/* TODO: [near miss] 98.80165%; retail's corner byte offset is a loop-carried inline local numbered just above `box`
+ * (SR copy coalesced, not a new back-end vreg); ours is the SR vreg. One pre-RA scheduler tie (fsubs/fmuls z) follows it. */
 static CollisionObj* convert_cdf_quad_to_collision_box(
     Vec* source, const Vec* angles, Vec* position) {
     CollisionObj* collision;

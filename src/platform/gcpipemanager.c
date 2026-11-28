@@ -9,330 +9,130 @@
 #include "rw/rpskin.h"
 #include "rw/rxpipeline.h"
 
-static void MatFunc6(RwRGBAReal* color, GXColor* material, void*, float intensity);
-static void MatFunc5(RwRGBAReal* color, GXColor* material, void*, float intensity);
-static void MatFunc4(RwRGBAReal* color, GXColor* material, void*, float intensity);
-static void MatFunc3(RwRGBAReal* color, GXColor* material, void*, float intensity);
-static void MatFunc2(RwRGBAReal* color, GXColor* material, void*, float intensity);
-static void MatFunc1(RwRGBAReal* color, GXColor* material, void*, float intensity);
-static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, MkObj* owner);
-
 static const GXColor OpaqueWhite = {255, 255, 255, 255};
 static const GXColor OpaqueBlack = {0, 0, 0, 255};
 
 RpGameCubeVtxFmt gamecube_vtxfmt_skinned;
 RpGameCubeVtxFmt gamecube_vtxfmt_skinned2;
 RpGameCubeVtxFmt gamecube_vtxfmt_generic;
-static int bInitVtxFmts;
 
-DpMaterialCallback DPObjectRenderSetup(int flags, unsigned int light_mask,
-                                       int use_matfx, int use_alpha) {
-    DpMaterialCallback callback = 0;
-    GXBool color_enable;
-    GXBool alpha_enable;
-    int color_material_source;
-    int alpha_material_source;
-    int color_ambient_source;
-    int alpha_ambient_source;
-    unsigned char tev_stages;
-    GXColor color;
+static void SetupGamecubeVtxFmts(void) {
+    RpGameCubeVtxFmtInit(&gamecube_vtxfmt_skinned);
+    RpGameCubeVtxFmtInit(&gamecube_vtxfmt_skinned2);
+    RpGameCubeVtxFmtInit(&gamecube_vtxfmt_generic);
+    RpGameCubeVtxFmtSetNormal(&gamecube_vtxfmt_skinned, 1, 0);
+    RpGameCubeVtxFmtSetPosition(&gamecube_vtxfmt_skinned, 3, 12);
+    RpGameCubeVtxFmtSetTexCoord(&gamecube_vtxfmt_skinned, 1, 3, 12);
+    RpGameCubeVtxFmtSetNormal(&gamecube_vtxfmt_skinned2, 1, 0);
+    RpGameCubeVtxFmtSetPosition(&gamecube_vtxfmt_skinned2, 3, 11);
+    RpGameCubeVtxFmtSetTexCoord(&gamecube_vtxfmt_skinned2, 1, 3, 12);
+    RpGameCubeVtxFmtSetNormal(&gamecube_vtxfmt_generic, 1, 0);
+    RpGameCubeVtxFmtSetTexCoord(&gamecube_vtxfmt_generic, 1, 3, 11);
+}
 
-    if ((flags & 0x84U) != 0) {
-        if ((flags & 8U) != 0 && use_matfx == 1) {
-            if (light_mask != 0) {
-                if (flags & 0x40) {
-                    callback = MatFunc1;
-                } else {
-                    color = OpaqueWhite;
-                    GXSetTevColor(3, color);
-                    callback = MatFunc2;
-                }
-                color_material_source = 0;
-                alpha_material_source = 0;
-                GXSetChanMatColor(4, OpaqueWhite);
-                color_enable = 1;
-                color_ambient_source = 1;
-                if (use_alpha == 1) {
-                    alpha_ambient_source = 1;
-                    alpha_enable = 1;
-                } else {
-                    alpha_ambient_source = 0;
-                    color = OpaqueBlack;
-                    GXSetChanAmbColor(2, color);
-                    alpha_enable = 0;
-                }
-            } else {
-                if (flags & 0x40) {
-                    callback = MatFunc1;
-                } else {
-                    color = OpaqueWhite;
-                    GXSetTevColor(3, color);
-                    callback = MatFunc2;
-                }
-                color_ambient_source = 0;
-                alpha_ambient_source = 0;
-                color_material_source = 1;
-                if (use_alpha == 1) {
-                    alpha_material_source = 1;
-                } else {
-                    alpha_material_source = 0;
-                    color = OpaqueBlack;
-                    GXSetChanMatColor(2, color);
-                }
-                color_enable = 0;
-                alpha_enable = 0;
-            }
-            tev_stages = 2;
-            GXSetTevKColorSel(0, 13);
-            GXSetTevKAlphaSel(0, 29);
-            GXSetTevColorIn(0, 15, 10, 6, 14);
-            GXSetTevAlphaIn(0, 7, 5, 3, 6);
-        } else {
-            if (light_mask != 0) {
-                if (flags & 0x40) {
-                    color_material_source = 0;
-                    alpha_material_source = 0;
-                    color_enable = 1;
-                    if ((flags & 8U) != 0) {
-                        color_ambient_source = 1;
-                        if (use_alpha == 1) {
-                            alpha_ambient_source = 1;
-                            alpha_enable = 1;
-                        } else {
-                            alpha_ambient_source = 0;
-                            color = OpaqueBlack;
-                            GXSetChanAmbColor(2, color);
-                            alpha_enable = 0;
-                        }
-                        callback = MatFunc5;
-                    } else {
-                        color_ambient_source = 0;
-                        alpha_ambient_source = 0;
-                        color = OpaqueBlack;
-                        alpha_enable = 0;
-                        GXSetChanAmbColor(2, color);
-                        callback = MatFunc4;
-                    }
-                } else {
-                    color_material_source = 0;
-                    alpha_material_source = 0;
-                    color = OpaqueWhite;
-                    GXSetChanMatColor(4, color);
-                    color_enable = 1;
-                    if ((flags & 8U) != 0) {
-                        color_ambient_source = 1;
-                        if (use_alpha == 1) {
-                            alpha_ambient_source = 1;
-                            alpha_enable = 1;
-                        } else {
-                            alpha_ambient_source = 0;
-                            alpha_enable = 0;
-                        }
-                    } else {
-                        color_ambient_source = 0;
-                        alpha_ambient_source = 0;
-                        callback = MatFunc3;
-                        alpha_enable = 0;
-                    }
-                }
-            } else if (flags & 0x40) {
-                color_material_source = 0;
-                alpha_material_source = 0;
-                color_enable = 1;
-                if ((flags & 8U) != 0) {
-                    color_ambient_source = 1;
-                    if (use_alpha == 1) {
-                        alpha_ambient_source = 1;
-                        alpha_enable = 1;
-                    } else {
-                        alpha_ambient_source = 0;
-                        color = OpaqueBlack;
-                        GXSetChanAmbColor(2, color);
-                        alpha_enable = 0;
-                    }
-                    callback = MatFunc5;
-                } else {
-                    color_ambient_source = 0;
-                    alpha_ambient_source = 0;
-                    color = OpaqueBlack;
-                    alpha_enable = 0;
-                    GXSetChanAmbColor(2, color);
-                    callback = MatFunc4;
-                }
-            } else {
-                if ((flags & 8U) != 0) {
-                    color_material_source = 1;
-                    if (use_alpha == 1) {
-                        alpha_material_source = 1;
-                    } else {
-                        alpha_material_source = 0;
-                        color = OpaqueBlack;
-                        GXSetChanMatColor(2, color);
-                    }
-                } else {
-                    color_material_source = 0;
-                    alpha_material_source = 0;
-                    color = OpaqueBlack;
-                    GXSetChanMatColor(2, color);
-                    callback = MatFunc6;
-                }
-                color_enable = 0;
-                alpha_enable = 0;
-                color_ambient_source = 0;
-                alpha_ambient_source = 0;
-            }
-            tev_stages = 1;
-            GXSetTevColorIn(0, 15, 10, 8, 15);
-            GXSetTevAlphaIn(0, 7, 5, 4, 7);
-        }
-    } else {
-        if (light_mask != 0) {
-            color_material_source = 0;
-            alpha_material_source = 0;
-            color = OpaqueWhite;
-            GXSetChanMatColor(4, color);
-            color_enable = 1;
-            if (flags & 8U) {
-                color_ambient_source = 1;
-                if (use_alpha == 1) {
-                    alpha_ambient_source = 1;
-                    alpha_enable = 1;
-                } else {
-                    alpha_ambient_source = 0;
-                    alpha_enable = 0;
-                }
-            } else {
-                color_ambient_source = 0;
-                alpha_ambient_source = 0;
-                color = OpaqueBlack;
-                alpha_enable = 0;
-                GXSetChanAmbColor(4, color);
-            }
-        } else {
-            if (flags & 8U) {
-                color_material_source = 1;
-                if (use_alpha == 1) {
-                    alpha_material_source = 1;
-                } else {
-                    alpha_material_source = 0;
-                    color = OpaqueBlack;
-                    GXSetChanMatColor(2, color);
-                }
-            } else {
-                color_material_source = 0;
-                alpha_material_source = 0;
-                color = OpaqueBlack;
-                GXSetChanMatColor(4, color);
-            }
-            color_ambient_source = 0;
-            alpha_ambient_source = 0;
-            color_enable = 0;
-            alpha_enable = 0;
-        }
-        tev_stages = 1;
-        if (flags & 0x40) {
-            callback = MatFunc1;
-        } else {
-            color = OpaqueWhite;
-            GXSetTevColor(3, color);
-            callback = MatFunc2;
-        }
-        GXSetTevKColorSel(0, 13);
-        GXSetTevKAlphaSel(0, 29);
-        GXSetTevColorIn(0, 15, 10, 6, 14);
-        GXSetTevAlphaIn(0, 7, 5, 3, 6);
+static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, MkObj* owner) {
+    RpGeometry* geometry;
+    MksobjPluginData* atomic_data;
+    int atomic_effects;
+    int material_count;
+    int material_index;
+    int index;
+    int has_uv_scroll = 0;
+    static int bInitVtxFmts;
+    unsigned int flags;
+
+    if (!bInitVtxFmts) {
+        SetupGamecubeVtxFmts();
+        bInitVtxFmts = 1;
     }
 
-    GXSetNumTevStages(tev_stages);
-    GXSetTevColorOp(0, 0, 0, 0, 1, 0);
-    GXSetTevAlphaOp(0, 0, 0, 0, 1, 0);
-    if (tev_stages > 1) {
-        GXSetTevColorIn(1, 15, 0, 8, 15);
-        GXSetTevColorOp(1, 0, 0, 0, 1, 0);
-        GXSetTevAlphaIn(1, 7, 0, 4, 7);
-        GXSetTevAlphaOp(1, 0, 0, 0, 1, 0);
-        GXSetTevOrder(0, 255, 255, 4);
-        GXSetTevOrder(1, 0, 0, 255);
-        GXSetNumTexGens(1);
-        GXSetTexCoordGen2(0, 1, 4, 60, 0, 125);
-    } else if ((flags & 0x84U) != 0) {
-        GXSetTevOrder(0, 0, 0, 4);
-        GXSetNumTexGens(1);
-        GXSetTexCoordGen2(0, 1, 4, 60, 0, 125);
-    } else {
-        GXSetNumTexGens(0);
-        GXSetTevOrder(0, 255, 255, 4);
+    geometry = atomic->geometry;
+    material_count = geometry->matList.numMaterials;
+    for (index = 0; index < material_count; index++) {
+        RpMaterial* material = geometry->matList.materials[index];
+        MkmaterialPluginData* data = MK_MATERIAL_PLUGIN(material);
+        flags = data->flags;
+        if (flags & 0x10000000) {
+            has_uv_scroll = 1;
+            break;
+        }
     }
-    GXSetNumChans(1);
-    GXSetChanCtrl(0, color_enable, color_ambient_source, color_material_source, light_mask, 2, 1);
-    GXSetChanCtrl(2, alpha_enable, alpha_ambient_source, alpha_material_source, 0, 0, 2);
-    GXSetChanCtrl(1, 0, 0, 0, 0, 0, 2);
-    GXSetChanCtrl(3, 0, 0, 0, 0, 0, 2);
-    return callback;
+    atomic_effects = RpMatFXAtomicQueryEffects(atomic);
+    if (has_uv_scroll) {
+        RpMatFXAtomicEnableEffects(atomic);
+    }
+
+    atomic_data = MK_ATOMIC_PLUGIN(atomic);
+    switch (atomic_data->field_0C) {
+    case 0x300:
+        RpGameCubeGeometrySetVtxFmt(atomic->geometry, &gamecube_vtxfmt_skinned);
+        atomic->pipeline = SpecSkinAtomicPipeline;
+        break;
+    case 0x301:
+    case 0x302:
+        RpGameCubeGeometrySetVtxFmt(atomic->geometry, &gamecube_vtxfmt_skinned);
+        atomic->pipeline = RpSkinGetGameCubePipeline(1);
+        break;
+    case 0x303:
+        RpGameCubeGeometrySetVtxFmt(atomic->geometry, &gamecube_vtxfmt_skinned2);
+        atomic->pipeline = RpSkinGetGameCubePipeline(1);
+        break;
+    case 0x304:
+    case 0x305:
+    case 0x306:
+        if (!has_uv_scroll && atomic_effects == 0) {
+            atomic->pipeline = rxPipelinePlatformData()->currentAtomicPipeline;
+        }
+        RpGameCubeGeometrySetVtxFmt(atomic->geometry, &gamecube_vtxfmt_generic);
+        break;
+    }
+
+    material_index = 0;
+    while (material_index < material_count) {
+        RpMaterial* material = geometry->matList.materials[material_index];
+        MkmaterialPluginData* data = MK_MATERIAL_PLUGIN(material);
+        int material_type = data->field_20;
+        MkmaterialUvScroll* scroll = data->vec4;
+        float u1;
+        float v1;
+        float u2;
+        float v2;
+        if (scroll != 0) {
+            u1 = scroll->u1;
+            v1 = scroll->v1;
+            u2 = scroll->u2;
+            v2 = scroll->v2;
+            flags = data->flags;
+            if ((flags & 0x10000000) && !u1) {
+                u1 = scroll->u1;
+            }
+        } else {
+            u1 = v1 = u2 = v2 = 0.0f;
+        }
+        switch (material_type) {
+        case 0:
+        case 0x302:
+        case 0x303:
+        case 0x304:
+        case 0x305:
+            material->pipeline = 0;
+            break;
+        case 0x300:
+        case 0x307:
+            RpMatFXMaterialSetEffects(material, 5);
+            material->pipeline = 0;
+            break;
+        case 0x301:
+        case 0x306:
+        case 0x308:
+            material_start_uv_scroll(owner, material, u1, v1, u2, v2);
+            material->pipeline = 0;
+            break;
+        }
+        material_index++;
+    }
 }
 
-static void MatFunc6(RwRGBAReal* color, GXColor* material, void*, float intensity) {
-    GXColor output;
-    float scale = 255.0f * intensity;
-    output.r = color->red * scale;
-    output.g = color->green * scale;
-    output.b = color->blue * scale;
-    output.a = 0;
-    GXSetChanMatColor(0, output);
-}
-
-static void MatFunc5(RwRGBAReal* color, GXColor* material, void*, float intensity) {
-    GXColor output = *material;
-    GXSetChanMatColor(4, output);
-}
-
-static void MatFunc4(RwRGBAReal* color, GXColor* material, void*, float intensity) {
-    GXColor output;
-    GXColor ambient;
-    float scale = 255.0f * intensity;
-    output = *material;
-    ambient.r = color->red * scale;
-    ambient.g = color->green * scale;
-    ambient.b = color->blue * scale;
-    ambient.a = 0;
-    GXSetChanMatColor(4, output);
-    GXSetChanAmbColor(0, ambient);
-}
-
-static void MatFunc3(RwRGBAReal* color, GXColor* material, void*, float intensity) {
-    GXColor output;
-    float scale = 255.0f * intensity;
-    output.r = color->red * scale;
-    output.g = color->green * scale;
-    output.b = color->blue * scale;
-    output.a = 0;
-    GXSetChanAmbColor(0, output);
-}
-
-static void MatFunc2(RwRGBAReal* color, GXColor* material, void*, float intensity) {
-    GXColor output;
-    float scale = 255.0f * intensity;
-    output.r = color->red * scale;
-    output.g = color->green * scale;
-    output.b = color->blue * scale;
-    output.a = 0;
-    GXSetTevKColor(1, output);
-}
-
-static void MatFunc1(RwRGBAReal* color, GXColor* material, void*, float intensity) {
-    GXColor output;
-    GXColor konst;
-    output.r = material->r * (color->red * intensity);
-    output.g = material->g * (color->green * intensity);
-    output.b = material->b * (color->blue * intensity);
-    output.a = 0;
-    GXSetTevColor(3, *material);
-    konst = output;
-    GXSetTevKColor(1, konst);
-}
-
-#pragma push
-#pragma optimize_for_size on
 void GCNSetupNonRenderwarePipeline(RpClump* clump, MkObj* owner) {
     RwLLLink* link = clump->atomicList.next;
     RwLLLink* next;
@@ -385,129 +185,292 @@ void GCNSetupNonRenderwarePipeline(RpClump* clump, MkObj* owner) {
         link = next;
     }
 }
-#pragma pop
 
-static void SetupGamecubeVtxFmts(void) {
-    RpGameCubeVtxFmtInit(&gamecube_vtxfmt_generic);
-    RpGameCubeVtxFmtInit(&gamecube_vtxfmt_skinned2);
-    RpGameCubeVtxFmtInit(&gamecube_vtxfmt_skinned);
-    RpGameCubeVtxFmtSetNormal(&gamecube_vtxfmt_generic, 1, 0);
-    RpGameCubeVtxFmtSetTexCoord(&gamecube_vtxfmt_generic, 1, 3, 11);
-    RpGameCubeVtxFmtSetNormal(&gamecube_vtxfmt_skinned2, 1, 0);
-    RpGameCubeVtxFmtSetPosition(&gamecube_vtxfmt_skinned2, 3, 11);
-    RpGameCubeVtxFmtSetTexCoord(&gamecube_vtxfmt_skinned2, 1, 3, 12);
-    RpGameCubeVtxFmtSetNormal(&gamecube_vtxfmt_skinned, 1, 0);
-    RpGameCubeVtxFmtSetPosition(&gamecube_vtxfmt_skinned, 3, 12);
-    RpGameCubeVtxFmtSetTexCoord(&gamecube_vtxfmt_skinned, 1, 3, 12);
+static void MatFunc1(RwRGBAReal* color, GXColor* material, void*, float intensity) {
+    GXColor output;
+    GXColor konst;
+    output.r = material->r * (color->red * intensity);
+    output.g = material->g * (color->green * intensity);
+    output.b = material->b * (color->blue * intensity);
+    output.a = 0;
+    GXSetTevColor(3, *material);
+    konst = output;
+    GXSetTevKColor(1, konst);
 }
 
-/* TODO: [near miss] 99.62%; loop scan/setup offset IVs (strength-reduced temps) colour
- * against the array-load temps (retail r3/r28 vs ours r4/r26). */
-static void SetupMKPipelinesOnAtomic(RpAtomic* atomic, MkObj* owner) {
-    RpGeometry* geometry;
-    MksobjPluginData* atomic_data;
-    int atomic_effects;
-    int material_count;
-    int material_index;
-    int index;
-    int has_uv_scroll = 0;
+static void MatFunc2(RwRGBAReal* color, GXColor* material, void*, float intensity) {
+    GXColor output;
+    float scale = 255.0f * intensity;
+    output.r = color->red * scale;
+    output.g = color->green * scale;
+    output.b = color->blue * scale;
+    output.a = 0;
+    GXSetTevKColor(1, output);
+}
 
-    if (!bInitVtxFmts) {
-        RpGameCubeVtxFmtInit(&gamecube_vtxfmt_skinned);
-        RpGameCubeVtxFmtInit(&gamecube_vtxfmt_skinned2);
-        RpGameCubeVtxFmtInit(&gamecube_vtxfmt_generic);
-        RpGameCubeVtxFmtSetNormal(&gamecube_vtxfmt_skinned, 1, 0);
-        RpGameCubeVtxFmtSetPosition(&gamecube_vtxfmt_skinned, 3, 12);
-        RpGameCubeVtxFmtSetTexCoord(&gamecube_vtxfmt_skinned, 1, 3, 12);
-        RpGameCubeVtxFmtSetNormal(&gamecube_vtxfmt_skinned2, 1, 0);
-        RpGameCubeVtxFmtSetPosition(&gamecube_vtxfmt_skinned2, 3, 11);
-        RpGameCubeVtxFmtSetTexCoord(&gamecube_vtxfmt_skinned2, 1, 3, 12);
-        RpGameCubeVtxFmtSetNormal(&gamecube_vtxfmt_generic, 1, 0);
-        RpGameCubeVtxFmtSetTexCoord(&gamecube_vtxfmt_generic, 1, 3, 11);
-        bInitVtxFmts = 1;
-    }
+static void MatFunc3(RwRGBAReal* color, GXColor* material, void*, float intensity) {
+    GXColor output;
+    float scale = 255.0f * intensity;
+    output.r = color->red * scale;
+    output.g = color->green * scale;
+    output.b = color->blue * scale;
+    output.a = 0;
+    GXSetChanAmbColor(0, output);
+}
 
-    geometry = atomic->geometry;
-    material_count = geometry->matList.numMaterials;
-    for (index = 0; index < material_count; index++) {
-        RpMaterial* material = geometry->matList.materials[index];
-        MkmaterialPluginData* data = MK_MATERIAL_PLUGIN(material);
-        if (data->flags & 0x10000000) {
-            has_uv_scroll = 1;
-            break;
+static void MatFunc4(RwRGBAReal* color, GXColor* material, void*, float intensity) {
+    GXColor output;
+    GXColor ambient;
+    float scale = 255.0f * intensity;
+    output = *material;
+    ambient.r = color->red * scale;
+    ambient.g = color->green * scale;
+    ambient.b = color->blue * scale;
+    ambient.a = 0;
+    GXSetChanMatColor(4, output);
+    GXSetChanAmbColor(0, ambient);
+}
+
+static void MatFunc5(RwRGBAReal* color, GXColor* material, void*, float intensity) {
+    GXColor output = *material;
+    GXSetChanMatColor(4, output);
+}
+
+static void MatFunc6(RwRGBAReal* color, GXColor* material, void*, float intensity) {
+    GXColor output;
+    float scale = 255.0f * intensity;
+    output.r = color->red * scale;
+    output.g = color->green * scale;
+    output.b = color->blue * scale;
+    output.a = 0;
+    GXSetChanMatColor(0, output);
+}
+
+DpMaterialCallback DPObjectRenderSetup(int flags, unsigned int light_mask,
+                                       int use_matfx, int use_alpha) {
+    DpMaterialCallback callback = 0;
+    GXBool color_enable;
+    GXBool alpha_enable;
+    int color_material_source;
+    int alpha_material_source;
+    int color_ambient_source;
+    int alpha_ambient_source;
+    unsigned char tev_stages;
+
+    if ((flags & 0x84U) != 0) {
+        if ((flags & 8U) != 0 && use_matfx == 1) {
+            if (light_mask != 0) {
+                if (flags & 0x40) {
+                    callback = MatFunc1;
+                } else {
+                    GXSetTevColor(3, OpaqueWhite);
+                    callback = MatFunc2;
+                }
+                color_material_source = 0;
+                alpha_material_source = 0;
+                GXSetChanMatColor(4, OpaqueWhite);
+                color_enable = 1;
+                color_ambient_source = 1;
+                if (use_alpha == 1) {
+                    alpha_ambient_source = 1;
+                    alpha_enable = 1;
+                } else {
+                    alpha_ambient_source = 0;
+                    GXSetChanAmbColor(2, OpaqueBlack);
+                    alpha_enable = 0;
+                }
+            } else {
+                if (flags & 0x40) {
+                    callback = MatFunc1;
+                } else {
+                    GXSetTevColor(3, OpaqueWhite);
+                    callback = MatFunc2;
+                }
+                color_ambient_source = 0;
+                alpha_ambient_source = 0;
+                color_material_source = 1;
+                if (use_alpha == 1) {
+                    alpha_material_source = 1;
+                } else {
+                    alpha_material_source = 0;
+                    GXSetChanMatColor(2, OpaqueBlack);
+                }
+                color_enable = 0;
+                alpha_enable = 0;
+            }
+            tev_stages = 2;
+            GXSetTevKColorSel(0, 13);
+            GXSetTevKAlphaSel(0, 29);
+            GXSetTevColorIn(0, 15, 10, 6, 14);
+            GXSetTevAlphaIn(0, 7, 5, 3, 6);
+        } else {
+            if (light_mask != 0) {
+                if (flags & 0x40) {
+                    color_material_source = 0;
+                    alpha_material_source = 0;
+                    color_enable = 1;
+                    if ((flags & 8U) != 0) {
+                        color_ambient_source = 1;
+                        if (use_alpha == 1) {
+                            alpha_ambient_source = 1;
+                            alpha_enable = 1;
+                        } else {
+                            alpha_ambient_source = 0;
+                            GXSetChanAmbColor(2, OpaqueBlack);
+                            alpha_enable = 0;
+                        }
+                        callback = MatFunc5;
+                    } else {
+                        color_ambient_source = 0;
+                        alpha_ambient_source = 0;
+                        alpha_enable = 0;
+                        GXSetChanAmbColor(2, OpaqueBlack);
+                        callback = MatFunc4;
+                    }
+                } else {
+                    color_material_source = 0;
+                    alpha_material_source = 0;
+                    GXSetChanMatColor(4, OpaqueWhite);
+                    color_enable = 1;
+                    if ((flags & 8U) != 0) {
+                        color_ambient_source = 1;
+                        if (use_alpha == 1) {
+                            alpha_ambient_source = 1;
+                            alpha_enable = 1;
+                        } else {
+                            alpha_ambient_source = 0;
+                            alpha_enable = 0;
+                        }
+                    } else {
+                        color_ambient_source = 0;
+                        alpha_ambient_source = 0;
+                        callback = MatFunc3;
+                        alpha_enable = 0;
+                    }
+                }
+            } else if (flags & 0x40) {
+                color_material_source = 0;
+                alpha_material_source = 0;
+                color_enable = 1;
+                if ((flags & 8U) != 0) {
+                    color_ambient_source = 1;
+                    if (use_alpha == 1) {
+                        alpha_ambient_source = 1;
+                        alpha_enable = 1;
+                    } else {
+                        alpha_ambient_source = 0;
+                        GXSetChanAmbColor(2, OpaqueBlack);
+                        alpha_enable = 0;
+                    }
+                    callback = MatFunc5;
+                } else {
+                    color_ambient_source = 0;
+                    alpha_ambient_source = 0;
+                    alpha_enable = 0;
+                    GXSetChanAmbColor(2, OpaqueBlack);
+                    callback = MatFunc4;
+                }
+            } else {
+                if ((flags & 8U) != 0) {
+                    color_material_source = 1;
+                    if (use_alpha == 1) {
+                        alpha_material_source = 1;
+                    } else {
+                        alpha_material_source = 0;
+                        GXSetChanMatColor(2, OpaqueBlack);
+                    }
+                } else {
+                    color_material_source = 0;
+                    alpha_material_source = 0;
+                    GXSetChanMatColor(2, OpaqueBlack);
+                    callback = MatFunc6;
+                }
+                color_enable = 0;
+                alpha_enable = 0;
+                color_ambient_source = 0;
+                alpha_ambient_source = 0;
+            }
+            tev_stages = 1;
+            GXSetTevColorIn(0, 15, 10, 8, 15);
+            GXSetTevAlphaIn(0, 7, 5, 4, 7);
         }
-    }
-    atomic_effects = RpMatFXAtomicQueryEffects(atomic);
-    if (has_uv_scroll) {
-        RpMatFXAtomicEnableEffects(atomic);
-    }
-
-    atomic_data = MK_ATOMIC_PLUGIN(atomic);
-    switch (atomic_data->field_0C) {
-    case 0x300:
-        RpGameCubeGeometrySetVtxFmt(atomic->geometry, &gamecube_vtxfmt_skinned);
-        atomic->pipeline = SpecSkinAtomicPipeline;
-        break;
-    case 0x301:
-    case 0x302:
-        RpGameCubeGeometrySetVtxFmt(atomic->geometry, &gamecube_vtxfmt_skinned);
-        atomic->pipeline = RpSkinGetGameCubePipeline(1);
-        break;
-    case 0x303:
-        RpGameCubeGeometrySetVtxFmt(atomic->geometry, &gamecube_vtxfmt_skinned2);
-        atomic->pipeline = RpSkinGetGameCubePipeline(1);
-        break;
-    case 0x304:
-    case 0x305:
-    case 0x306:
-        if (!has_uv_scroll && atomic_effects == 0) {
-            atomic->pipeline = rxPipelinePlatformData()->currentAtomicPipeline;
-        }
-        RpGameCubeGeometrySetVtxFmt(atomic->geometry, &gamecube_vtxfmt_generic);
-        break;
-    }
-
-    material_index = 0;
-    while (material_index < material_count) {
-        RpMaterial* material = geometry->matList.materials[material_index];
-        MkmaterialPluginData* data = MK_MATERIAL_PLUGIN(material);
-        int material_type = data->field_20;
-        MkmaterialUvScroll* scroll = data->vec4;
-        float u1;
-        float v1;
-        float u2;
-        float v2;
-        if (scroll != 0) {
-            u1 = scroll->u1;
-            v1 = scroll->v1;
-            u2 = scroll->u2;
-            v2 = scroll->v2;
-            if ((data->flags & 0x10000000) && !u1) {
-                u1 = scroll->u1;
+    } else {
+        if (light_mask != 0) {
+            color_material_source = 0;
+            alpha_material_source = 0;
+            GXSetChanMatColor(4, OpaqueWhite);
+            color_enable = 1;
+            if (flags & 8U) {
+                color_ambient_source = 1;
+                if (use_alpha == 1) {
+                    alpha_ambient_source = 1;
+                    alpha_enable = 1;
+                } else {
+                    alpha_ambient_source = 0;
+                    alpha_enable = 0;
+                }
+            } else {
+                color_ambient_source = 0;
+                alpha_ambient_source = 0;
+                alpha_enable = 0;
+                GXSetChanAmbColor(4, OpaqueBlack);
             }
         } else {
-            u1 = v1 = u2 = v2 = 0.0f;
+            if (flags & 8U) {
+                color_material_source = 1;
+                if (use_alpha == 1) {
+                    alpha_material_source = 1;
+                } else {
+                    alpha_material_source = 0;
+                    GXSetChanMatColor(2, OpaqueBlack);
+                }
+            } else {
+                color_material_source = 0;
+                alpha_material_source = 0;
+                GXSetChanMatColor(4, OpaqueBlack);
+            }
+            color_ambient_source = 0;
+            alpha_ambient_source = 0;
+            color_enable = 0;
+            alpha_enable = 0;
         }
-        switch (material_type) {
-        case 0:
-        case 0x302:
-        case 0x303:
-        case 0x304:
-        case 0x305:
-            material->pipeline = 0;
-            break;
-        case 0x300:
-        case 0x307:
-            RpMatFXMaterialSetEffects(material, 5);
-            material->pipeline = 0;
-            break;
-        case 0x301:
-        case 0x306:
-        case 0x308:
-            material_start_uv_scroll(owner, material, u1, v1, u2, v2);
-            material->pipeline = 0;
-            break;
+        tev_stages = 1;
+        if (flags & 0x40) {
+            callback = MatFunc1;
+        } else {
+            GXSetTevColor(3, OpaqueWhite);
+            callback = MatFunc2;
         }
-        material_index++;
+        GXSetTevKColorSel(0, 13);
+        GXSetTevKAlphaSel(0, 29);
+        GXSetTevColorIn(0, 15, 10, 6, 14);
+        GXSetTevAlphaIn(0, 7, 5, 3, 6);
     }
+
+    GXSetNumTevStages(tev_stages);
+    GXSetTevColorOp(0, 0, 0, 0, 1, 0);
+    GXSetTevAlphaOp(0, 0, 0, 0, 1, 0);
+    if (tev_stages > 1) {
+        GXSetTevColorIn(1, 15, 0, 8, 15);
+        GXSetTevColorOp(1, 0, 0, 0, 1, 0);
+        GXSetTevAlphaIn(1, 7, 0, 4, 7);
+        GXSetTevAlphaOp(1, 0, 0, 0, 1, 0);
+        GXSetTevOrder(0, 255, 255, 4);
+        GXSetTevOrder(1, 0, 0, 255);
+        GXSetNumTexGens(1);
+        GXSetTexCoordGen2(0, 1, 4, 60, 0, 125);
+    } else if ((flags & 0x84U) != 0) {
+        GXSetTevOrder(0, 0, 0, 4);
+        GXSetNumTexGens(1);
+        GXSetTexCoordGen2(0, 1, 4, 60, 0, 125);
+    } else {
+        GXSetNumTexGens(0);
+        GXSetTevOrder(0, 255, 255, 4);
+    }
+    GXSetNumChans(1);
+    GXSetChanCtrl(0, color_enable, color_ambient_source, color_material_source, light_mask, 2, 1);
+    GXSetChanCtrl(2, alpha_enable, alpha_ambient_source, alpha_material_source, 0, 0, 2);
+    GXSetChanCtrl(1, 0, 0, 0, 0, 0, 2);
+    GXSetChanCtrl(3, 0, 0, 0, 0, 0, 2);
+    return callback;
 }
