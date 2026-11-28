@@ -1264,7 +1264,7 @@ config.libs = [
             Object(Matching("GQNE5D"), "attract.o", source="game/attract.c", extra_cflags=["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly"]),
             Object(Matching, "menu.o", source="game/menu.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly"]),
-            Object(NonMatching, "pselect.o", source="game/pselect.c",
+            Object(Matching("GQNE5D"), "pselect.o", source="game/pselect.c",
                    extra_cflags=(["-O4,s", "-use_lmw_stmw on", "-str reuse,pool,readonly"] if config.version == "GQNE5D" else (["-O4,s", "-use_lmw_stmw on"]))),
             Object(Matching("GQNE5D"), "cloth.o", source="game/cloth.c",
                    extra_cflags=["-O4,s", "-use_lmw_stmw on", "-inline noauto,deferred"]),
