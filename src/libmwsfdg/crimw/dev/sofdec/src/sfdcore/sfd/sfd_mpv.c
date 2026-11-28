@@ -2068,10 +2068,18 @@ static int sfmpv_ChkBufSiz(SfdHandle* handle,
     return 0;
 }
 
-static asm int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
+#pragma push
+#pragma peephole off
+#pragma scheduling off
+static int sfmpv_IsSkip(SfdHandle* handle, const SJCK* chunk)
 {
-    SEQ_sfmpv_IsSkip();
+    u32 slot[4];
+
+    asm {
+        SEQ_sfmpv_IsSkip_Body()
+    }
 }
+#pragma pop
 
 static int sfmpv_DecodeFrm(SfdHandle* handle, SJ* stream)
 {
@@ -2420,9 +2428,13 @@ static void sfmpv_ErrFn(SfdCallbackObject object, int error)
     }
 }
 
-static asm int SFMPV_Destroy(SfdHandle* handle)
+static int SFMPV_Destroy(SfdHandle* handle)
 {
-    SEQ_SFMPV_Destroy();
+    asm {
+        SEQ_SFMPV_Destroy_Entry()
+        SEQ_SFMPV_Destroy_Table()
+        SEQ_SFMPV_Destroy_Body()
+    }
 }
 
 static int SFMPV_Standby(SfdHandle* handle)

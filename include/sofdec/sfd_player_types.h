@@ -170,7 +170,7 @@ typedef struct SfdTimerState {
     int previous_frame_ready;
     float last_frame_time;
     volatile int field_02CC;
-    int previous_clock_sample;
+    volatile int previous_clock_sample;
     SfdExternalClockFn external_clock_callback;
     int previous_external_sample;
     int current_clock_sample;
